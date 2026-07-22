@@ -1,0 +1,245 @@
+{
+  "title": "Paramètres",
+  "tabs": {
+    "account": "Compte",
+    "permissions": "Permissions",
+    "appearance": "Apparence"
+  },
+  "account": {
+    "title": "Compte",
+    "language": "Langue",
+    "languageLabel": "Langue d'affichage",
+    "languageDescription": "Choisissez votre langue préférée pour l'interface",
+    "username": "Nom d'utilisateur",
+    "email": "E-mail",
+    "profile": "Profil",
+    "changePassword": "Changer le mot de passe"
+  },
+  "appearance": {
+    "title": "Apparence",
+    "theme": "Thème",
+    "codeEditor": "Éditeur de code",
+    "editorTheme": "Thème de l'éditeur",
+    "wordWrap": "Retour à la ligne",
+    "showMinimap": "Afficher la minimap",
+    "lineNumbers": "Numéros de ligne",
+    "fontSize": "Taille de police"
+  },
+  "actions": {
+    "saveChanges": "Enregistrer les modifications",
+    "resetToDefaults": "Rétablir les valeurs par défaut",
+    "cancelChanges": "Annuler les modifications"
+  },
+  "quickSettings": {
+    "title": "Paramètres rapides",
+    "sections": {
+      "appearance": "Apparence",
+      "toolDisplay": "Affichage des outils",
+      "inputSettings": "Paramètres de saisie"
+    },
+    "darkMode": "Mode sombre",
+    "showRawParameters": "Afficher les paramètres bruts",
+    "showThinking": "Afficher la réflexion",
+    "sendByCtrlEnter": "Envoyer avec Ctrl+Entrée",
+    "sendByCtrlEnterDescription": "Lorsqu'activé, appuyer sur Ctrl+Entrée envoie le message au lieu de simplement Entrée. Utile pour les utilisateurs IME pour éviter les envois accidentels.",
+    "dragHandle": {
+      "dragging": "Glissement en cours",
+      "closePanel": "Fermer le panneau de paramètres",
+      "openPanel": "Ouvrir le panneau de paramètres",
+      "draggingStatus": "Glissement...",
+      "toggleAndMove": "Cliquer pour basculer, glisser pour déplacer"
+    }
+  },
+  "terminalShortcuts": {
+    "title": "Raccourcis terminal",
+    "sectionKeys": "Touches",
+    "sectionNavigation": "Navigation",
+    "escape": "Échap",
+    "tab": "Tab",
+    "shiftTab": "Maj+Tab",
+    "arrowUp": "Flèche haut",
+    "arrowDown": "Flèche bas",
+    "scrollDown": "Défiler vers le bas",
+    "handle": {
+      "closePanel": "Fermer le panneau de raccourcis",
+      "openPanel": "Ouvrir le panneau de raccourcis"
+    }
+  },
+  "mainTabs": {
+    "label": "Paramètres",
+    "appearance": "Apparence",
+    "git": "Git",
+    "notifications": "Notifications",
+    "about": "À propos"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "description": "Contrôlez les événements de notification que vous recevez.",
+    "sound": {
+      "title": "Son",
+      "description": "Jouer un court son lorsqu'une exécution de chat se termine.",
+      "enabled": "Activé",
+      "test": "Tester le son"
+    },
+    "events": {
+      "title": "Types d'événements",
+      "actionRequired": "Action requise",
+      "stop": "Exécution arrêtée",
+      "error": "Exécution échouée"
+    }
+  },
+  "appearanceSettings": {
+    "darkMode": {
+      "label": "Mode sombre",
+      "description": "Basculer entre les thèmes clair et sombre"
+    },
+    "projectSorting": {
+      "label": "Tri des projets",
+      "description": "Ordre d'affichage des projets dans la barre latérale",
+      "alphabetical": "Alphabétique",
+      "recentActivity": "Activité récente"
+    },
+    "codeEditor": {
+      "title": "Éditeur de code",
+      "theme": {
+        "label": "Thème de l'éditeur",
+        "description": "Thème par défaut pour l'éditeur de code"
+      },
+      "wordWrap": {
+        "label": "Retour à la ligne",
+        "description": "Activer le retour à la ligne par défaut dans l'éditeur"
+      },
+      "showMinimap": {
+        "label": "Afficher la minimap",
+        "description": "Afficher une minimap pour une navigation plus facile en vue diff"
+      },
+      "lineNumbers": {
+        "label": "Afficher les numéros de ligne",
+        "description": "Afficher les numéros de ligne dans l'éditeur"
+      },
+      "fontSize": {
+        "label": "Taille de police",
+        "description": "Taille de police de l'éditeur en pixels"
+      }
+    }
+  },
+  "saveStatus": {
+    "success": "Paramètres enregistrés avec succès !",
+    "error": "Échec de l'enregistrement des paramètres",
+    "saving": "Enregistrement..."
+  },
+  "footerActions": {
+    "save": "Enregistrer les paramètres",
+    "cancel": "Annuler"
+  },
+  "git": {
+    "title": "Configuration Git",
+    "description": "Configurez votre identité git pour les commits. Ces paramètres seront appliqués globalement via git config --global",
+    "name": {
+      "label": "Nom Git",
+      "help": "Votre nom pour les commits git"
+    },
+    "email": {
+      "label": "E-mail Git",
+      "help": "Votre e-mail pour les commits git"
+    },
+    "actions": {
+      "save": "Enregistrer la configuration",
+      "saving": "Enregistrement..."
+    },
+    "status": {
+      "success": "Enregistré avec succès"
+    }
+  },
+  "permissions": {
+    "title": "Paramètres de permission",
+    "skipPermissions": {
+      "label": "Ignorer les invites de permission (à utiliser avec précaution)",
+      "claudeDescription": "Équivalent au flag --dangerously-skip-permissions",
+      "cursorDescription": "Équivalent au flag -f dans le CLI Cursor"
+    },
+    "allowedTools": {
+      "title": "Outils autorisés",
+      "description": "Outils automatiquement autorisés sans demande de permission",
+      "placeholder": "ex. : \"Bash(git log:*)\" ou \"Write\"",
+      "quickAdd": "Ajout rapide d'outils courants :",
+      "empty": "Aucun outil autorisé configuré"
+    },
+    "blockedTools": {
+      "title": "Outils bloqués",
+      "description": "Outils automatiquement bloqués sans demande de permission",
+      "placeholder": "ex. : \"Bash(rm:*)\"",
+      "empty": "Aucun outil bloqué configuré"
+    },
+    "allowedCommands": {
+      "title": "Commandes shell autorisées",
+      "description": "Commandes shell automatiquement autorisées sans demande",
+      "placeholder": "ex. : \"Shell(ls)\" ou \"Shell(git status)\"",
+      "quickAdd": "Ajout rapide de commandes courantes :",
+      "empty": "Aucune commande autorisée configurée"
+    },
+    "blockedCommands": {
+      "title": "Commandes shell bloquées",
+      "description": "Commandes shell automatiquement bloquées",
+      "placeholder": "ex. : \"Shell(rm -rf)\" ou \"Shell(sudo)\"",
+      "empty": "Aucune commande bloquée configurée"
+    },
+    "toolExamples": {
+      "title": "Exemples de motifs d'outils :",
+      "bashGitLog": "- Autoriser toutes les commandes git log",
+      "bashGitDiff": "- Autoriser toutes les commandes git diff",
+      "write": "- Autoriser toutes les utilisations de l'outil Write",
+      "bashRm": "- Bloquer toutes les commandes rm (dangereux)"
+    },
+    "shellExamples": {
+      "title": "Exemples de commandes shell :",
+      "ls": "- Autoriser la commande ls",
+      "gitStatus": "- Autoriser git status",
+      "npmInstall": "- Autoriser npm install",
+      "rmRf": "- Bloquer la suppression récursive"
+    },
+    "codex": {
+      "permissionMode": "Mode de permission",
+      "description": "Contrôle comment Codex gère les modifications de fichiers et l'exécution des commandes",
+      "modes": {
+        "default": {
+          "title": "Par défaut",
+          "description": "Seules les commandes de confiance (ls, cat, grep, git status, etc.) s'exécutent automatiquement. Les autres sont ignorées. Peut écrire dans l'espace de travail."
+        },
+        "acceptEdits": {
+          "title": "Accepter les modifications",
+          "description": "Toutes les commandes s'exécutent automatiquement dans l'espace de travail. Mode entièrement automatique avec exécution sandboxée."
+        },
+        "bypassPermissions": {
+          "title": "Contourner les permissions",
+          "description": "Accès système complet sans restrictions. Toutes les commandes s'exécutent automatiquement avec accès disque et réseau complet. À utiliser avec précaution."
+        }
+      },
+      "technicalDetails": "Détails techniques",
+      "technicalInfo": {
+        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Commandes de confiance : cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (sans -exec), etc.",
+        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Toutes les commandes s'exécutent automatiquement dans le répertoire du projet.",
+        "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Accès système complet, à utiliser uniquement dans des environnements de confiance.",
+        "overrideNote": "Vous pouvez remplacer ce mode par session via le bouton de mode dans l'interface de chat."
+      }
+    },
+    "actions": {
+      "add": "Ajouter"
+    }
+  },
+  "voiceSettings": {
+    "title": "Voice",
+    "description": "Speech-to-text input and read-aloud, via an OpenAI-compatible audio backend.",
+    "enable": "Enable voice",
+    "enableDescription": "Show the mic button and the read-aloud button on messages.",
+    "backendTitle": "Backend",
+    "backendDescription": "Point at OpenAI, Groq, or a local server (LocalAI, Speaches, Kokoro-FastAPI). Leave blank to use the server default.",
+    "baseUrl": "Base URL",
+    "apiKey": "API key",
+    "sttModel": "Speech-to-text model",
+    "ttsModel": "Text-to-speech model",
+    "voice": "Voice",
+    "format": "Audio format",
+    "note": "A custom base URL is called directly by your browser and must allow browser CORS requests. Leave it blank to use the server-configured backend."
+  }
+}

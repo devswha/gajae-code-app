@@ -1,0 +1,246 @@
+{
+  "title": "設定",
+  "tabs": {
+    "account": "帳戶",
+    "permissions": "權限",
+    "appearance": "外觀"
+  },
+  "account": {
+    "title": "帳戶",
+    "language": "語言",
+    "languageLabel": "顯示語言",
+    "languageDescription": "選擇您偏好的介面語言",
+    "username": "使用者名稱",
+    "email": "電子郵件",
+    "profile": "個人檔案",
+    "changePassword": "變更密碼"
+  },
+  "appearance": {
+    "title": "外觀",
+    "theme": "佈景主題",
+    "codeEditor": "程式碼編輯器",
+    "editorTheme": "編輯器佈景主題",
+    "wordWrap": "自動換行",
+    "showMinimap": "顯示縮圖",
+    "lineNumbers": "行號",
+    "fontSize": "字型大小"
+  },
+  "actions": {
+    "saveChanges": "儲存變更",
+    "resetToDefaults": "重設為預設值",
+    "cancelChanges": "取消變更"
+  },
+  "quickSettings": {
+    "title": "快速設定",
+    "sections": {
+      "appearance": "外觀",
+      "toolDisplay": "工具顯示",
+      "inputSettings": "輸入設定"
+    },
+    "darkMode": "深色模式",
+    "showRawParameters": "顯示原始參數",
+    "showThinking": "顯示思考過程",
+    "sendByCtrlEnter": "使用 Ctrl+Enter 傳送",
+    "sendByCtrlEnterDescription": "啟用後，按 Ctrl+Enter 傳送訊息，而不是僅按 Enter。這對於使用輸入法的使用者可以避免意外傳送。",
+    "dragHandle": {
+      "dragging": "正在拖曳手柄",
+      "closePanel": "關閉設定面板",
+      "openPanel": "開啟設定面板",
+      "draggingStatus": "正在拖曳...",
+      "toggleAndMove": "點擊切換，拖曳移動"
+    }
+  },
+  "terminalShortcuts": {
+    "title": "終端機快速鍵",
+    "sectionKeys": "按鍵",
+    "sectionNavigation": "導覽",
+    "escape": "Escape",
+    "tab": "Tab",
+    "shiftTab": "Shift+Tab",
+    "arrowUp": "向上箭頭",
+    "arrowDown": "向下箭頭",
+    "scrollDown": "捲動到底部",
+    "handle": {
+      "closePanel": "關閉快速鍵面板",
+      "openPanel": "開啟快速鍵面板"
+    }
+  },
+  "mainTabs": {
+    "label": "設定",
+    "appearance": "外觀",
+    "git": "Git",
+    "computer": "電腦使用",
+    "notifications": "通知",
+    "about": "關於"
+  },
+  "notifications": {
+    "title": "通知",
+    "description": "控制你希望接收的通知事件。",
+    "sound": {
+      "title": "聲音",
+      "description": "聊天執行完成時播放短提示音。",
+      "enabled": "已啟用",
+      "test": "測試聲音"
+    },
+    "events": {
+      "title": "事件類型",
+      "actionRequired": "需要處理",
+      "stop": "執行已停止",
+      "error": "執行失敗"
+    }
+  },
+  "appearanceSettings": {
+    "darkMode": {
+      "label": "深色模式",
+      "description": "切換淺色和深色佈景主題"
+    },
+    "projectSorting": {
+      "label": "專案排序",
+      "description": "專案在側邊欄中的排列方式",
+      "alphabetical": "依字母順序",
+      "recentActivity": "最近活動"
+    },
+    "codeEditor": {
+      "title": "程式碼編輯器",
+      "theme": {
+        "label": "編輯器佈景主題",
+        "description": "程式碼編輯器的預設佈景主題"
+      },
+      "wordWrap": {
+        "label": "自動換行",
+        "description": "在編輯器中預設啟用自動換行"
+      },
+      "showMinimap": {
+        "label": "顯示縮圖",
+        "description": "在差異檢視中顯示縮圖以便於導覽"
+      },
+      "lineNumbers": {
+        "label": "顯示行號",
+        "description": "在編輯器中顯示行號"
+      },
+      "fontSize": {
+        "label": "字型大小",
+        "description": "編輯器字型大小（px）"
+      }
+    }
+  },
+  "saveStatus": {
+    "success": "設定儲存成功！",
+    "error": "儲存設定失敗",
+    "saving": "儲存中..."
+  },
+  "footerActions": {
+    "save": "儲存設定",
+    "cancel": "取消"
+  },
+  "git": {
+    "title": "Git 設定",
+    "description": "設定您的 git 提交身分。這些設定將透過 git config --global 全域套用",
+    "name": {
+      "label": "Git 名稱",
+      "help": "您的 git 提交名稱"
+    },
+    "email": {
+      "label": "Git 電子郵件",
+      "help": "您的 git 提交電子郵件"
+    },
+    "actions": {
+      "save": "儲存設定",
+      "saving": "儲存中..."
+    },
+    "status": {
+      "success": "儲存成功"
+    }
+  },
+  "permissions": {
+    "title": "權限設定",
+    "skipPermissions": {
+      "label": "略過權限提示（請謹慎使用）",
+      "claudeDescription": "等同於 --dangerously-skip-permissions 旗標",
+      "cursorDescription": "等同於 Cursor CLI 中的 -f 旗標"
+    },
+    "allowedTools": {
+      "title": "允許的工具",
+      "description": "無需權限提示即可自動使用的工具",
+      "placeholder": "例如：\"Bash(git log:*)\" 或 \"Write\"",
+      "quickAdd": "快速新增常用工具：",
+      "empty": "未設定允許的工具"
+    },
+    "blockedTools": {
+      "title": "停用的工具",
+      "description": "無需權限提示即可自動停用的工具",
+      "placeholder": "例如：\"Bash(rm:*)\"",
+      "empty": "未設定停用的工具"
+    },
+    "allowedCommands": {
+      "title": "允許的 Shell 指令",
+      "description": "無需權限提示即可自動執行的 Shell 指令",
+      "placeholder": "例如：\"Shell(ls)\" 或 \"Shell(git status)\"",
+      "quickAdd": "快速新增常用指令：",
+      "empty": "未設定允許的指令"
+    },
+    "blockedCommands": {
+      "title": "封鎖的 Shell 指令",
+      "description": "自動封鎖的 Shell 指令",
+      "placeholder": "例如：\"Shell(rm -rf)\" 或 \"Shell(sudo)\"",
+      "empty": "未設定封鎖的指令"
+    },
+    "toolExamples": {
+      "title": "工具模式範例：",
+      "bashGitLog": "- 允許所有 git log 指令",
+      "bashGitDiff": "- 允許所有 git diff 指令",
+      "write": "- 允許所有 Write 工具使用",
+      "bashRm": "- 封鎖所有 rm 指令（危險）"
+    },
+    "shellExamples": {
+      "title": "Shell 指令範例：",
+      "ls": "- 允許 ls 指令",
+      "gitStatus": "- 允許 git status",
+      "npmInstall": "- 允許 npm install",
+      "rmRf": "- 封鎖遞迴刪除"
+    },
+    "codex": {
+      "permissionMode": "權限模式",
+      "description": "控制 Codex 如何處理檔案修改和指令執行",
+      "modes": {
+        "default": {
+          "title": "預設",
+          "description": "只有受信任的指令（ls、cat、grep、git status 等）會自動執行。其他指令將被略過。可以寫入工作區。"
+        },
+        "acceptEdits": {
+          "title": "接受編輯",
+          "description": "所有指令在工作區內自動執行。具有沙箱執行的全自動模式。"
+        },
+        "bypassPermissions": {
+          "title": "略過權限",
+          "description": "完全系統存取，無任何限制。所有指令自動執行，具有完整的磁碟和網路存取權限。請謹慎使用。"
+        }
+      },
+      "technicalDetails": "技術詳情",
+      "technicalInfo": {
+        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted。受信任的指令：cat、cd、grep、head、ls、pwd、tail、git status/log/diff/show、find（不帶 -exec）等。",
+        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never。所有指令在專案目錄內自動執行。",
+        "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never。完全系統存取權限，僅在可信環境中使用。",
+        "overrideNote": "您可以使用聊天介面中的模式按鈕按工作階段覆蓋此設定。"
+      }
+    },
+    "actions": {
+      "add": "新增"
+    }
+  },
+  "voiceSettings": {
+    "title": "Voice",
+    "description": "Speech-to-text input and read-aloud, via an OpenAI-compatible audio backend.",
+    "enable": "Enable voice",
+    "enableDescription": "Show the mic button and the read-aloud button on messages.",
+    "backendTitle": "Backend",
+    "backendDescription": "Point at OpenAI, Groq, or a local server (LocalAI, Speaches, Kokoro-FastAPI). Leave blank to use the server default.",
+    "baseUrl": "Base URL",
+    "apiKey": "API key",
+    "sttModel": "Speech-to-text model",
+    "ttsModel": "Text-to-speech model",
+    "voice": "Voice",
+    "format": "Audio format",
+    "note": "A custom base URL is called directly by your browser and must allow browser CORS requests. Leave it blank to use the server-configured backend."
+  }
+}

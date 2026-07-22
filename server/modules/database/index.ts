@@ -1,0 +1,13 @@
+export { initializeDatabase } from '@/modules/database/init-db.js';
+export { closeConnection, getConnection, getDatabasePath } from '@/modules/database/connection.js';
+export { apiKeysDb } from '@/modules/database/repositories/api-keys.js';
+export { appConfigDb } from '@/modules/database/repositories/app-config.js';
+export { credentialsDb } from '@/modules/database/repositories/credentials.js';
+export { githubTokensDb } from '@/modules/database/repositories/github-tokens.js';
+export { notificationChannelEndpointsDb } from '@/modules/database/repositories/notification-channel-endpoints.js';
+export { notificationPreferencesDb } from '@/modules/database/repositories/notification-preferences.js';
+export { projectsDb, isManagedWorktreePath } from '@/modules/database/repositories/projects.db.js';
+export { scanStateDb } from '@/modules/database/repositories/scan-state.db.js';
+export { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
+export { userDb } from '@/modules/database/repositories/users.js';
+export { gjcTerminalNotificationDispatchesDb } from '@/modules/database/repositories/gjc-terminal-notification-dispatches.js';

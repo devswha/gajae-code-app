@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 2,
+  "kind": "report",
+  "reportType": "clean-repository-migration",
+  "status": "passed",
+  "date": "2026-07-15",
+  "repository": "https://github.com/devswha/gajae-app",
+  "authorization": "Hako explicitly authorized migration to a clean new repository and autonomous commit and push after verification.",
+  "preMigration": {
+    "githubRepositoryWasFork": false,
+    "defaultBranch": "main",
+    "defaultBranchCommitCount": 826,
+    "defaultBranchRootCommit": "5ea0e362075befb0f41c3ea90ed05051095c6342",
+    "defaultBranchPreviousTip": "4307b963c36161d6c6e5089a18c05fad0955129f",
+    "remoteBranchCount": 65,
+    "remoteNonDefaultBranchCount": 64,
+    "remoteTagCount": 96,
+    "openPullRequestCount": 0,
+    "releaseCount": 0
+  },
+  "safety": {
+    "backupBundle": "/tmp/gajae-app-pre-clean-history-20260715.bundle",
+    "backupVerification": "passed: bundle records the complete pre-migration history",
+    "legalFilesPreserved": [
+      "LICENSE",
+      "NOTICE"
+    ],
+    "provenanceDocumentPreserved": "docs/UPSTREAM.md",
+    "trackedRuntimeArtifactsRemoved": [
+      ".gjc/_session-019f4fe1-d064-7000-8c7f-4ca803ed3a28",
+      ".gjc/_session-019f4fe9-da71-7000-8d64-c09b2f69cd72"
+    ],
+    "runtimeArtifactPolicy": "Local .gjc session state remains ignored and is absent from every commit in the replacement repository."
+  },
+  "readmeUpdate": {
+    "canonical": "README.md",
+    "localizedReadmes": [
+      "README.ko.md",
+      "README.ja.md",
+      "README.de.md",
+      "README.ru.md",
+      "README.tr.md",
+      "README.zh-CN.md",
+      "README.zh-TW.md"
+    ],
+    "focus": [
+      "quick start",
+      "first-run account and agent setup",
+      "project and session workflow",
+      "chat approvals and files",
+      "live tmux sessions and notifications",
+      "remote access",
+      "production installation",
+      "troubleshooting"
+    ],
+    "supportedAgents": [
+      "Gajae Code (GJC)",
+      "Claude Code",
+      "Cursor",
+      "Codex",
+      "OpenCode"
+    ],
+    "translationParity": "passed: links, command blocks, heading hierarchy, table shape, navigation, anchors, security terms, and protected attribution",
+    "brokenRelativeLinks": 0
+  },
+  "verification": {
+    "runtime": "Node.js 22.17.1",
+    "command": "npm run verify",
+    "dependencyAudit": "passed: 0 vulnerabilities",
+    "typecheck": "passed",
+    "tests": "passed: server, client, and Electron partitions",
+    "lint": "passed",
+    "identity": "passed",
+    "build": "passed: client and server",
+    "jsonValidation": "passed",
+    "diffCheck": "passed",
+    "remoteCi": "passed"
+  },
+  "repositoryRecreation": {
+    "reason": "GitHub's old repository object continued to render 64 cached historical contributors despite the default branch and Contributors API containing only devswha.",
+    "oldRepositoryId": 1301584669,
+    "replacementCreated": true,
+    "oldRepositoryRemoved": true,
+    "settingsRestored": true,
+    "contributorsApi": [
+      "devswha"
+    ],
+    "contributorsSidebar": [
+      "devswha"
+    ]
+  },
+  "migrationResult": {
+    "historyShape": "one root commit with no parents",
+    "rootAuthor": "Hako <devswha@gmail.com>",
+    "defaultBranch": "main",
+    "remoteBranchCount": 1,
+    "remoteNonDefaultBranchCount": 0,
+    "remoteTagCount": 0,
+    "githubRepositoryWasFork": false,
+    "contributorsBasis": "The replacement repository contains only the sanitized Hako-authored root snapshot and reports only devswha as contributor."
+  },
+  "delivery": {
+    "committed": true,
+    "pushed": true,
+    "branch": "main",
+    "remote": "origin"
+  }
+}

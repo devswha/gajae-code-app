@@ -1,0 +1,323 @@
+import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+
+import { WebSocket, WebSocketServer } from 'ws';
+
+import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
+import { handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
+import { connectedClients } from '@/modules/websocket/services/websocket-state.service.js';
+
+type OutboundFrame = {
+  readonly kind: string;
+  readonly [key: string]: unknown;
+};
+
+function isOutboundFrame(value: unknown): value is OutboundFrame {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    'kind' in value &&
+    typeof value.kind === 'string'
+  );
+}
+
+function parseOutboundFrame(raw: string): OutboundFrame {
+  const parsed: unknown = JSON.parse(raw);
+  if (!isOutboundFrame(parsed)) {
+    throw new Error(`Expected an outbound websocket frame, received ${raw}`);
+  }
+
+  return parsed;
+}
+
+async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
+  const previousDatabasePath = process.env.DATABASE_PATH;
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'chat-websocket-'));
+  const databasePath = path.join(tempDirectory, 'auth.db');
+
+  closeConnection();
+  process.env.DATABASE_PATH = databasePath;
+  await initializeDatabase();
+
+  try {
+    await runTest();
+  } finally {
+    connectedClients.clear();
+    chatRunRegistry.clearAll();
+    closeConnection();
+    if (previousDatabasePath === undefined) {
+      delete process.env.DATABASE_PATH;
+    } else {
+      process.env.DATABASE_PATH = previousDatabasePath;
+    }
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+}
+
+test('chat.send dispatches a non-Git GJC session directly in its persisted project directory', async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('non-git-session', 'gjc', '/workspace/non-git-project');
+    let receivedCommand = '';
+    let receivedOptions: Record<string, unknown> | undefined;
+
+    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+    try {
+      await once(server, 'listening');
+      server.on('connection', (socket, request) => {
+        handleChatConnection(
+          socket,
+          Object.assign(request, { user: { id: 'test-user' } }),
+          {
+            spawnFns: {
+              gjc: (command, options, writer) => {
+                receivedCommand = command;
+                receivedOptions = options;
+                const chatWriter = writer as {
+                  send(message: unknown): void;
+                  sendComplete(options: { exitCode: number }): void;
+                };
+                chatWriter.send({
+                  kind: 'assistant',
+                  provider: 'gjc',
+                  sessionId: 'direct-worker-session',
+                  content: 'streamed directly',
+                });
+                chatWriter.sendComplete({ exitCode: 0 });
+                return Promise.resolve();
+              },
+            },
+            abortFns: { gjc: async () => false },
+            resolveToolApproval() {},
+            getPendingApprovalsForSession: () => [],
+          },
+        );
+      });
+
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Expected the websocket test server to bind a TCP port.');
+      }
+
+      const client = new WebSocket(`ws://127.0.0.1:${address.port}`);
+      try {
+        await once(client, 'open');
+        const frames: OutboundFrame[] = [];
+        const completed = new Promise<void>((resolve, reject) => {
+          client.on('message', (raw) => {
+            try {
+              const frame = parseOutboundFrame(String(raw));
+              frames.push(frame);
+              if (frame.kind === 'complete') {
+                resolve();
+              }
+            } catch (error) {
+              reject(error);
+            }
+          });
+        });
+
+        client.send(JSON.stringify({
+          type: 'chat.send',
+          sessionId: 'non-git-session',
+          content: 'run directly',
+          options: {
+            cwd: '/client-controlled-directory',
+            projectPath: '/client-controlled-project',
+          },
+        }));
+        await completed;
+
+        assert.equal(receivedCommand, 'run directly');
+        assert.equal(receivedOptions?.cwd, '/workspace/non-git-project');
+        assert.equal(receivedOptions?.projectPath, '/workspace/non-git-project');
+        assert.deepEqual(
+          frames.map((frame) => frame.kind),
+          ['assistant', 'complete'],
+        );
+        assert.equal(frames[0]?.content, 'streamed directly');
+        assert.equal(frames[0]?.sessionId, 'non-git-session');
+        assert.equal(frames[1]?.success, true);
+      } finally {
+        client.terminate();
+      }
+    } finally {
+      for (const client of server.clients) {
+        client.terminate();
+      }
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
+  });
+});
+
+test('chat.abort uses the direct GJC run handle before the app session id', async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('abort-session', 'gjc', '/workspace/non-git-project');
+    const abortHandles: string[] = [];
+    let startRun: (() => void) | undefined;
+    let resolveRun: (() => void) | undefined;
+    const providerRun = new Promise<void>((resolve) => {
+      resolveRun = resolve;
+    }) as Promise<void> & { abortHandle: string };
+    providerRun.abortHandle = 'run-transient-handle';
+
+    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+    try {
+      await once(server, 'listening');
+      server.on('connection', (socket, request) => {
+        handleChatConnection(
+          socket,
+          Object.assign(request, { user: { id: 'test-user' } }),
+          {
+            spawnFns: {
+              gjc: () => {
+                startRun?.();
+                return providerRun;
+              },
+            },
+            abortFns: {
+              gjc: async (abortHandle) => {
+                abortHandles.push(abortHandle);
+                return true;
+              },
+            },
+            resolveToolApproval() {},
+            getPendingApprovalsForSession: () => [],
+          },
+        );
+      });
+
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Expected the websocket test server to bind a TCP port.');
+      }
+
+      const client = new WebSocket(`ws://127.0.0.1:${address.port}`);
+      try {
+        await once(client, 'open');
+        const spawned = new Promise<void>((resolve) => {
+          startRun = resolve;
+        });
+        client.send(JSON.stringify({
+          type: 'chat.send',
+          sessionId: 'abort-session',
+          content: 'start direct run',
+        }));
+        await spawned;
+
+        const completed = new Promise<OutboundFrame>((resolve, reject) => {
+          client.on('message', (raw) => {
+            try {
+              const frame = parseOutboundFrame(String(raw));
+              if (frame.kind === 'complete') {
+                resolve(frame);
+              }
+            } catch (error) {
+              reject(error);
+            }
+          });
+        });
+        client.send(JSON.stringify({ type: 'chat.abort', sessionId: 'abort-session' }));
+        const complete = await completed;
+
+        assert.deepEqual(abortHandles, ['run-transient-handle']);
+        assert.equal(complete.aborted, true);
+      } finally {
+        resolveRun?.();
+        client.terminate();
+      }
+    } finally {
+      for (const client of server.clients) {
+        client.terminate();
+      }
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
+  });
+});
+
+test('gjc.job.resume is rejected as an unknown message type', async () => {
+  await withIsolatedDatabase(async () => {
+    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+    try {
+      await once(server, 'listening');
+      server.on('connection', (socket, request) => {
+        handleChatConnection(
+          socket,
+          Object.assign(request, { user: { id: 'test-user' } }),
+          {
+            spawnFns: { gjc: async () => undefined },
+            abortFns: { gjc: async () => false },
+            resolveToolApproval() {},
+            getPendingApprovalsForSession: () => [],
+          },
+        );
+      });
+
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Expected the websocket test server to bind a TCP port.');
+      }
+
+      const client = new WebSocket(`ws://127.0.0.1:${address.port}`);
+      try {
+        await once(client, 'open');
+        const protocolError = new Promise<OutboundFrame>((resolve, reject) => {
+          client.on('message', (raw) => {
+            try {
+              const frame = parseOutboundFrame(String(raw));
+              if (frame.kind === 'protocol_error') {
+                resolve(frame);
+              }
+            } catch (error) {
+              reject(error);
+            }
+          });
+        });
+        client.send(JSON.stringify({
+          type: 'gjc.job.resume',
+          sessionId: 'ignored',
+          content: 'resume',
+        }));
+        const frame = await protocolError;
+
+        assert.equal(frame.code, 'UNKNOWN_MESSAGE_TYPE');
+      } finally {
+        client.terminate();
+      }
+    } finally {
+      for (const client of server.clients) {
+        client.terminate();
+      }
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
+  });
+});

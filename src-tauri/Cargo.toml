@@ -1,0 +1,23 @@
+[package]
+name = "gajae-app-desktop"
+version = "0.2.0"
+description = "Gajae App desktop shell"
+authors = ["Gajae App contributors"]
+edition = "2021"
+rust-version = "1.85"
+build = "build.rs"
+
+[build-dependencies]
+tauri-build = { version = "=2.3.0", features = [] }
+
+[dependencies]
+tauri = { version = "=2.6.0", features = [] }
+getrandom = "0.2"
+fs2 = "=0.4.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri-plugin-shell = "=2.3.0"
+tauri-plugin-deep-link = "=2.3.0"
+tokio = { version = "1", features = ["sync", "time"] }
+tauri-runtime = "=2.7.0"
+tauri-runtime-wry = "=2.7.0"

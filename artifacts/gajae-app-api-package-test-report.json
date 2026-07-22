@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "kind": "api-package-test-report",
+  "status": "passed",
+  "contract": "Gajae App repository independence and self-host release",
+  "commands": [
+    "npm run typecheck",
+    "npm run build",
+    "npm run lint",
+    "npm run check:identity",
+    "node --test electron/remoteServers.test.js electron/targetSessions.test.js",
+    "tsx --test changed server and Electron suites",
+    "node scripts/release/build-server-bundle.js under Node 22",
+    "sha256sum --check gajae-app-server-1.36.1-linux-x64-node22.tar.gz.sha256"
+  ],
+  "results": {
+    "focusedTests": { "passed": 93, "failed": 0 },
+    "electronTests": { "passed": 7, "failed": 0 },
+    "typecheck": "passed",
+    "build": "passed",
+    "lint": "passed with zero errors",
+    "identityScan": "passed: 768 source, 560 generated, 1 archive",
+    "releaseArtifact": "release/server/gajae-app-server-1.36.1-linux-x64-node22.tar.gz",
+    "checksum": "passed",
+    "runtimeGuard": "Node 24 rejected; Node 22 CLI help succeeded"
+  },
+  "adversarialCases": [
+    "malformed remote registry fails closed",
+    "health probe omits credentials and rejects redirects/timeouts",
+    "target partitions differ by opaque ID and exact origin",
+    "origin edit and deletion clear target storage before registry mutation",
+    "non-file Electron IPC senders are rejected",
+    "non-Node-22 release runtime is rejected",
+    "legacy identity scanner covers source, generated output, and archive"
+  ],
+  "protectedFiles": {
+    "readme": "pre-existing user modification preserved and excluded from commit",
+    "license": "matches HEAD",
+    "notice": "matches HEAD"
+  }
+}

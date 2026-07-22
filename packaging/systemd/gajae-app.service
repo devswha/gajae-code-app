@@ -1,0 +1,22 @@
+# Source template for the gajae-app.service user unit; do not install it directly.
+# The manager keeps runtime data and staged releases in ~/.gajae-app, then replaces every placeholder.
+[Unit]
+Description=Gajae App self-hosted web application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@APP_ROOT@
+Environment=HOST=@HOST@
+Environment=SERVER_PORT=@PORT@
+ExecStart=@NODE_BIN@ @APP_ROOT@/scripts/gajae-app-runtime.mjs start
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gajae-app
+
+[Install]
+WantedBy=default.target

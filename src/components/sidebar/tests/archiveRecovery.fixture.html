@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sidebar archive fixture</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      window.EventSource = class {
+        constructor() {
+          throw new Error('Sidebar must not construct EventSource');
+        }
+      };
+    </script>
+    <script type="module" src="./archiveRecovery.fixture.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,63 @@
+import { ChevronDown, PanelLeftClose, Search } from 'lucide-react';
+import type { TFunction } from 'i18next';
+
+import { BRAND_NAME } from '../../../../constants/branding';
+import { Button } from '../../../../shared/view/ui';
+
+type SidebarHeaderProps = {
+  isPWA: boolean;
+  isMobile: boolean;
+  onSearch: () => void;
+  onCollapseSidebar: () => void;
+  t: TFunction;
+};
+
+export default function SidebarHeader({
+  isPWA,
+  isMobile,
+  onSearch,
+  onCollapseSidebar,
+  t,
+}: SidebarHeaderProps) {
+  const searchLabel = t('actions.search', 'Search');
+
+  return (
+    <header
+      className="flex flex-shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-4 md:px-4 md:pb-3 md:pt-5"
+      style={isPWA && isMobile ? { paddingTop: '16px' } : undefined}
+    >
+      <div className="flex min-w-0 items-center gap-1.5">
+        <img src="/logo.png" alt="" className="size-6 flex-shrink-0 object-contain" />
+        <h1 className="truncate text-[1.125rem] font-semibold tracking-[-0.02em] text-foreground">
+          {BRAND_NAME}
+        </h1>
+        <ChevronDown className="size-4 flex-shrink-0 text-muted-foreground" aria-hidden />
+      </div>
+
+      <div className="flex flex-shrink-0 items-center gap-0.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="size-8 rounded-lg p-0 text-muted-foreground hover:bg-accent/70 hover:text-foreground"
+          onClick={onSearch}
+          aria-label={searchLabel}
+          title={`${searchLabel} (Ctrl+K)`}
+        >
+          <Search className="size-[1.125rem]" />
+        </Button>
+        {!isMobile && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="size-8 rounded-lg p-0 text-muted-foreground hover:bg-accent/70 hover:text-foreground"
+            onClick={onCollapseSidebar}
+            aria-label={t('tooltips.hideSidebar')}
+            title={t('tooltips.hideSidebar')}
+          >
+            <PanelLeftClose className="size-4" />
+          </Button>
+        )}
+      </div>
+    </header>
+  );
+}

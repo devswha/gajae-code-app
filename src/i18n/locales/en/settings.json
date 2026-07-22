@@ -1,0 +1,255 @@
+{
+  "title": "Settings",
+  "tabs": {
+    "account": "Account",
+    "permissions": "Permissions",
+    "skills": "Skills",
+    "appearance": "Appearance"
+  },
+  "account": {
+    "title": "Account",
+    "language": "Language",
+    "languageLabel": "Display Language",
+    "languageDescription": "Choose your preferred language for the interface",
+    "username": "Username",
+    "email": "Email",
+    "profile": "Profile",
+    "changePassword": "Change Password"
+  },
+  "appearance": {
+    "title": "Appearance",
+    "theme": "Theme",
+    "codeEditor": "Code Editor",
+    "editorTheme": "Editor Theme",
+    "wordWrap": "Word Wrap",
+    "showMinimap": "Show Minimap",
+    "lineNumbers": "Line Numbers",
+    "fontSize": "Font Size"
+  },
+  "actions": {
+    "saveChanges": "Save Changes",
+    "resetToDefaults": "Reset to Defaults",
+    "cancelChanges": "Cancel Changes"
+  },
+  "voiceSettings": {
+    "title": "Voice",
+    "description": "Speech-to-text input and read-aloud, via an OpenAI-compatible audio backend.",
+    "enable": "Enable voice",
+    "enableDescription": "Show the mic button and the read-aloud button on messages.",
+    "backendTitle": "Backend",
+    "backendDescription": "Point at OpenAI, Groq, or a local server (LocalAI, Speaches, Kokoro-FastAPI). Leave blank to use the server default.",
+    "baseUrl": "Base URL",
+    "apiKey": "API key",
+    "sttModel": "Speech-to-text model",
+    "ttsModel": "Text-to-speech model",
+    "voice": "Voice",
+    "format": "Audio format",
+    "note": "A custom base URL is called directly by your browser and must allow browser CORS requests. Leave it blank to use the server-configured backend."
+  },
+  "quickSettings": {
+    "title": "Quick Settings",
+    "sections": {
+      "appearance": "Appearance",
+      "toolDisplay": "Tool Display",
+      "inputSettings": "Input Settings"
+    },
+    "darkMode": "Dark Mode",
+    "showRawParameters": "Show raw parameters",
+    "showThinking": "Show thinking",
+    "sendByCtrlEnter": "Send by Ctrl+Enter",
+    "voiceEnabled": "Voice (mic + read aloud)",
+    "sendByCtrlEnterDescription": "When enabled, pressing Ctrl+Enter will send the message instead of just Enter. This is useful for IME users to avoid accidental sends.",
+    "dragHandle": {
+      "dragging": "Dragging handle",
+      "closePanel": "Close settings panel",
+      "openPanel": "Open settings panel",
+      "draggingStatus": "Dragging...",
+      "toggleAndMove": "Click to toggle, drag to move"
+    }
+  },
+  "terminalShortcuts": {
+    "title": "Terminal Shortcuts",
+    "sectionKeys": "Keys",
+    "sectionNavigation": "Navigation",
+    "escape": "Escape",
+    "tab": "Tab",
+    "shiftTab": "Shift+Tab",
+    "arrowUp": "Arrow Up",
+    "arrowDown": "Arrow Down",
+    "scrollDown": "Scroll Down",
+    "handle": {
+      "closePanel": "Close shortcuts panel",
+      "openPanel": "Open shortcuts panel"
+    }
+  },
+  "mainTabs": {
+    "label": "Settings",
+    "appearance": "Appearance",
+    "git": "Git",
+    "voice": "Voice",
+    "notifications": "Notifications",
+    "about": "About"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "description": "Control which notification events you receive.",
+    "desktop": {
+      "title": "Notify this desktop app",
+      "enable": "Enable notifications",
+      "disable": "Disable notifications",
+      "enabled": "Notifications are enabled for this desktop app",
+      "unsupported": "Desktop notifications are not supported on this system."
+    },
+    "sound": {
+      "title": "Sound",
+      "description": "Play a short tone when a chat run finishes or needs tool approval.",
+      "enabled": "Enabled",
+      "test": "Test sound"
+    },
+    "events": {
+      "title": "Event Types",
+      "actionRequired": "Action required",
+      "stop": "Run stopped",
+      "error": "Run failed"
+    }
+  },
+  "appearanceSettings": {
+    "darkMode": {
+      "label": "Dark Mode",
+      "description": "Toggle between light and dark themes"
+    },
+    "projectSorting": {
+      "label": "Project Sorting",
+      "description": "How projects are ordered in the sidebar",
+      "alphabetical": "Alphabetical",
+      "recentActivity": "Recent Activity"
+    },
+    "codeEditor": {
+      "title": "Code Editor",
+      "theme": {
+        "label": "Editor Theme",
+        "description": "Default theme for the code editor"
+      },
+      "wordWrap": {
+        "label": "Word Wrap",
+        "description": "Enable word wrapping by default in the editor"
+      },
+      "showMinimap": {
+        "label": "Show Minimap",
+        "description": "Display a minimap for easier navigation in diff view"
+      },
+      "lineNumbers": {
+        "label": "Show Line Numbers",
+        "description": "Display line numbers in the editor"
+      },
+      "fontSize": {
+        "label": "Font Size",
+        "description": "Editor font size in pixels"
+      }
+    }
+  },
+  "saveStatus": {
+    "success": "Settings saved successfully!",
+    "error": "Failed to save settings",
+    "saving": "Saving..."
+  },
+  "footerActions": {
+    "save": "Save Settings",
+    "cancel": "Cancel"
+  },
+  "git": {
+    "title": "Git Configuration",
+    "description": "Configure your git identity for commits. These settings will be applied globally via git config --global",
+    "name": {
+      "label": "Git Name",
+      "help": "Your name for git commits"
+    },
+    "email": {
+      "label": "Git Email",
+      "help": "Your email for git commits"
+    },
+    "actions": {
+      "save": "Save Configuration",
+      "saving": "Saving..."
+    },
+    "status": {
+      "success": "Saved successfully"
+    }
+  },
+  "permissions": {
+    "title": "Permission Settings",
+    "skipPermissions": {
+      "label": "Skip permission prompts (use with caution)",
+      "claudeDescription": "Equivalent to --dangerously-skip-permissions flag",
+      "cursorDescription": "Equivalent to -f flag in Cursor CLI"
+    },
+    "allowedTools": {
+      "title": "Allowed Tools",
+      "description": "Tools that are automatically allowed without prompting for permission",
+      "placeholder": "e.g., \"Bash(git log:*)\" or \"Write\"",
+      "quickAdd": "Quick add common tools:",
+      "empty": "No allowed tools configured"
+    },
+    "blockedTools": {
+      "title": "Blocked Tools",
+      "description": "Tools that are automatically blocked without prompting for permission",
+      "placeholder": "e.g., \"Bash(rm:*)\"",
+      "empty": "No blocked tools configured"
+    },
+    "allowedCommands": {
+      "title": "Allowed Shell Commands",
+      "description": "Shell commands that are automatically allowed without prompting",
+      "placeholder": "e.g., \"Shell(ls)\" or \"Shell(git status)\"",
+      "quickAdd": "Quick add common commands:",
+      "empty": "No allowed commands configured"
+    },
+    "blockedCommands": {
+      "title": "Blocked Shell Commands",
+      "description": "Shell commands that are automatically blocked",
+      "placeholder": "e.g., \"Shell(rm -rf)\" or \"Shell(sudo)\"",
+      "empty": "No blocked commands configured"
+    },
+    "toolExamples": {
+      "title": "Tool Pattern Examples:",
+      "bashGitLog": "- Allow all git log commands",
+      "bashGitDiff": "- Allow all git diff commands",
+      "write": "- Allow all Write tool usage",
+      "bashRm": "- Block all rm commands (dangerous)"
+    },
+    "shellExamples": {
+      "title": "Shell Command Examples:",
+      "ls": "- Allow ls command",
+      "gitStatus": "- Allow git status",
+      "npmInstall": "- Allow npm install",
+      "rmRf": "- Block recursive delete"
+    },
+    "codex": {
+      "permissionMode": "Permission Mode",
+      "description": "Controls how Codex handles file modifications and command execution",
+      "modes": {
+        "default": {
+          "title": "Default",
+          "description": "Only trusted commands (ls, cat, grep, git status, etc.) run automatically. Other commands are skipped. Can write to workspace."
+        },
+        "acceptEdits": {
+          "title": "Accept Edits",
+          "description": "All commands run automatically within the workspace. Full auto mode with sandboxed execution."
+        },
+        "bypassPermissions": {
+          "title": "Bypass Permissions",
+          "description": "Full system access with no restrictions. All commands run automatically with full disk and network access. Use with caution."
+        }
+      },
+      "technicalDetails": "Technical details",
+      "technicalInfo": {
+        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Trusted commands: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (without -exec), etc.",
+        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. All commands auto-execute within project directory.",
+        "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Full system access, use only in trusted environments.",
+        "overrideNote": "You can override this per-session using the mode button in the chat interface."
+      }
+    },
+    "actions": {
+      "add": "Add"
+    }
+  }
+}

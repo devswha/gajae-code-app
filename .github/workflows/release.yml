@@ -1,0 +1,257 @@
+name: Release Gajae App Server
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-policy:
+    name: Validate protected release ref
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Require main branch
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          if [ "$RELEASE_REF" != "refs/heads/main" ]; then
+            echo "Releases may only be dispatched from refs/heads/main." >&2
+            exit 1
+          fi
+
+  build:
+    name: Build Node 22 Linux x64 server artifact
+    needs: release-policy
+    timeout-minutes: 30
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    outputs:
+      artifact_name: ${{ steps.metadata.outputs.artifact_name }}
+      release_tag: ${{ steps.metadata.outputs.release_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+          architecture: x64
+          cache: npm
+
+      - name: Define canonical release asset
+        id: metadata
+        run: |
+          set -euo pipefail
+          case "$(node --version)" in
+            v22.*) ;;
+            *) echo "Node 22 is required." >&2; exit 1 ;;
+          esac
+          case "$(getconf GNU_LIBC_VERSION)" in
+            "glibc 2.35") ;;
+            *) echo "The release artifact must be built on glibc 2.35." >&2; exit 1 ;;
+          esac
+          VERSION="$(node -p "require('./package.json').version")"
+          ASSET_NAME="gajae-app-server-${VERSION}-linux-x64-node22.tar.gz"
+          {
+            echo "artifact_name=$ASSET_NAME"
+            echo "release_tag=v$VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch pinned Bun runtime
+        run: node scripts/fetch-bun.mjs
+
+      - name: Verify source
+        run: npm run verify
+
+
+      - name: Build server artifact
+        run: npm run server:bundle
+
+      - name: Stage and verify canonical release assets
+        env:
+          ASSET_NAME: ${{ steps.metadata.outputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          archives=(release/server/*.tar.gz)
+          if [ "${#archives[@]}" -ne 1 ]; then
+            echo "Expected exactly one generated server archive." >&2
+            exit 1
+          fi
+          source_archive="${archives[0]}"
+          if [ "$(basename "$source_archive")" != "$ASSET_NAME" ]; then
+            echo "Generated archive name does not match canonical release asset: $source_archive" >&2
+            exit 1
+          fi
+          source_checksum="${source_archive}.sha256"
+          test -f "$source_checksum"
+          (
+            cd "$(dirname "$source_archive")"
+            sha256sum --check "$(basename "$source_checksum")"
+          )
+
+          mkdir release-assets
+          cp "$source_archive" "release-assets/$ASSET_NAME"
+          (
+            cd release-assets
+            sha256sum "$ASSET_NAME" > "$ASSET_NAME.sha256"
+            sha256sum --check "$ASSET_NAME.sha256"
+          )
+
+          assets=(release-assets/*)
+          if [ "${#assets[@]}" -ne 2 ] ||
+             [ ! -f "release-assets/$ASSET_NAME" ] ||
+             [ ! -f "release-assets/$ASSET_NAME.sha256" ]; then
+            echo "Release staging must contain only the canonical archive and checksum." >&2
+            exit 1
+          fi
+
+      - name: Smoke extracted server artifact
+        env:
+          ASSET_NAME: ${{ steps.metadata.outputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          mkdir extracted
+          tar -xzf "release-assets/$ASSET_NAME" -C extracted
+          test -f extracted/package.json
+          expected_version="${ASSET_NAME#gajae-app-server-}"
+          expected_version="${expected_version%-linux-x64-node22.tar.gz}"
+          actual_version="$(node -p "require('./extracted/package.json').version")"
+          test "$actual_version" = "$expected_version"
+          node extracted/scripts/gajae-app-runtime.mjs --help
+
+      - name: Upload canonical server release assets
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: gajae-app-server-release
+          path: release-assets/*
+          if-no-files-found: error
+
+  ubuntu-24-compatibility:
+    name: Smoke server artifact on Ubuntu 24.04
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+          architecture: x64
+
+      - name: Download canonical server release assets
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: gajae-app-server-release
+          path: release-assets
+
+      - name: Verify checksum and smoke extracted artifact
+        env:
+          ASSET_NAME: ${{ needs.build.outputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          assets=(release-assets/*)
+          if [ "${#assets[@]}" -ne 2 ] ||
+             [ ! -f "release-assets/$ASSET_NAME" ] ||
+             [ ! -f "release-assets/$ASSET_NAME.sha256" ]; then
+            echo "Compatibility job received non-canonical release assets." >&2
+            exit 1
+          fi
+          (
+            cd release-assets
+            sha256sum --check "$ASSET_NAME.sha256"
+          )
+          mkdir extracted
+          tar -xzf "release-assets/$ASSET_NAME" -C extracted
+          test -f extracted/package.json
+          expected_version="${ASSET_NAME#gajae-app-server-}"
+          expected_version="${expected_version%-linux-x64-node22.tar.gz}"
+          actual_version="$(node -p "require('./extracted/package.json').version")"
+          test "$actual_version" = "$expected_version"
+          node extracted/scripts/gajae-app-runtime.mjs --help
+          (
+            cd extracted
+            node -e "const Database=require('better-sqlite3'); const pty=require('node-pty'); const db=new Database(':memory:'); db.exec('select 1'); db.close(); const child=pty.spawn(process.execPath,['-e','process.exit(0)']); child.onExit(() => process.exit(0)); setTimeout(() => process.exit(1),5000)"
+            node -e "const {spawnSync}=require('node:child_process'); const rg=require('@vscode/ripgrep').rgPath; const result=spawnSync(rg,['--version'],{stdio:'inherit'}); process.exit(result.status ?? 1)"
+          )
+          export HOME="$RUNNER_TEMP/gajae-app-home"
+          mkdir -p "$HOME"
+          SERVER_PORT=39001 HOST=127.0.0.1 node extracted/scripts/gajae-app-runtime.mjs start >"$RUNNER_TEMP/gajae-app-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:39001/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:39001/health
+          kill "$server_pid"
+          wait "$server_pid" || true
+          trap - EXIT
+
+  publish:
+    name: Publish GitHub Release
+    needs:
+      - build
+      - ubuntu-24-compatibility
+    runs-on: ubuntu-22.04
+    environment: release
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Download canonical server release assets
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: gajae-app-server-release
+          path: release-assets
+
+      - name: Verify publish inputs
+        env:
+          ASSET_NAME: ${{ needs.build.outputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          assets=(release-assets/*)
+          if [ "${#assets[@]}" -ne 2 ] ||
+             [ ! -f "release-assets/$ASSET_NAME" ] ||
+             [ ! -f "release-assets/$ASSET_NAME.sha256" ]; then
+            echo "Refusing to publish non-canonical release assets." >&2
+            exit 1
+          fi
+          (
+            cd release-assets
+            sha256sum --check "$ASSET_NAME.sha256"
+          )
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET_NAME: ${{ needs.build.outputs.artifact_name }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          prerelease_args=()
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            prerelease_args+=(--prerelease)
+          fi
+          gh release create "$RELEASE_TAG" \
+            "release-assets/$ASSET_NAME" \
+            "release-assets/$ASSET_NAME.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Gajae App $RELEASE_TAG" \
+            "${prerelease_args[@]}" \
+            --generate-notes

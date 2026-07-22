@@ -19,18 +19,18 @@
 </div>
 
 <p align="center">
-  <a href="https://github.com/devswha/Gajae-code-app/actions/workflows/ci.yml"><img src="https://github.com/devswha/Gajae-code-app/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/devswha/Gajae-code-app/releases"><img src="https://img.shields.io/github/v/release/devswha/Gajae-code-app?include_prereleases&label=release" alt="GitHub release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/devswha/Gajae-code-app" alt="AGPL-3.0-or-later"></a>
+  <a href="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml"><img src="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/devswha/gajae-code-app/releases"><img src="https://img.shields.io/github/v/release/devswha/gajae-code-app?include_prereleases&label=release" alt="GitHub release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/devswha/gajae-code-app" alt="AGPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple" alt="macOS Apple Silicon">
   <img src="https://img.shields.io/badge/agent-Gajae%20Code-E86F51" alt="Gajae Code">
 </p>
 
 <p align="center">
-  <a href="https://github.com/devswha/Gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>Download for macOS</strong></a> ·
+  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>Download for macOS</strong></a> ·
   <a href="#key-features">Features</a> ·
   <a href="#run-from-source">Development</a> ·
-  <a href="https://github.com/devswha/Gajae-code-app/issues">Issues</a>
+  <a href="https://github.com/devswha/gajae-code-app/issues">Issues</a>
 </p>
 
 <p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="Gajae App workspace with sessions nested under projects" width="920"></p>
@@ -68,7 +68,7 @@ The app does not include an AI model or subscription. It uses the accounts, mode
 
 The public desktop beta currently supports **Apple Silicon (M1 or newer) on macOS 11 or newer**.
 
-1. Download the DMG and matching `.sha256` file from the [v2.0.0-beta.2 release](https://github.com/devswha/Gajae-code-app/releases/tag/v2.0.0-beta.2).
+1. Download the DMG and matching `.sha256` file from the [v2.0.0-beta.2 release](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2).
 2. Verify the download:
 
    ```bash
@@ -90,7 +90,7 @@ The public desktop beta currently supports **Apple Silicon (M1 or newer) on macO
 | Browser development | Runs from source | Node.js 22 or 24 |
 | Intel Mac / Windows / Linux desktop | Not supported yet | Packaging and validation required |
 
-Versioned artifacts and their `.sha256` files are published through [GitHub Releases](https://github.com/devswha/Gajae-code-app/releases).
+Versioned artifacts and their `.sha256` files are published through [GitHub Releases](https://github.com/devswha/gajae-code-app/releases).
 
 ## Basic workflow
 
@@ -121,8 +121,8 @@ A visible skill needs valid `name` and `description` fields. Skills with `enable
 Requirements: Node.js `22.22.2+` or `24.15.0+`, npm, Git, and a configured Gajae Code account/model. Desktop builds also require rustup-based Rust `1.85.1`.
 
 ```bash
-git clone https://github.com/devswha/Gajae-code-app.git
-cd Gajae-code-app
+git clone https://github.com/devswha/gajae-code-app.git
+cd gajae-code-app
 npm ci
 npm run dev
 ```
@@ -172,6 +172,6 @@ For server deployment, see the [installation guide](docs/INSTALL.md) and [self-h
 
 ## Project status and license
 
-Gajae App v2 is in beta. Back up `~/.gajae-app/data` and your GJC configuration before upgrading. Report problems with the OS, app version, and reproduction steps in [Issues](https://github.com/devswha/Gajae-code-app/issues/new).
+Gajae App v2 is in beta. Back up `~/.gajae-app/data` and your GJC configuration before upgrading. Report problems with the OS, app version, and reproduction steps in [Issues](https://github.com/devswha/gajae-code-app/issues/new).
 
 Gajae App is distributed under [GNU AGPL v3.0 or later](LICENSE). It began from the Siteboon AI B.V. upstream UI codebase and has been rebuilt as a GJC-specific product. See [NOTICE](NOTICE) and the [upstream policy](docs/UPSTREAM.md) for attribution and intake rules.

@@ -7,7 +7,7 @@ or automatic source rewrite.
 The historical upstream repository, `CloudCLI UI`, is
 `https://github.com/siteboon/claudecodeui`. Both identifiers are provenance
 only; it is not a Gajae App release source. Gajae App server artifacts are
-published only through [GitHub Releases](https://github.com/devswha/Gajae-code-app/releases).
+published only through [GitHub Releases](https://github.com/devswha/gajae-code-app/releases).
 
 ## Intake record
 
@@ -59,7 +59,7 @@ Before applying a candidate:
    name, service unit name, and user-facing path. Gajae App identity is
    `gajae-app`, `gajae-app.service`,
    `gajae-app-server-<version>-linux-x64-node22.tar.gz`, and
-   `https://github.com/devswha/Gajae-code-app/releases`.
+   `https://github.com/devswha/gajae-code-app/releases`.
 4. Run the repository identity scanner for the candidate diff. Treat any
    non-provenance legacy product, service, package, or release reference as a
    blocker until it is intentionally removed or documented as provenance.

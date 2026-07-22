@@ -20,13 +20,13 @@
     "scripts/",
     "README.md"
   ],
-  "homepage": "https://github.com/devswha/Gajae-code-app",
+  "homepage": "https://github.com/devswha/gajae-code-app",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/devswha/Gajae-code-app.git"
+    "url": "git+https://github.com/devswha/gajae-code-app.git"
   },
   "bugs": {
-    "url": "https://github.com/devswha/Gajae-code-app/issues"
+    "url": "https://github.com/devswha/gajae-code-app/issues"
   },
   "scripts": {
     "dev": "concurrently --kill-others \"npm run server:dev\" \"npm run client\"",

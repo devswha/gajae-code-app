@@ -2,7 +2,7 @@
 
 Gajae App is self-hosted from the **GitHub Releases** server artifact only:
 
-<https://github.com/devswha/Gajae-code-app/releases>
+<https://github.com/devswha/gajae-code-app/releases>
 
 The canonical artifact is
 `gajae-app-server-<version>-linux-x64-node22.tar.gz`, accompanied by an

@@ -12,16 +12,16 @@
 </div>
 
 <p align="center">
-  <a href="https://github.com/devswha/Gajae-code-app/actions/workflows/ci.yml"><img src="https://github.com/devswha/Gajae-code-app/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/devswha/Gajae-code-app/releases"><img src="https://img.shields.io/github/v/release/devswha/Gajae-code-app?include_prereleases&label=release" alt="Version GitHub"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/devswha/Gajae-code-app" alt="AGPL-3.0-or-later"></a>
+  <a href="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml"><img src="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/devswha/gajae-code-app/releases"><img src="https://img.shields.io/github/v/release/devswha/gajae-code-app?include_prereleases&label=release" alt="Version GitHub"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/devswha/gajae-code-app" alt="AGPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple" alt="macOS Apple Silicon">
 </p>
 
 <p align="center">
-  <a href="https://github.com/devswha/Gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>Télécharger pour macOS</strong></a> ·
+  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>Télécharger pour macOS</strong></a> ·
   <a href="#fonctionnalités-principales">Fonctionnalités</a> · <a href="#exécuter-depuis-les-sources">Développement</a> ·
-  <a href="https://github.com/devswha/Gajae-code-app/issues">Issues</a>
+  <a href="https://github.com/devswha/gajae-code-app/issues">Issues</a>
 </p>
 
 <p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="Espace Gajae App avec les sessions sous chaque projet" width="920"></p>
@@ -57,7 +57,7 @@ L’application ne fournit ni modèle IA ni abonnement. Elle utilise les comptes
 
 La bêta publique prend en charge **Apple Silicon (M1 ou plus récent) sous macOS 11 ou ultérieur**.
 
-1. Téléchargez le DMG et son fichier `.sha256` depuis la [version v2.0.0-beta.2](https://github.com/devswha/Gajae-code-app/releases/tag/v2.0.0-beta.2).
+1. Téléchargez le DMG et son fichier `.sha256` depuis la [version v2.0.0-beta.2](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2).
 2. Vérifiez la somme de contrôle :
 
    ```bash
@@ -105,8 +105,8 @@ Une compétence visible doit définir `name` et `description`. `enabled: false` 
 Prérequis : Node.js `22.22.2+` ou `24.15.0+`, npm, Git et Gajae Code configuré. La compilation bureau nécessite aussi Rust `1.85.1` via rustup.
 
 ```bash
-git clone https://github.com/devswha/Gajae-code-app.git
-cd Gajae-code-app
+git clone https://github.com/devswha/gajae-code-app.git
+cd gajae-code-app
 npm ci
 npm run dev
 ```
@@ -145,6 +145,6 @@ Le cœur Rust gère les processus, la surveillance des fichiers, l’état des t
 
 ## État et licence
 
-Gajae App v2 est en bêta. Sauvegardez `~/.gajae-app/data` et la configuration GJC avant une mise à jour. Signalez les problèmes dans [Issues](https://github.com/devswha/Gajae-code-app/issues/new) avec le système, la version et les étapes de reproduction.
+Gajae App v2 est en bêta. Sauvegardez `~/.gajae-app/data` et la configuration GJC avant une mise à jour. Signalez les problèmes dans [Issues](https://github.com/devswha/gajae-code-app/issues/new) avec le système, la version et les étapes de reproduction.
 
 Le projet est distribué sous [GNU AGPL v3.0 or later](LICENSE). Issu de l’interface amont de Siteboon AI B.V., il a été reconstruit pour GJC. Consultez [NOTICE](NOTICE) et la [politique amont](docs/UPSTREAM.md).

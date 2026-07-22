@@ -19,18 +19,18 @@
 </div>
 
 <p align="center">
-  <a href="https://github.com/devswha/Gajae-code-app/actions/workflows/ci.yml"><img src="https://github.com/devswha/Gajae-code-app/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/devswha/Gajae-code-app/releases"><img src="https://img.shields.io/github/v/release/devswha/Gajae-code-app?include_prereleases&label=release" alt="GitHub release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/devswha/Gajae-code-app" alt="AGPL-3.0-or-later"></a>
+  <a href="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml"><img src="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/devswha/gajae-code-app/releases"><img src="https://img.shields.io/github/v/release/devswha/gajae-code-app?include_prereleases&label=release" alt="GitHub release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/devswha/gajae-code-app" alt="AGPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple" alt="macOS Apple Silicon">
   <img src="https://img.shields.io/badge/agent-Gajae%20Code-E86F51" alt="Gajae Code">
 </p>
 
 <p align="center">
-  <a href="https://github.com/devswha/Gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>macOS 앱 다운로드</strong></a> ·
+  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>macOS 앱 다운로드</strong></a> ·
   <a href="#핵심-기능">핵심 기능</a> ·
   <a href="#소스에서-실행">개발 시작</a> ·
-  <a href="https://github.com/devswha/Gajae-code-app/issues">이슈</a>
+  <a href="https://github.com/devswha/gajae-code-app/issues">이슈</a>
 </p>
 
 <p align="center">
@@ -76,7 +76,7 @@ Gajae App은 [Gajae Code](https://github.com/devswha/gajae-code)를 데스크톱
 
 현재 공개 데스크톱 빌드는 **Apple Silicon(M1 이상), macOS 11 이상**을 지원합니다.
 
-1. [v2.0.0-beta.2 릴리스](https://github.com/devswha/Gajae-code-app/releases/tag/v2.0.0-beta.2)에서 아래 두 파일을 내려받습니다.
+1. [v2.0.0-beta.2 릴리스](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2)에서 아래 두 파일을 내려받습니다.
    - `gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg`
    - `gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg.sha256`
 2. 다운로드 폴더에서 체크섬을 검증합니다.
@@ -100,7 +100,7 @@ Gajae App은 [Gajae Code](https://github.com/devswha/gajae-code)를 데스크톱
 | 브라우저 개발 환경 | 소스 실행 지원 | Node.js 22 또는 24 |
 | Intel Mac / Windows / Linux 데스크톱 | 아직 미지원 | 별도 검증과 패키징 필요 |
 
-모든 설치 파일은 [GitHub Releases](https://github.com/devswha/Gajae-code-app/releases)에서 버전이 고정된 아티팩트와 `.sha256`을 함께 제공합니다.
+모든 설치 파일은 [GitHub Releases](https://github.com/devswha/gajae-code-app/releases)에서 버전이 고정된 아티팩트와 `.sha256`을 함께 제공합니다.
 
 ## 기본 사용 흐름
 
@@ -150,8 +150,8 @@ Gajae App은 [Gajae Code](https://github.com/devswha/gajae-code)를 데스크톱
 ### 웹 개발 환경
 
 ```bash
-git clone https://github.com/devswha/Gajae-code-app.git
-cd Gajae-code-app
+git clone https://github.com/devswha/gajae-code-app.git
+cd gajae-code-app
 npm ci
 npm run dev
 ```
@@ -205,7 +205,7 @@ GJC worker ──▶ Gajae Code CLI / SDK
 
 ## 프로젝트 상태
 
-Gajae App v2는 베타입니다. 업그레이드 전 `~/.gajae-app/data`와 GJC 설정을 백업하세요. 문제를 발견하면 운영체제, 앱 버전, 재현 단계와 함께 [이슈](https://github.com/devswha/Gajae-code-app/issues/new)를 등록해 주세요.
+Gajae App v2는 베타입니다. 업그레이드 전 `~/.gajae-app/data`와 GJC 설정을 백업하세요. 문제를 발견하면 운영체제, 앱 버전, 재현 단계와 함께 [이슈](https://github.com/devswha/gajae-code-app/issues/new)를 등록해 주세요.
 
 ## 라이선스와 출처
 

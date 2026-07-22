@@ -2,7 +2,7 @@
 
 All notable changes to Gajae App are documented in this file. Current and
 future desktop and server artifacts are published only through
-[GitHub Releases](https://github.com/devswha/Gajae-code-app/releases).
+[GitHub Releases](https://github.com/devswha/gajae-code-app/releases).
 
 ## 2.0.0-beta.2 (2026-07-22)
 

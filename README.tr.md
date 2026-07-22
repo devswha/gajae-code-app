@@ -12,16 +12,16 @@
 </div>
 
 <p align="center">
-  <a href="https://github.com/devswha/Gajae-code-app/actions/workflows/ci.yml"><img src="https://github.com/devswha/Gajae-code-app/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/devswha/Gajae-code-app/releases"><img src="https://img.shields.io/github/v/release/devswha/Gajae-code-app?include_prereleases&label=release" alt="GitHub sürümü"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/devswha/Gajae-code-app" alt="AGPL-3.0-or-later"></a>
+  <a href="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml"><img src="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/devswha/gajae-code-app/releases"><img src="https://img.shields.io/github/v/release/devswha/gajae-code-app?include_prereleases&label=release" alt="GitHub sürümü"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/devswha/gajae-code-app" alt="AGPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple" alt="macOS Apple Silicon">
 </p>
 
 <p align="center">
-  <a href="https://github.com/devswha/Gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>macOS için indir</strong></a> ·
+  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>macOS için indir</strong></a> ·
   <a href="#temel-özellikler">Özellikler</a> · <a href="#kaynaktan-çalıştırma">Geliştirme</a> ·
-  <a href="https://github.com/devswha/Gajae-code-app/issues">Sorunlar</a>
+  <a href="https://github.com/devswha/gajae-code-app/issues">Sorunlar</a>
 </p>
 
 <p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="Oturumların projelerin altında bulunduğu Gajae App" width="920"></p>
@@ -57,7 +57,7 @@ Uygulama bir yapay zekâ modeli veya abonelik sağlamaz. Gajae Code içinde yap�
 
 Genel beta şu anda **macOS 11 veya üstünde Apple Silicon (M1 veya daha yeni)** cihazları destekler.
 
-1. DMG ve aynı adlı `.sha256` dosyasını [v2.0.0-beta.2 sürümünden](https://github.com/devswha/Gajae-code-app/releases/tag/v2.0.0-beta.2) indirin.
+1. DMG ve aynı adlı `.sha256` dosyasını [v2.0.0-beta.2 sürümünden](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2) indirin.
 2. Sağlama toplamını doğrulayın:
 
    ```bash
@@ -105,8 +105,8 @@ Görünen bir beceri geçerli `name` ve `description` alanlarına sahip olmalıd
 Node.js `22.22.2+` veya `24.15.0+`, npm, Git ve yapılandırılmış Gajae Code gereklidir. Masaüstü derlemesi ayrıca rustup üzerinden Rust `1.85.1` ister.
 
 ```bash
-git clone https://github.com/devswha/Gajae-code-app.git
-cd Gajae-code-app
+git clone https://github.com/devswha/gajae-code-app.git
+cd gajae-code-app
 npm ci
 npm run dev
 ```
@@ -145,6 +145,6 @@ Rust çekirdeği süreçleri, dosya izlemeyi, görev durumunu ve PTY sınırlar�
 
 ## Durum ve lisans
 
-Gajae App v2 beta aşamasındadır. Güncellemeden önce `~/.gajae-app/data` ve GJC yapılandırmasını yedekleyin. Sorunları işletim sistemi, uygulama sürümü ve yeniden üretme adımlarıyla [Issues](https://github.com/devswha/Gajae-code-app/issues/new) bölümüne bildirin.
+Gajae App v2 beta aşamasındadır. Güncellemeden önce `~/.gajae-app/data` ve GJC yapılandırmasını yedekleyin. Sorunları işletim sistemi, uygulama sürümü ve yeniden üretme adımlarıyla [Issues](https://github.com/devswha/gajae-code-app/issues/new) bölümüne bildirin.
 
 Gajae App [GNU AGPL v3.0 or later](LICENSE) ile dağıtılır. Siteboon AI B.V. upstream arayüzünden başlayarak GJC’ye özel bir ürün olarak yeniden oluşturulmuştur. Atıf için [NOTICE](NOTICE), upstream politikası için [docs/UPSTREAM.md](docs/UPSTREAM.md) dosyasına bakın.

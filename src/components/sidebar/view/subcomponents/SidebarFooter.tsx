@@ -1,8 +1,8 @@
 import { Archive, Bug, RefreshCw, Settings } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-const GITHUB_ISSUES_URL = 'https://github.com/devswha/Gajae-code-app/issues/new';
-const GITHUB_REPO_URL = 'https://github.com/devswha/Gajae-code-app';
+const GITHUB_ISSUES_URL = 'https://github.com/devswha/gajae-code-app/issues/new';
+const GITHUB_REPO_URL = 'https://github.com/devswha/gajae-code-app';
 const DISCORD_INVITE_URL = 'https://discord.gg/dskZax5JPh';
 
 function DiscordIcon({ className }: { className?: string }) {

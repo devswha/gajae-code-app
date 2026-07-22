@@ -181,10 +181,10 @@ Environment Variables:
   GAJAE_ALLOW_UNAUTH_REMOTE  Set to 1 for a trusted private-network non-loopback bind
 
 Documentation:
-  ${packageJson.homepage || 'https://github.com/devswha/Gajae-code-app'}
+  ${packageJson.homepage || 'https://github.com/devswha/gajae-code-app'}
 
 Report Issues:
-  ${packageJson.bugs?.url || 'https://github.com/devswha/Gajae-code-app/issues'}
+  ${packageJson.bugs?.url || 'https://github.com/devswha/gajae-code-app/issues'}
 `);
 }
 

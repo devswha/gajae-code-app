@@ -13,16 +13,16 @@
 </div>
 
 <p align="center">
-  <a href="https://github.com/devswha/Gajae-code-app/actions/workflows/ci.yml"><img src="https://github.com/devswha/Gajae-code-app/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/devswha/Gajae-code-app/releases"><img src="https://img.shields.io/github/v/release/devswha/Gajae-code-app?include_prereleases&label=release" alt="GitHub release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/devswha/Gajae-code-app" alt="AGPL-3.0-or-later"></a>
+  <a href="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml"><img src="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/devswha/gajae-code-app/releases"><img src="https://img.shields.io/github/v/release/devswha/gajae-code-app?include_prereleases&label=release" alt="GitHub release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/devswha/gajae-code-app" alt="AGPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple" alt="macOS Apple Silicon">
 </p>
 
 <p align="center">
-  <a href="https://github.com/devswha/Gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>macOS 版をダウンロード</strong></a> ·
+  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>macOS 版をダウンロード</strong></a> ·
   <a href="#主な機能">主な機能</a> · <a href="#ソースから実行">開発</a> ·
-  <a href="https://github.com/devswha/Gajae-code-app/issues">Issues</a>
+  <a href="https://github.com/devswha/gajae-code-app/issues">Issues</a>
 </p>
 
 <p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="プロジェクトの下にセッションが並ぶ Gajae App" width="920"></p>
@@ -58,7 +58,7 @@ AI モデルやサブスクリプションは含まれません。Gajae Code に
 
 公開ベータは **Apple Silicon（M1 以降）、macOS 11 以降**に対応しています。
 
-1. [v2.0.0-beta.2 リリース](https://github.com/devswha/Gajae-code-app/releases/tag/v2.0.0-beta.2)から DMG と同名の `.sha256` をダウンロードします。
+1. [v2.0.0-beta.2 リリース](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2)から DMG と同名の `.sha256` をダウンロードします。
 2. チェックサムを確認します。
 
    ```bash
@@ -106,8 +106,8 @@ AI モデルやサブスクリプションは含まれません。Gajae Code に
 Node.js `22.22.2+` または `24.15.0+`、npm、Git、設定済みの Gajae Code が必要です。デスクトップビルドには Rust `1.85.1` も必要です。
 
 ```bash
-git clone https://github.com/devswha/Gajae-code-app.git
-cd Gajae-code-app
+git clone https://github.com/devswha/gajae-code-app.git
+cd gajae-code-app
 npm ci
 npm run dev
 ```
@@ -146,6 +146,6 @@ Rust core がプロセス、ファイル監視、ジョブ状態、PTY 境界を
 
 ## 状態とライセンス
 
-Gajae App v2 はベータです。更新前に `~/.gajae-app/data` と GJC 設定をバックアップしてください。不具合は OS、アプリバージョン、再現手順とともに [Issues](https://github.com/devswha/Gajae-code-app/issues/new) へ報告してください。
+Gajae App v2 はベータです。更新前に `~/.gajae-app/data` と GJC 設定をバックアップしてください。不具合は OS、アプリバージョン、再現手順とともに [Issues](https://github.com/devswha/gajae-code-app/issues/new) へ報告してください。
 
 [GNU AGPL v3.0 or later](LICENSE) で配布されます。Siteboon AI B.V. の上流 UI を起点に GJC 専用製品へ再構成しました。帰属は [NOTICE](NOTICE)、上流取り込み方針は [docs/UPSTREAM.md](docs/UPSTREAM.md) を参照してください。

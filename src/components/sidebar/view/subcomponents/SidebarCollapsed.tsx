@@ -2,7 +2,7 @@ import { Settings, PanelLeftOpen, Bug } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 const DISCORD_INVITE_URL = 'https://discord.gg/dskZax5JPh';
-const GITHUB_ISSUES_URL = 'https://github.com/devswha/Gajae-code-app/issues/new';
+const GITHUB_ISSUES_URL = 'https://github.com/devswha/gajae-code-app/issues/new';
 
 function DiscordIcon({ className }: { className?: string }) {
   return (

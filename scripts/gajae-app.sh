@@ -2,7 +2,7 @@
 # Repository-owned lifecycle manager for a local Gajae App deployment.
 set -euo pipefail
 
-readonly DEFAULT_REPOSITORY="https://github.com/devswha/Gajae-code-app.git"
+readonly DEFAULT_REPOSITORY="https://github.com/devswha/gajae-code-app.git"
 readonly DEFAULT_REF="main"
 readonly SERVICE_NAME="gajae-app.service"
 

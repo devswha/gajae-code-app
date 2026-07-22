@@ -13,16 +13,16 @@
 </div>
 
 <p align="center">
-  <a href="https://github.com/devswha/Gajae-code-app/actions/workflows/ci.yml"><img src="https://github.com/devswha/Gajae-code-app/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/devswha/Gajae-code-app/releases"><img src="https://img.shields.io/github/v/release/devswha/Gajae-code-app?include_prereleases&label=release" alt="GitHub release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/devswha/Gajae-code-app" alt="AGPL-3.0-or-later"></a>
+  <a href="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml"><img src="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/devswha/gajae-code-app/releases"><img src="https://img.shields.io/github/v/release/devswha/gajae-code-app?include_prereleases&label=release" alt="GitHub release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/devswha/gajae-code-app" alt="AGPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple" alt="macOS Apple Silicon">
 </p>
 
 <p align="center">
-  <a href="https://github.com/devswha/Gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>下载 macOS 应用</strong></a> ·
+  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>下载 macOS 应用</strong></a> ·
   <a href="#核心功能">核心功能</a> · <a href="#从源码运行">开发</a> ·
-  <a href="https://github.com/devswha/Gajae-code-app/issues">问题反馈</a>
+  <a href="https://github.com/devswha/gajae-code-app/issues">问题反馈</a>
 </p>
 
 <p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="会话嵌套在项目下方的 Gajae App 工作区" width="920"></p>
@@ -58,7 +58,7 @@ Gajae App 是用于在桌面端和浏览器中使用 [Gajae Code](https://github
 
 公开桌面 Beta 当前支持 **Apple Silicon（M1 及更新机型）和 macOS 11 及以上版本**。
 
-1. 从 [v2.0.0-beta.2 发布页](https://github.com/devswha/Gajae-code-app/releases/tag/v2.0.0-beta.2)下载 DMG 及同名 `.sha256` 文件。
+1. 从 [v2.0.0-beta.2 发布页](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2)下载 DMG 及同名 `.sha256` 文件。
 2. 验证校验和：
 
    ```bash
@@ -106,8 +106,8 @@ Gajae App 是用于在桌面端和浏览器中使用 [Gajae Code](https://github
 需要 Node.js `22.22.2+` 或 `24.15.0+`、npm、Git，以及已配置账户和模型的 Gajae Code。桌面构建还需要 Rust `1.85.1`。
 
 ```bash
-git clone https://github.com/devswha/Gajae-code-app.git
-cd Gajae-code-app
+git clone https://github.com/devswha/gajae-code-app.git
+cd gajae-code-app
 npm ci
 npm run dev
 ```
@@ -146,6 +146,6 @@ Rust 核心负责进程生命周期、文件监听、任务状态和 PTY 边界�
 
 ## 项目状态与许可证
 
-Gajae App v2 仍处于 Beta 阶段。升级前请备份 `~/.gajae-app/data` 和 GJC 配置。请在 [Issues](https://github.com/devswha/Gajae-code-app/issues/new) 中附上操作系统、应用版本和复现步骤。
+Gajae App v2 仍处于 Beta 阶段。升级前请备份 `~/.gajae-app/data` 和 GJC 配置。请在 [Issues](https://github.com/devswha/gajae-code-app/issues/new) 中附上操作系统、应用版本和复现步骤。
 
 本项目采用 [GNU AGPL v3.0 or later](LICENSE) 发布。它源自 Siteboon AI B.V. 的上游 UI 代码库，现已重构为 GJC 专用产品。署名信息见 [NOTICE](NOTICE)，上游引入政策见 [docs/UPSTREAM.md](docs/UPSTREAM.md)。

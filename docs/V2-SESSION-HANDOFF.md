@@ -23,7 +23,7 @@ Last updated: 2026-07-20. Supersedes the 2026-07-18 handoff.
   → 22.23.1 — `npm test` refuses other majors), cargo 1.85.1
   (`. "$HOME/.cargo/env"`). `env -u CI npm run tauri -- build` (the wrapper
   chokes on `CI=1`).
-- Origin: `https://github.com/devswha/Gajae-code-app`. The independent public
+- Origin: `https://github.com/devswha/gajae-code-app`. The independent public
   history begins from the verified `2.0.0-beta.1` baseline.
 - Commits use the repository hooks and must also pass `npm run verify`.
 

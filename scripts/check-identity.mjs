@@ -24,15 +24,6 @@ const MAX_REPORTED_ERRORS = 100;
 const GENERATED_DIRECTORIES = ['dist', 'dist-server', 'release'];
 const SKIPPED_DIRECTORIES = new Set(['.desktop-build', '.git', '.gjc', '.gjc-worktrees', 'node_modules']);
 const ARCHIVE_FILE_PATTERN = /\.(?:tar|tgz|gz|zip|bz2|xz|deb|appimage)$/i;
-const LOCALIZED_READMES = new Set([
-  'README.de.md',
-  'README.ja.md',
-  'README.ko.md',
-  'README.ru.md',
-  'README.tr.md',
-  'README.zh-CN.md',
-  'README.zh-TW.md',
-]);
 const PROTECTED_FILE_HASHES = new Map([
   ['LICENSE', '6d909143fd48a74595f4381a9118aa07b13690a6e3d0b85427c81fda67a3d7c4'],
   ['NOTICE', '9f2b4a42d603737f0b7f2c9e21ee426cbb6fb88ce0e9d1c4b9c950b9d5499111'],
@@ -42,11 +33,6 @@ const LEGACY_COORDINATE = ['siteboon', 'claudecodeui'].join('/');
 const STALE_FORK_COORDINATE = ['devswha', 'claudecodeui'].join('/');
 const UPSTREAM_NAME = `Cloud${'CLI'} UI`;
 const UPSTREAM_URL = `https://github.com/${LEGACY_COORDINATE}`;
-const UPSTREAM_LINEAGE = [
-  '<!-- upstream-lineage:start -->',
-  `Upstream lineage: Gajae App is derived from [${UPSTREAM_NAME}](${UPSTREAM_URL}). Required attribution and license terms are preserved in [LICENSE](LICENSE) and [NOTICE](NOTICE).`,
-  '<!-- upstream-lineage:end -->',
-].join('\n');
 const LEGACY_MATCHERS = [
   {
     label: 'legacy product token',
@@ -159,17 +145,6 @@ function validateMainReadme(text) {
   scanText('README.md', text);
 }
 
-function validateLocalizedReadme(relativePath, text) {
-  const lineageRanges = exactRanges(text, UPSTREAM_LINEAGE);
-  const startMarkerRanges = exactRanges(text, '<!-- upstream-lineage:start -->');
-  const endMarkerRanges = exactRanges(text, '<!-- upstream-lineage:end -->');
-
-  validateExactCount(relativePath, 'lineage block', lineageRanges, 1);
-  validateExactCount(relativePath, 'lineage start marker', startMarkerRanges, 1);
-  validateExactCount(relativePath, 'lineage end marker', endMarkerRanges, 1);
-  scanText(relativePath, text, lineageRanges);
-}
-
 function validateProvenanceDocument(relativePath, text) {
   const nameRanges = exactRanges(text, UPSTREAM_NAME);
   const urlRanges = exactRanges(text, UPSTREAM_URL);
@@ -200,11 +175,6 @@ function scanSpecialFile(relativePath, buffer) {
 
   if (relativePath === 'README.md') {
     validateMainReadme(text);
-    return;
-  }
-
-  if (LOCALIZED_READMES.has(relativePath)) {
-    validateLocalizedReadme(relativePath, text);
     return;
   }
 

@@ -101,6 +101,50 @@ function launch(target, dataDirectory, projectDir) {
   });
 }
 
+async function nativeClosureSmoke(target) {
+  const source = `
+    import { createRequire } from 'node:module';
+    import { readFileSync } from 'node:fs';
+    import path from 'node:path';
+    const require = createRequire(import.meta.url);
+    const Database = require('better-sqlite3');
+    const pty = require('node-pty');
+    const lightningcss = require('lightningcss');
+    const database = new Database(':memory:');
+    if (database.prepare('SELECT 1 AS value').get().value !== 1) throw new Error('better-sqlite3 native smoke failed');
+    database.close();
+    lightningcss.transform({ filename: 'smoke.css', code: Buffer.from('a { color: red; }') });
+    const manifest = JSON.parse(readFileSync(path.join(process.cwd(), 'server/gjc-runtime-manifest.json'), 'utf8'));
+    const nativeEntry = manifest.platforms['darwin-arm64'].files.find(entry => entry.path.endsWith('.node'));
+    if (!nativeEntry) throw new Error('Gajae native manifest entry is missing');
+    const nativeBindings = require(path.join(process.cwd(), 'node_modules', nativeEntry.package, nativeEntry.path));
+    const sentinel = '__piNativesV' + manifest.natives.replace(/[^A-Za-z0-9]/g, '_');
+    if (typeof nativeBindings[sentinel] !== 'function') throw new Error('Gajae native version sentinel is missing');
+    await new Promise((resolve, reject) => {
+      const terminal = pty.spawn(process.execPath, ['-e', 'process.exit(0)'], { name: 'xterm-256color', cols: 80, rows: 24, cwd: process.cwd(), env: process.env });
+      const timer = setTimeout(() => { terminal.kill(); reject(new Error('node-pty native smoke timed out')); }, 5000);
+      terminal.onExit(({ exitCode }) => { clearTimeout(timer); exitCode === 0 ? resolve() : reject(new Error('node-pty native smoke exited ' + exitCode)); });
+    });
+  `;
+  await new Promise((resolve, reject) => {
+    const child = spawn(target.command, ['--input-type=module', '--eval', source], {
+      cwd: target.cwd,
+      env: { ...process.env, ...target.extraEnv },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', chunk => { stdout += chunk; });
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    child.once('error', reject);
+    child.once('close', code => code === 0
+      ? resolve()
+      : reject(new Error(`Packaged native closure smoke failed (${code}): ${stderr || stdout}`)));
+  });
+}
+
 async function bootstrap(instance) {
   const health = await waitForHealth(instance.baseUrl, instance.output);
   const bootstrap = await request(`${instance.baseUrl}/desktop/bootstrap?nonce=${encodeURIComponent(instance.nonce)}`);
@@ -174,6 +218,7 @@ async function smoke(target) {
   const jobsDatabase = path.join(temporaryDirectory, 'jobs.sqlite3');
   let instance;
   try {
+    await nativeClosureSmoke(target);
     await createV6JobsFixture(target, jobsDatabase);
     instance = await launch(target, temporaryDirectory, projectDir);
     const { health, headers } = await bootstrap(instance);
@@ -207,6 +252,7 @@ async function dataSurvivalSmoke(target) {
   let first;
   let second;
   try {
+    await nativeClosureSmoke(target);
     first = await launch(target, dataDirectory, projectDir);
     const firstSession = await bootstrap(first);
     const project = await request(`${first.baseUrl}/api/projects/create-project`, { headers: { ...firstSession.headers, 'content-type': 'application/json' }, method: 'POST', body: JSON.stringify({ path: projectDir, customName }) });

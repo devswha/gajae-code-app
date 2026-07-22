@@ -5,8 +5,8 @@
 </p>
 
 <div align="center">
-  <img src="public/logo.png" alt="Логотип Gajae App" width="96" height="96">
-  <h1>Gajae App</h1>
+  <img src="public/logo.png" alt="Логотип Gajae Code App" width="96" height="96">
+  <h1>Gajae Code App</h1>
   <p><strong>Локальная среда ИИ-разработки для Gajae Code</strong></p>
   <p>Проекты, сессии, наборы агентов и навыки в одном рабочем пространстве.</p>
 </div>
@@ -19,17 +19,17 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>Скачать для macOS</strong></a> ·
+  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.3"><strong>Скачать для macOS</strong></a> ·
   <a href="#основные-возможности">Возможности</a> · <a href="#запуск-из-исходного-кода">Разработка</a> ·
   <a href="https://github.com/devswha/gajae-code-app/issues">Issues</a>
 </p>
 
-<p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="Gajae App с сессиями внутри проектов" width="920"></p>
+<p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="Gajae Code App с сессиями внутри проектов" width="920"></p>
 <p align="center"><sub>Раскройте проект, откройте его сессии и запустите новую задачу GJC в том же пространстве.</sub></p>
 
-## Что такое Gajae App?
+## Что такое Gajae Code App?
 
-Gajae App — открытая настольная и браузерная среда для [Gajae Code](https://github.com/devswha/gajae-code). Она запускает и возобновляет сессии GJC, группируя потоковые ответы и работу инструментов по проектам.
+Gajae Code App — открытая настольная и браузерная среда для [Gajae Code](https://github.com/devswha/gajae-code). Она запускает и возобновляет сессии GJC, группируя потоковые ответы и работу инструментов по проектам.
 
 Приложение не предоставляет ИИ-модель или подписку. Оно использует учётные записи, модели и агентов, настроенных в Gajae Code. Файлы и состояние выполнения остаются на компьютере, где запущено приложение.
 
@@ -57,15 +57,15 @@ Gajae App — открытая настольная и браузерная ср
 
 Публичная бета поддерживает **Apple Silicon (M1 и новее) с macOS 11 и новее**.
 
-1. Скачайте DMG и одноимённый `.sha256` со страницы [v2.0.0-beta.2](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2).
+1. Скачайте DMG и одноимённый `.sha256` со страницы [v2.0.0-beta.3](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.3).
 2. Проверьте контрольную сумму:
 
    ```bash
    cd ~/Downloads
-   shasum -a 256 -c gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg.sha256
+   shasum -a 256 -c gajae-app-desktop-2.0.0-beta.3-macos-arm64.dmg.sha256
    ```
 
-3. Откройте DMG и перетащите **Gajae App** в **Applications**.
+3. Откройте DMG и перетащите **Gajae Code App** в **Applications**.
 4. При первом запуске нажмите приложение в Finder с Control и выберите **Открыть**. Если macOS блокирует запуск: **Системные настройки → Конфиденциальность и безопасность → Всё равно открыть**.
 
 > Бета-DMG подписан ad hoc и пока не нотарифицирован Apple. Используйте только файл из GitHub Releases с совпадающей контрольной суммой.
@@ -96,7 +96,7 @@ Gajae App — открытая настольная и браузерная ср
 
 1. Проект: `<workspace>/.gjc/skills/<name>/SKILL.md`
 2. Пользователь: `~/.gjc/agent/skills/<name>/SKILL.md`
-3. Встроенные навыки Gajae App
+3. Встроенные навыки Gajae Code App
 
 Для отображения нужны корректные `name` и `description`. `enabled: false` или `hide: true` скрывают навык.
 
@@ -119,7 +119,7 @@ npm run dev
 React UI (Browser / Tauri)
           │ HTTP + WebSocket
           ▼
-Gajae App local server
+Gajae Code App local server
           │
           ├── SQLite · project files · Git/worktree
           ▼
@@ -145,6 +145,6 @@ GJC worker ──▶ Gajae Code CLI / SDK
 
 ## Статус и лицензия
 
-Gajae App v2 находится в бета-версии. Перед обновлением сохраните `~/.gajae-app/data` и конфигурацию GJC. Сообщайте о проблемах в [Issues](https://github.com/devswha/gajae-code-app/issues/new), указав ОС, версию и шаги воспроизведения.
+Gajae Code App v2 находится в бета-версии. Перед обновлением сохраните `~/.gajae-app/data` и конфигурацию GJC. Сообщайте о проблемах в [Issues](https://github.com/devswha/gajae-code-app/issues/new), указав ОС, версию и шаги воспроизведения.
 
-Gajae App распространяется по лицензии [GNU AGPL v3.0 or later](LICENSE). Проект начался с upstream-интерфейса Siteboon AI B.V. и был перестроен для GJC. См. [NOTICE](NOTICE) и [политику upstream](docs/UPSTREAM.md).
+Gajae Code App распространяется по лицензии [GNU AGPL v3.0 or later](LICENSE). Проект начался с upstream-интерфейса Siteboon AI B.V. и был перестроен для GJC. См. [NOTICE](NOTICE) и [политику upstream](docs/UPSTREAM.md).

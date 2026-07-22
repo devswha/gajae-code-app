@@ -84,7 +84,7 @@
     "openInEditor": "在编辑器中打开"
   },
   "mainContent": {
-    "loading": "正在加载 Gajae App",
+    "loading": "正在加载 Gajae Code App",
     "settingUpWorkspace": "正在设置您的工作空间...",
     "chooseProject": "选择您的项目",
     "selectProjectDescription": "从侧边栏选择一个项目以开始使用 Gajae Code 进行编程。每个项目包含您的聊天会话和文件历史。",
@@ -247,7 +247,7 @@
     "npmUpgradeCommand": "scripts/gajae-app.sh update",
     "manualUpgradeHint": "请在 GitHub Releases 中查看发行说明和最新版本。",
     "updateCompleted": "更新成功完成！",
-    "restartServer": "请重启 Gajae App 以应用更新。",
+    "restartServer": "请重启 Gajae Code App 以应用更新。",
     "updateFailed": "更新失败",
     "buttons": {
       "close": "关闭",

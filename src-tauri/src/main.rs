@@ -23,7 +23,7 @@ fn acquire_single_instance_lock() -> Result<SingleInstanceLock, String> {
         .open(lock_path)
         .map_err(|error| format!("could not open desktop instance lock: {error}"))?;
     file.try_lock_exclusive()
-        .map_err(|_| "Gajae App is already running.".to_owned())?;
+        .map_err(|_| "Gajae Code App is already running.".to_owned())?;
     Ok(SingleInstanceLock { _file: file })
 }
 fn is_gajae_deep_link(url: &tauri::Url) -> bool {
@@ -109,7 +109,7 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("failed to run Gajae App desktop shell");
+        .expect("failed to run Gajae Code App desktop shell");
     app.run(
         |app: &tauri::AppHandle<tauri::Wry>, event: tauri::RunEvent| match event {
             tauri::RunEvent::ExitRequested { api, .. } => {

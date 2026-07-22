@@ -1,6 +1,9 @@
 # Tauri Desktop (macOS arm64) — Verification Record
 
-> **Status (2026-07-20): C7 complete, C8 void, C9 complete.** The interactive
+> **Status (2026-07-22): beta.3 rename and reinstall QA passed; C7
+> complete, C8 void, C9 complete.** The beta.3 installed-app smoke covered the
+> visible rename, project/session navigation, preset and skill-command UI,
+> task abort/resume, and quit/relaunch persistence. The interactive
 > GUI smoke was executed end-to-end on the installed DMG build, driven through
 > gjc computer use (screenshots, drive transcript, QA report, and re-drill logs
 > under `artifacts/g002/`). Electron was removed in C9/wave1, which also voids
@@ -18,16 +21,50 @@ npm run desktop:dmg:macos               # headless functional DMG via hdiutil + 
 ```
 
 Artifacts:
-- `src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg`
-- `src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg.sha256`
+- `src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/gajae-app-desktop-2.0.0-beta.3-macos-arm64.dmg`
+- `src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/gajae-app-desktop-2.0.0-beta.3-macos-arm64.dmg.sha256`
 
-The `Release Gajae App` GitHub Actions workflow performs the same build,
-mount, signature, architecture, bundle-version, and packaged-server smoke
-checks before attaching both files to the versioned GitHub Release.
+The `Release Gajae Code App` GitHub Actions workflow performs the same build,
+mount, nested-signature, architecture, bundle-version, native-closure, and
+packaged-server smoke checks before attaching both files to the versioned
+GitHub Release. The DMG build fails if it exceeds 250 MiB.
+
+Final local beta.3 candidate:
+
+- Size: `235611893` bytes (224.7 MiB)
+- SHA-256: `c185e65228587c3b0e87039bd205c22ea400e78fdcb5dac53a6477b8591a26e1`
+- Installed bundle: `/Applications/Gajae Code App.app`, desktop version `0.2.2`
+- Deep code-signature verification and packaged native/Bun loading smoke: pass
+
+## beta.3 — Rename and reinstall smoke — **PASSED 2026-07-22**
+
+The previous `/Applications/Gajae App.app` and `~/.gajae-app` were moved to
+Trash without emptying it. The final beta.3 DMG was installed through Finder
+and exercised through Computer Use against a fresh data directory.
+
+- [x] Every visible app, window, and menu identity is **Gajae Code App**.
+- [x] The explicit `gajae-app` project survives relaunch, and its compact
+      sessions expand directly beneath the project instead of being duplicated
+      in Work while idle.
+- [x] Model preset selection exposes built-in and custom presets, each with the
+      default agent plus Planner, Executor, Architect, and Critic roles.
+- [x] Typing `/` exposes the installed `/skill:adaptive-response` command.
+- [x] A running task appears in Work, abort removes it, and reopening the same
+      session after quit/relaunch accepts a follow-up and returns `QA_RESUMED`.
+- [x] The fresh database promoted the auto-discovered project to `origin =
+      'explicit'`; no prior `~/.gajae-app` database was restored.
+- [x] No new Gajae Code App crash report or `Code Signature Invalid` event was
+      created after the baseline timestamp.
+
+The local DMG did not carry a quarantine attribute, so macOS did not show the
+expected first-run Gatekeeper warning on this Mac. Cross-Mac QA must download
+the GitHub Release asset so quarantine is applied and separately verify the
+right-click **Open** flow. This does not change the expected `spctl` rejection
+for the intentionally ad-hoc beta.
 
 ## C7 — Interactive GUI smoke — **PASSED 2026-07-20**
 
-Executed against the DMG-installed `/Applications/Gajae App.app` at HEAD
+Executed against the then-named DMG install `/Applications/Gajae App.app` at HEAD
 `36d7cb2`, driven exclusively through gjc computer use. Evidence:
 `artifacts/g002/g002-gui-drive-transcript.{md,json}`, screenshots `00`–`16`,
 `g002-qa-report.json`, `g002-packaged-smoke.log`, `g002-leader-evidence.log`.
@@ -111,10 +148,10 @@ Developer ID identity and export the notarization env before
 
 ```sh
 node scripts/release/smoke-packaged-server.mjs \
-  --tauri-app "/Applications/Gajae App.app"
+  --tauri-app "/Applications/Gajae Code App.app"
 
 node scripts/release/smoke-packaged-server.mjs \
-  --tauri-app "/Applications/Gajae App.app" --data-survival
+  --tauri-app "/Applications/Gajae Code App.app" --data-survival
 ```
 
 The standard run verifies `/health` identity, one-time desktop bootstrap

@@ -1,7 +1,7 @@
 # Source template for the gajae-app.service user unit; do not install it directly.
 # The manager keeps runtime data and staged releases in ~/.gajae-app, then replaces every placeholder.
 [Unit]
-Description=Gajae App self-hosted web application
+Description=Gajae Code App self-hosted web application
 After=network-online.target
 Wants=network-online.target
 

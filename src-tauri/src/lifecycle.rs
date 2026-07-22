@@ -158,7 +158,7 @@ fn show_shutdown_error(app: &AppHandle, error: &str) {
     if let Some(window) = app.get_webview_window("main") {
         let escaped =
             serde_json::to_string(error).unwrap_or_else(|_| "\"Shutdown failed\"".to_owned());
-        let _ = window.eval(format!("document.body.innerHTML='<main style=\"font:16px system-ui;padding:3rem\"><h1>Gajae App could not quit safely</h1><pre></pre></main>';document.querySelector('pre').textContent={escaped};"));
+        let _ = window.eval(format!("document.body.innerHTML='<main style=\"font:16px system-ui;padding:3rem\"><h1>Gajae Code App could not quit safely</h1><pre></pre></main>';document.querySelector('pre').textContent={escaped};"));
         let _ = window.show();
     }
 }

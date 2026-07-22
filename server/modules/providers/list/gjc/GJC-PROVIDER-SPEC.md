@@ -1,6 +1,6 @@
-# gjc provider — 구현 기록 (Gajae App, 2026-07-16)
+# gjc provider — 구현 기록 (Gajae Code App, 2026-07-16)
 
-Gajae App의 provider `gjc`(Gajae Code) 구현 기록. 초기 read-only 세션 목록/열람 경계는 codex JSONL 스캐너를 참조했고, 현재 live 실행은 전용 worker와 Rust core를 통과한다. 업스트림 PR 금지 — Gajae App에서 개발.
+Gajae Code App의 provider `gjc`(Gajae Code) 구현 기록. 초기 read-only 세션 목록/열람 경계는 codex JSONL 스캐너를 참조했고, 현재 live 실행은 전용 worker와 Rust core를 통과한다. 업스트림 PR 금지 — Gajae Code App에서 개발.
 
 ## 세션 스토어 (실측)
 - 위치: `$HOME/.gjc/agent/sessions/<cwd-slug>/<ISO-ts>_<uuid>.jsonl`

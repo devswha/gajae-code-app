@@ -4,7 +4,7 @@ set -euo pipefail
 APP_ROOT="${1:-/opt/gajae-app}"
 
 fail() {
-  printf 'Gajae App sandbox build failed: %s\n' "$*" >&2
+  printf 'Gajae Code App sandbox build failed: %s\n' "$*" >&2
   exit 1
 }
 

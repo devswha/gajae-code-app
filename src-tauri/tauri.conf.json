@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Gajae App",
+  "productName": "Gajae Code App",
   "identifier": "app.gajae.desktop",
   "build": {
     "frontendDist": "recovery"
@@ -10,7 +10,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Gajae App",
+        "title": "Gajae Code App",
         "width": 1200,
         "height": 800,
         "visible": false,

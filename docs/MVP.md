@@ -1,4 +1,4 @@
-# Gajae App MVP 정의 (확정본)
+# Gajae Code App MVP 정의 (확정본)
 
 확정일: 2026-07-16. 이 문서는 제품 방향의 기준선이다. 여기에 없는 기능 투자는
 v2 이후 몫이며, 스코프를 바꾸려면 이 문서를 먼저 고친다.
@@ -14,7 +14,7 @@ v2 이후 몫이며, 스코프를 바꾸려면 이 문서를 먼저 고친다.
 
 - **v1 = tmux가 주인이고 앱은 창문.** 내 tmux에서 이미 돌고 있는 에이전트들을
   브라우저/폰으로 보고, 말 걸 수 있는 관제창.
-- **v2 = 앱이 주인이 되는 것.** 가재코드의 Codex App 같은 존재 — 웹/데스크톱이
+- **v2 = 앱이 주인이 되는 것.** Gajae Code App의 Codex App 같은 존재 — 웹/데스크톱이
   에이전트 작업을 직접 실행·관리하는 1급 실행기.
 
 ## v1 MVP — tmux 관제창
@@ -52,7 +52,7 @@ v2 이후 몫이며, 스코프를 바꾸려면 이 문서를 먼저 고친다.
 3. `v1.0.0` 태그 → `gajae-app-server-1.0.0-linux-x64-node22.tar.gz` 발행 →
    CHANGELOG `Unreleased`를 날짜 헤딩으로 전환.
 
-## v2 MVP — 가재코드의 Codex App
+## v2 MVP — Gajae Code App의 Codex App
 
 v1이 에러/버그 없이 돌아간 뒤에만 시작한다.
 실행 순서와 슬라이스 정의는 `docs/V2-PLAN.md`가 기준이다.
@@ -85,7 +85,7 @@ v1이 에러/버그 없이 돌아간 뒤에만 시작한다.
 
 ## 버저닝 정책 (2026-07-16 확정)
 
-- Gajae App 자체 semver 라인은 `1.0.0`부터 시작. 업스트림(claudecodeui) `1.36.x`
+- Gajae Code App 자체 semver 라인은 `1.0.0`부터 시작. 업스트림(claudecodeui) `1.36.x`
   넘버는 CHANGELOG의 historical provenance 전용이며 절대 재사용하지 않는다.
 - 태그는 실제 릴리스 컷에서만 만든다 (`v<version>`).
 - 실행 중인 서버는 `/health`에서 버전을 보고한다. 데스크톱 셸은 독립된

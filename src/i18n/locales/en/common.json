@@ -84,7 +84,7 @@
     "openInEditor": "Open in Editor"
   },
   "mainContent": {
-    "loading": "Loading 가재코드",
+    "loading": "Loading Gajae Code App",
     "settingUpWorkspace": "Setting up your workspace...",
     "chooseProject": "Choose Your Project",
     "selectProjectDescription": "Select a project from the sidebar to start coding with Gajae Code. Each project contains your chat sessions and file history.",

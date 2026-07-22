@@ -252,7 +252,7 @@ async function writeRuntimePackageJson(stageDir, packageJson) {
     name: 'gajae-app-server',
     version: packageJson.version,
     private: true,
-    description: 'Gajae App server runtime',
+    description: 'Gajae Code App server runtime',
     type: 'module',
     main: 'dist-server/server/index.js',
     bin: {

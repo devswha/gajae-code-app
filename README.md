@@ -12,8 +12,8 @@
 </p>
 
 <div align="center">
-  <img src="public/logo.png" alt="Gajae App 로고" width="96" height="96">
-  <h1>Gajae App</h1>
+  <img src="public/logo.png" alt="Gajae Code App 로고" width="96" height="96">
+  <h1>Gajae Code App</h1>
   <p><strong>Gajae Code를 위한 로컬 우선 AI 코딩 데스크톱</strong></p>
   <p>프로젝트, 세션, 에이전트 프리셋, 스킬을 하나의 작업 공간에서 관리합니다.</p>
 </div>
@@ -27,20 +27,20 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>macOS 앱 다운로드</strong></a> ·
+  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.3"><strong>macOS 앱 다운로드</strong></a> ·
   <a href="#핵심-기능">핵심 기능</a> ·
   <a href="#소스에서-실행">개발 시작</a> ·
   <a href="https://github.com/devswha/gajae-code-app/issues">이슈</a>
 </p>
 
 <p align="center">
-  <img src="public/screenshots/gajae-app-overview.jpg" alt="프로젝트 아래에 세션이 정리된 Gajae App 작업 화면" width="920">
+  <img src="public/screenshots/gajae-app-overview.jpg" alt="프로젝트 아래에 세션이 정리된 Gajae Code App 작업 화면" width="920">
 </p>
 <p align="center"><sub>프로젝트를 펼치면 세션이 바로 이어지고, 같은 화면에서 새 GJC 작업을 시작할 수 있습니다.</sub></p>
 
-## Gajae App이란
+## Gajae Code App이란
 
-Gajae App은 [Gajae Code](https://github.com/devswha/gajae-code)를 데스크톱과 브라우저에서 사용하기 위한 오픈소스 작업 공간입니다. 앱이 GJC 세션을 시작하고 재개하며, 스트리밍 응답과 도구 실행을 프로젝트 단위로 정리합니다.
+Gajae Code App은 [Gajae Code](https://github.com/devswha/gajae-code)를 데스크톱과 브라우저에서 사용하기 위한 오픈소스 작업 공간입니다. 앱이 GJC 세션을 시작하고 재개하며, 스트리밍 응답과 도구 실행을 프로젝트 단위로 정리합니다.
 
 이 앱은 AI 모델이나 구독을 제공하지 않습니다. Gajae Code에 설정된 계정, 모델, 에이전트 설정을 그대로 사용하며 프로젝트 파일과 실행 상태는 앱이 동작하는 호스트에 남습니다.
 
@@ -62,11 +62,11 @@ Gajae App은 [Gajae Code](https://github.com/devswha/gajae-code)를 데스크톱
 <table>
   <tr>
     <td width="50%" align="center">
-      <img src="public/screenshots/model-presets.jpg" alt="Gajae App 에이전트 프리셋 선택기">
+      <img src="public/screenshots/model-presets.jpg" alt="Gajae Code App 에이전트 프리셋 선택기">
       <br><sub><b>에이전트 프리셋</b><br>기본 에이전트와 4개 전문 역할을 함께 선택</sub>
     </td>
     <td width="50%" align="center">
-      <img src="public/screenshots/skill-commands.jpg" alt="Gajae App 스킬 슬래시 커맨드 메뉴">
+      <img src="public/screenshots/skill-commands.jpg" alt="Gajae Code App 스킬 슬래시 커맨드 메뉴">
       <br><sub><b>스킬 커맨드</b><br>프로젝트·사용자·번들 스킬을 채팅에서 검색</sub>
     </td>
   </tr>
@@ -76,17 +76,17 @@ Gajae App은 [Gajae Code](https://github.com/devswha/gajae-code)를 데스크톱
 
 현재 공개 데스크톱 빌드는 **Apple Silicon(M1 이상), macOS 11 이상**을 지원합니다.
 
-1. [v2.0.0-beta.2 릴리스](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2)에서 아래 두 파일을 내려받습니다.
-   - `gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg`
-   - `gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg.sha256`
+1. [v2.0.0-beta.3 릴리스](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.3)에서 아래 두 파일을 내려받습니다.
+   - `gajae-app-desktop-2.0.0-beta.3-macos-arm64.dmg`
+   - `gajae-app-desktop-2.0.0-beta.3-macos-arm64.dmg.sha256`
 2. 다운로드 폴더에서 체크섬을 검증합니다.
 
    ```bash
    cd ~/Downloads
-   shasum -a 256 -c gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg.sha256
+   shasum -a 256 -c gajae-app-desktop-2.0.0-beta.3-macos-arm64.dmg.sha256
    ```
 
-3. DMG를 열고 **Gajae App**을 **Applications**로 드래그합니다.
+3. DMG를 열고 **Gajae Code App**을 **Applications**로 드래그합니다.
 4. 첫 실행은 Finder에서 앱을 `Control`-클릭하고 **열기**를 선택합니다. 차단되면 **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기**를 사용합니다.
 
 > 현재 베타 DMG는 ad-hoc 서명되어 있으며 Apple 공증 전 상태입니다. GitHub Release에서 받은 파일과 체크섬이 일치하는지 반드시 확인하세요.
@@ -134,7 +134,7 @@ Gajae App은 [Gajae Code](https://github.com/devswha/gajae-code)를 데스크톱
 
 1. 프로젝트: `<workspace>/.gjc/skills/<name>/SKILL.md`
 2. 사용자: `~/.gjc/agent/skills/<name>/SKILL.md`
-3. Gajae App 번들 스킬
+3. Gajae Code App 번들 스킬
 
 메뉴에 표시하려면 `SKILL.md`에 유효한 `name`과 `description`이 필요합니다. `enabled: false` 또는 `hide: true`인 스킬은 숨겨집니다.
 
@@ -165,7 +165,7 @@ npm ci
 npm run desktop:dev
 ```
 
-이 명령은 Tauri 셸과 전용 로컬 Gajae App 서버를 함께 시작합니다.
+이 명령은 Tauri 셸과 전용 로컬 Gajae Code App 서버를 함께 시작합니다.
 
 ## 구조
 
@@ -173,7 +173,7 @@ npm run desktop:dev
 React UI (Browser / Tauri)
           │ HTTP + WebSocket
           ▼
-Gajae App local server
+Gajae Code App local server
           │
           ├── SQLite · project files · Git/worktree
           ▼
@@ -205,8 +205,8 @@ GJC worker ──▶ Gajae Code CLI / SDK
 
 ## 프로젝트 상태
 
-Gajae App v2는 베타입니다. 업그레이드 전 `~/.gajae-app/data`와 GJC 설정을 백업하세요. 문제를 발견하면 운영체제, 앱 버전, 재현 단계와 함께 [이슈](https://github.com/devswha/gajae-code-app/issues/new)를 등록해 주세요.
+Gajae Code App v2는 베타입니다. 업그레이드 전 `~/.gajae-app/data`와 GJC 설정을 백업하세요. 문제를 발견하면 운영체제, 앱 버전, 재현 단계와 함께 [이슈](https://github.com/devswha/gajae-code-app/issues/new)를 등록해 주세요.
 
 ## 라이선스와 출처
 
-Gajae App은 [GNU AGPL v3.0 or later](LICENSE)로 배포됩니다. 이 프로젝트는 Siteboon AI B.V.의 업스트림 UI 코드베이스에서 시작해 GJC 전용 제품으로 재구성되었습니다. 저작권과 추가 조건은 [NOTICE](NOTICE), 업스트림 반영 정책은 [docs/UPSTREAM.md](docs/UPSTREAM.md)를 확인하세요.
+Gajae Code App은 [GNU AGPL v3.0 or later](LICENSE)로 배포됩니다. 이 프로젝트는 Siteboon AI B.V.의 업스트림 UI 코드베이스에서 시작해 GJC 전용 제품으로 재구성되었습니다. 저작권과 추가 조건은 [NOTICE](NOTICE), 업스트림 반영 정책은 [docs/UPSTREAM.md](docs/UPSTREAM.md)를 확인하세요.

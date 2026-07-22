@@ -1,8 +1,8 @@
 [package]
 name = "gajae-app-desktop"
-version = "0.2.1"
-description = "Gajae App desktop shell"
-authors = ["Gajae App contributors"]
+version = "0.2.2"
+description = "Gajae Code App desktop shell"
+authors = ["Gajae Code App contributors"]
 edition = "2021"
 rust-version = "1.85"
 build = "build.rs"

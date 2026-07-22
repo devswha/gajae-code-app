@@ -1,8 +1,25 @@
-# Gajae App changelog
+# Gajae Code App changelog
 
-All notable changes to Gajae App are documented in this file. Current and
+All notable changes to Gajae Code App are documented in this file. Current and
 future desktop and server artifacts are published only through
 [GitHub Releases](https://github.com/devswha/gajae-code-app/releases).
+
+## 2.0.0-beta.3 (2026-07-22)
+
+### Desktop identity and distribution
+
+- Renamed the visible product and macOS application bundle to **Gajae Code
+  App** while preserving the `gajae-app` package, CLI, data directory, URL
+  scheme, bundle identifier, and release asset prefixes for compatibility.
+- Reduced the embedded macOS payload by removing the duplicate Node
+  distribution, installing only server runtime dependencies, and pruning
+  non-runtime metadata. The canonical DMG now fails closed above 250 MiB.
+- Hardened ad-hoc packaging with an inside-out native signature pass and added
+  runtime loading checks for SQLite, PTY, Lightning CSS, Gajae native bindings,
+  and the Bun worker before release.
+- Fixed Add Project on a fresh install so an auto-discovered GJC workspace is
+  promoted to an explicit project instead of returning an already-exists
+  error, and made that origin change refresh the sidebar immediately.
 
 ## 2.0.0-beta.2 (2026-07-22)
 
@@ -31,10 +48,10 @@ future desktop and server artifacts are published only through
 
 ### Versioning
 
-- Started Gajae App's own semantic version line at `1.0.0`, marking the current
+- Started Gajae Code App's own semantic version line at `1.0.0`, marking the current
   MVP as the first stable cut. The inherited upstream `1.36.x` package version
   is retired; upstream numbers below remain historical provenance only and are
-  never reused as Gajae App versions. Releases are cut from this line: the
+  never reused as Gajae Code App versions. Releases are cut from this line: the
   release commit tags `v<version>`, publishes
   `gajae-app-server-<version>-linux-x64-node22.tar.gz`, and converts this
   `Unreleased` section into the dated version heading. The running server
@@ -142,7 +159,7 @@ future desktop and server artifacts are published only through
 ## Historical upstream provenance
 
 The entries and links below are preserved historical provenance from the
-original upstream. They are not Gajae App release locations or active
+original upstream. They are not Gajae Code App release locations or active
 installation, service, or publication instructions.
 
 <!-- historical-upstream-provenance:start -->

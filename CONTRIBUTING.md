@@ -1,6 +1,6 @@
-# Contributing to Gajae App
+# Contributing to Gajae Code App
 
-Thanks for your interest in contributing to Gajae App! Before you start, please take a moment to read through this guide.
+Thanks for your interest in contributing to Gajae Code App! Before you start, please take a moment to read through this guide.
 
 ## Before You Start
 

@@ -1,7 +1,7 @@
 {
-  "name": "Gajae App",
-  "short_name": "Gajae App",
-  "description": "Gajae App — self-hosted AI coding workspace",
+  "name": "Gajae Code App",
+  "short_name": "Gajae Code App",
+  "description": "Gajae Code App — self-hosted AI coding workspace",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1b0f0a",

@@ -12,8 +12,8 @@
 </p>
 
 <div align="center">
-  <img src="public/logo.png" alt="Gajae App logo" width="96" height="96">
-  <h1>Gajae App</h1>
+  <img src="public/logo.png" alt="Gajae Code App logo" width="96" height="96">
+  <h1>Gajae Code App</h1>
   <p><strong>A local-first AI coding desktop for Gajae Code</strong></p>
   <p>Manage projects, sessions, agent presets, and skills in one workspace.</p>
 </div>
@@ -27,18 +27,18 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>Download for macOS</strong></a> ·
+  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.3"><strong>Download for macOS</strong></a> ·
   <a href="#key-features">Features</a> ·
   <a href="#run-from-source">Development</a> ·
   <a href="https://github.com/devswha/gajae-code-app/issues">Issues</a>
 </p>
 
-<p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="Gajae App workspace with sessions nested under projects" width="920"></p>
+<p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="Gajae Code App workspace with sessions nested under projects" width="920"></p>
 <p align="center"><sub>Expand a project to reach its sessions, then start a new GJC task in the same workspace.</sub></p>
 
-## What is Gajae App?
+## What is Gajae Code App?
 
-Gajae App is an open-source desktop and browser workspace for [Gajae Code](https://github.com/devswha/gajae-code). It starts and resumes GJC sessions and organizes streaming responses and tool activity by project.
+Gajae Code App is an open-source desktop and browser workspace for [Gajae Code](https://github.com/devswha/gajae-code). It starts and resumes GJC sessions and organizes streaming responses and tool activity by project.
 
 The app does not include an AI model or subscription. It uses the accounts, models, and agent configuration already set up in Gajae Code. Project files and execution state remain on the machine running the app.
 
@@ -59,8 +59,8 @@ The app does not include an AI model or subscription. It uses the accounts, mode
 
 <table>
   <tr>
-    <td width="50%" align="center"><img src="public/screenshots/model-presets.jpg" alt="Gajae App agent preset picker"><br><sub><b>Agent presets</b><br>Configure the default agent and four specialist roles together</sub></td>
-    <td width="50%" align="center"><img src="public/screenshots/skill-commands.jpg" alt="Gajae App skill command menu"><br><sub><b>Skill commands</b><br>Search project, user, and bundled skills from chat</sub></td>
+    <td width="50%" align="center"><img src="public/screenshots/model-presets.jpg" alt="Gajae Code App agent preset picker"><br><sub><b>Agent presets</b><br>Configure the default agent and four specialist roles together</sub></td>
+    <td width="50%" align="center"><img src="public/screenshots/skill-commands.jpg" alt="Gajae Code App skill command menu"><br><sub><b>Skill commands</b><br>Search project, user, and bundled skills from chat</sub></td>
   </tr>
 </table>
 
@@ -68,15 +68,15 @@ The app does not include an AI model or subscription. It uses the accounts, mode
 
 The public desktop beta currently supports **Apple Silicon (M1 or newer) on macOS 11 or newer**.
 
-1. Download the DMG and matching `.sha256` file from the [v2.0.0-beta.2 release](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2).
+1. Download the DMG and matching `.sha256` file from the [v2.0.0-beta.3 release](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.3).
 2. Verify the download:
 
    ```bash
    cd ~/Downloads
-   shasum -a 256 -c gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg.sha256
+   shasum -a 256 -c gajae-app-desktop-2.0.0-beta.3-macos-arm64.dmg.sha256
    ```
 
-3. Open the DMG and drag **Gajae App** into **Applications**.
+3. Open the DMG and drag **Gajae Code App** into **Applications**.
 4. On first launch, Control-click the app in Finder and choose **Open**. If macOS blocks it, use **System Settings → Privacy & Security → Open Anyway**.
 
 > The current beta DMG is ad-hoc signed and not yet Apple-notarized. Only use an artifact from GitHub Releases whose checksum matches.
@@ -112,7 +112,7 @@ The picker combines the **Current configuration**, **28 built-in presets** for G
 
 1. Project: `<workspace>/.gjc/skills/<name>/SKILL.md`
 2. User: `~/.gjc/agent/skills/<name>/SKILL.md`
-3. Bundled Gajae App skills
+3. Bundled Gajae Code App skills
 
 A visible skill needs valid `name` and `description` fields. Skills with `enabled: false` or `hide: true` are hidden.
 
@@ -142,7 +142,7 @@ npm run desktop:dev
 React UI (Browser / Tauri)
           │ HTTP + WebSocket
           ▼
-Gajae App local server
+Gajae Code App local server
           │
           ├── SQLite · project files · Git/worktree
           ▼
@@ -172,6 +172,6 @@ For server deployment, see the [installation guide](docs/INSTALL.md) and [self-h
 
 ## Project status and license
 
-Gajae App v2 is in beta. Back up `~/.gajae-app/data` and your GJC configuration before upgrading. Report problems with the OS, app version, and reproduction steps in [Issues](https://github.com/devswha/gajae-code-app/issues/new).
+Gajae Code App v2 is in beta. Back up `~/.gajae-app/data` and your GJC configuration before upgrading. Report problems with the OS, app version, and reproduction steps in [Issues](https://github.com/devswha/gajae-code-app/issues/new).
 
-Gajae App is distributed under [GNU AGPL v3.0 or later](LICENSE). It began from the Siteboon AI B.V. upstream UI codebase and has been rebuilt as a GJC-specific product. See [NOTICE](NOTICE) and the [upstream policy](docs/UPSTREAM.md) for attribution and intake rules.
+Gajae Code App is distributed under [GNU AGPL v3.0 or later](LICENSE). It began from the Siteboon AI B.V. upstream UI codebase and has been rebuilt as a GJC-specific product. See [NOTICE](NOTICE) and the [upstream policy](docs/UPSTREAM.md) for attribution and intake rules.

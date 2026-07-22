@@ -1,4 +1,4 @@
-# Gajae App v2 구현 계획 (end-to-end)
+# Gajae Code App v2 구현 계획 (end-to-end)
 
 작성일: 2026-07-17. 기준 문서: `docs/MVP.md`(v2 정의),
 `docs/GJC-DESKTOP-ARCHITECTURE-ROADMAP.md`(체크포인트/불변식).

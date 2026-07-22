@@ -22,7 +22,15 @@ const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024;
 const MAX_REPORTED_ERRORS = 100;
 const GENERATED_DIRECTORIES = ['dist', 'dist-server', 'release'];
-const SKIPPED_DIRECTORIES = new Set(['.desktop-build', '.git', '.gjc', '.gjc-worktrees', 'node_modules']);
+const SKIPPED_DIRECTORIES = new Set([
+  '.codegraph',
+  '.desktop-build',
+  '.git',
+  '.gjc',
+  '.gjc-worktrees',
+  '.omo',
+  'node_modules',
+]);
 const ARCHIVE_FILE_PATTERN = /\.(?:tar|tgz|gz|zip|bz2|xz|deb|appimage)$/i;
 const PROTECTED_FILE_HASHES = new Map([
   ['LICENSE', '6d909143fd48a74595f4381a9118aa07b13690a6e3d0b85427c81fda67a3d7c4'],
@@ -214,6 +222,10 @@ async function walkDirectory(directoryPath, category) {
     const absolutePath = resolve(directoryPath, entry.name);
     const relativePath = normalizeRelativePath(absolutePath);
 
+    if (SKIPPED_DIRECTORIES.has(entry.name)) {
+      continue;
+    }
+
     if (entry.isSymbolicLink()) {
       addError(`${relativePath}: symbolic links are not scanned`);
       continue;
@@ -226,9 +238,6 @@ async function walkDirectory(directoryPath, category) {
     }
 
     if (entry.isDirectory()) {
-      if (SKIPPED_DIRECTORIES.has(entry.name)) {
-        continue;
-      }
       if (relativePath.startsWith('release/server/.stage-')) {
         continue;
       }

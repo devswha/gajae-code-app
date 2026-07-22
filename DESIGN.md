@@ -1,10 +1,10 @@
-# Gajae App Design System
+# Gajae Code App Design System
 
 This document extracts the current product design system from `src/index.css`, `tailwind.config.js`, `src/shared/view/ui`, `src/components/app/AppContent.tsx`, the sidebar, and chat surfaces. It documents what exists today; it is not a redesign brief.
 
 ## 1. Atmosphere & Identity
 
-Gajae App feels like a quiet local command center for coding agents: dense, warm, low-glare, and built for long-running supervision rather than marketing spectacle. The signature is a warm neutral shell with a sharp orange primary action color, compact rows, and glass-like navigation surfaces that keep the user's attention on live sessions, chat, and project context.
+Gajae Code App feels like a quiet local command center for coding agents: dense, warm, low-glare, and built for long-running supervision rather than marketing spectacle. The signature is a warm neutral shell with a sharp orange primary action color, compact rows, and glass-like navigation surfaces that keep the user's attention on live sessions, chat, and project context.
 
 Primary personas:
 - **Solo maintainer on desktop**: monitors multiple tmux-backed agents for hours, needs dense lists, stable scroll positions, and fast keyboard/mouse interaction.

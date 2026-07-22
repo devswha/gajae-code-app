@@ -75,7 +75,7 @@ Implementation progress:
 
 ## Purpose
 
-Record the agreed direction for evolving Gajae App toward a Codex App-like desktop product without turning the recent Node.js compatibility fix into an unnecessary full rewrite.
+Record the agreed direction for evolving Gajae Code App toward a Codex App-like desktop product without turning the recent Node.js compatibility fix into an unnecessary full rewrite.
 
 ## Confirmed decisions
 
@@ -124,7 +124,7 @@ The desktop shell must stay thin. Closing a window must not implicitly destroy a
 
 ### Application server/core owns
 
-- Gajae App authentication and authorization.
+- Gajae Code App authentication and authorization.
 - Application session IDs and provider-session ID mapping.
 - Database writes and migrations.
 - Browser WebSocket connections and replay sequencing.
@@ -134,7 +134,7 @@ The desktop shell must stay thin. Closing a window must not implicitly destroy a
 
 ### Worker must not own
 
-- Direct writes to the Gajae App database.
+- Direct writes to the Gajae Code App database.
 - Browser authentication or browser-facing sockets.
 - Product-wide provider registration.
 - Claude, Codex, Cursor, or OpenCode behavior.

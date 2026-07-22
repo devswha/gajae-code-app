@@ -13,12 +13,13 @@
 
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+const MAX_DMG_BYTES = 250 * 1024 * 1024;
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -38,7 +39,7 @@ if (process.platform !== 'darwin') {
 }
 
 const releaseDir = join(rootDir, 'src-tauri/target/aarch64-apple-darwin/release/bundle');
-const appPath = arg('--app', join(releaseDir, 'macos/Gajae App.app'));
+const appPath = arg('--app', join(releaseDir, 'macos/Gajae Code App.app'));
 const outDir = arg('--out', join(releaseDir, 'dmg'));
 
 if (!existsSync(appPath)) {
@@ -58,8 +59,10 @@ if (typeof releaseVersion !== 'string'
 }
 const identifier = run('/usr/libexec/PlistBuddy', ['-c', 'Print CFBundleIdentifier', infoPlist]).trim();
 
-// Verify the app is ad-hoc-valid before packaging (fail-closed).
-run('codesign', ['--verify', '--strict', appPath]);
+// Finalize the nested ad-hoc signature from the inside out, then verify the
+// complete app before packaging. This catches native-addon signatures that a
+// shallow bundle verification would miss.
+run(process.execPath, [join(rootDir, 'scripts/release/finalize-macos-app.mjs'), '--app', appPath]);
 
 mkdirSync(outDir, { recursive: true });
 const dmgPath = join(outDir, `gajae-app-desktop-${releaseVersion}-macos-arm64.dmg`);
@@ -69,10 +72,15 @@ try {
   run('cp', ['-R', appPath, stage]);
   run('ln', ['-s', '/Applications', join(stage, 'Applications')]);
   rmSync(dmgPath, { force: true });
-  run('hdiutil', ['create', '-volname', 'Gajae App', '-srcfolder', stage, '-ov', '-format', 'UDZO', dmgPath]);
+  run('hdiutil', ['create', '-volname', 'Gajae Code App', '-srcfolder', stage, '-ov', '-format', 'UDZO', dmgPath]);
   run('hdiutil', ['verify', dmgPath]);
 } finally {
   rmSync(stage, { recursive: true, force: true });
+}
+
+const dmgBytes = statSync(dmgPath).size;
+if (dmgBytes > MAX_DMG_BYTES) {
+  throw new Error(`DMG size regression: ${dmgBytes} bytes exceeds ${MAX_DMG_BYTES} bytes.`);
 }
 
 const sha256 = createHash('sha256').update(readFileSync(dmgPath)).digest('hex');
@@ -86,6 +94,8 @@ console.log(JSON.stringify({
   ok: true,
   app: appPath,
   dmg: dmgPath,
+  dmgBytes,
+  maxDmgBytes: MAX_DMG_BYTES,
   sha256,
   shaFile,
   appVersion,

@@ -1,6 +1,6 @@
-# Install the Gajae App server release
+# Install the Gajae Code App server release
 
-Gajae App is installed from a verified GitHub Release artifact. The only
+Gajae Code App is installed from a verified GitHub Release artifact. The only
 supported artifact source is:
 
 <https://github.com/devswha/gajae-code-app/releases>

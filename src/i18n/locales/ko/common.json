@@ -84,7 +84,7 @@
     "openInEditor": "에디터에서 열기"
   },
   "mainContent": {
-    "loading": "Gajae App을 불러오는 중",
+    "loading": "Gajae Code App을 불러오는 중",
     "settingUpWorkspace": "워크스페이스 설정 중...",
     "chooseProject": "프로젝트 선택",
     "selectProjectDescription": "사이드바에서 프로젝트를 선택하여 Gajae Code와 코딩을 시작하세요. 각\u00A0프로젝트에는 채팅 세션과 파일 히스토리가 포함됩니다.",
@@ -247,7 +247,7 @@
     "npmUpgradeCommand": "scripts/gajae-app.sh update",
     "manualUpgradeHint": "GitHub Releases에서 릴리스 노트와 최신 버전을 확인할 수 있습니다.",
     "updateCompleted": "업데이트가 완료되었습니다!",
-    "restartServer": "업데이트를 적용하려면 Gajae App을 다시 시작하세요.",
+    "restartServer": "업데이트를 적용하려면 Gajae Code App을 다시 시작하세요.",
     "updateFailed": "업데이트 실패",
     "buttons": {
       "close": "닫기",

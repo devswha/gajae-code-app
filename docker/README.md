@@ -1,17 +1,17 @@
-# Gajae App sandboxes
+# Gajae Code App sandboxes
 
-Gajae App sandbox templates are built and used locally. The application template tags are:
+Gajae Code App sandbox templates are built and used locally. The application template tags are:
 
 | Agent | Local template |
 | --- | --- |
 | Gajae Code (GJC) | `gajae-app-sandbox:gjc` |
 
-The local lifecycle never pulls or publishes an application image and never installs Gajae App from a package registry. Build the template from a prepared repository runtime before invoking `sbx`.
+The local lifecycle never pulls or publishes an application image and never installs Gajae Code App from a package registry. Build the template from a prepared repository runtime before invoking `sbx`.
 
 ## Prerequisites
 
 - Docker and the `sbx` CLI. See the [Docker Sandboxes guide](https://docs.docker.com/ai/sandboxes/get-started/).
-- A local Gajae App repository runtime for Linux x64 and Node 22. It must contain the built client and server plus its local dependencies.
+- A local Gajae Code App repository runtime for Linux x64 and Node 22. It must contain the built client and server plus its local dependencies.
 - Gajae Code credentials stored with `sbx`, for example `sbx secret set -g gajae`.
 
 From the repository root, confirm the required local source exists:
@@ -23,7 +23,7 @@ test -f dist-server/server/cli.js
 test -d node_modules
 ```
 
-The Dockerfiles validate these inputs, Node 22, Linux x64, and the required native modules. A missing input stops the build with a `Gajae App sandbox build failed` message; obtain or build the prepared repository runtime locally rather than falling back to an external application image or package installation.
+The Dockerfiles validate these inputs, Node 22, Linux x64, and the required native modules. A missing input stops the build with a `Gajae Code App sandbox build failed` message; obtain or build the prepared repository runtime locally rather than falling back to an external application image or package installation.
 
 ## Build local templates
 
@@ -56,7 +56,7 @@ gajae-app sandbox ls
 gajae-app sandbox logs my-project
 ```
 
-Use `sbx` directly for branch mode, multiple workspaces, prompts, and other generic agent workflows. Supply the local Gajae App template explicitly:
+Use `sbx` directly for branch mode, multiple workspaces, prompts, and other generic agent workflows. Supply the local Gajae Code App template explicitly:
 
 ```bash
 sbx run --template gajae-app-sandbox:gjc gjc ~/my-project --branch my-feature
@@ -64,7 +64,7 @@ sbx run --template gajae-app-sandbox:gjc gjc ~/my-project -- "Fix the auth bug"
 sbx ports my-project --publish 3001:3001
 ```
 
-Generic agents remain usable through `sbx` with a user-provided local template. Only `gajae-app-sandbox:gjc` includes Gajae App.
+Generic agents remain usable through `sbx` with a user-provided local template. Only `gajae-app-sandbox:gjc` includes Gajae Code App.
 
 Manage sandbox lifecycle with `sbx`:
 
@@ -78,7 +78,7 @@ sbx exec my-project bash
 
 ## Logs and configuration
 
-The sandbox startup script runs from the agent shell and starts Gajae App on port `3001` unless `SERVER_PORT` is set. It binds to `0.0.0.0` so `sbx ports` can publish it.
+The sandbox startup script runs from the agent shell and starts Gajae Code App on port `3001` unless `SERVER_PORT` is set. It binds to `0.0.0.0` so `sbx ports` can publish it.
 
 Read the canonical server log with:
 

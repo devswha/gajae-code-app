@@ -105,6 +105,38 @@ export const createProjectRequest = async (payload: CreateProjectPayload) => {
   const data = await parseJson<CreateProjectResponse>(response);
 
   if (!response.ok) {
+    const errorObject = data.error && typeof data.error === 'object'
+      ? data.error as { code?: unknown; details?: unknown }
+      : null;
+    const details = errorObject?.details && typeof errorObject.details === 'object'
+      ? errorObject.details as { project?: unknown }
+      : null;
+    const existingProject = details?.project && typeof details.project === 'object'
+      ? details.project as Record<string, unknown>
+      : null;
+    const projectId = typeof existingProject?.projectId === 'string'
+      ? existingProject.projectId.trim()
+      : '';
+
+    // A fresh desktop database indexes existing GJC sessions before the user
+    // opens a workspace. That creates an `auto` project row which is hidden
+    // from the Codex-style sidebar until the user explicitly adds it. Treat
+    // Add Project as an idempotent open operation: promote a discovered row,
+    // or simply return an already-explicit row instead of surfacing a conflict.
+    if (errorObject?.code === 'PROJECT_ALREADY_EXISTS' && existingProject && projectId) {
+      if (existingProject.origin === 'explicit') {
+        return existingProject;
+      }
+
+      const promoteResponse = await api.promoteProject(projectId);
+      const promoteData = await parseJson<CreateProjectResponse>(promoteResponse);
+      if (!promoteResponse.ok) {
+        throw new Error(resolveCreateProjectErrorMessage(promoteData) || 'Failed to open existing project');
+      }
+
+      return promoteData.project ?? { ...existingProject, origin: 'explicit' };
+    }
+
     throw new Error(resolveCreateProjectErrorMessage(data) || 'Failed to create project');
   }
 

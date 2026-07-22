@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Repository-owned lifecycle manager for a local Gajae App deployment.
+# Repository-owned lifecycle manager for a local Gajae Code App deployment.
 set -euo pipefail
 
 readonly DEFAULT_REPOSITORY="https://github.com/devswha/gajae-code-app.git"

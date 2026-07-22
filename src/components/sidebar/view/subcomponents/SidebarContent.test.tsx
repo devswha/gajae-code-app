@@ -178,8 +178,8 @@ test('keeps search as the primary header utility', async () => {
 
   assert.match(html, /<button[^>]+aria-label="Search"/);
   assert.match(html, /src="\/logo\.png"/);
-  assert.match(html, />Gajae App</);
-  assert.doesNotMatch(html, /Gajae Code|가재코드/);
+  assert.match(html, />Gajae Code App</);
+  assert.doesNotMatch(html, />가재코드</);
   assert.doesNotMatch(html, /type="text"/);
   assert.doesNotMatch(html, />Projects<|>Conversations<|Running sessions|Archive only/);
 });

@@ -84,7 +84,7 @@
     "openInEditor": "エディタで開く"
   },
   "mainContent": {
-    "loading": "Gajae App を読み込んでいます",
+    "loading": "Gajae Code App を読み込んでいます",
     "settingUpWorkspace": "ワークスペースを準備しています...",
     "chooseProject": "プロジェクトを選択",
     "selectProjectDescription": "サイドバーからプロジェクトを選択して、Gajae Codeとコーディングを始めましょう。各プロジェクトにはチャットセッションとファイル履歴が含まれています。",
@@ -247,7 +247,7 @@
     "npmUpgradeCommand": "scripts/gajae-app.sh update",
     "manualUpgradeHint": "GitHub Releases でリリースノートと最新バージョンを確認できます。",
     "updateCompleted": "アップデートが完了しました！",
-    "restartServer": "更新を適用するには Gajae App を再起動してください。",
+    "restartServer": "更新を適用するには Gajae Code App を再起動してください。",
     "updateFailed": "アップデートに失敗しました",
     "buttons": {
       "close": "閉じる",

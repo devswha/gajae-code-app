@@ -143,7 +143,7 @@ async function codesignNativeClosure(directory) {
     if (entry.isDirectory()) {
       if (filePath.includes(`${path.sep}node_modules${path.sep}@gajae-code${path.sep}`)) continue;
       await codesignNativeClosure(filePath);
-    } else if (entry.isFile() && (entry.name.endsWith('.node') || filePath.endsWith('/bun') || filePath.endsWith('/gajae-core') || filePath.endsWith('/node'))) await codesign(filePath);
+    } else if (entry.isFile() && (entry.name.endsWith('.node') || ['bun', 'gajae-core', 'node', 'spawn-helper'].includes(entry.name))) await codesign(filePath);
   }
 }
 
@@ -155,6 +155,7 @@ async function verifyManifest() {
     const filePath = path.join(payloadDir, 'node_modules', entry.package, entry.path);
     if (!(await exists(filePath))) throw new Error(`Missing manifest native payload file: ${entry.package}/${entry.path}`);
     if (await sha256(filePath) !== entry.sha256) throw new Error(`Manifest hash mismatch: ${entry.package}/${entry.path}`);
+    if (entry.path.endsWith('.node')) await run('codesign', ['--verify', '--strict', filePath]);
   }
 }
 

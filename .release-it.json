@@ -10,7 +10,7 @@
   },
   "github": {
     "release": true,
-    "releaseName": "Gajae App v${version}"
+    "releaseName": "Gajae Code App v${version}"
   },
   "hooks": {
     "before:init": ["npm run build"]
@@ -18,7 +18,7 @@
   "plugins": {
     "@release-it/conventional-changelog": {
       "infile": "CHANGELOG.md",
-      "header": "# Changelog\n\nAll notable changes to Gajae App will be documented in this file.\n",
+      "header": "# Changelog\n\nAll notable changes to Gajae Code App will be documented in this file.\n",
       "preset": {
         "name": "conventionalcommits",
         "types": [

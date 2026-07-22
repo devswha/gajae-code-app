@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Gajae App deployment script (continuous-improvement lane, 2026-07-12)
+# Gajae Code App deployment script (continuous-improvement lane, 2026-07-12)
 # ---------------------------------------------------------------------------
 # 실배포:
 #   build → (failure: stop, leave service untouched) → systemctl --user restart gajae-app

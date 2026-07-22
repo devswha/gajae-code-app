@@ -74,7 +74,7 @@ const normalizeSessionProvider = (session: ProjectSession): ProjectSession => ({
   __provider: getSessionProvider(session),
 });
 
-const projectsHaveChanges = (
+export const projectsHaveChanges = (
   prevProjects: Project[],
   nextProjects: Project[],
 ): boolean => {
@@ -92,6 +92,7 @@ const projectsHaveChanges = (
       nextProject.projectId !== prevProject.projectId ||
       nextProject.displayName !== prevProject.displayName ||
       nextProject.fullPath !== prevProject.fullPath ||
+      nextProject.origin !== prevProject.origin ||
       Boolean(nextProject.isStarred) !== Boolean(prevProject.isStarred) ||
       serialize(nextProject.sessionMeta) !== serialize(prevProject.sessionMeta) ||
       serialize(nextProject.sessions) !== serialize(prevProject.sessions)

@@ -17,7 +17,7 @@ gjc -p --mode json --session-dir <dir> [-r <providerSessionId>] [--model <model>
 - The prompt is written to an owner-readable temporary file and passed by
   `@file`; it is never placed verbatim in the process list.
 - `GJC_NOTIFICATIONS=0` disables notifications from the ephemeral CLI harness.
-  Gajae App remains the notification owner.
+  Gajae Code App remains the notification owner.
 - `--session-dir` isolates session writes. Authentication and configuration
   still come from the user's normal GJC configuration.
 - Stdout is byte-bounded NDJSON. Stderr is diagnostic only and is not forwarded
@@ -133,7 +133,7 @@ replay, or notification state.
 
 Three IDs are intentionally separate:
 
-1. `appSessionId` is the stable Gajae App session and protocol scope.
+1. `appSessionId` is the stable Gajae Code App session and protocol scope.
 2. `runId` is generated for every start/resume request and is the immutable
    abort/event correlation handle.
 3. `providerSessionId` is the native GJC session used for resume and history.

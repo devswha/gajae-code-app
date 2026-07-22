@@ -1,4 +1,4 @@
-export const PRODUCT_NAME = 'Gajae App';
+export const PRODUCT_NAME = 'Gajae Code App';
 export const PRODUCT_TOKEN = 'gajae-app';
 export const PACKAGE_NAME = PRODUCT_TOKEN;
 export const CLI_NAME = PRODUCT_TOKEN;
@@ -9,9 +9,9 @@ export const URL_SCHEME_URL = 'gajae-app://';
 export const ENVIRONMENT_PREFIX = 'GAJAE_APP_';
 export const DESKTOP_APP_ID = 'app.gajae.desktop';
 export const ARTIFACT_PREFIX = 'gajae-app-';
-export const REPOSITORY_SLUG = 'devswha/gajae-app';
+export const REPOSITORY_SLUG = 'devswha/gajae-code-app';
 export const REPOSITORY_URL = 'https://github.com/devswha/gajae-code-app';
 export const ISSUES_URL = 'https://github.com/devswha/gajae-code-app/issues';
 export const RELEASES_URL = 'https://github.com/devswha/gajae-code-app/releases';
-export const AUTHOR = 'devswha and Gajae App contributors';
+export const AUTHOR = 'devswha and Gajae Code App contributors';
 export const NODE_ENGINE_RANGE = '>=22.22.2 <23 || >=24.15.0 <25';

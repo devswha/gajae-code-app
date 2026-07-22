@@ -64,7 +64,7 @@ export default function SidebarFooter({
           target="_blank"
           rel="noopener noreferrer"
           className="rounded px-1 text-[10px] text-muted-foreground/50 transition-colors hover:text-muted-foreground"
-          title={`Gajae App v${currentVersion}`}
+          title={`Gajae Code App v${currentVersion}`}
         >
           v{currentVersion}
         </a>

@@ -148,7 +148,7 @@ fn show_error(window: &WebviewWindow, message: &str) {
     // are blocked by the page CSP (script-src 'self'), and the invoke API
     // global requires withGlobalTauri (enabled in tauri.conf.json).
     let script = format!(
-        "document.body.innerHTML = '<main style=\"font:16px system-ui;padding:3rem;max-width:48rem\"><h1>Gajae App could not start</h1><pre style=\"white-space:pre-wrap\"></pre><button id=\"gajae-retry\" type=\"button\">Retry</button></main>';document.querySelector('pre').textContent={escaped};document.getElementById('gajae-retry').addEventListener('click',function(){{var t=window.__TAURI__;if(t&&t.core&&t.core.invoke){{t.core.invoke('retry_desktop_server');}}else if(window.__TAURI_INTERNALS__&&window.__TAURI_INTERNALS__.invoke){{window.__TAURI_INTERNALS__.invoke('retry_desktop_server');}}}});"
+        "document.body.innerHTML = '<main style=\"font:16px system-ui;padding:3rem;max-width:48rem\"><h1>Gajae Code App could not start</h1><pre style=\"white-space:pre-wrap\"></pre><button id=\"gajae-retry\" type=\"button\">Retry</button></main>';document.querySelector('pre').textContent={escaped};document.getElementById('gajae-retry').addEventListener('click',function(){{var t=window.__TAURI__;if(t&&t.core&&t.core.invoke){{t.core.invoke('retry_desktop_server');}}else if(window.__TAURI_INTERNALS__&&window.__TAURI_INTERNALS__.invoke){{window.__TAURI_INTERNALS__.invoke('retry_desktop_server');}}}});"
     );
     let _ = window.eval(&script);
     let _ = window.show();

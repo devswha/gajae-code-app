@@ -1,6 +1,6 @@
-# Self-hosting Gajae App
+# Self-hosting Gajae Code App
 
-Gajae App is self-hosted from the **GitHub Releases** server artifact only:
+Gajae Code App is self-hosted from the **GitHub Releases** server artifact only:
 
 <https://github.com/devswha/gajae-code-app/releases>
 
@@ -40,7 +40,7 @@ the initial `current` link.
 
 ## Service operations
 
-Gajae App runs as the per-user `gajae-app.service`; root privileges and a
+Gajae Code App runs as the per-user `gajae-app.service`; root privileges and a
 system-wide unit are not required.
 
 ```sh

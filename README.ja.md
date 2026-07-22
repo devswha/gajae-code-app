@@ -6,8 +6,8 @@
 </p>
 
 <div align="center">
-  <img src="public/logo.png" alt="Gajae App ロゴ" width="96" height="96">
-  <h1>Gajae App</h1>
+  <img src="public/logo.png" alt="Gajae Code App ロゴ" width="96" height="96">
+  <h1>Gajae Code App</h1>
   <p><strong>Gajae Code のためのローカルファースト AI コーディングデスクトップ</strong></p>
   <p>プロジェクト、セッション、エージェントプリセット、スキルを一つのワークスペースで管理します。</p>
 </div>
@@ -20,17 +20,17 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>macOS 版をダウンロード</strong></a> ·
+  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.3"><strong>macOS 版をダウンロード</strong></a> ·
   <a href="#主な機能">主な機能</a> · <a href="#ソースから実行">開発</a> ·
   <a href="https://github.com/devswha/gajae-code-app/issues">Issues</a>
 </p>
 
-<p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="プロジェクトの下にセッションが並ぶ Gajae App" width="920"></p>
+<p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="プロジェクトの下にセッションが並ぶ Gajae Code App" width="920"></p>
 <p align="center"><sub>プロジェクトを展開してセッションを開き、同じ画面から新しい GJC タスクを開始できます。</sub></p>
 
-## Gajae App とは
+## Gajae Code App とは
 
-Gajae App は [Gajae Code](https://github.com/devswha/gajae-code) をデスクトップとブラウザで利用するためのオープンソースワークスペースです。GJC セッションの開始と再開、ストリーミング応答、ツール実行をプロジェクト単位で整理します。
+Gajae Code App は [Gajae Code](https://github.com/devswha/gajae-code) をデスクトップとブラウザで利用するためのオープンソースワークスペースです。GJC セッションの開始と再開、ストリーミング応答、ツール実行をプロジェクト単位で整理します。
 
 AI モデルやサブスクリプションは含まれません。Gajae Code に設定済みのアカウント、モデル、エージェント設定を利用し、プロジェクトファイルと実行状態はアプリを動かすホストに残ります。
 
@@ -58,15 +58,15 @@ AI モデルやサブスクリプションは含まれません。Gajae Code に
 
 公開ベータは **Apple Silicon（M1 以降）、macOS 11 以降**に対応しています。
 
-1. [v2.0.0-beta.2 リリース](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2)から DMG と同名の `.sha256` をダウンロードします。
+1. [v2.0.0-beta.3 リリース](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.3)から DMG と同名の `.sha256` をダウンロードします。
 2. チェックサムを確認します。
 
    ```bash
    cd ~/Downloads
-   shasum -a 256 -c gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg.sha256
+   shasum -a 256 -c gajae-app-desktop-2.0.0-beta.3-macos-arm64.dmg.sha256
    ```
 
-3. DMG を開き、**Gajae App** を **Applications** にドラッグします。
+3. DMG を開き、**Gajae Code App** を **Applications** にドラッグします。
 4. 初回は Finder で Control クリックして **開く**を選びます。ブロックされた場合は **システム設定 → プライバシーとセキュリティ → このまま開く**を使用してください。
 
 > 現在の DMG は ad-hoc 署名で、Apple の公証前です。GitHub Releases のファイルを使用し、必ずチェックサムを確認してください。
@@ -97,7 +97,7 @@ AI モデルやサブスクリプションは含まれません。Gajae Code に
 
 1. プロジェクト: `<workspace>/.gjc/skills/<name>/SKILL.md`
 2. ユーザー: `~/.gjc/agent/skills/<name>/SKILL.md`
-3. Gajae App 内蔵スキル
+3. Gajae Code App 内蔵スキル
 
 表示には有効な `name` と `description` が必要です。`enabled: false` または `hide: true` のスキルは非表示になります。
 
@@ -120,7 +120,7 @@ npm run dev
 React UI (Browser / Tauri)
           │ HTTP + WebSocket
           ▼
-Gajae App local server
+Gajae Code App local server
           │
           ├── SQLite · project files · Git/worktree
           ▼
@@ -146,6 +146,6 @@ Rust core がプロセス、ファイル監視、ジョブ状態、PTY 境界を
 
 ## 状態とライセンス
 
-Gajae App v2 はベータです。更新前に `~/.gajae-app/data` と GJC 設定をバックアップしてください。不具合は OS、アプリバージョン、再現手順とともに [Issues](https://github.com/devswha/gajae-code-app/issues/new) へ報告してください。
+Gajae Code App v2 はベータです。更新前に `~/.gajae-app/data` と GJC 設定をバックアップしてください。不具合は OS、アプリバージョン、再現手順とともに [Issues](https://github.com/devswha/gajae-code-app/issues/new) へ報告してください。
 
 [GNU AGPL v3.0 or later](LICENSE) で配布されます。Siteboon AI B.V. の上流 UI を起点に GJC 専用製品へ再構成しました。帰属は [NOTICE](NOTICE)、上流取り込み方針は [docs/UPSTREAM.md](docs/UPSTREAM.md) を参照してください。

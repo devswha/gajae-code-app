@@ -6,8 +6,8 @@
 </p>
 
 <div align="center">
-  <img src="public/logo.png" alt="Gajae App 标志" width="96" height="96">
-  <h1>Gajae App</h1>
+  <img src="public/logo.png" alt="Gajae Code App 标志" width="96" height="96">
+  <h1>Gajae Code App</h1>
   <p><strong>为 Gajae Code 打造的本地优先 AI 编程桌面应用</strong></p>
   <p>在一个工作区中管理项目、会话、智能体预设与技能。</p>
 </div>
@@ -20,17 +20,17 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>下载 macOS 应用</strong></a> ·
+  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.3"><strong>下载 macOS 应用</strong></a> ·
   <a href="#核心功能">核心功能</a> · <a href="#从源码运行">开发</a> ·
   <a href="https://github.com/devswha/gajae-code-app/issues">问题反馈</a>
 </p>
 
-<p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="会话嵌套在项目下方的 Gajae App 工作区" width="920"></p>
+<p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="会话嵌套在项目下方的 Gajae Code App 工作区" width="920"></p>
 <p align="center"><sub>展开项目即可访问会话，并在同一工作区开始新的 GJC 任务。</sub></p>
 
-## Gajae App 是什么？
+## Gajae Code App 是什么？
 
-Gajae App 是用于在桌面端和浏览器中使用 [Gajae Code](https://github.com/devswha/gajae-code) 的开源工作区。它负责启动与恢复 GJC 会话，并按项目整理流式回复和工具执行。
+Gajae Code App 是用于在桌面端和浏览器中使用 [Gajae Code](https://github.com/devswha/gajae-code) 的开源工作区。它负责启动与恢复 GJC 会话，并按项目整理流式回复和工具执行。
 
 本应用不提供 AI 模型或订阅服务。它使用 Gajae Code 中已有的账户、模型和智能体配置；项目文件与执行状态保留在运行应用的主机上。
 
@@ -58,15 +58,15 @@ Gajae App 是用于在桌面端和浏览器中使用 [Gajae Code](https://github
 
 公开桌面 Beta 当前支持 **Apple Silicon（M1 及更新机型）和 macOS 11 及以上版本**。
 
-1. 从 [v2.0.0-beta.2 发布页](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2)下载 DMG 及同名 `.sha256` 文件。
+1. 从 [v2.0.0-beta.3 发布页](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.3)下载 DMG 及同名 `.sha256` 文件。
 2. 验证校验和：
 
    ```bash
    cd ~/Downloads
-   shasum -a 256 -c gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg.sha256
+   shasum -a 256 -c gajae-app-desktop-2.0.0-beta.3-macos-arm64.dmg.sha256
    ```
 
-3. 打开 DMG，将 **Gajae App** 拖入 **Applications**。
+3. 打开 DMG，将 **Gajae Code App** 拖入 **Applications**。
 4. 首次启动时，在 Finder 中按住 Control 点击应用并选择**打开**。如被阻止，请前往**系统设置 → 隐私与安全性 → 仍要打开**。
 
 > 当前 Beta DMG 使用 ad-hoc 签名，尚未通过 Apple 公证。请只使用 GitHub Releases 中且校验和一致的文件。
@@ -97,7 +97,7 @@ Gajae App 是用于在桌面端和浏览器中使用 [Gajae Code](https://github
 
 1. 项目：`<workspace>/.gjc/skills/<name>/SKILL.md`
 2. 用户：`~/.gjc/agent/skills/<name>/SKILL.md`
-3. Gajae App 内置技能
+3. Gajae Code App 内置技能
 
 技能必须包含有效的 `name` 和 `description` 才会显示。设置 `enabled: false` 或 `hide: true` 的技能会被隐藏。
 
@@ -120,7 +120,7 @@ npm run dev
 React UI (Browser / Tauri)
           │ HTTP + WebSocket
           ▼
-Gajae App local server
+Gajae Code App local server
           │
           ├── SQLite · project files · Git/worktree
           ▼
@@ -146,6 +146,6 @@ Rust 核心负责进程生命周期、文件监听、任务状态和 PTY 边界�
 
 ## 项目状态与许可证
 
-Gajae App v2 仍处于 Beta 阶段。升级前请备份 `~/.gajae-app/data` 和 GJC 配置。请在 [Issues](https://github.com/devswha/gajae-code-app/issues/new) 中附上操作系统、应用版本和复现步骤。
+Gajae Code App v2 仍处于 Beta 阶段。升级前请备份 `~/.gajae-app/data` 和 GJC 配置。请在 [Issues](https://github.com/devswha/gajae-code-app/issues/new) 中附上操作系统、应用版本和复现步骤。
 
 本项目采用 [GNU AGPL v3.0 or later](LICENSE) 发布。它源自 Siteboon AI B.V. 的上游 UI 代码库，现已重构为 GJC 专用产品。署名信息见 [NOTICE](NOTICE)，上游引入政策见 [docs/UPSTREAM.md](docs/UPSTREAM.md)。

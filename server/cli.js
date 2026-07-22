@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Gajae App CLI
+ * Gajae Code App CLI
  *
- * Provides command-line utilities for managing Gajae App.
+ * Provides command-line utilities for managing Gajae Code App.
  *
  * Commands:
  *   (no args)     - Start the server (default)
@@ -90,7 +90,7 @@ function getInstallDir() {
 
 // Show status command
 function showStatus() {
-    console.log(`\n${c.bright('Gajae App - Status')}\n`);
+    console.log(`\n${c.bright('Gajae Code App - Status')}\n`);
     console.log(c.dim('═'.repeat(60)));
 
     // Version info
@@ -146,14 +146,14 @@ function showStatus() {
 function showHelp() {
     console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
-║              Gajae App - Command Line Tool                    ║
+║              Gajae Code App - Command Line Tool                    ║
 ╚═══════════════════════════════════════════════════════════════╝
 
 Usage:
   gajae-app [command] [options]
 
 Commands:
-  start            Start the Gajae App server (default)
+  start            Start the Gajae Code App server (default)
   sandbox          Manage Docker sandbox environments
   status           Show configuration and data locations
   help             Show this help information
@@ -196,7 +196,7 @@ function showVersion() {
 
 // ── Sandbox command ─────────────────────────────────────────
 
-// GJC is the only sandboxed agent; the template bundles the Gajae App UI on
+// GJC is the only sandboxed agent; the template bundles the Gajae Code App UI on
 // top of the Gajae Code CLI.
 const SANDBOX_TEMPLATES = {
     gjc: 'gajae-app-sandbox:gjc',
@@ -263,7 +263,7 @@ function parseSandboxArgs(args) {
 
 function showSandboxHelp() {
     console.log(`
-${c.bright('Gajae App Sandbox')} — Run Gajae App inside Docker Sandboxes
+${c.bright('Gajae Code App Sandbox')} — Run Gajae Code App inside Docker Sandboxes
 
 Usage:
   gajae-app sandbox <workspace>            Create and start a sandbox
@@ -275,7 +275,7 @@ Subcommands:
   ${c.bright('start')}        Restart a stopped sandbox and re-launch the web UI
   ${c.bright('stop')}         Stop a sandbox (preserves state)
   ${c.bright('rm')}           Remove a sandbox
-  ${c.bright('logs')}         Show Gajae App server logs
+  ${c.bright('logs')}         Show Gajae Code App server logs
   ${c.bright('help')}         Show this help
 
 Options:
@@ -395,7 +395,7 @@ async function sandboxCommand(args) {
             restartRun.unref();
             await new Promise(resolve => setTimeout(resolve, 5000));
 
-            console.log(`${c.info('▶')} Launching Gajae App web server...`);
+            console.log(`${c.info('▶')} Launching Gajae Code App web server...`);
             sbx(['exec', opts.name, 'bash', '-c', 'nohup gajae-app start --port 3001 > /tmp/gajae-app-ui.log 2>&1 & disown']);
 
             console.log(`${c.info('▶')} Forwarding port ${opts.port} → 3001...`);
@@ -418,7 +418,7 @@ async function sandboxCommand(args) {
                 }
             }
 
-            console.log(`\n${c.ok('✔')} ${c.bright('Gajae App is ready!')}`);
+            console.log(`\n${c.ok('✔')} ${c.bright('Gajae Code App is ready!')}`);
             console.log(`  ${c.info('→')} ${c.bright(`http://localhost:${opts.port}`)}\n`);
             break;
         }
@@ -451,7 +451,7 @@ async function sandboxCommand(args) {
                 }
             } catch { /* sbx secret ls not available, skip check */ }
 
-            console.log(`\n${c.bright('Gajae App Sandbox')}`);
+            console.log(`\n${c.bright('Gajae Code App Sandbox')}`);
             console.log(c.dim('─'.repeat(50)));
             console.log(`  Agent:     ${c.info(opts.agent)} ${c.dim(`(${secret} credentials)`)}`);
             console.log(`  Workspace: ${c.dim(workspace)}`);
@@ -493,8 +493,8 @@ async function sandboxCommand(args) {
                 }
             }
 
-            // Step 3: Start Gajae App inside the sandbox
-            console.log(`${c.info('▶')} Launching Gajae App web server...`);
+            // Step 3: Start Gajae Code App inside the sandbox
+            console.log(`${c.info('▶')} Launching Gajae Code App web server...`);
             sbx(['exec', opts.name, 'bash', '-c', 'nohup gajae-app start --port 3001 > /tmp/gajae-app-ui.log 2>&1 & disown']);
 
             // Step 4: Forward port
@@ -519,7 +519,7 @@ async function sandboxCommand(args) {
             }
 
             // Done
-            console.log(`\n${c.ok('✔')} ${c.bright('Gajae App is ready!')}`);
+            console.log(`\n${c.ok('✔')} ${c.bright('Gajae Code App is ready!')}`);
             console.log(`  ${c.info('→')} Open ${c.bright(`http://localhost:${opts.port}`)}`);
             console.log(`\n${c.dim('  Manage with:')}`);
             console.log(`  ${c.dim('$')} sbx ls`);

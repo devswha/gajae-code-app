@@ -5,8 +5,8 @@
 </p>
 
 <div align="center">
-  <img src="public/logo.png" alt="Gajae App logosu" width="96" height="96">
-  <h1>Gajae App</h1>
+  <img src="public/logo.png" alt="Gajae Code App logosu" width="96" height="96">
+  <h1>Gajae Code App</h1>
   <p><strong>Gajae Code için yerel öncelikli yapay zekâ kodlama masaüstü</strong></p>
   <p>Projeleri, oturumları, ajan ön ayarlarını ve becerileri tek çalışma alanında yönetin.</p>
 </div>
@@ -19,17 +19,17 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2"><strong>macOS için indir</strong></a> ·
+  <a href="https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.3"><strong>macOS için indir</strong></a> ·
   <a href="#temel-özellikler">Özellikler</a> · <a href="#kaynaktan-çalıştırma">Geliştirme</a> ·
   <a href="https://github.com/devswha/gajae-code-app/issues">Sorunlar</a>
 </p>
 
-<p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="Oturumların projelerin altında bulunduğu Gajae App" width="920"></p>
+<p align="center"><img src="public/screenshots/gajae-app-overview.jpg" alt="Oturumların projelerin altında bulunduğu Gajae Code App" width="920"></p>
 <p align="center"><sub>Projeyi genişletin, oturumlarına ulaşın ve aynı alanda yeni bir GJC görevi başlatın.</sub></p>
 
-## Gajae App nedir?
+## Gajae Code App nedir?
 
-Gajae App, [Gajae Code](https://github.com/devswha/gajae-code) kullanmak için açık kaynaklı masaüstü ve tarayıcı çalışma alanıdır. GJC oturumlarını başlatır ve sürdürür; akış yanıtlarını ve araç çalışmalarını projeye göre düzenler.
+Gajae Code App, [Gajae Code](https://github.com/devswha/gajae-code) kullanmak için açık kaynaklı masaüstü ve tarayıcı çalışma alanıdır. GJC oturumlarını başlatır ve sürdürür; akış yanıtlarını ve araç çalışmalarını projeye göre düzenler.
 
 Uygulama bir yapay zekâ modeli veya abonelik sağlamaz. Gajae Code içinde yapılandırılmış hesapları, modelleri ve ajanları kullanır. Proje dosyaları ve çalışma durumu uygulamanın çalıştığı makinede kalır.
 
@@ -57,15 +57,15 @@ Uygulama bir yapay zekâ modeli veya abonelik sağlamaz. Gajae Code içinde yap�
 
 Genel beta şu anda **macOS 11 veya üstünde Apple Silicon (M1 veya daha yeni)** cihazları destekler.
 
-1. DMG ve aynı adlı `.sha256` dosyasını [v2.0.0-beta.2 sürümünden](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.2) indirin.
+1. DMG ve aynı adlı `.sha256` dosyasını [v2.0.0-beta.3 sürümünden](https://github.com/devswha/gajae-code-app/releases/tag/v2.0.0-beta.3) indirin.
 2. Sağlama toplamını doğrulayın:
 
    ```bash
    cd ~/Downloads
-   shasum -a 256 -c gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg.sha256
+   shasum -a 256 -c gajae-app-desktop-2.0.0-beta.3-macos-arm64.dmg.sha256
    ```
 
-3. DMG’yi açın ve **Gajae App** uygulamasını **Applications** klasörüne sürükleyin.
+3. DMG’yi açın ve **Gajae Code App** uygulamasını **Applications** klasörüne sürükleyin.
 4. İlk çalıştırmada Finder’da uygulamaya Control ile tıklayıp **Aç** seçeneğini kullanın. Engellenirse **Sistem Ayarları → Gizlilik ve Güvenlik → Yine de Aç** yolunu izleyin.
 
 > Beta DMG ad hoc imzalıdır ve henüz Apple tarafından noterlenmemiştir. Yalnızca GitHub Releases dosyasını, eşleşen sağlama toplamıyla kullanın.
@@ -96,7 +96,7 @@ Seçici; **Current yapılandırmasını**, GJC `0.11.1` için **28 yerleşik ön
 
 1. Proje: `<workspace>/.gjc/skills/<name>/SKILL.md`
 2. Kullanıcı: `~/.gjc/agent/skills/<name>/SKILL.md`
-3. Gajae App yerleşik becerileri
+3. Gajae Code App yerleşik becerileri
 
 Görünen bir beceri geçerli `name` ve `description` alanlarına sahip olmalıdır. `enabled: false` veya `hide: true` beceriyi gizler.
 
@@ -119,7 +119,7 @@ npm run dev
 React UI (Browser / Tauri)
           │ HTTP + WebSocket
           ▼
-Gajae App local server
+Gajae Code App local server
           │
           ├── SQLite · project files · Git/worktree
           ▼
@@ -145,6 +145,6 @@ Rust çekirdeği süreçleri, dosya izlemeyi, görev durumunu ve PTY sınırlar�
 
 ## Durum ve lisans
 
-Gajae App v2 beta aşamasındadır. Güncellemeden önce `~/.gajae-app/data` ve GJC yapılandırmasını yedekleyin. Sorunları işletim sistemi, uygulama sürümü ve yeniden üretme adımlarıyla [Issues](https://github.com/devswha/gajae-code-app/issues/new) bölümüne bildirin.
+Gajae Code App v2 beta aşamasındadır. Güncellemeden önce `~/.gajae-app/data` ve GJC yapılandırmasını yedekleyin. Sorunları işletim sistemi, uygulama sürümü ve yeniden üretme adımlarıyla [Issues](https://github.com/devswha/gajae-code-app/issues/new) bölümüne bildirin.
 
-Gajae App [GNU AGPL v3.0 or later](LICENSE) ile dağıtılır. Siteboon AI B.V. upstream arayüzünden başlayarak GJC’ye özel bir ürün olarak yeniden oluşturulmuştur. Atıf için [NOTICE](NOTICE), upstream politikası için [docs/UPSTREAM.md](docs/UPSTREAM.md) dosyasına bakın.
+Gajae Code App [GNU AGPL v3.0 or later](LICENSE) ile dağıtılır. Siteboon AI B.V. upstream arayüzünden başlayarak GJC’ye özel bir ürün olarak yeniden oluşturulmuştur. Atıf için [NOTICE](NOTICE), upstream politikası için [docs/UPSTREAM.md](docs/UPSTREAM.md) dosyasına bakın.

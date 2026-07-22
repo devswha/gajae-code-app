@@ -1,4 +1,4 @@
-name: Release Gajae App
+name: Release Gajae Code App
 
 on:
   workflow_dispatch:
@@ -239,7 +239,7 @@ jobs:
           mkdir "$MOUNT_POINT"
           hdiutil attach "release-assets/$ASSET_NAME" -nobrowse -readonly -mountpoint "$MOUNT_POINT"
           trap 'hdiutil detach "$MOUNT_POINT"' EXIT
-          APP="$MOUNT_POINT/Gajae App.app"
+          APP="$MOUNT_POINT/Gajae Code App.app"
           test -d "$APP"
           codesign --verify --deep --strict "$APP"
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Contents/Info.plist")" = "app.gajae.desktop"
@@ -393,6 +393,6 @@ jobs:
             "release-assets/$DESKTOP_ASSET_NAME.sha256" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Gajae App $RELEASE_TAG" \
+            --title "Gajae Code App $RELEASE_TAG" \
             "${prerelease_args[@]}" \
             --generate-notes

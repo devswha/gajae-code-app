@@ -9,12 +9,12 @@ GAJAE_APP_LOG_FILE="${GAJAE_APP_LOG_FILE:-$GAJAE_APP_DATA_ROOT/logs/sandbox.log}
 GAJAE_APP_PORT="${SERVER_PORT:-3001}"
 
 if ! command -v gajae-app >/dev/null 2>&1; then
-  printf 'Gajae App sandbox is not installed. Rebuild the local gajae-app-sandbox image from prepared repository source.\n' >&2
+  printf 'Gajae Code App sandbox is not installed. Rebuild the local gajae-app-sandbox image from prepared repository source.\n' >&2
   return 1 2>/dev/null || exit 1
 fi
 
 if [ ! -f "$GAJAE_APP_ROOT/dist-server/server/cli.js" ]; then
-  printf 'Gajae App sandbox source is missing at %s. Rebuild the local image from prepared repository source.\n' "$GAJAE_APP_ROOT" >&2
+  printf 'Gajae Code App sandbox source is missing at %s. Rebuild the local image from prepared repository source.\n' "$GAJAE_APP_ROOT" >&2
   return 1 2>/dev/null || exit 1
 fi
 
@@ -27,7 +27,7 @@ if ! pgrep -f "$GAJAE_APP_ROOT/dist-server/server/cli.js" >/dev/null 2>&1; then
   nohup gajae-app start --host 0.0.0.0 --port "$GAJAE_APP_PORT" >> "$GAJAE_APP_LOG_FILE" 2>&1 &
   disown || true
 
-  printf '\n  Gajae App is starting on port %s.\n\n' "$GAJAE_APP_PORT"
+  printf '\n  Gajae Code App is starting on port %s.\n\n' "$GAJAE_APP_PORT"
   printf '  Forward the port from another terminal:\n'
   printf '    sbx ports <sandbox-name> --publish %s:%s\n\n' "$GAJAE_APP_PORT" "$GAJAE_APP_PORT"
   printf '  Then open: http://localhost:%s\n\n' "$GAJAE_APP_PORT"

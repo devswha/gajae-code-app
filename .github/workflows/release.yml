@@ -1,4 +1,4 @@
-name: Release Gajae App Server
+name: Release Gajae App
 
 on:
   workflow_dispatch:
@@ -136,6 +136,121 @@ jobs:
           path: release-assets/*
           if-no-files-found: error
 
+  desktop-macos:
+    name: Build macOS arm64 desktop DMG
+    needs: release-policy
+    timeout-minutes: 60
+    runs-on: macos-14
+    permissions:
+      contents: read
+    outputs:
+      artifact_name: ${{ steps.metadata.outputs.artifact_name }}
+      release_tag: ${{ steps.metadata.outputs.release_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+          architecture: arm64
+          cache: npm
+
+      - name: Define canonical desktop release asset
+        id: metadata
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = "Darwin"
+          test "$(uname -m)" = "arm64"
+          case "$(node --version)" in
+            v22.*) ;;
+            *) echo "Node 22 is required." >&2; exit 1 ;;
+          esac
+          RELEASE_VERSION="$(node -p "require('./package.json').version")"
+          DESKTOP_VERSION="$(node -p "require('./package.json').desktopVersion")"
+          ASSET_NAME="gajae-app-desktop-${RELEASE_VERSION}-macos-arm64.dmg"
+          {
+            echo "artifact_name=$ASSET_NAME"
+            echo "desktop_version=$DESKTOP_VERSION"
+            echo "release_tag=v$RELEASE_VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Rust
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.85.1 --profile minimal
+          rustup default 1.85.1
+          rustup target add aarch64-apple-darwin
+          rustc --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and verify embedded macOS server payload
+        run: npm run server:payload:macos
+
+      - name: Build ad-hoc signed Tauri app bundle
+        run: env -u CI npm run tauri -- build --bundles app
+
+      - name: Build canonical installable DMG
+        env:
+          RELEASE_VERSION: ${{ steps.metadata.outputs.release_tag }}
+        run: npm run desktop:dmg:macos -- --artifact-version "${RELEASE_VERSION#v}"
+
+      - name: Stage and verify canonical desktop assets
+        env:
+          ASSET_NAME: ${{ steps.metadata.outputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          SOURCE="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/$ASSET_NAME"
+          test -f "$SOURCE"
+          test -f "$SOURCE.sha256"
+          (
+            cd "$(dirname "$SOURCE")"
+            shasum -a 256 --check "$(basename "$SOURCE.sha256")"
+          )
+          mkdir release-assets
+          cp "$SOURCE" "$SOURCE.sha256" release-assets/
+          assets=(release-assets/*)
+          if [ "${#assets[@]}" -ne 2 ] ||
+             [ ! -f "release-assets/$ASSET_NAME" ] ||
+             [ ! -f "release-assets/$ASSET_NAME.sha256" ]; then
+            echo "Desktop release staging must contain only the canonical DMG and checksum." >&2
+            exit 1
+          fi
+          hdiutil verify "release-assets/$ASSET_NAME"
+
+      - name: Smoke the app installed from the DMG
+        env:
+          ASSET_NAME: ${{ steps.metadata.outputs.artifact_name }}
+          DESKTOP_VERSION: ${{ steps.metadata.outputs.desktop_version }}
+        run: |
+          set -euo pipefail
+          MOUNT_POINT="$RUNNER_TEMP/gajae-app-dmg"
+          mkdir "$MOUNT_POINT"
+          hdiutil attach "release-assets/$ASSET_NAME" -nobrowse -readonly -mountpoint "$MOUNT_POINT"
+          trap 'hdiutil detach "$MOUNT_POINT"' EXIT
+          APP="$MOUNT_POINT/Gajae App.app"
+          test -d "$APP"
+          codesign --verify --deep --strict "$APP"
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Contents/Info.plist")" = "app.gajae.desktop"
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")" = "$DESKTOP_VERSION"
+          lipo "$APP/Contents/MacOS/gajae-app-desktop" -verify_arch arm64
+          lipo "$APP/Contents/MacOS/gajae-app-server" -verify_arch arm64
+          node scripts/release/smoke-packaged-server.mjs --tauri-app "$APP"
+          hdiutil detach "$MOUNT_POINT"
+          trap - EXIT
+
+      - name: Upload canonical desktop release assets
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: gajae-app-desktop-release
+          path: release-assets/*
+          if-no-files-found: error
+
   ubuntu-24-compatibility:
     name: Smoke server artifact on Ubuntu 24.04
     needs: build
@@ -205,6 +320,7 @@ jobs:
     name: Publish GitHub Release
     needs:
       - build
+      - desktop-macos
       - ubuntu-24-compatibility
     runs-on: ubuntu-22.04
     environment: release
@@ -218,28 +334,45 @@ jobs:
           name: gajae-app-server-release
           path: release-assets
 
+      - name: Download canonical desktop release assets
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: gajae-app-desktop-release
+          path: release-assets
+
       - name: Verify publish inputs
         env:
-          ASSET_NAME: ${{ needs.build.outputs.artifact_name }}
+          SERVER_ASSET_NAME: ${{ needs.build.outputs.artifact_name }}
+          DESKTOP_ASSET_NAME: ${{ needs.desktop-macos.outputs.artifact_name }}
+          SERVER_RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+          DESKTOP_RELEASE_TAG: ${{ needs.desktop-macos.outputs.release_tag }}
         run: |
           set -euo pipefail
+          if [ "$SERVER_RELEASE_TAG" != "$DESKTOP_RELEASE_TAG" ]; then
+            echo "Server and desktop release tags do not match." >&2
+            exit 1
+          fi
           shopt -s nullglob
           assets=(release-assets/*)
-          if [ "${#assets[@]}" -ne 2 ] ||
-             [ ! -f "release-assets/$ASSET_NAME" ] ||
-             [ ! -f "release-assets/$ASSET_NAME.sha256" ]; then
+          if [ "${#assets[@]}" -ne 4 ] ||
+             [ ! -f "release-assets/$SERVER_ASSET_NAME" ] ||
+             [ ! -f "release-assets/$SERVER_ASSET_NAME.sha256" ] ||
+             [ ! -f "release-assets/$DESKTOP_ASSET_NAME" ] ||
+             [ ! -f "release-assets/$DESKTOP_ASSET_NAME.sha256" ]; then
             echo "Refusing to publish non-canonical release assets." >&2
             exit 1
           fi
           (
             cd release-assets
-            sha256sum --check "$ASSET_NAME.sha256"
+            sha256sum --check "$SERVER_ASSET_NAME.sha256"
+            sha256sum --check "$DESKTOP_ASSET_NAME.sha256"
           )
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          ASSET_NAME: ${{ needs.build.outputs.artifact_name }}
+          SERVER_ASSET_NAME: ${{ needs.build.outputs.artifact_name }}
+          DESKTOP_ASSET_NAME: ${{ needs.desktop-macos.outputs.artifact_name }}
           RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
         run: |
           set -euo pipefail
@@ -248,8 +381,10 @@ jobs:
             prerelease_args+=(--prerelease)
           fi
           gh release create "$RELEASE_TAG" \
-            "release-assets/$ASSET_NAME" \
-            "release-assets/$ASSET_NAME.sha256" \
+            "release-assets/$SERVER_ASSET_NAME" \
+            "release-assets/$SERVER_ASSET_NAME.sha256" \
+            "release-assets/$DESKTOP_ASSET_NAME" \
+            "release-assets/$DESKTOP_ASSET_NAME.sha256" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Gajae App $RELEASE_TAG" \

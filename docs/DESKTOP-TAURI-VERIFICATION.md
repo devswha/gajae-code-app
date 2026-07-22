@@ -13,13 +13,17 @@
 cd ~/workspace/gajae-app
 npm ci
 npm run server:payload:macos            # darwin-arm64 Node payload + externalBin
-env -u CI npm run tauri -- build        # ad-hoc .app + DMG (bundle_dmg.sh needs a GUI session)
-npm run desktop:dmg:macos               # headless functional DMG via hdiutil + sha256 (alternative)
+env -u CI npm run tauri -- build --bundles app # ad-hoc .app bundle
+npm run desktop:dmg:macos               # headless functional DMG via hdiutil + sha256
 ```
 
 Artifacts:
-- `src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/Gajae App_0.2.0_aarch64.dmg`
-  (Tauri cleans the intermediate `.app` after bundling; install from the DMG.)
+- `src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg`
+- `src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg.sha256`
+
+The `Release Gajae App` GitHub Actions workflow performs the same build,
+mount, signature, architecture, bundle-version, and packaged-server smoke
+checks before attaching both files to the versioned GitHub Release.
 
 ## C7 — Interactive GUI smoke — **PASSED 2026-07-20**
 

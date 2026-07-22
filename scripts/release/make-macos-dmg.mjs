@@ -9,6 +9,7 @@
 // headlessly. Cosmetic layout/notarization remain a GUI+credential concern.
 //
 // Usage: node scripts/release/make-macos-dmg.mjs [--app <path>] [--out <dir>]
+//        [--artifact-version <release version>]
 
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -45,14 +46,23 @@ if (!existsSync(appPath)) {
 }
 
 const infoPlist = join(appPath, 'Contents/Info.plist');
-const version = run('/usr/libexec/PlistBuddy', ['-c', 'Print CFBundleShortVersionString', infoPlist]).trim();
+const appVersion = run('/usr/libexec/PlistBuddy', ['-c', 'Print CFBundleShortVersionString', infoPlist]).trim();
+const releaseVersion = arg(
+  '--artifact-version',
+  JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf8')).version,
+);
+if (typeof releaseVersion !== 'string'
+    || !/^[0-9A-Za-z][0-9A-Za-z.-]*$/.test(releaseVersion)
+    || releaseVersion.includes('..')) {
+  throw new Error(`Invalid release artifact version: ${releaseVersion}`);
+}
 const identifier = run('/usr/libexec/PlistBuddy', ['-c', 'Print CFBundleIdentifier', infoPlist]).trim();
 
 // Verify the app is ad-hoc-valid before packaging (fail-closed).
 run('codesign', ['--verify', '--strict', appPath]);
 
 mkdirSync(outDir, { recursive: true });
-const dmgPath = join(outDir, `Gajae-App_${version}_aarch64.dmg`);
+const dmgPath = join(outDir, `gajae-app-desktop-${releaseVersion}-macos-arm64.dmg`);
 
 const stage = mkdtempSync(join(tmpdir(), 'gajae-dmg-'));
 try {
@@ -78,7 +88,8 @@ console.log(JSON.stringify({
   dmg: dmgPath,
   sha256,
   shaFile,
-  version,
+  appVersion,
+  releaseVersion,
   identifier,
   signature: adhoc ? 'adhoc' : 'signed',
   note: 'Plain hdiutil DMG (no Finder cosmetics). Notarization + cosmetic layout require Apple credentials + a GUI session.',

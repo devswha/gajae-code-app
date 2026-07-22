@@ -1,6 +1,6 @@
 [package]
 name = "gajae-app-desktop"
-version = "0.2.0"
+version = "0.2.1"
 description = "Gajae App desktop shell"
 authors = ["Gajae App contributors"]
 edition = "2021"

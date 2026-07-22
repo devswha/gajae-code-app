@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="#왜-gajae-app인가">핵심 기능</a> ·
+  <a href="#macos-앱-다운로드">앱 다운로드</a> ·
   <a href="#빠른-시작">빠른 시작</a> ·
   <a href="#모델-프리셋과-스킬">프리셋과 스킬</a> ·
   <a href="docs/INSTALL.md">서버 설치</a> ·
@@ -57,6 +58,23 @@ Gajae App은 [Gajae Code](https://github.com/devswha/gajae-code)를 데스크톱
 
 ## 빠른 시작
 
+### macOS 앱 다운로드
+
+Apple Silicon(M1 이상) Mac에서는 소스 빌드 없이 [Gajae App v2.0.0-beta.2](https://github.com/devswha/Gajae-code-app/releases/tag/v2.0.0-beta.2)의 `gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg`를 내려받아 설치할 수 있습니다.
+
+1. DMG와 같은 이름의 `.sha256` 파일을 함께 내려받습니다.
+2. 터미널에서 체크섬을 확인합니다.
+
+   ```bash
+   cd ~/Downloads
+   shasum -a 256 -c gajae-app-desktop-2.0.0-beta.2-macos-arm64.dmg.sha256
+   ```
+
+3. DMG를 열고 **Gajae App**을 **Applications**로 드래그합니다.
+4. 첫 실행은 Finder에서 앱을 `Control`-클릭한 뒤 **열기**를 선택합니다. 차단되면 **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기**를 사용하세요.
+
+> 이 베타 DMG는 아직 Apple Developer ID 공증을 받지 않은 ad-hoc 서명 빌드입니다. 체크섬이 일치하는 GitHub Release 아티팩트만 사용하세요. Intel Mac, Windows, Linux 데스크톱 설치 파일은 아직 제공하지 않습니다.
+
 ### 요구사항
 
 - Node.js `22.22.2+` (22.x) 또는 `24.15.0+` (24.x)
@@ -84,7 +102,7 @@ npm run desktop:dev
 
 `desktop:dev`는 Tauri 셸과 로컬 Gajae App 서버를 함께 실행합니다. 별도의 웹 개발 서버를 먼저 켤 필요가 없습니다.
 
-> 공개 GitHub Release는 현재 **Linux x86_64 서버 베타 아티팩트**를 제공합니다. macOS Tauri 앱은 아직 소스 빌드 경로이며, 공개 DMG 배포로 오해하지 마세요.
+> GitHub Release는 **macOS arm64 데스크톱 DMG**와 **Linux x86_64 서버 아티팩트**를 각각 체크섬과 함께 제공합니다.
 
 ## 기본 사용 흐름
 
@@ -152,10 +170,10 @@ GJC worker ──▶ Gajae Code CLI / SDK
 | 대상 | 상태 | 요구사항 |
 |---|---|---|
 | Linux x86_64 서버 | GitHub Release 베타 아티팩트 제공 | glibc 2.35+, Node.js 22 |
-| macOS arm64 데스크톱 | 소스 개발·빌드 지원 | macOS 11+, Rust 1.85.1 |
+| macOS arm64 데스크톱 | GitHub Release 베타 DMG 제공 | macOS 11+, Apple Silicon |
 | Windows / Linux 데스크톱 | 미지원 | 향후 별도 검증 필요 |
 
-서버 설치는 [GitHub Releases](https://github.com/devswha/Gajae-code-app/releases)의 버전 고정 아티팩트와 `.sha256` 파일을 함께 사용합니다. 가변 `latest` URL이나 검증하지 않은 소스 번들을 프로덕션에 배포하지 마세요.
+데스크톱과 서버 설치 모두 [GitHub Releases](https://github.com/devswha/Gajae-code-app/releases)의 버전 고정 아티팩트와 `.sha256` 파일을 함께 사용합니다. 가변 `latest` URL이나 검증하지 않은 소스 번들을 사용하지 마세요.
 
 - 최초 설치: [docs/INSTALL.md](docs/INSTALL.md)
 - 운영, 업그레이드, 롤백, 제거: [docs/SELF-HOST.md](docs/SELF-HOST.md)

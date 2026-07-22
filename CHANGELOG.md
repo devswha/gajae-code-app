@@ -1,10 +1,22 @@
 # Gajae App changelog
 
 All notable changes to Gajae App are documented in this file. Current and
-future server artifacts are published only through
+future desktop and server artifacts are published only through
 [GitHub Releases](https://github.com/devswha/Gajae-code-app/releases).
 
-## Unreleased
+## 2.0.0-beta.2 (2026-07-22)
+
+### Desktop distribution
+
+- Added a downloadable Apple Silicon macOS DMG and SHA-256 checksum to the
+  canonical GitHub Release. The release workflow builds the embedded server,
+  packages the Tauri app on an arm64 macOS runner, mounts the DMG, verifies its
+  bundle identity and binaries, and runs the packaged-server smoke before
+  publishing.
+- Standardized the desktop artifact name as
+  `gajae-app-desktop-<version>-macos-arm64.dmg`. The current beta is ad-hoc
+  signed and not notarized, so Gatekeeper-clean distribution still requires an
+  Apple Developer ID certificate and notarization credentials.
 
 ### Source development
 

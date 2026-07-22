@@ -10,6 +10,21 @@ const NODE_VERSION = '22.22.2';
 const NODE_ARCHIVE_SHA256 = 'db4b275b83736df67533529a18cc55de2549a8329ace6c7bcc68f8d22d3c9000';
 const BUN_VERSION = '1.3.14';
 const NATIVE_MODULES = ['better-sqlite3', 'node-pty'];
+const RUNTIME_DEPENDENCIES = [
+  '@gajae-code/coding-agent',
+  '@octokit/rest',
+  '@vscode/ripgrep',
+  'better-sqlite3',
+  'cors',
+  'cross-spawn',
+  'express',
+  'gray-matter',
+  'mime-types',
+  'multer',
+  'node-pty',
+  'shell-quote',
+  'ws',
+];
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..', '..');
 const payloadDir = path.join(rootDir, 'src-tauri', 'resources', 'server-payload');
@@ -41,13 +56,8 @@ async function stageSidecar(payloadNode) {
   await fs.mkdir(sidecarDir, { recursive: true });
   await fs.copyFile(payloadNode, sidecarPath);
   await fs.chmod(sidecarPath, 0o755);
-  await run('install_name_tool', ['-add_rpath', '@executable_path/../Resources/server-payload/node/lib', sidecarPath]);
   await codesign(sidecarPath);
-  const sidecarEnvironment = {
-    ...process.env,
-    DYLD_LIBRARY_PATH: path.join(payloadDir, 'node', 'lib'),
-  };
-  if ((await capture(sidecarPath, ['--version'], { env: sidecarEnvironment })).trim() !== `v${NODE_VERSION}`) {
+  if ((await capture(sidecarPath, ['--version'])).trim() !== `v${NODE_VERSION}`) {
     throw new Error('Staged Tauri sidecar Node runtime version verification failed.');
   }
 }
@@ -63,6 +73,42 @@ async function sha256(filePath) {
 
 async function copy(relativePath) {
   await fs.cp(path.join(rootDir, relativePath), path.join(payloadDir, relativePath), { recursive: true });
+}
+
+async function restrictRuntimeDependencies() {
+  const packagePath = path.join(payloadDir, 'package.json');
+  const lockPath = path.join(payloadDir, 'package-lock.json');
+  const packageJson = JSON.parse(await fs.readFile(packagePath, 'utf8'));
+  const packageLock = JSON.parse(await fs.readFile(lockPath, 'utf8'));
+  const dependencies = {};
+
+  for (const dependency of RUNTIME_DEPENDENCIES) {
+    const declaredVersion = packageJson.dependencies?.[dependency];
+    const lockedVersion = packageLock.packages?.[`node_modules/${dependency}`]?.version;
+    if (!declaredVersion && !lockedVersion) throw new Error(`Runtime dependency is missing from package-lock.json: ${dependency}`);
+    dependencies[dependency] = declaredVersion || lockedVersion;
+  }
+
+  packageJson.dependencies = dependencies;
+  delete packageJson.devDependencies;
+  delete packageJson.optionalDependencies;
+  packageJson.scripts = {};
+  await fs.writeFile(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+}
+
+async function pruneNonRuntimeMetadata(directory) {
+  let removed = 0;
+  const entries = await fs.readdir(directory, { withFileTypes: true });
+  for (const entry of entries) {
+    const filePath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      removed += await pruneNonRuntimeMetadata(filePath);
+    } else if (entry.isFile() && /(?:\.map|\.d\.(?:c|m)?ts)$/.test(entry.name)) {
+      await fs.rm(filePath);
+      removed += 1;
+    }
+  }
+  return removed;
 }
 
 async function downloadPinnedNode() {
@@ -164,15 +210,21 @@ try {
   if ((await capture(payloadNode, ['--version'])).trim() !== `v${NODE_VERSION}`) throw new Error('Pinned Node runtime version verification failed.');
   const payloadNodeBin = path.dirname(payloadNode);
   const npmEnvironment = { ...process.env, PATH: `${payloadNodeBin}:/usr/bin:/bin`, npm_config_audit: 'false', npm_config_fund: 'false', npm_config_update_notifier: 'false' };
-  await run(payloadNode, [path.join(payloadDir, 'node', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'), 'ci', '--omit=dev'], { cwd: payloadDir, env: npmEnvironment });
-  await run(payloadNode, [path.join(payloadDir, 'node', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'), 'rebuild', '--omit=dev', '--build-from-source', ...NATIVE_MODULES], { cwd: payloadDir, env: { ...npmEnvironment, npm_config_build_from_source: 'true' } });
+  const npmCli = path.join(payloadDir, 'node', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  await restrictRuntimeDependencies();
+  await run(payloadNode, [npmCli, 'install', '--package-lock-only', '--ignore-scripts', '--omit=dev'], { cwd: payloadDir, env: npmEnvironment });
+  await run(payloadNode, [npmCli, 'ci', '--omit=dev'], { cwd: payloadDir, env: npmEnvironment });
+  await run(payloadNode, [npmCli, 'rebuild', '--omit=dev', '--build-from-source', ...NATIVE_MODULES], { cwd: payloadDir, env: { ...npmEnvironment, npm_config_build_from_source: 'true' } });
+  await run(payloadNode, [path.join(payloadDir, 'scripts', 'fix-node-pty.js')], { cwd: payloadDir, env: npmEnvironment });
   await verifyManifest();
+  const prunedMetadataFiles = await pruneNonRuntimeMetadata(path.join(payloadDir, 'node_modules'));
   await codesignNativeClosure(payloadDir);
   await stageSidecar(payloadNode);
   await fs.rm(path.join(payloadDir, 'package-lock.json'), { force: true });
   await fs.rm(path.join(payloadDir, 'scripts', 'fix-node-pty.js'), { force: true });
-  await smoke(payloadNode);
-  console.log(`Built and verified macOS server payload at ${path.relative(rootDir, payloadDir)}.`);
+  await smoke(sidecarPath);
+  await fs.rm(path.join(payloadDir, 'node'), { recursive: true, force: true });
+  console.log(`Built and verified macOS server payload at ${path.relative(rootDir, payloadDir)}; pruned ${prunedMetadataFiles} non-runtime metadata files.`);
 } catch (error) {
   await fs.rm(payloadDir, { recursive: true, force: true });
   await fs.rm(sidecarPath, { force: true });

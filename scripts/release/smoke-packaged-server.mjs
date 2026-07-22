@@ -69,9 +69,9 @@ function packagedTargets() {
     const payload = candidates.find(candidate => existsSync(candidate));
     if (!payload) throw new Error(`Tauri server-payload not found under ${app}/Contents/Resources (checked resources/server-payload and server-payload)`);
     return {
-      label: 'Tauri', cwd: payload, command: path.join(payload, 'node', 'bin', 'node'),
+      label: 'Tauri', cwd: payload, command: path.join(app, 'Contents', 'MacOS', 'gajae-app-server'),
       args: [path.join(payload, 'dist-server', 'server', 'index.js')],
-      extraEnv: { DYLD_LIBRARY_PATH: path.join(payload, 'node', 'lib') },
+      extraEnv: {},
     };
   }
 }

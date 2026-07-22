@@ -63,6 +63,9 @@ jobs:
             echo "release_tag=v$VERSION"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Seed verified ripgrep install cache
+        run: node scripts/release/prime-ripgrep-cache.mjs
+
       - name: Install dependencies
         run: npm ci
 
@@ -185,6 +188,9 @@ jobs:
           rustup default 1.85.1
           rustup target add aarch64-apple-darwin
           rustc --version
+
+      - name: Seed verified ripgrep install cache
+        run: node scripts/release/prime-ripgrep-cache.mjs
 
       - name: Install dependencies
         run: npm ci

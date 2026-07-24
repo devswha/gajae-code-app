@@ -19,6 +19,11 @@ src-tauri/target/
 src-tauri/binaries/
 src-tauri/resources/server-payload/
 src-tauri/gen/
+# Temporary tauri.conf overlays written per invocation by scripts/tauri.mjs
+src-tauri/.tauri-config-*.json
+
+# Agent run outputs and audit reports (local only)
+/artifacts/
 # GJC durable job worktrees (runtime, per-job)
 .gjc-worktrees/
 

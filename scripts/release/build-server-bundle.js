@@ -15,7 +15,7 @@ const NATIVE_MODULES = ['better-sqlite3', 'node-pty'];
 const BUN_VERSION = '1.3.14';
 const GJC_SDK_PACKAGE = '@gajae-code/coding-agent';
 const GJC_NATIVES_PACKAGE = '@gajae-code/natives';
-const GJC_SDK_VERSION = '0.11.1';
+const GJC_SDK_VERSION = '0.11.8';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..', '..');

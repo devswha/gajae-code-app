@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import { test } from 'node:test';
@@ -690,10 +690,13 @@ test('sequential runs clone global settings for each cwd while retaining the ses
     assert.equal(f.factoryOptions[0]!.cwd, firstCwd);
     assert.equal(f.factoryOptions[1]!.cwd, secondCwd);
     assert.notEqual(f.factoryOptions[0]!.settings, f.factoryOptions[1]!.settings);
+    // The SDK reports session files as realpaths, so containment is compared
+    // against the resolved root (macOS /var is a symlink to /private/var).
+    const resolvedRoot = await realpath(f.root);
     for (const factoryInput of f.factoryOptions) {
       const sessionFile = (factoryInput.sessionManager as { getSessionFile(): string | undefined }).getSessionFile();
       assert.ok(sessionFile);
-      const relativeSessionFile = relative(f.root, sessionFile);
+      const relativeSessionFile = relative(resolvedRoot, sessionFile);
       assert.ok(relativeSessionFile && !relativeSessionFile.startsWith('..') && !isAbsolute(relativeSessionFile));
     }
   } finally {

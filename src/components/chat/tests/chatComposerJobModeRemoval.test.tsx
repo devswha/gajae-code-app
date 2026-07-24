@@ -142,6 +142,38 @@ test('normal chat submit sends one chat message and never creates a GJC job', as
     api.gjcJobs.create = originalCreate;
   }
 });
+test('/login opens the app login flow without sending a chat message', async () => {
+  const sentMessages: unknown[] = [];
+  const loginProviderIds: Array<string | undefined> = [];
+  let composer: ReturnType<typeof useChatComposerState> | undefined;
+
+  function Capture() {
+    composer = useChatComposerState({
+      selectedProject,
+      selectedSession: null,
+      currentSessionId: 'session-1',
+      gjcModel: 'gpt-test',
+      isLoading: false,
+      canAbortSession: false,
+      tokenBudget: null,
+      sendMessage: (message) => { sentMessages.push(message); },
+      onLogin: (providerId) => { loginProviderIds.push(providerId); },
+      scrollToBottom: () => undefined,
+      addMessage: () => undefined,
+      setIsUserScrolledUp: () => undefined,
+      setPendingPermissionRequests: () => undefined,
+    });
+    return null;
+  }
+
+  renderToStaticMarkup(createElement(Capture));
+  assert.ok(composer);
+  composer.handleVoiceTranscript('/login openai');
+  await composer.handleSubmit(submitEvent);
+
+  assert.deepEqual(loginProviderIds, ['openai']);
+  assert.deepEqual(sentMessages, []);
+});
 
 test('chat composer renders normal tools without background Job controls', () => {
   const html = renderToStaticMarkup(createElement(ChatComposer, baseComposerProps));

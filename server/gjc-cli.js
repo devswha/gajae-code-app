@@ -26,6 +26,10 @@ const SDK_USAGE_FLUSH_GRACE_MS = 100;
 const SDK_ABORT_TIMEOUT_MS = 1000;
 const SDK_BRIDGE_CLOSE_GRACE_MS = 500;
 const PROVIDER_PROBE_GRACE_MS = 500;
+// `close` can be held open indefinitely when a descendant inherits the CLI's
+// stdio pipes. Give trailing output a short drain window after `exit`, then
+// settle from the authoritative process exit status even if `close` never fires.
+const PROCESS_CLOSE_GRACE_MS = 250;
 
 async function settleWithin(operation, timeoutMs, fallback) {
   let timeout;
@@ -214,6 +218,7 @@ export function spawnGjcWithRuntime(message, options = {}, writer, runtime = {})
     let terminalNotificationSent = false;
     let completeSent = false;
     let terminalPromise = null;
+    let processExitTimer = null;
     let gjcProcess = null;
     let sdkBridge = null;
     let sdkBridgeSessionId = null;
@@ -231,6 +236,7 @@ export function spawnGjcWithRuntime(message, options = {}, writer, runtime = {})
       sdkUsageFlushGraceMs = SDK_USAGE_FLUSH_GRACE_MS,
       sdkBridgeCloseGraceMs = SDK_BRIDGE_CLOSE_GRACE_MS,
       providerProbeGraceMs = PROVIDER_PROBE_GRACE_MS,
+      processCloseGraceMs = PROCESS_CLOSE_GRACE_MS,
     } = runtime;
     // Assistant text arrives as monotonically growing snapshots (gjc emits the
     // accumulated partial message on every streaming update). The frontend
@@ -741,6 +747,11 @@ export function spawnGjcWithRuntime(message, options = {}, writer, runtime = {})
       if (terminalPromise) {
         return terminalPromise;
       }
+      if (processExitTimer) {
+        clearTimeout(processExitTimer);
+        processExitTimer = null;
+      }
+
 
       gjcProcess.hasClosed = true;
       terminalPromise = (async () => {
@@ -815,6 +826,15 @@ export function spawnGjcWithRuntime(message, options = {}, writer, runtime = {})
       return terminalPromise;
     };
 
+    gjcProcess.on('exit', (code) => {
+      if (terminalPromise || processExitTimer) {
+        return;
+      }
+      processExitTimer = setTimeout(() => {
+        processExitTimer = null;
+        void settleProcess({ code });
+      }, processCloseGraceMs);
+    });
     gjcProcess.on('close', (code) => {
       void settleProcess({ code });
     });

@@ -12,6 +12,8 @@ import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useSessionStore } from '../../../stores/useSessionStore';
+import { useOAuthLogin } from '../hooks/useOAuthLogin';
+import OAuthLoginDialog from '../OAuthLoginDialog';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
@@ -78,6 +80,14 @@ function ChatInterface({
     selectedSession,
     selectedProject,
   });
+  const oauthLogin = useOAuthLogin();
+
+  useEffect(() => {
+    if (oauthLogin.attempt?.phase === 'completed') {
+      void hardRefreshProviderModels();
+    }
+  }, [hardRefreshProviderModels, oauthLogin.attempt?.phase]);
+
 
   const {
     chatMessages,
@@ -195,6 +205,7 @@ function ChatInterface({
     onFileOpen,
     onShowSettings,
     scrollToBottom,
+    onLogin: oauthLogin.openLogin,
     addMessage,
     setIsUserScrolledUp,
     setPendingPermissionRequests,
@@ -454,6 +465,18 @@ function ChatInterface({
         onHardRefreshProviderModels={hardRefreshProviderModels}
         currentSessionId={currentSessionId || selectedSession?.id || null}
         onSelectProviderModel={selectProviderModel}
+      />
+      <OAuthLoginDialog
+        open={oauthLogin.isOpen}
+        providers={oauthLogin.providers}
+        isLoadingProviders={oauthLogin.isLoadingProviders}
+        isStarting={oauthLogin.isStarting}
+        attempt={oauthLogin.attempt}
+        failure={oauthLogin.failure}
+        onSelectProvider={oauthLogin.startProvider}
+        onSubmitValue={oauthLogin.submitValue}
+        onDismiss={oauthLogin.closeLogin}
+        onRetry={oauthLogin.retry}
       />
     </PermissionContext.Provider>
   );

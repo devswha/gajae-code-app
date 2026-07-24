@@ -8,8 +8,9 @@ v1.0.0 릴리스 컷(2026-07-17) 이후의 실행 순서를 정의한다.
 > **상태 (2026-07-20): v2 완료.** Phase 0–6 전부 착지(릴리스 1.1.0–1.3.0),
 > Tauri 셸 C7 실기 GUI 스모크까지 통과(`docs/DESKTOP-TAURI-VERIFICATION.md`,
 > `artifacts/g002/`). Electron은 wave1(C9)에서 제거. 남은 항목은
-> **notarization(휴먼 게이트, Apple 자격증명)** 과 **이번 런 커밋들의 Linux
-> x64 verify 레인 재실행**(본 세션은 macOS arm64에서만 게이트를 돌렸다) 뿐이다.
+> **공개 배포 준비(휴먼 게이트, 아래 Phase 7)** 뿐이다. 공개 배포 준비는
+> beta.3 기능 QA를 먼저 완료하고 제품을 계속 배포할 가치가 있다고 판단한
+> 뒤에만 시작한다.
 >
 > **v1 격리 불변식 은퇴 (2026-07-20):** wave1–6에서 v1 전용 레인(비-GJC
 > provider, web-push/PWA, tmux 미러, 멀티유저 인증)을 제거하면서 원칙 1은
@@ -107,11 +108,46 @@ v2 = 앱이 주인. 웹/데스크톱에서 에이전트 작업을 만들고, 돌
 - 프로젝트 마법사(clone) 복권, control tower 동봉/내장 결정 및 구현.
 - 종료 조건: tower 결정이 MVP.md 결정 이력에 기록되고 구현 완료.
 
+## Phase 7 — 공개 배포 준비 (기능 QA 후 결정)
+
+**현재 상태: 보류.** beta.3 앱 기능 테스트를 먼저 완료한다. 테스트 결과를
+검토해 공개 배포를 계속하기로 명시적으로 결정하기 전에는 Apple Developer
+Program 가입, 인증서 발급, 공증 자격증명 등록을 진행하지 않는다.
+
+### 7.0 진행 결정 게이트
+
+- [ ] GitHub에서 받은 quarantine 적용 DMG로 Apple Silicon Mac 설치 QA.
+- [ ] 프로젝트/세션, 프리셋, 스킬 명령, 작업 생성·중단·재개, 종료·재실행,
+      데이터 보존과 충돌 로그를 재검증.
+- [ ] 발견된 기능 결함과 배포 유지 비용을 검토하고 공개 배포 진행 여부 결정.
+
+### 7.1 진행 결정 후 필수 작업
+
+- [ ] Apple Developer Program 가입(연간 미화 99달러 또는 현지 통화).
+- [ ] Developer ID Application 인증서로 앱·사이드카·네이티브 구성요소를
+      inside-out 순서로 서명.
+- [ ] Apple 공증 제출, 성공 티켓 staple, 깨끗한 Mac에서 Gatekeeper 통과 확인.
+- [ ] GUI 앱과 Node 사이드카 entitlement를 분리하고
+      `allow-dyld-environment-variables`, unsigned executable memory,
+      library-validation 비활성화를 각각 제거 가능한지 회귀 테스트.
+- [ ] main 브랜치 보호, 서명된 릴리스 태그, Dependabot, CodeQL,
+      secret scanning/push protection과 `SECURITY.md` 활성화.
+- [ ] Node·Bun·Rust·네이티브 의존성 감사, SBOM과 서드파티 라이선스 고지 생성.
+- [ ] 서명 검증이 포함된 보안 업데이트 경로 또는 최소 업데이트 알림 설계.
+- [ ] notarized beta 후 다른 Apple Silicon Mac에서 최종 다운로드·설치 QA.
+
+### 7.2 배포 경로 결정
+
+- 기본안: Developer ID로 서명·공증한 DMG를 GitHub Release에서 직접 배포.
+- Mac App Store는 App Sandbox가 필수이고 현재의 프로젝트 파일·셸 실행
+  모델과 충돌하므로, 별도 sandbox 아키텍처를 설계하기 전까지 비목표.
+
 ## 의존성 요약
 
 ```
 Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 5 ──> Phase 6
    └────────────────> Phase 4 (병렬)
+beta.3 기능 QA ──> 공개 배포 진행 결정 ──> Phase 7
 ```
 
 ## 비-목표 (v2에서 하지 않는 것)

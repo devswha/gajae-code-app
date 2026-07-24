@@ -16,6 +16,7 @@ import {
   GjcWorkerRequestTracker,
   serializeGjcWorkerFrame,
   type GjcWorkerEventFrame,
+  type GjcWorkerGlobalEventMethod,
   type GjcWorkerRequestFrame,
   type GjcWorkerRequestMethod,
   type GjcWorkerResponsePayload,
@@ -152,10 +153,25 @@ type ExpiredRequest = {
   method: GjcWorkerRequestMethod;
   sessionId?: string;
 };
+type GjcWorkerOAuthRequestMethod = Extract<GjcWorkerRequestMethod, `oauth.${string}`>;
+export type GjcWorkerOAuthEvent = {
+  method: GjcWorkerGlobalEventMethod;
+  payload: JsonObject;
+};
+type GjcWorkerOAuthListener = (event: GjcWorkerOAuthEvent) => void;
+const GJC_OAUTH_SUBMIT_MAX_LENGTH = 16 * 1024;
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const SAFE_FAILURE = 'GJC worker failed.';
 class GjcConfigurationError extends Error {}
+
+function oauthIdentifier(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 256;
+}
+
+function oauthFailure(code: string): GjcWorkerResponsePayload {
+  return { ok: false, error: { code, message: 'OAuth request failed.' } };
+}
 
 function safeId(value: unknown): string | undefined {
   return typeof value === 'string' && SAFE_ID.test(value) ? value : undefined;
@@ -359,6 +375,7 @@ export class GjcWorkerSupervisor {
   private readonly aliases = new Map<string, string>();
   private readonly approvals = new Map<string, PendingApproval>();
   private readonly expiredRequests = new Map<string, ExpiredRequest>();
+  private readonly oauthListeners = new Set<GjcWorkerOAuthListener>();
 
   constructor(runtime: GjcWorkerSupervisorRuntime = {}) {
     this.runtime = {
@@ -381,6 +398,70 @@ export class GjcWorkerSupervisor {
       environment: runtime.environment ?? process.env,
     };
   }
+  /**
+   * Sends a global OAuth request through the one supervised worker. OAuth
+   * protocol requests deliberately carry no app session id.
+   */
+  private async oauthRequest(
+    method: GjcWorkerOAuthRequestMethod,
+    payload: JsonObject,
+  ): Promise<GjcWorkerResponsePayload> {
+    await this.ensureWorker();
+    return this.request(method, undefined, payload);
+  }
+
+  oauthProviders(): Promise<GjcWorkerResponsePayload> {
+    return this.oauthRequest('oauth.providers', {});
+  }
+
+  oauthStatus(): Promise<GjcWorkerResponsePayload> {
+    return this.oauthRequest('oauth.status', {});
+  }
+
+  oauthStart(providerId: string): Promise<GjcWorkerResponsePayload> {
+    if (!oauthIdentifier(providerId)) return Promise.resolve(oauthFailure('invalid_payload'));
+    return this.oauthRequest('oauth.start', { providerId });
+  }
+
+  async oauthSubmit(attemptId: string, value: string): Promise<GjcWorkerResponsePayload> {
+    if (!oauthIdentifier(attemptId) || typeof value !== 'string') {
+      return oauthFailure('invalid_payload');
+    }
+    if (value.length > GJC_OAUTH_SUBMIT_MAX_LENGTH) {
+      return oauthFailure('oauth_submit_too_large');
+    }
+
+    const payload: JsonObject = { attemptId, value };
+    try {
+      return await this.oauthRequest('oauth.submit', payload);
+    } finally {
+      // The serialized frame has already been written; do not retain input in
+      // request tracking after the worker receives it.
+      payload.value = '';
+      value = '';
+    }
+  }
+
+  oauthCancel(attemptId: string): Promise<GjcWorkerResponsePayload> {
+    if (!oauthIdentifier(attemptId)) return Promise.resolve(oauthFailure('invalid_payload'));
+    return this.oauthRequest('oauth.cancel', { attemptId });
+  }
+
+  subscribeOAuth(listener: GjcWorkerOAuthListener): () => void {
+    this.oauthListeners.add(listener);
+    return () => this.oauthListeners.delete(listener);
+  }
+
+  private emitOAuthEvent(event: GjcWorkerOAuthEvent): void {
+    for (const listener of this.oauthListeners) {
+      try {
+        listener(event);
+      } catch {
+        this.diagnose('OAuth event listener failed.');
+      }
+    }
+  }
+
 
   private diagnose(message: string): void {
     try {
@@ -701,6 +782,14 @@ export class GjcWorkerSupervisor {
   }
 
   private handleEvent(event: GjcWorkerEventFrame): void {
+    if (
+      event.method === 'oauth.phase'
+      || event.method === 'oauth.providers.updated'
+      || event.method === 'provider.auth.updated'
+    ) {
+      this.emitOAuthEvent({ method: event.method, payload: event.payload });
+      return;
+    }
     const payload = object(event.payload);
     const runId = safeId(payload?.runId);
     const run = runId ? this.runs.get(runId) : undefined;

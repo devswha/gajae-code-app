@@ -12,7 +12,7 @@ export interface SlashCommand {
   description?: string;
   namespace?: string;
   path?: string;
-  type?: 'built-in' | 'custom' | 'skill' | string;
+  type?: 'built-in' | 'custom' | 'skill' | 'provider' | string;
   metadata?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -24,6 +24,7 @@ interface UseSlashCommandsOptions {
   setInput: Dispatch<SetStateAction<string>>;
   textareaRef: RefObject<HTMLTextAreaElement>;
   onExecuteCommand: (command: SlashCommand, rawInput?: string) => void | Promise<void>;
+  onLoginCommand?: () => void;
 }
 
 type ProviderSkill = {
@@ -40,6 +41,13 @@ type ProviderSkillsResponse = {
   success?: boolean;
   data?: {
     skills?: ProviderSkill[];
+  };
+};
+
+type ProviderCommandsResponse = {
+  success?: boolean;
+  data?: {
+    commands?: SlashCommand[];
   };
 };
 
@@ -66,8 +74,12 @@ const saveCommandHistory = (projectName: string, history: Record<string, number>
 const isPromiseLike = (value: unknown): value is Promise<unknown> =>
   Boolean(value) && typeof (value as Promise<unknown>).then === 'function';
 
-const isSkillCommand = (command: SlashCommand) =>
-  command.type === 'skill' || command.metadata?.type === 'skill';
+const isInsertableProviderCommand = (command: SlashCommand) =>
+  command.type === 'skill' ||
+  command.type === 'provider' ||
+  command.metadata?.type === 'skill';
+
+const isLoginCommand = (command: SlashCommand) => command.name === '/login';
 
 const dedupeProviderSkills = (skills: ProviderSkill[]): ProviderSkill[] => {
   const seenCommands = new Set<string>();
@@ -142,6 +154,7 @@ export function useSlashCommands({
   setInput,
   textareaRef,
   onExecuteCommand,
+  onLoginCommand,
 }: UseSlashCommandsOptions) {
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
   const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
@@ -178,41 +191,30 @@ export function useSlashCommands({
       }
 
       try {
-        const commandsRequest = authenticatedFetch('/api/commands/list', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            projectId: selectedProject.projectId,
-          }),
-        });
+        const commandsParams = new URLSearchParams();
         const skillsParams = new URLSearchParams();
         if (selectedProject.projectId) {
+          commandsParams.set('projectId', selectedProject.projectId);
           skillsParams.set('projectId', selectedProject.projectId);
         }
+        const commandsRequest = authenticatedFetch(
+          `/api/providers/${encodeURIComponent(provider)}/commands${commandsParams.toString() ? `?${commandsParams.toString()}` : ''}`,
+        );
         const skillsRequest = authenticatedFetch(
           `/api/providers/${encodeURIComponent(provider)}/skills${skillsParams.toString() ? `?${skillsParams.toString()}` : ''}`,
         );
         const [commandsResponse, skillsResponse] = await Promise.all([commandsRequest, skillsRequest]);
-        const data = commandsResponse.ok
-          ? await commandsResponse.json()
-          : { builtIn: [], custom: [] };
+        const commandsData = commandsResponse.ok
+          ? ((await commandsResponse.json()) as ProviderCommandsResponse)
+          : null;
         const skillsData = skillsResponse.ok
           ? ((await skillsResponse.json()) as ProviderSkillsResponse)
           : null;
         const skillCommands = dedupeProviderSkills(skillsData?.data?.skills || [])
           .map(mapSkillToSlashCommand);
         const allCommands: SlashCommand[] = [
-          ...((data.builtIn || []) as SlashCommand[]).map((command) => ({
-            ...command,
-            type: 'built-in',
-          })),
+          ...((commandsData?.data?.commands || []) as SlashCommand[]),
           ...skillCommands,
-          ...((data.custom || []) as SlashCommand[]).map((command) => ({
-            ...command,
-            type: 'custom',
-          })),
         ];
 
         const parsedHistory = readCommandHistory(selectedProject.projectId);
@@ -328,14 +330,19 @@ export function useSlashCommands({
 
   const selectCommandFromKeyboard = useCallback(
     (command: SlashCommand) => {
-      if (isSkillCommand(command)) {
+      if (isLoginCommand(command)) {
+        onLoginCommand?.();
+        resetCommandMenuState();
+        return;
+      }
+      if (isInsertableProviderCommand(command)) {
         insertCommandIntoInput(command);
         return;
       }
 
       executeNonSkillCommand(command);
     },
-    [executeNonSkillCommand, insertCommandIntoInput],
+    [executeNonSkillCommand, insertCommandIntoInput, onLoginCommand, resetCommandMenuState],
   );
 
   const handleCommandSelect = useCallback(
@@ -349,15 +356,20 @@ export function useSlashCommands({
         return;
       }
 
+      if (isLoginCommand(command)) {
+        onLoginCommand?.();
+        resetCommandMenuState();
+        return;
+      }
       trackCommandUsage(command);
-      if (isSkillCommand(command)) {
+      if (isInsertableProviderCommand(command)) {
         insertCommandIntoInput(command);
         return;
       }
 
       executeNonSkillCommand(command);
     },
-    [selectedProject, trackCommandUsage, insertCommandIntoInput, executeNonSkillCommand],
+    [selectedProject, trackCommandUsage, insertCommandIntoInput, executeNonSkillCommand, onLoginCommand, resetCommandMenuState],
   );
 
   const handleToggleCommandMenu = useCallback(() => {

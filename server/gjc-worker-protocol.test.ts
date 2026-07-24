@@ -17,6 +17,7 @@ import {
 } from './gjc-worker-protocol.js';
 
 const scopedMethods = new Set(['session.start', 'session.resume', 'turn.start', 'turn.abort', 'ask.reply']);
+const globalEventMethods = new Set(['oauth.phase', 'oauth.providers.updated', 'provider.auth.updated']);
 
 function request(method: typeof GJC_WORKER_REQUEST_METHODS[number], id = 'request-1'): GjcWorkerRequestFrame {
   const base = {
@@ -43,8 +44,8 @@ function protocolError(action: () => unknown, code?: string): void {
 test('declares the independent worker protocol v1 surface', () => {
   assert.equal(GJC_WORKER_PROTOCOL_VERSION, 1);
   assert.equal(GJC_WORKER_MAX_FRAME_BYTES, 64 * 1024 * 1024);
-  assert.deepEqual(GJC_WORKER_REQUEST_METHODS, ['worker.initialize', 'session.start', 'session.resume', 'turn.start', 'turn.abort', 'ask.reply', 'worker.shutdown']);
-  assert.deepEqual(GJC_WORKER_EVENT_METHODS, ['session.created', 'message.delta', 'message.completed', 'tool.started', 'tool.completed', 'ask.presented', 'usage.updated', 'turn.completed', 'turn.failed', 'worker.status']);
+  assert.deepEqual(GJC_WORKER_REQUEST_METHODS, ['worker.initialize', 'session.start', 'session.resume', 'turn.start', 'turn.abort', 'ask.reply', 'oauth.providers', 'oauth.status', 'oauth.start', 'oauth.submit', 'oauth.cancel', 'worker.shutdown']);
+  assert.deepEqual(GJC_WORKER_EVENT_METHODS, ['session.created', 'message.delta', 'message.completed', 'tool.started', 'tool.completed', 'ask.presented', 'usage.updated', 'turn.completed', 'turn.failed', 'worker.status', 'oauth.phase', 'oauth.providers.updated', 'provider.auth.updated']);
 });
 
 test('parses every request method and enforces scope, fields, and protocolVersion', () => {
@@ -58,7 +59,7 @@ test('parses every request method and enforces scope, fields, and protocolVersio
 
 test('parses every event method with required IDs and correct session scope', () => {
   for (const method of GJC_WORKER_EVENT_METHODS) {
-    const frame = { protocolVersion: 1, kind: 'event', id: `event-${method}`, method, payload: { value: 1 }, ...(method === 'worker.status' ? {} : { sessionId: 'session-1' }) };
+    const frame = { protocolVersion: 1, kind: 'event', id: `event-${method}`, method, payload: { value: 1 }, ...(method === 'worker.status' || globalEventMethods.has(method) ? {} : { sessionId: 'session-1' }) };
     assert.equal(parseGjcWorkerFrame(JSON.stringify(frame)).method, method);
   }
   assert.equal(parseGjcWorkerFrame(JSON.stringify({ protocolVersion: 1, kind: 'event', id: 'event-1', method: 'worker.status', sessionId: 'session-1', payload: {} })).method, 'worker.status');

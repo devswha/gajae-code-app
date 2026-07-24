@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { once } from 'node:events';
+import { EventEmitter, once } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -35,6 +35,17 @@ function parseOutboundFrame(raw: string): OutboundFrame {
 
   return parsed;
 }
+class FakeWebSocket extends EventEmitter {
+  readyState = 1;
+  sent: OutboundFrame[] = [];
+
+  send(value: string): void {
+    this.sent.push(parseOutboundFrame(value));
+  }
+}
+
+const flushMessages = () => new Promise<void>((resolve) => setImmediate(resolve));
+
 
 async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
   const previousDatabasePath = process.env.DATABASE_PATH;
@@ -320,4 +331,177 @@ test('gjc.job.resume is rejected as an unknown message type', async () => {
       });
     }
   });
+});
+test('OAuth websocket requests and events use the global supervisor without exposing submitted values', async () => {
+  const socket = new FakeWebSocket();
+  const calls: Array<{ method: string; attemptId?: string; value?: string }> = [];
+  let emitOAuth: ((event: { method: 'oauth.phase'; payload: Record<string, unknown> }) => void) | undefined;
+  handleChatConnection(
+    socket as unknown as WebSocket,
+    { user: { id: 'oauth-user' } } as never,
+    {
+      spawnFns: {} as never,
+      abortFns: {} as never,
+      resolveToolApproval() {},
+      getPendingApprovalsForSession: () => [],
+      oauthSupervisor: {
+        oauthProviders: async () => ({
+          ok: true,
+          result: { providers: [{ id: 'openai', name: 'OpenAI', available: true, authenticated: false }] },
+        }),
+        oauthStatus: async () => ({ ok: true, result: { activeAttempt: null } }),
+        oauthStart: async (providerId) => {
+          calls.push({ method: 'start', value: providerId });
+          return { ok: true, result: { attemptId: 'attempt-1', providerId, phase: 'starting' } };
+        },
+        oauthSubmit: async (attemptId, value) => {
+          calls.push({ method: 'submit', attemptId, value });
+          return { ok: true, result: { attemptId, providerId: 'openai', phase: 'persisting' } };
+        },
+        oauthCancel: async (attemptId) => {
+          calls.push({ method: 'cancel', attemptId });
+          return { ok: true, result: { attemptId, providerId: 'openai', phase: 'cancelled' } };
+        },
+        subscribeOAuth(listener) {
+          emitOAuth = listener as typeof emitOAuth;
+          return () => {
+            emitOAuth = undefined;
+          };
+        },
+      },
+    },
+  );
+
+  socket.emit('message', JSON.stringify({ type: 'oauth.providers' }));
+  socket.emit('message', JSON.stringify({ type: 'oauth.start', providerId: 'openai' }));
+  await flushMessages();
+  socket.emit('message', JSON.stringify({
+    type: 'oauth.submit',
+    attemptId: 'attempt-1',
+    value: 'secret-callback-value',
+  }));
+  await flushMessages();
+
+  emitOAuth?.({
+    method: 'oauth.phase',
+    payload: { attemptId: 'attempt-1', providerId: 'openai', phase: 'completed' },
+  });
+
+  assert.equal(socket.sent[0]?.kind, 'oauth.providers');
+  assert.equal(socket.sent[1]?.kind, 'oauth.start');
+  assert.equal(socket.sent[2]?.kind, 'oauth.submit');
+  assert.equal(socket.sent[3]?.kind, 'oauth.phase');
+  assert.deepEqual(calls, [
+    { method: 'start', value: 'openai' },
+    { method: 'submit', attemptId: 'attempt-1', value: 'secret-callback-value' },
+  ]);
+  assert.equal(JSON.stringify(socket.sent).includes('secret-callback-value'), false);
+
+  socket.emit('close');
+  assert.equal(emitOAuth, undefined);
+});
+test('OAuth attempt control and phase events are isolated to the authenticated owner', async () => {
+  const owner = new FakeWebSocket();
+  const otherUser = new FakeWebSocket();
+  let submitCalls = 0;
+  const listeners = new Set<(event: { method: 'oauth.phase'; payload: Record<string, unknown> }) => void>();
+  const oauthSupervisor = {
+    oauthProviders: async () => ({ ok: true, result: { providers: [] } }),
+    oauthStatus: async () => ({
+      ok: true,
+      result: {
+        providers: [],
+        attempt: { attemptId: 'owned-attempt', providerId: 'openai', phase: 'awaiting_input' },
+      },
+    }),
+    oauthStart: async () => ({
+      ok: true,
+      result: { attemptId: 'owned-attempt', providerId: 'openai', phase: 'starting' },
+    }),
+    oauthSubmit: async () => {
+      submitCalls += 1;
+      return { ok: true };
+    },
+    oauthCancel: async () => ({ ok: true }),
+    subscribeOAuth(listener: (event: { method: 'oauth.phase'; payload: Record<string, unknown> }) => void) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+  const dependencies = {
+    spawnFns: {} as never,
+    abortFns: {} as never,
+    resolveToolApproval() {},
+    getPendingApprovalsForSession: () => [],
+    oauthSupervisor,
+  };
+
+  handleChatConnection(owner as unknown as WebSocket, { user: { id: 'owner' } } as never, dependencies);
+  handleChatConnection(otherUser as unknown as WebSocket, { user: { id: 'other' } } as never, dependencies);
+  owner.emit('message', JSON.stringify({ type: 'oauth.start', providerId: 'openai' }));
+  await flushMessages();
+
+  otherUser.emit('message', JSON.stringify({
+    type: 'oauth.submit',
+    attemptId: 'owned-attempt',
+    value: 'must-not-cross-owner-boundary',
+  }));
+  otherUser.emit('message', JSON.stringify({ type: 'oauth.status' }));
+  await flushMessages();
+  for (const listener of listeners) {
+    listener({
+      method: 'oauth.phase',
+      payload: { attemptId: 'owned-attempt', providerId: 'openai', phase: 'completed' },
+    });
+  }
+
+  assert.equal(submitCalls, 0);
+  assert.equal((otherUser.sent[0]?.payload as Record<string, unknown>).error instanceof Object, true);
+  assert.equal((((otherUser.sent[0]?.payload as Record<string, unknown>).error) as Record<string, unknown>).code, 'oauth_attempt_not_owner');
+  assert.equal(((otherUser.sent[1]?.payload as Record<string, unknown>).result as Record<string, unknown>).attempt, undefined);
+  assert.equal(otherUser.sent.some((frame) => frame.kind === 'oauth.phase'), false);
+  assert.equal(owner.sent.some((frame) => frame.kind === 'oauth.phase'), true);
+  assert.equal(JSON.stringify(otherUser.sent).includes('must-not-cross-owner-boundary'), false);
+
+  owner.emit('close');
+  otherUser.emit('close');
+});
+
+test('raw login commands are rejected before a provider run starts', async () => {
+  const socket = new FakeWebSocket();
+  let spawned = false;
+  handleChatConnection(
+    socket as unknown as WebSocket,
+    { user: { id: 'oauth-user' } } as never,
+    {
+      spawnFns: {
+        gjc: async () => {
+          spawned = true;
+        },
+      } as never,
+      abortFns: {} as never,
+      resolveToolApproval() {},
+      getPendingApprovalsForSession: () => [],
+      oauthSupervisor: {
+        oauthProviders: async () => ({ ok: true }),
+        oauthStatus: async () => ({ ok: true }),
+        oauthStart: async () => ({ ok: true }),
+        oauthSubmit: async () => ({ ok: true }),
+        oauthCancel: async () => ({ ok: true }),
+        subscribeOAuth: () => () => {},
+      },
+    },
+  );
+
+  socket.emit('message', JSON.stringify({
+    type: 'chat.send',
+    sessionId: 'missing-session-is-never-resolved',
+    content: '/login openai',
+  }));
+  await flushMessages();
+
+  assert.equal(spawned, false);
+  assert.equal(socket.sent.length, 1);
+  assert.equal(socket.sent[0]?.kind, 'protocol_error');
+  assert.equal(socket.sent[0]?.code, 'LOGIN_UI_REQUIRED');
 });

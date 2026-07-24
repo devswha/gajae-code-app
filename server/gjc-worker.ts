@@ -8,6 +8,7 @@ import {
   GjcWorkerProtocolError,
   serializeGjcWorkerFrame,
   type GjcWorkerEventFrame,
+  type GjcWorkerGlobalEventMethod,
   type GjcWorkerRequestFrame,
   type GjcWorkerResponseFrame,
   type JsonObject,
@@ -21,10 +22,24 @@ export type GjcWorkerWriter = {
   setModel?(model: string): void;
 };
 type SpawnedRun = Promise<unknown> & { abortHandle?: string; processId?: number };
+export type GjcWorkerOAuthEvent = {
+  method: GjcWorkerGlobalEventMethod;
+  payload: JsonObject;
+};
+export type GjcWorkerOAuthRuntime = {
+  providers(): JsonObject;
+  status(): JsonObject;
+  start(providerId: string): JsonObject;
+  submit(attemptId: string, value: string): JsonObject;
+  cancel(attemptId: string): JsonObject;
+  subscribe(listener: (event: GjcWorkerOAuthEvent) => void): () => void;
+  close(): void;
+};
 export type GjcWorkerRuntime = {
   spawnGjc(message: string, options: JsonObject, writer: GjcWorkerWriter): SpawnedRun;
   abortGjcSession(sessionId: string): Promise<boolean>;
   resolveGjcToolApproval(requestId: string, decision: unknown): boolean;
+  oauth?: GjcWorkerOAuthRuntime;
 };
 export type GjcWorkerHostOptions = {
   runtime?: () => Promise<GjcWorkerRuntime>;
@@ -49,6 +64,25 @@ type Run = {
 const CLOSE_DRAIN_MS = 6_000;
 const failure = (code: string, message: string) => ({ ok: false as const, error: { code, message } });
 const success = (result?: JsonValue) => result === undefined ? { ok: true as const } : { ok: true as const, result };
+const oauthErrors = new Set([
+  'oauth_provider_not_found',
+  'oauth_provider_unavailable',
+  'oauth_attempt_active',
+  'oauth_attempt_not_found',
+  'oauth_attempt_not_active',
+  'oauth_input_not_requested',
+  'oauth_submit_too_large',
+]);
+function oauthFailure(error: unknown): ReturnType<typeof failure> {
+  const code = error !== null
+    && typeof error === 'object'
+    && 'code' in error
+    && typeof error.code === 'string'
+    && oauthErrors.has(error.code)
+    ? error.code
+    : 'oauth_failed';
+  return failure(code, 'OAuth request failed.');
+}
 
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -109,6 +143,7 @@ export class GjcWorkerHost {
   #closed = false;
   #runs = new Map<string, Run>();
   #closePromise: Promise<void> | undefined;
+  #oauthUnsubscribe: (() => void) | undefined;
   readonly #closeDrainMs: number;
 
   constructor(options: GjcWorkerHostOptions) {
@@ -125,6 +160,11 @@ export class GjcWorkerHost {
       case 'session.start': case 'session.resume': case 'turn.start': return this.#start(request);
       case 'turn.abort': return this.#abort(request);
       case 'ask.reply': return this.#reply(request);
+      case 'oauth.providers': return this.#oauthProviders(request);
+      case 'oauth.status': return this.#oauthStatus(request);
+      case 'oauth.start': return this.#oauthStart(request);
+      case 'oauth.submit': return this.#oauthSubmit(request);
+      case 'oauth.cancel': return this.#oauthCancel(request);
       case 'worker.shutdown': return this.#shutdown(request);
     }
   }
@@ -133,6 +173,9 @@ export class GjcWorkerHost {
   close(): Promise<void> {
     if (this.#closePromise) return this.#closePromise;
     this.#closed = true;
+    this.#oauthUnsubscribe?.();
+    this.#oauthUnsubscribe = undefined;
+    this.#runtime?.oauth?.close();
     const runs = [...this.#runs.values()];
     const aborts = runs.map(async (run) => {
       try {
@@ -153,18 +196,108 @@ export class GjcWorkerHost {
   #response(request: GjcWorkerRequestFrame, response: ReturnType<typeof success> | ReturnType<typeof failure>): void {
     this.#emit({ protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'response', id: request.id, method: request.method, payload: response, ...('sessionId' in request ? { sessionId: request.sessionId } : {}) } as GjcWorkerResponseFrame);
   }
-  #event(run: Run, method: GjcWorkerEventFrame['method'], eventPayload: JsonObject): void {
+  #event(run: Run, method: Exclude<GjcWorkerEventFrame['method'], GjcWorkerGlobalEventMethod>, eventPayload: JsonObject): void {
     if (!run.active || this.#runs.get(run.runId) !== run) return;
     this.#emit({ protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'event', id: `event-${randomUUID()}`, method, sessionId: run.scope, payload: { runId: run.runId, ...eventPayload } });
+  }
+  #oauthEvent(event: GjcWorkerOAuthEvent): void {
+    if (this.#closed) return;
+    this.#emit({
+      protocolVersion: GJC_WORKER_PROTOCOL_VERSION,
+      kind: 'event',
+      id: `event-${randomUUID()}`,
+      method: event.method,
+      payload: event.payload,
+    });
   }
   async #initialize(request: GjcWorkerRequestFrame): Promise<void> {
     if (this.#initializationAttempted || this.#initializing) return this.#response(request, failure('already_initialized', 'Worker has already been initialized.'));
     if (!payload(request, [])) return this.#response(request, failure('invalid_payload', 'Request payload is invalid.'));
     this.#initializationAttempted = true;
     this.#initializing = true;
-    try { this.#runtime = await this.#loadRuntime(); this.#initialized = true; this.#response(request, success()); }
-    catch { this.#response(request, failure('initialization_failed', 'Worker initialization failed.')); }
-    finally { this.#initializing = false; }
+    try {
+      this.#runtime = await this.#loadRuntime();
+      this.#oauthUnsubscribe = this.#runtime.oauth?.subscribe((event) => this.#oauthEvent(event));
+      this.#initialized = true;
+      this.#response(request, success());
+    } catch {
+      this.#response(request, failure('initialization_failed', 'Worker initialization failed.'));
+    } finally {
+      this.#initializing = false;
+    }
+  }
+  #oauthRuntime(): GjcWorkerOAuthRuntime | undefined {
+    return this.#runtime?.oauth;
+  }
+  async #oauthProviders(request: GjcWorkerRequestFrame): Promise<void> {
+    if (!payload(request, [])) return this.#response(request, failure('invalid_payload', 'Request payload is invalid.'));
+    const oauth = this.#oauthRuntime();
+    if (!oauth) return this.#response(request, failure('oauth_unavailable', 'OAuth is not available in this worker.'));
+    try {
+      this.#response(request, success(await oauth.providers()));
+    } catch (error) {
+      this.#response(request, oauthFailure(error));
+    }
+  }
+  async #oauthStatus(request: GjcWorkerRequestFrame): Promise<void> {
+    if (!payload(request, [])) return this.#response(request, failure('invalid_payload', 'Request payload is invalid.'));
+    const oauth = this.#oauthRuntime();
+    if (!oauth) return this.#response(request, failure('oauth_unavailable', 'OAuth is not available in this worker.'));
+    try {
+      this.#response(request, success(await oauth.status()));
+    } catch (error) {
+      this.#response(request, oauthFailure(error));
+    }
+  }
+  async #oauthStart(request: GjcWorkerRequestFrame): Promise<void> {
+    const input = payload(request, ['providerId']);
+    if (!input || typeof input.providerId !== 'string' || !input.providerId || input.providerId.length > 256) {
+      return this.#response(request, failure('invalid_payload', 'Request payload is invalid.'));
+    }
+    const oauth = this.#oauthRuntime();
+    if (!oauth) return this.#response(request, failure('oauth_unavailable', 'OAuth is not available in this worker.'));
+    try {
+      this.#response(request, success(await oauth.start(input.providerId)));
+    } catch (error) {
+      this.#response(request, oauthFailure(error));
+    }
+  }
+  async #oauthSubmit(request: GjcWorkerRequestFrame): Promise<void> {
+    const input = payload(request, ['attemptId', 'value']);
+    if (
+      !input
+      || typeof input.attemptId !== 'string'
+      || !input.attemptId
+      || input.attemptId.length > 256
+      || typeof input.value !== 'string'
+    ) {
+      return this.#response(request, failure('invalid_payload', 'Request payload is invalid.'));
+    }
+    try {
+      const oauth = this.#oauthRuntime();
+      if (!oauth) {
+        this.#response(request, failure('oauth_unavailable', 'OAuth is not available in this worker.'));
+      } else {
+        this.#response(request, success(await oauth.submit(input.attemptId, input.value)));
+      }
+    } catch (error) {
+      this.#response(request, oauthFailure(error));
+    } finally {
+      input.value = '';
+    }
+  }
+  async #oauthCancel(request: GjcWorkerRequestFrame): Promise<void> {
+    const input = payload(request, ['attemptId']);
+    if (!input || typeof input.attemptId !== 'string' || !input.attemptId || input.attemptId.length > 256) {
+      return this.#response(request, failure('invalid_payload', 'Request payload is invalid.'));
+    }
+    const oauth = this.#oauthRuntime();
+    if (!oauth) return this.#response(request, failure('oauth_unavailable', 'OAuth is not available in this worker.'));
+    try {
+      this.#response(request, success(await oauth.cancel(input.attemptId)));
+    } catch (error) {
+      this.#response(request, oauthFailure(error));
+    }
   }
   async #start(request: Extract<GjcWorkerRequestFrame, { sessionId: string }>): Promise<void> {
     const fields = request.method === 'session.resume' ? ['message', 'options', 'providerSessionId'] : ['message', 'options'];
@@ -235,7 +368,7 @@ export class GjcWorkerHost {
       if (providerSessionId) this.#captureSession(run, providerSessionId);
       return;
     }
-    let method: Exclude<GjcWorkerEventFrame['method'], 'worker.status'> = 'message.completed';
+    let method: Exclude<GjcWorkerEventFrame['method'], 'worker.status' | GjcWorkerGlobalEventMethod> = 'message.completed';
     if (message.kind === 'stream_delta') method = 'message.delta';
     else if (message.kind === 'tool_use') method = 'tool.started';
     else if (message.kind === 'tool_result') method = 'tool.completed';

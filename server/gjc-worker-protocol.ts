@@ -12,6 +12,11 @@ export const GJC_WORKER_REQUEST_METHODS = [
   'turn.start',
   'turn.abort',
   'ask.reply',
+  'oauth.providers',
+  'oauth.status',
+  'oauth.start',
+  'oauth.submit',
+  'oauth.cancel',
   'worker.shutdown',
 ] as const;
 
@@ -26,10 +31,15 @@ export const GJC_WORKER_EVENT_METHODS = [
   'turn.completed',
   'turn.failed',
   'worker.status',
+  'oauth.phase',
+  'oauth.providers.updated',
+  'provider.auth.updated',
 ] as const;
 
 export type GjcWorkerRequestMethod = typeof GJC_WORKER_REQUEST_METHODS[number];
 export type GjcWorkerEventMethod = typeof GJC_WORKER_EVENT_METHODS[number];
+export type GjcWorkerGlobalRequestMethod = Extract<GjcWorkerRequestMethod, 'worker.initialize' | 'worker.shutdown' | `oauth.${string}`>;
+export type GjcWorkerGlobalEventMethod = Extract<GjcWorkerEventMethod, 'oauth.phase' | 'oauth.providers.updated' | 'provider.auth.updated'>;
 export type GjcWorkerResponseMethod = GjcWorkerRequestMethod;
 
 export type GjcWorkerSuccess = {
@@ -48,7 +58,7 @@ export type GjcWorkerFailure = {
 
 export type GjcWorkerResponsePayload = GjcWorkerSuccess | GjcWorkerFailure;
 
-type GlobalRequestMethod = 'worker.initialize' | 'worker.shutdown';
+type GlobalRequestMethod = GjcWorkerGlobalRequestMethod;
 type ScopedRequestMethod = Exclude<GjcWorkerRequestMethod, GlobalRequestMethod>;
 
 export type GjcWorkerGlobalRequestFrame = {
@@ -97,17 +107,24 @@ export type GjcWorkerStatusEventFrame = {
   sessionId?: string;
   payload: JsonObject;
 };
+export type GjcWorkerGlobalEventFrame = {
+  protocolVersion: typeof GJC_WORKER_PROTOCOL_VERSION;
+  kind: 'event';
+  id: string;
+  method: GjcWorkerGlobalEventMethod;
+  payload: JsonObject;
+};
+
 
 export type GjcWorkerScopedEventFrame = {
   protocolVersion: typeof GJC_WORKER_PROTOCOL_VERSION;
   kind: 'event';
   id: string;
-  method: Exclude<GjcWorkerEventMethod, 'worker.status'>;
+  method: Exclude<GjcWorkerEventMethod, 'worker.status' | GjcWorkerGlobalEventMethod>;
   sessionId: string;
   payload: JsonObject;
 };
-
-export type GjcWorkerEventFrame = GjcWorkerStatusEventFrame | GjcWorkerScopedEventFrame;
+export type GjcWorkerEventFrame = GjcWorkerStatusEventFrame | GjcWorkerGlobalEventFrame | GjcWorkerScopedEventFrame;
 export type GjcWorkerFrame = GjcWorkerRequestFrame | GjcWorkerResponseFrame | GjcWorkerEventFrame;
 
 export class GjcWorkerProtocolError extends Error {
@@ -124,7 +141,8 @@ export class GjcWorkerProtocolError extends Error {
 
 const requestMethods = new Set<string>(GJC_WORKER_REQUEST_METHODS);
 const eventMethods = new Set<string>(GJC_WORKER_EVENT_METHODS);
-const globalMethods = new Set<string>(['worker.initialize', 'worker.shutdown']);
+const globalMethods = new Set<string>(['worker.initialize', 'worker.shutdown', 'oauth.providers', 'oauth.status', 'oauth.start', 'oauth.submit', 'oauth.cancel']);
+const globalEventMethods = new Set<string>(['oauth.phase', 'oauth.providers.updated', 'provider.auth.updated']);
 const safeIdentifier = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const redacted = '[redacted]';
 
@@ -241,8 +259,13 @@ export function parseGjcWorkerFrame(input: string | Uint8Array): GjcWorkerFrame 
   assertIdentifier(parsed.id, 'id');
   if (typeof parsed.method !== 'string' || !eventMethods.has(parsed.method)) fail('unknown_method', 'Event method is not supported.');
   assertPayload(parsed.payload);
-  if (parsed.method !== 'worker.status') assertIdentifier(parsed.sessionId, 'sessionId');
-  else if ('sessionId' in parsed) assertIdentifier(parsed.sessionId, 'sessionId');
+  if (globalEventMethods.has(parsed.method)) {
+    if ('sessionId' in parsed) fail('invalid_session_scope', 'Global events must omit sessionId.');
+  } else if (parsed.method !== 'worker.status') {
+    assertIdentifier(parsed.sessionId, 'sessionId');
+  } else if ('sessionId' in parsed) {
+    assertIdentifier(parsed.sessionId, 'sessionId');
+  }
   return parsed as GjcWorkerEventFrame;
 }
 

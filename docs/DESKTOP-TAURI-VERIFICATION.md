@@ -13,7 +13,7 @@
 ## Build the artifacts (on the Mac)
 
 ```sh
-cd ~/workspace/gajae-app
+cd ~/workspace/gajae-code-app
 npm ci
 npm run server:payload:macos            # darwin-arm64 Node payload + externalBin
 env -u CI npm run tauri -- build --bundles app # ad-hoc .app bundle
@@ -129,7 +129,11 @@ replay, idempotent schemas).
 gone; the Windows Job Object code is retained. `npm run verify` and the mac
 cargo/DMG/smoke lanes are green on the Tauri-only tree.
 
-## Remaining human gate — Developer ID signing + notarization
+## Deferred public-distribution gate — Developer ID signing + notarization
+
+This gate is intentionally deferred until beta.3 functional QA is complete and
+the product owner explicitly decides to continue public distribution. See
+Phase 7 in `docs/V2-PLAN.md` for the ordered readiness checklist.
 
 The Mac has no Developer ID certificate and no notarization credentials
 (`security find-identity -v -p codesigning` → 0 valid; `xcrun notarytool

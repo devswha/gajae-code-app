@@ -59,6 +59,59 @@ type ProviderSpawnResult = Promise<unknown> & {
   abortHandle?: string;
 };
 
+type OAuthEvent = {
+  method: 'oauth.phase' | 'oauth.providers.updated' | 'provider.auth.updated';
+  payload: AnyRecord;
+};
+
+type OAuthSupervisor = {
+  oauthProviders(): Promise<unknown>;
+  oauthStatus(): Promise<unknown>;
+  oauthStart(providerId: string): Promise<unknown>;
+  oauthSubmit(attemptId: string, value: string): Promise<unknown>;
+  oauthCancel(attemptId: string): Promise<unknown>;
+  subscribeOAuth(listener: (event: OAuthEvent) => void): () => void;
+};
+const OAUTH_MESSAGE_TYPES = new Set([
+  'oauth.providers',
+  'oauth.status',
+  'oauth.start',
+  'oauth.submit',
+  'oauth.cancel',
+]);
+type OAuthAttemptOwner = {
+  attemptId: string;
+  userKey: string;
+};
+
+let latestOAuthAttemptOwner: OAuthAttemptOwner | null = null;
+
+const oauthUserKey = (userId: string | number | null): string => `${typeof userId}:${String(userId)}`;
+
+function oauthRecord(value: unknown): AnyRecord | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as AnyRecord
+    : null;
+}
+
+function oauthAttemptIdFromResponse(response: unknown): string | null {
+  const payload = oauthRecord(response);
+  const result = oauthRecord(payload?.result);
+  return typeof result?.attemptId === 'string' ? result.attemptId : null;
+}
+
+function oauthOwnershipFailure(): AnyRecord {
+  return {
+    ok: false,
+    error: {
+      code: 'oauth_attempt_not_owner',
+      message: 'OAuth request failed.',
+    },
+  };
+}
+
+
+
 type ChatWebSocketDependencies = {
   /** Provider runtimes keyed by provider id. */
   spawnFns: Record<LLMProvider, ProviderSpawnFn>;
@@ -79,6 +132,7 @@ type ChatWebSocketDependencies = {
   /** Provider-runtime approvals included in `chat_subscribed` after reconnect. */
   getPendingApprovalsForSession: (providerSessionId: string) => unknown[];
   gjcProjection?: GjcJobProjectionService;
+  oauthSupervisor?: OAuthSupervisor;
 };
 
 /**
@@ -148,6 +202,17 @@ async function handleChatSend(
   data: AnyRecord,
   dependencies: ChatWebSocketDependencies
 ): Promise<void> {
+  const command = typeof data.content === 'string' ? data.content : '';
+  if (/^\/(?:login|logout)(?:\s|$)/i.test(command.trim())) {
+    sendProtocolError(
+      ws,
+      'LOGIN_UI_REQUIRED',
+      'Account authentication commands must be completed in the app login dialog.',
+      typeof data.sessionId === 'string' ? data.sessionId : undefined,
+    );
+    return;
+  }
+
   const sessionId = readRequiredSessionId(data);
   if (!sessionId) {
     sendProtocolError(ws, 'SESSION_ID_REQUIRED', 'chat.send requires a sessionId.');
@@ -191,7 +256,6 @@ async function handleChatSend(
   }
 
   const clientOptions = (data.options ?? {}) as AnyRecord;
-  const command = typeof data.content === 'string' ? data.content : '';
 
   // The provider runtimes receive the provider-native session id (that is the
   // id their CLI/SDK understands for resume). Brand-new sessions have no
@@ -385,6 +449,75 @@ function handlePermissionResponse(data: AnyRecord, dependencies: ChatWebSocketDe
     rememberEntry: data.rememberEntry,
   });
 }
+async function handleOAuthRequest(
+  ws: WebSocket,
+  userId: string | number | null,
+  messageType: string,
+  data: AnyRecord,
+  supervisor: OAuthSupervisor,
+): Promise<void> {
+  const userKey = oauthUserKey(userId);
+  const requestedAttemptId = typeof data.attemptId === 'string' ? data.attemptId : '';
+  const owner = latestOAuthAttemptOwner;
+  if (
+    (messageType === 'oauth.submit' || messageType === 'oauth.cancel')
+    && (
+      owner?.attemptId !== requestedAttemptId
+      || owner?.userKey !== userKey
+    )
+  ) {
+    sendJson(ws, { kind: messageType, payload: oauthOwnershipFailure() });
+    return;
+  }
+
+  let response: unknown;
+  switch (messageType) {
+    case 'oauth.providers':
+      response = await supervisor.oauthProviders();
+      break;
+    case 'oauth.status': {
+      response = await supervisor.oauthStatus();
+      const payload = oauthRecord(response);
+      const result = oauthRecord(payload?.result);
+      const attempt = oauthRecord(result?.attempt);
+      const statusOwner = latestOAuthAttemptOwner;
+      if (
+        attempt
+        && (
+          statusOwner?.attemptId !== attempt.attemptId
+          || statusOwner?.userKey !== userKey
+        )
+      ) {
+        response = {
+          ...payload,
+          result: {
+            ...result,
+            attempt: undefined,
+          },
+        };
+      }
+      break;
+    }
+    case 'oauth.start':
+      response = await supervisor.oauthStart(typeof data.providerId === 'string' ? data.providerId : '');
+      {
+        const attemptId = oauthAttemptIdFromResponse(response);
+        if (attemptId) latestOAuthAttemptOwner = { attemptId, userKey };
+      }
+      break;
+    case 'oauth.submit':
+      response = await supervisor.oauthSubmit(requestedAttemptId, typeof data.value === 'string' ? data.value : '');
+      break;
+    case 'oauth.cancel':
+      response = await supervisor.oauthCancel(requestedAttemptId);
+      break;
+    default:
+      return;
+  }
+
+  sendJson(ws, { kind: messageType, payload: response });
+}
+
 
 /**
  * Handles authenticated chat websocket messages used by the main chat panel.
@@ -409,6 +542,23 @@ export function handleChatConnection(
   connectedClients.add(ws);
 
   const userId = readRequestUserId(request);
+  const userKey = oauthUserKey(userId);
+  const oauthSupervisor = dependencies.oauthSupervisor;
+  const unsubscribeOAuth = oauthSupervisor?.subscribeOAuth((event) => {
+    if (event.method === 'oauth.phase') {
+      const attemptId = typeof event.payload.attemptId === 'string' ? event.payload.attemptId : '';
+      const eventOwner = latestOAuthAttemptOwner;
+      if (
+        eventOwner?.attemptId !== attemptId
+        || eventOwner?.userKey !== userKey
+      ) {
+        return;
+      }
+    }
+    sendJson(ws, { kind: event.method, payload: event.payload });
+  }) ?? (() => {});
+
+
 
   ws.on('message', async (rawMessage) => {
     try {
@@ -420,6 +570,19 @@ export function handleChatConnection(
       const data = parsed as AnyRecord;
       const messageType = typeof data.type === 'string' ? data.type : '';
       if (await dependencies.gjcProjection?.handle(ws, data)) {
+        return;
+      }
+
+      if (messageType.startsWith('oauth.')) {
+        if (!OAUTH_MESSAGE_TYPES.has(messageType)) {
+          sendProtocolError(ws, 'UNKNOWN_MESSAGE_TYPE', `Unknown message type "${messageType}".`);
+          return;
+        }
+        if (!oauthSupervisor) {
+          sendProtocolError(ws, 'OAUTH_UNAVAILABLE', 'App sign-in is unavailable.');
+          return;
+        }
+        await handleOAuthRequest(ws, userId, messageType, data, oauthSupervisor);
         return;
       }
 
@@ -449,6 +612,7 @@ export function handleChatConnection(
 
   ws.on('close', () => {
     console.log('[INFO] Chat client disconnected');
+    unsubscribeOAuth();
     connectedClients.delete(ws);
   });
 }

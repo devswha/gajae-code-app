@@ -158,6 +158,7 @@
     "@octokit/rest": "^22.0.0",
     "@replit/codemirror-minimap": "^0.5.2",
     "@tailwindcss/typography": "^0.5.16",
+    "@tauri-apps/plugin-shell": "2.3.0",
     "@uiw/react-codemirror": "^4.23.13",
     "@vscode/ripgrep": "^1.17.1",
     "better-sqlite3": "^12.6.2",

@@ -28,6 +28,7 @@ import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
 import {
     abortGjcRun,
     getPendingGjcApprovalsForSession,
+    getGjcWorkerSupervisor,
     resolveGjcToolApproval,
     shutdownGjcWorker,
     spawnGjcRun,
@@ -128,6 +129,7 @@ const { app, server, wss } = createGjcAppFactory({
         },
         resolveToolApproval: resolveProviderToolApproval,
         getPendingApprovalsForSession: getPendingProviderApprovalsForSession,
+        oauthSupervisor: getGjcWorkerSupervisor(),
         gjcProjection: gjcJobProjection,
     },
     shell: {

@@ -8,11 +8,12 @@ export type GjcBuiltinModelProfile = {
 };
 
 /**
- * GJC 0.11.1 built-in model profiles.
+ * GJC 0.11.8 built-in model profiles.
  *
  * The upstream runtime module currently imports Bun-only utilities, so the
  * Node sidecar cannot load it directly. This catalog is generated from the
- * exact @gajae-code/coding-agent dependency used by the app.
+ * exact @gajae-code/coding-agent dependency used by the app; `label` and
+ * `group` are app-authored display strings the SDK does not carry.
  */
 export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
   {
@@ -128,11 +129,11 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
     "label": "Kimi Coding Plan Eco",
     "group": "KIMI CODING PLAN",
     "roles": {
-      "default": "kimi-code/kimi-k2.7-code:low",
-      "executor": "kimi-code/kimi-k2.7-code:minimal",
-      "planner": "kimi-code/kimi-k2.7-code:low",
-      "critic": "kimi-code/kimi-k2.7-code:medium",
-      "architect": "kimi-code/kimi-k2.7-code:high"
+      "default": "kimi-code/k3:low",
+      "executor": "kimi-code/k3:low",
+      "planner": "kimi-code/k3:low",
+      "critic": "kimi-code/k3:high",
+      "architect": "kimi-code/k3:high"
     }
   },
   {
@@ -140,11 +141,11 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
     "label": "Kimi Coding Plan Medium",
     "group": "KIMI CODING PLAN",
     "roles": {
-      "default": "kimi-code/kimi-k2.7-code:medium",
-      "executor": "kimi-code/kimi-k2.7-code:low",
-      "planner": "kimi-code/kimi-k2.7-code:medium",
-      "critic": "kimi-code/kimi-k2.7-code:high",
-      "architect": "kimi-code/kimi-k2.7-code:xhigh"
+      "default": "kimi-code/k3:high",
+      "executor": "kimi-code/k3:low",
+      "planner": "kimi-code/k3:high",
+      "critic": "kimi-code/k3:high",
+      "architect": "kimi-code/k3:max"
     }
   },
   {
@@ -152,11 +153,11 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
     "label": "Kimi Coding Plan Pro",
     "group": "KIMI CODING PLAN",
     "roles": {
-      "default": "kimi-code/kimi-k2.7-code:xhigh",
-      "executor": "kimi-code/kimi-k2.7-code:medium",
-      "planner": "kimi-code/kimi-k2.7-code:high",
-      "critic": "kimi-code/kimi-k2.7-code:xhigh",
-      "architect": "kimi-code/kimi-k2.7-code:xhigh"
+      "default": "kimi-code/k3:max",
+      "executor": "kimi-code/k3:high",
+      "planner": "kimi-code/k3:high",
+      "critic": "kimi-code/k3:max",
+      "architect": "kimi-code/k3:max"
     }
   },
   {
@@ -313,6 +314,30 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
       "planner": "minimax-code/minimax-m3:high",
       "critic": "minimax-code/minimax-m3:xhigh",
       "architect": "minimax-code/minimax-m3:xhigh"
+    }
+  },
+  {
+    "name": "alibaba-token-plan-balanced",
+    "label": "Alibaba Token Plan Balanced",
+    "group": "ALIBABA TOKEN PLAN",
+    "roles": {
+      "default": "alibaba-token-plan/qwen3.8-max-preview:medium",
+      "executor": "alibaba-token-plan/deepseek-v4-pro:xhigh",
+      "planner": "alibaba-token-plan/glm-5.2:high",
+      "critic": "alibaba-token-plan/glm-5.2:high",
+      "architect": "alibaba-token-plan/qwen3.8-max-preview:xhigh"
+    }
+  },
+  {
+    "name": "alibaba-token-plan-qwenmaxxing",
+    "label": "Alibaba Token Plan Qwenmaxxing",
+    "group": "ALIBABA TOKEN PLAN",
+    "roles": {
+      "default": "alibaba-token-plan/qwen3.8-max-preview:medium",
+      "executor": "alibaba-token-plan/qwen3.8-max-preview:low",
+      "planner": "alibaba-token-plan/qwen3.8-max-preview:medium",
+      "critic": "alibaba-token-plan/qwen3.8-max-preview:xhigh",
+      "architect": "alibaba-token-plan/qwen3.8-max-preview:xhigh"
     }
   },
   {

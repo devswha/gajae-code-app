@@ -108,6 +108,11 @@ export function useChatProviderState({
       }
     }
   }, []);
+  const hardRefreshProviderModels = useCallback(
+    () => loadProviderModels({ bypassCache: true }),
+    [loadProviderModels],
+  );
+
 
   useEffect(() => {
     void loadProviderModels();
@@ -164,7 +169,7 @@ export function useChatProviderState({
     providerModelCacheCatalog,
     providerModelsLoading,
     providerModelsRefreshing,
-    hardRefreshProviderModels: () => loadProviderModels({ bypassCache: true }),
+    hardRefreshProviderModels,
     selectProviderModel,
   };
 }

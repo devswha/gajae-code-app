@@ -1,13 +1,25 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import { test } from 'node:test';
 
-import { GjcBunSdkAdapter, createGjcBunSdkAdapter, type GjcAgentSessionFactory } from './gjc-bun-sdk-adapter.js';
+import { ACP_BUILTIN_SLASH_COMMANDS } from '@gajae-code/coding-agent/slash-commands/acp-builtins';
+
+import { GJC_APP_BUILTIN_COMMANDS } from './modules/providers/gjc-command-catalog.js';
+import {
+  GjcBunSdkAdapter,
+  createGjcBunSdkAdapter,
+  type GjcAgentSessionFactory,
+  type GjcBunSdkAdapterOptions,
+} from './gjc-bun-sdk-adapter.js';
 import { GjcBunAskController } from './gjc-bun-ask-controller.js';
-import { GJC_WORKER_PROTOCOL_VERSION, type GjcWorkerRequestFrame } from './gjc-worker-protocol.js';
+import {
+  GJC_WORKER_PROTOCOL_VERSION,
+  parseGjcWorkerFrame,
+  type GjcWorkerRequestFrame,
+} from './gjc-worker-protocol.js';
 import { GjcWorkerHost } from './gjc-worker.js';
 
 type Listener = (event: unknown) => void;
@@ -19,6 +31,45 @@ function deferred<T>(): Deferred<T> {
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
 }
+type OAuthCallbacks = {
+  onAuth(info: { url: string; instructions?: string }): void;
+  onProgress?(message: string): void;
+  onManualCodeInput?(): Promise<string>;
+  onPrompt(prompt: { message: string; placeholder?: string }): Promise<string>;
+  signal?: AbortSignal;
+};
+type OAuthLogin = (provider: string, callbacks: OAuthCallbacks) => Promise<void>;
+
+const globalMethods = new Set([
+  'worker.initialize',
+  'worker.shutdown',
+  'oauth.providers',
+  'oauth.status',
+  'oauth.start',
+  'oauth.submit',
+  'oauth.cancel',
+]);
+
+async function waitFor<T>(read: () => T | undefined): Promise<T> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const value = read();
+    if (value !== undefined) return value;
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  throw new Error('Expected value was not observed.');
+}
+
+test('app command catalog contains GJC text builtins plus desktop login aliases', () => {
+  const commandNames = GJC_APP_BUILTIN_COMMANDS.map((command) => command.name);
+  assert.deepEqual(
+    commandNames.filter((name) => name !== 'login' && name !== 'logout'),
+    ACP_BUILTIN_SLASH_COMMANDS
+      .map((command) => command.name)
+      .filter((name) => name !== 'move'),
+  );
+  assert.equal(commandNames.includes('login'), true);
+  assert.equal(commandNames.includes('logout'), true);
+});
 
 /** Scriptable SDK-shaped session; prompt owns the turn lifetime exactly as production does. */
 class FakeAgentSession {
@@ -34,10 +85,15 @@ class FakeAgentSession {
   neverSettleAbort = false;
   abortDeferred: Deferred<void> | undefined;
   disposeError: Error | undefined;
+  promptCalls = 0;
 
   subscribe(listener: Listener): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
   setToolUIContext(context: typeof this.uiContext): void { this.uiContext = context; }
-  async prompt(_message: string): Promise<void> { this.promptStarted.resolve(); return this.#prompt.promise; }
+  async prompt(_message: string): Promise<void> {
+    this.promptCalls += 1;
+    this.promptStarted.resolve();
+    return this.#prompt.promise;
+  }
   async abort(): Promise<void> {
     this.abortStarted.resolve();
     if (this.neverSettleAbort) return new Promise<void>(() => {});
@@ -61,20 +117,29 @@ const request = (method: string, id: string, payload: Record<string, unknown> = 
   id,
   method,
   payload,
-  ...(['worker.initialize', 'worker.shutdown'].includes(method) ? {} : { sessionId }),
+  ...(globalMethods.has(method) ? {} : { sessionId }),
 }) as GjcWorkerRequestFrame;
 
 async function fixture(
   defaultModel = 'contract-model',
   modelProfile?: string,
   model = { id: 'contract-model', provider: 'contract-provider' },
+  executeBuiltinCommand?: GjcBunSdkAdapterOptions['executeBuiltinCommand'],
+  oauthLogin?: OAuthLogin,
+  oauthTimeoutMs?: number,
 ) {
   const root = await mkdtemp(join(tmpdir(), 'gjc-contract-'));
   const sessions: FakeAgentSession[] = [];
   const factoryOptions: Array<Record<string, unknown>> = [];
+  const trace: string[] = [];
   const authStorage = {
     credentials: [] as Array<{ id: number; provider: string }>,
     exportSnapshot() { return { credentials: this.credentials }; },
+    async login(provider: string, callbacks: OAuthCallbacks) {
+      await oauthLogin?.(provider, callbacks);
+      this.credentials.push({ id: this.credentials.length + 1, provider });
+      trace.push('login.persist');
+    },
     setRuntimeApiKey: () => {},
     removeRuntimeApiKey: () => {},
   };
@@ -82,6 +147,7 @@ async function fixture(
     authStorage,
     getAll: () => [model],
     getModelProfile: () => undefined,
+    async refresh() { trace.push('modelRegistry.refresh'); },
   };
   const factory = (async (input: Record<string, unknown>) => {
     factoryOptions.push(input);
@@ -97,6 +163,8 @@ async function fixture(
   const adapter = new GjcBunSdkAdapter(authStorage as never, modelRegistry as never, {
     createSessionFactory: factory,
     settings: settings as never,
+    executeBuiltinCommand,
+    ...(oauthTimeoutMs === undefined ? {} : { oauth: { timeoutMs: oauthTimeoutMs } }),
   });
   const frames: Array<Record<string, unknown>> = [];
   const host = new GjcWorkerHost({ runtime: async () => adapter, emit: (frame) => frames.push(frame as Record<string, unknown>) });
@@ -110,7 +178,7 @@ async function fixture(
     spawns: 'deny',
     bashPolicy: { allowedPrefixes: [] },
   };
-  return { root, adapter, authStorage, factoryOptions, sessions, frames, host, options, close: () => rm(root, { recursive: true, force: true }) };
+  return { root, adapter, authStorage, modelRegistry, trace, factoryOptions, sessions, frames, host, options, close: () => rm(root, { recursive: true, force: true }) };
 }
 
 function methods(frames: Array<Record<string, unknown>>): string[] { return frames.filter((frame) => frame.kind === 'event').map((frame) => frame.method as string); }
@@ -201,6 +269,379 @@ test('golden protocol order: session, stream, tool, ask, usage, terminal, respon
   } finally { await f.close(); }
 });
 
+test('advertised GJC builtins execute in the SDK worker without becoming model prompts', async () => {
+  const f = await fixture(
+    'contract-model',
+    undefined,
+    { id: 'contract-model', provider: 'contract-provider' },
+    async (_text, runtime) => {
+      await runtime.output('background jobs: none');
+      return { consumed: true };
+    },
+  );
+  try {
+    await f.host.handle(request('session.start', 'builtin-command', {
+      message: '/jobs',
+      options: f.options,
+    }));
+    const session = await firstSession(f.sessions);
+
+    assert.equal(session.promptCalls, 0);
+    assert.deepEqual(methods(f.frames), [
+      'session.created',
+      'message.delta',
+      'message.completed',
+      'turn.completed',
+      'worker.status',
+    ]);
+  } finally {
+    await f.close();
+  }
+});
+
+test('/login is rejected before builtin handling or model prompting', async () => {
+  let executedText = '';
+  const f = await fixture(
+    'contract-model',
+    undefined,
+    { id: 'contract-model', provider: 'contract-provider' },
+    async (text, runtime) => {
+      executedText = text;
+      await runtime.output('unexpected');
+      return { consumed: true };
+    },
+  );
+  try {
+    await f.host.handle(request('session.start', 'login-command', {
+      message: '/login openai-codex',
+      options: f.options,
+    }));
+    await f.host.handle(request('session.start', 'logout-command', {
+      message: '/logout openai-codex',
+      options: f.options,
+    }));
+
+    assert.equal(executedText, '');
+    assert.equal(f.sessions.length, 0);
+    assert.equal((response(f.frames, 'login-command').payload as Record<string, unknown>).ok, false);
+    assert.equal((response(f.frames, 'logout-command').payload as Record<string, unknown>).ok, false);
+  } finally {
+    await f.close();
+  }
+});
+test('OAuth Protocol v1 frames are global and exact', () => {
+  for (const method of ['oauth.providers', 'oauth.status', 'oauth.start', 'oauth.submit', 'oauth.cancel']) {
+    const frame = parseGjcWorkerFrame(JSON.stringify({
+      protocolVersion: GJC_WORKER_PROTOCOL_VERSION,
+      kind: 'request',
+      id: `oauth-${method}`,
+      method,
+      payload: {},
+    }));
+    assert.equal(frame.kind, 'request');
+    assert.equal('sessionId' in frame, false);
+    assert.throws(
+      () => parseGjcWorkerFrame(JSON.stringify({ ...frame, sessionId: 'contract-scope' })),
+      { code: 'invalid_session_scope' },
+    );
+    const response = parseGjcWorkerFrame(JSON.stringify({
+      protocolVersion: GJC_WORKER_PROTOCOL_VERSION,
+      kind: 'response',
+      id: `response-${method}`,
+      method,
+      payload: { ok: true },
+    }));
+    assert.equal(response.kind, 'response');
+    assert.equal('sessionId' in response, false);
+    assert.throws(
+      () => parseGjcWorkerFrame(JSON.stringify({ ...response, sessionId: 'contract-scope' })),
+      { code: 'invalid_session_scope' },
+    );
+  }
+  for (const method of ['oauth.phase', 'oauth.providers.updated', 'provider.auth.updated']) {
+    const frame = parseGjcWorkerFrame(JSON.stringify({
+      protocolVersion: GJC_WORKER_PROTOCOL_VERSION,
+      kind: 'event',
+      id: `event-${method}`,
+      method,
+      payload: {},
+    }));
+    assert.equal(frame.kind, 'event');
+    assert.equal('sessionId' in frame, false);
+    assert.throws(
+      () => parseGjcWorkerFrame(JSON.stringify({ ...frame, sessionId: 'contract-scope' })),
+      { code: 'invalid_session_scope' },
+    );
+  }
+});
+
+test('OAuth provider list exposes canonical safe descriptors', async () => {
+  const f = await fixture();
+  try {
+    f.authStorage.credentials.push({ id: 7, provider: 'openai-codex' });
+    await f.host.handle(request('oauth.providers', 'oauth-providers'));
+    const result = ((response(f.frames, 'oauth-providers').payload as Record<string, unknown>).result ?? {}) as Record<string, unknown>;
+    const providers = result.providers as Array<Record<string, unknown>>;
+    const provider = providers.find((candidate) => candidate.id === 'openai-codex');
+
+    assert.deepEqual(Object.keys(provider ?? {}).slice(0, 4), ['id', 'name', 'available', 'authenticated']);
+    assert.equal(provider?.authenticated, true);
+    assert.equal(JSON.stringify(result).includes('credential'), false);
+  } finally {
+    await f.close();
+  }
+});
+
+test('OAuth callbacks emit safe phases and refresh before auth update completion', async () => {
+  const manualCanary = 'manual-oauth-canary';
+  const promptCanary = 'prompt-oauth-canary';
+  const passwordCanary = 'password-oauth-canary';
+  const f = await fixture(
+    'contract-model',
+    undefined,
+    { id: 'contract-model', provider: 'contract-provider' },
+    undefined,
+    async (provider, callbacks) => {
+      assert.equal(provider, 'openai-codex');
+      callbacks.onAuth({ url: 'https://login.example.test/authorize', instructions: 'Complete browser sign-in.' });
+      callbacks.onProgress?.('Waiting for browser authentication.');
+      assert.equal(await callbacks.onManualCodeInput!(), manualCanary);
+      assert.equal(await callbacks.onPrompt({ message: 'Enter the displayed code', placeholder: 'Code' }), promptCanary);
+      assert.equal(await callbacks.onPrompt({ message: 'Enter your password', placeholder: 'Password' }), passwordCanary);
+    },
+  );
+  try {
+    await f.host.handle(request('oauth.start', 'oauth-start', { providerId: 'openai-codex' }));
+    const start = ((response(f.frames, 'oauth-start').payload as Record<string, unknown>).result ?? {}) as Record<string, unknown>;
+    const attemptId = start.attemptId as string;
+
+    await waitFor(() => (f.frames
+      .filter((frame) => frame.method === 'oauth.phase')
+      .map((frame) => frame.payload as Record<string, unknown>)
+      .find((phase) => phase.attemptId === attemptId && phase.valueKind === 'manual_code')));
+    await f.host.handle(request('oauth.submit', 'oauth-submit-manual', { attemptId, value: manualCanary }));
+    const promptPhase = await waitFor(() => f.frames
+      .filter((frame) => frame.method === 'oauth.phase')
+      .map((frame) => frame.payload as Record<string, unknown>)
+      .find((phase) => phase.attemptId === attemptId && phase.valueKind === 'prompt'));
+    assert.equal(promptPhase.password, undefined);
+    await f.host.handle(request('oauth.submit', 'oauth-submit-prompt', { attemptId, value: promptCanary }));
+
+
+    const passwordPhase = await waitFor(() => f.frames
+      .filter((frame) => frame.method === 'oauth.phase')
+      .map((frame) => frame.payload as Record<string, unknown>)
+      .find((phase) => phase.attemptId === attemptId && phase.valueKind === 'password'));
+    assert.equal(passwordPhase.password, true);
+    await f.host.handle(request('oauth.submit', 'oauth-submit-password', { attemptId, value: passwordCanary }));
+
+    await waitFor(() => f.frames
+      .filter((frame) => frame.method === 'oauth.phase')
+      .map((frame) => frame.payload as Record<string, unknown>)
+      .find((phase) => phase.attemptId === attemptId && phase.phase === 'completed'));
+
+    assert.deepEqual(f.trace, ['login.persist', 'modelRegistry.refresh']);
+    const providerAuthEvent = f.frames.findIndex((frame) => frame.method === 'provider.auth.updated');
+    const completedPhase = f.frames.findIndex((frame) => frame.method === 'oauth.phase'
+      && (frame.payload as Record<string, unknown>).phase === 'completed');
+    assert.ok(providerAuthEvent >= 0 && providerAuthEvent < completedPhase);
+    assert.equal(JSON.stringify(f.frames).includes(manualCanary), false);
+    assert.equal(JSON.stringify(f.frames).includes(promptCanary), false);
+    assert.equal(JSON.stringify(f.frames).includes(passwordCanary), false);
+  } finally {
+    await f.close();
+  }
+});
+test('OAuth refresh failure preserves persisted auth state and reports a distinct safe error', async () => {
+  const f = await fixture(
+    'contract-model',
+    undefined,
+    { id: 'contract-model', provider: 'contract-provider' },
+    undefined,
+    async () => {},
+  );
+  f.modelRegistry.refresh = async () => {
+    f.trace.push('modelRegistry.refresh');
+    throw new Error('refresh canary must not cross the worker protocol');
+  };
+
+  try {
+    await f.host.handle(request('oauth.start', 'oauth-refresh-failure', { providerId: 'openai-codex' }));
+    const start = ((response(f.frames, 'oauth-refresh-failure').payload as Record<string, unknown>).result ?? {}) as Record<string, unknown>;
+    const attemptId = start.attemptId as string;
+    const failed = await waitFor(() => f.frames
+      .filter((frame) => frame.method === 'oauth.phase')
+      .map((frame) => frame.payload as Record<string, unknown>)
+      .find((phase) => phase.attemptId === attemptId && phase.phase === 'failed'));
+
+    assert.deepEqual(f.trace, ['login.persist', 'modelRegistry.refresh']);
+    assert.equal(f.authStorage.credentials.some((credential) => credential.provider === 'openai-codex'), true);
+    assert.equal(failed.errorCode, 'oauth_model_refresh_failed');
+    assert.equal(f.frames.some((frame) => frame.method === 'provider.auth.updated'
+      && (frame.payload as Record<string, unknown>).authenticated === true), true);
+    assert.equal(f.frames.some((frame) => frame.method === 'oauth.providers.updated'), true);
+    assert.equal(JSON.stringify(f.frames).includes('refresh canary'), false);
+  } finally {
+    await f.close();
+  }
+});
+
+test('OAuth automatic callback flow completes without a manual submit', async () => {
+  const f = await fixture(
+    'contract-model',
+    undefined,
+    { id: 'contract-model', provider: 'contract-provider' },
+    undefined,
+    async (_provider, callbacks) => {
+      callbacks.onAuth({
+        url: 'https://login.example.test/authorize',
+        instructions: 'Complete sign-in in the browser.',
+      });
+    },
+  );
+
+  try {
+    await f.host.handle(request('oauth.start', 'oauth-automatic-start', { providerId: 'openai-codex' }));
+    const start = ((response(f.frames, 'oauth-automatic-start').payload as Record<string, unknown>).result ?? {}) as Record<string, unknown>;
+    const attemptId = start.attemptId as string;
+    const phases = () => f.frames
+      .filter((frame) => frame.method === 'oauth.phase')
+      .map((frame) => frame.payload as Record<string, unknown>)
+      .filter((phase) => phase.attemptId === attemptId);
+
+    await waitFor(() => phases().find((phase) => phase.phase === 'completed'));
+    assert.equal(phases().some((phase) => phase.phase === 'awaiting_browser'
+      && phase.authorizationUrl === 'https://login.example.test/authorize'), true);
+    assert.deepEqual(f.trace, ['login.persist', 'modelRegistry.refresh']);
+    assert.equal(f.frames.some((frame) => frame.method === 'provider.auth.updated'), true);
+  } finally {
+    await f.close();
+  }
+});
+
+test('OAuth rejects concurrent, wrong, oversized, and duplicate submissions with safe errors', async () => {
+  const f = await fixture(
+    'contract-model',
+    undefined,
+    { id: 'contract-model', provider: 'contract-provider' },
+    undefined,
+    async (_provider, callbacks) => {
+      await callbacks.onPrompt({ message: 'Enter a password', placeholder: 'Password' });
+    },
+  );
+
+  try {
+    await f.host.handle(request('oauth.start', 'oauth-adversarial-start', { providerId: 'openai-codex' }));
+    const start = ((response(f.frames, 'oauth-adversarial-start').payload as Record<string, unknown>).result ?? {}) as Record<string, unknown>;
+    const attemptId = start.attemptId as string;
+    await waitFor(() => f.frames
+      .filter((frame) => frame.method === 'oauth.phase')
+      .map((frame) => frame.payload as Record<string, unknown>)
+      .find((phase) => phase.attemptId === attemptId && phase.phase === 'awaiting_input'));
+
+    await f.host.handle(request('oauth.start', 'oauth-concurrent-start', { providerId: 'openai-codex' }));
+    assert.equal(((response(f.frames, 'oauth-concurrent-start').payload as Record<string, unknown>).error as Record<string, unknown>).code, 'oauth_attempt_active');
+
+    const wrongCanary = 'wrong-attempt-secret-canary';
+    await f.host.handle(request('oauth.submit', 'oauth-wrong-submit', {
+      attemptId: 'oauth-wrong-attempt',
+      value: wrongCanary,
+    }));
+    assert.equal(((response(f.frames, 'oauth-wrong-submit').payload as Record<string, unknown>).error as Record<string, unknown>).code, 'oauth_attempt_not_found');
+
+    const oversizedCanary = `oversized-${'x'.repeat(16 * 1024)}`;
+    await f.host.handle(request('oauth.submit', 'oauth-oversized-submit', {
+      attemptId,
+      value: oversizedCanary,
+    }));
+    assert.equal(((response(f.frames, 'oauth-oversized-submit').payload as Record<string, unknown>).error as Record<string, unknown>).code, 'oauth_submit_too_large');
+
+    const acceptedCanary = 'accepted-secret-canary';
+    await f.host.handle(request('oauth.submit', 'oauth-valid-submit', { attemptId, value: acceptedCanary }));
+    const duplicateCanary = 'duplicate-secret-canary';
+    await f.host.handle(request('oauth.submit', 'oauth-duplicate-submit', { attemptId, value: duplicateCanary }));
+    const duplicateCode = ((response(f.frames, 'oauth-duplicate-submit').payload as Record<string, unknown>).error as Record<string, unknown>).code;
+    assert.equal(['oauth_input_not_requested', 'oauth_attempt_not_active'].includes(String(duplicateCode)), true);
+
+    const serializedFrames = JSON.stringify(f.frames);
+    for (const canary of [wrongCanary, oversizedCanary, acceptedCanary, duplicateCanary]) {
+      assert.equal(serializedFrames.includes(canary), false);
+    }
+  } finally {
+    await f.close();
+  }
+});
+test('OAuth cancel aborts the active canonical login and replays safe status', async () => {
+  let callbacks: OAuthCallbacks | undefined;
+  const f = await fixture(
+    'contract-model',
+    undefined,
+    { id: 'contract-model', provider: 'contract-provider' },
+    undefined,
+    async (_provider, current) => {
+      callbacks = current;
+      await current.onPrompt({ message: 'Enter your password' });
+    },
+  );
+  try {
+    await f.host.handle(request('oauth.start', 'oauth-cancel-start', { providerId: 'openai-codex' }));
+    const start = ((response(f.frames, 'oauth-cancel-start').payload as Record<string, unknown>).result ?? {}) as Record<string, unknown>;
+    const attemptId = start.attemptId as string;
+    await waitFor(() => callbacks);
+
+    await waitFor(() => f.frames
+      .filter((frame) => frame.method === 'oauth.phase')
+      .map((frame) => frame.payload as Record<string, unknown>)
+      .find((phase) => phase.attemptId === attemptId && phase.phase === 'awaiting_input'));
+    await f.host.handle(request('oauth.cancel', 'oauth-cancel', { attemptId }));
+    assert.equal(callbacks?.signal?.aborted, true);
+
+    await f.host.handle(request('oauth.status', 'oauth-cancel-status'));
+    const status = ((response(f.frames, 'oauth-cancel-status').payload as Record<string, unknown>).result ?? {}) as Record<string, unknown>;
+    assert.equal((status.attempt as Record<string, unknown>).phase, 'cancelled');
+
+    const canary = 'cancelled-oauth-secret';
+    await f.host.handle(request('oauth.submit', 'oauth-cancel-late-submit', { attemptId, value: canary }));
+    const lateSubmit = response(f.frames, 'oauth-cancel-late-submit').payload as Record<string, unknown>;
+    assert.equal((lateSubmit.error as Record<string, unknown>).code, 'oauth_attempt_not_active');
+    assert.equal(JSON.stringify(f.frames).includes(canary), false);
+  } finally {
+    await f.close();
+  }
+});
+
+test('OAuth timeout rejects late secret submission without refreshing models', async () => {
+  const f = await fixture(
+    'contract-model',
+    undefined,
+    { id: 'contract-model', provider: 'contract-provider' },
+    undefined,
+    async (_provider, callbacks) => {
+      await callbacks.onPrompt({ message: 'Enter a code' });
+    },
+    5,
+  );
+  try {
+    await f.host.handle(request('oauth.start', 'oauth-timeout-start', { providerId: 'openai-codex' }));
+    const start = ((response(f.frames, 'oauth-timeout-start').payload as Record<string, unknown>).result ?? {}) as Record<string, unknown>;
+    const attemptId = start.attemptId as string;
+
+    await waitFor(() => f.frames
+      .filter((frame) => frame.method === 'oauth.phase')
+      .map((frame) => frame.payload as Record<string, unknown>)
+      .find((phase) => phase.attemptId === attemptId && phase.phase === 'timed_out'));
+
+    const canary = 'timed-out-oauth-secret';
+    await f.host.handle(request('oauth.submit', 'oauth-timeout-late-submit', { attemptId, value: canary }));
+    const lateSubmit = response(f.frames, 'oauth-timeout-late-submit').payload as Record<string, unknown>;
+    assert.equal((lateSubmit.error as Record<string, unknown>).code, 'oauth_attempt_not_active');
+    assert.deepEqual(f.trace, []);
+    assert.equal(JSON.stringify(f.frames).includes(canary), false);
+  } finally {
+    await f.close();
+  }
+});
+
 test('resume fails closed when the injected session root has no exact session file match', async () => {
   const f = await fixture();
   try {
@@ -249,10 +690,13 @@ test('sequential runs clone global settings for each cwd while retaining the ses
     assert.equal(f.factoryOptions[0]!.cwd, firstCwd);
     assert.equal(f.factoryOptions[1]!.cwd, secondCwd);
     assert.notEqual(f.factoryOptions[0]!.settings, f.factoryOptions[1]!.settings);
+    // The SDK reports session files as realpaths, so containment is compared
+    // against the resolved root (macOS /var is a symlink to /private/var).
+    const resolvedRoot = await realpath(f.root);
     for (const factoryInput of f.factoryOptions) {
       const sessionFile = (factoryInput.sessionManager as { getSessionFile(): string | undefined }).getSessionFile();
       assert.ok(sessionFile);
-      const relativeSessionFile = relative(f.root, sessionFile);
+      const relativeSessionFile = relative(resolvedRoot, sessionFile);
       assert.ok(relativeSessionFile && !relativeSessionFile.startsWith('..') && !isAbsolute(relativeSessionFile));
     }
   } finally {

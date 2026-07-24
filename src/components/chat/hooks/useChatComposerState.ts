@@ -54,6 +54,7 @@ interface UseChatComposerStateArgs {
   onInputFocusChange?: (focused: boolean) => void;
   onFileOpen?: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void;
   onShowSettings?: () => void;
+  onLogin?: (providerId?: string) => void;
   scrollToBottom: () => void;
   addMessage: (msg: ChatMessage) => void;
   setIsUserScrolledUp: (isScrolledUp: boolean) => void;
@@ -191,6 +192,7 @@ export function useChatComposerState({
   onInputFocusChange,
   onFileOpen,
   onShowSettings,
+  onLogin,
   scrollToBottom,
   addMessage,
   setIsUserScrolledUp,
@@ -411,6 +413,22 @@ export function useChatComposerState({
     ],
   );
 
+  const handleLoginCommand = useCallback((providerId?: string) => {
+    setInput('');
+    inputValueRef.current = '';
+    setAttachedImages([]);
+    setUploadingImages(new Map());
+    setImageErrors(new Map());
+    setIsTextareaExpanded(false);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+    if (selectedProject) {
+      safeLocalStorage.removeItem(`draft_input_${selectedProject.projectId}`);
+    }
+    onLogin?.(providerId);
+  }, [onLogin, selectedProject]);
+
   const showCostModal = useCallback(() => {
     executeCommand(
       {
@@ -444,6 +462,7 @@ export function useChatComposerState({
     setInput,
     textareaRef,
     onExecuteCommand: executeCommand,
+    onLoginCommand: handleLoginCommand,
   });
 
   const {
@@ -599,6 +618,13 @@ export function useChatComposerState({
         return;
       }
 
+      const loginMatch = /^\/login(?:\s+(.*))?$/.exec(currentInput.trim());
+      if (loginMatch) {
+        handleLoginCommand(loginMatch[1]?.trim() || undefined);
+        resetCommandMenuState();
+        return;
+      }
+
       // A turn is already in flight: stash this message instead of sending it.
       // It's auto-flushed (re-running this same function) once the turn ends,
       // so it still goes through slash-command interception, image upload, etc.
@@ -640,10 +666,11 @@ export function useChatComposerState({
                 name: '/help',
                 description: 'Show Gajae Code help documentation',
                 namespace: 'builtin',
+                type: 'provider',
                 metadata: { type: 'builtin' },
               } as SlashCommand)
             : undefined);
-        if (matchedCommand && matchedCommand.type !== 'skill') {
+        if (matchedCommand && matchedCommand.type !== 'skill' && matchedCommand.type !== 'provider') {
           executeCommand(matchedCommand, isHelpAlias ? '/help' : commandInput);
           setInput('');
           inputValueRef.current = '';
@@ -794,6 +821,7 @@ export function useChatComposerState({
       buildSendOptions,
       currentSessionId,
       executeCommand,
+      handleLoginCommand,
       isLoading,
       onSessionProcessing,
       onSessionEstablished,

@@ -30,6 +30,9 @@
           "gajae-app"
         ]
       }
+    },
+    "shell": {
+      "open": "^https://.+"
     }
   },
   "bundle": {

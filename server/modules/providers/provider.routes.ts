@@ -2,6 +2,7 @@ import express, { type Request, type Response } from 'express';
 
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
+import { providerCommandsService } from '@/modules/providers/services/provider-commands.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
 import { providerSkillsService } from '@/modules/providers/services/provider-skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
@@ -196,6 +197,16 @@ router.get(
     const projectId = readOptionalQueryString(req.query.projectId);
     const skills = await providerSkillsService.listProviderSkills(provider, projectId);
     res.json(createApiSuccessResponse({ provider, skills }));
+  }),
+);
+
+router.get(
+  '/:provider/commands',
+  asyncHandler(async (req: Request, res: Response) => {
+    parseProvider(req.params.provider);
+    const projectId = readOptionalQueryString(req.query.projectId);
+    const commands = await providerCommandsService.listProviderCommands(projectId);
+    res.json(createApiSuccessResponse({ provider: 'gjc', commands }));
   }),
 );
 

@@ -6,8 +6,11 @@ import { parseModelString } from '@gajae-code/coding-agent/config/model-resolver
 import { Settings } from '@gajae-code/coding-agent/config/settings';
 import { AuthStorage } from '@gajae-code/coding-agent/session/auth-storage';
 import { SessionManager } from '@gajae-code/coding-agent/session/session-manager';
+import { executeAcpBuiltinSlashCommand } from '@gajae-code/coding-agent/slash-commands/acp-builtins';
 
-import type { GjcWorkerRuntime, GjcWorkerWriter } from './gjc-worker.js';
+import { GjcBunOAuthController, type GjcBunOAuthControllerOptions } from './gjc-bun-oauth-controller.js';
+import { GJC_APP_BUILTIN_COMMAND_NAMES } from './modules/providers/gjc-command-catalog.js';
+import type { GjcWorkerOAuthRuntime, GjcWorkerRuntime, GjcWorkerWriter } from './gjc-worker.js';
 import { GjcBunAskController } from './gjc-bun-ask-controller.js';
 import { forwardPromptTerminal, forwardSdkEvent, type SdkRunState } from './gjc-bun-sdk-events.js';
 type Model = ReturnType<ModelRegistry['getAll']>[number];
@@ -31,6 +34,8 @@ export type GjcAgentSessionFactory = typeof createAgentSession;
 export type GjcBunSdkAdapterOptions = {
   createSessionFactory?: GjcAgentSessionFactory;
   settings?: Settings;
+  executeBuiltinCommand?: typeof executeAcpBuiltinSlashCommand;
+  oauth?: GjcBunOAuthControllerOptions;
 };
 
 type ActiveRun = {
@@ -46,6 +51,10 @@ const FAILURE = 'GJC SDK configuration is invalid.';
 const RUNTIME_CREDENTIAL_ENV_VARS = new Set([
   'GJC_RUNTIME_API_KEY',
 ]);
+function isAppOAuthCommand(message: string): boolean {
+  const commandName = /^\/([^\s]+)/.exec(message.trim())?.[1];
+  return commandName === 'login' || commandName === 'logout';
+}
 
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -182,6 +191,7 @@ async function resumeManager(providerSessionId: string, sessionRoot: string): Pr
 /** In-process, serial-only SDK runtime. AuthStorage and ModelRegistry are app-owned singleton inputs. */
 export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   readonly #runs = new Map<string, ActiveRun>();
+  readonly oauth: GjcWorkerOAuthRuntime;
 
   constructor(
     private readonly authStorage: AuthStorage,
@@ -189,9 +199,20 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
     private readonly options: GjcBunSdkAdapterOptions = {},
   ) {
     if (modelRegistry.authStorage !== authStorage) throw new Error(FAILURE);
+    const oauth = new GjcBunOAuthController(authStorage, modelRegistry, options.oauth);
+    this.oauth = {
+      providers: () => oauth.providers(),
+      status: () => oauth.status(),
+      start: (providerId) => oauth.start(providerId),
+      submit: (attemptId, value) => oauth.submit(attemptId, value),
+      cancel: (attemptId) => oauth.cancel(attemptId),
+      subscribe: (listener) => oauth.subscribe(listener),
+      close: () => oauth.close(),
+    };
   }
 
   spawnGjc(message: string, options: Record<string, unknown>, writer: GjcWorkerWriter): Promise<void> & { abortHandle?: string; processId?: number } {
+    if (isAppOAuthCommand(message)) throw new Error(FAILURE);
     const runId = typeof options.runHandle === 'string' && options.runHandle ? options.runHandle : '';
     const config = configFromOptions(options);
     if (!runId || this.#runs.has(runId)) throw new Error(FAILURE);
@@ -304,9 +325,37 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         setActive(activeRun);
         this.#runs.set(runId, activeRun);
         if (!resumedId) writer.setSessionId?.(sessionManager.getSessionId());
+        let promptMessage: string | null = message;
+        const commandMatch = /^\/([^\s]+)(?:\s+(.*))?$/.exec(message.trim());
+        const commandName = commandMatch?.[1];
+        if (commandName && GJC_APP_BUILTIN_COMMAND_NAMES.has(commandName)) {
+          const output = (text: string) => {
+            writer.send({ kind: 'stream_delta', content: text });
+            writer.send({ kind: 'stream_end' });
+          };
+          const commandResult = await (this.options.executeBuiltinCommand ?? executeAcpBuiltinSlashCommand)(
+            message,
+            {
+              session: result.session,
+              sessionManager,
+              settings,
+              cwd: config.cwd,
+              output,
+              refreshCommands: () => {},
+              reloadPlugins: async () => {},
+            },
+          );
+          if (commandResult && 'consumed' in commandResult) {
+            promptMessage = null;
+          } else if (commandResult && 'prompt' in commandResult) {
+            promptMessage = commandResult.prompt;
+          }
+        }
         let promptError: unknown;
         try {
-          await result.session.prompt(message);
+          if (promptMessage !== null) {
+            await result.session.prompt(promptMessage);
+          }
         } catch (error) {
           promptError = error;
         }

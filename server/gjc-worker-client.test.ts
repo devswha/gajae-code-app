@@ -981,3 +981,53 @@ test('Windows tree reaping is explicitly fail-closed while the v2 runtime is fro
     /unconfirmed on Windows/,
   );
 });
+test('OAuth requests and chat runs share one supervised worker process', async () => {
+  const child = new FakeChild();
+  const peer = new FakePeer(child);
+  let spawnCount = 0;
+  peer.handle((request) => {
+    if (request.method === 'worker.initialize') {
+      peer.respond(request);
+      return;
+    }
+    if (request.method === 'oauth.providers') {
+      peer.respond(request, { ok: true, result: { providers: [] } });
+      return;
+    }
+    if (request.method === 'session.start') {
+      peer.respond(request, { ok: true });
+      const payload = request.payload as Record<string, unknown>;
+      peer.event(
+        request.sessionId!,
+        String(payload.runId),
+        'turn.completed',
+        { exitCode: 0 },
+      );
+    }
+  });
+  const supervisor = new GjcWorkerSupervisor({
+    ...runtime(child, 'shared-oauth-chat'),
+    spawn: () => {
+      spawnCount += 1;
+      return child;
+    },
+  });
+
+  assert.deepEqual(await supervisor.oauthProviders(), { ok: true, result: { providers: [] } });
+  const run = supervisor.spawnRun({
+    runId: 'shared-oauth-chat-run',
+    appSessionId: 'shared-oauth-chat',
+    message: 'shared worker',
+    options: {},
+    writer: { send() {} },
+  });
+  await run.started;
+  await run.completion;
+
+  assert.equal(spawnCount, 1);
+  assert.deepEqual(peer.requests.map((request) => request.method), [
+    'worker.initialize',
+    'oauth.providers',
+    'session.start',
+  ]);
+});

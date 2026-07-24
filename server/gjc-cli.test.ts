@@ -399,6 +399,35 @@ test('spawnGjcWithRuntime emits bounded SDK usage before terminal complete', asy
   );
 });
 
+test('spawnGjcWithRuntime settles from exit when inherited stdio prevents close', async () => {
+  const child = createFakeChild();
+  const writer = createWriter();
+  const run = spawnGjcWithRuntime('prompt', {}, writer, {
+    spawn() {
+      return child;
+    },
+    attachSdkBridge: async () => null,
+    isProviderInstalled: async () => true,
+    notifyRunFailed() {},
+    notifyRunStopped() {},
+    processCloseGraceMs: 5,
+  });
+
+  child.emit('exit', 0);
+  child.stdout.emit(
+    'data',
+    '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"done"}]}}\n',
+  );
+
+  await run;
+
+  assert.deepEqual(
+    writer.messages.filter((message) => message.kind === 'stream_delta').map((message) => message.content),
+    ['done'],
+  );
+  assert.equal(writer.messages.filter((message) => message.kind === 'complete').length, 1);
+});
+
 test('spawnGjcWithRuntime emits one complete across error/close races without production callbacks', async () => {
   const child = createFakeChild();
   const writer = createWriter();

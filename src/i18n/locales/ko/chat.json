@@ -17,7 +17,12 @@
     "tool": "도구",
     "claude": "Claude",
     "cursor": "Cursor",
-    "codex": "Codex"
+    "codex": "Codex",
+    "notice": {
+      "info": "알림",
+      "warning": "경고",
+      "error": "오류"
+    }
   },
   "tools": {
     "settings": "도구 설정",

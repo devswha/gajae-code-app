@@ -260,7 +260,10 @@ test('golden protocol order: session, stream, tool, ask, usage, terminal, respon
     const requestId = ((askFrame.payload as Record<string, unknown>).message as Record<string, unknown>).requestId as string;
     await f.host.handle(request('ask.reply', 'reply', { runId: 'golden', requestId, decision: { allow: true, message: 'Yes' } }));
     assert.equal(await ask, 'Yes');
-    session.emit({ type: 'message_end', message: { role: 'assistant', content: [{ text: 'done' }], usage: { used: 4, total: 10 } } });
+    // `usage` must be the SDK's own `Usage` shape (input/output/cacheRead/
+    // cacheWrite/totalTokens); the adapter translates it onto the browser's
+    // used/inputTokens contract, so a made-up shape here would not exercise it.
+    session.emit({ type: 'message_end', message: { role: 'assistant', content: [{ text: 'done' }], usage: { input: 3, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 4 } } });
     session.complete();
     await run;
     assert.deepEqual(methods(f.frames), ['session.created', 'message.delta', 'message.delta', 'tool.started', 'tool.completed', 'ask.presented', 'message.completed', 'usage.updated', 'turn.completed', 'worker.status']);

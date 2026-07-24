@@ -17,7 +17,12 @@
     "tool": "工具",
     "claude": "Claude",
     "cursor": "Cursor",
-    "codex": "Codex"
+    "codex": "Codex",
+    "notice": {
+      "info": "提示",
+      "warning": "警告",
+      "error": "错误"
+    }
   },
   "tools": {
     "settings": "工具设置",

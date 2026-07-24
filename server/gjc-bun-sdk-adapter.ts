@@ -224,6 +224,10 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
     const run = this.#runs.get(sessionId);
     if (!run || run.abortState !== 'idle') return false;
     run.abortState = 'aborting';
+    // Set before awaiting: the SDK emits its aborted `message_end` while
+    // `session.abort()` is still in flight, and that turn must not be reported
+    // back to the user as an unexpected interruption.
+    run.state.abortPending = true;
     try {
       await run.session.abort();
       run.askController.dispose();
@@ -232,6 +236,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       return true;
     } catch {
       run.abortState = 'idle';
+      run.state.abortPending = false;
       return false;
     }
   }
@@ -319,7 +324,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         writer.setModel?.(model.id);
         if (result.modelFallbackMessage) throw new Error(FAILURE);
         result.setToolUIContext(askController.uiContext, true);
-        const state: SdkRunState = { abortRequested: false, terminalEmitted: false, finalError: false };
+        const state: SdkRunState = { abortRequested: false, abortPending: false, terminalEmitted: false, finalError: false };
         const unsubscribe = result.session.subscribe((event: unknown) => forwardSdkEvent(event, writer, state));
         const activeRun: ActiveRun = { session: result.session, sessionManager, unsubscribe, askController, state, abortState: 'idle' };
         setActive(activeRun);

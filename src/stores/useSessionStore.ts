@@ -37,7 +37,8 @@ export type MessageKind =
   | 'permission_cancelled'
   | 'session_created'
   | 'interactive_prompt'
-  | 'task_notification';
+  | 'task_notification'
+  | 'system_notice';
 
 export interface NormalizedMessage {
   id: string;
@@ -75,6 +76,8 @@ export interface NormalizedMessage {
   toolId?: string;
   toolResult?: { content: string; isError: boolean; toolUseResult?: unknown } | null;
   isError?: boolean;
+  /** Severity of a `system_notice` row. Mirrors the server contract. */
+  level?: 'info' | 'warning' | 'error';
   text?: string;
   tokens?: number;
   canInterrupt?: boolean;

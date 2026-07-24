@@ -17,7 +17,12 @@
     "tool": "Araç",
     "claude": "Claude",
     "cursor": "Cursor",
-    "codex": "Codex"
+    "codex": "Codex",
+    "notice": {
+      "info": "Bildirim",
+      "warning": "Uyarı",
+      "error": "Hata"
+    }
   },
   "tools": {
     "settings": "Araç Ayarları",

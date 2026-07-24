@@ -311,9 +311,12 @@ export function useChatRealtimeHandlers({
         case 'status': {
           if (msg.text === 'token_budget' && msg.tokenBudget) {
             setTokenBudget(msg.tokenBudget as Record<string, unknown>);
-          } else if (msg.text && sid) {
+          } else if (typeof msg.text === 'string' && sid) {
+            // An empty string drops the phase label back to the default activity
+            // wording; a provider phase (compacting, retrying) must not keep
+            // claiming it is running after that phase ends.
             onSessionProcessing?.(sid, {
-              statusText: msg.text as string,
+              statusText: msg.text || null,
               canInterrupt: msg.canInterrupt !== false,
             });
           }

@@ -17,7 +17,12 @@
     "tool": "ツール",
     "claude": "Claude",
     "cursor": "Cursor",
-    "codex": "Codex"
+    "codex": "Codex",
+    "notice": {
+      "info": "お知らせ",
+      "warning": "警告",
+      "error": "エラー"
+    }
   },
   "tools": {
     "settings": "ツール設定",

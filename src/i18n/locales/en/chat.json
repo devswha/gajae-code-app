@@ -18,7 +18,12 @@
     "claude": "Claude",
     "cursor": "Cursor",
     "codex": "Codex",
-    "opencode": "OpenCode"
+    "opencode": "OpenCode",
+    "notice": {
+      "info": "Notice",
+      "warning": "Warning",
+      "error": "Error"
+    }
   },
   "tools": {
     "settings": "Tool Settings",

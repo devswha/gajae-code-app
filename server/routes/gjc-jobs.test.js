@@ -224,6 +224,34 @@ test('GJC archive routes forward exact envelopes and preserve authority error st
   }
 });
 
+test('GJC resume rejects a session bound to a different job with the same 409 as turns', async () => {
+  const resumed = [];
+  const orchestrator = {
+    resolveBinding: async (provider, appSessionId) =>
+      appSessionId === 'session-unbound' ? null : { jobId: 'job-1', state: 'interrupted' },
+    resume: async (jobId, appSessionId) => {
+      resumed.push([jobId, appSessionId]);
+      return { jobId, runId: 'run-1' };
+    },
+    turnStart: async () => ({ jobId: 'job-1', runId: 'run-2' }),
+  };
+  const post = (server, path, body) =>
+    server.request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const app = express();
+  app.use(express.json());
+  app.use(createGjcJobsRouter({ orchestrator, gitService: {} }));
+  const server = await serve(app);
+  try {
+    assert.equal((await post(server, '/jobs/job-2/resume', { appSessionId: 'session-a' })).status, 409);
+    assert.equal((await post(server, '/jobs/job-1/resume', { appSessionId: 'session-unbound' })).status, 409);
+    assert.equal((await post(server, '/jobs/job-1/resume', { appSessionId: 'session-a' })).status, 202);
+    // The guard must not consume the request: only the owning session resumed.
+    assert.deepEqual(resumed, [['job-1', 'session-a']]);
+  } finally {
+    await server.close();
+  }
+});
+
 test('GJC jobs errors use availability, conflict, and missing-resource statuses', () => {
   const error = code => Object.assign(new Error(code), { code });
   assert.equal(statusForGjcError(error('GJC_JOB_AUTHORITY_UNAVAILABLE')), 503);

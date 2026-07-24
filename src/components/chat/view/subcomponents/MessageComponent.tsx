@@ -1,5 +1,6 @@
 import { memo, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { AlertTriangleIcon, InfoIcon, OctagonAlertIcon } from 'lucide-react';
 
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import type {
@@ -42,6 +43,30 @@ type InteractiveOption = {
 };
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
+
+/**
+ * System notices sit between chat turns as a quiet record of something the agent
+ * did to the run itself — an interrupted response, a model fallback, a
+ * compaction that rewrote history. They are deliberately calmer than an `error`
+ * row (which means the turn failed) but must stay legible at a glance.
+ */
+const NOTICE_STYLES = {
+  info: {
+    Icon: InfoIcon,
+    container: 'border-border/60 bg-muted/40 text-muted-foreground',
+    icon: 'text-muted-foreground',
+  },
+  warning: {
+    Icon: AlertTriangleIcon,
+    container: 'border-amber-300/60 bg-amber-50/60 text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/20 dark:text-amber-100',
+    icon: 'text-amber-600 dark:text-amber-400',
+  },
+  error: {
+    Icon: OctagonAlertIcon,
+    container: 'border-red-300/60 bg-red-50/60 text-red-900 dark:border-red-800/40 dark:bg-red-950/20 dark:text-red-100',
+    icon: 'text-red-600 dark:text-red-400',
+  },
+} as const;
 
 const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
@@ -117,6 +142,20 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             </div>
           )}
         </div>
+      ) : message.isSystemNotice ? (
+        /* Run-level record (interrupt, fallback, compaction) between turns */
+        (() => {
+          const { Icon, container, icon } = NOTICE_STYLES[message.noticeLevel ?? 'info'];
+          return (
+            <div className="w-full py-0.5">
+              <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${container}`} role="note">
+                <Icon className={`mt-px h-3.5 w-3.5 flex-shrink-0 ${icon}`} aria-hidden="true" />
+                <span className="sr-only">{t(`messageTypes.notice.${message.noticeLevel ?? 'info'}`)}</span>
+                <span dir="auto" className="min-w-0 whitespace-pre-wrap break-words">{message.content}</span>
+              </div>
+            </div>
+          );
+        })()
       ) : message.isTaskNotification ? (
         /* Compact task notification on the left */
         <div className="w-full">

@@ -109,7 +109,15 @@ router.post('/jobs/:jobId/turns', async (req, res) => {
 router.post('/jobs/:jobId/resume', async (req, res) => {
   const message = text(req.body?.message) ?? ''; const appSessionId = text(req.body?.appSessionId) ?? text(req.body?.sessionId);
   if (!appSessionId) return res.status(400).json({ error: 'appSessionId is required.' });
-  try { const handle = await orchestrator.resume(req.params.jobId, appSessionId, message, { writer, provider: 'gjc', appSessionId, model: text(req.body.model), effort: text(req.body.effort) }); return jobResponse(res, handle, appSessionId); } catch (error) { return fail(res, error); }
+  try {
+    // The orchestrator re-checks ownership, but only after the state check, and
+    // it throws a plain Error that `fail` maps to 400. Mirroring the `/turns`
+    // guard keeps a cross-session resume a 409 on both routes.
+    const bound = await orchestrator.resolveBinding('gjc', appSessionId);
+    if (!bound || bound.jobId !== req.params.jobId) return res.status(409).json({ error: 'appSessionId is not bound to this job.' });
+    const handle = await orchestrator.resume(req.params.jobId, appSessionId, message, { writer, provider: 'gjc', appSessionId, model: text(req.body.model), effort: text(req.body.effort) });
+    return jobResponse(res, handle, appSessionId);
+  } catch (error) { return fail(res, error); }
 });
 router.post('/jobs/:jobId/abort', async (req, res) => { try { return res.status(202).json({ provider: 'gjc', jobId: req.params.jobId, aborted: await orchestrator.abort(req.params.jobId) }); } catch (error) { return fail(res, error); } });
 router.post('/jobs/:jobId/archive', async (req, res) => { try { return res.json(await authority.archive({ jobId: req.params.jobId })); } catch (error) { return fail(res, error); } });

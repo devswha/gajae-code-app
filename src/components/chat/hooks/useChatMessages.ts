@@ -210,6 +210,20 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
         });
         break;
 
+      case 'system_notice': {
+        const content = msg.content?.trim();
+        if (!content) break;
+        converted.push({
+          type: 'assistant',
+          content,
+          timestamp: msg.timestamp,
+          isSystemNotice: true,
+          noticeLevel: msg.level ?? 'info',
+          ...sharedMetadata,
+        });
+        break;
+      }
+
       case 'interactive_prompt':
         converted.push({
           type: 'assistant',

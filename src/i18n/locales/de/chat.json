@@ -17,7 +17,12 @@
     "tool": "Werkzeug",
     "claude": "Claude",
     "cursor": "Cursor",
-    "codex": "Codex"
+    "codex": "Codex",
+    "notice": {
+      "info": "Hinweis",
+      "warning": "Warnung",
+      "error": "Fehler"
+    }
   },
   "tools": {
     "settings": "Werkzeugeinstellungen",

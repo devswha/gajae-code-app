@@ -57,6 +57,9 @@ export interface ChatMessage {
   isLocalCommand?: boolean;
   isLocalCommandStdout?: boolean;
   isCompactSummary?: boolean;
+  /** Agent-authored record the transcript must keep (interrupt, fallback, compaction). */
+  isSystemNotice?: boolean;
+  noticeLevel?: 'info' | 'warning' | 'error';
   isSubagentContainer?: boolean;
   subagentState?: {
     childTools: SubagentChildTool[];

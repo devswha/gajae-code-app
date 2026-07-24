@@ -193,7 +193,8 @@ export type MessageKind =
   | 'permission_cancelled'
   | 'session_created'
   | 'interactive_prompt'
-  | 'task_notification';
+  | 'task_notification'
+  | 'system_notice';
 
 /**
  * Event kinds added by the chat gateway layer on top of provider message kinds.
@@ -265,6 +266,13 @@ export type NormalizedMessage = {
     toolUseResult?: unknown;
   };
   isError?: boolean;
+  /**
+   * Severity of a `system_notice`. These rows carry agent-authored records the
+   * user must keep seeing — an interrupted response, a model fallback, a
+   * compaction that rewrote history — so they persist in the transcript rather
+   * than passing through the transient `status` lane.
+   */
+  level?: 'info' | 'warning' | 'error';
   text?: string;
   tokens?: number;
   canInterrupt?: boolean;

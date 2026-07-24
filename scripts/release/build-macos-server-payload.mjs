@@ -218,7 +218,8 @@ try {
   await run(payloadNode, [npmCli, 'rebuild', '--omit=dev', '--build-from-source', ...NATIVE_MODULES], { cwd: payloadDir, env: { ...npmEnvironment, npm_config_build_from_source: 'true' } });
   await run(payloadNode, [path.join(payloadDir, 'scripts', 'fix-node-pty.js')], { cwd: payloadDir, env: npmEnvironment });
   await verifyManifest();
-  const prunedMetadataFiles = await pruneNonRuntimeMetadata(path.join(payloadDir, 'node_modules'));
+  const prunedMetadataFiles = await pruneNonRuntimeMetadata(path.join(payloadDir, 'node_modules'))
+    + await pruneNonRuntimeMetadata(path.join(payloadDir, 'dist-server'));
   await codesignNativeClosure(payloadDir);
   await stageSidecar(payloadNode);
   await fs.rm(path.join(payloadDir, 'package-lock.json'), { force: true });

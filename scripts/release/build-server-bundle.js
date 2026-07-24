@@ -235,6 +235,25 @@ async function copyRequired(stageDir, relativePath) {
   );
 }
 
+/**
+ * Source maps are a build-time debugging aid; shipping them only exposes the
+ * original TypeScript layout to anyone who unpacks the bundle.
+ */
+async function pruneSourceMaps(directory) {
+  let removed = 0;
+  const entries = await fs.readdir(directory, { withFileTypes: true });
+  for (const entry of entries) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      removed += await pruneSourceMaps(entryPath);
+    } else if (entry.isFile() && entry.name.endsWith('.map')) {
+      await fs.rm(entryPath);
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
 async function writeInstallPackageJson(stageDir, packageJson) {
   const stagedPackageJson = {
     ...packageJson,
@@ -478,6 +497,8 @@ try {
   for (const relativePath of buildInputs) {
     await copyRequired(stageDir, relativePath);
   }
+  const prunedSourceMaps = await pruneSourceMaps(path.join(stageDir, 'dist-server'));
+  console.log(`Pruned ${prunedSourceMaps} source map files from dist-server.`);
   await writeInstallPackageJson(stageDir, packageJson);
 
 

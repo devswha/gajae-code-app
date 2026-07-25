@@ -68,30 +68,39 @@ QA report, packaged smoke logs, Gatekeeper log, leader evidence log) and
 
 ### Known non-blocking follow-ups (recorded advisories)
 
-- `/resume` HTTP route lacks the `resolveBinding` 409 ownership guard `/turns`
-  has (defense-in-depth only; the UI cannot trigger the asymmetry).
-- Sidebar job badge can stay stale after an in-view resume until the next
-  route-change refresh (bounded-polling tradeoff).
-- Unrouted `StandaloneShell`/`shell` components remain after the 2026-07-11
-  tab removal — dead-code cleanup candidate.
-- gjc CLI v0.11.3 `computer` tool: top-level `keys: string[]` is mangled by
-  the tool bridge (batch-nested keypress works) and the key map has no
-  modifier names, so Cmd-Q-style combos cannot be synthesized. Upstream gjc
-  issue; the quit contract was verified via the equivalent AppleEvent path.
+All four 2026-07-20 advisories are closed as of 2026-07-25:
+
+- ~~`/resume` HTTP route lacks the `resolveBinding` 409 ownership guard
+  `/turns` has~~ — fixed; the guard and its test landed with the chat-parity
+  commit.
+- ~~Sidebar job badge can stay stale after an in-view resume~~ — moot. The
+  jobs UI was removed (`src/components/jobs/` is empty; see
+  `MainContentJobRemoval.test.tsx`), so there is no badge to go stale.
+- ~~Unrouted `StandaloneShell`/`shell` components remain~~ — already deleted
+  along with the xterm dependencies.
+- gjc CLI `computer` tool: top-level `keys: string[]` is mangled by the tool
+  bridge (batch-nested keypress works) and the key map has no modifier names,
+  so Cmd-Q-style combos cannot be synthesized. Upstream gjc issue, still open;
+  the quit contract was verified via the equivalent AppleEvent path.
 
 ## How to resume (next session)
 
 1. `gjc ultragoal status` in this checkout — the 2026-07-19/20 run is
    terminal; start a fresh plan for new work.
-2. **Notarization (only remaining v2 item, needs the user):** install the
-   Developer ID cert + notarytool credentials, then follow
-   `docs/DESKTOP-TAURI-VERIFICATION.md` § "Remaining human gate", rebuild,
-   and re-run the packaged smokes + `spctl` (should flip to accepted).
+2. **Notarization + DMG (need the user; deferred again on 2026-07-25):**
+   `docs/V2-PLAN.md` Phase 7 gates both behind beta.3 feature QA. When that
+   decision is made, install the Developer ID cert + notarytool credentials,
+   then follow `docs/DESKTOP-TAURI-VERIFICATION.md` § "Remaining human gate",
+   rebuild, and re-run the packaged smokes + `spctl` (should flip to
+   accepted).
 3. Push `checkpoint-c` to origin if not already pushed; the control tower
    cuts releases from report collection.
 4. The Linux x64 lane of the both-OS gate has not run for this session's
    commits — run `npm run verify` on the Linux tree before the next
-   main-branch promotion.
+   main-branch promotion. The `linux-x64` native closure in
+   `server/gjc-runtime-manifest.json` was likewise computed from the
+   published tarball rather than on Linux; reverify there with
+   `npm run fill:runtime-manifest` before cutting a server bundle.
 
 ## Key gotchas
 

@@ -300,7 +300,7 @@ test('oversized provider text is bounded before it reaches the browser', () => {
 
 test('a user-requested abort suppresses every event, as before', () => {
   const { messages, writer } = collector();
-  const state: SdkRunState = { abortRequested: true, terminalEmitted: false, finalError: false };
+  const state: SdkRunState = { abortRequested: true, abortPending: true, terminalEmitted: false, finalError: false };
   forwardSdkEvent({ type: 'notice', level: 'error', message: 'ignored' }, writer, state);
   forwardSdkEvent({ type: 'tool_execution_start', toolCallId: 'a', toolName: 'b', args: {} }, writer, state);
   forwardPromptTerminal(writer, state);

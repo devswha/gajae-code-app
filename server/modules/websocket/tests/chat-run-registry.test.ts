@@ -90,10 +90,12 @@ test('runtimes that skip the envelope helper still get an id and timestamp', asy
     run.writer.send({ kind: 'system_notice', provider: 'gjc', level: 'warning', content: 'model fell back' });
 
     for (const frame of connection.frames) {
-      assert.equal(typeof frame.id, 'string');
-      assert.ok(frame.id.length > 0, 'every outbound frame carries an id');
-      assert.equal(typeof frame.timestamp, 'string');
-      assert.ok(!Number.isNaN(Date.parse(frame.timestamp)), 'timestamp is parseable');
+      const id = frame.id;
+      const timestamp = frame.timestamp;
+      assert.equal(typeof id, 'string');
+      assert.ok(String(id).length > 0, 'every outbound frame carries an id');
+      assert.equal(typeof timestamp, 'string');
+      assert.ok(!Number.isNaN(Date.parse(String(timestamp))), 'timestamp is parseable');
     }
     assert.notEqual(connection.frames[0].id, connection.frames[1].id, 'ids are distinct');
   });

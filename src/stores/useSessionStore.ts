@@ -274,7 +274,7 @@ function getUserTurnOrdinalBefore(
   const realtimeWithoutUserEchoes = realtimeMessages.filter((candidate) =>
     candidate.kind !== 'text'
     || candidate.role !== 'user'
-    || !candidate.id.startsWith('local_')
+    || !candidate.id?.startsWith('local_')
     || !hasServerEchoForLocalUser(candidate, serverMessages),
   );
 

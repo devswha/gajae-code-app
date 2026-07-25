@@ -70,6 +70,55 @@ test('live events are remapped to the app session id and sequenced', async () =>
   });
 });
 
+test('runtimes that skip the envelope helper still get an id and timestamp', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-run-env', 'gjc', '/workspace/demo');
+    const connection = new FakeConnection();
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-run-env',
+      provider: 'gjc',
+      providerSessionId: null,
+      connection,
+      userId: 'user-1',
+    });
+    assert.ok(run);
+
+    // The GJC SDK worker writes plain `{ kind, ... }` events. An id-less row
+    // reaching the browser threw out of the store's realtime merge and froze
+    // the composer from the second turn onward, so the envelope is filled here.
+    run.writer.send({ kind: 'tool_use', provider: 'gjc', toolId: 't1', toolName: 'bash' });
+    run.writer.send({ kind: 'system_notice', provider: 'gjc', level: 'warning', content: 'model fell back' });
+
+    for (const frame of connection.frames) {
+      assert.equal(typeof frame.id, 'string');
+      assert.ok(frame.id.length > 0, 'every outbound frame carries an id');
+      assert.equal(typeof frame.timestamp, 'string');
+      assert.ok(!Number.isNaN(Date.parse(frame.timestamp)), 'timestamp is parseable');
+    }
+    assert.notEqual(connection.frames[0].id, connection.frames[1].id, 'ids are distinct');
+  });
+});
+
+test('an explicit id from a runtime is preserved rather than regenerated', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-run-keep', 'gjc', '/workspace/demo');
+    const connection = new FakeConnection();
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-run-keep',
+      provider: 'gjc',
+      providerSessionId: null,
+      connection,
+      userId: 'user-1',
+    });
+    assert.ok(run);
+
+    run.writer.send({ kind: 'text', provider: 'gjc', id: 'text_fixed', timestamp: '2026-01-01T00:00:00.000Z', content: 'hi' });
+
+    assert.equal(connection.frames[0].id, 'text_fixed');
+    assert.equal(connection.frames[0].timestamp, '2026-01-01T00:00:00.000Z');
+  });
+});
+
 test('session_created is swallowed and persisted as the provider-id mapping', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createAppSession('app-run-2', 'gjc', '/workspace/demo');

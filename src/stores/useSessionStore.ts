@@ -411,7 +411,11 @@ function pruneRealtimeSupersededByServer(
       return false;
     }
 
-    if (message.id.startsWith('local_') && hasServerEchoForLocalUser(message, serverMessages)) {
+    // `id` is required by the contract, but a runtime that skips the envelope
+    // helper can still omit it. An unguarded deref here threw straight into the
+    // websocket handler and froze the whole chat, so treat a missing id as
+    // "not a known synthetic row" instead.
+    if (message.id?.startsWith('local_') && hasServerEchoForLocalUser(message, serverMessages)) {
       return false;
     }
 
@@ -425,7 +429,7 @@ function pruneRealtimeSupersededByServer(
     if (
       message.kind === 'text'
       && message.role === 'assistant'
-      && message.id.startsWith('text_')
+      && message.id?.startsWith('text_')
     ) {
       if (isAssistantTextEchoedInSameTurnOnServer(message, serverMessages, realtimeMessages)) {
         return false;
@@ -470,7 +474,7 @@ function computeMerged(server: NormalizedMessage[], realtime: NormalizedMessage[
     // Optimistic user rows use `local_*` ids; once the same text exists on the
     // server-backed copy from the same send window, drop the realtime echo to
     // avoid duplicate bubbles without hiding repeated prompts from history.
-    if (message.id.startsWith('local_')) {
+    if (message.id?.startsWith('local_')) {
       if (hasServerEchoForLocalUser(message, server)) {
         return false;
       }
@@ -478,7 +482,7 @@ function computeMerged(server: NormalizedMessage[], realtime: NormalizedMessage[
     if (
       message.kind === 'text'
       && message.role === 'assistant'
-      && message.id.startsWith('text_')
+      && message.id?.startsWith('text_')
       && isAssistantTextEchoedInSameTurnOnServer(message, server, realtime)
     ) {
       return false;

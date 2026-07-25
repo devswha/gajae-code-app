@@ -331,3 +331,44 @@ test('getMessages reflects a completed fetch and keeps empty reads identity-stab
     globalThis.fetch = originalFetch;
   }
 });
+
+test('a realtime row without an id cannot break the merge on a later turn', async () => {
+  // A provider runtime that writes plain `{ kind, ... }` events instead of going
+  // through the envelope helper produces id-less realtime rows. The first turn
+  // survived only because the merge short-circuits while the server window is
+  // empty; on the next turn the unguarded `id` deref threw out of
+  // `appendRealtime` into the websocket handler and froze the composer.
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => response({
+    messages: [{ id: 's-1', sessionId: 'sess', timestamp: '2026-01-01T00:00:00Z', kind: 'text', role: 'user', provider: 'gjc', content: 'hi' }],
+    total: 1,
+    hasMore: false,
+  })) as typeof fetch;
+
+  try {
+    const store = createStore();
+    const idless = (extra: Record<string, unknown>) => ({
+      sessionId: 'sess',
+      timestamp: '2026-01-01T00:00:01Z',
+      provider: 'gjc',
+      ...extra,
+    } as unknown as Parameters<SessionStore['appendRealtime']>[1]);
+
+    store.appendRealtime('sess', idless({ kind: 'tool_use', toolId: 't1', toolName: 'bash' }));
+    store.appendRealtime('sess', idless({ kind: 'tool_result', toolId: 't1', content: 'ok' }));
+
+    // `complete` refreshes history, which fills the server window.
+    await store.refreshFromServer('sess');
+
+    // The next turn merges realtime against a non-empty server window.
+    store.appendRealtime('sess', idless({ kind: 'text', role: 'assistant', content: 'second turn' }));
+
+    const merged = store.getMessages('sess');
+    assert.ok(
+      merged.some((message) => message.content === 'second turn'),
+      'the second turn must still reach the transcript',
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

@@ -4,6 +4,7 @@ import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { generateDisplayName } from '@/modules/projects/index.js';
 import { ChatSessionWriter } from '@/modules/websocket/services/chat-session-writer.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
+import { generateMessageId } from '@/shared/utils.js';
 import type {
   LLMProvider,
   NormalizedMessage,
@@ -139,6 +140,13 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
 
   const outbound: NormalizedMessage = {
     ...message,
+    // `id` and `timestamp` are required by the contract, and the browser store
+    // dereferences `id` while merging realtime rows against server history.
+    // Runtimes that build events through `createNormalizedMessage` already
+    // carry both; the GJC SDK worker writes plain `{ kind, ... }` objects, so
+    // fill them here rather than letting an id-less row reach the client.
+    id: message.id || generateMessageId(message.kind),
+    timestamp: message.timestamp || new Date().toISOString(),
     sessionId: run.appSessionId,
     seq: run.lastSeq,
   };

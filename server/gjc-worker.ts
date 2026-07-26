@@ -45,6 +45,8 @@ export type GjcWorkerHostOptions = {
   runtime?: () => Promise<GjcWorkerRuntime>;
   emit: (frame: GjcWorkerResponseFrame | GjcWorkerEventFrame) => void;
   closeDrainMs?: number;
+  /** Private stderr-side sink for failures that protocol responses must not expose. */
+  diagnostic?: (message: string) => void;
 };
 
 type Run = {
@@ -135,6 +137,7 @@ function awaitAbort(promise: Promise<boolean>, timeoutMs: number): Promise<boole
 /** Isolated Protocol v1 host; its only output is supplied through emit. */
 export class GjcWorkerHost {
   readonly #emit: GjcWorkerHostOptions['emit'];
+  readonly #diagnostic: (message: string) => void;
   readonly #loadRuntime: NonNullable<GjcWorkerHostOptions['runtime']>;
   #runtime: GjcWorkerRuntime | undefined;
   #initializing = false;
@@ -148,8 +151,23 @@ export class GjcWorkerHost {
 
   constructor(options: GjcWorkerHostOptions) {
     this.#emit = options.emit;
+    this.#diagnostic = options.diagnostic ?? (() => {});
     this.#loadRuntime = options.runtime ?? loadProductionRuntime;
     this.#closeDrainMs = options.closeDrainMs ?? CLOSE_DRAIN_MS;
+  }
+
+  /**
+   * Reports a swallowed runtime failure on the private diagnostics channel.
+   * Protocol responses stay sanitized; without this the app can only ever see
+   * "GJC run failed." and no operator can tell why a run died.
+   */
+  #diagnose(label: string, error: unknown): void {
+    try {
+      const detail = error instanceof Error ? error.stack ?? error.message : String(error);
+      this.#diagnostic(`${label}: ${detail}`);
+    } catch {
+      // Diagnostics must never interfere with run lifecycle handling.
+    }
   }
 
   async handle(request: GjcWorkerRequestFrame): Promise<void> {
@@ -220,7 +238,8 @@ export class GjcWorkerHost {
       this.#oauthUnsubscribe = this.#runtime.oauth?.subscribe((event) => this.#oauthEvent(event));
       this.#initialized = true;
       this.#response(request, success());
-    } catch {
+    } catch (error) {
+      this.#diagnose('worker initialization failed', error);
       this.#response(request, failure('initialization_failed', 'Worker initialization failed.'));
     } finally {
       this.#initializing = false;
@@ -327,8 +346,9 @@ export class GjcWorkerHost {
       }
       await spawned;
       completed = true;
-    } catch {
-      // Keep the safe default failure response.
+    } catch (error) {
+      // Keep the safe default failure response; report the cause on stderr only.
+      this.#diagnose(`run ${run.runId} failed`, error);
     } finally {
       if (run.abortPromise) {
         const aborted = await awaitAbort(run.abortPromise, this.#closeDrainMs);
@@ -439,6 +459,27 @@ async function loadProductionRuntime(): Promise<GjcWorkerRuntime> {
   return nodeRuntime.loadNodeProductionRuntime();
 }
 
+/**
+ * Claims stdout for Protocol v1 frames and returns the writer for them.
+ *
+ * The SDK renders for a terminal: an ask sends a notification bell, and other
+ * in-process code can `console.log`. Those bytes land in the same stdout that
+ * carries NDJSON frames, so the supervisor decodes a malformed frame and kills
+ * the worker ("GJC worker failed"). Non-protocol writes are redirected to
+ * stderr instead of being allowed to corrupt the stream.
+ */
+export function claimProtocolStdout(output: Writable, diagnostics: Writable, stdout: Writable = process.stdout): (frame: string) => void {
+  if (output !== stdout) return (frame) => { output.write(frame); };
+  const protocolWrite = stdout.write.bind(stdout);
+  stdout.write = ((chunk: string | Uint8Array, encoding?: unknown, callback?: unknown): boolean => {
+    const done = typeof encoding === 'function' ? encoding : callback;
+    try { diagnostics.write(chunk as string | Uint8Array); } catch { /* diagnostics are best-effort */ }
+    if (typeof done === 'function') (done as (error?: Error | null) => void)(null);
+    return true;
+  }) as typeof stdout.write;
+  return (frame) => { protocolWrite(frame); };
+}
+
 /** Runs the private NDJSON executable using only stdin/stdout/stderr. */
 export function runGjcWorkerEntrypoint(
   input: Readable = process.stdin,
@@ -446,10 +487,12 @@ export function runGjcWorkerEntrypoint(
   diagnostics: Writable = process.stderr,
   options: { runtime?: () => Promise<GjcWorkerRuntime> } = {},
 ): void {
+  const emitFrame = claimProtocolStdout(output, diagnostics);
   const decoder = new GjcWorkerNdjsonDecoder();
   let failed = false;
   const host = new GjcWorkerHost({
-    emit: (frame) => { output.write(serializeGjcWorkerFrame(frame)); },
+    emit: (frame) => { emitFrame(serializeGjcWorkerFrame(frame)); },
+    diagnostic: (message) => { diagnostics.write(`${message}\n`); },
     runtime: options.runtime,
   });
   const failClosed = (): void => {

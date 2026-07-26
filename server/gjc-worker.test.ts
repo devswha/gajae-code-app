@@ -9,9 +9,10 @@ import {
   GjcWorkerNdjsonDecoder,
   parseGjcWorkerFrame,
   serializeGjcWorkerFrame,
+  type GjcWorkerEventFrame,
   type GjcWorkerRequestFrame,
 } from './gjc-worker-protocol.js';
-import { GjcWorkerHost, runGjcWorkerEntrypoint, type GjcWorkerRuntime, type GjcWorkerWriter } from './gjc-worker.js';
+import { claimProtocolStdout, GjcWorkerHost, runGjcWorkerEntrypoint, type GjcWorkerRuntime, type GjcWorkerWriter } from './gjc-worker.js';
 
 const request = (method: string, id: string, payload: Record<string, unknown> = {}, sessionId = 'scope-1') => ({ protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'request' as const, id, method, payload, ...(['worker.initialize', 'worker.shutdown'].includes(method) ? {} : { sessionId }) }) as GjcWorkerRequestFrame;
 const deferred = <T>() => { let resolve!: (value: T) => void; let reject!: (error: Error) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
@@ -157,6 +158,24 @@ test('entrypoint fails closed on malformed input and emits protocol-only stdout'
     assert.equal(stdout, ''); assert.equal(stderr.includes('GJC worker protocol failure.'), true);
     assert.doesNotThrow(() => stdout.split('\n').filter(Boolean).forEach((line) => parseGjcWorkerFrame(line)));
   } finally { process.exitCode = previousExitCode; }
+});
+
+test('protocol stdout claim keeps non-protocol writes out of the frame stream', async () => {
+  const stdout = new PassThrough(); const errors = new PassThrough(); let emitted = ''; let stderr = '';
+  stdout.on('data', (chunk: Buffer) => { emitted += chunk.toString('utf8'); });
+  errors.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
+  const emit = claimProtocolStdout(stdout, errors, stdout);
+  // The SDK ask tool notifies the terminal with a bell before waiting for input.
+  stdout.write('\u0007');
+  let flushed = false;
+  stdout.write('stray diagnostic\n', () => { flushed = true; });
+  emit(serializeGjcWorkerFrame({ protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'event', id: 'claim-1', method: 'worker.status', payload: { runId: 'claim' } } as GjcWorkerEventFrame));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(flushed, true);
+  assert.equal(emitted.includes('\u0007'), false);
+  assert.equal(emitted.includes('stray diagnostic'), false);
+  assert.equal(stderr, '\u0007stray diagnostic\n');
+  assert.doesNotThrow(() => emitted.split('\n').filter(Boolean).forEach((line) => parseGjcWorkerFrame(line)));
 });
 
 test('production worker executable performs a protocol-only handshake and shutdown', async (t) => {

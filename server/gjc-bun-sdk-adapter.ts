@@ -7,6 +7,7 @@ import { Settings } from '@gajae-code/coding-agent/config/settings';
 import { AuthStorage } from '@gajae-code/coding-agent/session/auth-storage';
 import { SessionManager } from '@gajae-code/coding-agent/session/session-manager';
 import { executeAcpBuiltinSlashCommand } from '@gajae-code/coding-agent/slash-commands/acp-builtins';
+import { initTheme, theme } from '@gajae-code/coding-agent/modes/theme/theme';
 
 import { GjcBunOAuthController, type GjcBunOAuthControllerOptions } from './gjc-bun-oauth-controller.js';
 import { GJC_APP_BUILTIN_COMMAND_NAMES } from './modules/providers/gjc-command-catalog.js';
@@ -373,11 +374,25 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   }
 }
 
+/**
+ * The SDK's in-process tools render through a process-global theme instance that
+ * only the GJC CLI entrypoints initialize. The app drives the SDK programmatically,
+ * so without this the first option-bearing `ask` dereferences an undefined `theme`
+ * ("undefined is not an object (evaluating 'theme.status')") and kills the worker.
+ * The watcher stays off: this process owns stdout for Protocol v1 and must not grow
+ * SIGWINCH or theme-file listeners.
+ */
+export async function ensureSdkThemeInitialized(): Promise<void> {
+  if (theme) return;
+  await initTheme(false);
+}
+
 export async function createGjcBunSdkAdapter(agentDir: string = process.env.GJC_WORKER_AGENT_DIR ?? ''): Promise<GjcBunSdkAdapter> {
   if (!agentDir) throw new Error(FAILURE);
   const [authStorage, settings] = await Promise.all([
     discoverAuthStorage(agentDir),
     Settings.init({ agentDir }),
+    ensureSdkThemeInitialized(),
   ]);
   const modelRegistry = new ModelRegistry(authStorage);
   await modelRegistry.refresh();

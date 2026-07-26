@@ -11,6 +11,7 @@ import { GJC_APP_BUILTIN_COMMANDS } from './modules/providers/gjc-command-catalo
 import {
   GjcBunSdkAdapter,
   createGjcBunSdkAdapter,
+  ensureSdkThemeInitialized,
   type GjcAgentSessionFactory,
   type GjcBunSdkAdapterOptions,
 } from './gjc-bun-sdk-adapter.js';
@@ -986,6 +987,44 @@ test('ask dialogs cancel on AbortSignal and timeout after invoking onTimeout', a
   await assert.rejects(timeout, /GJC ask request cancelled/);
   assert.equal(timedOut, true);
   assert.equal(messages.filter((message) => message.kind === 'permission_cancelled').length, 2);
+});
+
+test('the SDK bootstrap initializes the global theme the ask tool renders every question through', async () => {
+  await ensureSdkThemeInitialized();
+  const { theme } = await import('@gajae-code/coding-agent/modes/theme/theme');
+
+  // `ask` builds its selector labels from these symbols for every question
+  // (`${theme.status.success} Done selecting`, `theme.checkbox.*`). Only the GJC
+  // CLI entrypoints call `initTheme`, so before the bootstrap existed the first
+  // option-bearing question threw "undefined is not an object (evaluating
+  // 'theme.status')" and took the whole worker down.
+  assert.equal(typeof theme.status.success, 'string');
+  assert.ok(theme.status.success.length > 0);
+  assert.equal(typeof theme.checkbox.checked, 'string');
+  assert.equal(typeof theme.checkbox.unchecked, 'string');
+
+  // Idempotent: a second bootstrap must not reload or swap the live instance.
+  await ensureSdkThemeInitialized();
+  assert.equal((await import('@gajae-code/coding-agent/modes/theme/theme')).theme, theme);
+});
+
+test('the pinned SDK ask tool still renders through the global theme instance', async () => {
+  const askSource = await readFile(
+    join(process.cwd(), 'node_modules', '@gajae-code', 'coding-agent', 'src', 'tools', 'ask.ts'),
+    'utf8',
+  );
+  // Drift guard: if upstream stops dereferencing the process-global theme, this
+  // fails and `ensureSdkThemeInitialized` can be dropped instead of lingering.
+  assert.match(askSource, /theme\.status\./u);
+  assert.match(askSource, /theme\.checkbox\./u);
+});
+
+test('the SDK runtime bootstrap initializes the theme before any session can ask', async () => {
+  const adapterSource = await readFile(join(process.cwd(), 'server', 'gjc-bun-sdk-adapter.ts'), 'utf8');
+  const bootstrap = adapterSource.slice(adapterSource.indexOf('export async function createGjcBunSdkAdapter'));
+  // The worker builds its runtime here and nowhere else, so dropping this call
+  // would leave every option-bearing ask crashing again with a passing suite.
+  assert.match(bootstrap, /ensureSdkThemeInitialized\(\)/u);
 });
 test('production Bun worker verifies the manifest before accepting initialize and shuts down over stdio', async () => {
   const agentDirectory = await mkdtemp(join(tmpdir(), 'gjc-agent-'));

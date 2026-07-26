@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { spawn as spawnChild } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { isAbsolute, join, relative } from 'node:path';
+import { dirname, isAbsolute, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Writable } from 'node:stream';
 
@@ -668,7 +668,7 @@ export class GjcWorkerSupervisor {
       void this.workerFailed(child, guardedProcessExited);
     };
     child.stdin.on('error', () => failWorker());
-    child.stderr?.on('data', () => this.diagnose('GJC worker emitted diagnostics.'));
+    child.stderr?.on('data', (chunk: Buffer) => this.diagnose(chunk.toString('utf8')));
     child.on('error', () => failWorker());
     child.on('exit', () => failWorker(true));
     child.on('close', () => failWorker(true));
@@ -1115,7 +1115,28 @@ export class GjcWorkerSupervisor {
   }
 }
 
-const supervisor = new GjcWorkerSupervisor({ enrichOptions: enrichGjcSdkRunOptions });
+const WORKER_LOG_MAX_BYTES = 4 * 1024 * 1024;
+const workerLogPath = join(homedir(), '.gajae-app', 'logs', 'gjc-worker.log');
+
+/**
+ * Persists worker diagnostics (stderr and swallowed run failures) to disk.
+ * Protocol responses stay sanitized, so this file is the only place an operator
+ * can see why a run reported the generic "GJC worker failed." message.
+ */
+function appendWorkerDiagnostic(message: string): void {
+  const text = message.endsWith('\n') ? message : `${message}\n`;
+  try {
+    mkdirSync(dirname(workerLogPath), { recursive: true });
+    if ((statSync(workerLogPath, { throwIfNoEntry: false })?.size ?? 0) > WORKER_LOG_MAX_BYTES) {
+      writeFileSync(workerLogPath, '');
+    }
+    appendFileSync(workerLogPath, `${new Date().toISOString()} ${text}`);
+  } catch {
+    // Diagnostics are best-effort and must never affect worker lifecycle handling.
+  }
+}
+
+const supervisor = new GjcWorkerSupervisor({ enrichOptions: enrichGjcSdkRunOptions, diagnostic: appendWorkerDiagnostic });
 export function getGjcWorkerSupervisor(): GjcWorkerSupervisor { return supervisor; }
 export function isGjcSessionActive(alias: string) { return supervisor.isActive(alias); }
 export function getActiveGjcSessions() { return supervisor.active(); }

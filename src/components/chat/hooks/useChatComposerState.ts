@@ -12,6 +12,7 @@ import type {
 import { useDropzone } from 'react-dropzone';
 
 import { authenticatedFetch } from '../../../utils/api';
+import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import type { MarkSessionProcessing } from '../../../hooks/useSessionProtection';
 import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
 import {
@@ -28,6 +29,12 @@ import type {
 } from '../types/types';
 import type { Project, ProjectSession, LLMProvider, ProviderModelsCacheInfo } from '../../../types/app';
 import { escapeRegExp } from '../utils/chatFormatting';
+import {
+  findAppUiCommand,
+  getTuiOnlyCommandNotice,
+  runAppUiCommand,
+  type AppUiCommand,
+} from '../appUiCommands';
 
 import { useFileMentions } from './useFileMentions';
 import { type SlashCommand, useSlashCommands } from './useSlashCommands';
@@ -442,6 +449,36 @@ export function useChatComposerState({
     );
   }, [executeCommand]);
 
+  // App-level slash commands (/resume, /sessions, /new, /settings) run local
+  // UI actions instead of reaching the provider. Falls back to no-ops when no
+  // PaletteOpsProvider is mounted (e.g. isolated tests).
+  const paletteOps = usePaletteOps();
+  const runResolvedAppCommand = useCallback(
+    (command: AppUiCommand) => {
+      runAppUiCommand(command, {
+        openSessionPicker: paletteOps.openSessionPicker,
+        startNewChat: paletteOps.startNewChat,
+        openSettings: () => {
+          if (onShowSettings) {
+            onShowSettings();
+          } else {
+            paletteOps.openSettings();
+          }
+        },
+      });
+    },
+    [onShowSettings, paletteOps],
+  );
+  const handleAppCommand = useCallback(
+    (command: SlashCommand) => {
+      const appCommand = findAppUiCommand(command.name);
+      if (appCommand) {
+        runResolvedAppCommand(appCommand);
+      }
+    },
+    [runResolvedAppCommand],
+  );
+
   const {
     slashCommands,
     slashCommandsCount,
@@ -463,6 +500,7 @@ export function useChatComposerState({
     textareaRef,
     onExecuteCommand: executeCommand,
     onLoginCommand: handleLoginCommand,
+    onAppCommand: handleAppCommand,
   });
 
   const {
@@ -659,6 +697,41 @@ export function useChatComposerState({
         const commandName = isHelpAlias
           ? '/help'
           : firstSpace > 0 ? commandInput.slice(0, firstSpace) : commandInput;
+
+        const clearComposerInput = () => {
+          setInput('');
+          inputValueRef.current = '';
+          setAttachedImages([]);
+          setUploadingImages(new Map());
+          setImageErrors(new Map());
+          resetCommandMenuState();
+          setIsTextareaExpanded(false);
+          if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+          }
+        };
+
+        // App-level UI commands (checked against the static registry so they
+        // work even when the provider command fetch failed).
+        const appCommand = findAppUiCommand(commandName);
+        if (appCommand) {
+          clearComposerInput();
+          runResolvedAppCommand(appCommand);
+          return;
+        }
+
+        // Known GJC TUI-only commands: show a local notice instead of
+        // silently forwarding the text to the model as a plain prompt.
+        const tuiOnlyNotice = getTuiOnlyCommandNotice(commandName);
+        if (tuiOnlyNotice) {
+          clearComposerInput();
+          addMessage({
+            type: 'assistant',
+            content: tuiOnlyNotice,
+            timestamp: Date.now(),
+          });
+          return;
+        }
         const matchedCommand =
           slashCommands.find((cmd: SlashCommand) => cmd.name === commandName) ||
           (commandName === '/help'
@@ -672,16 +745,7 @@ export function useChatComposerState({
             : undefined);
         if (matchedCommand && matchedCommand.type !== 'skill' && matchedCommand.type !== 'provider') {
           executeCommand(matchedCommand, isHelpAlias ? '/help' : commandInput);
-          setInput('');
-          inputValueRef.current = '';
-          setAttachedImages([]);
-          setUploadingImages(new Map());
-          setImageErrors(new Map());
-          resetCommandMenuState();
-          setIsTextareaExpanded(false);
-          if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
-          }
+          clearComposerInput();
           return;
         }
       }
@@ -826,6 +890,7 @@ export function useChatComposerState({
       onSessionProcessing,
       onSessionEstablished,
       resetCommandMenuState,
+      runResolvedAppCommand,
       scrollToBottom,
       selectedProject,
       sendMessage,

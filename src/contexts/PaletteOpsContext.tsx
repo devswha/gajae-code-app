@@ -3,6 +3,11 @@ import type { MutableRefObject, ReactNode } from 'react';
 
 export type PaletteOps = {
   openCommandPalette: () => void;
+  // Opens the command palette directly on its sessions page (used by the chat
+  // composer's /resume and /sessions app commands).
+  openSessionPicker: () => void;
+  // Starts a new chat session in the currently selected project.
+  startNewChat: () => void;
   openFile: (path: string) => void;
   // Opens a file in the editor side panel without changing the active tab
   // (used by in-chat file links so they behave like the inline edit view).
@@ -17,6 +22,8 @@ const PaletteOpsContext = createContext<Registry | null>(null);
 
 const defaultOps: PaletteOps = {
   openCommandPalette: () => undefined,
+  openSessionPicker: () => undefined,
+  startNewChat: () => undefined,
   openFile: () => undefined,
   openFileInEditor: () => undefined,
   openSettings: () => undefined,
@@ -33,6 +40,8 @@ export function usePaletteOps(): PaletteOps {
   return useMemo<PaletteOps>(
     () => ({
       openCommandPalette: () => (ref?.current.openCommandPalette ?? defaultOps.openCommandPalette)(),
+      openSessionPicker: () => (ref?.current.openSessionPicker ?? defaultOps.openSessionPicker)(),
+      startNewChat: () => (ref?.current.startNewChat ?? defaultOps.startNewChat)(),
       openFile: (path) => (ref?.current.openFile ?? defaultOps.openFile)(path),
       openFileInEditor: (path) =>
         (ref?.current.openFileInEditor ?? defaultOps.openFileInEditor)(path),
@@ -45,23 +54,35 @@ export function usePaletteOps(): PaletteOps {
 
 export function usePaletteOpsRegister(partial: Partial<PaletteOps>) {
   const ref = useContext(PaletteOpsContext);
-  const { openCommandPalette, openFile, openFileInEditor, openSettings, refreshProjects } = partial;
+  const {
+    openCommandPalette,
+    openSessionPicker,
+    startNewChat,
+    openFile,
+    openFileInEditor,
+    openSettings,
+    refreshProjects,
+  } = partial;
 
   useEffect(() => {
     if (!ref) return undefined;
     const registry = ref.current;
     const prev = { ...registry };
     if (openCommandPalette) registry.openCommandPalette = openCommandPalette;
+    if (openSessionPicker) registry.openSessionPicker = openSessionPicker;
+    if (startNewChat) registry.startNewChat = startNewChat;
     if (openFile) registry.openFile = openFile;
     if (openFileInEditor) registry.openFileInEditor = openFileInEditor;
     if (openSettings) registry.openSettings = openSettings;
     if (refreshProjects) registry.refreshProjects = refreshProjects;
     return () => {
       if (openCommandPalette && registry.openCommandPalette === openCommandPalette) registry.openCommandPalette = prev.openCommandPalette;
+      if (openSessionPicker && registry.openSessionPicker === openSessionPicker) registry.openSessionPicker = prev.openSessionPicker;
+      if (startNewChat && registry.startNewChat === startNewChat) registry.startNewChat = prev.startNewChat;
       if (openFile && registry.openFile === openFile) registry.openFile = prev.openFile;
       if (openFileInEditor && registry.openFileInEditor === openFileInEditor) registry.openFileInEditor = prev.openFileInEditor;
       if (openSettings && registry.openSettings === openSettings) registry.openSettings = prev.openSettings;
       if (refreshProjects && registry.refreshProjects === refreshProjects) registry.refreshProjects = prev.refreshProjects;
     };
-  }, [ref, openCommandPalette, openFile, openFileInEditor, openSettings, refreshProjects]);
+  }, [ref, openCommandPalette, openSessionPicker, startNewChat, openFile, openFileInEditor, openSettings, refreshProjects]);
 }

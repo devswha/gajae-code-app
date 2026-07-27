@@ -4,6 +4,7 @@ import type { Dispatch, KeyboardEvent, RefObject, SetStateAction } from 'react';
 import { authenticatedFetch } from '../../../utils/api';
 import { safeLocalStorage } from '../utils/chatStorage';
 import type { LLMProvider, Project } from '../../../types/app';
+import { APP_UI_COMMANDS, isAppUiCommand } from '../appUiCommands';
 
 const COMMAND_QUERY_DEBOUNCE_MS = 150;
 
@@ -25,6 +26,7 @@ interface UseSlashCommandsOptions {
   textareaRef: RefObject<HTMLTextAreaElement>;
   onExecuteCommand: (command: SlashCommand, rawInput?: string) => void | Promise<void>;
   onLoginCommand?: () => void;
+  onAppCommand?: (command: SlashCommand) => void;
 }
 
 type ProviderSkill = {
@@ -155,6 +157,7 @@ export function useSlashCommands({
   textareaRef,
   onExecuteCommand,
   onLoginCommand,
+  onAppCommand,
 }: UseSlashCommandsOptions) {
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
   const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
@@ -212,8 +215,15 @@ export function useSlashCommands({
           : null;
         const skillCommands = dedupeProviderSkills(skillsData?.data?.skills || [])
           .map(mapSkillToSlashCommand);
+        // App-level UI commands (e.g. /resume) take precedence over any
+        // same-named provider command so the menu matches the typed-input
+        // interception in useChatComposerState.
+        const appCommands = APP_UI_COMMANDS.map((command): SlashCommand => ({ ...command }));
+        const appCommandNames = new Set(appCommands.map((command) => command.name));
         const allCommands: SlashCommand[] = [
-          ...((commandsData?.data?.commands || []) as SlashCommand[]),
+          ...appCommands,
+          ...((commandsData?.data?.commands || []) as SlashCommand[])
+            .filter((command) => !appCommandNames.has(command.name)),
           ...skillCommands,
         ];
 
@@ -308,6 +318,37 @@ export function useSlashCommands({
     [input, resetCommandMenuState, setInput, slashPosition, textareaRef],
   );
 
+  // Strip the typed "/query" token (if any) after an app command runs its UI
+  // action, so the leftover query is not sent as a chat message later.
+  const removeCommandTokenFromInput = useCallback(
+    () => {
+      if (slashPosition < 0) {
+        return;
+      }
+      const currentTextarea = textareaRef.current;
+      const textBeforeCommand = input.slice(0, slashPosition);
+      const textFromSlash = input.slice(slashPosition);
+      const spaceIndex = textFromSlash.indexOf(' ');
+      const textAfterCommand = spaceIndex !== -1 ? textFromSlash.slice(spaceIndex).trimStart() : '';
+      setInput(`${textBeforeCommand}${textAfterCommand}`);
+
+      window.requestAnimationFrame(() => {
+        currentTextarea?.focus();
+        currentTextarea?.setSelectionRange(textBeforeCommand.length, textBeforeCommand.length);
+      });
+    },
+    [input, setInput, slashPosition, textareaRef],
+  );
+
+  const runAppCommand = useCallback(
+    (command: SlashCommand) => {
+      removeCommandTokenFromInput();
+      resetCommandMenuState();
+      onAppCommand?.(command);
+    },
+    [onAppCommand, removeCommandTokenFromInput, resetCommandMenuState],
+  );
+
   const executeNonSkillCommand = useCallback(
     (command: SlashCommand) => {
       const executionResult = onExecuteCommand(command);
@@ -335,6 +376,10 @@ export function useSlashCommands({
         resetCommandMenuState();
         return;
       }
+      if (isAppUiCommand(command)) {
+        runAppCommand(command);
+        return;
+      }
       if (isInsertableProviderCommand(command)) {
         insertCommandIntoInput(command);
         return;
@@ -342,7 +387,7 @@ export function useSlashCommands({
 
       executeNonSkillCommand(command);
     },
-    [executeNonSkillCommand, insertCommandIntoInput, onLoginCommand, resetCommandMenuState],
+    [executeNonSkillCommand, insertCommandIntoInput, onLoginCommand, resetCommandMenuState, runAppCommand],
   );
 
   const handleCommandSelect = useCallback(
@@ -362,6 +407,10 @@ export function useSlashCommands({
         return;
       }
       trackCommandUsage(command);
+      if (isAppUiCommand(command)) {
+        runAppCommand(command);
+        return;
+      }
       if (isInsertableProviderCommand(command)) {
         insertCommandIntoInput(command);
         return;
@@ -369,7 +418,7 @@ export function useSlashCommands({
 
       executeNonSkillCommand(command);
     },
-    [selectedProject, trackCommandUsage, insertCommandIntoInput, executeNonSkillCommand, onLoginCommand, resetCommandMenuState],
+    [selectedProject, trackCommandUsage, insertCommandIntoInput, executeNonSkillCommand, onLoginCommand, resetCommandMenuState, runAppCommand],
   );
 
   const handleToggleCommandMenu = useCallback(() => {

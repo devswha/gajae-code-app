@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { CSSProperties, ReactElement } from 'react';
 import {
+  AppWindow,
   CornerDownLeft,
   Folder,
   MessageSquare,
@@ -51,6 +52,7 @@ const menuBaseStyle: CSSProperties = {
 
 const namespaceLabels: Record<string, string> = {
   frequent: 'Frequently Used',
+  app: 'App Commands',
   builtin: 'Built-in Commands',
   skill: 'Skills',
   project: 'Project Commands',
@@ -60,6 +62,7 @@ const namespaceLabels: Record<string, string> = {
 
 const namespaceIcons: Record<string, LucideIcon> = {
   frequent: Star,
+  app: AppWindow,
   builtin: Terminal,
   skill: Sparkles,
   project: Folder,
@@ -69,6 +72,7 @@ const namespaceIcons: Record<string, LucideIcon> = {
 
 const namespaceAccentClasses: Record<string, string> = {
   frequent: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200',
+  app: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-400/20 dark:bg-violet-400/10 dark:text-violet-200',
   builtin: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-200',
   skill: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200',
   project: 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-400/20 dark:bg-indigo-400/10 dark:text-indigo-200',
@@ -215,8 +219,8 @@ export default function CommandMenu({
   }
 
   const preferredOrder = hasFrequentCommands
-    ? ['frequent', 'builtin', 'skill', 'project', 'user', 'other']
-    : ['builtin', 'skill', 'project', 'user', 'other'];
+    ? ['frequent', 'app', 'builtin', 'skill', 'project', 'user', 'other']
+    : ['app', 'builtin', 'skill', 'project', 'user', 'other'];
   const extraNamespaces = Object.keys(groupedCommands).filter((namespace) => !preferredOrder.includes(namespace));
   const orderedNamespaces = [...preferredOrder, ...extraNamespaces].filter((namespace) => groupedCommands[namespace]);
   const renderInPortal = (node: ReactElement) =>

@@ -129,9 +129,16 @@ function AppContentInner() {
     return () => window.clearInterval(interval);
   }, [refreshRunningSessions]);
 
+  const startNewChat = useCallback(() => {
+    if (selectedProject) {
+      handleNewSession(selectedProject);
+    }
+  }, [handleNewSession, selectedProject]);
+
   usePaletteOpsRegister({
     openSettings,
     refreshProjects: refreshProjectsSilently,
+    startNewChat,
   });
 
   // Pending tool permissions are recovered through the `chat.subscribe` flow:

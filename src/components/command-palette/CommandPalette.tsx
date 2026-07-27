@@ -79,7 +79,13 @@ export default function CommandPalette({
     setOpen(true);
   }, []);
 
-  usePaletteOpsRegister({ openCommandPalette });
+  const openSessionPicker = React.useCallback(() => {
+    setSearch('');
+    setPages(['sessions']);
+    setOpen(true);
+  }, []);
+
+  usePaletteOpsRegister({ openCommandPalette, openSessionPicker });
 
   const page = pages.at(-1);
 

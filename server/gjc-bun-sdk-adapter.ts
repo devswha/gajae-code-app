@@ -10,7 +10,7 @@ import { executeAcpBuiltinSlashCommand } from '@gajae-code/coding-agent/slash-co
 import { initTheme, theme } from '@gajae-code/coding-agent/modes/theme/theme';
 
 import { GjcBunOAuthController, type GjcBunOAuthControllerOptions } from './gjc-bun-oauth-controller.js';
-import { GJC_APP_BUILTIN_COMMAND_NAMES } from './modules/providers/gjc-command-catalog.js';
+import { GJC_APP_BUILTIN_COMMAND_NAMES } from './modules/providers/gjc-command-surface.generated.js';
 import type { GjcWorkerOAuthRuntime, GjcWorkerRuntime, GjcWorkerWriter } from './gjc-worker.js';
 import { GjcBunAskController } from './gjc-bun-ask-controller.js';
 import { forwardPromptTerminal, forwardSdkEvent, type SdkRunState } from './gjc-bun-sdk-events.js';

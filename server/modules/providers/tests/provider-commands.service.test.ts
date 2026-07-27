@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { GJC_APP_BUILTIN_COMMANDS } from '@/modules/providers/gjc-command-catalog.js';
+import { GJC_APP_BUILTIN_COMMANDS } from '@/modules/providers/gjc-command-surface.generated.js';
 import { createProviderCommandsService } from '@/modules/providers/services/provider-commands.service.js';
 
 async function writeCommand(root: string, relativePath: string, description: string): Promise<void> {

@@ -13,7 +13,7 @@ import {
   GJC_APP_BUILTIN_COMMANDS,
   GJC_APP_BUILTIN_COMMAND_ALIASES,
   GJC_APP_BUILTIN_COMMAND_NAMES,
-} from './modules/providers/gjc-command-catalog.js';
+} from './modules/providers/gjc-command-surface.generated.js';
 import {
   GjcBunSdkAdapter,
   createGjcBunSdkAdapter,
@@ -67,34 +67,45 @@ async function waitFor<T>(read: () => T | undefined): Promise<T> {
 }
 
 /**
- * Text builtins the app deliberately does not dispatch. An anonymous filter
- * here would hide a real regression: a command dropped from the catalog by
- * accident looks identical to one excluded on purpose, and the app's fallback
- * is to forward the raw text to the model as a prompt.
+ * The catalog is generated from the installed runtime, so the thing worth
+ * asserting is no longer "does the list match" — the prebuild check enforces
+ * that — but that every DIVERGENCE is explained where a reader will find it.
+ *
+ * An unexplained omission is the dangerous one: a command dropped by accident
+ * looks exactly like one excluded on purpose, and the app's fallback for a
+ * command it does not know is to forward the raw text to the model as a prompt.
  */
-const UNDISPATCHED_TEXT_BUILTINS: Readonly<Record<string, string>> = {
-  move: 'Retargets the session cwd, which would desync the app-owned project binding. Answered by a local notice instead.',
-};
+const generatedSurface = await readFile(
+  join(process.cwd(), 'server/modules/providers/gjc-command-surface.generated.ts'),
+  'utf8',
+);
 
-test('app command catalog contains GJC text builtins plus desktop login aliases', () => {
-  const commandNames = GJC_APP_BUILTIN_COMMANDS.map((command) => command.name);
-  assert.deepEqual(
-    commandNames.filter((name) => name !== 'login' && name !== 'logout'),
-    ACP_BUILTIN_SLASH_COMMANDS
-      .map((command) => command.name)
-      .filter((name) => !(name in UNDISPATCHED_TEXT_BUILTINS)),
-  );
-  assert.equal(commandNames.includes('login'), true);
-  assert.equal(commandNames.includes('logout'), true);
+test('every text builtin missing from the catalog is excluded with a written reason', () => {
+  const catalog = new Set(GJC_APP_BUILTIN_COMMANDS.map((command) => command.name));
+  const header = generatedSurface.slice(0, generatedSurface.indexOf('export type'));
+
+  for (const command of ACP_BUILTIN_SLASH_COMMANDS) {
+    if (catalog.has(command.name)) continue;
+    assert.match(
+      header,
+      new RegExp(`^//\\s+${command.name}: \\S.*`, 'm'),
+      `${command.name} is absent from the catalog with no recorded reason`,
+    );
+    assert.equal(
+      GJC_APP_BUILTIN_COMMAND_NAMES.has(command.name),
+      false,
+      `${command.name} is documented as excluded but still dispatches`,
+    );
+  }
 });
 
-test('every undispatched text builtin is documented and really is excluded', () => {
+test('the catalog claims the desktop login aliases the runtime does not expose as text', () => {
   const advertised = new Set(ACP_BUILTIN_SLASH_COMMANDS.map((command) => command.name));
-  for (const [name, reason] of Object.entries(UNDISPATCHED_TEXT_BUILTINS)) {
-    // A stale entry would silently weaken the parity assertion above.
-    assert.equal(advertised.has(name), true, `${name} is no longer a text builtin`);
-    assert.equal(GJC_APP_BUILTIN_COMMAND_NAMES.has(name), false, `${name} is dispatched after all`);
-    assert.ok(reason.length > 20, `${name} needs a real reason`);
+  for (const name of ['login', 'logout']) {
+    // TUI-only upstream; the app claims them so the desktop answers with
+    // guidance instead of forwarding the slash command to the model.
+    assert.equal(advertised.has(name), false, `${name} is now a text builtin; drop the addition`);
+    assert.equal(GJC_APP_BUILTIN_COMMAND_NAMES.has(name), true, `${name} must stay dispatched`);
   }
 });
 

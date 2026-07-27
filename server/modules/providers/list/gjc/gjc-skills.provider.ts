@@ -6,33 +6,20 @@ import matter from 'gray-matter';
 
 import type { IProviderSkills } from '@/shared/interfaces.js';
 import type { ProviderSkill, ProviderSkillListOptions } from '@/shared/types.js';
+import { GJC_BUNDLED_SKILLS } from '@/modules/providers/gjc-command-surface.generated.js';
 
-const BUNDLED_SKILLS: readonly Omit<ProviderSkill, 'command'>[] = [
-  {
-    name: 'deep-interview',
-    description: 'Socratic deep interview with mathematical ambiguity gating before explicit execution approval',
+// Names and descriptions come from each SKILL.md in the installed runtime,
+// generated rather than transcribed: `BUNDLED_SKILLS` is not exported upstream,
+// and the copy that used to live here kept advertising stale wording whenever a
+// description changed.
+const BUNDLED_SKILLS: readonly Omit<ProviderSkill, 'command'>[] = GJC_BUNDLED_SKILLS.map(
+  (skill) => ({
+    name: skill.name,
+    description: skill.description,
     scope: 'bundled',
-    sourcePath: 'embedded:gjc/skills/deep-interview/SKILL.md',
-  },
-  {
-    name: 'ralplan',
-    description: 'Consensus planning entrypoint that auto-gates vague team/ultragoal requests before execution',
-    scope: 'bundled',
-    sourcePath: 'embedded:gjc/skills/ralplan/SKILL.md',
-  },
-  {
-    name: 'team',
-    description: 'Multi-worker GJC tmux team orchestration',
-    scope: 'bundled',
-    sourcePath: 'embedded:gjc/skills/team/SKILL.md',
-  },
-  {
-    name: 'ultragoal',
-    description: 'Create and execute durable repo-native multi-goal plans over GJC goal mode artifacts.',
-    scope: 'bundled',
-    sourcePath: 'embedded:gjc/skills/ultragoal/SKILL.md',
-  },
-];
+    sourcePath: `embedded:gjc/skills/${skill.name}/SKILL.md`,
+  }),
+);
 
 const toCommand = (name: string): string => `/skill:${name}`;
 

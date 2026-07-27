@@ -31,8 +31,9 @@ import type { Project, ProjectSession, LLMProvider, ProviderModelsCacheInfo } fr
 import { escapeRegExp } from '../utils/chatFormatting';
 import {
   findAppUiCommand,
-  getTuiOnlyCommandNotice,
+  getLocalCommandNotice,
   isAppUiCommand,
+  resolveCommandAlias,
   runAppUiCommand,
   type AppUiCommand,
 } from '../appUiCommands';
@@ -722,37 +723,29 @@ export function useChatComposerState({
         // work even when the provider command fetch failed). Commands marked
         // interceptWithArgs:false (e.g. /model) only intercept the bare form;
         // "/model gpt-x" flows through to the provider text runtime below.
+        // Aliases resolve first, so "/models" behaves as "/model" does.
         const commandArgs = firstSpace > 0 ? commandInput.slice(firstSpace).trim() : '';
-        const appCommand = findAppUiCommand(commandName);
+        const appCommand = findAppUiCommand(resolveCommandAlias(commandName));
         if (appCommand && (appCommand.interceptWithArgs !== false || !commandArgs)) {
           clearComposerInput();
           runResolvedAppCommand(appCommand);
           return;
         }
 
-        // Known GJC TUI-only commands: show a local notice instead of
+        // Commands the app answers locally: GJC TUI-only ones, and runtime
+        // commands the app deliberately declines. Either way a notice beats
         // silently forwarding the text to the model as a plain prompt.
-        const tuiOnlyNotice = getTuiOnlyCommandNotice(commandName);
-        if (tuiOnlyNotice) {
+        const localNotice = getLocalCommandNotice(commandName, commandArgs);
+        if (localNotice) {
           clearComposerInput();
           addMessage({
             type: 'assistant',
-            content: tuiOnlyNotice,
+            content: localNotice,
             timestamp: Date.now(),
           });
           return;
         }
-        const matchedCommand =
-          slashCommands.find((cmd: SlashCommand) => cmd.name === commandName) ||
-          (commandName === '/help'
-            ? ({
-                name: '/help',
-                description: 'Show Gajae Code help documentation',
-                namespace: 'builtin',
-                type: 'provider',
-                metadata: { type: 'builtin' },
-              } as SlashCommand)
-            : undefined);
+        const matchedCommand = slashCommands.find((cmd: SlashCommand) => cmd.name === commandName);
         if (
           matchedCommand &&
           !isAppUiCommand(matchedCommand) &&

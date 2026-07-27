@@ -1,6 +1,11 @@
 import { useEffect, useRef } from 'react';
 
-import { clearQueuedMessage, readQueuedMessage } from '../components/chat/utils/chatStorage';
+import { classifyCommandInput, isAutoSendable } from '../components/chat/commandDispatchPolicy';
+import {
+  clearQueuedMessage,
+  readQueuedMessage,
+  type StoredQueuedMessage,
+} from '../components/chat/utils/chatStorage';
 
 import type { MarkSessionProcessing, SessionActivityMap } from './useSessionProtection';
 
@@ -17,6 +22,41 @@ interface UseQueuedMessageAutoSendArgs {
   markSessionProcessing: MarkSessionProcessing;
 }
 
+export type QueuedDispatchDecision =
+  | { action: 'send'; content: string; options: Record<string, unknown> }
+  | { action: 'hold'; reason: 'no-draft' | 'socket-closed' | 'needs-session-ui' };
+
+/**
+ * Decides what the auto-send path may do with one session's queued draft.
+ *
+ * Split out from the effect because the answer is the safety-relevant part:
+ * this producer has no session UI attached, so anything whose disposition
+ * needs one has to stay queued.
+ */
+export function decideQueuedDispatch(
+  queued: StoredQueuedMessage | null,
+  socketOpen: boolean,
+): QueuedDispatchDecision {
+  if (!queued) return { action: 'hold', reason: 'no-draft' };
+
+  // A closed socket would drop the send silently; keep the draft so the
+  // composer (or a later completion) can retry once we're connected.
+  if (!socketOpen) return { action: 'hold', reason: 'socket-closed' };
+
+  // Slash commands are dispositioned by the owning session's composer, not
+  // here. An app action would drive whichever session is currently on screen,
+  // a notice has no message list to render into, and a runtime command can be
+  // destructive with no confirmation surface on this path. Leaving the draft
+  // in storage IS the handoff: the claim ticket stays unclaimed, and the
+  // session's own composer restores and submits it through full interception
+  // the moment that session is opened.
+  if (!isAutoSendable(classifyCommandInput(queued.content))) {
+    return { action: 'hold', reason: 'needs-session-ui' };
+  }
+
+  return { action: 'send', content: queued.content, options: { ...(queued.options ?? {}) } };
+}
+
 /**
  * Dispatches queued messages for sessions the user is NOT currently viewing.
  *
@@ -26,6 +66,11 @@ interface UseQueuedMessageAutoSendArgs {
  * session's queued message immediately instead of waiting for the user to
  * open the session again. Removing the storage key before sending is the
  * claim that keeps the composer's own flush from double-sending.
+ *
+ * Only plain prose is auto-sent. A queued slash command is left in storage for
+ * the owning session's composer to disposition, because acting on one here
+ * would either drive an unrelated session's UI or dispatch a destructive
+ * command with no confirmation surface.
  */
 export function useQueuedMessageAutoSend({
   processingSessions,
@@ -46,14 +91,9 @@ export function useQueuedMessageAutoSend({
         continue;
       }
 
-      const queued = readQueuedMessage(sessionId);
-      if (!queued) {
-        continue;
-      }
-
-      // A closed socket would drop the send silently; keep the draft so the
-      // composer (or a later completion) can retry once we're connected.
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
+      const socketOpen = Boolean(ws) && ws!.readyState === WebSocket.OPEN;
+      const decision = decideQueuedDispatch(readQueuedMessage(sessionId), socketOpen);
+      if (decision.action !== 'send') {
         continue;
       }
 
@@ -61,8 +101,8 @@ export function useQueuedMessageAutoSend({
       sendMessage({
         type: 'chat.send',
         sessionId,
-        content: queued.content,
-        options: { ...(queued.options ?? {}), images: [] },
+        content: decision.content,
+        options: { ...decision.options, images: [] },
       });
       markSessionProcessing(sessionId, { statusText: null, canInterrupt: true });
     }

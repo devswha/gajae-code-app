@@ -35,6 +35,25 @@ export const GJC_APP_BUILTIN_COMMANDS: readonly GjcAppCommand[] = [
   { name: 'rename', description: 'Rename the current session', inputHint: '<title>' },
 ];
 
-export const GJC_APP_BUILTIN_COMMAND_NAMES = new Set(
-  GJC_APP_BUILTIN_COMMANDS.map((command) => command.name),
-);
+/**
+ * Runtime aliases that resolve to a catalog command upstream.
+ *
+ * `lookupBuiltinSlashCommand` maps each alias onto the canonical spec, so the
+ * handler exists — only this app's dispatch gate was missing them, which sent
+ * the raw text to the model as a prompt instead. They are dispatchable but not
+ * advertised: the slash menu lists the canonical name alone.
+ *
+ * Aliases of TUI-only commands (`bg` -> `background`, `quit` -> `exit`) are
+ * deliberately absent. Those specs have no text handler, so dispatching them
+ * would fall through to the model again; the app answers them with a local
+ * notice instead.
+ */
+export const GJC_APP_BUILTIN_COMMAND_ALIASES: Readonly<Record<string, string>> = {
+  models: 'model',
+  'contribution-prep': 'contribute-pr',
+};
+
+export const GJC_APP_BUILTIN_COMMAND_NAMES = new Set([
+  ...GJC_APP_BUILTIN_COMMANDS.map((command) => command.name),
+  ...Object.keys(GJC_APP_BUILTIN_COMMAND_ALIASES),
+]);

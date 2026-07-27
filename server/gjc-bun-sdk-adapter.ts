@@ -14,6 +14,7 @@ import { GJC_APP_BUILTIN_COMMAND_NAMES } from './modules/providers/gjc-command-c
 import type { GjcWorkerOAuthRuntime, GjcWorkerRuntime, GjcWorkerWriter } from './gjc-worker.js';
 import { GjcBunAskController } from './gjc-bun-ask-controller.js';
 import { forwardPromptTerminal, forwardSdkEvent, type SdkRunState } from './gjc-bun-sdk-events.js';
+import { resolveContainedExportCommand } from './gjc-export-path.js';
 type Model = ReturnType<ModelRegistry['getAll']>[number];
 
 export type ExactCredentialRef =
@@ -339,22 +340,34 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
             writer.send({ kind: 'stream_delta', content: text });
             writer.send({ kind: 'stream_end' });
           };
-          const commandResult = await (this.options.executeBuiltinCommand ?? executeAcpBuiltinSlashCommand)(
-            message,
-            {
-              session: result.session,
-              sessionManager,
-              settings,
-              cwd: config.cwd,
-              output,
-              refreshCommands: () => {},
-              reloadPlugins: async () => {},
-            },
-          );
-          if (commandResult && 'consumed' in commandResult) {
+          // `/export` writes through a relative path resolved against the
+          // worker's process cwd, and one worker serves every session. Rebind
+          // the destination to this run's own project directory before the
+          // handler sees it, and refuse rather than write outside it.
+          const exportPath = commandName === 'export'
+            ? resolveContainedExportCommand(message, config.cwd, sessionManager.getSessionFile())
+            : ({ kind: 'passthrough' } as const);
+          if (exportPath.kind === 'rejected') {
+            output(exportPath.reason);
             promptMessage = null;
-          } else if (commandResult && 'prompt' in commandResult) {
-            promptMessage = commandResult.prompt;
+          } else {
+            const commandResult = await (this.options.executeBuiltinCommand ?? executeAcpBuiltinSlashCommand)(
+              exportPath.kind === 'contained' ? exportPath.message : message,
+              {
+                session: result.session,
+                sessionManager,
+                settings,
+                cwd: config.cwd,
+                output,
+                refreshCommands: () => {},
+                reloadPlugins: async () => {},
+              },
+            );
+            if (commandResult && 'consumed' in commandResult) {
+              promptMessage = null;
+            } else if (commandResult && 'prompt' in commandResult) {
+              promptMessage = commandResult.prompt;
+            }
           }
         }
         let promptError: unknown;

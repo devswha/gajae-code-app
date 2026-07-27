@@ -4,7 +4,7 @@ import type { Dispatch, KeyboardEvent, RefObject, SetStateAction } from 'react';
 import { authenticatedFetch } from '../../../utils/api';
 import { safeLocalStorage } from '../utils/chatStorage';
 import type { LLMProvider, Project } from '../../../types/app';
-import { APP_UI_COMMANDS, isAppUiCommand } from '../appUiCommands';
+import { APP_UI_COMMANDS, isAppUiCommand, isAppUsableCommand } from '../appUiCommands';
 
 const COMMAND_QUERY_DEBOUNCE_MS = 150;
 
@@ -225,7 +225,12 @@ export function useSlashCommands({
           ...((commandsData?.data?.commands || []) as SlashCommand[])
             .filter((command) => !appCommandNames.has(command.name)),
           ...skillCommands,
-        ];
+        ]
+          // Only offer what the app can actually run. Anything the composer
+          // answers with a "not available in the app" notice (e.g. /skill:team,
+          // which drives tmux panes the app cannot show) would otherwise be
+          // advertised here and then refused on submit.
+          .filter((command) => isAppUsableCommand(command.name));
 
         const parsedHistory = readCommandHistory(selectedProject.projectId);
         const sortedCommands = [...allCommands].sort((commandA, commandB) => {

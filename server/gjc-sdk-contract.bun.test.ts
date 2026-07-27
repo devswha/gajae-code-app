@@ -7,7 +7,11 @@ import { test } from 'node:test';
 
 import { ACP_BUILTIN_SLASH_COMMANDS } from '@gajae-code/coding-agent/slash-commands/acp-builtins';
 
-import { GJC_APP_BUILTIN_COMMANDS } from './modules/providers/gjc-command-catalog.js';
+import {
+  GJC_APP_BUILTIN_COMMANDS,
+  GJC_APP_BUILTIN_COMMAND_ALIASES,
+  GJC_APP_BUILTIN_COMMAND_NAMES,
+} from './modules/providers/gjc-command-catalog.js';
 import {
   GjcBunSdkAdapter,
   createGjcBunSdkAdapter,
@@ -60,16 +64,47 @@ async function waitFor<T>(read: () => T | undefined): Promise<T> {
   throw new Error('Expected value was not observed.');
 }
 
+/**
+ * Text builtins the app deliberately does not dispatch. An anonymous filter
+ * here would hide a real regression: a command dropped from the catalog by
+ * accident looks identical to one excluded on purpose, and the app's fallback
+ * is to forward the raw text to the model as a prompt.
+ */
+const UNDISPATCHED_TEXT_BUILTINS: Readonly<Record<string, string>> = {
+  move: 'Retargets the session cwd, which would desync the app-owned project binding. Answered by a local notice instead.',
+};
+
 test('app command catalog contains GJC text builtins plus desktop login aliases', () => {
   const commandNames = GJC_APP_BUILTIN_COMMANDS.map((command) => command.name);
   assert.deepEqual(
     commandNames.filter((name) => name !== 'login' && name !== 'logout'),
     ACP_BUILTIN_SLASH_COMMANDS
       .map((command) => command.name)
-      .filter((name) => name !== 'move'),
+      .filter((name) => !(name in UNDISPATCHED_TEXT_BUILTINS)),
   );
   assert.equal(commandNames.includes('login'), true);
   assert.equal(commandNames.includes('logout'), true);
+});
+
+test('every undispatched text builtin is documented and really is excluded', () => {
+  const advertised = new Set(ACP_BUILTIN_SLASH_COMMANDS.map((command) => command.name));
+  for (const [name, reason] of Object.entries(UNDISPATCHED_TEXT_BUILTINS)) {
+    // A stale entry would silently weaken the parity assertion above.
+    assert.equal(advertised.has(name), true, `${name} is no longer a text builtin`);
+    assert.equal(GJC_APP_BUILTIN_COMMAND_NAMES.has(name), false, `${name} is dispatched after all`);
+    assert.ok(reason.length > 20, `${name} needs a real reason`);
+  }
+});
+
+test('runtime aliases with text handlers are dispatchable but not advertised', () => {
+  const advertised = new Set(GJC_APP_BUILTIN_COMMANDS.map((command) => command.name));
+  for (const [alias, canonical] of Object.entries(GJC_APP_BUILTIN_COMMAND_ALIASES)) {
+    // Dispatchable: without this the raw text reaches the model as a prompt.
+    assert.equal(GJC_APP_BUILTIN_COMMAND_NAMES.has(alias), true, `${alias} must dispatch`);
+    // Not advertised: the slash menu shows the canonical name only.
+    assert.equal(advertised.has(alias), false, `${alias} must not be advertised`);
+    assert.equal(advertised.has(canonical), true, `${canonical} must be advertised`);
+  }
 });
 
 /** Scriptable SDK-shaped session; prompt owns the turn lifetime exactly as production does. */
@@ -299,6 +334,93 @@ test('advertised GJC builtins execute in the SDK worker without becoming model p
       'worker.status',
     ]);
   } finally {
+    await f.close();
+  }
+});
+
+/*
+ * `/export` containment across a shared worker.
+ *
+ * One worker process serves every session, so its cwd is fixed at spawn time
+ * and cannot describe the run. These two tests pin the destination to the
+ * per-run project directory instead: the first proves the rewrite happens at
+ * the command boundary, the second proves it still tracks the run after the
+ * adapter is already warm and has served a different project.
+ */
+test('/export is rewritten to an absolute path inside the run project directory', async () => {
+  let executedText = '';
+  const f = await fixture(
+    'contract-model',
+    undefined,
+    { id: 'contract-model', provider: 'contract-provider' },
+    async (text, runtime) => {
+      executedText = text;
+      await runtime.output('Session exported to: ok');
+      return { consumed: true };
+    },
+  );
+  const projectCwd = await mkdtemp(join(tmpdir(), 'gjc-export-project-'));
+  try {
+    await f.host.handle(request('session.start', 'export-bare', {
+      message: '/export',
+      options: { ...f.options, cwd: projectCwd },
+    }));
+
+    const argument = executedText.replace(/^\/export\s+/, '');
+    assert.notEqual(executedText, '/export');
+    assert.ok(isAbsolute(argument), `expected an absolute export path, got ${argument}`);
+    const containment = relative(await realpath(projectCwd), await realpath(join(argument, '..')));
+    assert.equal(containment, '');
+    assert.match(argument, /gjc-session-.*\.html$/);
+  } finally {
+    await rm(projectCwd, { recursive: true, force: true });
+    await f.close();
+  }
+});
+
+test('a warm adapter contains /export per run, not per worker lifetime', async () => {
+  const executed: string[] = [];
+  const f = await fixture(
+    'contract-model',
+    undefined,
+    { id: 'contract-model', provider: 'contract-provider' },
+    async (text, runtime) => {
+      executed.push(text);
+      await runtime.output('Session exported to: ok');
+      return { consumed: true };
+    },
+  );
+  const firstCwd = await mkdtemp(join(tmpdir(), 'gjc-export-one-'));
+  const secondCwd = await mkdtemp(join(tmpdir(), 'gjc-export-two-'));
+  try {
+    // A prose turn first, so the adapter is already warm and has been bound to
+    // a project before either export runs.
+    const warmup = f.host.handle(request('session.start', 'export-warmup', {
+      message: 'hello',
+      options: { ...f.options, cwd: firstCwd },
+    }));
+    const warmupSession = await firstSession(f.sessions);
+    await warmupSession.promptStarted.promise;
+    warmupSession.complete();
+    await warmup;
+
+    await f.host.handle(request('session.start', 'export-run-one', {
+      message: '/export',
+      options: { ...f.options, cwd: firstCwd },
+    }));
+    await f.host.handle(request('session.start', 'export-run-two', {
+      message: '/export',
+      options: { ...f.options, cwd: secondCwd },
+    }));
+
+    assert.equal(executed.length, 2);
+    const [first, second] = executed.map((text) => text.replace(/^\/export\s+/, ''));
+    assert.notEqual(first, second);
+    assert.equal(relative(await realpath(firstCwd), await realpath(join(first!, '..'))), '');
+    assert.equal(relative(await realpath(secondCwd), await realpath(join(second!, '..'))), '');
+  } finally {
+    await rm(firstCwd, { recursive: true, force: true });
+    await rm(secondCwd, { recursive: true, force: true });
     await f.close();
   }
 });

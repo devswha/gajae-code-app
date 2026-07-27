@@ -74,6 +74,30 @@ const normalizeSessionProvider = (session: ProjectSession): ProjectSession => ({
   __provider: getSessionProvider(session),
 });
 
+/**
+ * Read `/api/projects` defensively. An auth failure or error payload here must
+ * degrade to "keep the previous project list" — feeding a non-array (e.g.
+ * `{"error":"Unauthorized"}`) into the project merge throws inside a React
+ * state updater and unmounts the whole app shell to a blank screen.
+ */
+export const readProjectsResponse = async (
+  response: Response,
+  action: string,
+): Promise<Project[] | null> => {
+  if (!response.ok) {
+    console.error(`Error ${action} projects: HTTP ${response.status}`);
+    return null;
+  }
+
+  const payload = (await response.json().catch(() => null)) as unknown;
+  if (!Array.isArray(payload)) {
+    console.error(`Error ${action} projects: response is not a project array`);
+    return null;
+  }
+
+  return payload as Project[];
+};
+
 export const projectsHaveChanges = (
   prevProjects: Project[],
   nextProjects: Project[],
@@ -426,8 +450,10 @@ export function useProjectsState({
       if (showLoadingState) {
         setIsLoadingProjects(true);
       }
-      const response = await api.projects();
-      const projectData = (await response.json()) as Project[];
+      const projectData = await readProjectsResponse(await api.projects(), 'fetching');
+      if (!projectData) {
+        return;
+      }
 
       setProjects((prevProjects) => {
         const mergedProjects = mergeExpandedSessionPages(prevProjects, projectData);
@@ -831,8 +857,10 @@ export function useProjectsState({
 
   const handleSidebarRefresh = useCallback(async () => {
     try {
-      const response = await api.projects();
-      const freshProjects = (await response.json()) as Project[];
+      const freshProjects = await readProjectsResponse(await api.projects(), 'refreshing');
+      if (!freshProjects) {
+        return;
+      }
       const mergedProjects = mergeExpandedSessionPages(projects, freshProjects);
 
       setProjects((prevProjects) =>

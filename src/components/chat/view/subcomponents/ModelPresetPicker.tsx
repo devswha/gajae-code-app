@@ -9,6 +9,8 @@ type ModelPresetPickerProps = {
   value: string;
   options: ProviderModelOption[];
   loading?: boolean;
+  /** Monotonic signal (e.g. from the /model app command): each increment opens the popup. */
+  openTrigger?: number;
   onSelect: (value: string) => Promise<unknown> | unknown;
 };
 
@@ -25,8 +27,14 @@ function compactModelLabel(selector: string): string {
   return withoutProvider.replace(/:/, ' · ');
 }
 
-export default function ModelPresetPicker({ value, options, loading = false, onSelect }: ModelPresetPickerProps) {
+export default function ModelPresetPicker({ value, options, loading = false, openTrigger, onSelect }: ModelPresetPickerProps) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (openTrigger) {
+      setOpen(true);
+    }
+  }, [openTrigger]);
   const [selecting, setSelecting] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);

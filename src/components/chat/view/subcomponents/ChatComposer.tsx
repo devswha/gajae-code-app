@@ -115,6 +115,8 @@ interface ChatComposerProps {
   modelPreset?: string;
   modelPresetOptions?: ProviderModelOption[];
   modelPresetsLoading?: boolean;
+  /** Monotonic signal: each increment opens the model preset popup. */
+  modelPickerOpenTrigger?: number;
   onSelectModelPreset?: (value: string) => Promise<unknown> | unknown;
 }
 
@@ -171,6 +173,7 @@ export default function ChatComposer({
   modelPreset = 'default',
   modelPresetOptions = [],
   modelPresetsLoading,
+  modelPickerOpenTrigger,
   onSelectModelPreset = () => {},
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
@@ -426,6 +429,7 @@ export default function ChatComposer({
                 value={modelPreset}
                 options={modelPresetOptions}
                 loading={modelPresetsLoading}
+                openTrigger={modelPickerOpenTrigger}
                 onSelect={onSelectModelPreset}
               />
             )}

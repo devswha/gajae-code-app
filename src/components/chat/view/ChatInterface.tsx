@@ -171,6 +171,7 @@ function ChatInterface({
     isDragActive,
     openImagePicker,
     handleSubmit,
+    modelPickerTrigger,
     queuedDraft,
     editQueuedDraft,
     deleteQueuedDraft,
@@ -367,6 +368,7 @@ function ChatInterface({
       modelPreset={gjcModel}
       modelPresetOptions={providerModelCatalog.gjc?.OPTIONS ?? []}
       modelPresetsLoading={providerModelsLoading}
+      modelPickerOpenTrigger={modelPickerTrigger}
       onSelectModelPreset={(model) => selectProviderModel(
         'gjc',
         model,

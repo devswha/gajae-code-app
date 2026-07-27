@@ -21,7 +21,8 @@
 export type AppUiCommandActionId =
   | 'open-session-picker'
   | 'start-new-chat'
-  | 'open-settings';
+  | 'open-settings'
+  | 'open-model-picker';
 
 export type AppUiCommand = {
   name: string;
@@ -29,12 +30,20 @@ export type AppUiCommand = {
   namespace: 'app';
   type: 'app';
   actionId: AppUiCommandActionId;
+  /**
+   * When false, a typed invocation WITH arguments (e.g. "/model gpt-x") is
+   * not intercepted and flows to the provider text runtime instead, mirroring
+   * the TUI where the bare command opens a selector but arguments act
+   * directly.
+   */
+  interceptWithArgs?: boolean;
 };
 
 export type AppUiCommandActions = {
   openSessionPicker: () => void;
   startNewChat: () => void;
   openSettings: () => void;
+  openModelPicker: () => void;
 };
 
 export const APP_UI_COMMANDS: readonly AppUiCommand[] = [
@@ -66,6 +75,14 @@ export const APP_UI_COMMANDS: readonly AppUiCommand[] = [
     type: 'app',
     actionId: 'open-settings',
   },
+  {
+    name: '/model',
+    description: 'Choose the model preset (opens the model picker)',
+    namespace: 'app',
+    type: 'app',
+    actionId: 'open-model-picker',
+    interceptWithArgs: false,
+  },
 ];
 
 const APP_UI_COMMANDS_BY_NAME = new Map(
@@ -88,6 +105,9 @@ export function runAppUiCommand(command: AppUiCommand, actions: AppUiCommandActi
       break;
     case 'open-settings':
       actions.openSettings();
+      break;
+    case 'open-model-picker':
+      actions.openModelPicker();
       break;
   }
 }

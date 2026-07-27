@@ -32,6 +32,7 @@ import { escapeRegExp } from '../utils/chatFormatting';
 import {
   findAppUiCommand,
   getTuiOnlyCommandNotice,
+  isAppUiCommand,
   runAppUiCommand,
   type AppUiCommand,
 } from '../appUiCommands';
@@ -452,6 +453,9 @@ export function useChatComposerState({
   // App-level slash commands (/resume, /sessions, /new, /settings) run local
   // UI actions instead of reaching the provider. Falls back to no-ops when no
   // PaletteOpsProvider is mounted (e.g. isolated tests).
+  // Monotonic signal consumed by the composer's ModelPresetPicker: each bump
+  // opens the picker popup (same pattern as newSessionTrigger).
+  const [modelPickerTrigger, setModelPickerTrigger] = useState(0);
   const paletteOps = usePaletteOps();
   const runResolvedAppCommand = useCallback(
     (command: AppUiCommand) => {
@@ -464,6 +468,9 @@ export function useChatComposerState({
           } else {
             paletteOps.openSettings();
           }
+        },
+        openModelPicker: () => {
+          setModelPickerTrigger((previous) => previous + 1);
         },
       });
     },
@@ -712,9 +719,12 @@ export function useChatComposerState({
         };
 
         // App-level UI commands (checked against the static registry so they
-        // work even when the provider command fetch failed).
+        // work even when the provider command fetch failed). Commands marked
+        // interceptWithArgs:false (e.g. /model) only intercept the bare form;
+        // "/model gpt-x" flows through to the provider text runtime below.
+        const commandArgs = firstSpace > 0 ? commandInput.slice(firstSpace).trim() : '';
         const appCommand = findAppUiCommand(commandName);
-        if (appCommand) {
+        if (appCommand && (appCommand.interceptWithArgs !== false || !commandArgs)) {
           clearComposerInput();
           runResolvedAppCommand(appCommand);
           return;
@@ -743,7 +753,12 @@ export function useChatComposerState({
                 metadata: { type: 'builtin' },
               } as SlashCommand)
             : undefined);
-        if (matchedCommand && matchedCommand.type !== 'skill' && matchedCommand.type !== 'provider') {
+        if (
+          matchedCommand &&
+          !isAppUiCommand(matchedCommand) &&
+          matchedCommand.type !== 'skill' &&
+          matchedCommand.type !== 'provider'
+        ) {
           executeCommand(matchedCommand, isHelpAlias ? '/help' : commandInput);
           clearComposerInput();
           return;
@@ -1219,6 +1234,7 @@ export function useChatComposerState({
     isDragActive,
     openImagePicker: open,
     handleSubmit,
+    modelPickerTrigger,
     queuedDraft,
     editQueuedDraft,
     deleteQueuedDraft,

@@ -64,6 +64,7 @@ test('runAppUiCommand dispatches each action id to its action', () => {
     openSessionPicker: () => { calls.push('open-session-picker'); },
     startNewChat: () => { calls.push('start-new-chat'); },
     openSettings: () => { calls.push('open-settings'); },
+    openModelPicker: () => { calls.push('open-model-picker'); },
   };
 
   for (const command of APP_UI_COMMANDS) {
@@ -145,6 +146,35 @@ test('unknown slash commands still fall through to a normal chat send', async ()
   const sent = sentMessages[0] as { type: string; content: string };
   assert.equal(sent.type, 'chat.send');
   assert.equal(sent.content, '/not-a-real-command hello');
+});
+
+test('bare /model is intercepted to open the app model picker, not sent to the model', async () => {
+  const sentMessages: unknown[] = [];
+  const addedMessages: unknown[] = [];
+  const composer = captureComposer(sentMessages, addedMessages);
+
+  composer.handleVoiceTranscript('/model');
+  await composer.handleSubmit(submitEvent);
+
+  assert.deepEqual(sentMessages, []);
+  assert.deepEqual(addedMessages, []);
+});
+
+test('/model with arguments flows through to the provider text runtime', async () => {
+  // interceptWithArgs:false — "/model gpt-x" must reach GJC so direct model
+  // switching keeps working exactly like the TUI.
+  const sentMessages: unknown[] = [];
+  const addedMessages: unknown[] = [];
+  const composer = captureComposer(sentMessages, addedMessages);
+
+  composer.handleVoiceTranscript('/model gpt-test-2');
+  await composer.handleSubmit(submitEvent);
+
+  assert.equal(sentMessages.length, 1);
+  const sent = sentMessages[0] as { type: string; content: string };
+  assert.equal(sent.type, 'chat.send');
+  assert.equal(sent.content, '/model gpt-test-2');
+  assert.deepEqual(addedMessages.filter((m) => (m as { type: string }).type === 'error'), []);
 });
 
 test('command menu groups app commands under the App Commands heading', () => {

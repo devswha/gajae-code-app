@@ -184,6 +184,20 @@ test('keeps search as the primary header utility', async () => {
   assert.doesNotMatch(html, />Projects<|>Conversations<|Running sessions|Archive only/);
 });
 
+test('the header wordmark is not crowded off the row by decoration', async () => {
+  // The sidebar is a fixed 288px; the wordmark rendered at roughly the width
+  // the row can spare, so a decorative chevron next to it was enough to clip
+  // "Gajae Code App" into an ellipsis. It also implied a dropdown that never
+  // existed — the row carries no non-interactive affordance now.
+  const t = await makeT();
+  const html = renderSidebarHeader(t);
+
+  assert.match(html, />Gajae Code App</);
+  assert.doesNotMatch(html, /aria-hidden[^>]*lucide-chevron-down|lucide-chevron-down[^>]*aria-hidden/);
+  // Still recoverable if a longer localized name ever does clip.
+  assert.match(html, /<h1[^>]+title="Gajae Code App"/);
+});
+
 test('renders archived project and session recovery controls through the compact archive state', async () => {
   const t = await makeT();
   const html = renderSidebarContent(t, {

@@ -83,6 +83,50 @@ v1이 에러/버그 없이 돌아간 뒤에만 시작한다.
 - 어느 쪽도 확정된 Rust core + GJC worker 레인을 **대체**하는 용도로 쓰지
   않는다 (로드맵 confirmed decision 위반).
 
+## 제품 경계 — gjc-app은 프론트엔드다 (2026-07-27 확정)
+
+에이전트 기능은 **이 저장소가 만들지 않는다.** `@gajae-code/coding-agent`(현재
+`0.11.8`, `package.json`에 버전 고정된 npm 의존성)가 소유한다. gjc-app은 그
+위에 얹히는 UI/UX 셸이며, 실질 권한은 "무엇을 켜고 무엇을 보여줄지 고르는 것"에
+한정된다.
+
+### 소유 경계
+
+| coding-agent (upstream) | gjc-app (이 저장소) |
+|---|---|
+| 툴 34종 (`tools/index.ts` `BUILTIN_TOOLS`) | 웹/데스크톱 UI 전체 |
+| 번들 스킬 4종 (`defaults/gjc/skills/*/SKILL.md`) | 워커 프로세스 감독 (`gjc-worker-client.ts`) |
+| 슬래시 명령 43종 (`slash-commands/builtin-registry.ts`) | **활성 툴 선택** (`toolNames`) |
+| 세션 엔진·모델 해석·프롬프트 | **디스패치 명령 선택** (`gjc-command-catalog.ts`) |
+| | 앱 네이티브 대체 명령 (`appUiCommands.ts`) |
+
+### 여기서 따라오는 규칙
+
+1. **기능을 만들지 말고 드러내라.** upstream에 이미 있는 것을 앱에서 못 쓰는
+   상태가 결함이다. 앱에서 재구현하는 것은 결함의 해결이 아니라 분기다.
+2. **선택 목록은 손으로 베끼지 않는다.** `gjc-command-catalog.ts`(43종 중 23종)와
+   `gjc-skills.provider.ts`의 `BUNDLED_SKILLS`는 현재 upstream을 수기 복사한
+   사본이다. `docs/UPSTREAM.md`가 수동 선별 반영 정책이므로 이 어긋남은
+   버전 업마다 재발한다. 2026-07-27에 발견된 `/move`·`/models`·`/bg`·`/quit`·
+   `/contribution-prep`·`/help` 6종 누락(모델에게 생텍스트 유출)이 그 실례다.
+   생성 + CI 드리프트 검사로 대체한다.
+3. **UI가 없는 툴은 절반만 켠 것이다.** `job`·`monitor`·`goal`처럼 산출물을
+   보여줄 화면이 없는 툴은, 켜는 순간 "보이지 않는 곳에서 도는 상태"를 만든다.
+   툴 활성화와 그 툴의 표시 화면은 같은 슬라이스로 묶는다.
+4. **안전장치는 프론트엔드 일이다.** 파괴적 명령의 확인 창은 upstream이 아니라
+   앱이 제공해야 하는 어포던스다.
+
+### 현재 노출 상태 (2026-07-27 실측)
+
+- 툴: 34종 중 **7종** 활성 (`bash, read, write, edit, search, find, ask`).
+  SDK 기본 필수 6종 + `ask`로, 사실상 최소 구성.
+- 스킬: 번들 4종 중 3종 표기(`team`은 tmux 기반이라 앱에서 숨김). 다만
+  `skill` 툴이 꺼져 있어 **표기된 3종도 결정적 활성화가 되지 않는다.**
+  `/skill:<name>`을 슬래시 명령으로 바꾸는 경로는 TUI 전용
+  (`modes/interactive-mode.ts`)이라 앱에는 존재하지 않는다.
+- 앱에 화면이 아예 없는 upstream 기능: 세션 분기(`/tree`), 사이드 챗(`/btw`),
+  목표 모드(`/goal`), 메시지 복사.
+
 ## 버저닝 정책 (2026-07-16 확정)
 
 - Gajae Code App 자체 semver 라인은 `1.0.0`부터 시작. 업스트림(claudecodeui) `1.36.x`
@@ -100,3 +144,5 @@ v1이 에러/버그 없이 돌아간 뒤에만 시작한다.
 | 2026-07-16 | 무로그인 기본 (`GAJAE_AUTH=none`) + fail-closed exposure guard 구현 |
 | 2026-07-16 | GJC worker/Rust core 격리(Checkpoint A/B/C 슬라이스 1·2)는 완성 자산으로 존치, 이후 러스트 투자는 v2로 이연 |
 | 2026-07-17 | 외부 프로젝트 활용 원칙 확정: Paseo(AGPLv3)는 설계 참고만·코드 이식 금지, openai/codex(Apache-2.0)는 app-server 프로토콜·Rust 조각 부분 이식 허용 |
+| 2026-07-27 | **gjc-app = UI/UX 프론트엔드로 제품 경계 확정.** 에이전트 기능은 `@gajae-code/coding-agent`가 소유하고, 이 저장소는 노출·표시·안전장치만 담당한다. 앱에서의 에이전트 기능 재구현 금지 |
+| 2026-07-27 | upstream 선택 목록(명령 카탈로그·번들 스킬)의 수기 복사를 폐기 대상으로 확정. 생성 + CI 드리프트 검사로 대체 |

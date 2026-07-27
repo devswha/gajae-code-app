@@ -7,6 +7,8 @@ import { test } from 'node:test';
 
 import { ACP_BUILTIN_SLASH_COMMANDS } from '@gajae-code/coding-agent/slash-commands/acp-builtins';
 
+import { UNGATED_COMMAND_NAMES } from '../src/components/chat/commandGatePolicy.js';
+
 import {
   GJC_APP_BUILTIN_COMMANDS,
   GJC_APP_BUILTIN_COMMAND_ALIASES,
@@ -104,6 +106,27 @@ test('runtime aliases with text handlers are dispatchable but not advertised', (
     // Not advertised: the slash menu shows the canonical name only.
     assert.equal(advertised.has(alias), false, `${alias} must not be advertised`);
     assert.equal(advertised.has(canonical), true, `${canonical} must be advertised`);
+  }
+});
+
+/**
+ * The gate allowlist is app policy — upstream carries no "destructive" marker —
+ * but its NAMES are upstream's. A renamed or withdrawn command leaves a dead
+ * allowlist entry, and dead entries fail in the dangerous direction: they keep
+ * asserting "safe" for a name whose behavior nobody checks any more.
+ *
+ * The reverse case needs no test. A newly added destructive command is absent
+ * from the allowlist and therefore gates by default.
+ */
+test('every ungated command name still exists in the runtime', () => {
+  const runtime = new Set([
+    ...ACP_BUILTIN_SLASH_COMMANDS.map((command) => `/${command.name}`),
+    // Provider-bundled prompt, advertised by provider-commands.service.
+    '/init',
+  ]);
+
+  for (const name of new Set<string>(UNGATED_COMMAND_NAMES)) {
+    assert.equal(runtime.has(name), true, `${name} is ungated but no longer exists upstream`);
   }
 });
 

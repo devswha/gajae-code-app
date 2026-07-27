@@ -137,7 +137,9 @@ test('typed TUI-only command gets a local notice instead of a model prompt', asy
   assert.match(notice.content, /not available in the app/);
 });
 
-test('unknown slash commands still fall through to a normal chat send', async () => {
+test('an unknown slash command is held for confirmation, not sent blind', async () => {
+  // Before the gate this fell straight through to chat.send. Fail-closed now:
+  // a form the app cannot classify asks once instead of running unannounced.
   const sentMessages: unknown[] = [];
   const addedMessages: unknown[] = [];
   const composer = captureComposer(sentMessages, addedMessages);
@@ -145,10 +147,8 @@ test('unknown slash commands still fall through to a normal chat send', async ()
   composer.handleVoiceTranscript('/not-a-real-command hello');
   await composer.handleSubmit(submitEvent);
 
-  assert.equal(sentMessages.length, 1);
-  const sent = sentMessages[0] as { type: string; content: string };
-  assert.equal(sent.type, 'chat.send');
-  assert.equal(sent.content, '/not-a-real-command hello');
+  assert.deepEqual(sentMessages, []);
+  assert.deepEqual(addedMessages, []);
 });
 
 /*
@@ -222,20 +222,31 @@ test('bare /models opens the model picker like /model does', async () => {
   assert.deepEqual(addedMessages, []);
 });
 
-test('/models and /contribution-prep with arguments reach the runtime unchanged', async () => {
-  // Their canonical commands have text handlers, so the server dispatches the
+test('/models with arguments reaches the runtime unchanged', async () => {
+  // The canonical command has a text handler, so the server dispatches the
   // alias; rewriting the text here would only hide which name the user typed.
-  for (const form of ['/models gpt-test-2', '/contribution-prep focus e2e']) {
-    const sentMessages: unknown[] = [];
-    const addedMessages: unknown[] = [];
-    const composer = captureComposer(sentMessages, addedMessages);
+  const sentMessages: unknown[] = [];
+  const addedMessages: unknown[] = [];
+  const composer = captureComposer(sentMessages, addedMessages);
 
-    composer.handleVoiceTranscript(form);
-    await composer.handleSubmit(submitEvent);
+  composer.handleVoiceTranscript('/models gpt-test-2');
+  await composer.handleSubmit(submitEvent);
 
-    assert.equal(sentMessages.length, 1, `${form} must be dispatched`);
-    assert.equal((sentMessages[0] as { content: string }).content, form);
-  }
+  assert.equal(sentMessages.length, 1);
+  assert.equal((sentMessages[0] as { content: string }).content, '/models gpt-test-2');
+});
+
+test('/contribution-prep is gated, because /contribute-pr is', async () => {
+  // An alias must not be a way around the confirmation its command carries.
+  const sentMessages: unknown[] = [];
+  const addedMessages: unknown[] = [];
+  const composer = captureComposer(sentMessages, addedMessages);
+
+  composer.handleVoiceTranscript('/contribution-prep focus e2e');
+  await composer.handleSubmit(submitEvent);
+
+  assert.deepEqual(sentMessages, []);
+  assert.deepEqual(addedMessages, []);
 });
 
 test('/notify on and off are answered locally, other verbs still dispatch', async () => {
@@ -258,8 +269,10 @@ test('/notify on and off are answered locally, other verbs still dispatch', asyn
     );
   }
 
-  // Every other verb is consumed by the builtin and must keep working.
-  for (const form of ['/notify', '/notify status', '/notify health', '/notify test', '/notify recovery']) {
+  // The read-only verbs are consumed by the builtin and must keep working.
+  // /notify test and /notify recovery are gated (external effect, lock reset)
+  // and are covered by the gate tests.
+  for (const form of ['/notify', '/notify status', '/notify health']) {
     const sentMessages: unknown[] = [];
     const addedMessages: unknown[] = [];
     const composer = captureComposer(sentMessages, addedMessages);

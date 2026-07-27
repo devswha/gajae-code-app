@@ -37,6 +37,7 @@ import {
   runAppUiCommand,
   type AppUiCommand,
 } from '../appUiCommands';
+import { gateForCommand, type CommandGate } from '../commandGatePolicy';
 
 import { useFileMentions } from './useFileMentions';
 import { type SlashCommand, useSlashCommands } from './useSlashCommands';
@@ -61,6 +62,8 @@ interface UseChatComposerStateArgs {
    */
   onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void;
   onInputFocusChange?: (focused: boolean) => void;
+  /** Notified whenever a runtime form starts or stops waiting on confirmation. */
+  onCommandGateChange?: (gate: PendingCommandGate | null) => void;
   onFileOpen?: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void;
   onShowSettings?: () => void;
   onLogin?: (providerId?: string) => void;
@@ -162,6 +165,9 @@ export type QueuedDraft = {
   options?: QueuedSendOptions;
 };
 
+/** A runtime form held at the confirmation card, plus the exact text to replay. */
+export type PendingCommandGate = CommandGate & { text: string };
+
 const restoreQueuedDraft = (sessionKey: string): QueuedDraft | null => {
   const saved = readQueuedMessage(sessionKey);
   // Image attachments can't survive a reload; only text and options persist.
@@ -199,6 +205,7 @@ export function useChatComposerState({
   onSessionProcessing,
   onSessionEstablished,
   onInputFocusChange,
+  onCommandGateChange,
   onFileOpen,
   onShowSettings,
   onLogin,
@@ -246,6 +253,21 @@ export function useChatComposerState({
   // while `queuedDraft` still holds the old session's draft; the persistence
   // effect must not write across that gap.
   const queuedDraftSessionRef = useRef<string | null>(sessionKey);
+
+  // A runtime form waiting on confirmation. Nothing has been sent while this is
+  // set; the text is held here rather than in the input so an accidental Enter
+  // cannot re-submit it. The ref lets the confirmed replay pass back through
+  // handleSubmit exactly once without re-gating itself.
+  const [pendingCommandGate, setPendingCommandGateState] = useState<PendingCommandGate | null>(null);
+  const confirmedGateRef = useRef(false);
+  // The single writer, so no transition can reach the state without also
+  // reaching the observer.
+  const pendingCommandGateRef = useRef<PendingCommandGate | null>(null);
+  const setPendingCommandGate = useCallback((gate: PendingCommandGate | null) => {
+    pendingCommandGateRef.current = gate;
+    setPendingCommandGateState(gate);
+    onCommandGateChange?.(gate);
+  }, [onCommandGateChange]);
 
   const handleBuiltInCommand = useCallback(
     (result: CommandExecutionResult) => {
@@ -745,6 +767,20 @@ export function useChatComposerState({
           });
           return;
         }
+
+        // Destructive, auth-bearing, external or unclassified runtime forms
+        // stop here. Nothing is sent until the user confirms, so the action
+        // never starts — unlike the tool-approval banner, which asks about
+        // work the server has already begun.
+        if (!confirmedGateRef.current) {
+          const gate = gateForCommand(resolveCommandAlias(commandName), commandArgs);
+          if (gate) {
+            clearComposerInput();
+            setPendingCommandGate({ ...gate, text: commandInput });
+            return;
+          }
+        }
+        confirmedGateRef.current = false;
         const matchedCommand = slashCommands.find((cmd: SlashCommand) => cmd.name === commandName);
         if (
           matchedCommand &&
@@ -902,6 +938,7 @@ export function useChatComposerState({
       scrollToBottom,
       selectedProject,
       sendMessage,
+      setPendingCommandGate,
       sessionKey,
       addMessage,
       setIsUserScrolledUp,
@@ -972,6 +1009,31 @@ export function useChatComposerState({
   const deleteQueuedDraft = useCallback(() => {
     setQueuedDraft(null);
   }, []);
+
+  // Confirming replays the exact text through the normal submit path, so the
+  // command takes the same route it would have taken without a gate.
+  const confirmCommandGate = useCallback(() => {
+    // Read through the ref: the caller may hold a handle from before the gate
+    // was raised, and confirming has to act on what is actually pending.
+    const gate = pendingCommandGateRef.current;
+    if (!gate) {
+      return;
+    }
+    setPendingCommandGate(null);
+    confirmedGateRef.current = true;
+    // handleSubmit reads inputValueRef, so seeding it makes the replay send the
+    // held text verbatim. Called directly rather than through handleSubmitRef:
+    // this is a click handler, not an effect dodging a dependency cycle.
+    setInput(gate.text);
+    inputValueRef.current = gate.text;
+    void handleSubmit(createFakeSubmitEvent());
+  }, [handleSubmit, setInput, setPendingCommandGate]);
+
+  // Cancelling drops the text. Nothing was sent, so there is nothing to undo.
+  const cancelCommandGate = useCallback(() => {
+    setPendingCommandGate(null);
+    confirmedGateRef.current = false;
+  }, [setPendingCommandGate]);
 
   // A voice transcript either fills the input (to edit before sending) or, when the
   // user tapped "stop and send", is submitted straight away. Mirror the value into
@@ -1231,6 +1293,9 @@ export function useChatComposerState({
     queuedDraft,
     editQueuedDraft,
     deleteQueuedDraft,
+    pendingCommandGate,
+    confirmCommandGate,
+    cancelCommandGate,
     handleVoiceTranscript,
     handleInputChange,
     handleKeyDown,

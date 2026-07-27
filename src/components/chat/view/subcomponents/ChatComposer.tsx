@@ -15,7 +15,7 @@ import { ImageIcon, MessageSquareIcon, XIcon, Loader2, ArrowUpIcon } from 'lucid
 
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../../hooks/useVoiceAvailable';
-import type { QueuedDraft } from '../../hooks/useChatComposerState';
+import type { PendingCommandGate, QueuedDraft } from '../../hooks/useChatComposerState';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 import type { PendingPermissionRequest } from '../../types/types';
 import type { ProviderModelOption } from '../../../../types/app';
@@ -37,6 +37,7 @@ import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
 import QueuedMessageCard from './QueuedMessageCard';
+import CommandGateCard from './CommandGateCard';
 import ModelPresetPicker from './ModelPresetPicker';
 
 interface MentionableFile {
@@ -79,6 +80,9 @@ interface ChatComposerProps {
   queuedDraft: QueuedDraft | null;
   onEditQueuedDraft: () => void;
   onDeleteQueuedDraft: () => void;
+  pendingCommandGate: PendingCommandGate | null;
+  onConfirmCommandGate: () => void;
+  onCancelCommandGate: () => void;
   attachedImages: File[];
   onRemoveImage: (index: number) => void;
   uploadingImages: Map<string, number>;
@@ -137,6 +141,9 @@ export default function ChatComposer({
   queuedDraft,
   onEditQueuedDraft,
   onDeleteQueuedDraft,
+  pendingCommandGate,
+  onConfirmCommandGate,
+  onCancelCommandGate,
   attachedImages,
   onRemoveImage,
   uploadingImages,
@@ -254,6 +261,16 @@ export default function ChatComposer({
             handlePermissionDecision={handlePermissionDecision}
           />
         </div>
+      )}
+
+      {pendingCommandGate && (
+        <CommandGateCard
+          text={pendingCommandGate.text}
+          summary={pendingCommandGate.summary}
+          classified={pendingCommandGate.classified}
+          onConfirm={onConfirmCommandGate}
+          onCancel={onCancelCommandGate}
+        />
       )}
 
       {queuedDraft && (

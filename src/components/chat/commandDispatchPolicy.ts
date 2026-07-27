@@ -4,6 +4,7 @@ import {
   resolveCommandAlias,
   type AppUiCommand,
 } from './appUiCommands';
+import { gateForCommand, type CommandGate } from './commandGatePolicy';
 
 /**
  * Shared pre-dispatch classification for composer input.
@@ -29,11 +30,16 @@ export type CommandDisposition =
   /** Renders a local message; requires the owning session's message list. */
   | { kind: 'notice'; commandName: string; text: string }
   /**
-   * A slash form that reaches the runtime, including unrecognized ones. Some
-   * are destructive (`/clear`, `/session delete`, `/ssh rm`) and the app has no
-   * confirmation surface outside the composer, so this is never auto-sendable.
+   * A slash form that reaches the runtime and may run without asking: reads,
+   * and session preferences that are visible at once and trivially reversed.
    */
-  | { kind: 'command'; commandName: string };
+  | { kind: 'command'; commandName: string }
+  /**
+   * A slash form that must be confirmed before anything is sent. Includes every
+   * form the app has not classified, so a command added by a future runtime
+   * asks once instead of running unannounced.
+   */
+  | { kind: 'gate'; commandName: string; gate: CommandGate };
 
 /**
  * Mirrors the composer's interception test: a leading "/" after trailing
@@ -75,6 +81,11 @@ export function classifyCommandInput(text: string): CommandDisposition {
 
   const notice = getLocalCommandNotice(commandName, args);
   if (notice) return { kind: 'notice', commandName, text: notice };
+
+  // Aliases resolve first here too, so `/contribution-prep` gates exactly as
+  // `/contribute-pr` does rather than slipping through under another name.
+  const gate = gateForCommand(resolveCommandAlias(commandName), args);
+  if (gate) return { kind: 'gate', commandName, gate };
 
   return { kind: 'command', commandName };
 }

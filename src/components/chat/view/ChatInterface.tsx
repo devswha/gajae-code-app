@@ -175,6 +175,9 @@ function ChatInterface({
     queuedDraft,
     editQueuedDraft,
     deleteQueuedDraft,
+    pendingCommandGate,
+    confirmCommandGate,
+    cancelCommandGate,
     handleVoiceTranscript,
     handleInputChange,
     handleKeyDown,
@@ -328,6 +331,9 @@ function ChatInterface({
       queuedDraft={queuedDraft}
       onEditQueuedDraft={editQueuedDraft}
       onDeleteQueuedDraft={deleteQueuedDraft}
+      pendingCommandGate={pendingCommandGate}
+      onConfirmCommandGate={confirmCommandGate}
+      onCancelCommandGate={cancelCommandGate}
       attachedImages={attachedImages}
       onRemoveImage={(index) =>
         setAttachedImages((previous) =>

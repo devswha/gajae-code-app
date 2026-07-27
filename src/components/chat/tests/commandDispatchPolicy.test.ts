@@ -94,14 +94,16 @@ test('the bare help alias is treated as /help', () => {
 });
 
 test('trailing whitespace does not defeat interception', () => {
-  assert.equal(classifyCommandInput('/clear   ').kind, 'command');
+  assert.equal(classifyCommandInput('/clear   ').kind, 'gate');
   assert.equal(classifyCommandInput('/retry\t').kind, 'notice');
+  assert.equal(classifyCommandInput('/dump  ').kind, 'command');
 });
 
 test('unrecognized slash forms fail closed rather than passing as prose', () => {
   for (const unknown of ['/e2e-unknown-form', '/notacommand hello', '/']) {
     const disposition = classifyCommandInput(unknown);
-    assert.equal(disposition.kind, 'command', `${unknown} must not be allowed`);
+    // Never `allow`, and never dispatched without asking either.
+    assert.equal(disposition.kind, 'gate', `${unknown} must be gated`);
     assert.equal(isAutoSendable(disposition), false);
   }
 });

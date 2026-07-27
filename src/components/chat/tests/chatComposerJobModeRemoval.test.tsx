@@ -7,7 +7,11 @@ import type { DropzoneInputProps, DropzoneRootProps } from 'react-dropzone';
 
 import type { Project } from '../../../types/app';
 import { api } from '../../../utils/api';
-import { useChatComposerState, type QueuedDraft } from '../hooks/useChatComposerState';
+import {
+  useChatComposerState,
+  type PendingCommandGate,
+  type QueuedDraft,
+} from '../hooks/useChatComposerState';
 import ChatComposer from '../view/subcomponents/ChatComposer';
 
 const selectedProject: Project = {
@@ -48,6 +52,9 @@ const baseComposerProps = {
   queuedDraft: null as QueuedDraft | null,
   onEditQueuedDraft: () => undefined,
   onDeleteQueuedDraft: () => undefined,
+  pendingCommandGate: null as PendingCommandGate | null,
+  onConfirmCommandGate: () => undefined,
+  onCancelCommandGate: () => undefined,
   attachedImages: [],
   onRemoveImage: () => undefined,
   uploadingImages: new Map<string, number>(),

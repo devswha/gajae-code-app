@@ -13,10 +13,10 @@ async function makeT(): Promise<TFunction> {
     lng: 'en',
     fallbackLng: 'en',
     interpolation: { escapeValue: false },
-    resources: { en: { sidebar: { sessions: {
-      newTask: 'New task',
-      newTaskCreatesProject: 'Create a project to start a new task',
-    } } } },
+    resources: { en: { sidebar: {
+      sessions: { newTask: 'New task' },
+      tooltips: { selectProjectToCreateSession: 'Add a project before starting a new task' },
+    } } },
   });
   return i18n.getFixedT('en', 'sidebar');
 }
@@ -24,7 +24,6 @@ async function makeT(): Promise<TFunction> {
 function renderNavigation(t: TFunction, canCreateSession: boolean): string {
   return renderToStaticMarkup(createElement(SidebarNavigationTabs, {
     canCreateSession,
-    onCreateProject: () => {},
     onCreateSession: () => {},
     t,
   }));
@@ -38,8 +37,9 @@ test('renders one prominent New task action without mode tabs', async () => {
   assert.doesNotMatch(html, /role="tablist"|role="tab"/);
 });
 
-test('keeps New task enabled and explains project creation when no project is selected', async () => {
+test('disables New task without opening project creation when no projects exist', async () => {
   const html = renderNavigation(await makeT(), false);
-  assert.match(html, /title="Create a project to start a new task"/);
-  assert.doesNotMatch(html, /disabled=""/);
+  assert.match(html, /title="Add a project before starting a new task"/);
+  assert.match(html, /disabled=""/);
+  assert.doesNotMatch(html, /Create a project to start a new task/);
 });

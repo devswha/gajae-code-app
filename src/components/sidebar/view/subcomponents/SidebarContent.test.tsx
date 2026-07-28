@@ -162,6 +162,9 @@ test('renders the Codex-style New task action with Projects and Work sections', 
   assert.match(html, /Implement navigation cleanup/);
   assert.match(html, /lucide-loader-circle/);
   assert.match(html, />New task</);
+  const newTaskButton = html.match(/<button[^>]*aria-label="New task"[^>]*>/)?.[0];
+  assert.ok(newTaskButton);
+  assert.doesNotMatch(newTaskButton, /disabled/);
   assert.match(html, /id="sidebar-projects-heading"[^>]*>Projects/);
   assert.match(html, /id="sidebar-work-heading"[^>]*>Work/);
   assert.doesNotMatch(html, /role="tablist"/);

@@ -23,7 +23,6 @@
     "title": "세션",
     "work": "작업",
     "newTask": "새 작업",
-    "newTaskCreatesProject": "새 작업을 시작할 프로젝트를 만드세요",
     "newSession": "새 세션",
     "deleteSession": "세션 삭제",
     "renameSession": "세션 이름 변경",

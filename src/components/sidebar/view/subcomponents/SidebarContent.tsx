@@ -66,14 +66,17 @@ export default function SidebarContent({
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [workOpen, setWorkOpen] = useState(true);
   const selectedProject = projectListProps.selectedProject;
-  const canCreateSession = selectedProject !== null
-    && projectListProps.projects.some((project) => project.projectId === selectedProject.projectId);
+  const availableProjects = projectListProps.projects;
+  const selectedProjectIsAvailable = selectedProject !== null
+    && availableProjects.some((project) => project.projectId === selectedProject.projectId);
+  const canCreateSession = availableProjects.length > 0;
 
   const createSession = () => {
-    if (!canCreateSession || !selectedProject) {
+    const project = selectedProjectIsAvailable ? selectedProject : availableProjects[0];
+    if (!project) {
       return;
     }
-    projectListProps.onNewSession(selectedProject);
+    projectListProps.onNewSession(project);
   };
 
   return (
@@ -92,7 +95,6 @@ export default function SidebarContent({
       {!isArchiveOpen && (
         <SidebarNavigationTabs
           canCreateSession={canCreateSession}
-          onCreateProject={onCreateProject}
           onCreateSession={createSession}
           t={t}
         />

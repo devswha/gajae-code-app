@@ -29,7 +29,6 @@ const RETAINED_SIDEBAR_KEYS = [
   'projects.createProjectHint',
   'sessions.newSession',
   'sessions.newTask',
-  'sessions.newTaskCreatesProject',
   'sessions.work',
   'sessions.noSessions',
   'sessions.loadingSessions',

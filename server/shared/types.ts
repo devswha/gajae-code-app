@@ -74,6 +74,12 @@ export type ProviderModelOption = {
   value: string;
   label: string;
   description?: string;
+  /**
+   * Provider family this option belongs to (e.g. `CODEX`, `CLAUDE`, `COMBOS`).
+   * Clients group the catalog by this so a 30+ preset list stays scannable;
+   * options without a group are pinned above the groups.
+   */
+  group?: string;
   roles?: Partial<Record<'default' | 'planner' | 'executor' | 'architect' | 'critic', string>>;
   effort?: {
     default?: string;

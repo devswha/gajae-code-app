@@ -4,6 +4,8 @@ export type ProviderModelOption = {
   value: string;
   label: string;
   description?: string;
+  /** Provider family (e.g. `CODEX`, `CLAUDE`, `COMBOS`) used to group the picker. */
+  group?: string;
   roles?: Partial<Record<'default' | 'planner' | 'executor' | 'architect' | 'critic', string>>;
   effort?: {
     default?: string;

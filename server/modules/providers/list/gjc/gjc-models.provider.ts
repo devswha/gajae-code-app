@@ -95,6 +95,7 @@ async function getGjcPresetCatalog(homeDir: string): Promise<ProviderModelsDefin
   const profiles = new Map(GJC_BUILTIN_MODEL_PROFILES.map((profile) => [profile.name, {
     name: profile.name,
     label: profile.label,
+    group: profile.group,
     description: `${profile.group} built-in preset`,
     roles: profile.roles,
   }]));
@@ -102,6 +103,7 @@ async function getGjcPresetCatalog(homeDir: string): Promise<ProviderModelsDefin
   for (const profile of configuredProfiles) {
     profiles.set(profile.name, {
       ...profile,
+      group: 'CUSTOM',
       description: `${Object.keys(profile.roles).length} role custom preset`,
     });
   }
@@ -118,6 +120,7 @@ async function getGjcPresetCatalog(homeDir: string): Promise<ProviderModelsDefin
         value: `profile:${profile.name}`,
         label: profile.label,
         description: profile.description,
+        group: profile.group,
         roles: profile.roles,
       })),
     ],

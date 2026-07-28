@@ -151,6 +151,28 @@ test('an unknown slash command is held for confirmation, not sent blind', async 
   assert.deepEqual(addedMessages, []);
 });
 
+test('a TUI command the app can already do points at how to do it', () => {
+  // An empty hint is correct where the app genuinely has no equivalent
+  // (/monitors, /pet). It is wrong where one exists, because the notice then
+  // reads as "you cannot do this here" about something the app does fine —
+  // /copy said exactly that while every message carried a copy button.
+  const hasAppEquivalent: Readonly<Record<string, RegExp>> = {
+    '/retry': /open the session|send a new message/i,
+    '/background': /keep running/i,
+    '/theme': /command palette/i,
+    '/help': /browse every command/i,
+    '/copy': /copy button/i,
+    '/drop': /sidebar/i,
+    '/hotkeys': /command palette/i,
+  };
+
+  for (const [name, mentions] of Object.entries(hasAppEquivalent)) {
+    const hint = TUI_ONLY_COMMAND_HINTS[name];
+    assert.ok(hint, `${name} has an app equivalent but carries no hint`);
+    assert.match(hint, mentions, `${name} should name its app equivalent`);
+  }
+});
+
 /*
  * Forms that used to reach the model as prose.
  *

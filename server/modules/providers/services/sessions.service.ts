@@ -224,6 +224,65 @@ export const sessionsService = {
   },
 
   /**
+   * Archives every active session idle for longer than `olderThanDays`.
+   *
+   * Sessions accumulate with nothing to clear them: the sidebar keeps every
+   * one ever created, and the only control is archiving them one at a time.
+   *
+   * `dryRun` runs the identical selection and reports what would happen
+   * without touching anything. Deliberately the same code path, not a
+   * parallel count query — a preview that can disagree with the action it
+   * previews is worse than no preview.
+   *
+   * Archiving only. Nothing is removed from disk, so every result stays
+   * restorable from the archive list.
+   */
+  archiveSessionsIdleFor(
+    olderThanDays: number,
+    options: { dryRun?: boolean; excludeSessionIds?: readonly string[] } = {},
+  ): {
+    olderThanDays: number;
+    cutoff: string;
+    matched: number;
+    archived: number;
+    dryRun: boolean;
+    sessions: Array<{ sessionId: string; sessionTitle: string; lastActivity: string | null }>;
+  } {
+    if (!Number.isFinite(olderThanDays) || olderThanDays < 1) {
+      throw new AppError('olderThanDays must be a positive number of days.', {
+        code: 'INVALID_RETENTION_WINDOW',
+        statusCode: 400,
+      });
+    }
+
+    const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
+    const excluded = new Set(options.excludeSessionIds ?? []);
+    const candidates = sessionsDb
+      .getActiveSessionsUpdatedBefore(cutoff)
+      .filter((session) => !excluded.has(session.session_id));
+
+    const dryRun = options.dryRun === true;
+    if (!dryRun) {
+      for (const session of candidates) {
+        sessionsDb.updateSessionIsArchived(session.session_id, true);
+      }
+    }
+
+    return {
+      olderThanDays,
+      cutoff,
+      matched: candidates.length,
+      archived: dryRun ? 0 : candidates.length,
+      dryRun,
+      sessions: candidates.map((session) => ({
+        sessionId: session.session_id,
+        sessionTitle: session.custom_name?.trim() || session.session_id,
+        lastActivity: session.updated_at ?? session.created_at ?? null,
+      })),
+    };
+  },
+
+  /**
    * Archives or permanently deletes one persisted session row by id.
    *
    * Soft-delete mirrors the project behavior by toggling `isArchived` so the

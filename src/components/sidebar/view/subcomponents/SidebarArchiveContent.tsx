@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Archive, ArrowLeft, Folder, RotateCcw, Trash2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
+import { api } from '../../../../utils/api';
 import type { ArchivedProjectListItem, ArchivedSessionListItem } from '../../types/types';
 
 type ArchivedSessionGroup = {
@@ -102,6 +104,108 @@ function formatCompactArchivedAge(dateString: string | null): string {
   return `${Math.floor(diffInHours / 24)}d`;
 }
 
+/**
+ * Bulk-archives sessions idle past a retention window.
+ *
+ * Sessions accumulate with nothing to clear them, and archiving one at a time
+ * is not a way to deal with hundreds. Preview is mandatory: the count is
+ * fetched first and the commit button only appears once it is known, so the
+ * action always states its own size before it runs. Both calls run the same
+ * server-side selection, so the number shown is the number acted on.
+ *
+ * Archive only — nothing leaves the disk, and every result stays restorable
+ * from this same screen.
+ */
+function ArchiveIdleSessionsControl({ onArchived, t }: { onArchived: () => void; t: TFunction }) {
+  const [days, setDays] = useState(30);
+  const [preview, setPreview] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async (dryRun: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await api.archiveIdleSessions(days, dryRun);
+      if (!response.ok) throw new Error(String(response.status));
+      const data = (await response.json())?.data ?? {};
+      if (dryRun) {
+        setPreview(Number(data.matched ?? 0));
+      } else {
+        setPreview(null);
+        onArchived();
+      }
+    } catch {
+      setError(t('archived.bulkFailed', 'Could not archive idle sessions.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mx-1 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-2">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">
+          {t('archived.bulkLabel', 'Archive sessions idle for')}
+        </span>
+        <select
+          value={days}
+          disabled={busy}
+          onChange={(event) => { setDays(Number(event.target.value)); setPreview(null); }}
+          className="rounded-md border border-border bg-background px-1.5 py-0.5 text-xs text-foreground"
+          aria-label={t('archived.bulkLabel', 'Archive sessions idle for')}
+        >
+          {[7, 30, 60, 90].map((option) => (
+            <option key={option} value={option}>
+              {t('archived.bulkDays', '{{count}} days', { count: option })}
+            </option>
+          ))}
+        </select>
+        {preview === null && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void run(true)}
+            className="ml-auto rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            {t('archived.bulkPreview', 'Check')}
+          </button>
+        )}
+      </div>
+
+      {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
+
+      {preview !== null && !error && (
+        <div className="mt-1.5 flex items-center gap-2">
+          <span className="min-w-0 flex-1 text-xs text-foreground/80">
+            {preview === 0
+              ? t('archived.bulkNone', 'Nothing that old.')
+              : t('archived.bulkFound', '{{count}} to archive', { count: preview })}
+          </span>
+          {preview > 0 && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void run(false)}
+              className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            >
+              {t('archived.bulkConfirm', 'Archive')}
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setPreview(null)}
+            className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            {t('archived.bulkCancel', 'Cancel')}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SidebarArchiveContent({
   archivedProjects,
   archivedSessions,
@@ -158,6 +262,9 @@ export default function SidebarArchiveContent({
     return (
       <div className="px-4 py-12 md:py-8">
         <ArchiveBackButton onCloseArchive={onCloseArchive} t={t} />
+        <div className="pt-3">
+          <ArchiveIdleSessionsControl onArchived={onRetry} t={t} />
+        </div>
         <div className="pt-8 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-muted md:mb-3">
             <Archive className="h-6 w-6 text-muted-foreground" />
@@ -176,6 +283,7 @@ export default function SidebarArchiveContent({
   return (
     <div className="space-y-3 px-2">
       <ArchiveBackButton onCloseArchive={onCloseArchive} t={t} />
+      <ArchiveIdleSessionsControl onArchived={onRetry} t={t} />
       <p className="px-1 text-xs text-muted-foreground">
         {`${archivedSessionsCount} ${t(
           archivedSessionsCount === 1 ? 'archived.sessionCountOne' : 'archived.sessionCountOther',

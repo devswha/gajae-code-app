@@ -121,6 +121,14 @@ export const api = {
   },
   getArchivedSessions: () =>
     authenticatedFetch('/api/providers/sessions/archived'),
+  // Bulk-archives sessions idle past `olderThanDays`. Pass `dryRun` to get the
+  // count without changing anything; both modes run the same selection.
+  archiveIdleSessions: (olderThanDays, dryRun = false) =>
+    authenticatedFetch('/api/providers/sessions/archive-idle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ olderThanDays, dryRun }),
+    }),
   runningSessions: () =>
     authenticatedFetch('/api/providers/sessions/running'),
   restoreSession: (sessionId) =>

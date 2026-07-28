@@ -277,6 +277,34 @@ router.get(
   }),
 );
 
+/**
+ * Bulk-archives sessions idle past a retention window.
+ *
+ * POST rather than DELETE: nothing is removed, and the same call previews
+ * itself through `dryRun` so the UI can state the count before committing.
+ *
+ * Sessions with a turn in flight are excluded here rather than inside the
+ * service, because "running" is the worker supervisor's live view and not a
+ * property of the stored row.
+ */
+router.post(
+  '/sessions/archive-idle',
+  asyncHandler(async (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const olderThanDays = typeof body.olderThanDays === 'number' ? body.olderThanDays : Number.NaN;
+    const dryRun = body.dryRun === true;
+    const running = sessionsService.listRunningSessions()
+      .map((session) => session.sessionId)
+      .filter((sessionId): sessionId is string => typeof sessionId === 'string' && sessionId.length > 0);
+
+    const result = sessionsService.archiveSessionsIdleFor(olderThanDays, {
+      dryRun,
+      excludeSessionIds: running,
+    });
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
 
 
 

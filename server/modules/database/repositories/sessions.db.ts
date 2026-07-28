@@ -349,6 +349,28 @@ export const sessionsDb = {
     return normalizeSessionRows(rows);
   },
 
+  /**
+   * Active sessions last touched before `cutoffIso`, oldest first.
+   *
+   * Ordered oldest-first on purpose: this backs bulk archiving, where a caller
+   * that caps the batch should be trimming the stalest sessions rather than an
+   * arbitrary slice.
+   */
+  getActiveSessionsUpdatedBefore(cutoffIso: string): SessionRow[] {
+    const db = getConnection();
+    const rows = db
+      .prepare(
+        `SELECT ${SESSION_ROW_COLUMNS}
+         FROM sessions
+         WHERE isArchived = 0
+           AND datetime(COALESCE(updated_at, created_at)) < datetime(?)
+         ORDER BY datetime(COALESCE(updated_at, created_at)) ASC, session_id ASC`
+      )
+      .all(cutoffIso) as SessionRow[];
+
+    return normalizeSessionRows(rows);
+  },
+
   getSessionsByProjectPath(projectPath: string): SessionRow[] {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);

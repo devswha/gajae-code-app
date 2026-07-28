@@ -7,6 +7,7 @@ import { dirname, isAbsolute, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Writable } from 'node:stream';
 
+import { GJC_AGENT_TOOL_NAMES } from './gjc-agent-tools.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { createCompleteMessage, createNormalizedMessage } from './shared/utils.js';
 import {
@@ -269,7 +270,7 @@ export async function enrichGjcSdkRunOptions(options: GjcWorkerOptions): Promise
     credential: options.credential ?? { kind: 'stored' },
     modelId,
     ...(modelProfile ? { modelProfile } : {}),
-    toolNames: options.toolNames ?? ['bash', 'read', 'write', 'edit', 'search', 'find', 'ask'],
+    toolNames: options.toolNames ?? [...GJC_AGENT_TOOL_NAMES],
     spawns: options.spawns ?? '*',
     bashPolicy: options.bashPolicy ?? { allowedPrefixes: [] },
   };

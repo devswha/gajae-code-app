@@ -1,3 +1,4 @@
+import type { GjcSessionSnapshot } from './gjc-session-state.js';
 import type { GjcWorkerWriter } from './gjc-worker.js';
 
 /**
@@ -168,8 +169,20 @@ function forwardRetryStart(event: RecordValue, writer: GjcWorkerWriter): void {
   status(writer, `Retrying (${label})${delay}${reason ? ` — ${reason}` : ''}`);
 }
 
-/** Maps SDK subscription events without assigning turn terminal ownership to SDK events. */
-export function forwardSdkEvent(event: unknown, writer: GjcWorkerWriter, state: SdkRunState): void {
+/**
+ * Maps SDK subscription events without assigning turn terminal ownership to SDK events.
+ *
+ * `readSnapshot` is optional and supplied by the adapter, which is the only
+ * place holding the live session. Without it the turn streams exactly as
+ * before; with it, the end of a turn also carries the context window, model and
+ * working directory the composer footer needs.
+ */
+export function forwardSdkEvent(
+  event: unknown,
+  writer: GjcWorkerWriter,
+  state: SdkRunState,
+  readSnapshot?: () => GjcSessionSnapshot | undefined,
+): void {
   if (state.abortRequested || !object(event)) return;
   switch (event.type) {
     case 'message_update': {
@@ -209,6 +222,10 @@ export function forwardSdkEvent(event: unknown, writer: GjcWorkerWriter, state: 
       }
       const budget = tokenBudget(message);
       if (budget) writer.send({ kind: 'status', text: 'token_budget', tokenBudget: budget });
+      // The context window, model and cwd live on the session rather than on
+      // the message, so they ride here at the same moment the budget updates.
+      const snapshot = readSnapshot?.();
+      if (snapshot) writer.send({ kind: 'status', text: 'session_state', sessionState: snapshot });
       return;
     }
     case 'thinking_end': {

@@ -38,6 +38,7 @@ import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
 import QueuedMessageCard from './QueuedMessageCard';
 import CommandGateCard from './CommandGateCard';
+import SessionStatusSummary from './SessionStatusSummary';
 import ModelPresetPicker from './ModelPresetPicker';
 
 interface MentionableFile {
@@ -65,6 +66,7 @@ interface ChatComposerProps {
   isLoading: boolean;
   onAbortSession: () => void;
   tokenBudget: Record<string, unknown> | null;
+  sessionState: Record<string, unknown> | null;
   onShowTokenUsage: () => void;
   slashCommandsCount: number;
   onToggleCommandMenu: () => void;
@@ -131,6 +133,7 @@ export default function ChatComposer({
   isLoading,
   onAbortSession,
   tokenBudget,
+  sessionState,
   onShowTokenUsage,
   slashCommandsCount,
   onToggleCommandMenu,
@@ -403,6 +406,8 @@ export default function ChatComposer({
 
 
             <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} />
+
+            <SessionStatusSummary sessionState={sessionState} />
 
             <PromptInputButton
               tooltip={{ content: t('input.showAllCommands') }}

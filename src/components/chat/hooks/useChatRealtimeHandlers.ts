@@ -23,6 +23,9 @@ interface UseChatRealtimeHandlersArgs {
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
   setTokenBudget: (budget: Record<string, unknown> | null) => void;
+  setSessionState?: (
+    update: (previous: Record<string, unknown> | null) => Record<string, unknown>,
+  ) => void;
   pendingPermissionRequests: PendingPermissionRequest[];
   setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
   streamTimerRef: MutableRefObject<number | null>;
@@ -61,6 +64,7 @@ export function useChatRealtimeHandlers({
   selectedSession,
   currentSessionId,
   setTokenBudget,
+  setSessionState,
   pendingPermissionRequests,
   setPendingPermissionRequests,
   streamTimerRef,
@@ -311,6 +315,14 @@ export function useChatRealtimeHandlers({
         case 'status': {
           if (msg.text === 'token_budget' && msg.tokenBudget) {
             setTokenBudget(msg.tokenBudget as Record<string, unknown>);
+          } else if (msg.text === 'session_state' && msg.sessionState) {
+            // Model, reasoning level, cwd, and the context window the token
+            // count is a fraction of. Merged rather than replaced: a turn that
+            // could only read some fields must not blank the ones on screen.
+            setSessionState?.((previous) => ({
+              ...(previous ?? {}),
+              ...(msg.sessionState as Record<string, unknown>),
+            }));
           } else if (typeof msg.text === 'string' && sid) {
             // An empty string drops the phase label back to the default activity
             // wording; a provider phase (compacting, retrying) must not keep
@@ -337,6 +349,7 @@ export function useChatRealtimeHandlers({
     selectedSession,
     currentSessionId,
     setTokenBudget,
+    setSessionState,
     pendingPermissionRequests,
     setPendingPermissionRequests,
     streamTimerRef,

@@ -106,6 +106,8 @@ function ChatInterface({
     setIsUserScrolledUp,
     tokenBudget,
     setTokenBudget,
+    sessionState,
+    setSessionState,
     visibleMessageCount,
     visibleMessages,
     loadEarlierMessages,
@@ -239,6 +241,7 @@ function ChatInterface({
     selectedSession,
     currentSessionId,
     setTokenBudget,
+    setSessionState,
     pendingPermissionRequests,
     setPendingPermissionRequests,
     streamTimerRef,
@@ -321,6 +324,7 @@ function ChatInterface({
       isLoading={isProcessing}
       onAbortSession={handleAbortSession}
       tokenBudget={tokenBudget}
+      sessionState={sessionState}
       onShowTokenUsage={showCostModal}
       slashCommandsCount={slashCommandsCount}
       onToggleCommandMenu={handleToggleCommandMenu}

@@ -336,7 +336,12 @@ test('golden protocol order: session, stream, tool, ask, usage, terminal, respon
     session.emit({ type: 'message_end', message: { role: 'assistant', content: [{ text: 'done' }], usage: { input: 3, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 4 } } });
     session.complete();
     await run;
-    assert.deepEqual(methods(f.frames), ['session.created', 'message.delta', 'message.delta', 'tool.started', 'tool.completed', 'ask.presented', 'message.completed', 'usage.updated', 'turn.completed', 'worker.status']);
+    // Two `usage.updated` close the turn: the token budget, then the session
+    // snapshot (model, reasoning level, cwd, context window) the composer
+    // footer needs. Same method because they update at the same instant, but
+    // separate payloads — the budget comes off the message, the snapshot off
+    // the live session, which is the only place the context window exists.
+    assert.deepEqual(methods(f.frames), ['session.created', 'message.delta', 'message.delta', 'tool.started', 'tool.completed', 'ask.presented', 'message.completed', 'usage.updated', 'usage.updated', 'turn.completed', 'worker.status']);
     assert.equal(methods(f.frames).filter((method) => method === 'turn.completed').length, 1);
     assert.equal(response(f.frames, 'golden').payload instanceof Object, true);
   } finally { await f.close(); }

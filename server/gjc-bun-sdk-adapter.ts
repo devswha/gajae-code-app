@@ -15,6 +15,7 @@ import type { GjcWorkerOAuthRuntime, GjcWorkerRuntime, GjcWorkerWriter } from '.
 import { GjcBunAskController } from './gjc-bun-ask-controller.js';
 import { forwardPromptTerminal, forwardSdkEvent, type SdkRunState } from './gjc-bun-sdk-events.js';
 import { resolveContainedExportCommand } from './gjc-export-path.js';
+import { readSessionSnapshot } from './gjc-session-state.js';
 type Model = ReturnType<ModelRegistry['getAll']>[number];
 
 export type ExactCredentialRef =
@@ -327,7 +328,14 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         if (result.modelFallbackMessage) throw new Error(FAILURE);
         result.setToolUIContext(askController.uiContext, true);
         const state: SdkRunState = { abortRequested: false, abortPending: false, terminalEmitted: false, finalError: false };
-        const unsubscribe = result.session.subscribe((event: unknown) => forwardSdkEvent(event, writer, state));
+        // The adapter is the only place holding the live session, so the
+        // footer snapshot is read here and handed to the event mapper.
+        const unsubscribe = result.session.subscribe((event: unknown) => forwardSdkEvent(
+          event,
+          writer,
+          state,
+          () => readSessionSnapshot(result.session, sessionManager),
+        ));
         const activeRun: ActiveRun = { session: result.session, sessionManager, unsubscribe, askController, state, abortState: 'idle' };
         setActive(activeRun);
         this.#runs.set(runId, activeRun);

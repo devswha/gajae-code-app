@@ -42,6 +42,7 @@ const baseComposerProps = {
   isLoading: false,
   onAbortSession: () => undefined,
   tokenBudget: null,
+  sessionState: null,
   onShowTokenUsage: () => undefined,
   slashCommandsCount: 2,
   onToggleCommandMenu: () => undefined,

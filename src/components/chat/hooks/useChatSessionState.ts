@@ -117,6 +117,10 @@ export function useChatSessionState({
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
   const [tokenBudget, setTokenBudget] = useState<Record<string, unknown> | null>(null);
+  // Model, reasoning level, cwd and context window, read off the live session
+  // at each turn end. Cleared with the session, since every field describes the
+  // session being viewed.
+  const [sessionState, setSessionState] = useState<Record<string, unknown> | null>(null);
   const [visibleMessageCount, setVisibleMessageCount] = useState(INITIAL_VISIBLE_MESSAGES);
   const [allMessagesLoaded, setAllMessagesLoaded] = useState(false);
   const [isLoadingAllMessages, setIsLoadingAllMessages] = useState(false);
@@ -181,6 +185,8 @@ export function useChatSessionState({
     setTotalMessages(0);
     
     setTokenBudget(null);
+    
+    setSessionState(null);
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
     setAllMessagesLoaded(false);
     allMessagesLoadedRef.current = false;
@@ -505,6 +511,7 @@ export function useChatSessionState({
       setHasMoreMessages(false);
       setTotalMessages(0);
       setTokenBudget(null);
+      setSessionState(null);
       lastLoadedSessionKeyRef.current = null;
       return;
     }
@@ -555,6 +562,7 @@ export function useChatSessionState({
 
     if (sessionChanged) {
       setTokenBudget(null);
+      setSessionState(null);
     }
 
     setCurrentSessionId(selectedSessionId);
@@ -723,6 +731,7 @@ export function useChatSessionState({
   useEffect(() => {
     if (!selectedProject || !selectedSession?.id) {
       setTokenBudget(null);
+      setSessionState(null);
       return;
     }
     const fetchInitialTokenUsage = async () => {
@@ -734,6 +743,7 @@ export function useChatSessionState({
           setTokenBudget(await response.json());
         } else {
           setTokenBudget(null);
+          setSessionState(null);
         }
       } catch (error) {
         console.error('Failed to fetch initial token usage:', error);
@@ -903,6 +913,8 @@ export function useChatSessionState({
     setIsUserScrolledUp,
     tokenBudget,
     setTokenBudget,
+    sessionState,
+    setSessionState,
     visibleMessageCount,
     visibleMessages,
     loadEarlierMessages,

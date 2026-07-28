@@ -394,6 +394,10 @@ export class GjcWorkerHost {
     else if (message.kind === 'tool_result') method = 'tool.completed';
     else if (message.kind === 'permission_request' || message.kind === 'permission_cancelled') method = 'ask.presented';
     else if (message.kind === 'status' && message.text === 'token_budget') method = 'usage.updated';
+    // Session facts (model, reasoning level, cwd, context window) ride the same
+    // usage channel: they update at the same moment and the client handler
+    // already subscribes to it.
+    else if (message.kind === 'status' && message.text === 'session_state') method = 'usage.updated';
     else if (message.kind === 'complete') method = message.exitCode === 0 ? 'turn.completed' : 'turn.failed';
     this.#event(run, method, { message });
   }

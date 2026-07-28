@@ -86,8 +86,11 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
   }, [onDecision, request.requestId, input, buildAnswers]);
 
   const handleSkip = useCallback(() => {
-    onDecision(request.requestId, { allow: true, updatedInput: { ...input, answers: {} } });
-  }, [onDecision, request.requestId, input]);
+    // Declining has to be `allow: false`. An `allow: true` carrying no answer
+    // is rejected by the ask controller by design, which leaves the question
+    // open and the turn waiting on an answer that already came and went.
+    onDecision(request.requestId, { allow: false, message: 'User skipped the question' });
+  }, [onDecision, request.requestId]);
 
   // Keyboard handler for number keys and navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

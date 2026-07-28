@@ -13,7 +13,20 @@ import {
   ConfirmationAction,
 } from '../../../../shared/view/ui';
 
-registerPermissionPanel('AskUserQuestion', AskUserQuestionPanel);
+/**
+ * Both ask producers get the same panel.
+ *
+ * `gjc-sdk-bridge.ts` labels its requests `AskUserQuestion`, while the Protocol
+ * v1 worker path in `gjc-bun-ask-controller.ts` labels them `ask` — and only
+ * the first was registered, so a question from the worker fell through to the
+ * generic Allow/Deny confirmation below. That hid the question and its options
+ * behind "View tool input", and worse, its bare Allow carries no answer, which
+ * the controller rejects on purpose (`accepted: false`) and leaves the question
+ * open. The turn simply appeared to hang.
+ */
+for (const toolName of ['ask', 'AskUserQuestion']) {
+  registerPermissionPanel(toolName, AskUserQuestionPanel);
+}
 
 interface PermissionRequestsBannerProps {
   pendingPermissionRequests: PendingPermissionRequest[];

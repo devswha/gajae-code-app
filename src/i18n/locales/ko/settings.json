@@ -93,6 +93,13 @@
       "label": "다크 모드",
       "description": "라이트/다크 테마 전환"
     },
+    "interfaceFontSize": {
+      "label": "전체 글꼴 크기",
+      "description": "채팅, 세션 목록, 설정 등 전체 화면의 글꼴 크기",
+      "small": "작게",
+      "medium": "중간",
+      "large": "크게"
+    },
     "projectSorting": {
       "label": "프로젝트 정렬",
       "description": "사이드바에서 프로젝트 정렬 방식",

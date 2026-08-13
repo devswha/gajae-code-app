@@ -2,6 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Tailwind's standard text sizes use rem and follow the root interface size.
+   Scale the few fixed-pixel labels too so badges and metadata keep the same
+   visual ratio at every interface font-size setting. */
+.text-\[9px\] {
+  font-size: calc(9px * var(--interface-font-scale, 1));
+}
+
+.text-\[10px\] {
+  font-size: calc(10px * var(--interface-font-scale, 1));
+}
+
+.text-\[11px\] {
+  font-size: calc(11px * var(--interface-font-scale, 1));
+}
+
+.text-\[12px\] {
+  font-size: calc(12px * var(--interface-font-scale, 1));
+}
+
+.text-\[13px\] {
+  font-size: calc(13px * var(--interface-font-scale, 1));
+}
+
+.text-\[14px\] {
+  font-size: calc(14px * var(--interface-font-scale, 1));
+}
+
 /* Global spinner animation - defined early to ensure it loads */
 @keyframes spin {
   0% {

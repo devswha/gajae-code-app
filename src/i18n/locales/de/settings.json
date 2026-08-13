@@ -93,6 +93,13 @@
       "label": "Darkmode",
       "description": "Zwischen hellem und dunklem Design wechseln"
     },
+    "interfaceFontSize": {
+      "label": "Schriftgröße der Benutzeroberfläche",
+      "description": "Textgröße in Chats, Sitzungen, Einstellungen und der übrigen Oberfläche ändern",
+      "small": "Klein",
+      "medium": "Mittel",
+      "large": "Groß"
+    },
     "projectSorting": {
       "label": "Projektsortierung",
       "description": "Wie Projekte in der Seitenleiste angeordnet werden",

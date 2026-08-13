@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useUiPreferences } from '../../../../hooks/useUiPreferences';
 import { DarkModeToggle } from '../../../../shared/view/ui';
-import type { CodeEditorSettingsState, ProjectSortOrder } from '../../types/types';
+import type { CodeEditorSettingsState, InterfaceFontSize, ProjectSortOrder } from '../../types/types';
 import LanguageSelector from '../../../../shared/view/ui/LanguageSelector';
 import SettingsCard from '../SettingsCard';
 import SettingsRow from '../SettingsRow';
@@ -12,6 +12,8 @@ import SettingsToggle from '../SettingsToggle';
 type AppearanceSettingsTabProps = {
   projectSortOrder: ProjectSortOrder;
   onProjectSortOrderChange: (value: ProjectSortOrder) => void;
+  interfaceFontSize: InterfaceFontSize;
+  onInterfaceFontSizeChange: (value: InterfaceFontSize) => void;
   codeEditorSettings: CodeEditorSettingsState;
   onCodeEditorWordWrapChange: (value: boolean) => void;
   onCodeEditorShowMinimapChange: (value: boolean) => void;
@@ -22,6 +24,8 @@ type AppearanceSettingsTabProps = {
 export default function AppearanceSettingsTab({
   projectSortOrder,
   onProjectSortOrderChange,
+  interfaceFontSize,
+  onInterfaceFontSizeChange,
   codeEditorSettings,
   onCodeEditorWordWrapChange,
   onCodeEditorShowMinimapChange,
@@ -34,12 +38,27 @@ export default function AppearanceSettingsTab({
   return (
     <div className="space-y-8">
       <SettingsSection title={t('appearanceSettings.darkMode.label')}>
-        <SettingsCard>
+        <SettingsCard divided>
           <SettingsRow
             label={t('appearanceSettings.darkMode.label')}
             description={t('appearanceSettings.darkMode.description')}
           >
             <DarkModeToggle ariaLabel={t('appearanceSettings.darkMode.label')} />
+          </SettingsRow>
+
+          <SettingsRow
+            label={t('appearanceSettings.interfaceFontSize.label')}
+            description={t('appearanceSettings.interfaceFontSize.description')}
+          >
+            <select
+              value={interfaceFontSize}
+              onChange={(event) => onInterfaceFontSizeChange(event.target.value as InterfaceFontSize)}
+              className="w-full touch-manipulation rounded-lg border border-input bg-card p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary sm:w-28"
+            >
+              <option value="small">{t('appearanceSettings.interfaceFontSize.small')}</option>
+              <option value="medium">{t('appearanceSettings.interfaceFontSize.medium')}</option>
+              <option value="large">{t('appearanceSettings.interfaceFontSize.large')}</option>
+            </select>
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>

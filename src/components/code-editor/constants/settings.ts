@@ -9,7 +9,7 @@ export const CODE_EDITOR_DEFAULTS = {
   wordWrap: false,
   minimapEnabled: true,
   showLineNumbers: true,
-  fontSize: '12',
+  fontSize: '14',
 } as const;
 
 export const CODE_EDITOR_SETTINGS_CHANGED_EVENT = 'codeEditorSettingsChanged';

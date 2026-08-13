@@ -11,7 +11,7 @@ import { useCodeEditorSettings } from '../hooks/useCodeEditorSettings';
 import { useEditorKeyboardShortcuts } from '../hooks/useEditorKeyboardShortcuts';
 import type { CodeEditorFile } from '../types/types';
 import { createMinimapExtension, createScrollToFirstChunkExtension, getLanguageExtensions } from '../utils/editorExtensions';
-import { getEditorStyles } from '../utils/editorStyles';
+import { getEditorFontSizeTheme, getEditorStyles } from '../utils/editorStyles';
 import { createEditorToolbarPanelExtension } from '../utils/editorToolbarPanel';
 
 import CodeEditorFooter from './subcomponents/CodeEditorFooter';
@@ -142,10 +142,16 @@ export default function CodeEditor({
     [file, isExpanded, isSidebar, onPopOut, onToggleExpand, showDiff, t],
   );
 
+  const fontSizeExtension = useMemo(
+    () => EditorView.theme(getEditorFontSizeTheme(fontSize)),
+    [fontSize],
+  );
+
   const extensions = useMemo(() => {
     const allExtensions: Extension[] = [
       ...getLanguageExtensions(file.name),
       ...toolbarPanelExtension,
+      fontSizeExtension,
     ];
 
     if (file.diffInfo && showDiff && file.diffInfo.old_string !== undefined) {
@@ -170,6 +176,7 @@ export default function CodeEditor({
   }, [
     file.diffInfo,
     file.name,
+    fontSizeExtension,
     minimapExtension,
     scrollToFirstChunkExtension,
     showDiff,
@@ -292,7 +299,6 @@ export default function CodeEditor({
               markdownPreview={markdownPreview}
               isMarkdownFile={isMarkdownFile}
               isDarkMode={isDarkMode}
-              fontSize={fontSize}
               showLineNumbers={showLineNumbers}
               extensions={extensions}
             />

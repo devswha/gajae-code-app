@@ -10,7 +10,6 @@ type CodeEditorSurfaceProps = {
   markdownPreview: boolean;
   isMarkdownFile: boolean;
   isDarkMode: boolean;
-  fontSize: number;
   showLineNumbers: boolean;
   extensions: Extension[];
 };
@@ -21,7 +20,6 @@ export default function CodeEditorSurface({
   markdownPreview,
   isMarkdownFile,
   isDarkMode,
-  fontSize,
   showLineNumbers,
   extensions,
 }: CodeEditorSurfaceProps) {
@@ -42,10 +40,9 @@ export default function CodeEditorSurface({
       extensions={extensions}
       theme={isDarkMode ? oneDark : undefined}
       height="100%"
-      style={{
-        fontSize: `${fontSize}px`,
-        height: '100%',
-      }}
+      // Font size is injected as an EditorView.theme extension so it reaches
+      // .cm-content and .cm-gutters, not just this wrapper element.
+      style={{ height: '100%' }}
       basicSetup={{
         lineNumbers: showLineNumbers,
         foldGutter: true,

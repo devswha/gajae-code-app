@@ -52,6 +52,8 @@ function Settings({ isOpen, onClose, initialTab = 'appearance' }: SettingsProps)
     saveStatus,
     projectSortOrder,
     setProjectSortOrder,
+    interfaceFontSize,
+    setInterfaceFontSize,
     codeEditorSettings,
     updateCodeEditorSetting,
     notificationPreferences,
@@ -137,6 +139,8 @@ function Settings({ isOpen, onClose, initialTab = 'appearance' }: SettingsProps)
                 <AppearanceSettingsTab
                   projectSortOrder={projectSortOrder}
                   onProjectSortOrderChange={setProjectSortOrder}
+                  interfaceFontSize={interfaceFontSize}
+                  onInterfaceFontSizeChange={setInterfaceFontSize}
                   codeEditorSettings={codeEditorSettings}
                   onCodeEditorWordWrapChange={(value) => updateCodeEditorSetting('wordWrap', value)}
                   onCodeEditorShowMinimapChange={(value) => updateCodeEditorSetting('showMinimap', value)}

@@ -93,6 +93,13 @@
       "label": "Modalità scura",
       "description": "Alterna tra tema chiaro e scuro"
     },
+    "interfaceFontSize": {
+      "label": "Dimensione testo dell’interfaccia",
+      "description": "Modifica la dimensione del testo in chat, sessioni, impostazioni e nel resto dell’interfaccia",
+      "small": "Piccola",
+      "medium": "Media",
+      "large": "Grande"
+    },
     "projectSorting": {
       "label": "Ordinamento progetti",
       "description": "Come vengono ordinati i progetti nella barra laterale",

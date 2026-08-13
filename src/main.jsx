@@ -7,6 +7,11 @@ import App from './App.tsx'
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css'
 import './index.css'
 import 'katex/dist/katex.min.css'
+import { applyInterfaceFontSize, readInterfaceFontSize } from './utils/interfaceFontSize.ts'
+
+// Apply the persisted interface font size before first paint so the UI does
+// not flash at the default size.
+applyInterfaceFontSize(readInterfaceFontSize())
 
 const enableReactInspectionTools =
   import.meta.env.DEV && import.meta.env.VITE_DISABLE_REACT_DEVTOOLS !== '1'

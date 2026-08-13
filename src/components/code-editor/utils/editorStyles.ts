@@ -10,6 +10,12 @@ export const getEditorLoadingStyles = (isDarkMode: boolean) => {
   `;
 };
 
+export const getEditorFontSizeTheme = (fontSize: number) => ({
+  '&': { fontSize: `${fontSize}px` },
+  '.cm-content': { fontSize: 'inherit' },
+  '.cm-gutters': { fontSize: 'inherit' },
+});
+
 export const getEditorStyles = (isDarkMode: boolean) => {
   return `
     .cm-deletedChunk {

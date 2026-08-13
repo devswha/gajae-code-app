@@ -118,6 +118,13 @@
       "label": "Dark Mode",
       "description": "Toggle between light and dark themes"
     },
+    "interfaceFontSize": {
+      "label": "Interface font size",
+      "description": "Change text size across chats, sessions, settings, and the rest of the interface",
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large"
+    },
     "projectSorting": {
       "label": "Project Sorting",
       "description": "How projects are ordered in the sidebar",

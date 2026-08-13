@@ -94,6 +94,13 @@
       "label": "深色模式",
       "description": "切換淺色和深色佈景主題"
     },
+    "interfaceFontSize": {
+      "label": "介面字型大小",
+      "description": "調整聊天、工作階段、設定及其他介面中的文字大小",
+      "small": "小",
+      "medium": "中",
+      "large": "大"
+    },
     "projectSorting": {
       "label": "專案排序",
       "description": "專案在側邊欄中的排列方式",

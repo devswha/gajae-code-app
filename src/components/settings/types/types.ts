@@ -1,5 +1,9 @@
 import type { Dispatch, SetStateAction } from 'react';
 
+import type { InterfaceFontSize } from '../../../utils/interfaceFontSize';
+
+export type { InterfaceFontSize };
+
 export type SettingsMainTab = 'appearance' | 'git' | 'voice' | 'notifications' | 'about';
 export type ProjectSortOrder = 'name' | 'date';
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { BUILTIN_TOOLS } from '@gajae-code/coding-agent/tools';
+import { BUILTIN_TOOLS } from '@gajae-code/coding-agent/tools/descriptors';
 
 import { GJC_AGENT_TOOL_NAMES, GJC_AGENT_TOOLS_WITHHELD } from './gjc-agent-tools.js';
 

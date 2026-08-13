@@ -1176,8 +1176,8 @@ test('the pinned SDK ask tool still renders through the global theme instance', 
   );
   // Drift guard: if upstream stops dereferencing the process-global theme, this
   // fails and `ensureSdkThemeInitialized` can be dropped instead of lingering.
-  assert.match(askSource, /theme\.status\./u);
-  assert.match(askSource, /theme\.checkbox\./u);
+  assert.match(askSource, /theme\??\.status\??\./u);
+  assert.match(askSource, /theme\??\.checkbox\??\./u);
 });
 
 test('the SDK runtime bootstrap initializes the theme before any session can ask', async () => {

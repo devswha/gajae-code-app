@@ -39,6 +39,7 @@ function ChatInterface({
   onShowSettings,
   showRawParameters,
   showThinking,
+  showImagePreviews,
   sendByCtrlEnter,
   externalMessageUpdate,
   newSessionTrigger,
@@ -134,6 +135,7 @@ function ChatInterface({
     statusCheckSentAtRef,
     lastSeqRef,
     sessionStore,
+    showImagePreviews,
   });
 
   // Brand-new conversation: the composer allocated a stable session id via
@@ -435,6 +437,7 @@ function ChatInterface({
               onShowSettings={onShowSettings}
               showRawParameters={showRawParameters}
               showThinking={showThinking}
+              showImagePreviews={showImagePreviews}
               selectedProject={selectedProject}
             />
 

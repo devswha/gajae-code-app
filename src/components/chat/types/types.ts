@@ -36,6 +36,7 @@ export interface SubagentChildTool {
 }
 
 export interface ChatMessage {
+  sessionId?: string;
   type: string;
   content?: string;
   displayText?: string;
@@ -49,6 +50,8 @@ export interface ChatMessage {
   toolName?: string;
   toolInput?: unknown;
   toolResult?: ToolResult | null;
+  toolResultTruncated?: boolean;
+  toolResultBytes?: number;
   toolId?: string;
   toolCallId?: string;
   commandName?: string;
@@ -115,6 +118,7 @@ export interface ChatInterfaceProps {
   onShowSettings?: () => void;
   showRawParameters?: boolean;
   showThinking?: boolean;
+  showImagePreviews?: boolean;
   sendByCtrlEnter?: boolean;
   externalMessageUpdate?: number;
   newSessionTrigger?: number;

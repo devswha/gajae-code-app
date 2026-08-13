@@ -125,6 +125,10 @@
       "medium": "Medium",
       "large": "Large"
     },
+    "imagePreviews": {
+      "label": "Image previews",
+      "description": "Load and display image attachments in chat history"
+    },
     "projectSorting": {
       "label": "Project Sorting",
       "description": "How projects are ordered in the sidebar",

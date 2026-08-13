@@ -100,6 +100,10 @@
       "medium": "중간",
       "large": "크게"
     },
+    "imagePreviews": {
+      "label": "이미지 미리보기",
+      "description": "채팅 기록의 첨부 이미지를 불러와 표시"
+    },
     "projectSorting": {
       "label": "프로젝트 정렬",
       "description": "사이드바에서 프로젝트 정렬 방식",

@@ -60,6 +60,17 @@ export default function AppearanceSettingsTab({
               <option value="large">{t('appearanceSettings.interfaceFontSize.large')}</option>
             </select>
           </SettingsRow>
+
+          <SettingsRow
+            label={t('appearanceSettings.imagePreviews.label')}
+            description={t('appearanceSettings.imagePreviews.description')}
+          >
+            <SettingsToggle
+              checked={preferences.showImagePreviews}
+              onChange={(value) => setPreference('showImagePreviews', value)}
+              ariaLabel={t('appearanceSettings.imagePreviews.label')}
+            />
+          </SettingsRow>
         </SettingsCard>
       </SettingsSection>
 

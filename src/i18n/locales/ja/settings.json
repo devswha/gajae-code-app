@@ -100,6 +100,10 @@
       "medium": "中",
       "large": "大"
     },
+    "imagePreviews": {
+      "label": "画像プレビュー",
+      "description": "チャット履歴の添付画像を読み込んで表示します"
+    },
     "projectSorting": {
       "label": "プロジェクトの並び順",
       "description": "サイドバーでのプロジェクトの並び順を設定します",

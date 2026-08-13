@@ -177,6 +177,9 @@
       "showingLast": "Showing last {{count}} messages ({{total}} total)",
       "loadEarlier": "Load earlier messages",
       "loadAll": "Load all messages",
+      "loadFullToolOutput": "Load full output",
+      "loadingFullToolOutput": "Loading full output...",
+      "fullToolOutputFailed": "Could not load full output.",
       "loadingAll": "Loading all messages...",
       "allLoaded": "All messages loaded",
       "perfWarning": "All messages loaded — scrolling may be slower. Click \"Scroll to bottom\" to restore performance."

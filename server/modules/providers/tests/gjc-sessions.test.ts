@@ -7,6 +7,7 @@ import test from 'node:test';
 import { appConfigDb, closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import { GjcSessionSynchronizer } from '@/modules/providers/list/gjc/gjc-session-synchronizer.provider.js';
 import { GjcSessionsProvider } from '@/modules/providers/list/gjc/gjc-sessions.provider.js';
+import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 
 const patchHomeDir = (nextHomeDir: string) => {
   const original = os.homedir;
@@ -612,6 +613,87 @@ test('gjc synchronizer indexes transcripts from the live session directory', { c
 
       assert.equal(processed, 1);
       assert.equal(sessionsDb.getSessionById('gjc-live')?.project_path, workspacePath);
+    });
+  } finally {
+    restoreLiveSessionDir();
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('history transport truncates oversized gjc tool output and serves the full result on demand', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'gjc-session-transport-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreLiveSessionDir = patchLiveSessionDir(path.join(tempRoot, 'live-sessions'));
+
+  try {
+    const output = `시작-${'x'.repeat(90_000)}-끝`;
+    const sessionsDir = path.join(tempRoot, '.gjc', 'agent', 'sessions', '-workspace');
+    await mkdir(sessionsDir, { recursive: true });
+    const lines = [
+      JSON.stringify({
+        type: 'session',
+        version: 3,
+        id: 'gjc-transport',
+        timestamp: '2026-07-09T00:00:00.000Z',
+        cwd: workspacePath,
+      }),
+      JSON.stringify({
+        type: 'message',
+        id: 'msg-1',
+        parentId: null,
+        timestamp: '2026-07-09T00:00:01.000Z',
+        message: { role: 'user', content: [{ type: 'text', text: 'Run the big command' }] },
+      }),
+      JSON.stringify({
+        type: 'message',
+        id: 'msg-2',
+        parentId: 'msg-1',
+        timestamp: '2026-07-09T00:00:02.000Z',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'toolCall', toolName: 'Bash', toolInput: { command: 'make noise' }, toolCallId: 'call-large' },
+          ],
+        },
+      }),
+      JSON.stringify({
+        type: 'message',
+        id: 'msg-3',
+        parentId: 'msg-2',
+        timestamp: '2026-07-09T00:00:03.000Z',
+        message: {
+          role: 'toolResult',
+          toolCallId: 'call-large',
+          toolName: 'Bash',
+          content: [{ type: 'text', text: output }],
+          isError: false,
+        },
+      }),
+    ];
+    await writeFile(
+      path.join(sessionsDir, '2026-07-09T00-00-00_gjc-transport.jsonl'),
+      `${lines.join('\n')}\n`,
+      'utf8',
+    );
+
+    await withIsolatedDatabase(async () => {
+      await new GjcSessionSynchronizer().synchronize();
+
+      const history = await sessionsService.fetchHistory('gjc-transport', { includeImages: false });
+      const toolUse = history.messages.find((message) => message.kind === 'tool_use');
+
+      assert.equal(toolUse?.toolResultTruncated, true);
+      assert.equal(toolUse?.toolResultBytes, Buffer.byteLength(output));
+      assert.ok(String(toolUse?.toolResult?.content).length < output.length);
+      assert.equal(String(toolUse?.toolResult?.content).includes('\uFFFD'), false);
+      assert.equal(String(toolUse?.toolResult?.content).startsWith('시작-'), true);
+      assert.equal(String(toolUse?.toolResult?.content).endsWith('-끝'), true);
+
+      const full = await sessionsService.fetchToolResult('gjc-transport', 'call-large');
+      assert.equal(full.toolResult.content, output);
     });
   } finally {
     restoreLiveSessionDir();

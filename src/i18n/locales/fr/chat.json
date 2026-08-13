@@ -159,6 +159,9 @@
       "showingLast": "Affichage des {{count}} derniers messages ({{total}} au total)",
       "loadEarlier": "Charger les messages précédents",
       "loadAll": "Charger tous les messages",
+      "loadFullToolOutput": "Charger la sortie complète",
+      "loadingFullToolOutput": "Chargement de la sortie complète...",
+      "fullToolOutputFailed": "Impossible de charger la sortie complète.",
       "loadingAll": "Chargement de tous les messages...",
       "allLoaded": "Tous les messages chargés",
       "perfWarning": "Tous les messages chargés — le défilement peut être plus lent. Cliquez sur « Défiler vers le bas » pour rétablir les performances."

@@ -75,6 +75,8 @@ export interface NormalizedMessage {
   toolInput?: unknown;
   toolId?: string;
   toolResult?: { content: string; isError: boolean; toolUseResult?: unknown } | null;
+  toolResultTruncated?: boolean;
+  toolResultBytes?: number;
   isError?: boolean;
   /** Severity of a `system_notice` row. Mirrors the server contract. */
   level?: 'info' | 'warning' | 'error';
@@ -120,6 +122,8 @@ export interface SessionSlot {
   _pendingRequests: number;
   /** @internal Request currently allowed to settle `loading`. */
   _loadingTicket: number | null;
+  /** Whether subsequent pages/reconciles should request image attachment data. */
+  _includeImages: boolean;
   status: SessionStatus;
   fetchedAt: number;
   total: number;
@@ -166,6 +170,7 @@ function createEmptySlot(): SessionSlot {
     _fetchMoreTicket: null,
     _pendingRequests: 0,
     _loadingTicket: null,
+    _includeImages: true,
   };
 }
 
@@ -705,9 +710,13 @@ export function useSessionStore() {
     opts: {
       limit?: number | null;
       offset?: number;
+      includeImages?: boolean;
     } = {},
   ) => {
     const slot = beginRequest(sessionId);
+    if (typeof opts.includeImages === 'boolean') {
+      slot._includeImages = opts.includeImages;
+    }
     const fetchTicket = ++slot._fetchSeq;
     if (slot.status !== 'streaming') {
       slot._loadingTicket = fetchTicket;
@@ -721,6 +730,7 @@ export function useSessionStore() {
         params.append('limit', String(opts.limit));
         params.append('offset', String(opts.offset ?? 0));
       }
+      if (!slot._includeImages) params.set('includeImages', 'false');
 
       const qs = params.toString();
       const url = `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages${qs ? `?${qs}` : ''}`;
@@ -782,10 +792,14 @@ export function useSessionStore() {
     sessionId: string,
     opts: {
       limit?: number;
+      includeImages?: boolean;
     } = {},
   ) => {
     const store = storeRef.current;
     const slot = store.get(sessionId) ?? createEmptySlot();
+    if (typeof opts.includeImages === 'boolean') {
+      slot._includeImages = opts.includeImages;
+    }
     if (!slot.hasMore || slot._fetchMoreTicket !== null) {
       touchSlot(sessionId, slot);
       return slot;
@@ -803,6 +817,7 @@ export function useSessionStore() {
     const limit = opts.limit ?? 20;
     params.append('limit', String(limit));
     params.append('offset', String(expectedOffset));
+    if (!slot._includeImages) params.set('includeImages', 'false');
 
     const qs = params.toString();
     const url = `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages${qs ? `?${qs}` : ''}`;
@@ -901,8 +916,12 @@ export function useSessionStore() {
    */
   const refreshFromServer = useCallback(async (
     sessionId: string,
+    opts: { includeImages?: boolean } = {},
   ) => {
     const slot = beginRequest(sessionId);
+    if (typeof opts.includeImages === 'boolean') {
+      slot._includeImages = opts.includeImages;
+    }
     const fetchTicket = ++slot._fetchSeq;
     if (slot.status === 'loading') {
       slot._loadingTicket = fetchTicket;
@@ -912,7 +931,7 @@ export function useSessionStore() {
       // transcript is not re-pulled in full on every refresh (latest-N + scroll-up
       // lazy-load stays intact). total/hasMore below keep older messages reachable.
       const loadedCount = slot.serverMessages.length + slot.realtimeMessages.length;
-      const url = buildRefreshMessagesUrl(sessionId, loadedCount);
+      const url = buildRefreshMessagesUrl(sessionId, loadedCount, slot._includeImages);
       const response = await authenticatedFetch(url);
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);

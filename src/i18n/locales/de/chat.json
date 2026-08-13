@@ -157,6 +157,9 @@
       "showingLast": "Letzte {{count}} Nachrichten werden angezeigt ({{total}} gesamt)",
       "loadEarlier": "Frühere Nachrichten laden",
       "loadAll": "Alle Nachrichten laden",
+      "loadFullToolOutput": "Vollständige Ausgabe laden",
+      "loadingFullToolOutput": "Vollständige Ausgabe wird geladen...",
+      "fullToolOutputFailed": "Vollständige Ausgabe konnte nicht geladen werden.",
       "loadingAll": "Alle Nachrichten werden geladen...",
       "allLoaded": "Alle Nachrichten geladen",
       "perfWarning": "Alle Nachrichten geladen – Scrollen kann langsamer sein. Klick auf 'Nach unten scrollen', um die Leistung wiederherzustellen."

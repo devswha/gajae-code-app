@@ -101,6 +101,10 @@
       "medium": "中",
       "large": "大"
     },
+    "imagePreviews": {
+      "label": "圖片預覽",
+      "description": "載入並顯示聊天記錄中的圖片附件"
+    },
     "projectSorting": {
       "label": "專案排序",
       "description": "專案在側邊欄中的排列方式",

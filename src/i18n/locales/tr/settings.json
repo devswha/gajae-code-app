@@ -101,6 +101,10 @@
       "medium": "Orta",
       "large": "Büyük"
     },
+    "imagePreviews": {
+      "label": "Görsel önizlemeleri",
+      "description": "Sohbet geçmişindeki görsel eklerini yükle ve göster"
+    },
     "projectSorting": {
       "label": "Proje Sıralama",
       "description": "Projelerin kenar çubuğunda nasıl sıralanacağı",

@@ -157,6 +157,9 @@
       "showingLast": "Visualizzati ultimi {{count}} messaggi ({{total}} totali)",
       "loadEarlier": "Carica messaggi precedenti",
       "loadAll": "Carica tutti i messaggi",
+      "loadFullToolOutput": "Carica output completo",
+      "loadingFullToolOutput": "Caricamento dell'output completo...",
+      "fullToolOutputFailed": "Impossibile caricare l'output completo.",
       "loadingAll": "Caricamento di tutti i messaggi...",
       "allLoaded": "Tutti i messaggi caricati",
       "perfWarning": "Tutti i messaggi caricati — lo scorrimento potrebbe essere più lento. Clicca \"Scorri in basso\" per ripristinare le prestazioni."

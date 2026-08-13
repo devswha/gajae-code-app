@@ -81,6 +81,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
 
   for (const msg of messages) {
     const sharedMetadata = {
+      sessionId: msg.sessionId,
       displayText: msg.displayText,
       commandName: msg.commandName,
       commandMessage: msg.commandMessage,
@@ -176,6 +177,11 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
           toolInput: typeof msg.toolInput === 'string' ? msg.toolInput : JSON.stringify(msg.toolInput ?? '', null, 2),
           toolId: msg.toolId,
           toolResult,
+          toolResultTruncated: Boolean(
+            msg.toolResultTruncated || (tr as NormalizedMessage | null)?.toolResultTruncated,
+          ),
+          toolResultBytes:
+            msg.toolResultBytes ?? (tr as NormalizedMessage | null)?.toolResultBytes,
           isSubagentContainer,
           subagentState: isSubagentContainer
             ? {

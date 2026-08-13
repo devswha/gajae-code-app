@@ -101,6 +101,10 @@
       "medium": "中",
       "large": "大"
     },
+    "imagePreviews": {
+      "label": "图片预览",
+      "description": "加载并显示聊天记录中的图片附件"
+    },
     "projectSorting": {
       "label": "项目排序",
       "description": "项目在侧边栏中的排列方式",

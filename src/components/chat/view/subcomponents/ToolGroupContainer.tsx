@@ -24,6 +24,7 @@ interface ToolGroupContainerProps {
   onShowSettings?: () => void;
   showRawParameters?: boolean;
   showThinking?: boolean;
+  showImagePreviews?: boolean;
   selectedProject?: Project | null;
   provider: Provider | string;
 }
@@ -66,6 +67,7 @@ export default function ToolGroupContainer({
   onShowSettings,
   showRawParameters,
   showThinking,
+  showImagePreviews = true,
   selectedProject,
   provider,
 }: ToolGroupContainerProps) {
@@ -131,6 +133,7 @@ export default function ToolGroupContainer({
               onShowSettings={onShowSettings}
               showRawParameters={showRawParameters}
               showThinking={showThinking}
+              showImagePreviews={showImagePreviews}
               selectedProject={selectedProject}
               provider={provider}
             />

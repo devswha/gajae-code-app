@@ -100,6 +100,10 @@
       "medium": "Media",
       "large": "Grande"
     },
+    "imagePreviews": {
+      "label": "Anteprime immagini",
+      "description": "Carica e mostra le immagini allegate nella cronologia chat"
+    },
     "projectSorting": {
       "label": "Ordinamento progetti",
       "description": "Come vengono ordinati i progetti nella barra laterale",

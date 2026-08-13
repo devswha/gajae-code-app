@@ -47,6 +47,7 @@ interface ChatMessagesPaneProps {
   onShowSettings?: () => void;
   showRawParameters?: boolean;
   showThinking?: boolean;
+  showImagePreviews?: boolean;
   selectedProject: Project;
 }
 
@@ -78,6 +79,7 @@ function ChatMessagesPane({
   onShowSettings,
   showRawParameters,
   showThinking,
+  showImagePreviews = true,
   selectedProject,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
@@ -212,6 +214,7 @@ function ChatMessagesPane({
                     onShowSettings={onShowSettings}
                     showRawParameters={showRawParameters}
                     showThinking={showThinking}
+                    showImagePreviews={showImagePreviews}
                     selectedProject={selectedProject}
                     provider={displayProvider}
                   />
@@ -231,6 +234,7 @@ function ChatMessagesPane({
                   onShowSettings={onShowSettings}
                   showRawParameters={showRawParameters}
                   showThinking={showThinking}
+                  showImagePreviews={showImagePreviews}
                   selectedProject={selectedProject}
                   provider={displayProvider}
                 />

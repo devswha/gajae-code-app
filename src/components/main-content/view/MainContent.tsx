@@ -35,7 +35,7 @@ function MainContent({
   newSessionTrigger,
 }: MainContentProps) {
   const { preferences } = useUiPreferences();
-  const { showRawParameters, showThinking, sendByCtrlEnter } = preferences;
+  const { showRawParameters, showThinking, showImagePreviews, sendByCtrlEnter } = preferences;
 
   const [filesPanelOpen, setFilesPanelOpen] = useState(() => {
     try {
@@ -145,6 +145,7 @@ function MainContent({
                   onShowSettings={onShowSettings}
                   showRawParameters={showRawParameters}
                   showThinking={showThinking}
+                  showImagePreviews={showImagePreviews}
                   sendByCtrlEnter={sendByCtrlEnter}
                   externalMessageUpdate={externalMessageUpdate}
                   newSessionTrigger={newSessionTrigger}

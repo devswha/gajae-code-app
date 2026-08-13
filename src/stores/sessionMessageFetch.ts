@@ -23,9 +23,14 @@ export const REFRESH_RECONCILE_MIN_MESSAGES = 20;
  *                    this so it never shrinks the visible window nor pulls the whole
  *                    transcript.
  */
-export function buildRefreshMessagesUrl(sessionId: string, loadedCount: number): string {
+export function buildRefreshMessagesUrl(
+  sessionId: string,
+  loadedCount: number,
+  includeImages = true,
+): string {
   const safeLoaded = Number.isFinite(loadedCount) ? Math.max(0, Math.floor(loadedCount)) : 0;
   const reconcileLimit = Math.max(safeLoaded, REFRESH_RECONCILE_MIN_MESSAGES);
   const params = new URLSearchParams({ limit: String(reconcileLimit), offset: '0' });
+  if (!includeImages) params.set('includeImages', 'false');
   return `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages?${params.toString()}`;
 }

@@ -157,6 +157,9 @@
       "showingLast": "Son {{count}} mesaj gösteriliyor ({{total}} toplam)",
       "loadEarlier": "Önceki mesajları yükle",
       "loadAll": "Tüm mesajları yükle",
+      "loadFullToolOutput": "Tam çıktıyı yükle",
+      "loadingFullToolOutput": "Tam çıktı yükleniyor...",
+      "fullToolOutputFailed": "Tam çıktı yüklenemedi.",
       "loadingAll": "Tüm mesajlar yükleniyor...",
       "allLoaded": "Tüm mesajlar yüklendi",
       "perfWarning": "Tüm mesajlar yüklendi — kaydırma yavaşlayabilir. Performansı geri getirmek için \"En alta git\"e tıkla."

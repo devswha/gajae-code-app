@@ -58,10 +58,11 @@ test('resume root resolution selects either allowlisted store from indexed sessi
     await Promise.all([writeFile(paths.live, '{}\n'), writeFile(paths.saved, '{}\n')]);
     const lookup = async (sessionId: string) => paths[sessionId as keyof typeof paths];
 
-    // The resolver returns the canonical (realpath) root; macOS resolves the
-    // temp store under /var to /private/var, so normalize expectations too.
+    // The resolver returns the directory SessionManager must scan. macOS
+    // resolves the temp store under /var to /private/var, so normalize
+    // expectations too.
     assert.equal(await resolveGjcResumeSessionRoot('live', liveRoot, lookup), await realpath(liveRoot));
-    assert.equal(await resolveGjcResumeSessionRoot('saved', liveRoot, lookup), await realpath(savedRoot));
+    assert.equal(await resolveGjcResumeSessionRoot('saved', liveRoot, lookup), await realpath(savedDirectory));
   } finally {
     await Promise.all([
       rm(tempDirectory, { recursive: true, force: true }),

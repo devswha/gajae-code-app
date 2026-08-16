@@ -220,6 +220,7 @@ export async function resolveGjcResumeSessionRoot(
 ): Promise<string | undefined> {
   try {
     const sessionPath = await realpath(await lookup(sessionId) ?? '');
+    const sessionDirectory = dirname(sessionPath);
     const roots = [
       join(homedir(), '.gjc', 'agent', 'sessions'),
       liveSessionRoot,
@@ -227,7 +228,10 @@ export async function resolveGjcResumeSessionRoot(
     for (const root of roots) {
       try {
         const canonicalRoot = await realpath(root);
-        if (containedBy(canonicalRoot, sessionPath)) return canonicalRoot;
+        // SessionManager.list() scans only the supplied directory. Managed
+        // sessions live one level below the global sessions root, so returning
+        // that global root makes every historical resume look missing.
+        if (containedBy(canonicalRoot, sessionPath)) return sessionDirectory;
       } catch {
         // A missing or inaccessible allowlist root cannot contain a resumable session.
       }
@@ -270,6 +274,7 @@ export async function enrichGjcSdkRunOptions(options: GjcWorkerOptions): Promise
     credential: options.credential ?? { kind: 'stored' },
     modelId,
     ...(modelProfile ? { modelProfile } : {}),
+    effort: typeof options.effort === 'string' && options.effort ? options.effort : 'default',
     toolNames: options.toolNames ?? [...GJC_AGENT_TOOL_NAMES],
     spawns: options.spawns ?? '*',
     bashPolicy: options.bashPolicy ?? { allowedPrefixes: [] },

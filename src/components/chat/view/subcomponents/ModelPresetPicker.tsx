@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, ChevronRight, Loader2, Search } from 'lucide-react';
+import { Boxes, Check, ChevronDown, ChevronRight, Loader2, Search } from 'lucide-react';
 
 import { cn } from '../../../../lib/utils';
 import type { ProviderModelOption } from '../../../../types/app';
@@ -11,6 +11,8 @@ type ModelPresetPickerProps = {
   loading?: boolean;
   /** Monotonic signal (e.g. from the /model app command): each increment opens the popup. */
   openTrigger?: number;
+  /** Compact icon trigger for toolbar placement next to the skill picker. */
+  iconOnly?: boolean;
   onSelect: (value: string) => Promise<unknown> | unknown;
 };
 
@@ -23,6 +25,15 @@ const ROLE_LABELS = {
 } as const;
 
 const UNGROUPED = '__ungrouped__';
+
+/** Display order requested for preset groups; unlisted groups keep catalog order after these. */
+const GROUP_ORDER = ['CODEX', 'CLAUDE', 'KIMI CODING PLAN', 'GLM', 'GROK'];
+
+const groupRank = (group: string): number => {
+  if (group === UNGROUPED) return -1;
+  const index = GROUP_ORDER.indexOf(group);
+  return index === -1 ? GROUP_ORDER.length : index;
+};
 
 function compactModelLabel(selector: string): string {
   const withoutProvider = selector.includes('/') ? selector.slice(selector.indexOf('/') + 1) : selector;
@@ -65,10 +76,17 @@ function groupOptions(options: ProviderModelOption[]): Array<{ group: string; op
     }
   }
 
-  return groups;
+  // Stable sort: pinned "Current" first, then the requested group order,
+  // then remaining groups in catalog order.
+  return groups
+    .map((entry, index) => ({ entry, index }))
+    .sort((left, right) => (
+      groupRank(left.entry.group) - groupRank(right.entry.group) || left.index - right.index
+    ))
+    .map(({ entry }) => entry);
 }
 
-export default function ModelPresetPicker({ value, options, loading = false, openTrigger, onSelect }: ModelPresetPickerProps) {
+export default function ModelPresetPicker({ value, options, loading = false, openTrigger, iconOnly = false, onSelect }: ModelPresetPickerProps) {
   const [open, setOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [query, setQuery] = useState('');
@@ -165,18 +183,32 @@ export default function ModelPresetPicker({ value, options, loading = false, ope
 
   return (
     <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        disabled={loading || selecting || options.length === 0}
-        className="flex h-8 max-w-40 items-center gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
-        aria-label="모델 프리셋 선택"
-        aria-expanded={open}
-      >
-        {(loading || selecting) && <Loader2 className="size-3 animate-spin" />}
-        <span className="truncate">{selected?.label ?? 'Current'}</span>
-        <ChevronDown className={cn('size-3 transition-transform', open && 'rotate-180')} />
-      </button>
+      {iconOnly ? (
+        <button
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+          disabled={loading || selecting || options.length === 0}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+          aria-label="모델 프리셋 선택"
+          aria-expanded={open}
+          title={`모델 프리셋: ${selected?.label ?? 'Current'}`}
+        >
+          {(loading || selecting) ? <Loader2 className="size-4 animate-spin" /> : <Boxes className="size-4" />}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+          disabled={loading || selecting || options.length === 0}
+          className="flex h-8 max-w-40 items-center gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+          aria-label="모델 프리셋 선택"
+          aria-expanded={open}
+        >
+          {(loading || selecting) && <Loader2 className="size-3 animate-spin" />}
+          <span className="truncate">{selected?.label ?? 'Current'}</span>
+          <ChevronDown className={cn('size-3 transition-transform', open && 'rotate-180')} />
+        </button>
+      )}
 
       {open && createPortal(
         <div

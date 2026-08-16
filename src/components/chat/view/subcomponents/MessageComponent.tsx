@@ -84,7 +84,9 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     () => formatUsageLimitText(String(message.content || '')),
     [message.content]
   );
-  const assistantCopyContent = message.isToolUse
+  const assistantCopyContent = message.isLocalCommandStdout
+    ? String(message.content || '')
+    : message.isToolUse
     ? String(message.displayText || message.content || '')
     : formattedMessageContent;
   const isCommandOrFileEditToolResponse = Boolean(
@@ -439,6 +441,14 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 )}
 
                 {(() => {
+                  if (message.isLocalCommandStdout) {
+                    return (
+                      <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-sm">
+                        <code>{String(message.content || '')}</code>
+                      </pre>
+                    );
+                  }
+
                   const content = formattedMessageContent;
 
                   // Detect if content is pure JSON (starts with { or [)

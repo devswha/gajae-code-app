@@ -81,9 +81,14 @@ function runBunTests(label, files) {
     process.exit(1);
   }
   console.log(`\n[test] ${label}: ${files.length} files (bun ${bun.version})`);
-  const result = spawnSync(bun.path, ['test', ...files], { cwd: process.cwd(), stdio: 'inherit' });
-  if (result.error) throw result.error;
-  if (result.status !== 0) process.exit(result.status ?? 1);
+  // Bun 1.3.14 cannot safely execute multiple files that register `node:test`
+  // suites in one process (oven-sh/bun#5090). Isolate each contract file while
+  // preserving one aggregate test phase for CI.
+  for (const file of files) {
+    const result = spawnSync(bun.path, ['test', file], { cwd: process.cwd(), stdio: 'inherit' });
+    if (result.error) throw result.error;
+    if (result.status !== 0) process.exit(result.status ?? 1);
+  }
 }
 
 const [serverTestsAll, clientTests] = await Promise.all([

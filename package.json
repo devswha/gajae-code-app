@@ -52,7 +52,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p server/tsconfig.json",
     "check:identity": "node scripts/check-identity.mjs",
-    "audit": "npm audit --audit-level=high",
+    "audit": "node scripts/audit-policy.mjs",
     "audit:react": "npx react-doctor@latest",
     "check:core": "cargo fmt --manifest-path native/gajae-core/Cargo.toml -- --check && cargo clippy --locked --manifest-path native/gajae-core/Cargo.toml --all-targets -- -D warnings && cargo test --locked --manifest-path native/gajae-core/Cargo.toml",
     "fill:runtime-manifest": "node scripts/fill-runtime-manifest.mjs",
@@ -146,6 +146,11 @@
   "engines": {
     "node": ">=22.22.2 <23 || >=24.15.0 <25"
   },
+  "overrides": {
+    "release-it": {
+      "undici": "7.29.0"
+    }
+  },
   "dependencies": {
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-html": "^6.4.9",
@@ -155,7 +160,7 @@
     "@codemirror/lang-python": "^6.2.1",
     "@codemirror/merge": "^6.11.1",
     "@codemirror/theme-one-dark": "^6.1.2",
-    "@gajae-code/coding-agent": "^0.13.1",
+    "@gajae-code/coding-agent": "0.13.1",
     "@octokit/rest": "^22.0.0",
     "@replit/codemirror-minimap": "^0.5.2",
     "@tailwindcss/typography": "^0.5.16",

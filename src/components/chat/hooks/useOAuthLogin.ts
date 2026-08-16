@@ -327,9 +327,11 @@ export function useOAuthLogin() {
 
   const applyAttempt = useCallback((nextAttempt: OAuthAttempt) => {
     if (!isOpenRef.current) {
-      if (!terminalPhases.has(nextAttempt.phase)) {
-        sendMessageRef.current({ type: 'oauth.cancel', attemptId: nextAttempt.attemptId });
-      }
+      // oauth.phase events are broadcast to every connected client. A tab whose
+      // dialog is closed must simply ignore them: cancelling here would kill
+      // attempts owned by another tab or device the moment they start. The
+      // owning tab already cancels its own attempt on dialog close and unmount,
+      // and the server times abandoned attempts out.
       return;
     }
 
@@ -418,7 +420,11 @@ export function useOAuthLogin() {
 
   useEffect(() => {
     const authorizationUrl = attempt?.authorizationUrl;
-    if (!isOpen || !authorizationUrl || attempt?.phase !== 'awaiting_browser' || openedAuthorizationRef.current === authorizationUrl) {
+    // Callback-server flows race the localhost listener against manual paste,
+    // so the phase can land on awaiting_input before this effect runs; the
+    // browser must still open in that case.
+    const phaseWantsBrowser = attempt?.phase === 'awaiting_browser' || attempt?.phase === 'awaiting_input';
+    if (!isOpen || !authorizationUrl || !phaseWantsBrowser || openedAuthorizationRef.current === authorizationUrl) {
       return;
     }
     openedAuthorizationRef.current = authorizationUrl;

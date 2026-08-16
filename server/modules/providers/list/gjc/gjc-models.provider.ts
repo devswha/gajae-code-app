@@ -84,6 +84,28 @@ function parseProfiles(source: string): Array<{ name: string; label: string; rol
   return profiles.filter((profile) => Object.keys(profile.roles).length > 0);
 }
 
+/**
+ * `config.yml` roles may reference a profile name (e.g. `modelProfile:
+ * default: fable-opus-codex`) instead of a `provider/model` selector. Expand
+ * such references through the profile map so the "Current" option surfaces
+ * real model ids; keep direct selectors as explicit overrides and drop values
+ * that are neither.
+ */
+function resolveConfiguredRoles(
+  configured: RoleMap,
+  profiles: Map<string, { roles: RoleMap }>,
+): RoleMap {
+  const resolved: RoleMap = {};
+  const referenced = configured.default && !configured.default.includes('/')
+    ? profiles.get(configured.default)
+    : undefined;
+  if (referenced) Object.assign(resolved, referenced.roles);
+  for (const [role, value] of Object.entries(configured)) {
+    if (value.includes('/')) resolved[role as ProfileRole] = value;
+  }
+  return resolved;
+}
+
 async function getGjcPresetCatalog(homeDir: string): Promise<ProviderModelsDefinition> {
   const agentDir = path.join(homeDir, '.gjc', 'agent');
   const [configSource, modelsSource] = await Promise.all([
@@ -114,7 +136,7 @@ async function getGjcPresetCatalog(homeDir: string): Promise<ProviderModelsDefin
         value: 'default',
         label: 'Current',
         description: 'Use the current GJC role configuration',
-        roles: configuredRoles,
+        roles: resolveConfiguredRoles(configuredRoles, profiles),
       },
       ...[...profiles.values()].map((profile) => ({
         value: `profile:${profile.name}`,

@@ -99,6 +99,7 @@ function OAuthLoginDialog({
   const isBusy = isStarting || Boolean(attempt && !isTerminal && attempt.phase !== 'awaiting_browser' && attempt.phase !== 'awaiting_input');
   const authorizationUrl = safeOAuthAuthorizationUrl(attempt?.authorizationUrl);
   const passwordInput = attempt?.password === true || attempt?.valueKind === 'password';
+  const manualCodeInput = attempt?.valueKind === 'manual_code';
   const showAuthorizationLink = shouldDisplayOAuthAuthorizationLink(attempt);
   const showProviderPicker = !attempt || (isTerminal && attempt.phase !== 'completed');
 
@@ -254,7 +255,11 @@ function OAuthLoginDialog({
                 {attempt.instruction || phaseLabel(attempt.phase)}
               </div>
               <label htmlFor="oauth-login-value" className="text-sm font-medium text-foreground">
-                {passwordInput ? 'Password or secret value' : 'Authorization code or sign-in value'}
+                {passwordInput
+                  ? 'Password or secret value'
+                  : manualCodeInput
+                    ? 'Authorization code or full callback URL'
+                    : 'Authorization code or sign-in value'}
               </label>
               <Input
                 id="oauth-login-value"
@@ -266,7 +271,11 @@ function OAuthLoginDialog({
                   setValue(event.target.value);
                 }}
                 aria-label={passwordInput ? 'Password or secret value' : 'Authorization code or sign-in value'}
-                placeholder={passwordInput ? 'Enter value' : 'Paste the authorization code'}
+                placeholder={passwordInput
+                  ? 'Enter value'
+                  : manualCodeInput
+                    ? 'Paste the code or the localhost callback URL from your browser'
+                    : 'Paste the authorization code'}
               />
               <Button type="submit" className="w-full" disabled={!value.trim()}>
                 <KeyRound className="mr-2 h-4 w-4" aria-hidden />

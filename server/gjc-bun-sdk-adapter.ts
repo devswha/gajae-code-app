@@ -28,6 +28,7 @@ export type SdkRunConfig = {
   credential: ExactCredentialRef;
   modelId: string;
   modelProfile?: string;
+  effort?: 'default' | 'inherit' | 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
   toolNames: string[];
   spawns: string;
   bashPolicy: AppBashPolicy;
@@ -84,6 +85,9 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
     || !exactCredentialRef(candidate.credential)
     || typeof candidate.modelId !== 'string' || !candidate.modelId
     || (candidate.modelProfile !== undefined && (typeof candidate.modelProfile !== 'string' || !candidate.modelProfile))
+    || (candidate.effort !== undefined && ![
+      'default', 'inherit', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max',
+    ].includes(String(candidate.effort)))
     || !Array.isArray(candidate.toolNames) || candidate.toolNames.some((name) => typeof name !== 'string' || !name)
     || typeof candidate.spawns !== 'string'
     || !object(candidate.bashPolicy) || !Array.isArray(candidate.bashPolicy.allowedPrefixes)
@@ -305,6 +309,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           authStorage: this.authStorage,
           modelRegistry: this.modelRegistry,
           model,
+          ...(
+            config.effort && config.effort !== 'default' && config.effort !== 'inherit'
+              ? { thinkingLevel: config.effort }
+              : {}
+          ),
           providerSessionId: resumedId ?? sessionManager.getSessionId(),
           ...(resolvedCredential.credentialSelector
             ? { credentialSelector: resolvedCredential.credentialSelector }

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowDownIcon } from 'lucide-react';
 
@@ -18,6 +18,11 @@ import OAuthLoginDialog from '../OAuthLoginDialog';
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
 import CommandResultModal from './subcomponents/CommandResultModal';
+import type { ReasoningEffort } from './subcomponents/ReasoningEffortPicker';
+
+const REASONING_EFFORTS = new Set<ReasoningEffort>([
+  'default', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max',
+]);
 
 export function isHistoricalNonGjcReadOnlySession(selectedSession: ProjectSession | null): boolean {
   const provider = selectedSession?.provider ?? selectedSession?.__provider;
@@ -82,6 +87,8 @@ function ChatInterface({
     selectedProject,
   });
   const oauthLogin = useOAuthLogin();
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>('default');
+  const reasoningSessionRef = useRef<string | null>(selectedSession?.id ?? null);
 
   useEffect(() => {
     if (oauthLogin.attempt?.phase === 'completed') {
@@ -152,7 +159,7 @@ function ChatInterface({
     textareaRef,
     inputHighlightRef,
     isTextareaExpanded,
-    slashCommandsCount,
+    skillCommands,
     filteredCommands,
     frequentCommands,
     commandQuery,
@@ -160,7 +167,6 @@ function ChatInterface({
     selectedCommandIndex,
     resetCommandMenuState,
     handleCommandSelect,
-    handleToggleCommandMenu,
     showFileDropdown,
     filteredFiles,
     selectedFileIndex,
@@ -189,7 +195,6 @@ function ChatInterface({
     handleTextareaClick,
     handleTextareaInput,
     syncInputOverlayScroll,
-    handleClearInput,
     handleAbortSession,
     handlePermissionDecision,
     handleInputFocusChange,
@@ -202,6 +207,7 @@ function ChatInterface({
     selectedSession,
     currentSessionId,
     gjcModel,
+    reasoningEffort,
     isLoading: isProcessing,
     canAbortSession,
     tokenBudget,
@@ -218,6 +224,25 @@ function ChatInterface({
     setIsUserScrolledUp,
     setPendingPermissionRequests,
   });
+
+  useEffect(() => {
+    const previousSessionId = reasoningSessionRef.current;
+    const nextSessionId = selectedSession?.id ?? null;
+    // A brand-new chat transitions from no selected row to its freshly
+    // allocated session id after the first send. Preserve the effort chosen
+    // in the landing composer across that handoff.
+    if (previousSessionId && previousSessionId !== nextSessionId) {
+      setReasoningEffort('default');
+    }
+    reasoningSessionRef.current = nextSessionId;
+  }, [selectedSession?.id]);
+
+  useEffect(() => {
+    const reported = sessionState?.thinkingLevel;
+    if (typeof reported === 'string' && REASONING_EFFORTS.has(reported as ReasoningEffort)) {
+      setReasoningEffort(reported as ReasoningEffort);
+    }
+  }, [sessionState?.thinkingLevel]);
 
   // On WebSocket reconnect, re-fetch the current session's messages from the
   // server so missed streaming events are shown, then re-subscribe — the
@@ -328,10 +353,6 @@ function ChatInterface({
       tokenBudget={tokenBudget}
       sessionState={sessionState}
       onShowTokenUsage={showCostModal}
-      slashCommandsCount={slashCommandsCount}
-      onToggleCommandMenu={handleToggleCommandMenu}
-      hasInput={Boolean(input.trim())}
-      onClearInput={handleClearInput}
       onSubmit={handleSubmit}
       isDragActive={isDragActive}
       queuedDraft={queuedDraft}
@@ -353,6 +374,7 @@ function ChatInterface({
       selectedFileIndex={selectedFileIndex}
       onSelectFile={selectFile}
       filteredCommands={filteredCommands}
+      skillCommands={skillCommands}
       selectedCommandIndex={selectedCommandIndex}
       onCommandSelect={handleCommandSelect}
       onCloseCommandMenu={resetCommandMenuState}
@@ -386,6 +408,8 @@ function ChatInterface({
         model,
         currentSessionId || selectedSession?.id || null,
       )}
+      reasoningEffort={reasoningEffort}
+      onSelectReasoningEffort={setReasoningEffort}
     />
   );
 

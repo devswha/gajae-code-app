@@ -44,10 +44,6 @@ const baseComposerProps = {
   tokenBudget: null,
   sessionState: null,
   onShowTokenUsage: () => undefined,
-  slashCommandsCount: 2,
-  onToggleCommandMenu: () => undefined,
-  hasInput: true,
-  onClearInput: () => undefined,
   onSubmit: () => undefined,
   isDragActive: false,
   queuedDraft: null as QueuedDraft | null,
@@ -65,6 +61,12 @@ const baseComposerProps = {
   selectedFileIndex: 0,
   onSelectFile: () => undefined,
   filteredCommands: [],
+  skillCommands: [{
+    name: '/skill:ralplan',
+    description: 'Plan with consensus',
+    type: 'skill',
+    metadata: { skillName: 'ralplan' },
+  }],
   selectedCommandIndex: 0,
   onCommandSelect: () => undefined,
   onCloseCommandMenu: () => undefined,
@@ -86,6 +88,10 @@ const baseComposerProps = {
   placeholder: 'Message Gajae Code',
   isTextareaExpanded: false,
   sendByCtrlEnter: false,
+  modelPreset: 'current',
+  modelPresetOptions: [{ value: 'current', label: 'Current' }],
+  reasoningEffort: 'high' as const,
+  onSelectReasoningEffort: () => undefined,
 };
 
 test('normal chat submit sends one chat message and never creates a GJC job', async () => {
@@ -189,6 +195,10 @@ test('chat composer renders normal tools without background Job controls', () =>
   assert.doesNotMatch(html, /Background job/i);
   assert.doesNotMatch(html, /Delegate background job/i);
   assert.doesNotMatch(html, /Back to chat/i);
-  assert.match(html, /lucide-image/);
-  assert.match(html, /lucide-message-square/);
+  assert.match(html, /lucide-plus/);
+  assert.match(html, /모델 프리셋 선택/);
+  assert.match(html, /Reasoning effort 선택/);
+  assert.match(html, /스킬 선택/);
+  assert.doesNotMatch(html, /lucide-image/);
+  assert.doesNotMatch(html, /lucide-x/);
 });

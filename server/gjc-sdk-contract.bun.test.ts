@@ -883,6 +883,20 @@ test('resume opens the sole exact session file and never re-emits session.create
     assert.equal(methods(f.frames).includes('session.created'), false);
   } finally { await f.close(); }
 });
+test('session effort is passed to the SDK as the turn thinking level', async () => {
+  const f = await fixture();
+  try {
+    const run = f.host.handle(request('session.start', 'reasoning-effort', {
+      message: 'reason',
+      options: { ...f.options, effort: 'high' },
+    }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    session.complete();
+    await run;
+    assert.equal(f.factoryOptions[0]!.thinkingLevel, 'high');
+  } finally { await f.close(); }
+});
 test('sequential runs clone global settings for each cwd while retaining the session root', async () => {
   const f = await fixture();
   const firstCwd = await mkdtemp(join(tmpdir(), 'gjc-cwd-one-'));

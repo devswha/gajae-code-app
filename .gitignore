@@ -172,3 +172,5 @@ tasks/
 gajae-app-source.tar.gz
 gajae-app-sidebar.html
 electron/*.tar.gz
+# Marketing website build output
+/website/dist/

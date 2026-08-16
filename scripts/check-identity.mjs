@@ -22,6 +22,7 @@ const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024;
 const MAX_REPORTED_ERRORS = 100;
 const GENERATED_DIRECTORIES = ['dist', 'dist-server', 'release'];
+const SKIPPED_RELATIVE_DIRECTORIES = new Set(['website/dist']);
 const SKIPPED_DIRECTORIES = new Set([
   '.codegraph',
   '.desktop-build',
@@ -256,6 +257,9 @@ async function walkDirectory(directoryPath, category) {
       }
 
       if (category === 'source' && GENERATED_DIRECTORIES.includes(entry.name)) {
+        continue;
+      }
+      if (SKIPPED_RELATIVE_DIRECTORIES.has(relativePath)) {
         continue;
       }
 

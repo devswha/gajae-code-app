@@ -71,6 +71,86 @@ async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promis
   }
 }
 
+test('chat.send prefers the session\'s persisted model choice over the client\'s global default', async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('model-override-session', 'gjc', '/workspace/model-project');
+    let receivedOptions: Record<string, unknown> | undefined;
+    let resolverArgs: unknown[] = [];
+
+    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+    try {
+      await once(server, 'listening');
+      server.on('connection', (socket, request) => {
+        handleChatConnection(
+          socket,
+          Object.assign(request, { user: { id: 'test-user' } }),
+          {
+            spawnFns: {
+              gjc: (_command, options, writer) => {
+                receivedOptions = options;
+                (writer as { sendComplete(options: { exitCode: number }): void }).sendComplete({ exitCode: 0 });
+                return Promise.resolve();
+              },
+            },
+            abortFns: { gjc: async () => false },
+            resolveToolApproval() {},
+            getPendingApprovalsForSession: () => [],
+            resolveSessionModel: async (...args: unknown[]) => {
+              resolverArgs = args;
+              return 'anthropic/claude-opus-5';
+            },
+          },
+        );
+      });
+
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Expected the websocket test server to bind a TCP port.');
+      }
+
+      const client = new WebSocket(`ws://127.0.0.1:${address.port}`);
+      try {
+        await once(client, 'open');
+        const completed = new Promise<void>((resolve, reject) => {
+          client.on('message', (raw) => {
+            try {
+              if (parseOutboundFrame(String(raw)).kind === 'complete') resolve();
+            } catch (error) {
+              reject(error);
+            }
+          });
+        });
+
+        client.send(JSON.stringify({
+          type: 'chat.send',
+          sessionId: 'model-override-session',
+          content: 'use my session model',
+          options: { model: 'default' },
+        }));
+        await completed;
+
+        assert.deepEqual(resolverArgs, ['gjc', 'model-override-session', 'default']);
+        assert.equal(receivedOptions?.model, 'anthropic/claude-opus-5');
+      } finally {
+        client.terminate();
+      }
+    } finally {
+      for (const client of server.clients) {
+        client.terminate();
+      }
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
+  });
+});
+
 test('chat.send dispatches a non-Git GJC session directly in its persisted project directory', async () => {
   await withIsolatedDatabase(async () => {
     sessionsDb.createAppSession('non-git-session', 'gjc', '/workspace/non-git-project');

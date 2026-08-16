@@ -47,6 +47,7 @@ interface UseChatComposerStateArgs {
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
   gjcModel: string;
+  reasoningEffort?: string;
   isLoading: boolean;
   canAbortSession: boolean;
   tokenBudget: Record<string, unknown> | null;
@@ -197,6 +198,7 @@ export function useChatComposerState({
   selectedSession,
   currentSessionId,
   gjcModel,
+  reasoningEffort = 'default',
   isLoading,
   canAbortSession,
   tokenBudget,
@@ -668,13 +670,13 @@ export function useChatComposerState({
     const toolsSettings = getToolsSettings();
     return {
       model: gjcModel,
-      effort: 'default',
+      effort: reasoningEffort,
       permissionMode: 'default',
       toolsSettings,
       skipPermissions: toolsSettings?.skipPermissions || false,
       sessionSummary: getNotificationSessionSummary(selectedSession, currentInput),
     };
-  }, [gjcModel, selectedSession]);
+  }, [gjcModel, reasoningEffort, selectedSession]);
 
   const handleSubmit = useCallback(
     async (
@@ -1267,6 +1269,7 @@ export function useChatComposerState({
     inputHighlightRef,
     isTextareaExpanded,
     slashCommandsCount,
+    skillCommands: slashCommands.filter((command) => command.type === 'skill'),
     filteredCommands,
     frequentCommands,
     commandQuery,

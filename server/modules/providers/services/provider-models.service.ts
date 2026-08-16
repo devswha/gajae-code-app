@@ -19,7 +19,7 @@ export const PROVIDER_MODELS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 // Bumped whenever the built-in preset catalog changes or the option shape gains
 // a field, so an SDK upgrade or a new field is not hidden behind an existing
 // cache entry for the rest of its 3-day TTL.
-const PROVIDER_MODELS_CACHE_VERSION = 6;
+const PROVIDER_MODELS_CACHE_VERSION = 7;
 
 type ProviderModelsServiceDependencies = {
   resolveProvider?: (provider: LLMProvider) => Pick<IProvider, 'models'>;

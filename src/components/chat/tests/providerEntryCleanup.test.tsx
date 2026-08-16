@@ -118,7 +118,10 @@ test('provider state and composer remain GJC-only at the static boundary', () =>
   }
   assert.doesNotMatch(source, /\/api\/providers\/(?:\$\{[^}]+\}|[^/'"`]+)\/capabilities/i);
   assert.doesNotMatch(source, /\b(?:providerEfforts?|providerEffortTable|PROVIDER_EFFORTS?|ProviderEffort(?:Table)?)\b/);
-  assert.doesNotMatch(source, /^import .*['"][^'"]*effort[^'"]*['"]/im);
+  // Bounded to one line: an unanchored [^'"]* spans newlines, which turned any
+  // later use of the word "effort" (e.g. the reasoningEffort passthrough) into
+  // a false positive. The guard's target is effort-table module imports only.
+  assert.doesNotMatch(source, /^import[^\n]*['"][^'"\n]*effort[^'"\n]*['"]/im);
   assert.doesNotMatch(
     source,
     /\b(?:providerModels|modelCatalog|modelsByProvider)\s*\[[^\]]+\]\s*\?\?/,

@@ -131,9 +131,29 @@ type ChatWebSocketDependencies = {
   ) => void;
   /** Provider-runtime approvals included in `chat_subscribed` after reconnect. */
   getPendingApprovalsForSession: (providerSessionId: string) => unknown[];
+  /**
+   * Per-session model resolution (injectable for tests). The default consults
+   * the persisted active-model change store so a model picked for a session
+   * survives page reloads and session switches instead of depending on the
+   * client's global localStorage value.
+   */
+  resolveSessionModel?: (
+    provider: LLMProvider,
+    sessionId: string,
+    requestedModel?: string | null,
+  ) => Promise<string | undefined>;
   gjcProjection?: GjcJobProjectionService;
   oauthSupervisor?: OAuthSupervisor;
 };
+
+async function defaultResolveSessionModel(
+  provider: LLMProvider,
+  sessionId: string,
+  requestedModel?: string | null,
+): Promise<string | undefined> {
+  const { providerModelsService } = await import('@/modules/providers/index.js');
+  return providerModelsService.resolveResumeModel(provider, sessionId, requestedModel);
+}
 
 /**
  * Extracts the authenticated request user id in the formats currently produced
@@ -257,12 +277,28 @@ async function handleChatSend(
 
   const clientOptions = (data.options ?? {}) as AnyRecord;
 
+  // The session's persisted model choice outranks the client's global default:
+  // the active-model POST stores per-session picks under the app session id,
+  // and this is the only place runs are dispatched.
+  const requestedModel = typeof clientOptions.model === 'string' ? clientOptions.model : null;
+  let resolvedModel: string | undefined;
+  try {
+    resolvedModel = await (dependencies.resolveSessionModel ?? defaultResolveSessionModel)(
+      provider,
+      sessionId,
+      requestedModel,
+    );
+  } catch {
+    resolvedModel = requestedModel ?? undefined;
+  }
+
   // The provider runtimes receive the provider-native session id (that is the
   // id their CLI/SDK understands for resume). Brand-new sessions have no
   // provider id yet, so the runtime starts fresh and announces one, which the
   // gateway writer captures and maps back to the app session id.
   const runtimeOptions: AnyRecord = {
     ...clientOptions,
+    ...(resolvedModel ? { model: resolvedModel } : {}),
     // Image attachments are re-validated server-side: only files inside the
     // global upload store may reach the provider runtimes' file reads.
     images: filterImagesToUploadStore(clientOptions.images),

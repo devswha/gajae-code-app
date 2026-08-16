@@ -34,6 +34,55 @@ test('GJC model catalog merges built-in and custom profiles with custom override
   assert.equal(catalog.OPTIONS.filter((option) => option.value === 'profile:codex-medium').length, 1);
 });
 
+test('a profile-name reference in config.yml resolves Current to real model selectors', async (t) => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-config-ref-'));
+  t.after(() => rm(homeDir, { recursive: true, force: true }));
+  const agentDir = path.join(homeDir, '.gjc', 'agent');
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'models.yml'), `profiles:
+  personal:
+    display_name: Personal
+    model_mapping:
+      default: custom/daily-driver
+      planner: custom/planner
+`, 'utf8');
+  await writeFile(path.join(agentDir, 'config.yml'), `modelProfile:
+  default: personal
+configSchemaVersion: 1
+`, 'utf8');
+
+  const catalog = await new GjcProviderModels(homeDir).getSupportedModels();
+  const current = catalog.OPTIONS.find((option) => option.value === 'default');
+
+  // The profile name itself must never surface as a "model".
+  assert.equal(current?.roles?.default, 'custom/daily-driver');
+  assert.equal(current?.roles?.planner, 'custom/planner');
+});
+
+test('a direct selector in config.yml overrides the referenced profile role', async (t) => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-config-mix-'));
+  t.after(() => rm(homeDir, { recursive: true, force: true }));
+  const agentDir = path.join(homeDir, '.gjc', 'agent');
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'models.yml'), `profiles:
+  personal:
+    display_name: Personal
+    model_mapping:
+      default: custom/daily-driver
+      critic: custom/critic
+`, 'utf8');
+  await writeFile(path.join(agentDir, 'config.yml'), `modelProfile:
+  default: personal
+  critic: custom/override-critic
+`, 'utf8');
+
+  const catalog = await new GjcProviderModels(homeDir).getSupportedModels();
+  const current = catalog.OPTIONS.find((option) => option.value === 'default');
+
+  assert.equal(current?.roles?.default, 'custom/daily-driver');
+  assert.equal(current?.roles?.critic, 'custom/override-critic');
+});
+
 test('every catalog option carries a group so clients can collapse the preset list', async (t) => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-groups-'));
   t.after(() => rm(homeDir, { recursive: true, force: true }));

@@ -11,7 +11,7 @@ import type {
   TouchEvent,
 } from 'react';
 import type { DropzoneInputProps, DropzoneRootProps } from 'react-dropzone';
-import { ImageIcon, MessageSquareIcon, XIcon, Loader2, ArrowUpIcon } from 'lucide-react';
+import { PlusIcon, Loader2, ArrowUpIcon } from 'lucide-react';
 
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../../hooks/useVoiceAvailable';
@@ -38,8 +38,11 @@ import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
 import QueuedMessageCard from './QueuedMessageCard';
 import CommandGateCard from './CommandGateCard';
-import SessionStatusSummary from './SessionStatusSummary';
 import ModelPresetPicker from './ModelPresetPicker';
+import SessionModelPicker from './SessionModelPicker';
+import ContextUsageBadge from './ContextUsageBadge';
+import ReasoningEffortPicker, { type ReasoningEffort } from './ReasoningEffortPicker';
+import SkillPicker from './SkillPicker';
 
 interface MentionableFile {
   name: string;
@@ -68,10 +71,6 @@ interface ChatComposerProps {
   tokenBudget: Record<string, unknown> | null;
   sessionState: Record<string, unknown> | null;
   onShowTokenUsage: () => void;
-  slashCommandsCount: number;
-  onToggleCommandMenu: () => void;
-  hasInput: boolean;
-  onClearInput: () => void;
   onSubmit: (
     event: FormEvent<HTMLFormElement>
       | MouseEvent<HTMLButtonElement>
@@ -94,6 +93,7 @@ interface ChatComposerProps {
   selectedFileIndex: number;
   onSelectFile: (file: MentionableFile) => void;
   filteredCommands: SlashCommand[];
+  skillCommands: SlashCommand[];
   selectedCommandIndex: number;
   onCommandSelect: (command: SlashCommand, index: number, isHover: boolean) => void;
   onCloseCommandMenu: () => void;
@@ -124,6 +124,8 @@ interface ChatComposerProps {
   /** Monotonic signal: each increment opens the model preset popup. */
   modelPickerOpenTrigger?: number;
   onSelectModelPreset?: (value: string) => Promise<unknown> | unknown;
+  reasoningEffort?: ReasoningEffort;
+  onSelectReasoningEffort?: (value: ReasoningEffort) => void;
 }
 
 export default function ChatComposer({
@@ -135,10 +137,6 @@ export default function ChatComposer({
   tokenBudget,
   sessionState,
   onShowTokenUsage,
-  slashCommandsCount,
-  onToggleCommandMenu,
-  hasInput,
-  onClearInput,
   onSubmit,
   isDragActive,
   queuedDraft,
@@ -156,6 +154,7 @@ export default function ChatComposer({
   selectedFileIndex,
   onSelectFile,
   filteredCommands,
+  skillCommands,
   selectedCommandIndex,
   onCommandSelect,
   onCloseCommandMenu,
@@ -185,6 +184,8 @@ export default function ChatComposer({
   modelPresetsLoading,
   modelPickerOpenTrigger,
   onSelectModelPreset = () => {},
+  reasoningEffort = 'default',
+  onSelectReasoningEffort = () => {},
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const commandMenuPosition = useMemo(() => {
@@ -397,42 +398,47 @@ export default function ChatComposer({
               tooltip={{ content: t('input.attachImages') }}
               onClick={openImagePicker}
             >
-              <ImageIcon />
+              <PlusIcon />
             </PromptInputButton>
 
             {onVoiceTranscript && voiceAvailable && (
               <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />
             )}
 
+            {modelPresetOptions.length > 0 && (
+              <SessionModelPicker
+                value={modelPreset}
+                currentModel={typeof sessionState?.modelId === 'string' && sessionState.modelId.trim() ? sessionState.modelId : undefined}
+                presetOptions={modelPresetOptions}
+                loading={modelPresetsLoading}
+                onSelect={onSelectModelPreset}
+              />
+            )}
+
+            <ReasoningEffortPicker
+              value={reasoningEffort}
+              onSelect={onSelectReasoningEffort}
+            />
+
+            {modelPresetOptions.length > 0 && (
+              <ModelPresetPicker
+                value={modelPreset}
+                options={modelPresetOptions}
+                loading={modelPresetsLoading}
+                openTrigger={modelPickerOpenTrigger}
+                iconOnly
+                onSelect={onSelectModelPreset}
+              />
+            )}
+
+            <SkillPicker
+              skills={skillCommands}
+              onSelect={(skill, index) => onCommandSelect(skill, index, false)}
+            />
+
+            <ContextUsageBadge sessionState={sessionState} />
 
             <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} />
-
-            <SessionStatusSummary sessionState={sessionState} />
-
-            <PromptInputButton
-              tooltip={{ content: t('input.showAllCommands') }}
-              onClick={onToggleCommandMenu}
-              className="relative"
-            >
-              <MessageSquareIcon />
-              {slashCommandsCount > 0 && (
-                <span
-                  className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
-                >
-                  {slashCommandsCount}
-                </span>
-              )}
-            </PromptInputButton>
-
-            {hasInput && (
-              <PromptInputButton
-                tooltip={{ content: t('input.clearInput', { defaultValue: 'Clear input' }) }}
-                onClick={onClearInput}
-                className="hidden sm:flex"
-              >
-                <XIcon />
-              </PromptInputButton>
-            )}
 
           </PromptInputTools>
 
@@ -445,15 +451,6 @@ export default function ChatComposer({
               >
                 {submitHint}
               </div>
-            )}
-            {modelPresetOptions.length > 0 && (
-              <ModelPresetPicker
-                value={modelPreset}
-                options={modelPresetOptions}
-                loading={modelPresetsLoading}
-                openTrigger={modelPickerOpenTrigger}
-                onSelect={onSelectModelPreset}
-              />
             )}
             <PromptInputSubmit
               onClick={

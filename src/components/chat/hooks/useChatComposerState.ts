@@ -287,14 +287,6 @@ export function useChatComposerState({
           });
           break;
 
-        case 'cost': {
-          setCommandModalPayload({
-            kind: 'cost',
-            data: (data || {}) as CostCommandData,
-          });
-          break;
-        }
-
         case 'status': {
           setCommandModalPayload({
             kind: 'status',
@@ -461,17 +453,37 @@ export function useChatComposerState({
   }, [onLogin, selectedProject]);
 
   const showCostModal = useCallback(() => {
-    executeCommand(
-      {
-        name: '/cost',
-        description: 'Display token usage information',
-        namespace: 'builtin',
-        metadata: { type: 'builtin' },
-      } as SlashCommand,
-      '/cost',
-      { preserveInput: true },
-    );
-  }, [executeCommand]);
+    const breakdown =
+      tokenBudget?.breakdown && typeof tokenBudget.breakdown === 'object'
+        ? tokenBudget.breakdown as Record<string, unknown>
+        : null;
+    const input = Number(tokenBudget?.inputTokens ?? breakdown?.input);
+    const output = Number(tokenBudget?.outputTokens ?? breakdown?.output);
+    const used = Number(tokenBudget?.used);
+    const total = Number(tokenBudget?.total);
+
+    setCommandModalPayload({
+      kind: 'cost',
+      data: {
+        tokenUsage: {
+          used: Number.isFinite(used)
+            ? used
+            : (Number.isFinite(input) ? input : 0) + (Number.isFinite(output) ? output : 0),
+          total: Number.isFinite(total) ? total : 0,
+        },
+        ...(Number.isFinite(input) || Number.isFinite(output)
+          ? {
+              tokenBreakdown: {
+                input: Number.isFinite(input) ? input : 0,
+                output: Number.isFinite(output) ? output : 0,
+              },
+            }
+          : {}),
+        provider: typeof tokenBudget?.provider === 'string' ? tokenBudget.provider : 'gjc',
+        model: typeof tokenBudget?.model === 'string' ? tokenBudget.model : gjcModel,
+      },
+    });
+  }, [gjcModel, tokenBudget]);
 
   // App-level slash commands (/resume, /sessions, /new, /settings) run local
   // UI actions instead of reaching the provider. Falls back to no-ops when no
@@ -495,9 +507,10 @@ export function useChatComposerState({
         openModelPicker: () => {
           setModelPickerTrigger((previous) => previous + 1);
         },
+        openCostModal: showCostModal,
       });
     },
-    [onShowSettings, paletteOps],
+    [onShowSettings, paletteOps, showCostModal],
   );
   const handleAppCommand = useCallback(
     (command: SlashCommand) => {

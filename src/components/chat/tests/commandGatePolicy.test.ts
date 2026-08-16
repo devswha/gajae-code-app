@@ -90,7 +90,6 @@ test('reads run without asking, in every form', () => {
   for (const form of [
     '/dump',
     '/jobs',
-    '/transcript',
     '/context',
     '/usage',
     '/tools',

@@ -68,6 +68,7 @@ test('runAppUiCommand dispatches each action id to its action', () => {
     startNewChat: () => { calls.push('start-new-chat'); },
     openSettings: () => { calls.push('open-settings'); },
     openModelPicker: () => { calls.push('open-model-picker'); },
+    openCostModal: () => { calls.push('open-cost-modal'); },
   };
 
   for (const command of APP_UI_COMMANDS) {
@@ -117,6 +118,30 @@ test('typed /resume is intercepted as an app command and never sent to the model
   composer.handleVoiceTranscript('/resume');
   await composer.handleSubmit(submitEvent);
 
+  assert.deepEqual(sentMessages, []);
+  assert.deepEqual(addedMessages, []);
+});
+
+test('typed /cost is an app command and does not call legacy REST execution', async () => {
+  const sentMessages: unknown[] = [];
+  const addedMessages: unknown[] = [];
+  const composer = captureComposer(sentMessages, addedMessages);
+  const originalFetch = globalThis.fetch;
+  let fetchCalls = 0;
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    throw new Error('app command must not fetch');
+  };
+
+  try {
+    composer.handleVoiceTranscript('/cost');
+    await composer.handleSubmit(submitEvent);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(findAppUiCommand('/cost')?.actionId, 'open-cost-modal');
+  assert.equal(fetchCalls, 0);
   assert.deepEqual(sentMessages, []);
   assert.deepEqual(addedMessages, []);
 });
@@ -210,6 +235,22 @@ test('/move is declined locally and names the app affordance', async () => {
     const notice = (addedMessages[0] as { content: string }).content;
     assert.match(notice, /not available in the app/);
     assert.match(notice, /switch projects from the sidebar/);
+  }
+});
+
+test('/init and /transcript are declined locally without exposing upstream session data', async () => {
+  for (const form of ['/init', '/init extra', '/transcript', '/transcript extra']) {
+    const sentMessages: unknown[] = [];
+    const addedMessages: unknown[] = [];
+    const composer = captureComposer(sentMessages, addedMessages);
+
+    composer.handleVoiceTranscript(form);
+    await composer.handleSubmit(submitEvent);
+
+    assert.deepEqual(sentMessages, [], `${form} must not be sent`);
+    assert.equal(addedMessages.length, 1);
+    const notice = (addedMessages[0] as { content: string }).content;
+    assert.match(notice, /not available in the app/);
   }
 });
 
@@ -313,7 +354,7 @@ test('/notify on and off are answered locally, other verbs still dispatch', asyn
  */
 test('isAppUsableCommand hides exactly what the composer answers locally', () => {
   // Advertised: everything the app really runs.
-  for (const name of ['/model', '/export', '/clear', '/memory', '/init', '/resume', '/settings']) {
+  for (const name of ['/model', '/export', '/clear', '/memory', '/resume', '/settings', '/cost']) {
     assert.equal(isAppUsableCommand(name), true, `${name} should stay in the menu`);
   }
 
@@ -322,7 +363,7 @@ test('isAppUsableCommand hides exactly what the composer answers locally', () =>
   for (const name of Object.keys(TUI_ONLY_COMMAND_HINTS)) {
     assert.equal(isAppUsableCommand(name), false, `${name} should be hidden`);
   }
-  for (const name of ['/move', '/skill:team', '/bg', '/quit']) {
+  for (const name of ['/init', '/move', '/transcript', '/skill:team', '/bg', '/quit']) {
     assert.equal(isAppUsableCommand(name), false, `${name} should be hidden`);
   }
 });

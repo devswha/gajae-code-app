@@ -13,7 +13,7 @@ import { GjcBunOAuthController, type GjcBunOAuthControllerOptions } from './gjc-
 import { GJC_APP_BUILTIN_COMMAND_NAMES } from './modules/providers/gjc-command-surface.generated.js';
 import type { GjcWorkerOAuthRuntime, GjcWorkerRuntime, GjcWorkerWriter } from './gjc-worker.js';
 import { GjcBunAskController } from './gjc-bun-ask-controller.js';
-import { forwardPromptTerminal, forwardSdkEvent, type SdkRunState } from './gjc-bun-sdk-events.js';
+import { forwardPromptTerminal, forwardSdkEvent, normalizeBuiltinCommandStdout, type SdkRunState } from './gjc-bun-sdk-events.js';
 import { resolveContainedExportCommand } from './gjc-export-path.js';
 import { readSessionSnapshot } from './gjc-session-state.js';
 type Model = ReturnType<ModelRegistry['getAll']>[number];
@@ -344,9 +344,24 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         const commandMatch = /^\/([^\s]+)(?:\s+(.*))?$/.exec(message.trim());
         const commandName = commandMatch?.[1];
         if (commandName && GJC_APP_BUILTIN_COMMAND_NAMES.has(commandName)) {
+          const requestedExportPath = commandName === 'export' ? commandMatch?.[2]?.trim() : '';
           const output = (text: string) => {
-            writer.send({ kind: 'stream_delta', content: text });
-            writer.send({ kind: 'stream_end' });
+            const content = normalizeBuiltinCommandStdout(text);
+            // The upstream exporter can corrupt a nested relative path in its
+            // own error text. The original command is the only authoritative
+            // source, so report that rather than trying to reconstruct it.
+            const corruptedExportPath = commandName === 'export'
+              && requestedExportPath
+              && content.includes('\uFFFD');
+            const safeContent = corruptedExportPath
+              ? `Failed to export "${requestedExportPath}"${content.includes('ENOENT') ? ': ENOENT' : ''}: the upstream export command returned a corrupted path.`
+              : content;
+            writer.send({
+              kind: 'text',
+              role: 'assistant',
+              content: safeContent,
+              isLocalCommandStdout: true,
+            });
           };
           // `/export` writes through a relative path resolved against the
           // worker's process cwd, and one worker serves every session. Rebind

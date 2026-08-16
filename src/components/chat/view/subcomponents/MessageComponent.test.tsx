@@ -55,3 +55,18 @@ test('truncated tool history offers an explicit full-output load action', () => 
   assert.match(html, /Load full output/);
   assert.match(html, /2048 KB/);
 });
+
+
+test('local command stdout renders as escaped preformatted text instead of Markdown math', () => {
+  const html = renderMessage({
+    type: 'assistant',
+    content: '$CacheHitRate: 0.5\n中🙂 `code` <tag>',
+    timestamp: '2026-08-13T00:00:00.000Z',
+    isLocalCommandStdout: true,
+  });
+
+  assert.match(html, /<pre[^>]*><code>/);
+  assert.match(html, /\$CacheHitRate: 0\.5/);
+  assert.match(html, /中🙂 `code` &lt;tag&gt;/);
+  assert.doesNotMatch(html, /class="katex|<em>|<strong>/);
+});

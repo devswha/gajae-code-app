@@ -1,6 +1,6 @@
 # Local Studio UI/UX adoption plan
 
-Status: Phases 1-3 shipped (feaa33e, d64af56, 3377739); phases 4-6 approved for this session
+Status: Phases 1-3 shipped (feaa33e, d64af56, 3377739); phase 5 started with the queue (91f4821); phases 4-6 approved for this session
 Saved: 2026-08-15
 
 ## Objective
@@ -65,7 +65,14 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
    - Session menu: pin, fork, export, reasoning visibility
    - Clickable composer status strip for cwd, branch summary, reasoning, and context
    - Clear current-activity bar above the composer
-   - Multiple queued follow-up messages with edit, delete, and reorder
+   - Multiple queued follow-up messages with edit, delete, and reorder — DONE (91f4821)
+     - Storage, composer and app-level auto-send all carry a list; the strip
+       renders send order with per-message reorder, edit and delete.
+     - Only the head dispatches, and only once the previous one became a run.
+       A dispatch that never becomes a run releases the gate after a bounded
+       window instead of stranding the queue.
+     - A flush never runs while the composer holds text, so editing a queued
+       message cannot be overwritten by the one behind it.
 
 6. Later evaluation
    - Split-pane multi-session workspace

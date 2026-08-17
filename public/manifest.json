@@ -4,7 +4,7 @@
   "description": "Gajae Code App — self-hosted AI coding workspace",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1b0f0a",
+  "background_color": "#04112b",
   "theme_color": "#f04e23",
   "orientation": "portrait-primary",
   "scope": "/",

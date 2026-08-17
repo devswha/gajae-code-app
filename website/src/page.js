@@ -42,7 +42,7 @@ export function renderLandingPage() {
       <div class="hero-inner">
         <header class="site-header">
           <a class="brand" href="#top">
-            <img class="brand-mark" src="/icon.svg" alt="" width="24" height="24" />
+            <img class="brand-mark" src="/icon-96.png" alt="" width="24" height="24" />
             <span>Gajae</span>
           </a>
           <nav class="nav" aria-label="Primary">

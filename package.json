@@ -57,6 +57,8 @@
     "check:core": "cargo fmt --manifest-path native/gajae-core/Cargo.toml -- --check && cargo clippy --locked --manifest-path native/gajae-core/Cargo.toml --all-targets -- -D warnings && cargo test --locked --manifest-path native/gajae-core/Cargo.toml",
     "fill:runtime-manifest": "node scripts/fill-runtime-manifest.mjs",
     "generate:command-surface": "node scripts/generate-command-surface.mjs",
+    "icon:generate": "node scripts/generate-app-icon.mjs --write",
+    "icon:preview": "node scripts/generate-app-icon.mjs --preview",
     "test": "node scripts/run-tests.mjs",
     "smoke:packaged-server": "node scripts/release/smoke-packaged-server.mjs",
     "pretest": "npm run build:core:dev",

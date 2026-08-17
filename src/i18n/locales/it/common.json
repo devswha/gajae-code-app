@@ -272,12 +272,44 @@
     "collapse": "Comprimi pannello area di lavoro",
     "resize": "Trascina per ridimensionare il pannello area di lavoro",
     "tabs": {
+      "status": "Stato",
       "files": "File",
       "editor": "Editor"
     },
     "editorEmpty": {
       "title": "Nessun file aperto",
       "description": "Apri un file da File o da un messaggio della chat per modificarlo qui."
+    },
+    "statusTab": {
+      "session": "Sessione",
+      "model": "Modello",
+      "reasoning": "Ragionamento",
+      "context": "Contesto",
+      "contextWindow": "Finestra di contesto",
+      "tokens": "Token",
+      "tokensUsed": "Usati",
+      "tokensInput": "Input",
+      "tokensOutput": "Output",
+      "tokensCache": "Cache",
+      "activity": "Attività",
+      "running": "In esecuzione",
+      "idle": "Inattiva",
+      "queuedMessage": "Un messaggio in coda",
+      "location": "Posizione",
+      "project": "Progetto",
+      "directory": "Directory",
+      "git": "Git",
+      "branch": "Branch",
+      "changes": "Modifiche",
+      "staged": "In stage",
+      "untracked": "Non tracciati",
+      "clean": "Nessuna modifica locale",
+      "notARepository": "Non è un repository Git",
+      "gitUnavailable": "Stato Git non disponibile",
+      "refreshGit": "Aggiorna lo stato Git",
+      "unreported": "Non ancora riportato",
+      "empty": "Nessuna sessione aperta",
+      "emptyHint": "Apri o avvia una sessione per vedere cosa sta eseguendo."
     }
   }
 }

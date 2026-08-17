@@ -272,12 +272,44 @@
     "collapse": "Collapse workspace panel",
     "resize": "Drag to resize the workspace panel",
     "tabs": {
+      "status": "Status",
       "files": "Files",
       "editor": "Editor"
     },
     "editorEmpty": {
       "title": "No file open",
       "description": "Open a file from Files, or from a chat message, to edit it here."
+    },
+    "statusTab": {
+      "session": "Session",
+      "model": "Model",
+      "reasoning": "Reasoning",
+      "context": "Context",
+      "contextWindow": "Context window",
+      "tokens": "Tokens",
+      "tokensUsed": "Used",
+      "tokensInput": "Input",
+      "tokensOutput": "Output",
+      "tokensCache": "Cache",
+      "activity": "Activity",
+      "running": "Running",
+      "idle": "Idle",
+      "queuedMessage": "One message queued",
+      "location": "Location",
+      "project": "Project",
+      "directory": "Directory",
+      "git": "Git",
+      "branch": "Branch",
+      "changes": "Changes",
+      "staged": "Staged",
+      "untracked": "Untracked",
+      "clean": "No local changes",
+      "notARepository": "Not a Git repository",
+      "gitUnavailable": "Git status unavailable",
+      "refreshGit": "Refresh Git status",
+      "unreported": "Not reported yet",
+      "empty": "No session open",
+      "emptyHint": "Open or start a session to see what it is running."
     }
   }
 }

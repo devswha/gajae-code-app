@@ -272,12 +272,44 @@
     "collapse": "워크스페이스 패널 축소",
     "resize": "드래그하여 워크스페이스 패널 크기 조절",
     "tabs": {
+      "status": "상태",
       "files": "파일",
       "editor": "에디터"
     },
     "editorEmpty": {
       "title": "열린 파일 없음",
       "description": "파일 탭이나 채팅 메시지에서 파일을 열어 여기에서 편집하세요."
+    },
+    "statusTab": {
+      "session": "세션",
+      "model": "모델",
+      "reasoning": "추론 강도",
+      "context": "컨텍스트",
+      "contextWindow": "컨텍스트 윈도우",
+      "tokens": "토큰",
+      "tokensUsed": "사용",
+      "tokensInput": "입력",
+      "tokensOutput": "출력",
+      "tokensCache": "캐시",
+      "activity": "활동",
+      "running": "실행 중",
+      "idle": "대기 중",
+      "queuedMessage": "대기 중인 메시지 1개",
+      "location": "위치",
+      "project": "프로젝트",
+      "directory": "디렉터리",
+      "git": "Git",
+      "branch": "브랜치",
+      "changes": "변경",
+      "staged": "스테이지됨",
+      "untracked": "추적 안 됨",
+      "clean": "로컬 변경 없음",
+      "notARepository": "Git 저장소가 아님",
+      "gitUnavailable": "Git 상태를 읽을 수 없음",
+      "refreshGit": "Git 상태 새로고침",
+      "unreported": "아직 보고되지 않음",
+      "empty": "열린 세션 없음",
+      "emptyHint": "세션을 열거나 시작하면 무엇을 실행 중인지 여기에 표시됩니다."
     }
   }
 }

@@ -8,7 +8,7 @@
  * panel component only has to render what these functions return.
  */
 
-export const WORKSPACE_TABS = ['files', 'editor'] as const;
+export const WORKSPACE_TABS = ['status', 'files', 'editor'] as const;
 
 export type WorkspaceTab = (typeof WORKSPACE_TABS)[number];
 
@@ -37,7 +37,9 @@ const ABSOLUTE_MAX_WORKSPACE_PANEL_WIDTH = 1600;
 
 export const DEFAULT_WORKSPACE_PANEL_STATE: WorkspacePanelState = {
   open: false,
-  tab: 'files',
+  // Status answers "what is this session doing" without any further clicks,
+  // which is what a panel opened out of curiosity is usually being asked.
+  tab: 'status',
   width: DEFAULT_WORKSPACE_PANEL_WIDTH,
 };
 

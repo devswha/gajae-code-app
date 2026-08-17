@@ -272,12 +272,44 @@
     "collapse": "收合工作區面板",
     "resize": "拖曳以調整工作區面板大小",
     "tabs": {
+      "status": "狀態",
       "files": "檔案",
       "editor": "編輯器"
     },
     "editorEmpty": {
       "title": "沒有開啟的檔案",
       "description": "從檔案或聊天訊息中開啟檔案，在此編輯。"
+    },
+    "statusTab": {
+      "session": "工作階段",
+      "model": "模型",
+      "reasoning": "推理強度",
+      "context": "上下文",
+      "contextWindow": "上下文視窗",
+      "tokens": "權杖",
+      "tokensUsed": "已使用",
+      "tokensInput": "輸入",
+      "tokensOutput": "輸出",
+      "tokensCache": "快取",
+      "activity": "活動",
+      "running": "執行中",
+      "idle": "閒置",
+      "queuedMessage": "有 1 則訊息排隊中",
+      "location": "位置",
+      "project": "專案",
+      "directory": "目錄",
+      "git": "Git",
+      "branch": "分支",
+      "changes": "變更",
+      "staged": "已暫存",
+      "untracked": "未追蹤",
+      "clean": "沒有本機變更",
+      "notARepository": "不是 Git 儲存庫",
+      "gitUnavailable": "無法取得 Git 狀態",
+      "refreshGit": "重新整理 Git 狀態",
+      "unreported": "尚未回報",
+      "empty": "沒有開啟的工作階段",
+      "emptyHint": "開啟或開始一個工作階段，即可在此查看它正在執行什麼。"
     }
   }
 }

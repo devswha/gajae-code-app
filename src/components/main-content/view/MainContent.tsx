@@ -3,6 +3,7 @@ import React, { lazy, Suspense, useCallback, useEffect } from 'react';
 import type { MainContentProps } from '../types/types';
 import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
 import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
+import { SessionStatusProvider } from '../../../contexts/SessionStatusContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useFileOpenResolver } from '../../../hooks/useFileOpenResolver';
 import { useEditorFile } from '../../code-editor/hooks/useEditorFile';
@@ -107,6 +108,7 @@ function MainContent({
         onToggleWorkspace={workspace.togglePanel}
       />
 
+      <SessionStatusProvider>
       <div ref={workspace.containerRef} className="flex min-h-0 flex-1 overflow-hidden">
         <div className={`flex min-h-0 min-w-[200px] flex-1 flex-col overflow-hidden ${workspace.expanded ? 'hidden' : ''}`}>
           <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
@@ -145,7 +147,9 @@ function MainContent({
               expanded={workspace.expanded}
               isMobile={isMobile}
               editingFile={editingFile}
+              projectName={selectedProject.displayName}
               projectPath={selectedProject.path}
+              projectId={selectedProject.projectId}
               resizeHandleRef={workspace.resizeHandleRef}
               onTabChange={workspace.setTab}
               onResizeStart={workspace.handleResizeStart}
@@ -158,6 +162,7 @@ function MainContent({
           </Suspense>
         )}
       </div>
+      </SessionStatusProvider>
     </div>
   );
 }

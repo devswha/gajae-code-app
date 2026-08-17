@@ -272,12 +272,44 @@
     "collapse": "Çalışma alanı panelini daralt",
     "resize": "Çalışma alanı panelini yeniden boyutlandırmak için sürükle",
     "tabs": {
+      "status": "Durum",
       "files": "Dosyalar",
       "editor": "Düzenleyici"
     },
     "editorEmpty": {
       "title": "Açık dosya yok",
       "description": "Burada düzenlemek için Dosyalar'dan veya bir sohbet mesajından bir dosya aç."
+    },
+    "statusTab": {
+      "session": "Oturum",
+      "model": "Model",
+      "reasoning": "Akıl yürütme",
+      "context": "Bağlam",
+      "contextWindow": "Bağlam penceresi",
+      "tokens": "Token",
+      "tokensUsed": "Kullanılan",
+      "tokensInput": "Girdi",
+      "tokensOutput": "Çıktı",
+      "tokensCache": "Önbellek",
+      "activity": "Etkinlik",
+      "running": "Çalışıyor",
+      "idle": "Boşta",
+      "queuedMessage": "Sırada bir mesaj",
+      "location": "Konum",
+      "project": "Proje",
+      "directory": "Dizin",
+      "git": "Git",
+      "branch": "Dal",
+      "changes": "Değişiklikler",
+      "staged": "Hazırlanmış",
+      "untracked": "İzlenmeyen",
+      "clean": "Yerel değişiklik yok",
+      "notARepository": "Git deposu değil",
+      "gitUnavailable": "Git durumu alınamıyor",
+      "refreshGit": "Git durumunu yenile",
+      "unreported": "Henüz bildirilmedi",
+      "empty": "Açık oturum yok",
+      "emptyHint": "Neyi çalıştırdığını görmek için bir oturum açın veya başlatın."
     }
   }
 }

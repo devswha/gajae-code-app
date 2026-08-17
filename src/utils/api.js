@@ -77,6 +77,10 @@ export const api = {
     }),
   },
   archivedProjects: () => authenticatedFetch('/api/projects/archived'),
+  // Read-only working-tree summary for the Workspace status tab: branch plus
+  // the files git reports as changed. Never writes to the repository.
+  gitStatus: (projectId) =>
+    authenticatedFetch(`/api/git/status?project=${encodeURIComponent(projectId)}`),
   // Home-relative directory autocomplete ({ home, suggestions }).
   dirSuggestions: (prefix) =>
     authenticatedFetch(`/api/providers/fs/dir-suggestions?prefix=${encodeURIComponent(prefix)}`),

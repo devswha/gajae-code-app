@@ -45,22 +45,24 @@ test('a non-finite width falls back to the default rather than styling NaN', () 
 });
 
 test('only the declared tabs are accepted', () => {
+  assert.equal(normalizeWorkspaceTab('status'), 'status');
   assert.equal(normalizeWorkspaceTab('editor'), 'editor');
   assert.equal(normalizeWorkspaceTab('shell'), null);
   assert.equal(normalizeWorkspaceTab(undefined), null);
 });
 
 test('tablist keys move across tabs and wrap in both directions', () => {
+  assert.equal(workspaceTabForKey('status', 'ArrowRight'), 'files');
   assert.equal(workspaceTabForKey('files', 'ArrowRight'), 'editor');
-  assert.equal(workspaceTabForKey('editor', 'ArrowRight'), 'files');
-  assert.equal(workspaceTabForKey('files', 'ArrowLeft'), 'editor');
-  assert.equal(workspaceTabForKey('editor', 'Home'), 'files');
-  assert.equal(workspaceTabForKey('files', 'End'), 'editor');
+  assert.equal(workspaceTabForKey('editor', 'ArrowRight'), 'status');
+  assert.equal(workspaceTabForKey('status', 'ArrowLeft'), 'editor');
+  assert.equal(workspaceTabForKey('editor', 'Home'), 'status');
+  assert.equal(workspaceTabForKey('status', 'End'), 'editor');
 });
 
 test('keys that are not tablist navigation are left to the browser', () => {
-  assert.equal(workspaceTabForKey('files', 'Tab'), null);
-  assert.equal(workspaceTabForKey('files', 'a'), null);
+  assert.equal(workspaceTabForKey('status', 'Tab'), null);
+  assert.equal(workspaceTabForKey('status', 'a'), null);
 });
 
 test('no storage at all yields the closed default instead of throwing', () => {

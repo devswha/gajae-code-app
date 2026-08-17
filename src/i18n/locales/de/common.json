@@ -242,12 +242,44 @@
     "collapse": "Arbeitsbereich-Panel reduzieren",
     "resize": "Ziehen, um das Arbeitsbereich-Panel zu vergrößern oder zu verkleinern",
     "tabs": {
+      "status": "Status",
       "files": "Dateien",
       "editor": "Editor"
     },
     "editorEmpty": {
       "title": "Keine Datei geöffnet",
       "description": "Öffne eine Datei über Dateien oder aus einer Chat-Nachricht, um sie hier zu bearbeiten."
+    },
+    "statusTab": {
+      "session": "Sitzung",
+      "model": "Modell",
+      "reasoning": "Denktiefe",
+      "context": "Kontext",
+      "contextWindow": "Kontextfenster",
+      "tokens": "Tokens",
+      "tokensUsed": "Verbraucht",
+      "tokensInput": "Eingabe",
+      "tokensOutput": "Ausgabe",
+      "tokensCache": "Cache",
+      "activity": "Aktivität",
+      "running": "Läuft",
+      "idle": "Inaktiv",
+      "queuedMessage": "Eine Nachricht in der Warteschlange",
+      "location": "Ort",
+      "project": "Projekt",
+      "directory": "Verzeichnis",
+      "git": "Git",
+      "branch": "Branch",
+      "changes": "Änderungen",
+      "staged": "Vorgemerkt",
+      "untracked": "Unversioniert",
+      "clean": "Keine lokalen Änderungen",
+      "notARepository": "Kein Git-Repository",
+      "gitUnavailable": "Git-Status nicht verfügbar",
+      "refreshGit": "Git-Status aktualisieren",
+      "unreported": "Noch nicht gemeldet",
+      "empty": "Keine Sitzung geöffnet",
+      "emptyHint": "Öffne oder starte eine Sitzung, um zu sehen, was sie ausführt."
     }
   }
 }

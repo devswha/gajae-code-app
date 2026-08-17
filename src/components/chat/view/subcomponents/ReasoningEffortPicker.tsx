@@ -19,16 +19,30 @@ type ReasoningEffortPickerProps = {
   onSelect: (value: ReasoningEffort) => void;
 };
 
-const OPTIONS: Array<{ value: ReasoningEffort; label: string }> = [
-  { value: 'default', label: 'Default' },
-  { value: 'off', label: 'Off' },
-  { value: 'minimal', label: 'Minimal' },
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-  { value: 'xhigh', label: 'Extra high' },
-  { value: 'max', label: 'Max' },
-];
+export const REASONING_EFFORT_LABELS: Record<ReasoningEffort, string> = {
+  default: 'Default',
+  off: 'Off',
+  minimal: 'Minimal',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Extra high',
+  max: 'Max',
+};
+
+/**
+ * Label for an effort level. The runtime can report a level this picker does
+ * not offer, and showing that raw value is better than pretending it is the
+ * default.
+ */
+export function reasoningEffortLabel(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  return REASONING_EFFORT_LABELS[value as ReasoningEffort] ?? value;
+}
+
+const OPTIONS: Array<{ value: ReasoningEffort; label: string }> = (
+  Object.keys(REASONING_EFFORT_LABELS) as ReasoningEffort[]
+).map((value) => ({ value, label: REASONING_EFFORT_LABELS[value] }));
 
 export default function ReasoningEffortPicker({ value, onSelect }: ReasoningEffortPickerProps) {
   const [open, setOpen] = useState(false);

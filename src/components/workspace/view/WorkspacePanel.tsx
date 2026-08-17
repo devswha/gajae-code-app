@@ -1,10 +1,11 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject } from 'react';
-import { FileCode2, FolderTree, PanelRightClose, X, type LucideIcon } from 'lucide-react';
+import { Activity, FileCode2, FolderTree, PanelRightClose, X, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { PillBar, Pill } from '../../../shared/view/ui';
 import type { CodeEditorFile } from '../../code-editor/types/types';
+import { useSessionStatus } from '../../../contexts/SessionStatusContext';
 import {
   MIN_WORKSPACE_PANEL_WIDTH,
   WORKSPACE_TABS,
@@ -13,9 +14,11 @@ import {
 } from '../workspacePanelState';
 
 const FilesPanel = lazy(() => import('./FilesPanel'));
+const WorkspaceStatusTab = lazy(() => import('./WorkspaceStatusTab'));
 const CodeEditor = lazy(() => import('../../code-editor/view/CodeEditor'));
 
 const TAB_ICONS: Record<WorkspaceTab, LucideIcon> = {
+  status: Activity,
   files: FolderTree,
   editor: FileCode2,
 };
@@ -26,7 +29,9 @@ export type WorkspacePanelProps = {
   expanded: boolean;
   isMobile: boolean;
   editingFile: CodeEditorFile | null;
+  projectName?: string;
   projectPath?: string;
+  projectId?: string;
   resizeHandleRef: MutableRefObject<HTMLDivElement | null>;
   onTabChange: (tab: WorkspaceTab) => void;
   onResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void;
@@ -51,7 +56,9 @@ export default function WorkspacePanel({
   expanded,
   isMobile,
   editingFile,
+  projectName,
   projectPath,
+  projectId,
   resizeHandleRef,
   onTabChange,
   onResizeStart,
@@ -62,6 +69,7 @@ export default function WorkspacePanel({
   onCloseEditor,
 }: WorkspacePanelProps) {
   const { t } = useTranslation();
+  const sessionStatus = useSessionStatus();
   const tabRefs = useRef<Partial<Record<WorkspaceTab, HTMLButtonElement | null>>>({});
   const [poppedOut, setPoppedOut] = useState(false);
 
@@ -143,9 +151,17 @@ export default function WorkspacePanel({
       className="min-h-0 flex-1 overflow-hidden"
     >
       <Suspense fallback={null}>
-        {tab === 'files' ? (
-          <FilesPanel onFileOpen={onFileOpen} />
-        ) : (
+        {tab === 'status' && (
+          <WorkspaceStatusTab
+            status={sessionStatus}
+            projectName={projectName}
+            projectPath={projectPath}
+            projectId={projectId}
+            active
+          />
+        )}
+        {tab === 'files' && <FilesPanel onFileOpen={onFileOpen} />}
+        {tab === 'editor' && (
           <WorkspaceEditorTab
             editingFile={editingFile}
             projectPath={projectPath}

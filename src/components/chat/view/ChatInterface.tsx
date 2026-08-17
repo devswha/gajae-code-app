@@ -12,6 +12,12 @@ import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useSessionStore } from '../../../stores/useSessionStore';
+import { usePublishSessionStatus } from '../../../contexts/SessionStatusContext';
+import {
+  readSessionFacts,
+  readTokenTotals,
+  type SessionStatusSnapshot,
+} from '../../../contexts/sessionStatusSnapshot';
 import { useOAuthLogin } from '../hooks/useOAuthLogin';
 import OAuthLoginDialog from '../OAuthLoginDialog';
 
@@ -311,6 +317,39 @@ function ChatInterface({
     pendingPermissionRequests,
     handlePermissionDecision,
   }), [pendingPermissionRequests, handlePermissionDecision]);
+
+  // The Workspace Status tab renders this; the chat is the only place that
+  // receives it. Session-reported facts win, and the composer's own selection
+  // stands in only until the first turn reports what the session actually uses.
+  const sessionStatusSnapshot = useMemo<SessionStatusSnapshot>(() => {
+    const facts = readSessionFacts(sessionState);
+    return {
+      ...facts,
+      sessionId: currentSessionId ?? selectedSession?.id ?? null,
+      // 'default' is the app's "let the runtime choose" selector, not a model
+      // name; until the session reports what it actually used, this is unknown.
+      modelId: facts.modelId ?? (gjcModel && gjcModel !== 'default' ? gjcModel : undefined),
+      thinkingLevel: facts.thinkingLevel ?? reasoningEffort,
+      tokens: readTokenTotals(tokenBudget),
+      activity: {
+        running: isProcessing,
+        statusText: typeof sessionActivity?.statusText === 'string' ? sessionActivity.statusText : null,
+        queued: queuedDraft?.content ? 1 : 0,
+      },
+    };
+  }, [
+    currentSessionId,
+    gjcModel,
+    isProcessing,
+    queuedDraft?.content,
+    reasoningEffort,
+    selectedSession?.id,
+    sessionActivity?.statusText,
+    sessionState,
+    tokenBudget,
+  ]);
+
+  usePublishSessionStatus(sessionStatusSnapshot);
 
   // Mirrors ChatComposer's own visibility check so the message pane can
   // reserve enough bottom space to keep the floating status tab from

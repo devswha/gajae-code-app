@@ -272,12 +272,44 @@
     "collapse": "ワークスペースパネルを折りたたむ",
     "resize": "ドラッグしてワークスペースパネルのサイズを変更",
     "tabs": {
+      "status": "ステータス",
       "files": "ファイル",
       "editor": "エディター"
     },
     "editorEmpty": {
       "title": "ファイルが開いていません",
       "description": "ファイルまたはチャットメッセージからファイルを開き、ここで編集してください。"
+    },
+    "statusTab": {
+      "session": "セッション",
+      "model": "モデル",
+      "reasoning": "推論レベル",
+      "context": "コンテキスト",
+      "contextWindow": "コンテキストウィンドウ",
+      "tokens": "トークン",
+      "tokensUsed": "使用",
+      "tokensInput": "入力",
+      "tokensOutput": "出力",
+      "tokensCache": "キャッシュ",
+      "activity": "アクティビティ",
+      "running": "実行中",
+      "idle": "待機中",
+      "queuedMessage": "待機中のメッセージ 1 件",
+      "location": "場所",
+      "project": "プロジェクト",
+      "directory": "ディレクトリ",
+      "git": "Git",
+      "branch": "ブランチ",
+      "changes": "変更",
+      "staged": "ステージ済み",
+      "untracked": "未追跡",
+      "clean": "ローカルの変更なし",
+      "notARepository": "Git リポジトリではありません",
+      "gitUnavailable": "Git ステータスを取得できません",
+      "refreshGit": "Git ステータスを更新",
+      "unreported": "まだ報告されていません",
+      "empty": "開いているセッションがありません",
+      "emptyHint": "セッションを開くか開始すると、実行内容がここに表示されます。"
     }
   }
 }

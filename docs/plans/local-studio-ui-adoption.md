@@ -1,6 +1,6 @@
 # Local Studio UI/UX adoption plan
 
-Status: Phases 1-2 shipped (feaa33e, d64af56); phases 3-6 approved for this session
+Status: Phases 1-3 shipped (feaa33e, d64af56, 3377739); phases 4-6 approved for this session
 Saved: 2026-08-15
 
 ## Objective
@@ -44,10 +44,14 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
      - Restore-time model and context. Session state is reported by a live turn,
        so a freshly reopened session reads "Not reported yet" until it runs.
 
-3. Files and Editor integration
-   - Reuse the existing FilesPanel and EditorSidebar behavior
-   - Keep file navigation and editing inside one Workspace surface
-   - Avoid adding another permanent column for every opened surface
+3. Files and Editor integration — DONE (feaa33e, 3377739)
+   - Delivered with phase 1: FilesPanel moved into the Workspace tab strip, the
+     editor sidebar became useEditorFile, and opening a file from chat, the
+     command palette or the tree switches the one panel to its Editor tab.
+   - Closed here: the Files tab shipped with Korean prose baked in. Failures now
+     travel as a reason and are translated at render, with all ten locales
+     covered and a test that fails if hardcoded prose returns.
+   - No second permanent column was added; the panel still owns one width.
 
 4. Development Preview
    - Detect reachable localhost development servers

@@ -117,12 +117,24 @@
     "stop": "停止",
     "hintText": {
       "ctrlEnter": "Ctrl+Enter 发送 • Shift+Enter 换行 • Tab 切换模式 • / 斜杠命令",
-      "enter": "Enter 发送 • Shift+Enter 换行 • Tab 切换模式 • / 斜杠命令"
+      "enter": "Enter 发送 • Shift+Enter 换行 • Tab 切换模式 • / 斜杠命令",
+      "queue": "按 Enter 将下一条消息加入队列"
     },
     "clickToChangeMode": "点击更改权限模式（或在输入框中按 Tab）",
     "showAllCommands": "显示所有命令",
     "clearInput": "清空输入",
-    "scrollToBottom": "滚动到底部"
+    "scrollToBottom": "滚动到底部",
+    "queue": {
+      "sendNext": "将下一条消息加入队列",
+      "label": "排队中",
+      "willSend": "当前任务结束后发送",
+      "willFollow": "在上面的消息之后发送",
+      "edit": "编辑排队消息",
+      "delete": "删除排队消息",
+      "moveUp": "在队列中前移",
+      "moveDown": "在队列中后移",
+      "images_other": "已附加 {{count}} 张图片"
+    }
   },
   "providerSelection": {
     "title": "选择您的 AI 助手",

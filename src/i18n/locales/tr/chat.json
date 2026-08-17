@@ -117,12 +117,24 @@
     "stop": "Durdur",
     "hintText": {
       "ctrlEnter": "Göndermek için Ctrl+Enter • Yeni satır için Shift+Enter • Mod değiştirmek için Tab • Slash komutları için /",
-      "enter": "Göndermek için Enter • Yeni satır için Shift+Enter • Mod değiştirmek için Tab • Slash komutları için /"
+      "enter": "Göndermek için Enter • Yeni satır için Shift+Enter • Mod değiştirmek için Tab • Slash komutları için /",
+      "queue": "Sonraki mesajı kuyruğa almak için Enter"
     },
     "clickToChangeMode": "İzin modunu değiştirmek için tıkla (veya girdide Tab tuşuna bas)",
     "showAllCommands": "Tüm komutları göster",
     "clearInput": "Girdiyi temizle",
-    "scrollToBottom": "En alta git"
+    "scrollToBottom": "En alta git",
+    "queue": {
+      "sendNext": "Sonraki mesajı kuyruğa al",
+      "label": "Kuyrukta",
+      "willSend": "Bu iş bitince gönderilecek",
+      "willFollow": "Yukarıdakilerden sonra gönderilecek",
+      "edit": "Kuyruktaki mesajı düzenle",
+      "delete": "Kuyruktaki mesajı sil",
+      "moveUp": "Kuyrukta öne al",
+      "moveDown": "Kuyrukta geri al",
+      "images_other": "{{count}} görsel eklendi"
+    }
   },
   "providerSelection": {
     "title": "AI Asistanını Seç",

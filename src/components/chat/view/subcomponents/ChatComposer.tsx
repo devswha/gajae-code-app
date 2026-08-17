@@ -78,9 +78,10 @@ interface ChatComposerProps {
       | KeyboardEvent<HTMLTextAreaElement>,
   ) => void;
   isDragActive: boolean;
-  queuedDraft: QueuedDraft | null;
-  onEditQueuedDraft: () => void;
-  onDeleteQueuedDraft: () => void;
+  queuedDrafts: QueuedDraft[];
+  onEditQueuedDraft: (index: number) => void;
+  onDeleteQueuedDraft: (index: number) => void;
+  onMoveQueuedDraft: (from: number, to: number) => void;
   pendingCommandGate: PendingCommandGate | null;
   onConfirmCommandGate: () => void;
   onCancelCommandGate: () => void;
@@ -139,9 +140,10 @@ export default function ChatComposer({
   onShowTokenUsage,
   onSubmit,
   isDragActive,
-  queuedDraft,
+  queuedDrafts,
   onEditQueuedDraft,
   onDeleteQueuedDraft,
+  onMoveQueuedDraft,
   pendingCommandGate,
   onConfirmCommandGate,
   onCancelCommandGate,
@@ -233,19 +235,15 @@ export default function ChatComposer({
     onSubmit(event);
   }, [onSubmit]);
 
-  const hasQueuedDraft = Boolean(queuedDraft);
   const canQueueDraft = isLoading && Boolean(input.trim());
+  // Queuing always appends, so the hint never promises to replace anything.
   const submitHint = canQueueDraft
-    ? hasQueuedDraft
-      ? t('input.hintText.updateQueued', { defaultValue: 'Enter to update queued message' })
-      : t('input.hintText.queue', { defaultValue: 'Enter to queue your next message' })
+    ? t('input.hintText.queue')
     : sendByCtrlEnter
       ? t('input.hintText.ctrlEnter')
       : t('input.hintText.enter');
   const submitAriaLabel = canQueueDraft
-    ? hasQueuedDraft
-      ? t('input.queue.update', { defaultValue: 'Update queued message' })
-      : t('input.queue.sendNext', { defaultValue: 'Queue next message' })
+    ? t('input.queue.sendNext')
     : isLoading
       ? t('input.stop')
       : t('input.send');
@@ -277,14 +275,19 @@ export default function ChatComposer({
         />
       )}
 
-      {queuedDraft && (
+      {queuedDrafts.map((draft, index) => (
         <QueuedMessageCard
-          content={queuedDraft.content}
-          imageCount={queuedDraft.images.length}
-          onEdit={onEditQueuedDraft}
-          onDelete={onDeleteQueuedDraft}
+          key={`${index}:${draft.content}`}
+          content={draft.content}
+          imageCount={draft.images.length}
+          position={index + 1}
+          total={queuedDrafts.length}
+          onEdit={() => onEditQueuedDraft(index)}
+          onDelete={() => onDeleteQueuedDraft(index)}
+          onMoveUp={index > 0 ? () => onMoveQueuedDraft(index, index - 1) : undefined}
+          onMoveDown={index < queuedDrafts.length - 1 ? () => onMoveQueuedDraft(index, index + 1) : undefined}
         />
-      )}
+      ))}
 
       {!hasQuestionPanel && <div className="relative mx-auto max-w-[54.25rem]">
         {showFileDropdown && filteredFiles.length > 0 && (

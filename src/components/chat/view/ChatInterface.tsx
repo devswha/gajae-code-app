@@ -188,9 +188,10 @@ function ChatInterface({
     openImagePicker,
     handleSubmit,
     modelPickerTrigger,
-    queuedDraft,
+    queuedDrafts,
     editQueuedDraft,
     deleteQueuedDraft,
+    moveQueuedDraft,
     pendingCommandGate,
     confirmCommandGate,
     cancelCommandGate,
@@ -334,14 +335,14 @@ function ChatInterface({
       activity: {
         running: isProcessing,
         statusText: typeof sessionActivity?.statusText === 'string' ? sessionActivity.statusText : null,
-        queued: queuedDraft?.content ? 1 : 0,
+        queued: queuedDrafts.length,
       },
     };
   }, [
     currentSessionId,
     gjcModel,
     isProcessing,
-    queuedDraft?.content,
+    queuedDrafts.length,
     reasoningEffort,
     selectedSession?.id,
     sessionActivity?.statusText,
@@ -394,9 +395,10 @@ function ChatInterface({
       onShowTokenUsage={showCostModal}
       onSubmit={handleSubmit}
       isDragActive={isDragActive}
-      queuedDraft={queuedDraft}
+      queuedDrafts={queuedDrafts}
       onEditQueuedDraft={editQueuedDraft}
       onDeleteQueuedDraft={deleteQueuedDraft}
+      onMoveQueuedDraft={moveQueuedDraft}
       pendingCommandGate={pendingCommandGate}
       onConfirmCommandGate={confirmCommandGate}
       onCancelCommandGate={cancelCommandGate}

@@ -84,3 +84,17 @@ test('a held draft is never reported as sendable, so the claim ticket survives',
     assert.notEqual(decideQueuedDispatch(draft(form), true).action, 'send', form);
   }
 });
+
+test('only the head of a queue is ever dispatched', () => {
+  const decision = decideQueuedDispatch(draft('first'), true);
+
+  assert.equal(decision.action, 'send');
+  assert.equal(decision.action === 'send' && decision.content, 'first');
+});
+
+test('an empty queue holds instead of dispatching undefined', () => {
+  const decision = decideQueuedDispatch(undefined, true);
+
+  assert.equal(decision.action, 'hold');
+  assert.equal(decision.action === 'hold' && decision.reason, 'no-draft');
+});

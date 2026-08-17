@@ -117,10 +117,22 @@
     "stop": "停止",
     "hintText": {
       "ctrlEnter": "Ctrl+Enterで送信 • Shift+Enterで改行 • Tabでモード切替 • / でスラッシュコマンド",
-      "enter": "Enterで送信 • Shift+Enterで改行 • Tabでモード切替 • / でスラッシュコマンド"
+      "enter": "Enterで送信 • Shift+Enterで改行 • Tabでモード切替 • / でスラッシュコマンド",
+      "queue": "Enter で次のメッセージをキューに追加"
     },
     "clickToChangeMode": "クリックで権限モードを変更（または入力欄でTab）",
-    "showAllCommands": "すべてのコマンドを表示"
+    "showAllCommands": "すべてのコマンドを表示",
+    "queue": {
+      "sendNext": "次のメッセージをキューに追加",
+      "label": "待機中",
+      "willSend": "現在の処理が終わったら送信",
+      "willFollow": "上のメッセージの後に送信",
+      "edit": "待機中のメッセージを編集",
+      "delete": "待機中のメッセージを削除",
+      "moveUp": "キューの前へ移動",
+      "moveDown": "キューの後ろへ移動",
+      "images_other": "画像 {{count}} 件を添付"
+    }
   },
   "providerSelection": {
     "title": "AIアシスタントを選択",

@@ -15,11 +15,13 @@ import { authenticatedFetch } from '../../../utils/api';
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import type { MarkSessionProcessing } from '../../../hooks/useSessionProtection';
 import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
+import { decideQueueFlush } from '../utils/queueFlush';
 import {
-  clearQueuedMessage,
-  readQueuedMessage,
+  clearQueuedMessages,
+  readQueuedMessages,
+  reorderQueue,
   safeLocalStorage,
-  writeQueuedMessage,
+  writeQueuedMessages,
   type QueuedSendOptions,
 } from '../utils/chatStorage';
 import type {
@@ -151,6 +153,13 @@ export type CommandModalPayload = {
   data: HelpCommandData | ModelCommandData | CostCommandData | StatusCommandData;
 };
 
+/**
+ * How long a dispatched queue message gets to turn into a run before the queue
+ * is allowed to move again. A real send marks the session processing in the
+ * same tick, so this only ever expires for a submit that never started a turn.
+ */
+const DISPATCH_SETTLE_MS = 5000;
+
 const createFakeSubmitEvent = () => {
   return { preventDefault: () => undefined } as unknown as FormEvent<HTMLFormElement>;
 };
@@ -169,11 +178,9 @@ export type QueuedDraft = {
 /** A runtime form held at the confirmation card, plus the exact text to replay. */
 export type PendingCommandGate = CommandGate & { text: string };
 
-const restoreQueuedDraft = (sessionKey: string): QueuedDraft | null => {
-  const saved = readQueuedMessage(sessionKey);
+const restoreQueuedDrafts = (sessionKey: string): QueuedDraft[] =>
   // Image attachments can't survive a reload; only text and options persist.
-  return saved ? { content: saved.content, images: [], options: saved.options } : null;
-};
+  readQueuedMessages(sessionKey).map((saved) => ({ content: saved.content, images: [], options: saved.options }));
 
 const getNotificationSessionSummary = (
   selectedSession: ProjectSession | null,
@@ -244,16 +251,16 @@ export function useChatComposerState({
   // handed back to the parent's `selectedSession` prop yet.
   const sessionKey = selectedSession?.id || currentSessionId || null;
 
-  const [queuedDraft, setQueuedDraft] = useState<QueuedDraft | null>(() => {
+  const [queuedDrafts, setQueuedDrafts] = useState<QueuedDraft[]>(() => {
     if (typeof window === 'undefined' || !sessionKey) {
-      return null;
+      return [];
     }
-    return restoreQueuedDraft(sessionKey);
+    return restoreQueuedDrafts(sessionKey);
   });
-  // Which session the in-memory `queuedDraft` belongs to. On a session switch
-  // there is one commit where `sessionKey` already points at the new session
-  // while `queuedDraft` still holds the old session's draft; the persistence
-  // effect must not write across that gap.
+  // Which session the in-memory queue belongs to. On a session switch there is
+  // one commit where `sessionKey` already points at the new session while
+  // `queuedDrafts` still holds the old session's queue; the persistence effect
+  // must not write across that gap.
   const queuedDraftSessionRef = useRef<string | null>(sessionKey);
 
   // A runtime form waiting on confirmation. Nothing has been sent while this is
@@ -700,11 +707,13 @@ export function useChatComposerState({
       // so it still goes through slash-command interception, image upload, etc.
       if (isLoading) {
         queuedDraftSessionRef.current = sessionKey;
-        setQueuedDraft({
+        // Appended, not replaced: a second thought while the turn runs is
+        // another follow-up, not a correction of the first one.
+        setQueuedDrafts((previous) => [...previous, {
           content: currentInput,
           images: attachedImages,
           options: buildSendOptions(currentInput),
-        });
+        }]);
         setInput('');
         inputValueRef.current = '';
         setAttachedImages([]);
@@ -956,60 +965,106 @@ export function useChatComposerState({
   // submit path (slash commands, image upload, etc. all still apply).
   const wasLoadingRef = useRef(isLoading);
   const flushSessionKeyRef = useRef(sessionKey);
+  // A boolean rather than the text itself, so the flush effect re-runs when the
+  // composer becomes empty instead of on every keystroke.
+  const composerHasInput = Boolean(input.trim());
+  // Set the moment a queued message is dispatched, cleared once that send has
+  // actually put the session back into a run. Without it a multi-message queue
+  // empties in one burst: the dispatch does not flip `isLoading` synchronously,
+  // so the very next render would see an idle session and flush again.
+  const awaitingDispatchedTurnRef = useRef(false);
+  const dispatchSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Re-runs the flush effect after the settle window; nothing else can, because
+  // the gate below is a ref rather than state.
+  const [flushTick, setFlushTick] = useState(0);
   useEffect(() => {
     const wasLoading = wasLoadingRef.current;
     wasLoadingRef.current = isLoading;
 
     // A session switch changes which session `isLoading` describes, so this
-    // transition says nothing about the queued draft's own session. Never
-    // flush across it — the swap effect below replaces `queuedDraft` with the
-    // new session's saved draft right after this.
-    if (flushSessionKeyRef.current !== sessionKey) {
-      flushSessionKeyRef.current = sessionKey;
+    // transition says nothing about the queue's own session. Never flush across
+    // it — the swap effect below replaces `queuedDrafts` with the new
+    // session's saved queue right after this.
+    const sessionSwitched = flushSessionKeyRef.current !== sessionKey;
+    flushSessionKeyRef.current = sessionKey;
+
+    if (isLoading) {
+      // The dispatched message is running: the queue may move again when it ends.
+      awaitingDispatchedTurnRef.current = false;
+      if (dispatchSettleTimerRef.current) {
+        clearTimeout(dispatchSettleTimerRef.current);
+        dispatchSettleTimerRef.current = null;
+      }
+    }
+
+    const head = queuedDrafts[0];
+    const decision = decideQueueFlush({
+      sessionSwitched,
+      isLoading,
+      wasLoading,
+      queueLength: queuedDrafts.length,
+      awaitingDispatchedTurn: awaitingDispatchedTurnRef.current,
+      composerHasInput,
+    });
+    if (decision.action !== 'flush' || !head) {
       return;
     }
 
-    if (isLoading || !queuedDraft) {
-      return;
-    }
-
-    // Turn just ended in this session: flush immediately. Otherwise this is a
-    // saved draft restored into an apparently idle session — hold it briefly
-    // so the `chat_subscribed` ack can flip `isLoading` if a run is actually
-    // still live (the cleanup below cancels the send in that case).
-    const delay = wasLoading ? 0 : 750;
     const timer = setTimeout(() => {
-      // The saved key is the claim ticket shared with the app-level auto-send
-      // (which handles sessions that finish while not viewed). If it's gone,
-      // the message was already dispatched — don't send it twice.
-      if (sessionKey && !readQueuedMessage(sessionKey)) {
-        setQueuedDraft(null);
+      // Storage is the claim ticket shared with the app-level auto-send (which
+      // handles sessions that finish while not viewed). If it already took this
+      // head, adopt what is actually left instead of sending it twice.
+      const stored = sessionKey ? readQueuedMessages(sessionKey) : [];
+      if (sessionKey && stored.length < queuedDrafts.length) {
+        setQueuedDrafts(stored.map((saved) => ({ content: saved.content, images: [], options: saved.options })));
         return;
       }
-      setQueuedDraft(null);
-      setInput(queuedDraft.content);
-      inputValueRef.current = queuedDraft.content;
-      setAttachedImages(queuedDraft.images);
+      awaitingDispatchedTurnRef.current = true;
+      // A submit that never becomes a run — an app-level slash command, a
+      // rejected upload — must not strand the rest of the queue forever.
+      if (dispatchSettleTimerRef.current) clearTimeout(dispatchSettleTimerRef.current);
+      dispatchSettleTimerRef.current = setTimeout(() => {
+        dispatchSettleTimerRef.current = null;
+        awaitingDispatchedTurnRef.current = false;
+        setFlushTick((tick) => tick + 1);
+      }, DISPATCH_SETTLE_MS);
+      setQueuedDrafts((previous) => previous.slice(1));
+      setInput(head.content);
+      inputValueRef.current = head.content;
+      setAttachedImages(head.images);
       setTimeout(() => {
         handleSubmitRef.current?.(createFakeSubmitEvent());
       }, 0);
-    }, delay);
+    }, decision.delayMs);
     return () => clearTimeout(timer);
-  }, [isLoading, queuedDraft, sessionKey, setInput]);
+  }, [composerHasInput, flushTick, isLoading, queuedDrafts, sessionKey, setInput]);
 
-  const editQueuedDraft = useCallback(() => {
-    if (!queuedDraft) {
-      return;
-    }
-    setQueuedDraft(null);
-    setInput(queuedDraft.content);
-    inputValueRef.current = queuedDraft.content;
-    setAttachedImages(queuedDraft.images);
-    textareaRef.current?.focus();
-  }, [queuedDraft]);
+  useEffect(() => () => {
+    if (dispatchSettleTimerRef.current) clearTimeout(dispatchSettleTimerRef.current);
+  }, []);
 
-  const deleteQueuedDraft = useCallback(() => {
-    setQueuedDraft(null);
+  /** Pulls one queued message back into the composer for editing. */
+  const editQueuedDraft = useCallback((index: number) => {
+    setQueuedDrafts((previous) => {
+      const target = previous[index];
+      if (!target) {
+        return previous;
+      }
+      setInput(target.content);
+      inputValueRef.current = target.content;
+      setAttachedImages(target.images);
+      textareaRef.current?.focus();
+      return previous.filter((_, position) => position !== index);
+    });
+  }, [setInput]);
+
+  const deleteQueuedDraft = useCallback((index: number) => {
+    setQueuedDrafts((previous) => previous.filter((_, position) => position !== index));
+  }, []);
+
+  /** Reorders the queue, which is also the send order. */
+  const moveQueuedDraft = useCallback((from: number, to: number) => {
+    setQueuedDrafts((previous) => reorderQueue(previous, from, to));
   }, []);
 
   // Confirming replays the exact text through the normal submit path, so the
@@ -1075,31 +1130,33 @@ export function useChatComposerState({
     }
   }, [input, selectedProjectId]);
 
-  // Persist the queued draft under its session's key. Must be defined BEFORE
-  // the swap effect below: on a session switch there is one commit where
-  // `sessionKey` already points at the new session while `queuedDraft` (and
-  // the owner ref) still describe the old one — the ref mismatch makes this
-  // effect skip that commit instead of writing/clearing across sessions.
+  // Persist the queue under its session's key. Must be defined BEFORE the swap
+  // effect below: on a session switch there is one commit where `sessionKey`
+  // already points at the new session while `queuedDrafts` (and the owner ref)
+  // still describe the old one — the ref mismatch makes this effect skip that
+  // commit instead of writing/clearing across sessions.
   useEffect(() => {
     if (!sessionKey || queuedDraftSessionRef.current !== sessionKey) {
       return;
     }
-    if (queuedDraft?.content) {
-      writeQueuedMessage(sessionKey, { content: queuedDraft.content, options: queuedDraft.options });
+    if (queuedDrafts.length > 0) {
+      writeQueuedMessages(sessionKey, queuedDrafts.map(({ content, options }) => ({ content, options })));
     } else {
-      clearQueuedMessage(sessionKey);
+      clearQueuedMessages(sessionKey);
     }
-  }, [queuedDraft, sessionKey]);
+  }, [queuedDrafts, sessionKey]);
 
-  // Switching sessions swaps in that session's queued draft (image
-  // attachments can't survive a reload, so only text and options restore).
+  // Switching sessions swaps in that session's queue (image attachments can't
+  // survive a reload, so only text and options restore).
   useEffect(() => {
     queuedDraftSessionRef.current = sessionKey;
+    // A different session's run says nothing about this one's queue.
+    awaitingDispatchedTurnRef.current = false;
     if (!sessionKey) {
-      setQueuedDraft(null);
+      setQueuedDrafts([]);
       return;
     }
-    setQueuedDraft(restoreQueuedDraft(sessionKey));
+    setQueuedDrafts(restoreQueuedDrafts(sessionKey));
   }, [sessionKey]);
 
   useEffect(() => {
@@ -1293,9 +1350,10 @@ export function useChatComposerState({
     openImagePicker: open,
     handleSubmit,
     modelPickerTrigger,
-    queuedDraft,
+    queuedDrafts,
     editQueuedDraft,
     deleteQueuedDraft,
+    moveQueuedDraft,
     pendingCommandGate,
     confirmCommandGate,
     cancelCommandGate,

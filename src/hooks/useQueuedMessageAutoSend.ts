@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 
 import { classifyCommandInput, isAutoSendable } from '../components/chat/commandDispatchPolicy';
 import {
-  clearQueuedMessage,
-  readQueuedMessage,
+  readQueuedMessages,
+  writeQueuedMessages,
   type StoredQueuedMessage,
 } from '../components/chat/utils/chatStorage';
 
@@ -27,14 +27,15 @@ export type QueuedDispatchDecision =
   | { action: 'hold'; reason: 'no-draft' | 'socket-closed' | 'needs-session-ui' };
 
 /**
- * Decides what the auto-send path may do with one session's queued draft.
+ * Decides what the auto-send path may do with the head of one session's queue.
  *
  * Split out from the effect because the answer is the safety-relevant part:
  * this producer has no session UI attached, so anything whose disposition
- * needs one has to stay queued.
+ * needs one has to stay queued. Only the head is ever considered: the messages
+ * behind it are follow-ups to a turn that has not been sent yet.
  */
 export function decideQueuedDispatch(
-  queued: StoredQueuedMessage | null,
+  queued: StoredQueuedMessage | null | undefined,
   socketOpen: boolean,
 ): QueuedDispatchDecision {
   if (!queued) return { action: 'hold', reason: 'no-draft' };
@@ -60,12 +61,12 @@ export function decideQueuedDispatch(
 /**
  * Dispatches queued messages for sessions the user is NOT currently viewing.
  *
- * The composer persists each queued draft (text + send options snapshotted at
- * queue time) under `queued_message_<sessionId>`. When a session's run leaves
- * the processing map — its previous response completed — this hook sends that
- * session's queued message immediately instead of waiting for the user to
- * open the session again. Removing the storage key before sending is the
- * claim that keeps the composer's own flush from double-sending.
+ * The composer persists each session's queue (text + send options snapshotted
+ * at queue time) under `queued_message_<sessionId>`. When a session's run
+ * leaves the processing map — its previous response completed — this hook sends
+ * that session's next queued message instead of waiting for the user to open
+ * the session again. Writing the remaining tail back before sending is the
+ * claim that keeps the composer's own flush from double-sending the head.
  *
  * Only plain prose is auto-sent. A queued slash command is left in storage for
  * the owning session's composer to disposition, because acting on one here
@@ -92,12 +93,14 @@ export function useQueuedMessageAutoSend({
       }
 
       const socketOpen = Boolean(ws) && ws!.readyState === WebSocket.OPEN;
-      const decision = decideQueuedDispatch(readQueuedMessage(sessionId), socketOpen);
+      const queue = readQueuedMessages(sessionId);
+      const decision = decideQueuedDispatch(queue[0], socketOpen);
       if (decision.action !== 'send') {
         continue;
       }
 
-      clearQueuedMessage(sessionId);
+      // Claim the head only. The rest stay queued for the turn this send starts.
+      writeQueuedMessages(sessionId, queue.slice(1));
       sendMessage({
         type: 'chat.send',
         sessionId,

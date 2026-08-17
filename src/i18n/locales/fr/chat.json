@@ -118,12 +118,25 @@
     "stop": "Arrêter",
     "hintText": {
       "ctrlEnter": "Ctrl+Entrée pour envoyer • Maj+Entrée pour nouvelle ligne • Tab pour changer de mode • / pour les commandes slash",
-      "enter": "Entrée pour envoyer • Maj+Entrée pour nouvelle ligne • Tab pour changer de mode • / pour les commandes slash"
+      "enter": "Entrée pour envoyer • Maj+Entrée pour nouvelle ligne • Tab pour changer de mode • / pour les commandes slash",
+      "queue": "Entrée pour mettre votre prochain message en file"
     },
     "clickToChangeMode": "Cliquez pour changer le mode de permission (ou appuyez sur Tab dans la saisie)",
     "showAllCommands": "Afficher toutes les commandes",
     "clearInput": "Effacer la saisie",
-    "scrollToBottom": "Défiler vers le bas"
+    "scrollToBottom": "Défiler vers le bas",
+    "queue": {
+      "sendNext": "Mettre le message suivant en file",
+      "label": "En file",
+      "willSend": "Sera envoyé à la fin de cette réponse",
+      "willFollow": "Sera envoyé après les précédents",
+      "edit": "Modifier le message en file",
+      "delete": "Supprimer le message en file",
+      "moveUp": "Avancer dans la file",
+      "moveDown": "Reculer dans la file",
+      "images_one": "{{count}} image jointe",
+      "images_other": "{{count}} images jointes"
+    }
   },
   "providerSelection": {
     "title": "Choisissez votre assistant IA",

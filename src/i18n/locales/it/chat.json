@@ -117,12 +117,25 @@
     "stop": "Ferma",
     "hintText": {
       "ctrlEnter": "Ctrl+Invio per inviare • Shift+Invio per nuova riga • Tab per cambiare modalità • / per comandi",
-      "enter": "Invio per inviare • Shift+Invio per nuova riga • Tab per cambiare modalità • / per comandi"
+      "enter": "Invio per inviare • Shift+Invio per nuova riga • Tab per cambiare modalità • / per comandi",
+      "queue": "Invio per mettere in coda il prossimo messaggio"
     },
     "clickToChangeMode": "Clicca per cambiare modalità permessi (o premi Tab nell'input)",
     "showAllCommands": "Mostra tutti i comandi",
     "clearInput": "Cancella input",
-    "scrollToBottom": "Scorri in basso"
+    "scrollToBottom": "Scorri in basso",
+    "queue": {
+      "sendNext": "Metti in coda il prossimo messaggio",
+      "label": "In coda",
+      "willSend": "Verrà inviato al termine di questa risposta",
+      "willFollow": "Verrà inviato dopo i precedenti",
+      "edit": "Modifica il messaggio in coda",
+      "delete": "Elimina il messaggio in coda",
+      "moveUp": "Sposta prima nella coda",
+      "moveDown": "Sposta dopo nella coda",
+      "images_one": "{{count}} immagine allegata",
+      "images_other": "{{count}} immagini allegate"
+    }
   },
   "providerSelection": {
     "title": "Scegli il tuo assistente AI",

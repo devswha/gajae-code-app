@@ -310,6 +310,14 @@
       "unreported": "まだ報告されていません",
       "empty": "開いているセッションがありません",
       "emptyHint": "セッションを開くか開始すると、実行内容がここに表示されます。"
+    },
+    "filesTab": {
+      "changeRoot": "ルートフォルダーを変更",
+      "rootPlaceholder": "ホーム配下のパス (例: workspace)",
+      "apply": "適用",
+      "opening": "フォルダーを開いています…",
+      "homeUnavailable": "ホームディレクトリを特定できません",
+      "openFailed": "フォルダーを開けません — パスを確認してください"
     }
   }
 }

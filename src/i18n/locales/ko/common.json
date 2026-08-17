@@ -310,6 +310,14 @@
       "unreported": "아직 보고되지 않음",
       "empty": "열린 세션 없음",
       "emptyHint": "세션을 열거나 시작하면 무엇을 실행 중인지 여기에 표시됩니다."
+    },
+    "filesTab": {
+      "changeRoot": "루트 폴더 변경",
+      "rootPlaceholder": "홈 하위 경로 (예: workspace)",
+      "apply": "적용",
+      "opening": "폴더 여는 중…",
+      "homeUnavailable": "홈 경로를 확인할 수 없습니다",
+      "openFailed": "폴더를 열 수 없습니다 — 경로를 확인하세요"
     }
   }
 }

@@ -310,6 +310,14 @@
       "unreported": "尚未报告",
       "empty": "没有打开的会话",
       "emptyHint": "打开或开始一个会话，即可在此查看它正在运行什么。"
+    },
+    "filesTab": {
+      "changeRoot": "更改根目录",
+      "rootPlaceholder": "主目录下的路径（例如 workspace）",
+      "apply": "应用",
+      "opening": "正在打开文件夹…",
+      "homeUnavailable": "无法确定主目录",
+      "openFailed": "无法打开该文件夹 — 请检查路径"
     }
   }
 }

@@ -280,6 +280,14 @@
       "unreported": "Noch nicht gemeldet",
       "empty": "Keine Sitzung geöffnet",
       "emptyHint": "Öffne oder starte eine Sitzung, um zu sehen, was sie ausführt."
+    },
+    "filesTab": {
+      "changeRoot": "Stammordner ändern",
+      "rootPlaceholder": "Pfad unter Home (z. B. workspace)",
+      "apply": "Übernehmen",
+      "opening": "Ordner wird geöffnet…",
+      "homeUnavailable": "Home-Verzeichnis konnte nicht ermittelt werden",
+      "openFailed": "Ordner konnte nicht geöffnet werden — Pfad prüfen"
     }
   }
 }

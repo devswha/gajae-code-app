@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FolderOpen, Pencil } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import type { Project } from '../../../types/app';
 import { api } from '../../../utils/api';
@@ -13,10 +14,14 @@ type FilesPanelProps = {
 const ROOT_STORAGE_KEY = 'files-panel-root';
 const DEFAULT_ROOT = 'workspace';
 
+/** Why the root could not be opened. Held as a reason, not as prose, so the
+ * message is translated where it is rendered rather than where it is raised. */
+type PanelError = 'homeUnavailable' | 'openFailed';
+
 type PanelState =
   | { kind: 'loading'; root: string }
   | { kind: 'ready'; root: string; project: Project }
-  | { kind: 'error'; root: string; text: string };
+  | { kind: 'error'; root: string; reason: PanelError };
 
 function readStoredRoot(): string {
   try {
@@ -36,6 +41,7 @@ function readStoredRoot(): string {
  * content read/save stays correctly scoped.
  */
 export default function FilesPanel({ onFileOpen }: FilesPanelProps) {
+  const { t } = useTranslation();
   const initialRootRef = useRef(readStoredRoot());
   const [state, setState] = useState<PanelState>({ kind: 'loading', root: initialRootRef.current });
   const [draftRoot, setDraftRoot] = useState('');
@@ -58,7 +64,7 @@ export default function FilesPanel({ onFileOpen }: FilesPanelProps) {
       const homeBody = await homeResponse.json();
       const home: string = homeBody?.data?.home ?? '';
       if (!home) {
-        publishIfCurrent({ kind: 'error', root: relativeRoot, text: '홈 경로를 확인할 수 없습니다' });
+        publishIfCurrent({ kind: 'error', root: relativeRoot, reason: 'homeUnavailable' });
         return;
       }
       const absolutePath = `${home}/${relativeRoot.replace(/\/+$/, '')}`;
@@ -86,9 +92,9 @@ export default function FilesPanel({ onFileOpen }: FilesPanelProps) {
           return;
         }
       }
-      publishIfCurrent({ kind: 'error', root: relativeRoot, text: '폴더를 열 수 없습니다 — 경로를 확인하세요' });
+      publishIfCurrent({ kind: 'error', root: relativeRoot, reason: 'openFailed' });
     } catch {
-      publishIfCurrent({ kind: 'error', root: relativeRoot, text: '폴더를 열 수 없습니다 — 경로를 확인하세요' });
+      publishIfCurrent({ kind: 'error', root: relativeRoot, reason: 'openFailed' });
     }
   }, []);
 
@@ -120,7 +126,8 @@ export default function FilesPanel({ onFileOpen }: FilesPanelProps) {
               setDraftRoot(root);
               setEditingRoot((previous) => !previous);
             }}
-            title="루트 폴더 변경"
+            title={t('workspace.filesTab.changeRoot')}
+            aria-label={t('workspace.filesTab.changeRoot')}
             className="rounded p-1 text-muted-foreground/70 transition-colors hover:bg-muted/50 hover:text-foreground"
           >
             <Pencil className="h-3 w-3" />
@@ -135,7 +142,7 @@ export default function FilesPanel({ onFileOpen }: FilesPanelProps) {
               value={draftRoot}
               onChange={setDraftRoot}
               onSubmit={applyDraftRoot}
-              placeholder="홈 하위 경로 (예: workspace)"
+              placeholder={t('workspace.filesTab.rootPlaceholder')}
             />
           </div>
           <button
@@ -144,17 +151,17 @@ export default function FilesPanel({ onFileOpen }: FilesPanelProps) {
             disabled={!draftRoot.trim()}
             className="shrink-0 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            적용
+            {t('workspace.filesTab.apply')}
           </button>
         </div>
       )}
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {state.kind === 'loading' && (
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground">폴더 여는 중…</div>
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground">{t('workspace.filesTab.opening')}</div>
         )}
         {state.kind === 'error' && (
-          <div className="px-4 py-8 text-center text-sm text-red-500">{state.text}</div>
+          <div className="px-4 py-8 text-center text-sm text-red-500">{t(`workspace.filesTab.${state.reason}`)}</div>
         )}
         {state.kind === 'ready' && (
           <FileTree

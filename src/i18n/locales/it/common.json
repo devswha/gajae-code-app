@@ -310,6 +310,14 @@
       "unreported": "Non ancora riportato",
       "empty": "Nessuna sessione aperta",
       "emptyHint": "Apri o avvia una sessione per vedere cosa sta eseguendo."
+    },
+    "filesTab": {
+      "changeRoot": "Cambia cartella radice",
+      "rootPlaceholder": "Percorso sotto la home (es. workspace)",
+      "apply": "Applica",
+      "opening": "Apertura della cartella…",
+      "homeUnavailable": "Impossibile determinare la directory home",
+      "openFailed": "Impossibile aprire la cartella — controlla il percorso"
     }
   }
 }

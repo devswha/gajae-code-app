@@ -310,6 +310,14 @@
       "unreported": "尚未回報",
       "empty": "沒有開啟的工作階段",
       "emptyHint": "開啟或開始一個工作階段，即可在此查看它正在執行什麼。"
+    },
+    "filesTab": {
+      "changeRoot": "變更根資料夾",
+      "rootPlaceholder": "家目錄下的路徑（例如 workspace）",
+      "apply": "套用",
+      "opening": "正在開啟資料夾…",
+      "homeUnavailable": "無法確定家目錄",
+      "openFailed": "無法開啟該資料夾 — 請檢查路徑"
     }
   }
 }

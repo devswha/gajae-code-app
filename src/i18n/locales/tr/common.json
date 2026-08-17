@@ -310,6 +310,14 @@
       "unreported": "Henüz bildirilmedi",
       "empty": "Açık oturum yok",
       "emptyHint": "Neyi çalıştırdığını görmek için bir oturum açın veya başlatın."
+    },
+    "filesTab": {
+      "changeRoot": "Kök klasörü değiştir",
+      "rootPlaceholder": "Ev dizini altındaki yol (örn. workspace)",
+      "apply": "Uygula",
+      "opening": "Klasör açılıyor…",
+      "homeUnavailable": "Ev dizini belirlenemedi",
+      "openFailed": "Klasör açılamadı — yolu kontrol edin"
     }
   }
 }

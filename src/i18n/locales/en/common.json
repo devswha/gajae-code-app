@@ -310,6 +310,14 @@
       "unreported": "Not reported yet",
       "empty": "No session open",
       "emptyHint": "Open or start a session to see what it is running."
+    },
+    "filesTab": {
+      "changeRoot": "Change root folder",
+      "rootPlaceholder": "Path under home (e.g. workspace)",
+      "apply": "Apply",
+      "opening": "Opening folder…",
+      "homeUnavailable": "Home directory could not be resolved",
+      "openFailed": "Could not open that folder — check the path"
     }
   }
 }

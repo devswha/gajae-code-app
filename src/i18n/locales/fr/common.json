@@ -310,6 +310,14 @@
       "unreported": "Pas encore communiqué",
       "empty": "Aucune session ouverte",
       "emptyHint": "Ouvrez ou démarrez une session pour voir ce qu’elle exécute."
+    },
+    "filesTab": {
+      "changeRoot": "Changer le dossier racine",
+      "rootPlaceholder": "Chemin sous le dossier personnel (ex. workspace)",
+      "apply": "Appliquer",
+      "opening": "Ouverture du dossier…",
+      "homeUnavailable": "Impossible de déterminer le dossier personnel",
+      "openFailed": "Impossible d'ouvrir ce dossier — vérifiez le chemin"
     }
   }
 }

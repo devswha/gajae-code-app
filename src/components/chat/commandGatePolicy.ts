@@ -87,6 +87,21 @@ const GATE_REASONS: Readonly<Record<string, string>> = {
   '/contribute-pr': 'Dumps this session\u2019s context and starts a separate worker process.',
 };
 
+/**
+ * The prefix every skill invocation carries.
+ *
+ * Skills are matched by prefix rather than by name because the bundled four
+ * are not the whole set: `/api/providers/gjc/skills` also returns project- and
+ * user-scoped skills discovered at runtime, and an override can shadow a
+ * bundled name. A name list here would advertise those in the slash menu and
+ * then confirm them with the unclassified copy, which tells the user the app
+ * does not recognize a command it just offered.
+ */
+const SKILL_COMMAND_PREFIX = '/skill:';
+
+const skillGateReason = (skillName: string): string =>
+  `Runs the \`${skillName}\` skill: a multi-step workflow that keeps working on its own and can read and write files across this project.`;
+
 /** Shown when the app has no entry for the form at all. */
 export const UNCLASSIFIED_GATE_REASON =
   'The app has not classified this command, so it is asking first. Check what it does before running it.';
@@ -120,6 +135,15 @@ export function gateForCommand(commandName: string, args = ''): CommandGate | nu
 
   const commandReason = GATE_REASONS[commandName];
   if (commandReason) return { gateId: commandName, summary: commandReason, classified: true };
+
+  // Keyed by the skill, not the form, so `/skill:ralplan --deliberate` and the
+  // bare invocation share one confirmation card.
+  const skillName = commandName.startsWith(SKILL_COMMAND_PREFIX)
+    ? commandName.slice(SKILL_COMMAND_PREFIX.length)
+    : '';
+  if (skillName) {
+    return { gateId: commandName, summary: skillGateReason(skillName), classified: true };
+  }
 
   return { gateId: form, summary: UNCLASSIFIED_GATE_REASON, classified: false };
 }

@@ -70,12 +70,26 @@ test('an alias gates exactly like the command it stands for', () => {
   assert.equal(gated('/contribution-prep focus e2e')?.gateId, '/contribute-pr');
 });
 
-test('every skill invocation is gated', () => {
+test('every skill invocation is gated, and named rather than disowned', () => {
+  // A skill runs a multi-step workflow on its own, so it always asks. It must
+  // not ask with the unclassified copy: the slash menu offers these, and a card
+  // reading "Unrecognized command" over a command the app just advertised tells
+  // the user the app has lost track of its own surface.
   for (const skill of ['/skill:deep-interview', '/skill:ralplan', '/skill:ultragoal']) {
     const gate = gated(skill);
-    assert.equal(gate?.classified, false, `${skill} falls through to the default gate`);
-    assert.equal(gate?.summary, UNCLASSIFIED_GATE_REASON);
+    assert.equal(gate?.classified, true, `${skill} must be a classified gate`);
+    assert.notEqual(gate?.summary, UNCLASSIFIED_GATE_REASON, skill);
+    assert.match(gate?.summary ?? '', new RegExp(skill.slice('/skill:'.length)), skill);
+    assert.equal(gate?.gateId, skill, 'the card is keyed by the skill');
   }
+});
+
+test('a skill the app cannot know about is still named', () => {
+  // Project- and user-scoped skills are discovered at runtime, so the policy
+  // matches the prefix instead of a list of names it cannot hold.
+  const gate = gated('/skill:e2e-project-local');
+  assert.equal(gate?.classified, true);
+  assert.match(gate?.summary ?? '', /e2e-project-local/);
 });
 
 test('unclassified forms fail closed with the default reason', () => {

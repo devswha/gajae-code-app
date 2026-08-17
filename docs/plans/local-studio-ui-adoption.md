@@ -1,6 +1,6 @@
 # Local Studio UI/UX adoption plan
 
-Status: Phase 1 shipped (feaa33e); phases 2-6 approved for this session
+Status: Phases 1-2 shipped (feaa33e, d64af56); phases 3-6 approved for this session
 Saved: 2026-08-15
 
 ## Objective
@@ -20,12 +20,29 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
    - Chat keeps the rest of the row, so switching tools never reflows it.
    - Mobile: drawer at the quick-settings layer, below the sidebar.
 
-2. Session Status — NEXT
-   - Model and reasoning level
-   - Context usage and compaction action
-   - Token/cost/call totals when reported by the runtime
-   - Running and queued work
-   - Project, directory, read-only Git summary, development server, and used skills
+2. Session Status — DONE (d64af56)
+   - First tab in the strip; model, reasoning level, context usage with the
+     window and an accessible bar, running/queued activity, project, working
+     directory and a read-only Git summary (branch, changed, staged, untracked).
+   - Chat publishes a snapshot through SessionStatusProvider; the panel reads it.
+     An unchanged snapshot never reaches setState, so typing does not re-render
+     the panel.
+   - Reports only what was reported: a field the runtime has not sent reads
+     "Not reported yet", the token section is absent when no budget was sent,
+     and the 'default' model selector is not shown as a model name.
+   - Git is fetched only while the tab is visible, refreshed on demand, and a
+     non-repository directory is reported as the normal state it is.
+   - Deliberately not shipped here:
+     - Compaction action. /compact runs through the composer's command gate;
+       driving that pipeline from the panel belongs with the clickable composer
+       status strip in phase 5, not behind a second, divergent entry point.
+     - Cost and call totals. The runtime reports token buckets only
+       (used/input/output/cache); there is no cost or call count to render, and
+       a computed guess would be a fabrication.
+     - Used skills and development server. Neither has a client-side source
+       today; the development server arrives with phase 4's detection.
+     - Restore-time model and context. Session state is reported by a live turn,
+       so a freshly reopened session reads "Not reported yet" until it runs.
 
 3. Files and Editor integration
    - Reuse the existing FilesPanel and EditorSidebar behavior

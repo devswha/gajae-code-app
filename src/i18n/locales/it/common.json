@@ -263,5 +263,21 @@
       "updateAvailable": "Aggiornamento disponibile",
       "closeSidebar": "Chiudi barra laterale"
     }
+  },
+  "workspace": {
+    "title": "Area di lavoro",
+    "open": "Apri pannello area di lavoro",
+    "close": "Chiudi pannello area di lavoro",
+    "expand": "Espandi pannello area di lavoro",
+    "collapse": "Comprimi pannello area di lavoro",
+    "resize": "Trascina per ridimensionare il pannello area di lavoro",
+    "tabs": {
+      "files": "File",
+      "editor": "Editor"
+    },
+    "editorEmpty": {
+      "title": "Nessun file aperto",
+      "description": "Apri un file da File o da un messaggio della chat per modificarlo qui."
+    }
   }
 }

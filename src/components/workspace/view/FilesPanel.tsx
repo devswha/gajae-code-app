@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FolderOpen, Pencil, X } from 'lucide-react';
+import { FolderOpen, Pencil } from 'lucide-react';
 
-import type { Project } from '../../../../types/app';
-import { api } from '../../../../utils/api';
-import HomeDirInput from '../../../../shared/view/HomeDirInput';
-import FileTree from '../../../file-tree/view/FileTree';
+import type { Project } from '../../../types/app';
+import { api } from '../../../utils/api';
+import HomeDirInput from '../../../shared/view/HomeDirInput';
+import FileTree from '../../file-tree/view/FileTree';
 
 type FilesPanelProps = {
   onFileOpen: (filePath: string, projectId: string) => void;
-  onClose: () => void;
 };
 
 const ROOT_STORAGE_KEY = 'files-panel-root';
@@ -28,14 +27,15 @@ function readStoredRoot(): string {
 }
 
 /**
- * VS Code-style right-hand file browser rooted at a FIXED, user-configured
- * folder (home-relative, persisted in localStorage) — deliberately NOT tied to
- * the selected session/project. Files open in the existing editor sidebar via
+ * VS Code-style file browser rooted at a FIXED, user-configured folder
+ * (home-relative, persisted in localStorage) — deliberately NOT tied to the
+ * selected session/project. It is the Files tab of the Workspace panel, which
+ * owns the panel width and the close control. Files open in the editor via
  * `onFileOpen(path, projectId)`; the projectId belongs to the root's own
  * project row (find-or-create through /create-project, including its 409 response), so
  * content read/save stays correctly scoped.
  */
-export default function FilesPanel({ onFileOpen, onClose }: FilesPanelProps) {
+export default function FilesPanel({ onFileOpen }: FilesPanelProps) {
   const initialRootRef = useRef(readStoredRoot());
   const [state, setState] = useState<PanelState>({ kind: 'loading', root: initialRootRef.current });
   const [draftRoot, setDraftRoot] = useState('');
@@ -126,14 +126,6 @@ export default function FilesPanel({ onFileOpen, onClose }: FilesPanelProps) {
             <Pencil className="h-3 w-3" />
           </button>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          title="파일 패널 닫기"
-          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
       </div>
 
       {editingRoot && (

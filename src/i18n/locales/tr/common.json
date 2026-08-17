@@ -263,5 +263,21 @@
       "updateAvailable": "Güncelleme mevcut",
       "closeSidebar": "Kenar çubuğunu kapat"
     }
+  },
+  "workspace": {
+    "title": "Çalışma Alanı",
+    "open": "Çalışma alanı panelini aç",
+    "close": "Çalışma alanı panelini kapat",
+    "expand": "Çalışma alanı panelini genişlet",
+    "collapse": "Çalışma alanı panelini daralt",
+    "resize": "Çalışma alanı panelini yeniden boyutlandırmak için sürükle",
+    "tabs": {
+      "files": "Dosyalar",
+      "editor": "Düzenleyici"
+    },
+    "editorEmpty": {
+      "title": "Açık dosya yok",
+      "description": "Burada düzenlemek için Dosyalar'dan veya bir sohbet mesajından bir dosya aç."
+    }
   }
 }

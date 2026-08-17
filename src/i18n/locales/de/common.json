@@ -233,5 +233,21 @@
       "updateAvailable": "Update verfügbar",
       "closeSidebar": "Seitenleiste schließen"
     }
+  },
+  "workspace": {
+    "title": "Arbeitsbereich",
+    "open": "Arbeitsbereich-Panel öffnen",
+    "close": "Arbeitsbereich-Panel schließen",
+    "expand": "Arbeitsbereich-Panel erweitern",
+    "collapse": "Arbeitsbereich-Panel reduzieren",
+    "resize": "Ziehen, um das Arbeitsbereich-Panel zu vergrößern oder zu verkleinern",
+    "tabs": {
+      "files": "Dateien",
+      "editor": "Editor"
+    },
+    "editorEmpty": {
+      "title": "Keine Datei geöffnet",
+      "description": "Öffne eine Datei über Dateien oder aus einer Chat-Nachricht, um sie hier zu bearbeiten."
+    }
   }
 }

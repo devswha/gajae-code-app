@@ -37,8 +37,8 @@ export type MainContentHeaderProps = {
   selectedSession: ProjectSession | null;
   isMobile: boolean;
   onMenuClick: () => void;
-  filesPanelOpen: boolean;
-  onToggleFilesPanel: () => void;
+  workspaceOpen: boolean;
+  onToggleWorkspace: () => void;
 };
 
 export type MainContentStateViewProps = {

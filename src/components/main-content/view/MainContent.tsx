@@ -1,18 +1,19 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect } from 'react';
 
 import type { MainContentProps } from '../types/types';
+import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
 import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useFileOpenResolver } from '../../../hooks/useFileOpenResolver';
-import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
+import { useEditorFile } from '../../code-editor/hooks/useEditorFile';
+import { useWorkspacePanel } from '../../workspace/hooks/useWorkspacePanel';
 
 import MainContentHeader from './subcomponents/MainContentHeader';
 import MainContentStateView from './subcomponents/MainContentStateView';
 import ErrorBoundary from './ErrorBoundary';
 
 const ChatInterface = lazy(() => import('../../chat/view/ChatInterface'));
-const EditorSidebar = lazy(() => import('../../code-editor/view/EditorSidebar'));
-const FilesPanel = lazy(() => import('./subcomponents/FilesPanel'));
+const WorkspacePanel = lazy(() => import('../../workspace/view/WorkspacePanel'));
 
 function MainContent({
   selectedProject,
@@ -37,45 +38,27 @@ function MainContent({
   const { preferences } = useUiPreferences();
   const { showRawParameters, showThinking, showImagePreviews, sendByCtrlEnter } = preferences;
 
-  const [filesPanelOpen, setFilesPanelOpen] = useState(() => {
-    try {
-      return localStorage.getItem('files-panel-open') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const workspace = useWorkspacePanel({ isMobile });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('files-panel-open', String(filesPanelOpen));
-    } catch {
-      // storage errors are non-fatal
-    }
-  }, [filesPanelOpen]);
+  const { editingFile, handleFileOpen, handleCloseEditor } = useEditorFile({ selectedProject });
 
-
-  const {
-    editingFile,
-    editorWidth,
-    editorExpanded,
-    hasManualWidth,
-    resizeHandleRef,
-    handleFileOpen,
-    handleCloseEditor,
-    handleToggleEditorExpand,
-    handleResizeStart,
-  } = useEditorSidebar({
-    selectedProject,
-    isMobile,
-  });
+  // Opening a file is a request to see it, so the panel comes along with it.
+  const openFileInWorkspace = useCallback(
+    (filePath: string, diffInfo: CodeEditorDiffInfo | null = null, options: { projectId?: string } = {}) => {
+      handleFileOpen(filePath, diffInfo, options);
+      workspace.setTab('editor');
+    },
+    [handleFileOpen, workspace],
+  );
 
   // Resolves bare/partial file references (e.g. links inside chat messages) to
   // real project files before opening them in the in-app editor.
-  const resolvedFileOpen = useFileOpenResolver(selectedProject, handleFileOpen);
+  const resolvedFileOpen = useFileOpenResolver(selectedProject, openFileInWorkspace);
 
   useEffect(() => {
     // Shell/Git/Files tabs were removed; a persisted selection would render a
-    // blank main area, so bounce it back to chat (Files lives in FilesPanel).
+    // blank main area, so bounce it back to chat (Files lives in the Workspace
+    // panel).
     if (activeTab === 'shell' || activeTab === 'git' || activeTab === 'files') {
       setActiveTab('chat');
     }
@@ -83,10 +66,9 @@ function MainContent({
 
   usePaletteOpsRegister({
     openFile: (filePath: string) => {
-      setActiveTab('files');
-      handleFileOpen(filePath);
+      openFileInWorkspace(filePath);
     },
-    // Opens the editor side panel in place, keeping the current tab (e.g. chat).
+    // Opens the file in the Workspace editor tab, keeping the chat in place.
     openFileInEditor: (filePath: string) => {
       resolvedFileOpen(filePath);
     },
@@ -121,12 +103,12 @@ function MainContent({
         selectedSession={selectedSession}
         isMobile={isMobile}
         onMenuClick={onMenuClick}
-        filesPanelOpen={filesPanelOpen}
-        onToggleFilesPanel={() => setFilesPanelOpen((previous) => !previous)}
+        workspaceOpen={workspace.isOpen}
+        onToggleWorkspace={workspace.togglePanel}
       />
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className={`flex min-h-0 min-w-[200px] flex-col overflow-hidden ${editorExpanded ? 'hidden' : ''} flex-1`}>
+      <div ref={workspace.containerRef} className="flex min-h-0 flex-1 overflow-hidden">
+        <div className={`flex min-h-0 min-w-[200px] flex-1 flex-col overflow-hidden ${workspace.expanded ? 'hidden' : ''}`}>
           <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
             <ErrorBoundary showDetails>
               <Suspense fallback={null}>
@@ -135,7 +117,7 @@ function MainContent({
                   selectedSession={selectedSession}
                   ws={ws}
                   sendMessage={sendMessage}
-                  onFileOpen={handleFileOpen}
+                  onFileOpen={openFileInWorkspace}
                   onInputFocusChange={onInputFocusChange}
                   onSessionProcessing={onSessionProcessing}
                   onSessionIdle={onSessionIdle}
@@ -153,35 +135,25 @@ function MainContent({
               </Suspense>
             </ErrorBoundary>
           </div>
-
-
         </div>
 
-        {filesPanelOpen && (
-          <div className="w-80 max-w-[85vw] flex-shrink-0 border-l border-border/60 bg-background md:w-72">
-            <Suspense fallback={null}>
-              <FilesPanel
-                onFileOpen={(filePath, projectId) => handleFileOpen(filePath, null, { projectId })}
-                onClose={() => setFilesPanelOpen(false)}
-              />
-            </Suspense>
-          </div>
-        )}
-
-        {editingFile && (
+        {workspace.isOpen && (
           <Suspense fallback={null}>
-            <EditorSidebar
-              editingFile={editingFile}
+            <WorkspacePanel
+              tab={workspace.tab}
+              width={workspace.width}
+              expanded={workspace.expanded}
               isMobile={isMobile}
-              editorExpanded={editorExpanded}
-              editorWidth={editorWidth}
-              hasManualWidth={hasManualWidth}
-              resizeHandleRef={resizeHandleRef}
-              onResizeStart={handleResizeStart}
-              onCloseEditor={handleCloseEditor}
-              onToggleEditorExpand={handleToggleEditorExpand}
+              editingFile={editingFile}
               projectPath={selectedProject.path}
-              fillSpace={false}
+              resizeHandleRef={workspace.resizeHandleRef}
+              onTabChange={workspace.setTab}
+              onResizeStart={workspace.handleResizeStart}
+              onResizeKeyDown={workspace.handleResizeKeyDown}
+              onToggleExpand={workspace.toggleExpanded}
+              onClose={workspace.closePanel}
+              onFileOpen={(filePath, projectId) => openFileInWorkspace(filePath, null, { projectId })}
+              onCloseEditor={handleCloseEditor}
             />
           </Suspense>
         )}

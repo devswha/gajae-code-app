@@ -263,5 +263,21 @@
       "updateAvailable": "有可用更新",
       "closeSidebar": "關閉側邊欄"
     }
+  },
+  "workspace": {
+    "title": "工作區",
+    "open": "開啟工作區面板",
+    "close": "關閉工作區面板",
+    "expand": "展開工作區面板",
+    "collapse": "收合工作區面板",
+    "resize": "拖曳以調整工作區面板大小",
+    "tabs": {
+      "files": "檔案",
+      "editor": "編輯器"
+    },
+    "editorEmpty": {
+      "title": "沒有開啟的檔案",
+      "description": "從檔案或聊天訊息中開啟檔案，在此編輯。"
+    }
   }
 }

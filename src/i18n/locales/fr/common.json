@@ -263,5 +263,21 @@
       "updateAvailable": "Mise à jour disponible",
       "closeSidebar": "Masquer la barre latérale"
     }
+  },
+  "workspace": {
+    "title": "Espace de travail",
+    "open": "Ouvrir le panneau de l'espace de travail",
+    "close": "Fermer le panneau de l'espace de travail",
+    "expand": "Agrandir le panneau de l'espace de travail",
+    "collapse": "Réduire le panneau de l'espace de travail",
+    "resize": "Faites glisser pour redimensionner le panneau de l'espace de travail",
+    "tabs": {
+      "files": "Fichiers",
+      "editor": "Éditeur"
+    },
+    "editorEmpty": {
+      "title": "Aucun fichier ouvert",
+      "description": "Ouvrez un fichier depuis Fichiers ou depuis un message de chat pour le modifier ici."
+    }
   }
 }

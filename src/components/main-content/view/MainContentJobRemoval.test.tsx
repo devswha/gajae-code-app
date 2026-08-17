@@ -25,8 +25,8 @@ const headerProps = {
   selectedSession: null,
   isMobile: false,
   onMenuClick: () => undefined,
-  filesPanelOpen: false,
-  onToggleFilesPanel: () => undefined,
+  workspaceOpen: false,
+  onToggleWorkspace: () => undefined,
 } satisfies MainContentHeaderProps;
 
 const emptyStateProps = {
@@ -38,14 +38,14 @@ const emptyStateProps = {
 const assertNoJobProps = <_T extends never>(): void => undefined;
 assertNoJobProps<Extract<keyof MainContentProps, `job${string}` | `onJob${string}`>>();
 
-test('Given a selected project when rendering the main header then Files remains available without a background-job control', () => {
+test('Given a selected project when rendering the main header then the workspace toggle remains available without a background-job control', () => {
   const html = renderToStaticMarkup(createElement(
     MemoryRouter,
     null,
     createElement(MainContentHeader, headerProps),
   ));
 
-  assert.match(html, /lucide-folder-open/);
+  assert.match(html, /lucide-panel-right/);
   assert.doesNotMatch(html, /lucide-hammer|background job/i);
 });
 

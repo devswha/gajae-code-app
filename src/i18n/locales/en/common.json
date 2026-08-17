@@ -263,5 +263,21 @@
       "updateAvailable": "Update available",
       "closeSidebar": "Close sidebar"
     }
+  },
+  "workspace": {
+    "title": "Workspace",
+    "open": "Open workspace panel",
+    "close": "Close workspace panel",
+    "expand": "Expand workspace panel",
+    "collapse": "Collapse workspace panel",
+    "resize": "Drag to resize the workspace panel",
+    "tabs": {
+      "files": "Files",
+      "editor": "Editor"
+    },
+    "editorEmpty": {
+      "title": "No file open",
+      "description": "Open a file from Files, or from a chat message, to edit it here."
+    }
   }
 }

@@ -263,5 +263,21 @@
       "updateAvailable": "업데이트 가능",
       "closeSidebar": "사이드바 닫기"
     }
+  },
+  "workspace": {
+    "title": "워크스페이스",
+    "open": "워크스페이스 패널 열기",
+    "close": "워크스페이스 패널 닫기",
+    "expand": "워크스페이스 패널 확장",
+    "collapse": "워크스페이스 패널 축소",
+    "resize": "드래그하여 워크스페이스 패널 크기 조절",
+    "tabs": {
+      "files": "파일",
+      "editor": "에디터"
+    },
+    "editorEmpty": {
+      "title": "열린 파일 없음",
+      "description": "파일 탭이나 채팅 메시지에서 파일을 열어 여기에서 편집하세요."
+    }
   }
 }

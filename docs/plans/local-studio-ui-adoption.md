@@ -1,6 +1,6 @@
 # Local Studio UI/UX adoption plan
 
-Status: Phases 1-3 shipped (feaa33e, d64af56, 3377739); phase 5 started with the queue (91f4821); phases 4-6 approved for this session
+Status: Phases 1-3 shipped (feaa33e, d64af56, 3377739); phase 5 partly shipped (91f4821 queue, 26c818f steering); phases 4-6 approved for this session
 Saved: 2026-08-15
 
 ## Objective
@@ -60,6 +60,18 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
    - Keep preview visible beside the active chat
 
 5. Chat UX improvements
+   - Steer a running turn — DONE (26c818f), beyond the original list
+     - chat.steer follows chat.abort's path: same run lookup and scope check,
+       one new worker method, and the live session the adapter already holds.
+     - The SDK requires the caller to name the queue on a busy agent
+       (`prompt(text, { streamingBehavior: 'steer' })`); a bare prompt throws
+       AgentBusyError, and the contract fake now throws the same way.
+     - Prose steers; a slash command and an attachment still take a turn of
+       their own. Anything the runtime does not take is queued, and the answer
+       carries why (no-run / not-running / unsupported / refused / failed).
+     - Open: there is no explicit "queue this instead of steering" control, so
+       prose typed during a run always steers. It belongs with the composer
+       status strip below, not with a second hidden shortcut.
    - Fork a session from a specific message
    - Inline session title editing
    - Session menu: pin, fork, export, reasoning visibility

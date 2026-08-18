@@ -38,6 +38,15 @@ export interface IProviderModels {
   getSupportedModels(): Promise<ProviderModelsDefinition>;
 
   /**
+   * When the catalog's own sources last changed, in epoch milliseconds.
+   *
+   * A catalog built from local files is stale the moment those files are
+   * edited, which the TTL alone cannot see. Providers that answer from the
+   * network omit this and keep the plain TTL.
+   */
+  getCatalogRevision?(): Promise<number | null>;
+
+  /**
    * Returns the currently active model for one session or provider runtime.
    *
    * Implementations must use the provider-specific lookup mechanism approved

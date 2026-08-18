@@ -383,3 +383,73 @@ test('a session that pinned a model reports it, so the picker can show what will
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+test('a catalog whose sources changed is refetched instead of served stale', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-revision-'));
+  const cachePath = path.join(tempRoot, 'cache.json');
+
+  try {
+    let revision = 1_000;
+    let catalog = 'first';
+    let reads = 0;
+    const service = createProviderModelsService({
+      cachePath,
+      resolveProvider: () => ({
+        models: {
+          getSupportedModels: async () => {
+            reads += 1;
+            return createModels(catalog);
+          },
+          getCatalogRevision: async () => revision,
+          getCurrentActiveModel: async () => createCurrentActiveModel('active'),
+          changeActiveModel: async (input: ProviderChangeActiveModelInput) => createSessionActiveModelChange('gjc', input),
+        },
+      }),
+    });
+
+    const first = await service.getProviderModels('gjc');
+    assert.equal(first.models.DEFAULT, 'first');
+    assert.equal(reads, 1);
+
+    // Same revision: the cache still answers.
+    await service.getProviderModels('gjc');
+    assert.equal(reads, 1);
+
+    // The sources changed after the entry was cached, so the TTL must not win.
+    catalog = 'second';
+    revision = Date.now() + 60_000;
+    const afterEdit = await service.getProviderModels('gjc');
+    assert.equal(afterEdit.models.DEFAULT, 'second');
+    assert.equal(reads, 2);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('a provider without a revision keeps plain TTL caching', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-no-revision-'));
+  const cachePath = path.join(tempRoot, 'cache.json');
+
+  try {
+    let reads = 0;
+    const service = createProviderModelsService({
+      cachePath,
+      resolveProvider: () => ({
+        models: {
+          getSupportedModels: async () => {
+            reads += 1;
+            return createModels('network-catalog');
+          },
+          getCurrentActiveModel: async () => createCurrentActiveModel('active'),
+          changeActiveModel: async (input: ProviderChangeActiveModelInput) => createSessionActiveModelChange('gjc', input),
+        },
+      }),
+    });
+
+    await service.getProviderModels('gjc');
+    await service.getProviderModels('gjc');
+    assert.equal(reads, 1);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});

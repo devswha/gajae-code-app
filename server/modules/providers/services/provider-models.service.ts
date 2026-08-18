@@ -239,6 +239,23 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     return request;
   };
 
+  /**
+   * True when the provider's own sources changed after the entry was cached.
+   *
+   * The TTL answers "is this old"; this answers "is this wrong". A catalog read
+   * from local files goes wrong the moment those files are edited, which is
+   * exactly what happens when the default model is changed outside the app.
+   */
+  const cacheEntryOutdated = async (provider: LLMProvider, cachedAt: number): Promise<boolean> => {
+    if (!Number.isFinite(cachedAt)) return false;
+    try {
+      const revision = await resolveProvider(provider).models.getCatalogRevision?.();
+      return typeof revision === 'number' && revision > cachedAt;
+    } catch {
+      return false;
+    }
+  };
+
   const getProviderModels = async (
     provider: LLMProvider,
     options: ProviderModelsOptions = {},
@@ -253,7 +270,7 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     }
 
     const cachedModels = pruneExpiredMemoryEntry(provider, now(), 'memory');
-    if (cachedModels) {
+    if (cachedModels && !await cacheEntryOutdated(provider, Date.parse(cachedModels.cache.updatedAt))) {
       return cachedModels;
     }
 
@@ -265,7 +282,7 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     await loadPersistedCache();
 
     const persistedModels = pruneExpiredMemoryEntry(provider, now(), 'disk');
-    if (persistedModels) {
+    if (persistedModels && !await cacheEntryOutdated(provider, Date.parse(persistedModels.cache.updatedAt))) {
       return persistedModels;
     }
 

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -152,6 +152,21 @@ async function getGjcPresetCatalog(homeDir: string): Promise<ProviderModelsDefin
 
 export class GjcProviderModels implements IProviderModels {
   constructor(private readonly homeDir: string = os.homedir()) {}
+
+  /**
+   * The GJC catalog is parsed from `config.yml` and `models.yml` in the agent
+   * directory — no network — so editing either one (or the CLI's own /model
+   * command doing it) must invalidate the cache immediately rather than after
+   * the multi-day TTL.
+   */
+  async getCatalogRevision(): Promise<number | null> {
+    const agentDir = path.join(this.homeDir, '.gjc', 'agent');
+    const stamps = await Promise.all(['config.yml', 'models.yml'].map(
+      (name) => stat(path.join(agentDir, name)).then((info) => info.mtimeMs).catch(() => 0),
+    ));
+    const newest = Math.max(...stamps);
+    return newest > 0 ? newest : null;
+  }
 
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
     const catalog = await getGjcPresetCatalog(this.homeDir);

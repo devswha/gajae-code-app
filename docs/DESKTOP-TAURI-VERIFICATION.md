@@ -36,6 +36,28 @@ Final local beta.3 candidate:
 - Installed bundle: `/Applications/Gajae Code App.app`, desktop version `0.2.2`
 - Deep code-signature verification and packaged native/Bun loading smoke: pass
 
+## Post-beta.3 HEAD — Rebuild, smoke, and install — **PASSED 2026-08-18 (evening)**
+
+Second rebuild of the day. The morning bundle was never installed, and eight
+commits landed after it: the session-model picker fix, the model-catalog cache
+fix, and the chat transcript work (tool rows, turn boundaries, reading measure,
+typeface, bubble sizing).
+
+Verified on darwin-arm64 at `14f6bd1`:
+
+- Payload rebuilt; manifest pins `gjcSdk`/`natives` `0.14.0`.
+- `env -u CI npm run tauri -- build --bundles app` produced the bundle.
+- `smoke:packaged-server` reported `{"status":"ok","protocolVersion":1}`.
+- Bundled client carries the day's work: `max-w-[68ch]`, `group/turn`,
+  `chat.steer`, `statusTab`.
+- Installed over `/Applications` after quitting the running instance, with the
+  previous bundle copied to `/tmp` first. Deep signature verification passes,
+  and the launched app runs its three processes with the packaged server
+  answering on its loopback port.
+
+Session data lives outside the bundle in `~/.gajae-app`, so projects, sessions
+and logins survive the replacement.
+
 ## Post-beta.3 HEAD — Rebuild and packaged-server smoke — **PASSED 2026-08-18**
 
 Ran because the installed `/Applications` bundle had drifted: built 2026-07-25

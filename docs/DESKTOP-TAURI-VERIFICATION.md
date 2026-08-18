@@ -36,6 +36,34 @@ Final local beta.3 candidate:
 - Installed bundle: `/Applications/Gajae Code App.app`, desktop version `0.2.2`
 - Deep code-signature verification and packaged native/Bun loading smoke: pass
 
+## Post-beta.3 HEAD — Rebuild and packaged-server smoke — **PASSED 2026-08-18**
+
+Ran because the installed `/Applications` bundle had drifted: built 2026-07-25
+carrying GJC SDK 0.11.8, while HEAD had moved 40 commits and three SDK minors
+ahead (0.14.0). Nothing shipped since beta.3 — the Workspace panel, Status tab,
+the message queue, steering — existed in any desktop build.
+
+Verified on darwin-arm64 at `10cbb6e`:
+
+- `npm run server:payload:macos` — payload built, signed, and pruned (364 MB).
+- `npm run tauri -- build --bundles app` — bundle produced. Note: the tauri CLI
+  rejects `CI=1` (`invalid value '1' for '--ci'`); build with `env -u CI`.
+- Payload manifest pins `gjcSdk`/`natives` `0.14.0`, matching the repo.
+- `npm run smoke:packaged-server -- --tauri-app <app>` — packaged server reported
+  `{"status":"ok","product":"gajae-app","protocolVersion":1}`.
+- Launched bundle runs three processes: desktop shell, packaged server on a
+  loopback port, and the `gajae-core` session watcher.
+- The packaged client bundle carries this session's work: `chat.steer`,
+  `workspace-panel`, `statusTab`, and `queued_message_` all present in
+  `dist/assets`.
+
+Not covered: on-screen interaction. A `computer` screenshot returned an all-black
+frame (locked display or missing Screen Recording permission), so the window's
+rendered state was confirmed through the served bundle rather than visually.
+
+Not done: the freshly built app was NOT installed over `/Applications`. Until it
+is, the desktop a user launches remains the 2026-07-25 / SDK 0.11.8 build.
+
 ## beta.3 — Rename and reinstall smoke — **PASSED 2026-07-22**
 
 The previous `/Applications/Gajae App.app` and `~/.gajae-app` were moved to

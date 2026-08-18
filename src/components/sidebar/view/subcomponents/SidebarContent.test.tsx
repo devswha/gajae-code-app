@@ -151,7 +151,7 @@ test('baseline renders project rows, nested sessions, and row-level status indic
   assert.match(html, /Review pending decision/);
   assert.match(html, /lucide-loader-circle/);
   assert.match(html, /aria-label="Session needs attention"/);
-  assert.equal(html.match(/src="\/logo\.png"/g)?.length, 1);
+  assert.equal(html.match(/src="\/mark\.svg"/g)?.length, 1);
 });
 
 test('renders the Codex-style New task action with Projects and Work sections', async () => {
@@ -180,7 +180,7 @@ test('keeps search as the primary header utility', async () => {
   const html = renderSidebarHeader(t);
 
   assert.match(html, /<button[^>]+aria-label="Search"/);
-  assert.match(html, /src="\/logo\.png"/);
+  assert.match(html, /src="\/mark\.svg"/);
   assert.match(html, />Gajae Code App</);
   assert.doesNotMatch(html, />가재코드</);
   assert.doesNotMatch(html, /type="text"/);

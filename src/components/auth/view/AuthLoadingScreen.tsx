@@ -12,7 +12,7 @@ export default function AuthLoadingScreen() {
       <div className="relative text-center" role="status" aria-live="polite">
         <div className="mb-5 flex justify-center">
           <div className="flex h-20 w-20 items-center justify-center">
-            <img src="/logo.png" alt={BRAND_NAME} className="h-20 w-20 rounded-[22%] object-contain ring-1 ring-black/10 drop-shadow-lg dark:ring-white/10" />
+            <img src="/mark.svg" alt={BRAND_NAME} className="h-20 w-20 object-contain drop-shadow-lg" />
           </div>
         </div>
 

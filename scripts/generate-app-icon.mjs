@@ -99,15 +99,6 @@ const ASSETS = [
   { file: 'src-tauri/icons/512x512.png', size: 512, macos: true },
   { file: 'src-tauri/icons/512x512@2x.png', size: 1024, macos: true },
   { file: 'public/favicon.png', size: 64, bleed: false },
-  // The mark the app draws inside its own window — sidebar header, loading
-  // screen, and the gjc provider mark in chat. Left out of this list, it kept
-  // the previous artwork while the Dock icon moved on, so the app wore two
-  // identities at once.
-  { file: 'public/logo.png', size: 256, bleed: true },
-  { file: 'public/logo-32.png', size: 32, bleed: true },
-  { file: 'public/logo-128.png', size: 128, bleed: true },
-  { file: 'public/logo-256.png', size: 256, bleed: true },
-  { file: 'public/logo-512.png', size: 512, bleed: true },
   { file: 'website/public/favicon.png', size: 32, bleed: false },
   { file: 'website/public/icon-96.png', size: 96, bleed: false },
   { file: 'website/public/icon-512.png', size: 512, bleed: false },

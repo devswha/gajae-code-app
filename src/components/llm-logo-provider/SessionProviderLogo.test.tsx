@@ -10,7 +10,7 @@ test('gjc renders the distinct gajae mascot mark, not the reused Claude logo', (
   const gjc = renderToStaticMarkup(createElement(SessionProviderLogo, { provider: 'gjc' }));
   const claude = renderToStaticMarkup(createElement(SessionProviderLogo, { provider: 'claude' }));
 
-  assert.ok(gjc.includes('/logo.png'), 'gjc mark renders the mascot image');
+  assert.ok(gjc.includes('/mark.svg'), 'gjc mark renders the transparent vector');
   assert.ok(gjc.includes('gjc'), 'gjc mark carries the gjc label');
   assert.notEqual(gjc, claude, 'gjc must not render the same markup as Claude');
 });
@@ -29,11 +29,11 @@ test('className is forwarded to the gjc mark', () => {
   assert.ok(html.includes('h-3 w-3'));
 });
 
-test('the gjc mark reads as an app tile, not a hard square', () => {
+test('the gjc mark carries no plate of its own', () => {
   const gjc = renderToStaticMarkup(createElement(SessionProviderLogo, { provider: 'gjc' }));
 
-  // The artwork carries its own dark plate, so on a light theme it needs the
-  // rounding and hairline that make it look deliberate rather than pasted on.
-  assert.match(gjc, /rounded-\[22%\]/);
-  assert.match(gjc, /ring-1/);
+  // The vector is transparent, so it needs neither rounding nor a hairline to
+  // sit on a light theme — those existed only to excuse the baked-in plate.
+  assert.doesNotMatch(gjc, /rounded-\[22%\]/);
+  assert.doesNotMatch(gjc, /ring-1/);
 });

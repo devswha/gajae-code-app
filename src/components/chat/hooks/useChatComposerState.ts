@@ -15,6 +15,7 @@ import { authenticatedFetch } from '../../../utils/api';
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import type { MarkSessionProcessing } from '../../../hooks/useSessionProtection';
 import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
+import { classifyCommandInput, isAutoSendable } from '../commandDispatchPolicy';
 import { decideQueueFlush } from '../utils/queueFlush';
 import {
   clearQueuedMessages,
@@ -160,6 +161,13 @@ export type CommandModalPayload = {
  */
 const DISPATCH_SETTLE_MS = 5000;
 
+/**
+ * How long a steer waits for the runtime's answer before the message is queued
+ * instead. Only a lost connection ever reaches it; the answer is a local
+ * round-trip.
+ */
+const STEER_ANSWER_TIMEOUT_MS = 5000;
+
 const createFakeSubmitEvent = () => {
   return { preventDefault: () => undefined } as unknown as FormEvent<HTMLFormElement>;
 };
@@ -262,6 +270,13 @@ export function useChatComposerState({
   // `queuedDrafts` still holds the old session's queue; the persistence effect
   // must not write across that gap.
   const queuedDraftSessionRef = useRef<string | null>(sessionKey);
+  // Messages handed to a running turn, waiting for the runtime to say whether
+  // it took them. Keyed by text: the answer echoes the content, and identical
+  // texts resolve in the order they were sent.
+  const pendingSteersRef = useRef(new Map<string, Array<{ draft: QueuedDraft; timer: ReturnType<typeof setTimeout> }>>());
+  // Submitting captures this before the resolver below exists, and the resolver
+  // changes identity with the session; the ref keeps the late call current.
+  const resolveSteerRef = useRef<(content: string, steered: boolean) => void>(() => undefined);
 
   // A runtime form waiting on confirmation. Nothing has been sent while this is
   // set; the text is held here rather than in the input so an accidental Enter
@@ -707,13 +722,34 @@ export function useChatComposerState({
       // so it still goes through slash-command interception, image upload, etc.
       if (isLoading) {
         queuedDraftSessionRef.current = sessionKey;
-        // Appended, not replaced: a second thought while the turn runs is
-        // another follow-up, not a correction of the first one.
-        setQueuedDrafts((previous) => [...previous, {
+        const draft: QueuedDraft = {
           content: currentInput,
           images: attachedImages,
           options: buildSendOptions(currentInput),
-        }]);
+        };
+
+        // Prose goes straight into the running turn; the runtime's own steering
+        // queue is what makes that safe. A slash command needs this composer's
+        // interception and an image needs the upload path, so both wait for a
+        // turn of their own. Appended, not replaced: a second thought while the
+        // turn runs is another follow-up, not a correction of the first one.
+        const steerTarget = selectedSession?.id || currentSessionId || null;
+        const canSteer = Boolean(steerTarget)
+          && draft.images.length === 0
+          && isAutoSendable(classifyCommandInput(currentInput));
+
+        if (canSteer) {
+          const waiting = pendingSteersRef.current.get(currentInput) ?? [];
+          const timer = setTimeout(() => {
+            // No answer came back; queue it rather than leave it in limbo.
+            resolveSteerRef.current(currentInput, false);
+          }, STEER_ANSWER_TIMEOUT_MS);
+          waiting.push({ draft, timer });
+          pendingSteersRef.current.set(currentInput, waiting);
+          sendMessage({ type: 'chat.steer', sessionId: steerTarget, content: currentInput });
+        } else {
+          setQueuedDrafts((previous) => [...previous, draft]);
+        }
         setInput('');
         inputValueRef.current = '';
         setAttachedImages([]);
@@ -1058,6 +1094,57 @@ export function useChatComposerState({
     });
   }, [setInput]);
 
+  /** Puts a draft at the back of the queue. */
+  const enqueueDraft = useCallback((draft: QueuedDraft) => {
+    queuedDraftSessionRef.current = sessionKey;
+    setQueuedDrafts((previous) => [...previous, draft]);
+  }, [sessionKey]);
+
+  /**
+   * Settles one steer attempt.
+   *
+   * A message the runtime took is rendered as sent, because the running turn
+   * now has it. A refusal is queued instead — the turn settled first, or this
+   * provider cannot steer — so nothing the user typed is ever dropped.
+   */
+  const resolveSteerResult = useCallback((content: string, steered: boolean) => {
+    const waiting = pendingSteersRef.current.get(content);
+    const pending = waiting?.shift();
+    if (!pending) {
+      return;
+    }
+    if (waiting && waiting.length === 0) pendingSteersRef.current.delete(content);
+    clearTimeout(pending.timer);
+
+    if (!steered) {
+      enqueueDraft(pending.draft);
+      return;
+    }
+
+    const targetSessionId = selectedSession?.id || currentSessionId || null;
+    addMessage({
+      type: 'user',
+      content: pending.draft.content,
+      timestamp: new Date(),
+    } as never);
+    if (targetSessionId) {
+      onSessionProcessing?.(targetSessionId, { statusText: null, canInterrupt: true });
+    }
+    scrollToBottom?.();
+  }, [addMessage, currentSessionId, enqueueDraft, onSessionProcessing, scrollToBottom, selectedSession?.id]);
+
+  useEffect(() => {
+    resolveSteerRef.current = resolveSteerResult;
+  }, [resolveSteerResult]);
+
+  // A closing composer must not leave steer timers running.
+  useEffect(() => () => {
+    for (const waiting of pendingSteersRef.current.values()) {
+      for (const pending of waiting) clearTimeout(pending.timer);
+    }
+    pendingSteersRef.current.clear();
+  }, []);
+
   const deleteQueuedDraft = useCallback((index: number) => {
     setQueuedDrafts((previous) => previous.filter((_, position) => position !== index));
   }, []);
@@ -1354,6 +1441,7 @@ export function useChatComposerState({
     editQueuedDraft,
     deleteQueuedDraft,
     moveQueuedDraft,
+    resolveSteerResult,
     pendingCommandGate,
     confirmCommandGate,
     cancelCommandGate,

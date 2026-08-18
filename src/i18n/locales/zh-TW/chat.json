@@ -118,7 +118,8 @@
     "hintText": {
       "ctrlEnter": "Ctrl+Enter 傳送 • Shift+Enter 換行 • Tab 切換模式 • / 斜線指令",
       "enter": "Enter 傳送 • Shift+Enter 換行 • Tab 切換模式 • / 斜線指令",
-      "queue": "按 Enter 將下一則訊息加入佇列"
+      "queue": "按 Enter 將下一則訊息加入佇列",
+      "steer": "按 Enter 傳送到進行中的回合"
     },
     "clickToChangeMode": "點擊變更權限模式（或在輸入框中按 Tab）",
     "showAllCommands": "顯示所有指令",
@@ -133,7 +134,8 @@
       "delete": "刪除佇列中的訊息",
       "moveUp": "在佇列中往前",
       "moveDown": "在佇列中往後",
-      "images_other": "已附加 {{count}} 張圖片"
+      "images_other": "已附加 {{count}} 張圖片",
+      "steerNow": "直接傳送到進行中的回合"
     }
   },
   "thinkingMode": {

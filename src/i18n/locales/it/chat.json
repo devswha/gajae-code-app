@@ -118,7 +118,8 @@
     "hintText": {
       "ctrlEnter": "Ctrl+Invio per inviare • Shift+Invio per nuova riga • Tab per cambiare modalità • / per comandi",
       "enter": "Invio per inviare • Shift+Invio per nuova riga • Tab per cambiare modalità • / per comandi",
-      "queue": "Invio per mettere in coda il prossimo messaggio"
+      "queue": "Invio per mettere in coda il prossimo messaggio",
+      "steer": "Invio per inviare nel turno in corso"
     },
     "clickToChangeMode": "Clicca per cambiare modalità permessi (o premi Tab nell'input)",
     "showAllCommands": "Mostra tutti i comandi",
@@ -134,7 +135,8 @@
       "moveUp": "Sposta prima nella coda",
       "moveDown": "Sposta dopo nella coda",
       "images_one": "{{count}} immagine allegata",
-      "images_other": "{{count}} immagini allegate"
+      "images_other": "{{count}} immagini allegate",
+      "steerNow": "Invia nel turno in corso"
     }
   },
   "providerSelection": {

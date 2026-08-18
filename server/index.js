@@ -27,6 +27,7 @@ import { createGjcTerminalNotificationAdapter } from './modules/notifications/se
 import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
 import {
     abortGjcRun,
+    steerGjcRun,
     getPendingGjcApprovalsForSession,
     getGjcWorkerSupervisor,
     resolveGjcToolApproval,
@@ -108,6 +109,10 @@ async function abortGjcChatRun(runId) {
     return result === 'not_started' || result === 'aborted';
 }
 
+function steerGjcChatRun(runId, message) {
+    return steerGjcRun(runId, message);
+}
+
 const { app, server, wss } = createGjcAppFactory({
     authority: gjcJobAuthority,
     orchestrator: gjcJobOrchestrator,
@@ -126,6 +131,9 @@ const { app, server, wss } = createGjcAppFactory({
         },
         abortFns: {
             gjc: abortGjcChatRun,
+        },
+        steerFns: {
+            gjc: steerGjcChatRun,
         },
         resolveToolApproval: resolveProviderToolApproval,
         getPendingApprovalsForSession: getPendingProviderApprovalsForSession,

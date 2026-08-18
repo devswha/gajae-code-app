@@ -42,6 +42,8 @@ interface UseChatRealtimeHandlersArgs {
   onSessionProcessing?: MarkSessionProcessing;
   onSessionIdle?: MarkSessionIdle;
   onWebSocketReconnect?: () => void;
+  /** Whether a message handed to a running turn was actually taken by it. */
+  onSteerResult?: (content: string, steered: boolean) => void;
   sessionStore: SessionStore;
 }
 
@@ -74,6 +76,7 @@ export function useChatRealtimeHandlers({
   onSessionProcessing,
   onSessionIdle,
   onWebSocketReconnect,
+  onSteerResult,
   sessionStore,
 }: UseChatRealtimeHandlersArgs) {
   // Session switches can send `chat.subscribe` before this effect has a chance
@@ -145,6 +148,11 @@ export function useChatRealtimeHandlers({
           return;
         }
 
+        case 'chat_steered': {
+          const content = typeof msg.content === 'string' ? msg.content : '';
+          if (content) onSteerResult?.(content, msg.steered === true);
+          return;
+        }
         case 'protocol_error': {
           console.error('[Chat] Protocol error:', msg.code, msg.error);
           if (sid) {
@@ -359,6 +367,7 @@ export function useChatRealtimeHandlers({
     onSessionProcessing,
     onSessionIdle,
     onWebSocketReconnect,
+    onSteerResult,
     sessionStore,
   ]);
 }

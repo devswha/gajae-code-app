@@ -867,6 +867,32 @@ export class GjcWorkerSupervisor {
     }
   }
 
+  /**
+   * Delivers a message into a run that is still streaming.
+   *
+   * Resolves false when there is nothing live to steer — an unknown alias, a
+   * run that never started, or a runtime without steering — which is the
+   * caller's signal to queue the message rather than drop it.
+   */
+  async steer(alias: string, message: string): Promise<boolean> {
+    const runId = this.runs.has(alias) ? alias : this.aliases.get(alias);
+    const run = runId ? this.runs.get(runId) : undefined;
+    // 'request_issued' is the only phase with a turn actually in flight:
+    // 'registered' has not reached the worker yet and 'run_terminal' is over.
+    if (!run || run.phase !== 'request_issued' || run.aborted || run.abortPromise) return false;
+
+    try {
+      const response = await this.request('turn.steer', run.appScope, {
+        runId: run.runId,
+        message,
+      });
+      if (!response.ok) return false;
+      return object(response.result)?.steered === true;
+    } catch {
+      return false;
+    }
+  }
+
   abort(alias: string): Promise<GjcWorkerAbortOutcome> {
     const runId = this.runs.has(alias) ? alias : this.aliases.get(alias);
     const run = runId ? this.runs.get(runId) : undefined;
@@ -1158,3 +1184,5 @@ export function spawnGjcRun(message: string, options: GjcWorkerOptions = {}, wri
   return completion;
 }
 export function abortGjcRun(runId: string) { return supervisor.abort(runId); }
+/** Delivers a message into a run that is still streaming; false when there is nothing live to steer. */
+export function steerGjcRun(runId: string, message: string) { return supervisor.steer(runId, message); }

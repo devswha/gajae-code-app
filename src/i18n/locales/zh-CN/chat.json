@@ -118,7 +118,8 @@
     "hintText": {
       "ctrlEnter": "Ctrl+Enter 发送 • Shift+Enter 换行 • Tab 切换模式 • / 斜杠命令",
       "enter": "Enter 发送 • Shift+Enter 换行 • Tab 切换模式 • / 斜杠命令",
-      "queue": "按 Enter 将下一条消息加入队列"
+      "queue": "按 Enter 将下一条消息加入队列",
+      "steer": "按 Enter 发送到正在进行的回合"
     },
     "clickToChangeMode": "点击更改权限模式（或在输入框中按 Tab）",
     "showAllCommands": "显示所有命令",
@@ -133,7 +134,8 @@
       "delete": "删除排队消息",
       "moveUp": "在队列中前移",
       "moveDown": "在队列中后移",
-      "images_other": "已附加 {{count}} 张图片"
+      "images_other": "已附加 {{count}} 张图片",
+      "steerNow": "直接发送到正在进行的回合"
     }
   },
   "providerSelection": {

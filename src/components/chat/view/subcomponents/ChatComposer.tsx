@@ -13,6 +13,7 @@ import type {
 import type { DropzoneInputProps, DropzoneRootProps } from 'react-dropzone';
 import { PlusIcon, Loader2, ArrowUpIcon } from 'lucide-react';
 
+import { classifyCommandInput, isAutoSendable } from '../../commandDispatchPolicy';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../../hooks/useVoiceAvailable';
 import type { PendingCommandGate, QueuedDraft } from '../../hooks/useChatComposerState';
@@ -236,14 +237,15 @@ export default function ChatComposer({
   }, [onSubmit]);
 
   const canQueueDraft = isLoading && Boolean(input.trim());
-  // Queuing always appends, so the hint never promises to replace anything.
+  // Prose reaches the running turn; a slash command waits for a turn of its own.
+  const willSteer = canQueueDraft && isAutoSendable(classifyCommandInput(input));
   const submitHint = canQueueDraft
-    ? t('input.hintText.queue')
+    ? (willSteer ? t('input.hintText.steer') : t('input.hintText.queue'))
     : sendByCtrlEnter
       ? t('input.hintText.ctrlEnter')
       : t('input.hintText.enter');
   const submitAriaLabel = canQueueDraft
-    ? t('input.queue.sendNext')
+    ? (willSteer ? t('input.queue.steerNow') : t('input.queue.sendNext'))
     : isLoading
       ? t('input.stop')
       : t('input.send');

@@ -118,7 +118,8 @@
     "hintText": {
       "ctrlEnter": "Ctrl+Enter로 전송 • Shift+Enter로 줄바꿈 • Tab으로 모드 변경 • /로 슬래시 명령어",
       "enter": "Enter로 전송 • Shift+Enter로 줄바꿈 • Tab으로 모드 변경 • /로 슬래시 명령어",
-      "queue": "Enter로 다음 메시지를 대기열에 추가"
+      "queue": "Enter로 다음 메시지를 대기열에 추가",
+      "steer": "Enter로 진행 중인 작업에 바로 전달"
     },
     "clickToChangeMode": "클릭하여 권한 모드 변경 (또는 입력창에서 Tab)",
     "showAllCommands": "모든 명령어 보기",
@@ -133,7 +134,8 @@
       "delete": "대기 중인 메시지 삭제",
       "moveUp": "대기열에서 앞으로",
       "moveDown": "대기열에서 뒤로",
-      "images_other": "이미지 {{count}}개 첨부됨"
+      "images_other": "이미지 {{count}}개 첨부됨",
+      "steerNow": "진행 중인 작업에 바로 전달"
     }
   },
   "providerSelection": {

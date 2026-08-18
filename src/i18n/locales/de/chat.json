@@ -118,7 +118,8 @@
     "hintText": {
       "ctrlEnter": "Strg+Enter zum Senden • Shift+Enter für neue Zeile • Tab zum Moduswechsel • / für Slash-Befehle",
       "enter": "Enter zum Senden • Shift+Enter für neue Zeile • Tab zum Moduswechsel • / für Slash-Befehle",
-      "queue": "Enter, um die nächste Nachricht einzureihen"
+      "queue": "Enter, um die nächste Nachricht einzureihen",
+      "steer": "Enter, um in den laufenden Durchgang zu senden"
     },
     "clickToChangeMode": "Klicken, um den Berechtigungsmodus zu ändern (oder Tab in der Eingabe drücken)",
     "showAllCommands": "Alle Befehle anzeigen",
@@ -134,7 +135,8 @@
       "moveUp": "In der Warteschlange nach vorn",
       "moveDown": "In der Warteschlange nach hinten",
       "images_one": "{{count}} Bild angehängt",
-      "images_other": "{{count}} Bilder angehängt"
+      "images_other": "{{count}} Bilder angehängt",
+      "steerNow": "In den laufenden Durchgang senden"
     }
   },
   "providerSelection": {

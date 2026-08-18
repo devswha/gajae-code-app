@@ -127,7 +127,8 @@
     "hintText": {
       "ctrlEnter": "Ctrl+Enter to send • Shift+Enter for new line • Tab to change modes • / for slash commands",
       "enter": "Enter to send • Shift+Enter for new line • Tab to change modes • / for slash commands",
-      "queue": "Enter to queue your next message"
+      "queue": "Enter to queue your next message",
+      "steer": "Enter to send into the running turn"
     },
     "clickToChangeMode": "Click to change permission mode (or press Tab in input)",
     "showAllCommands": "Show all commands",
@@ -143,7 +144,8 @@
       "moveUp": "Move earlier in the queue",
       "moveDown": "Move later in the queue",
       "images_one": "{{count}} image attached",
-      "images_other": "{{count}} images attached"
+      "images_other": "{{count}} images attached",
+      "steerNow": "Send into the running turn"
     }
   },
   "providerSelection": {

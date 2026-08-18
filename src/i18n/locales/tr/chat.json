@@ -118,7 +118,8 @@
     "hintText": {
       "ctrlEnter": "Göndermek için Ctrl+Enter • Yeni satır için Shift+Enter • Mod değiştirmek için Tab • Slash komutları için /",
       "enter": "Göndermek için Enter • Yeni satır için Shift+Enter • Mod değiştirmek için Tab • Slash komutları için /",
-      "queue": "Sonraki mesajı kuyruğa almak için Enter"
+      "queue": "Sonraki mesajı kuyruğa almak için Enter",
+      "steer": "Devam eden tura göndermek için Enter"
     },
     "clickToChangeMode": "İzin modunu değiştirmek için tıkla (veya girdide Tab tuşuna bas)",
     "showAllCommands": "Tüm komutları göster",
@@ -133,7 +134,8 @@
       "delete": "Kuyruktaki mesajı sil",
       "moveUp": "Kuyrukta öne al",
       "moveDown": "Kuyrukta geri al",
-      "images_other": "{{count}} görsel eklendi"
+      "images_other": "{{count}} görsel eklendi",
+      "steerNow": "Devam eden tura gönder"
     }
   },
   "providerSelection": {

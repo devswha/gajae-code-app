@@ -11,6 +11,7 @@ export const GJC_WORKER_REQUEST_METHODS = [
   'session.resume',
   'turn.start',
   'turn.abort',
+  'turn.steer',
   'ask.reply',
   'oauth.providers',
   'oauth.status',

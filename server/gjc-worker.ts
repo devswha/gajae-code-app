@@ -38,6 +38,12 @@ export type GjcWorkerOAuthRuntime = {
 export type GjcWorkerRuntime = {
   spawnGjc(message: string, options: JsonObject, writer: GjcWorkerWriter): SpawnedRun;
   abortGjcSession(sessionId: string): Promise<boolean>;
+  /**
+   * Delivers a message into a turn that is already running. Optional: a runtime
+   * that drives a CLI process has no way to reach a live turn, and the caller
+   * queues the message instead of pretending it landed.
+   */
+  steerGjcSession?(runHandle: string, message: string): Promise<boolean>;
   resolveGjcToolApproval(requestId: string, decision: unknown): boolean;
   oauth?: GjcWorkerOAuthRuntime;
 };
@@ -177,6 +183,7 @@ export class GjcWorkerHost {
     switch (request.method) {
       case 'session.start': case 'session.resume': case 'turn.start': return this.#start(request);
       case 'turn.abort': return this.#abort(request);
+      case 'turn.steer': return this.#steer(request);
       case 'ask.reply': return this.#reply(request);
       case 'oauth.providers': return this.#oauthProviders(request);
       case 'oauth.status': return this.#oauthStatus(request);
@@ -401,6 +408,43 @@ export class GjcWorkerHost {
     else if (message.kind === 'complete') method = message.exitCode === 0 ? 'turn.completed' : 'turn.failed';
     this.#event(run, method, { message });
   }
+  /**
+   * Hands a message to a turn that is still running.
+   *
+   * Scoped exactly like an abort: only the session that owns the run may reach
+   * it. A runtime without steering, or a run whose turn has already settled,
+   * answers `steered: false` so the caller can queue the message instead of
+   * losing it.
+   */
+  async #steer(request: Extract<GjcWorkerRequestFrame, { sessionId: string }>): Promise<void> {
+    const input = payload(request, ['runId', 'message']);
+    if (
+      !input
+      || typeof input.runId !== 'string' || !input.runId
+      || typeof input.message !== 'string' || !input.message.trim()
+    ) {
+      return this.#response(request, failure('invalid_payload', 'Request payload is invalid.'));
+    }
+
+    const run = this.#runs.get(input.runId);
+    if (!run || run.scope !== request.sessionId) {
+      return this.#response(request, failure('run_not_found', 'No active run exists for this id.'));
+    }
+
+    const steer = this.#runtime?.steerGjcSession;
+    if (!steer) {
+      return this.#response(request, success({ runId: run.runId, steered: false }));
+    }
+
+    try {
+      const steered = await steer.call(this.#runtime, run.abortHandle ?? run.providerSessionId ?? run.runId, input.message);
+      this.#response(request, success({ runId: run.runId, steered }));
+    } catch (error) {
+      this.#diagnose(`run ${run.runId} steer failed`, error);
+      this.#response(request, failure('steer_failed', 'Unable to steer the run.'));
+    }
+  }
+
   async #abort(request: Extract<GjcWorkerRequestFrame, { sessionId: string }>): Promise<void> {
     const input = payload(request, ['runId']);
     if (!input || typeof input.runId !== 'string' || !input.runId) return this.#response(request, failure('invalid_payload', 'Request payload is invalid.'));

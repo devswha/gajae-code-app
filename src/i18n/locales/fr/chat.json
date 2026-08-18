@@ -119,7 +119,8 @@
     "hintText": {
       "ctrlEnter": "Ctrl+Entrée pour envoyer • Maj+Entrée pour nouvelle ligne • Tab pour changer de mode • / pour les commandes slash",
       "enter": "Entrée pour envoyer • Maj+Entrée pour nouvelle ligne • Tab pour changer de mode • / pour les commandes slash",
-      "queue": "Entrée pour mettre votre prochain message en file"
+      "queue": "Entrée pour mettre votre prochain message en file",
+      "steer": "Entrée pour envoyer dans le tour en cours"
     },
     "clickToChangeMode": "Cliquez pour changer le mode de permission (ou appuyez sur Tab dans la saisie)",
     "showAllCommands": "Afficher toutes les commandes",
@@ -135,7 +136,8 @@
       "moveUp": "Avancer dans la file",
       "moveDown": "Reculer dans la file",
       "images_one": "{{count}} image jointe",
-      "images_other": "{{count}} images jointes"
+      "images_other": "{{count}} images jointes",
+      "steerNow": "Envoyer dans le tour en cours"
     }
   },
   "providerSelection": {

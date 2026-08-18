@@ -118,7 +118,8 @@
     "hintText": {
       "ctrlEnter": "Ctrl+Enterで送信 • Shift+Enterで改行 • Tabでモード切替 • / でスラッシュコマンド",
       "enter": "Enterで送信 • Shift+Enterで改行 • Tabでモード切替 • / でスラッシュコマンド",
-      "queue": "Enter で次のメッセージをキューに追加"
+      "queue": "Enter で次のメッセージをキューに追加",
+      "steer": "Enter で実行中の処理に送信"
     },
     "clickToChangeMode": "クリックで権限モードを変更（または入力欄でTab）",
     "showAllCommands": "すべてのコマンドを表示",
@@ -131,7 +132,8 @@
       "delete": "待機中のメッセージを削除",
       "moveUp": "キューの前へ移動",
       "moveDown": "キューの後ろへ移動",
-      "images_other": "画像 {{count}} 件を添付"
+      "images_other": "画像 {{count}} 件を添付",
+      "steerNow": "実行中の処理にそのまま送信"
     }
   },
   "providerSelection": {

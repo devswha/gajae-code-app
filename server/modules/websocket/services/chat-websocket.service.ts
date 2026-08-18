@@ -120,6 +120,12 @@ type ChatWebSocketDependencies = {
    * A fresh gjc run uses its in-memory abort handle until that id arrives.
    */
   abortFns: Record<LLMProvider, (providerSessionId: string) => boolean | Promise<boolean>>;
+  /**
+   * Delivers a message into a run that is already streaming, addressed like an
+   * abort. Optional per provider: a runtime that cannot reach a live turn simply
+   * has no entry, and the client keeps the message queued instead.
+   */
+  steerFns?: Partial<Record<LLMProvider, (providerSessionId: string, message: string) => boolean | Promise<boolean>>>;
   resolveToolApproval: (
     requestId: string,
     payload: {
@@ -344,6 +350,64 @@ async function handleChatSend(
 }
 
 /**
+ * Handles `chat.steer`: hands a message to the turn that is already running.
+ *
+ * Answers `chat.steered` with whether the runtime took it. A false answer is
+ * not an error — it means the turn settled first, or this provider cannot steer
+ * — and the client queues the message instead of losing it.
+ */
+async function handleChatSteer(
+  ws: WebSocket,
+  data: AnyRecord,
+  dependencies: ChatWebSocketDependencies
+): Promise<void> {
+  const sessionId = readRequiredSessionId(data);
+  if (!sessionId) {
+    sendProtocolError(ws, 'SESSION_ID_REQUIRED', 'chat.steer requires a sessionId.');
+    return;
+  }
+
+  const content = typeof data.content === 'string' ? data.content : '';
+  if (!content.trim()) {
+    sendProtocolError(ws, 'CONTENT_REQUIRED', 'chat.steer requires content.', sessionId);
+    return;
+  }
+
+  const run = chatRunRegistry.getRun(sessionId);
+  const steerFn = run ? dependencies.steerFns?.[run.provider] : undefined;
+  const steerSessionId = run
+    ? (run.provider === 'gjc'
+      ? run.writer.getAbortHandle() ?? run.providerSessionId
+      : run.providerSessionId ?? run.writer.getAbortHandle())
+    : null;
+
+  // Why a message was not taken is the difference between "ask again" and
+  // "never ask this provider", so it travels with the answer instead of being
+  // flattened into a bare false.
+  let steered = false;
+  let reason: 'steered' | 'no-run' | 'not-running' | 'unsupported' | 'refused' | 'failed' = 'no-run';
+  if (!run) {
+    reason = 'no-run';
+  } else if (run.status !== 'running') {
+    reason = 'not-running';
+  } else if (!steerFn || !steerSessionId) {
+    reason = 'unsupported';
+  } else {
+    try {
+      steered = Boolean(await steerFn(steerSessionId, content));
+      reason = steered ? 'steered' : 'refused';
+    } catch (error) {
+      console.error('[ERROR] chat.steer failed:', error instanceof Error ? error.message : String(error));
+      reason = 'failed';
+    }
+  }
+
+  // Its own kind, like protocol_error: the client has to tell "the turn took
+  // your message" apart from any provider message the run itself emits.
+  sendJson(ws, { kind: 'chat_steered', sessionId, steered, reason, content });
+}
+
+/**
  * Handles `chat.abort`: cancels the run for one app session and emits the
  * terminal `complete` on its behalf (runtimes skip their own complete for
  * aborted runs, and the registry drops any duplicate).
@@ -560,6 +624,7 @@ async function handleOAuthRequest(
  *
  * Inbound protocol (client to server):
  * - `chat.send`                { sessionId, content, options? }
+ * - `chat.steer`               { sessionId, content } -> { kind: 'chat_steered', steered, reason }
  * - `chat.abort`               { sessionId }
  * - `chat.subscribe`           { sessions: [{ sessionId, lastSeq? }] }
  * - `chat.permission-response` { requestId, allow, updatedInput?, message?, rememberEntry? }
@@ -628,6 +693,9 @@ export function handleChatConnection(
           return;
         case 'chat.abort':
           await handleChatAbort(ws, data, dependencies);
+          return;
+        case 'chat.steer':
+          await handleChatSteer(ws, data, dependencies);
           return;
         case 'chat.subscribe':
           handleChatSubscribe(ws, data, dependencies);

@@ -192,6 +192,7 @@ function ChatInterface({
     editQueuedDraft,
     deleteQueuedDraft,
     moveQueuedDraft,
+    resolveSteerResult,
     pendingCommandGate,
     confirmCommandGate,
     cancelCommandGate,
@@ -285,6 +286,7 @@ function ChatInterface({
     onSessionProcessing,
     onSessionIdle,
     onWebSocketReconnect: handleWebSocketReconnect,
+    onSteerResult: resolveSteerResult,
     sessionStore,
   });
 

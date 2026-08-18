@@ -43,7 +43,14 @@ export type GjcBunSdkAdapterOptions = {
 };
 
 type ActiveRun = {
-  session: { prompt(message: string): Promise<void>; abort(): Promise<void>; dispose(): Promise<void>; subscribe(listener: (event: unknown) => void): () => void };
+  session: {
+    prompt(message: string, options?: { streamingBehavior?: 'steer' | 'followUp' }): Promise<void>;
+    abort(): Promise<void>;
+    dispose(): Promise<void>;
+    subscribe(listener: (event: unknown) => void): () => void;
+    /** True while a turn is in flight. Absent on runtimes that never stream. */
+    readonly isStreaming?: boolean;
+  };
   sessionManager: SessionManager;
   unsubscribe: () => void;
   askController: GjcBunAskController;
@@ -225,6 +232,34 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
     if (!runId || this.#runs.has(runId)) throw new Error(FAILURE);
     const task = this.#run(runId, message, options, config, writer);
     return Object.assign(task, { abortHandle: runId });
+  }
+
+  /**
+   * Delivers a message into the turn that is already running.
+   *
+   * The SDK's own `prompt()` routes a call made while streaming into the
+   * session's steering queue, so the running turn picks the message up instead
+   * of a second turn being started behind it. That is the whole feature: the
+   * live session object is already held here for the duration of the run,
+   * which is the same handle `abortGjcSession` uses.
+   *
+   * Refuses when the run is not streaming. Prompting a settled session would
+   * silently start a fresh turn under a run id whose terminal event the client
+   * has already seen, so the caller queues the message instead.
+   */
+  async steerGjcSession(runHandle: string, message: string): Promise<boolean> {
+    const run = this.#runs.get(runHandle);
+    if (!run || run.abortState !== 'idle') return false;
+    if (run.session.isStreaming === false) return false;
+
+    const text = message.trim();
+    if (!text) return false;
+
+    // The SDK refuses a bare prompt() on a busy agent (AgentBusyError) and
+    // requires the caller to say which queue the message belongs in. 'steer' is
+    // the one the running turn consumes at its next tool or turn boundary.
+    await run.session.prompt(text, { streamingBehavior: 'steer' });
+    return true;
   }
 
   async abortGjcSession(sessionId: string): Promise<boolean> {

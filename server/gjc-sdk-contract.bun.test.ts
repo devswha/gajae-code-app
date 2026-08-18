@@ -153,14 +153,33 @@ class FakeAgentSession {
   aborted = false;
   abortError: Error | undefined;
   neverSettleAbort = false;
+  /** Mirrors the SDK's own flag: true while a turn is in flight. */
+  isStreaming = true;
   abortDeferred: Deferred<void> | undefined;
   disposeError: Error | undefined;
   promptCalls = 0;
+  /** Messages that arrived while a turn was already running. */
+  readonly steeredMessages: string[] = [];
+  /** Which queue each of those messages asked for. */
+  readonly steerBehaviors: Array<'steer' | 'followUp'> = [];
+  #turnInFlight = false;
 
   subscribe(listener: Listener): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
   setToolUIContext(context: typeof this.uiContext): void { this.uiContext = context; }
-  async prompt(_message: string): Promise<void> {
+  async prompt(message: string, options?: { streamingBehavior?: 'steer' | 'followUp' }): Promise<void> {
     this.promptCalls += 1;
+    // Mirrors the SDK: a busy agent refuses a bare prompt and requires the
+    // caller to name the queue; a steer resolves as soon as it is queued rather
+    // than waiting for the turn it joined.
+    if (this.#turnInFlight) {
+      if (!options?.streamingBehavior) {
+        throw new Error('Agent is already processing. Use steer() or followUp() to queue messages, or wait for completion.');
+      }
+      this.steeredMessages.push(message);
+      this.steerBehaviors.push(options.streamingBehavior!);
+      return;
+    }
+    this.#turnInFlight = true;
     this.promptStarted.resolve();
     return this.#prompt.promise;
   }
@@ -1281,4 +1300,107 @@ test('live pinned SDK smoke (set GJC_CONTRACT_LIVE=1)', { skip: process.env.GJC_
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test('a message sent during a run is steered into the turn already in flight', async () => {
+  const f = await fixture();
+  try {
+    const run = f.host.handle(request('session.start', 'steer-live', { message: 'hello', options: f.options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    assert.equal(session.promptCalls, 1);
+
+    await f.host.handle(request('turn.steer', 'steer-live-request', { runId: 'steer-live', message: 'actually, use TypeScript' }));
+
+    // Steering rides the session's own prompt(), which the SDK routes into its
+    // steering queue while streaming — no second run is started for it.
+    assert.deepEqual(
+      response(f.frames, 'steer-live-request').payload,
+      { ok: true, result: { runId: 'steer-live', steered: true } },
+    );
+    assert.equal(session.promptCalls, 2);
+    assert.deepEqual(session.steeredMessages, ['actually, use TypeScript']);
+    assert.deepEqual(session.steerBehaviors, ['steer']);
+    assert.equal(f.sessions.length, 1);
+
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
+
+test('a settled turn refuses steering rather than silently starting another one', async () => {
+  const f = await fixture();
+  try {
+    const run = f.host.handle(request('session.start', 'steer-settled', { message: 'hello', options: f.options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    session.isStreaming = false;
+
+    await f.host.handle(request('turn.steer', 'steer-settled-request', { runId: 'steer-settled', message: 'too late' }));
+
+    assert.deepEqual(
+      response(f.frames, 'steer-settled-request').payload,
+      { ok: true, result: { runId: 'steer-settled', steered: false } },
+    );
+    assert.equal(session.promptCalls, 1);
+
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
+
+test('an aborting run refuses steering, because its turn is already ending', async () => {
+  const f = await fixture();
+  try {
+    const run = f.host.handle(request('session.start', 'steer-aborting', { message: 'hello', options: f.options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    // Hold the abort in flight so the run is observably mid-abort.
+    session.abortDeferred = deferred<void>();
+    const abort = f.host.handle(request('turn.abort', 'steer-aborting-abort', { runId: 'steer-aborting' }));
+    await session.abortStarted.promise;
+
+    await f.host.handle(request('turn.steer', 'steer-aborting-request', { runId: 'steer-aborting', message: 'wait' }));
+
+    assert.deepEqual(
+      response(f.frames, 'steer-aborting-request').payload,
+      { ok: true, result: { runId: 'steer-aborting', steered: false } },
+    );
+    assert.equal(session.promptCalls, 1);
+    assert.deepEqual(session.steeredMessages, []);
+
+    session.abortDeferred.resolve();
+    await abort;
+    await run;
+  } finally { await f.close(); }
+});
+
+test('steering an unknown run is refused instead of reaching the runtime', async () => {
+  const f = await fixture();
+  try {
+    await f.host.handle(request('turn.steer', 'steer-missing', { runId: 'no-such-run', message: 'hello' }));
+
+    const payload = response(f.frames, 'steer-missing').payload as Record<string, unknown>;
+    assert.equal(payload.ok, false);
+    assert.equal((payload.error as Record<string, unknown>).code, 'run_not_found');
+  } finally { await f.close(); }
+});
+
+test('steering rejects a payload with nothing to say', async () => {
+  const f = await fixture();
+  try {
+    const run = f.host.handle(request('session.start', 'steer-blank', { message: 'hello', options: f.options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+
+    await f.host.handle(request('turn.steer', 'steer-blank-request', { runId: 'steer-blank', message: '   ' }));
+
+    const payload = response(f.frames, 'steer-blank-request').payload as Record<string, unknown>;
+    assert.equal(payload.ok, false);
+    assert.equal((payload.error as Record<string, unknown>).code, 'invalid_payload');
+    assert.equal(session.promptCalls, 1);
+
+    session.complete();
+    await run;
+  } finally { await f.close(); }
 });

@@ -48,7 +48,11 @@
   <path d="M371 478 C355 367 304 260 197 229" fill="none" stroke="url(#lobsterRedHighlight)" stroke-width="38" stroke-linecap="round"/>
   <path d="M653 478 C669 367 720 260 827 229" fill="none" stroke="url(#lobsterRedHighlight)" stroke-width="38" stroke-linecap="round"/>
 
-  <!-- Straw-hat brim, kept as a true vector band so the center remains transparent -->
+
+  <!-- Hat underside: part of the mark, not the background it happens to sit on -->
+  <ellipse cx="512" cy="613" rx="372" ry="104" fill="#06162F"/>
+
+  <!-- Straw-hat brim band -->
   <path d="M98 613 C109 510 295 451 512 451 C729 451 915 510 926 613 C935 681 850 744 759 765 L763 717 C833 698 883 655 881 613 C875 554 711 513 512 513 C313 513 149 554 143 613 C141 655 191 698 261 717 L265 765 C174 744 89 681 98 613 Z" fill="url(#hatHighlight)"/>
 
   <!-- Visor frame and face -->

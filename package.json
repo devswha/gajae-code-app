@@ -163,7 +163,7 @@
     "@codemirror/lang-python": "^6.2.1",
     "@codemirror/merge": "^6.11.1",
     "@codemirror/theme-one-dark": "^6.1.2",
-    "@gajae-code/coding-agent": "0.13.1",
+    "@gajae-code/coding-agent": "0.14.0",
     "@octokit/rest": "^22.0.0",
     "@replit/codemirror-minimap": "^0.5.2",
     "@tailwindcss/typography": "^0.5.16",

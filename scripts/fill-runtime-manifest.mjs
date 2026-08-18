@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { execFile as execFileCallback } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -12,12 +13,33 @@ const rootDir = path.resolve(__dirname, '..');
 const bunPath = path.join(rootDir, 'dist-native', process.platform === 'win32' ? 'bun.exe' : 'bun');
 const manifestPath = path.join(rootDir, 'server', 'gjc-runtime-manifest.json');
 const resolverFrom = path.join(rootDir, 'server');
-const update = process.argv.slice(2).includes('--update');
+const argv = process.argv.slice(2);
+const update = argv.includes('--update');
 // Runtime v2 supports Linux x64 and macOS arm64 only; Windows remains intentionally frozen out.
 const SUPPORTED_PLATFORMS = new Set(['linux-x64', 'darwin-arm64']);
 
-if (process.argv.slice(2).some((argument) => argument !== '--update')) {
-  throw new Error('Usage: node scripts/fill-runtime-manifest.mjs [--update]');
+/**
+ * Fill the closure for a platform this machine is not.
+ *
+ * A natives bump changes every platform's hashes at once, and the manifest is
+ * verified on all of them, so without this the pin can only be completed by
+ * running the same command again on a second machine. The foreign closure is
+ * hashed from the published tarball of the very package a real install would
+ * unpack, at the exact version installed here.
+ */
+const allPlatforms = argv.includes('--all-platforms');
+const requestedPlatforms = argv
+  .filter((argument) => argument.startsWith('--platform='))
+  .map((argument) => argument.slice('--platform='.length));
+
+if (argv.some((argument) => argument !== '--update' && argument !== '--all-platforms' && !argument.startsWith('--platform='))) {
+  throw new Error('Usage: node scripts/fill-runtime-manifest.mjs [--update] [--all-platforms] [--platform=<os-arch>]');
+}
+for (const platform of requestedPlatforms) {
+  if (!SUPPORTED_PLATFORMS.has(platform)) throw new Error(`Unsupported platform: ${platform}`);
+}
+if ((allPlatforms || requestedPlatforms.length > 0) && !update) {
+  throw new Error('Filling another platform only makes sense with --update.');
 }
 
 async function packageRoot(entrypoint, expectedName) {
@@ -56,9 +78,25 @@ async function closureFiles(packageName, packageRoot, filenames) {
   })));
 }
 
-async function platformClosure(nativesRoot, platform) {
+/**
+ * Unpacks a platform's natives package from the registry into a temp directory
+ * and returns its root. Used only for a platform this machine cannot install.
+ */
+async function fetchPlatformRoot(platform, version) {
   const platformPackage = `@gajae-code/natives-${platform}`;
-  const platformRoot = path.join(path.dirname(nativesRoot), `natives-${platform}`);
+  const destination = await fs.mkdtemp(path.join(os.tmpdir(), `gjc-natives-${platform}-`));
+  const { stdout } = await execFile('npm', [
+    'pack', `${platformPackage}@${version}`, '--pack-destination', destination, '--silent',
+  ], { cwd: rootDir });
+  const tarball = stdout.trim().split('\n').pop();
+  if (!tarball) throw new Error(`npm pack produced no tarball for ${platformPackage}@${version}.`);
+  await execFile('tar', ['-xzf', path.join(destination, tarball), '-C', destination]);
+  return path.join(destination, 'package');
+}
+
+async function platformClosure(nativesRoot, platform, foreignRoot) {
+  const platformPackage = `@gajae-code/natives-${platform}`;
+  const platformRoot = foreignRoot ?? path.join(path.dirname(nativesRoot), `natives-${platform}`);
   const metadata = JSON.parse(await fs.readFile(path.join(platformRoot, 'package.json'), 'utf8'));
   if (metadata.name !== platformPackage) throw new Error(`Invalid platform package at ${platformRoot}.`);
 
@@ -96,6 +134,24 @@ if (!update) {
 } else {
   manifest.platforms ??= {};
   manifest.platforms[currentPlatform] = actualCurrentClosure;
+
+  const nativesVersion = JSON.parse(await fs.readFile(path.join(nativesRoot, 'package.json'), 'utf8')).version;
+  // The worker refuses to initialize when these disagree with what is actually
+  // installed, so they are written from the install rather than left to a hand
+  // edit that a bump can silently forget.
+  // The SDK's exports map hides package.json, so the version is read from the
+  // installed tree rather than through a resolver.
+  const sdkManifestPath = path.join(rootDir, 'node_modules', '@gajae-code', 'coding-agent', 'package.json');
+  manifest.gjcSdk = JSON.parse(await fs.readFile(sdkManifestPath, 'utf8')).version;
+  manifest.natives = nativesVersion;
+  const foreignPlatforms = new Set(allPlatforms
+    ? [...SUPPORTED_PLATFORMS].filter((platform) => platform !== currentPlatform)
+    : requestedPlatforms.filter((platform) => platform !== currentPlatform));
+  for (const platform of foreignPlatforms) {
+    const foreignRoot = await fetchPlatformRoot(platform, nativesVersion);
+    manifest.platforms[platform] = await platformClosure(nativesRoot, platform, foreignRoot);
+    console.log(`Filled ${platform} closure from ${`@gajae-code/natives-${platform}`}@${nativesVersion}.`);
+  }
   for (const platform of SUPPORTED_PLATFORMS) {
     manifest.platforms[platform] ??= { files: [] };
   }

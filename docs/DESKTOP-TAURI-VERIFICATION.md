@@ -36,6 +36,15 @@ Final local beta.3 candidate:
 - Installed bundle: `/Applications/Gajae Code App.app`, desktop version `0.2.2`
 - Deep code-signature verification and packaged native/Bun loading smoke: pass
 
+## Post-beta.3 HEAD — Reframed icon — **PASSED 2026-08-18 (night)**
+
+Rebuilt and reinstalled at `6949f86`, where the icon artwork was reframed 26%
+larger and lower so the mark fills its tile. Signature verification passes, the
+app relaunches with its three processes, and the bundled `dist/logo.png` hashes
+identically to the repository's. Note that comparing an installed `.icns` to the
+source PNG by hash is meaningless — `iconutil` re-encodes on extraction — so the
+icon itself was confirmed by rendering it at 16 and 32px.
+
 ## Post-beta.3 HEAD — In-app mark rebuild — **PASSED 2026-08-18 (late evening)**
 
 Rebuilt and reinstalled at `99bed13` after the icon generator was extended to

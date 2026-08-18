@@ -181,6 +181,12 @@ export type QueuedDraft = {
    * permission settings while another session is being viewed.
    */
   options?: QueuedSendOptions;
+  /**
+   * Handed to the running turn, waiting to hear whether it was taken. Shown
+   * like any queued message so the text is never invisible, but skipped by the
+   * flush: only the steer answer decides whether it sends or stays queued.
+   */
+  pendingSteer?: boolean;
 };
 
 /** A runtime form held at the confirmation card, plus the exact text to replay. */
@@ -746,6 +752,7 @@ export function useChatComposerState({
           }, STEER_ANSWER_TIMEOUT_MS);
           waiting.push({ draft, timer });
           pendingSteersRef.current.set(currentInput, waiting);
+          setQueuedDrafts((previous) => [...previous, { ...draft, pendingSteer: true }]);
           sendMessage({ type: 'chat.steer', sessionId: steerTarget, content: currentInput });
         } else {
           setQueuedDrafts((previous) => [...previous, draft]);
@@ -1041,6 +1048,7 @@ export function useChatComposerState({
       queueLength: queuedDrafts.length,
       awaitingDispatchedTurn: awaitingDispatchedTurnRef.current,
       composerHasInput,
+      headAwaitingSteer: Boolean(head?.pendingSteer),
     });
     if (decision.action !== 'flush' || !head) {
       return;
@@ -1094,12 +1102,6 @@ export function useChatComposerState({
     });
   }, [setInput]);
 
-  /** Puts a draft at the back of the queue. */
-  const enqueueDraft = useCallback((draft: QueuedDraft) => {
-    queuedDraftSessionRef.current = sessionKey;
-    setQueuedDrafts((previous) => [...previous, draft]);
-  }, [sessionKey]);
-
   /**
    * Settles one steer attempt.
    *
@@ -1117,9 +1119,22 @@ export function useChatComposerState({
     clearTimeout(pending.timer);
 
     if (!steered) {
-      enqueueDraft(pending.draft);
+      // Release the placeholder: from here it is an ordinary queued message.
+      setQueuedDrafts((previous) => {
+        const index = previous.findIndex((draft) => draft.pendingSteer && draft.content === content);
+        if (index === -1) return [...previous, pending.draft];
+        const next = previous.slice();
+        next[index] = { ...next[index], pendingSteer: false };
+        return next;
+      });
       return;
     }
+
+    // Taken by the running turn, so the placeholder is no longer waiting.
+    setQueuedDrafts((previous) => {
+      const index = previous.findIndex((draft) => draft.pendingSteer && draft.content === content);
+      return index === -1 ? previous : previous.filter((_, position) => position !== index);
+    });
 
     const targetSessionId = selectedSession?.id || currentSessionId || null;
     addMessage({
@@ -1131,7 +1146,7 @@ export function useChatComposerState({
       onSessionProcessing?.(targetSessionId, { statusText: null, canInterrupt: true });
     }
     scrollToBottom?.();
-  }, [addMessage, currentSessionId, enqueueDraft, onSessionProcessing, scrollToBottom, selectedSession?.id]);
+  }, [addMessage, currentSessionId, onSessionProcessing, scrollToBottom, selectedSession?.id]);
 
   useEffect(() => {
     resolveSteerRef.current = resolveSteerResult;

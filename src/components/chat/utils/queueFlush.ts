@@ -15,7 +15,7 @@ export const QUEUE_FLUSH_DELAY_ON_RESTORE_MS = 750;
 
 export type QueueFlushDecision =
   | { action: 'flush'; delayMs: number }
-  | { action: 'skip'; reason: 'session-switched' | 'run-in-flight' | 'empty' | 'awaiting-dispatch' | 'composer-has-input' };
+  | { action: 'skip'; reason: 'session-switched' | 'run-in-flight' | 'empty' | 'awaiting-dispatch' | 'composer-has-input' | 'head-awaiting-steer' };
 
 export type QueueFlushInput = {
   /** The effect is running across a session change, so `isLoading` describes another session. */
@@ -28,6 +28,8 @@ export type QueueFlushInput = {
   awaitingDispatchedTurn: boolean;
   /** The user has text in the composer right now. */
   composerHasInput: boolean;
+  /** The head was handed to the running turn and its answer is outstanding. */
+  headAwaitingSteer: boolean;
 };
 
 export function decideQueueFlush({
@@ -37,6 +39,7 @@ export function decideQueueFlush({
   queueLength,
   awaitingDispatchedTurn,
   composerHasInput,
+  headAwaitingSteer,
 }: QueueFlushInput): QueueFlushDecision {
   if (sessionSwitched) {
     return { action: 'skip', reason: 'session-switched' };
@@ -55,6 +58,13 @@ export function decideQueueFlush({
   // of a turn that has not started.
   if (awaitingDispatchedTurn) {
     return { action: 'skip', reason: 'awaiting-dispatch' };
+  }
+
+  // The head is shown as queued only so the text is never invisible while the
+  // runtime decides. Sending it here would duplicate a message the running turn
+  // may already have taken.
+  if (headAwaitingSteer) {
+    return { action: 'skip', reason: 'head-awaiting-steer' };
   }
 
   // Flushing seeds the composer with the queued text and submits it, which

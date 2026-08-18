@@ -15,6 +15,7 @@ const idleWithQueue: QueueFlushInput = {
   queueLength: 2,
   awaitingDispatchedTurn: false,
   composerHasInput: false,
+  headAwaitingSteer: false,
 };
 
 test('a turn that just ended flushes the head immediately', () => {
@@ -82,6 +83,15 @@ test('text in the composer is never clobbered by a flush', () => {
 
 test('the queue resumes as soon as the composer is empty again', () => {
   assert.equal(decideQueueFlush({ ...idleWithQueue, composerHasInput: false }).action, 'flush');
+});
+
+test('a head still waiting on its steer answer is never sent from here', () => {
+  // It is only in the queue so the text stays visible; sending it would
+  // duplicate a message the running turn may already have taken.
+  assert.deepEqual(decideQueueFlush({ ...idleWithQueue, headAwaitingSteer: true }), {
+    action: 'skip',
+    reason: 'head-awaiting-steer',
+  });
 });
 
 test('one message flushes on the same terms as many', () => {

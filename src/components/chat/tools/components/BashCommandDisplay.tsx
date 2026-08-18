@@ -67,10 +67,12 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
   return (
     <div
       className={cn(
-        'group/cmd overflow-hidden rounded-lg border bg-muted/40 backdrop-blur-sm transition-all duration-200',
-        isError ? 'border-red-500/30' : 'border-border/60',
-        hasOutput && !open && 'hover:border-border hover:bg-muted/60',
-        open && 'bg-muted/50 shadow-sm',
+        // Collapsed, a command is one line of text among the prose. The card
+        // only appears once it is opened and actually has output to frame.
+        'group/cmd overflow-hidden rounded-md transition-colors duration-200',
+        hasOutput && !open && 'hover:bg-muted/30',
+        open && 'border bg-muted/40',
+        open && (isError ? 'border-red-500/30' : 'border-border/60'),
       )}
     >
       {/* Command header — clickable when there is output to expand */}
@@ -86,7 +88,8 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
           }
         }}
         className={cn(
-          'flex items-center gap-2 px-2.5 py-1.5 outline-none',
+          'flex items-center gap-2 px-1 py-0.5 outline-none',
+          open && 'px-2.5 py-1.5',
           hasOutput && 'cursor-pointer focus-visible:ring-1 focus-visible:ring-ring',
         )}
       >

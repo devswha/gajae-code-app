@@ -68,3 +68,16 @@ test('a user turn is its bubble alone, with no avatar badge beside it', () => {
   assert.doesNotMatch(html, />\s*U\s*</);
   assert.doesNotMatch(html, /h-8 w-8[^"]*rounded-full[^"]*bg-blue-600/);
 });
+
+test('a tool call is a row, not a card', () => {
+  const html = renderMessage({
+    type: 'tool',
+    toolName: 'Bash',
+    toolInput: { command: 'npm test' },
+    timestamp: new Date('2026-08-18T07:00:00Z'),
+  } as never);
+
+  // The rail and the filled block were the whole weight of a tool call.
+  assert.doesNotMatch(html, /border-l-2/);
+  assert.doesNotMatch(html, /rounded-r-md/);
+});

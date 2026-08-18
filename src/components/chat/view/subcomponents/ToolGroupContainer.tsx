@@ -74,7 +74,6 @@ export default function ToolGroupContainer({
   const [isExpanded, setIsExpanded] = useState(false);
   const config = getToolConfig(group.toolName).input;
   const label = config.label || group.toolName;
-  const borderClass = config.colorScheme?.border || 'border-border';
   const iconClass = config.colorScheme?.icon || 'text-muted-foreground';
   const icon = getToolGroupIcon(config.icon, group.toolName);
 
@@ -98,7 +97,10 @@ export default function ToolGroupContainer({
     <div className="chat-message tool px-3 sm:px-0" data-message-timestamp={group.timestamp || undefined}>
       <button
         type="button"
-        className={`group flex w-full items-center gap-2 border-l-2 ${borderClass} rounded-r-md bg-muted/25 px-3 py-2 text-left transition-colors hover:bg-muted/40 dark:bg-muted/10 dark:hover:bg-muted/20`}
+        // One quiet line. A tool call is scaffolding around the answer, so it
+        // gets a row, not a card: no rail, no fill, no padding block. The status
+        // colour moves onto the icon, which is where the eye already goes.
+        className="group flex w-full items-center gap-2 rounded px-1 py-0.5 text-left transition-colors hover:bg-muted/30"
         onClick={() => setIsExpanded((current) => !current)}
         aria-expanded={isExpanded}
       >
@@ -106,18 +108,13 @@ export default function ToolGroupContainer({
           className={`h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`}
           aria-hidden
         />
-        <span className={`${iconClass} flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-background/80 text-xs font-medium`}>
-          {icon}
-        </span>
+        <span className={`${iconClass} flex-shrink-0 text-xs font-medium`}>{icon}</span>
         <span className="min-w-0 flex-shrink-0 text-xs font-medium text-foreground">{label}</span>
-        <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-          x{group.messages.length}
+        <span className="flex-shrink-0 text-[11px] tabular-nums text-muted-foreground/60">
+          ×{group.messages.length}
         </span>
         {preview && (
-          <>
-            <span className="text-[10px] text-muted-foreground/40">/</span>
-            <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">{preview}</span>
-          </>
+          <span className="min-w-0 truncate font-mono text-xs text-muted-foreground/80">{preview}</span>
         )}
       </button>
 

@@ -16,20 +16,7 @@ interface CollapsibleDisplayProps {
   showRawParameters?: boolean;
   rawContent?: string;
   className?: string;
-  toolCategory?: string;
 }
-
-const borderColorMap: Record<string, string> = {
-  edit: 'border-l-amber-500 dark:border-l-amber-400',
-  search: 'border-l-muted-foreground/40',
-  bash: 'border-l-green-500 dark:border-l-green-400',
-  todo: 'border-l-violet-500 dark:border-l-violet-400',
-  task: 'border-l-violet-500 dark:border-l-violet-400',
-  agent: 'border-l-purple-500 dark:border-l-purple-400',
-  plan: 'border-l-indigo-500 dark:border-l-indigo-400',
-  question: 'border-l-blue-500 dark:border-l-blue-400',
-  default: 'border-l-border',
-};
 
 export const CollapsibleDisplay: React.FC<CollapsibleDisplayProps> = ({
   toolName,
@@ -42,12 +29,12 @@ export const CollapsibleDisplay: React.FC<CollapsibleDisplayProps> = ({
   showRawParameters = false,
   rawContent,
   className = '',
-  toolCategory,
 }) => {
-  const borderColor = borderColorMap[toolCategory || 'default'] || borderColorMap.default;
 
   return (
-    <div className={`border-l-2 ${borderColor} my-1 py-0.5 pl-3 ${className}`}>
+    // Same rule as the other tool rows: an indent is enough to say "this
+    // belongs to the call above", and it costs no colour or rail.
+    <div className={`py-0.5 pl-2 ${className}`}>
       <CollapsibleSection
         title={title}
         toolName={toolName}

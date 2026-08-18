@@ -81,3 +81,42 @@ test('a tool call is a row, not a card', () => {
   assert.doesNotMatch(html, /border-l-2/);
   assert.doesNotMatch(html, /rounded-r-md/);
 });
+
+test('copy and timestamp chrome waits for hover instead of sitting in the transcript', () => {
+  const html = renderMessage({
+    type: 'assistant',
+    content: 'done',
+    timestamp: new Date('2026-08-18T07:00:00Z'),
+  });
+
+  // Present for the pointer and for keyboard focus, absent while reading.
+  assert.match(html, /opacity-0/);
+  assert.match(html, /group-hover\/turn:opacity-100/);
+  assert.match(html, /focus-within:opacity-100/);
+});
+
+test('a live gjc turn carries no name row, while a stored foreign transcript keeps one', () => {
+  const turn: ChatMessage = {
+    type: 'assistant',
+    content: 'done',
+    timestamp: '2026-08-18T07:00:00.000Z',
+  };
+
+  const gjc = renderToStaticMarkup(createElement(MessageComponent, {
+    message: turn,
+    prevMessage: null,
+    createDiff: () => [],
+    provider: 'gjc',
+  }));
+  const claude = renderToStaticMarkup(createElement(MessageComponent, {
+    message: turn,
+    prevMessage: null,
+    createDiff: () => [],
+    provider: 'claude',
+  }));
+
+  // The copy control keeps its own label, so this asks specifically about the
+  // provider badge.
+  assert.doesNotMatch(gjc, /aria-label="(Claude|Codex|OpenCode|Cursor|gjc)"/);
+  assert.match(claude, /aria-label="Claude"/);
+});

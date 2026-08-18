@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from 'react';
+import { useTranslation } from 'react-i18next';
 import { BrainIcon, ChevronDownIcon } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
@@ -132,17 +133,23 @@ Reasoning.displayName = 'Reasoning';
 /* ─── ReasoningTrigger ───────────────────────────────────────────── */
 
 export interface ReasoningTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  getThinkingMessage?: (isStreaming: boolean, duration?: number) => React.ReactNode;
+  getThinkingMessage?: (isStreaming: boolean, duration: number | undefined, t: ThinkingTranslator) => React.ReactNode;
 }
 
-const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number): React.ReactNode => {
+type ThinkingTranslator = (key: string, options?: Record<string, unknown>) => string;
+
+const defaultGetThinkingMessage = (
+  isStreaming: boolean,
+  duration: number | undefined,
+  t: ThinkingTranslator,
+): React.ReactNode => {
   if (isStreaming || duration === 0) {
-    return <Shimmer>Thinking...</Shimmer>;
+    return <Shimmer>{t('reasoning.thinking')}</Shimmer>;
   }
   if (duration === undefined) {
-    return <p>Thought for a few seconds</p>;
+    return <span>{t('reasoning.thoughtBriefly')}</span>;
   }
-  return <p>Thought for {duration} seconds</p>;
+  return <span>{t('reasoning.thoughtFor', { count: duration })}</span>;
 };
 
 export const ReasoningTrigger = React.memo<ReasoningTriggerProps>(
@@ -153,22 +160,26 @@ export const ReasoningTrigger = React.memo<ReasoningTriggerProps>(
     ...props
   }) => {
     const { isStreaming, isOpen, duration } = useReasoning();
+    const { t } = useTranslation('chat');
 
     return (
       <CollapsibleTrigger
+        // A marginal note about how the answer was reached, not the answer:
+        // it sits at label size, only as wide as its text, and stays quiet
+        // until hovered. Several of these can appear in a single turn.
         className={cn(
-          'flex w-full items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground',
+          'flex w-fit items-center gap-1.5 text-xs text-muted-foreground/70 transition-colors hover:text-foreground',
           className
         )}
         {...props}
       >
         {children ?? (
           <>
-            <BrainIcon className="h-4 w-4" />
-            {getThinkingMessage(isStreaming, duration)}
+            <BrainIcon className="h-3.5 w-3.5" />
+            {getThinkingMessage(isStreaming, duration, t as ThinkingTranslator)}
             <ChevronDownIcon
               className={cn(
-                'h-4 w-4 transition-transform',
+                'h-3 w-3 transition-transform',
                 isOpen ? 'rotate-180' : 'rotate-0'
               )}
             />

@@ -228,5 +228,10 @@
   "newSession": {
     "greeting": "今日は何を作りましょうか？",
     "subtitle": "Gajae Code は {{project}} で作業する準備ができています。"
+  },
+  "reasoning": {
+    "thinking": "思考中…",
+    "thoughtBriefly": "少し考えました",
+    "thoughtFor_other": "{{count}} 秒考えました"
   }
 }

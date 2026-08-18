@@ -241,5 +241,13 @@
   "newSession": {
     "greeting": "Что будем создавать сегодня?",
     "subtitle": "Gajae Code готов работать в проекте {{project}}."
+  },
+  "reasoning": {
+    "thinking": "Думает…",
+    "thoughtBriefly": "Думал несколько секунд",
+    "thoughtFor_one": "Думал {{count}} секунду",
+    "thoughtFor_few": "Думал {{count}} секунды",
+    "thoughtFor_many": "Думал {{count}} секунд",
+    "thoughtFor_other": "Думал {{count}} секунд"
   }
 }

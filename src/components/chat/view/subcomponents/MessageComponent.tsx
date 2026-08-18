@@ -72,6 +72,9 @@ const NOTICE_STYLES = {
 } as const;
 
 const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, showImagePreviews = true, selectedProject, provider }: MessageComponentProps) => {
+  // A transcript stored by another agent still needs its name; the live GJC
+  // session does not, because every turn in it comes from the same agent.
+  const isForeignProviderTurn = provider !== 'gjc' && message.type !== 'tool';
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -145,7 +148,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     <div
       ref={messageRef}
       data-message-timestamp={message.timestamp || undefined}
-      className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end px-3 sm:px-0' : 'px-3 sm:px-0'}`}
+      className={`chat-message group/turn ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end px-3 sm:px-0' : 'px-3 sm:px-0'}`}
     >
       {message.type === 'user' ? (
         /* User turn on the right. No avatar: one column of blue bubbles on the
@@ -164,7 +167,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 <div dir="auto" className="whitespace-pre-wrap break-words font-serif text-sm">
                   {message.content}
                 </div>
-                <div className="mt-1 flex items-center justify-end gap-1 text-xs text-blue-100">
+                <div className="mt-1 flex items-center justify-end gap-1 text-xs text-blue-100 opacity-0 transition-opacity focus-within:opacity-100 group-hover/turn:opacity-100">
                   {shouldShowUserCopyControl && (
                     <MessageCopyControl content={userCopyContent} messageType="user" />
                   )}
@@ -204,15 +207,16 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
       ) : (
         /* Claude/Error/Tool messages on the left */
         <div className="w-full">
-          {!isGrouped && (
+          {!isGrouped && (message.type === 'error' || isForeignProviderTurn) && (
+            /* An error announces itself, and a stored transcript from another
+               agent says which agent it was. A live GJC answer does neither: it
+               is already identified by being prose on the left, opposite the
+               user's blue bubbles, so its name and logo were a label nobody
+               needed to read on every turn. */
             <div className="mb-2 flex items-center space-x-3">
               {message.type === 'error' ? (
                 <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-600 text-sm text-white">
                   !
-                </div>
-              ) : message.type === 'tool' ? (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-sm text-white dark:bg-gray-700">
-                  🔧
                 </div>
               ) : (
                 <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full p-1 text-sm text-foreground">
@@ -222,17 +226,13 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               <div className="text-sm font-medium text-gray-900 dark:text-white">
                 {message.type === 'error'
                   ? t('messageTypes.error')
-                  : message.type === 'tool'
-                    ? t('messageTypes.tool')
-                    : (provider === 'cursor'
-                        ? t('messageTypes.cursor')
-                        : provider === 'codex'
-                          ? t('messageTypes.codex')
-                          : provider === 'opencode'
-                              ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
-                              : provider === 'gjc'
-                                  ? t('messageTypes.gjc', { defaultValue: 'gjc' })
-                                  : t('messageTypes.claude'))}
+                  : provider === 'cursor'
+                    ? t('messageTypes.cursor')
+                    : provider === 'codex'
+                      ? t('messageTypes.codex')
+                      : provider === 'opencode'
+                        ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
+                        : t('messageTypes.claude')}
               </div>
             </div>
           )}
@@ -483,7 +483,10 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             )}
 
             {(shouldShowAssistantCopyControl || !isGrouped) && (
-              <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
+              // Copy, speak and the timestamp are things you reach for, not
+              // things you read. They stay out of the transcript until the turn
+              // is hovered or something in the row takes focus.
+              <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 opacity-0 transition-opacity focus-within:opacity-100 group-hover/turn:opacity-100 dark:text-gray-500">
                 {shouldShowAssistantCopyControl && (
                   <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
                 )}

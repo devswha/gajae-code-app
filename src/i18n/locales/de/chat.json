@@ -239,5 +239,11 @@
   "newSession": {
     "greeting": "Was bauen wir heute?",
     "subtitle": "Gajae Code ist bereit, in {{project}} zu arbeiten."
+  },
+  "reasoning": {
+    "thinking": "Denkt nach…",
+    "thoughtBriefly": "Kurz nachgedacht",
+    "thoughtFor_one": "{{count}} Sekunde nachgedacht",
+    "thoughtFor_other": "{{count}} Sekunden nachgedacht"
   }
 }

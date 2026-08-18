@@ -238,5 +238,10 @@
   "newSession": {
     "greeting": "Bugün ne inşa ediyoruz?",
     "subtitle": "Gajae Code, {{project}} projesinde çalışmaya hazır."
+  },
+  "reasoning": {
+    "thinking": "Düşünüyor…",
+    "thoughtBriefly": "Birkaç saniye düşündü",
+    "thoughtFor_other": "{{count}} saniye düşündü"
   }
 }

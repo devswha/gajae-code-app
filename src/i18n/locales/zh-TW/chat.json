@@ -274,5 +274,10 @@
   "newSession": {
     "greeting": "今天我們要建構什麼？",
     "subtitle": "Gajae Code 已準備好在 {{project}} 中工作。"
+  },
+  "reasoning": {
+    "thinking": "思考中…",
+    "thoughtBriefly": "思考了幾秒",
+    "thoughtFor_other": "思考了 {{count}} 秒"
   }
 }

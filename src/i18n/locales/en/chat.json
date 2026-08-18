@@ -250,5 +250,11 @@
   "newSession": {
     "greeting": "What are we building today?",
     "subtitle": "Gajae Code is ready to work in {{project}}."
+  },
+  "reasoning": {
+    "thinking": "Thinking…",
+    "thoughtBriefly": "Thought for a few seconds",
+    "thoughtFor_one": "Thought for {{count}} second",
+    "thoughtFor_other": "Thought for {{count}} seconds"
   }
 }

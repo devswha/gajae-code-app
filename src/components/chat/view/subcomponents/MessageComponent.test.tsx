@@ -55,3 +55,16 @@ test('truncated tool history offers an explicit full-output load action', () => 
   assert.match(html, /Load full output/);
   assert.match(html, /2048 KB/);
 });
+
+test('a user turn is its bubble alone, with no avatar badge beside it', () => {
+  const html = renderMessage({
+    type: 'user',
+    content: 'ship it',
+    timestamp: new Date('2026-08-18T07:00:00Z'),
+  });
+
+  assert.match(html, /ship it/);
+  // The right-hand column of blue bubbles already says who is speaking.
+  assert.doesNotMatch(html, />\s*U\s*</);
+  assert.doesNotMatch(html, /h-8 w-8[^"]*rounded-full[^"]*bg-blue-600/);
+});

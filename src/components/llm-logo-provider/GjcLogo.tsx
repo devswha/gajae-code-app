@@ -7,7 +7,7 @@ type GjcLogoProps = {
 // dispatches gjc (sidebar list, chat avatar, headers) so gjc sessions are instantly
 // recognizable and on-brand instead of reusing the Claude logo.
 const GjcLogo = ({ className = 'w-5 h-5' }: GjcLogoProps) => (
-  <img src="/logo.png" alt="gjc" className={`${className} object-contain`} />
+  <img src="/logo.png" alt="gjc" className={`${className} rounded-[22%] object-contain ring-1 ring-black/10 dark:ring-white/10`} />
 );
 
 export default GjcLogo;

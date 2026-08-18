@@ -28,3 +28,12 @@ test('className is forwarded to the gjc mark', () => {
   const html = renderToStaticMarkup(createElement(SessionProviderLogo, { provider: 'gjc', className: 'h-3 w-3' }));
   assert.ok(html.includes('h-3 w-3'));
 });
+
+test('the gjc mark reads as an app tile, not a hard square', () => {
+  const gjc = renderToStaticMarkup(createElement(SessionProviderLogo, { provider: 'gjc' }));
+
+  // The artwork carries its own dark plate, so on a light theme it needs the
+  // rounding and hairline that make it look deliberate rather than pasted on.
+  assert.match(gjc, /rounded-\[22%\]/);
+  assert.match(gjc, /ring-1/);
+});

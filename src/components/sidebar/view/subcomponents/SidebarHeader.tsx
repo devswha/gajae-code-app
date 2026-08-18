@@ -34,7 +34,7 @@ export default function SidebarHeader({
         `title` keeping the full name recoverable when it does clip.
       */}
       <div className="flex min-w-0 items-center gap-1.5">
-        <img src="/logo.png" alt="" className="size-6 flex-shrink-0 object-contain" />
+        <img src="/logo.png" alt="" className="size-6 flex-shrink-0 rounded-[22%] object-contain ring-1 ring-black/10 dark:ring-white/10" />
         <h1
           className="truncate text-[1.125rem] font-semibold tracking-[-0.02em] text-foreground"
           title={BRAND_NAME}

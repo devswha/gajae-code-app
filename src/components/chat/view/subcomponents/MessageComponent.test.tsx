@@ -82,17 +82,37 @@ test('a tool call is a row, not a card', () => {
   assert.doesNotMatch(html, /rounded-r-md/);
 });
 
-test('copy and timestamp chrome waits for hover instead of sitting in the transcript', () => {
+test('a turn ends with a visible, quiet footer rather than nothing at all', () => {
   const html = renderMessage({
     type: 'assistant',
     content: 'done',
     timestamp: new Date('2026-08-18T07:00:00Z'),
   });
 
-  // Present for the pointer and for keyboard focus, absent while reading.
-  assert.match(html, /opacity-0/);
-  assert.match(html, /group-hover\/turn:opacity-100/);
-  assert.match(html, /focus-within:opacity-100/);
+  // Hiding this outright removed the only mark for where an answer ends.
+  assert.doesNotMatch(html, /opacity-0/);
+  assert.match(html, /text-muted-foreground\/50/);
+  assert.match(html, /aria-label="Copy message"/);
+});
+
+test('a new exchange is separated from the one before it', () => {
+  const user = { type: 'user' as const, content: 'next question', timestamp: '2026-08-18T07:00:00.000Z' };
+
+  const first = renderToStaticMarkup(createElement(MessageComponent, {
+    message: user,
+    prevMessage: null,
+    createDiff: () => [],
+    provider: 'gjc',
+  }));
+  const later = renderToStaticMarkup(createElement(MessageComponent, {
+    message: user,
+    prevMessage: { type: 'assistant', content: 'previous answer', timestamp: '2026-08-18T06:59:00.000Z' },
+    createDiff: () => [],
+    provider: 'gjc',
+  }));
+
+  assert.doesNotMatch(first, /border-t/);
+  assert.match(later, /border-t/);
 });
 
 test('a live gjc turn carries no name row, while a stored foreign transcript keeps one', () => {

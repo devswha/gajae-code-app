@@ -72,6 +72,11 @@ const NOTICE_STYLES = {
 } as const;
 
 const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, showImagePreviews = true, selectedProject, provider }: MessageComponentProps) => {
+  // Every user message opens a new exchange. Marking that boundary is what
+  // replaces the per-turn name rows: one rule, once, instead of a label on
+  // every answer. The first message in a session has nothing to separate from.
+  const startsExchange = message.type === 'user' && Boolean(prevMessage);
+
   // A transcript stored by another agent still needs its name; the live GJC
   // session does not, because every turn in it comes from the same agent.
   const isForeignProviderTurn = provider !== 'gjc' && message.type !== 'tool';
@@ -148,7 +153,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     <div
       ref={messageRef}
       data-message-timestamp={message.timestamp || undefined}
-      className={`chat-message group/turn ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end px-3 sm:px-0' : 'px-3 sm:px-0'}`}
+      className={`chat-message group/turn ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end px-3 sm:px-0' : 'px-3 sm:px-0'} ${startsExchange ? 'mt-6 border-t border-border/40 pt-6' : ''}`}
     >
       {message.type === 'user' ? (
         /* User turn on the right. No avatar: one column of blue bubbles on the
@@ -483,10 +488,10 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             )}
 
             {(shouldShowAssistantCopyControl || !isGrouped) && (
-              // Copy, speak and the timestamp are things you reach for, not
-              // things you read. They stay out of the transcript until the turn
-              // is hovered or something in the row takes focus.
-              <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 opacity-0 transition-opacity focus-within:opacity-100 group-hover/turn:opacity-100 dark:text-gray-500">
+              // The end of a turn: quiet, but always there. Hiding it entirely
+              // removed the only mark saying where one answer stops and the
+              // next begins, which left the transcript reading as one wall.
+              <div className="mt-1.5 flex w-full items-center gap-2 text-[11px] text-muted-foreground/50 transition-colors group-hover/turn:text-muted-foreground">
                 {shouldShowAssistantCopyControl && (
                   <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
                 )}

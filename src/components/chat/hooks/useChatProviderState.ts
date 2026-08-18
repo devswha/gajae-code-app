@@ -43,6 +43,9 @@ export function useChatProviderState({
   const [gjcModel, setGjcModelState] = useState<string>(() => (
     localStorage.getItem('gjc-model') || DEFAULT_GJC_MODEL
   ));
+  // The model this session was pinned to, as opposed to the one it last ran
+  // with. The next turn uses the pin, so the UI has to prefer it.
+  const [sessionPinnedModel, setSessionPinnedModel] = useState<string | null>(null);
   const [pendingPermissionRequests, setPendingPermissionRequests] = useState<PendingPermissionRequest[]>([]);
   const [providerModelCatalog, setProviderModelCatalog] = useState<
     Partial<Record<LLMProvider, ProviderModelsDefinition>>
@@ -58,6 +61,44 @@ export function useChatProviderState({
     setGjcModelState(model);
     localStorage.setItem('gjc-model', model);
   }, []);
+
+  // Opening a session must show the model that session will actually run.
+  // The backend already prefers a session's pinned model over the client's
+  // global default when dispatching, so leaving the picker on whatever it last
+  // held reported a model the turn would not use.
+  useEffect(() => {
+    const sessionId = selectedSession?.id?.trim();
+    const provider = selectedSession?.__provider ?? selectedSession?.provider;
+    if (!sessionId || (provider && provider !== GJC_PROVIDER)) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    setSessionPinnedModel(null);
+    void (async () => {
+      try {
+        const response = await authenticatedFetch(
+          `/api/providers/gjc/sessions/${encodeURIComponent(sessionId)}/active-model`,
+        );
+        if (cancelled || !response.ok) return;
+        const body = (await response.json()) as ChangeActiveModelApiResponse;
+        if (cancelled || !body.success) return;
+
+        const pinned = body.data?.supported && body.data.changed ? body.data.model?.trim() : '';
+        // State only, never localStorage: the stored value is the default for
+        // the next new session, which a pinned session must not rewrite. A
+        // session that pinned nothing falls back to that same default rather
+        // than inheriting the previous session's pin.
+        setSessionPinnedModel(pinned || null);
+        setGjcModelState(pinned || localStorage.getItem('gjc-model') || DEFAULT_GJC_MODEL);
+      } catch {
+        // The picker keeps what it has; the next turn still resolves correctly
+        // server-side.
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [selectedSession?.id, selectedSession?.__provider, selectedSession?.provider]);
 
   const loadProviderModels = useCallback(async (options: { bypassCache?: boolean } = {}) => {
     const requestId = providerModelsRequestIdRef.current + 1;
@@ -150,6 +191,7 @@ export function useChatProviderState({
     }
 
     setGjcModel(model);
+    setSessionPinnedModel(body.data.model || model);
 
     return {
       scope: 'session' as const,
@@ -161,6 +203,7 @@ export function useChatProviderState({
   return {
     provider: GJC_PROVIDER,
     gjcModel,
+    sessionPinnedModel,
     setGjcModel,
     permissionMode: DEFAULT_PERMISSION_MODE,
     pendingPermissionRequests,

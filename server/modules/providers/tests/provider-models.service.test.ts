@@ -347,3 +347,39 @@ test('resolveResumeModel prefers a stored changed model over the requested one',
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+test('a session that pinned a model reports it, so the picker can show what will run', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-read-'));
+  const activeModelChangesPath = path.join(tempRoot, 'session-model-changes.json');
+
+  try {
+    const service = createProviderModelsService({
+      activeModelChangesPath,
+      resolveProvider: (provider) => ({
+        models: {
+          getSupportedModels: async () => createModels(`${provider}-models`),
+          getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`),
+          changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+        },
+      }),
+    });
+
+    await writeProviderSessionActiveModelChange('gjc', {
+      sessionId: 'session-pinned',
+      model: 'composer-2',
+    }, {
+      filePath: activeModelChangesPath,
+    });
+
+    const pinned = await service.getChangedActiveModel('gjc', 'session-pinned');
+    assert.equal(pinned.changed, true);
+    assert.equal(pinned.model, 'composer-2');
+
+    // A session that never pinned one must not inherit another session's choice.
+    const untouched = await service.getChangedActiveModel('gjc', 'session-untouched');
+    assert.equal(untouched.changed, false);
+    assert.equal(untouched.model, null);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});

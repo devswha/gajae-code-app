@@ -80,6 +80,7 @@ function ChatInterface({
 
   const {
     gjcModel,
+    sessionPinnedModel,
     pendingPermissionRequests,
     setPendingPermissionRequests,
     providerModelCatalog,
@@ -331,7 +332,8 @@ function ChatInterface({
       sessionId: currentSessionId ?? selectedSession?.id ?? null,
       // 'default' is the app's "let the runtime choose" selector, not a model
       // name; until the session reports what it actually used, this is unknown.
-      modelId: facts.modelId ?? (gjcModel && gjcModel !== 'default' ? gjcModel : undefined),
+      // Same precedence as the composer: the pin wins over the last run.
+      modelId: sessionPinnedModel ?? facts.modelId ?? (gjcModel && gjcModel !== 'default' ? gjcModel : undefined),
       thinkingLevel: facts.thinkingLevel ?? reasoningEffort,
       tokens: readTokenTotals(tokenBudget),
       activity: {
@@ -347,6 +349,7 @@ function ChatInterface({
     queuedDrafts.length,
     reasoningEffort,
     selectedSession?.id,
+    sessionPinnedModel,
     sessionActivity?.statusText,
     sessionState,
     tokenBudget,
@@ -397,6 +400,7 @@ function ChatInterface({
       onShowTokenUsage={showCostModal}
       onSubmit={handleSubmit}
       isDragActive={isDragActive}
+      sessionPinnedModel={sessionPinnedModel}
       queuedDrafts={queuedDrafts}
       onEditQueuedDraft={editQueuedDraft}
       onDeleteQueuedDraft={deleteQueuedDraft}

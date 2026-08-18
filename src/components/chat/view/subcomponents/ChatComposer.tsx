@@ -79,6 +79,8 @@ interface ChatComposerProps {
       | KeyboardEvent<HTMLTextAreaElement>,
   ) => void;
   isDragActive: boolean;
+  /** Model pinned to this session, if any; outranks the last-run model. */
+  sessionPinnedModel?: string | null;
   queuedDrafts: QueuedDraft[];
   onEditQueuedDraft: (index: number) => void;
   onDeleteQueuedDraft: (index: number) => void;
@@ -141,6 +143,7 @@ export default function ChatComposer({
   onShowTokenUsage,
   onSubmit,
   isDragActive,
+  sessionPinnedModel,
   queuedDrafts,
   onEditQueuedDraft,
   onDeleteQueuedDraft,
@@ -235,6 +238,13 @@ export default function ChatComposer({
   const handleFormSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
     onSubmit(event);
   }, [onSubmit]);
+
+  // What the NEXT turn will run: a session's pinned model outranks the model
+  // it last ran with, because the backend resolves the pin when dispatching.
+  const reportedModel = typeof sessionState?.modelId === 'string' && sessionState.modelId.trim()
+    ? sessionState.modelId.trim()
+    : undefined;
+  const displayedModel = sessionPinnedModel?.trim() || reportedModel;
 
   const canQueueDraft = isLoading && Boolean(input.trim());
   // Prose reaches the running turn; a slash command waits for a turn of its own.
@@ -413,7 +423,7 @@ export default function ChatComposer({
             {modelPresetOptions.length > 0 && (
               <SessionModelPicker
                 value={modelPreset}
-                currentModel={typeof sessionState?.modelId === 'string' && sessionState.modelId.trim() ? sessionState.modelId : undefined}
+                currentModel={displayedModel}
                 presetOptions={modelPresetOptions}
                 loading={modelPresetsLoading}
                 onSelect={onSelectModelPreset}

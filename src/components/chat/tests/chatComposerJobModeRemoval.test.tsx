@@ -46,6 +46,7 @@ const baseComposerProps = {
   onShowTokenUsage: () => undefined,
   onSubmit: () => undefined,
   isDragActive: false,
+  sessionPinnedModel: null as string | null,
   queuedDrafts: [] as QueuedDraft[],
   onEditQueuedDraft: () => undefined,
   onDeleteQueuedDraft: () => undefined,

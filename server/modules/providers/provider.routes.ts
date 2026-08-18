@@ -210,6 +210,24 @@ router.get(
   }),
 );
 
+/**
+ * Reads the model this session was pinned to.
+ *
+ * The POST below records the choice and `chat.send` prefers it over the
+ * client's global default, but without this read the UI had no way to learn it:
+ * reopening a session showed whichever model the picker happened to hold, which
+ * is not the model the session would actually run.
+ */
+router.get(
+  '/:provider/sessions/:sessionId/active-model',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const sessionId = parseSessionId(req.params.sessionId);
+    const result = await providerModelsService.getChangedActiveModel(provider, sessionId);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
 router.post(
   '/:provider/sessions/:sessionId/active-model',
   asyncHandler(async (req: Request, res: Response) => {

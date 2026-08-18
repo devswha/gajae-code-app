@@ -792,9 +792,20 @@
     overflow-wrap: break-word;
   }
 
-  /* Prevent horizontal scroll in chat area */
-  .chat-message * {
+  /* Prevent horizontal scroll in chat area.
+     Scoped to what can actually overflow: a universal max-width overrode every
+     width utility inside a message, so a reading measure could not be set at
+     all — the prose ran the full 836px column at 118 characters per line. */
+  .chat-message pre,
+  .chat-message img,
+  .chat-message table,
+  .chat-message svg,
+  .chat-message video,
+  .chat-message iframe {
     max-width: 100%;
+  }
+
+  .chat-message * {
     box-sizing: border-box;
   }
 

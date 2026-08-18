@@ -140,3 +140,19 @@ test('a live gjc turn carries no name row, while a stored foreign transcript kee
   assert.doesNotMatch(gjc, /aria-label="(Claude|Codex|OpenCode|Cursor|gjc)"/);
   assert.match(claude, /aria-label="Claude"/);
 });
+
+test('message text uses one typeface and a readable measure', () => {
+  const html = renderMessage({
+    type: 'assistant',
+    content: 'Paseo와 가재앱을 비교한다',
+    timestamp: new Date('2026-08-18T07:00:00Z'),
+  });
+
+  // The serif stack carries no Hangul, so a mixed sentence rendered two faces.
+  assert.doesNotMatch(html, /font-serif/);
+  // 836px of 14px text ran 107 characters per line; reading tolerates ~75.
+  assert.match(html, /max-w-\[68ch\]/);
+  // A wrapped command is worse than a long one, so code keeps the full width.
+  // Static markup escapes the & in the arbitrary-variant class name.
+  assert.match(html, /\[&(amp;)?_pre\]:max-w-none/);
+});

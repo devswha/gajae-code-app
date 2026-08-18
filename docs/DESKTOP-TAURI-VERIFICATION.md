@@ -36,6 +36,14 @@ Final local beta.3 candidate:
 - Installed bundle: `/Applications/Gajae Code App.app`, desktop version `0.2.2`
 - Deep code-signature verification and packaged native/Bun loading smoke: pass
 
+## Post-beta.3 HEAD — In-app mark rebuild — **PASSED 2026-08-18 (late evening)**
+
+Rebuilt and reinstalled at `99bed13` after the icon generator was extended to
+cover `public/logo*.png`. The bundled `dist/logo.png` now hashes identically to
+the repository's, so the sidebar header, loading screen and gjc chat mark carry
+the same artwork as the Dock icon. Signature verification passes and the app
+relaunches with its packaged server.
+
 ## Post-beta.3 HEAD — Rebuild, smoke, and install — **PASSED 2026-08-18 (evening)**
 
 Second rebuild of the day. The morning bundle was never installed, and eight

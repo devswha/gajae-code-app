@@ -36,6 +36,19 @@ Final local beta.3 candidate:
 - Installed bundle: `/Applications/Gajae Code App.app`, desktop version `0.2.2`
 - Deep code-signature verification and packaged native/Bun loading smoke: pass
 
+## Post-beta.3 HEAD — Transparent vector mark — **PASSED 2026-08-19 (00:42)**
+
+Rebuilt and reinstalled at `91fe458`, carrying the uploaded transparent vector:
+the in-app mark is now `mark.svg` with its own hat underside filled, and the six
+plated `logo*.png` files are gone. Verified in the installed bundle:
+`dist/mark.svg` hashes identically to the repository's and `dist/logo*.png`
+returns nothing. Packaged-server smoke passed, signature verification passed,
+and the app relaunched with its three processes.
+
+Note: requesting `/mark.svg` from the packaged server over loopback answers 401
+— it authenticates static assets too — so asset checks compare files inside the
+bundle rather than HTTP responses.
+
 ## Post-beta.3 HEAD — Reframed icon — **PASSED 2026-08-18 (night)**
 
 Rebuilt and reinstalled at `6949f86`, where the icon artwork was reframed 26%

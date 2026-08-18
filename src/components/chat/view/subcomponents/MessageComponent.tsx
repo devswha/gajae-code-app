@@ -168,11 +168,15 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               />
             )}
             {userCopyContent.trim().length > 0 || !message.images?.length ? (
-              <div className="group max-w-full rounded-2xl rounded-br-md bg-blue-600 px-3 py-2 text-white shadow-sm sm:px-4">
+              <div className="group relative max-w-full rounded-2xl rounded-br-md bg-blue-600 px-3 py-2 text-white shadow-sm sm:px-4">
                 <div dir="auto" className="whitespace-pre-wrap break-words text-sm">
                   {message.content}
                 </div>
-                <div className="mt-1 flex items-center justify-end gap-1 text-xs text-blue-100 opacity-0 transition-opacity focus-within:opacity-100 group-hover/turn:opacity-100">
+                {/* Outside the bubble's flow: hidden with opacity it still held
+                    its 20px row, so a one-line message sat in a 60px bubble of
+                    which a third was invisible. Absolute keeps the bubble the
+                    size of what was typed. */}
+                <div className="pointer-events-none absolute right-1 top-full z-10 mt-0.5 flex items-center justify-end gap-1 whitespace-nowrap text-[11px] text-muted-foreground opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/turn:pointer-events-auto group-hover/turn:opacity-100">
                   {shouldShowUserCopyControl && (
                     <MessageCopyControl content={userCopyContent} messageType="user" />
                   )}

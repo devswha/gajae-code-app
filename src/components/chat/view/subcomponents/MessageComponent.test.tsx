@@ -156,3 +156,16 @@ test('message text uses one typeface and a readable measure', () => {
   // Static markup escapes the & in the arbitrary-variant class name.
   assert.match(html, /\[&(amp;)?_pre\]:max-w-none/);
 });
+
+test('a user bubble is the size of what was typed', () => {
+  const html = renderMessage({
+    type: 'user',
+    content: 'ok',
+    timestamp: new Date('2026-08-18T07:00:00Z'),
+  });
+
+  // Hidden with opacity alone, the controls row still held a 20px line inside
+  // the bubble, so a two-character message rendered a three-line bubble.
+  assert.match(html, /absolute right-1 top-full/);
+  assert.doesNotMatch(html, /mt-1 flex items-center justify-end gap-1 text-xs text-blue-100/);
+});

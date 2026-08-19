@@ -13,7 +13,7 @@ import { useProjectsState } from '../../hooks/useProjectsState';
 import { useQueuedMessageAutoSend } from '../../hooks/useQueuedMessageAutoSend';
 import { api } from '../../utils/api';
 
-import { parseStartedAt } from './appContentUtils';
+import { hiddenKeyboardHeight, parseStartedAt } from './appContentUtils';
 
 
 type RunningSessionApiItem = {
@@ -145,11 +145,14 @@ function AppContentInner() {
   // the `chat_subscribed` ack carries them on session open and on reconnect,
   // so no separate permission-recovery message is needed here.
 
-  // Adjust the app container to stay above the virtual keyboard on iOS Safari.
-  // On Chrome for Android the layout viewport already shrinks when the keyboard opens,
-  // so inset-0 adjusts automatically. On iOS the layout viewport stays full-height and
-  // the keyboard overlays it — we use the Visual Viewport API to track keyboard height
-  // and apply it as a CSS variable that shifts the container's bottom edge up.
+  // Keep the app shell above the on-screen keyboard. The shell's height
+  // already tracks the dynamic viewport (the .fixed.inset-0 rule in
+  // index.css), which covers collapsible browser chrome on mobile. iOS
+  // overlays the keyboard without resizing that viewport, so the Visual
+  // Viewport API measures the covered height and index.css subtracts it
+  // through --keyboard-height. Chrome for Android (interactive-widget=
+  // resizes-content in index.html) resizes the layout viewport itself, the
+  // gap stays near zero there, and the variable settles at 0.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -158,15 +161,19 @@ function AppContentInner() {
       // Do NOT listen to scroll: on iOS Safari, scrolling content changes
       // vv.offsetTop which would make --keyboard-height fluctuate during
       // normal scrolling, causing the container to bounce up and down.
-      const kb = Math.max(0, window.innerHeight - vv.height);
+      const kb = hiddenKeyboardHeight(document.documentElement.clientHeight, vv.height);
       document.documentElement.style.setProperty('--keyboard-height', `${kb}px`);
     };
+    // Sync once on mount: a session restored with the keyboard already up
+    // would otherwise keep --keyboard-height at 0 until the first resize.
+    update();
     vv.addEventListener('resize', update);
     return () => vv.removeEventListener('resize', update);
   }, []);
 
+
   return (
-    <div className="fixed inset-0 flex bg-background" style={{ bottom: 'var(--keyboard-height, 0px)' }}>
+    <div className="fixed inset-0 flex bg-background">
       {!isMobile ? (
         <div className="h-full flex-shrink-0 border-r border-border/50">
           <Sidebar {...sidebarProps} />

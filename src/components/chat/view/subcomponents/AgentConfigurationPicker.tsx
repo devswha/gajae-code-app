@@ -215,7 +215,7 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
       {open && createPortal(
         <div
           ref={popupRef}
-          className="fixed z-[80] w-96 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+          className="fixed z-[80] w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
           style={{ bottom: popupPosition.bottom, right: popupPosition.right }}
         >
           <div className="px-2 pb-1.5 pt-1">

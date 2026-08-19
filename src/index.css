@@ -91,9 +91,14 @@
     --mobile-nav-padding: 20px;
     --mobile-nav-total: calc(var(--mobile-nav-height) + var(--mobile-nav-padding) + env(safe-area-inset-bottom, 0px));
 
-    /* Header safe area dimensions */
+    /* Header safe area dimensions: the standalone offset is only applied in
+       pwa-mode (below); in the browser the page starts at the viewport top. */
     --header-safe-area-top: env(safe-area-inset-top, 0px);
     --header-base-padding: 8px;
+    --header-total-padding: 0px;
+  }
+
+  body.pwa-mode {
     --header-total-padding: calc(var(--header-safe-area-top) + var(--header-base-padding));
   }
   
@@ -190,7 +195,7 @@
   body.pwa-mode #root {
     padding-left: var(--safe-area-inset-left);
     padding-right: var(--safe-area-inset-right);
-    height: 100vh;
+    height: 100dvh;
     overflow: hidden;
   }
 
@@ -201,7 +206,7 @@
     right: var(--safe-area-inset-right);
     bottom: 0;
   }
-  
+
   /* Global transition defaults */
   button, 
   a, 
@@ -255,6 +260,23 @@
       scroll-behavior: auto !important;
     }
   }
+}
+
+/*
+ * Fixed full-screen surfaces must fit the dynamic viewport. inset-0 and
+ * vh resolve against the layout viewport, which on mobile browsers
+ * includes the area behind the URL/tab bar, so the composer and modal
+ * bottoms were clipped with no way to scroll to them (the document never
+ * scrolls). dvh tracks the visible height instead; --keyboard-height
+ * (see AppContent) subtracts the overlay keyboard on iOS, and
+ * --header-total-padding is only non-zero in standalone pwa-mode, where
+ * these surfaces are pushed below the status bar. With height set, the
+ * over-constrained bottom from inset-0 is ignored; browsers without dvh
+ * drop the declaration and keep the inset-0 stretch. Unlayered on purpose:
+ * it must win over any utility on the same element.
+ */
+.fixed.inset-0 {
+  height: calc(100dvh - var(--keyboard-height, 0px) - var(--header-total-padding, 0px));
 }
 
 @layer utilities {

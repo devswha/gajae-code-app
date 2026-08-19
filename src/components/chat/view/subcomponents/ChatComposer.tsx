@@ -11,7 +11,7 @@ import type {
   TouchEvent,
 } from 'react';
 import type { DropzoneInputProps, DropzoneRootProps } from 'react-dropzone';
-import { PlusIcon, Loader2, ArrowUpIcon } from 'lucide-react';
+import { PlusIcon, Loader2, ArrowUpIcon, ForwardIcon } from 'lucide-react';
 
 import { classifyCommandInput, isAutoSendable } from '../../commandDispatchPolicy';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
@@ -78,6 +78,7 @@ interface ChatComposerProps {
       | TouchEvent<HTMLButtonElement>
       | KeyboardEvent<HTMLTextAreaElement>,
   ) => void;
+  onSteer: (event: MouseEvent<HTMLButtonElement>) => void;
   isDragActive: boolean;
   /** Model pinned to this session, if any; outranks the last-run model. */
   sessionPinnedModel?: string | null;
@@ -142,6 +143,7 @@ export default function ChatComposer({
   sessionState,
   onShowTokenUsage,
   onSubmit,
+  onSteer,
   isDragActive,
   sessionPinnedModel,
   queuedDrafts,
@@ -247,15 +249,16 @@ export default function ChatComposer({
   const displayedModel = sessionPinnedModel?.trim() || reportedModel;
 
   const canQueueDraft = isLoading && Boolean(input.trim());
-  // Prose reaches the running turn; a slash command waits for a turn of its own.
-  const willSteer = canQueueDraft && isAutoSendable(classifyCommandInput(input));
+  const canSteer = canQueueDraft
+    && attachedImages.length === 0
+    && isAutoSendable(classifyCommandInput(input));
   const submitHint = canQueueDraft
-    ? (willSteer ? t('input.hintText.steer') : t('input.hintText.queue'))
+    ? t('input.hintText.queue')
     : sendByCtrlEnter
       ? t('input.hintText.ctrlEnter')
       : t('input.hintText.enter');
   const submitAriaLabel = canQueueDraft
-    ? (willSteer ? t('input.queue.steerNow') : t('input.queue.sendNext'))
+    ? t('input.queue.sendNext')
     : isLoading
       ? t('input.stop')
       : t('input.send');
@@ -407,7 +410,7 @@ export default function ChatComposer({
         </PromptInputBody>
 
         <PromptInputFooter>
-          <PromptInputTools>
+          <PromptInputTools className="min-w-0 overflow-hidden">
 
             <PromptInputButton
               tooltip={{ content: t('input.attachImages') }}
@@ -453,11 +456,13 @@ export default function ChatComposer({
 
             <ContextUsageBadge sessionState={sessionState} />
 
-            <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} />
+            <div className="hidden sm:block">
+              <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} />
+            </div>
 
           </PromptInputTools>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {(canQueueDraft || sendByCtrlEnter) && (
               <div
                 className={`hidden text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
@@ -466,6 +471,16 @@ export default function ChatComposer({
               >
                 {submitHint}
               </div>
+            )}
+            {canSteer && (
+              <PromptInputButton
+                onClick={onSteer}
+                tooltip={{ content: t('input.queue.steerNow') }}
+                aria-label={t('input.queue.steerNow')}
+                className="shrink-0 rounded-full border border-border/70 bg-background/70 text-muted-foreground hover:border-primary/30 hover:text-foreground"
+              >
+                <ForwardIcon />
+              </PromptInputButton>
             )}
             <PromptInputSubmit
               onClick={

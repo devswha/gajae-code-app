@@ -153,7 +153,7 @@ export default function SessionModelPicker({
         type="button"
         onClick={() => setOpen((current) => !current)}
         disabled={loading || selecting || groups.length === 0}
-        className="flex h-8 max-w-40 items-center gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+        className="flex h-8 max-w-24 items-center gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 sm:max-w-40"
         aria-label="세션 모델 선택"
         aria-expanded={open}
         title={displayModel ?? '세션 모델 선택'}

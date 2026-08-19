@@ -45,6 +45,7 @@ const baseComposerProps = {
   sessionState: null,
   onShowTokenUsage: () => undefined,
   onSubmit: () => undefined,
+  onSteer: () => undefined,
   isDragActive: false,
   sessionPinnedModel: null as string | null,
   queuedDrafts: [] as QueuedDraft[],
@@ -191,6 +192,45 @@ test('/login opens the app login flow without sending a chat message', async () 
   assert.deepEqual(sentMessages, []);
 });
 
+test('a running turn queues Enter submissions and only steers through the explicit action', async () => {
+  const sentMessages: unknown[] = [];
+  let composer: ReturnType<typeof useChatComposerState> | undefined;
+
+  function Capture() {
+    composer = useChatComposerState({
+      selectedProject,
+      selectedSession: null,
+      currentSessionId: 'session-1',
+      gjcModel: 'gpt-test',
+      isLoading: true,
+      canAbortSession: true,
+      tokenBudget: null,
+      sendMessage: (message) => { sentMessages.push(message); },
+      scrollToBottom: () => undefined,
+      addMessage: () => undefined,
+      setIsUserScrolledUp: () => undefined,
+      setPendingPermissionRequests: () => undefined,
+    });
+    return null;
+  }
+
+  renderToStaticMarkup(createElement(Capture));
+  assert.ok(composer);
+
+  composer.handleVoiceTranscript('send this after the answer');
+  await composer.handleSubmit(submitEvent);
+  assert.deepEqual(sentMessages, []);
+
+  composer.handleVoiceTranscript('adjust the answer now');
+  composer.handleSteer(submitEvent);
+  assert.deepEqual(sentMessages, [{
+    type: 'chat.steer',
+    sessionId: 'session-1',
+    content: 'adjust the answer now',
+  }]);
+  composer.resolveSteerResult('adjust the answer now', true);
+});
+
 test('chat composer renders normal tools without background Job controls', () => {
   const html = renderToStaticMarkup(createElement(ChatComposer, baseComposerProps));
 
@@ -203,4 +243,27 @@ test('chat composer renders normal tools without background Job controls', () =>
   assert.match(html, /스킬 선택/);
   assert.doesNotMatch(html, /lucide-image/);
   assert.doesNotMatch(html, /lucide-x/);
+});
+
+test('a running composer queues by default and offers steering as a separate action', () => {
+  const html = renderToStaticMarkup(createElement(ChatComposer, {
+    ...baseComposerProps,
+    isLoading: true,
+    input: 'adjust the current answer',
+  }));
+
+  assert.match(html, /aria-label="input\.queue\.sendNext"/);
+  assert.match(html, /aria-label="input\.queue\.steerNow"/);
+  assert.match(html, /lucide-forward/);
+});
+
+test('commands cannot bypass their normal pipeline through the steering action', () => {
+  const html = renderToStaticMarkup(createElement(ChatComposer, {
+    ...baseComposerProps,
+    isLoading: true,
+    input: '/help',
+  }));
+
+  assert.match(html, /aria-label="input\.queue\.sendNext"/);
+  assert.doesNotMatch(html, /aria-label="input\.queue\.steerNow"/);
 });

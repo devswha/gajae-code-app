@@ -8,9 +8,12 @@ Saved: 2026-08-15
 1. P0 — DONE (27fb844): synchronized `main` with `origin/main`, resolved the
    command-disposition conflict, and retained all local commits.
 2. P1 — Complete the core chat workflow in this order:
-   - Clickable composer status strip for cwd, branch, reasoning, and context
-   - Explicit steer-versus-queue control while a turn is running
-   - Current-activity bar above the composer
+   - Explicit steer-versus-queue control while a turn is running — DONE,
+     pending commit
+   - Composer status strip — DROPPED after UI audit: model, reasoning, context,
+     token usage, and activity controls already exist in or above the composer;
+     cwd and Git remain available in Workspace Status
+   - Current-activity bar above the composer — DONE in the existing UI
    - Fork a session from a specific message
 3. P2 — Complete session management:
    - Inline title editing
@@ -85,17 +88,18 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
      - The SDK requires the caller to name the queue on a busy agent
        (`prompt(text, { streamingBehavior: 'steer' })`); a bare prompt throws
        AgentBusyError, and the contract fake now throws the same way.
-     - Prose steers; a slash command and an attachment still take a turn of
-       their own. Anything the runtime does not take is queued, and the answer
-       carries why (no-run / not-running / unsupported / refused / failed).
-     - Open: there is no explicit "queue this instead of steering" control, so
-       prose typed during a run always steers. It belongs with the composer
-       status strip below, not with a second hidden shortcut.
+     - Enter and the primary send action now queue by default while a turn is
+       running. Plain text exposes a separate steering button; slash commands
+       and attachments remain queue-only so they keep their normal pipeline.
+       A refused or unanswered steering request falls back to the queue.
+     - Browser smoke covered desktop and 390px mobile running states. Both
+       actions remain visible on mobile; lower-priority token usage is hidden
+       there and the model trigger contracts before the action buttons move.
    - Fork a session from a specific message
    - Inline session title editing
    - Session menu: pin, fork, export, reasoning visibility
-   - Clickable composer status strip for cwd, branch summary, reasoning, and context
-   - Clear current-activity bar above the composer
+   - Composer status strip — DROPPED as duplicative after auditing the current UI
+   - Clear current-activity bar above the composer — DONE
    - Multiple queued follow-up messages with edit, delete, and reorder — DONE (91f4821)
      - Storage, composer and app-level auto-send all carry a list; the strip
        renders send order with per-message reorder, edit and delete.

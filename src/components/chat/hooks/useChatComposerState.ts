@@ -736,9 +736,9 @@ export function useChatComposerState({
         return;
       }
 
-      // A turn is already in flight: stash this message instead of sending it.
-      // It's auto-flushed (re-running this same function) once the turn ends,
-      // so it still goes through slash-command interception, image upload, etc.
+      // Enter always queues while a turn is in flight. Steering is an explicit
+      // adjacent action in the composer, so an ordinary submit can never
+      // unexpectedly alter the answer that is already running.
       if (isLoading) {
         queuedDraftSessionRef.current = sessionKey;
         const draft: QueuedDraft = {
@@ -747,29 +747,9 @@ export function useChatComposerState({
           options: buildSendOptions(currentInput),
         };
 
-        // Prose goes straight into the running turn; the runtime's own steering
-        // queue is what makes that safe. A slash command needs this composer's
-        // interception and an image needs the upload path, so both wait for a
-        // turn of their own. Appended, not replaced: a second thought while the
-        // turn runs is another follow-up, not a correction of the first one.
-        const steerTarget = selectedSession?.id || currentSessionId || null;
-        const canSteer = Boolean(steerTarget)
-          && draft.images.length === 0
-          && isAutoSendable(classifyCommandInput(currentInput));
-
-        if (canSteer) {
-          const waiting = pendingSteersRef.current.get(currentInput) ?? [];
-          const timer = setTimeout(() => {
-            // No answer came back; queue it rather than leave it in limbo.
-            resolveSteerRef.current(currentInput, false);
-          }, STEER_ANSWER_TIMEOUT_MS);
-          waiting.push({ draft, timer });
-          pendingSteersRef.current.set(currentInput, waiting);
-          setQueuedDrafts((previous) => [...previous, { ...draft, pendingSteer: true }]);
-          sendMessage({ type: 'chat.steer', sessionId: steerTarget, content: currentInput });
-        } else {
-          setQueuedDrafts((previous) => [...previous, draft]);
-        }
+        // Appended, not replaced: a second thought while the turn runs is
+        // another follow-up, not a correction of the first one.
+        setQueuedDrafts((previous) => [...previous, draft]);
         setInput('');
         inputValueRef.current = '';
         setAttachedImages([]);
@@ -1010,6 +990,70 @@ export function useChatComposerState({
       addMessage,
       setIsUserScrolledUp,
       slashCommands,
+    ],
+  );
+
+  /**
+   * Explicitly hands plain text to the running turn. Commands and attachments
+   * still queue because they require the composer's normal turn pipeline.
+   */
+  const handleSteer = useCallback(
+    (
+      event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>,
+    ) => {
+      event.preventDefault();
+      const currentInput = inputValueRef.current;
+      const steerTarget = selectedSession?.id || currentSessionId || null;
+      if (
+        !isLoading
+        || !currentInput.trim()
+        || !selectedProject
+        || !steerTarget
+        || attachedImages.length > 0
+        || !isAutoSendable(classifyCommandInput(currentInput))
+      ) {
+        return;
+      }
+
+      queuedDraftSessionRef.current = sessionKey;
+      const draft: QueuedDraft = {
+        content: currentInput,
+        images: [],
+        options: buildSendOptions(currentInput),
+      };
+      const waiting = pendingSteersRef.current.get(currentInput) ?? [];
+      const timer = setTimeout(() => {
+        // No answer came back; queue it rather than leave it in limbo.
+        resolveSteerRef.current(currentInput, false);
+      }, STEER_ANSWER_TIMEOUT_MS);
+      waiting.push({ draft, timer });
+      pendingSteersRef.current.set(currentInput, waiting);
+      setQueuedDrafts((previous) => [...previous, { ...draft, pendingSteer: true }]);
+      sendMessage({ type: 'chat.steer', sessionId: steerTarget, content: currentInput });
+
+      setInput('');
+      inputValueRef.current = '';
+      setAttachedImages([]);
+      setUploadingImages(new Map());
+      setImageErrors(new Map());
+      resetCommandMenuState();
+      setIsTextareaExpanded(false);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
+      safeLocalStorage.removeItem(`draft_input_${selectedProject.projectId}`);
+    },
+    [
+      attachedImages.length,
+      buildSendOptions,
+      currentSessionId,
+      isLoading,
+      resetCommandMenuState,
+      selectedProject,
+      selectedSession?.id,
+      sendMessage,
+      sessionKey,
+      setInput,
     ],
   );
 
@@ -1464,6 +1508,7 @@ export function useChatComposerState({
     isDragActive,
     openImagePicker: open,
     handleSubmit,
+    handleSteer,
     modelPickerTrigger,
     queuedDrafts,
     editQueuedDraft,

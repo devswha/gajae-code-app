@@ -188,6 +188,7 @@ function ChatInterface({
     isDragActive,
     openImagePicker,
     handleSubmit,
+    handleSteer,
     modelPickerTrigger,
     queuedDrafts,
     editQueuedDraft,
@@ -399,6 +400,7 @@ function ChatInterface({
       sessionState={sessionState}
       onShowTokenUsage={showCostModal}
       onSubmit={handleSubmit}
+      onSteer={handleSteer}
       isDragActive={isDragActive}
       sessionPinnedModel={sessionPinnedModel}
       queuedDrafts={queuedDrafts}

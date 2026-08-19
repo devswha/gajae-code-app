@@ -30,6 +30,7 @@
   },
   "scripts": {
     "dev": "concurrently --kill-others \"npm run server:dev\" \"npm run client\"",
+    "dev:isolated": "node scripts/start-isolated-dev.mjs",
     "server": "node dist-server/server/index.js",
     "server:dev": "tsx --tsconfig server/tsconfig.json server/index.js",
     "preserver:dev": "npm run fill:runtime-manifest && npm run build:core:dev",

@@ -115,6 +115,15 @@
     "attachImages": "Прикрепить изображения",
     "send": "Отправить",
     "stop": "Остановить",
+    "modelReasoning": {
+      "label": "Модель и рассуждения",
+      "modelTitle": "Модель чата",
+      "modelDescription": "Выберите модель, используемую для этого сеанса.",
+      "defaultModel": "По умолчанию",
+      "currentConfiguration": "Использовать текущую конфигурацию",
+      "reasoningTitle": "Рассуждения",
+      "reasoningDescription": "Выберите объём рассуждений, используемых моделью чата."
+    },
     "hintText": {
       "ctrlEnter": "Ctrl+Enter для отправки • Shift+Enter для новой строки • Tab для смены режима • / для команд",
       "enter": "Enter для отправки • Shift+Enter для новой строки • Tab для смены режима • / для команд",

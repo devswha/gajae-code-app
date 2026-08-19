@@ -19,6 +19,8 @@ export type ProviderModelOption = {
 export type ProviderModelsDefinition = {
   OPTIONS: ProviderModelOption[];
   DEFAULT: string;
+  /** Raw chat models with runtime-reported reasoning capabilities. */
+  MODELS?: ProviderModelOption[];
 };
 
 export type ProviderModelsCacheInfo = {

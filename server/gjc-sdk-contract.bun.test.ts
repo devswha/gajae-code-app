@@ -50,6 +50,7 @@ type OAuthLogin = (provider: string, callbacks: OAuthCallbacks) => Promise<void>
 const globalMethods = new Set([
   'worker.initialize',
   'worker.shutdown',
+  'models.catalog',
   'oauth.providers',
   'oauth.status',
   'oauth.start',
@@ -603,6 +604,42 @@ test('OAuth Protocol v1 frames are global and exact', () => {
       () => parseGjcWorkerFrame(JSON.stringify({ ...frame, sessionId: 'contract-scope' })),
       { code: 'invalid_session_scope' },
     );
+  }
+});
+
+test('model catalog reports the runtime-supported reasoning levels', async () => {
+  const f = await fixture(
+    'reasoning-model',
+    undefined,
+    {
+      id: 'reasoning-model',
+      name: 'Reasoning Model',
+      provider: 'contract-provider',
+      reasoning: true,
+      thinking: {
+        minLevel: 'low',
+        maxLevel: 'high',
+        levels: ['low', 'high'],
+        mode: 'effort',
+      },
+    } as never,
+  );
+  try {
+    await f.host.handle(request('models.catalog', 'model-catalog'));
+    const payload = response(f.frames, 'model-catalog').payload as Record<string, unknown>;
+    assert.deepEqual(payload, {
+      ok: true,
+      result: {
+        models: [{
+          value: 'contract-provider/reasoning-model',
+          label: 'Reasoning Model',
+          group: 'contract-provider',
+          effort: { values: [{ value: 'low' }, { value: 'high' }] },
+        }],
+      },
+    });
+  } finally {
+    await f.close();
   }
 });
 

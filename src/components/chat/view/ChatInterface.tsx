@@ -24,7 +24,7 @@ import OAuthLoginDialog from '../OAuthLoginDialog';
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
 import CommandResultModal from './subcomponents/CommandResultModal';
-import type { ReasoningEffort } from './subcomponents/ReasoningEffortPicker';
+import type { ReasoningEffort } from './subcomponents/reasoningEffort';
 
 const REASONING_EFFORTS = new Set<ReasoningEffort>([
   'default', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max',
@@ -450,6 +450,7 @@ function ChatInterface({
       sendByCtrlEnter={sendByCtrlEnter}
       modelPreset={gjcModel}
       modelPresetOptions={providerModelCatalog.gjc?.OPTIONS ?? []}
+      modelOptions={providerModelCatalog.gjc?.MODELS ?? []}
       modelPresetsLoading={providerModelsLoading}
       modelPickerOpenTrigger={modelPickerTrigger}
       onSelectModelPreset={(model) => selectProviderModel(

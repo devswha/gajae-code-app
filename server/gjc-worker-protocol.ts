@@ -13,6 +13,7 @@ export const GJC_WORKER_REQUEST_METHODS = [
   'turn.abort',
   'turn.steer',
   'ask.reply',
+  'models.catalog',
   'oauth.providers',
   'oauth.status',
   'oauth.start',
@@ -39,7 +40,7 @@ export const GJC_WORKER_EVENT_METHODS = [
 
 export type GjcWorkerRequestMethod = typeof GJC_WORKER_REQUEST_METHODS[number];
 export type GjcWorkerEventMethod = typeof GJC_WORKER_EVENT_METHODS[number];
-export type GjcWorkerGlobalRequestMethod = Extract<GjcWorkerRequestMethod, 'worker.initialize' | 'worker.shutdown' | `oauth.${string}`>;
+export type GjcWorkerGlobalRequestMethod = Extract<GjcWorkerRequestMethod, 'worker.initialize' | 'worker.shutdown' | 'models.catalog' | `oauth.${string}`>;
 export type GjcWorkerGlobalEventMethod = Extract<GjcWorkerEventMethod, 'oauth.phase' | 'oauth.providers.updated' | 'provider.auth.updated'>;
 export type GjcWorkerResponseMethod = GjcWorkerRequestMethod;
 
@@ -142,7 +143,7 @@ export class GjcWorkerProtocolError extends Error {
 
 const requestMethods = new Set<string>(GJC_WORKER_REQUEST_METHODS);
 const eventMethods = new Set<string>(GJC_WORKER_EVENT_METHODS);
-const globalMethods = new Set<string>(['worker.initialize', 'worker.shutdown', 'oauth.providers', 'oauth.status', 'oauth.start', 'oauth.submit', 'oauth.cancel']);
+const globalMethods = new Set<string>(['worker.initialize', 'worker.shutdown', 'models.catalog', 'oauth.providers', 'oauth.status', 'oauth.start', 'oauth.submit', 'oauth.cancel']);
 const globalEventMethods = new Set<string>(['oauth.phase', 'oauth.providers.updated', 'provider.auth.updated']);
 const safeIdentifier = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const redacted = '[redacted]';

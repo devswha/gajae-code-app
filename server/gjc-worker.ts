@@ -45,6 +45,7 @@ export type GjcWorkerRuntime = {
    */
   steerGjcSession?(runHandle: string, message: string): Promise<boolean>;
   resolveGjcToolApproval(requestId: string, decision: unknown): boolean;
+  modelCatalog?(): JsonObject;
   oauth?: GjcWorkerOAuthRuntime;
 };
 export type GjcWorkerHostOptions = {
@@ -185,6 +186,7 @@ export class GjcWorkerHost {
       case 'turn.abort': return this.#abort(request);
       case 'turn.steer': return this.#steer(request);
       case 'ask.reply': return this.#reply(request);
+      case 'models.catalog': return this.#modelCatalog(request);
       case 'oauth.providers': return this.#oauthProviders(request);
       case 'oauth.status': return this.#oauthStatus(request);
       case 'oauth.start': return this.#oauthStart(request);
@@ -254,6 +256,17 @@ export class GjcWorkerHost {
   }
   #oauthRuntime(): GjcWorkerOAuthRuntime | undefined {
     return this.#runtime?.oauth;
+  }
+  #modelCatalog(request: GjcWorkerRequestFrame): void {
+    if (!payload(request, [])) return this.#response(request, failure('invalid_payload', 'Request payload is invalid.'));
+    const runtime = this.#runtime;
+    if (!runtime?.modelCatalog) return this.#response(request, failure('model_catalog_unavailable', 'Model catalog is not available in this worker.'));
+    try {
+      this.#response(request, success(runtime.modelCatalog()));
+    } catch (error) {
+      this.#diagnose('model catalog failed', error);
+      this.#response(request, failure('model_catalog_failed', 'Model catalog is unavailable.'));
+    }
   }
   async #oauthProviders(request: GjcWorkerRequestFrame): Promise<void> {
     if (!payload(request, [])) return this.#response(request, failure('invalid_payload', 'Request payload is invalid.'));

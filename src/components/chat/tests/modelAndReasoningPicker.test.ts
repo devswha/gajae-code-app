@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 
 import {
   deriveSessionModelOptions,
+  reasoningOptionsForModel,
   resolveDisplayModel,
   stripEffortSuffix,
-} from '../view/subcomponents/SessionModelPicker';
+} from '../view/subcomponents/ModelAndReasoningPicker';
 import type { ProviderModelOption } from '../../../types/app';
 
 const catalog: ProviderModelOption[] = [
@@ -136,4 +137,26 @@ test('a profile-name reference never renders as a model and resolves through the
     ]),
     undefined,
   );
+});
+
+test('reasoning choices follow the runtime capabilities of the selected model', () => {
+  const models: ProviderModelOption[] = [
+    {
+      value: 'openai-codex/gpt-test',
+      label: 'GPT Test',
+      effort: { values: [{ value: 'minimal' }, { value: 'low' }, { value: 'high' }] },
+    },
+    {
+      value: 'custom/plain',
+      label: 'Plain',
+      effort: { values: [] },
+    },
+  ];
+
+  assert.deepEqual(
+    reasoningOptionsForModel('openai-codex/gpt-test', models),
+    ['default', 'off', 'minimal', 'low', 'high'],
+  );
+  assert.deepEqual(reasoningOptionsForModel('custom/plain', models), []);
+  assert.deepEqual(reasoningOptionsForModel('missing/model', models), []);
 });

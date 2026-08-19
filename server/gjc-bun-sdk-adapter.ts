@@ -8,6 +8,7 @@ import { AuthStorage } from '@gajae-code/coding-agent/session/auth-storage';
 import { SessionManager } from '@gajae-code/coding-agent/session/session-manager';
 import { executeAcpBuiltinSlashCommand } from '@gajae-code/coding-agent/slash-commands/acp-builtins';
 import { initTheme, theme } from '@gajae-code/coding-agent/modes/theme/theme';
+import { getSupportedEfforts } from '@gajae-code/ai/model-thinking';
 
 import { GjcBunOAuthController, type GjcBunOAuthControllerOptions } from './gjc-bun-oauth-controller.js';
 import { GJC_APP_BUILTIN_COMMAND_NAMES } from './modules/providers/gjc-command-surface.generated.js';
@@ -223,6 +224,29 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       subscribe: (listener) => oauth.subscribe(listener),
       close: () => oauth.close(),
     };
+  }
+
+  modelCatalog() {
+    const seen = new Set<string>();
+    const models = [];
+    for (const model of this.modelRegistry.getAll()) {
+      const value = `${model.provider}/${model.id}`;
+      if (seen.has(value)) continue;
+      seen.add(value);
+      let efforts: readonly string[] = [];
+      if (model.reasoning) {
+        efforts = getSupportedEfforts(model);
+      }
+      models.push({
+        value,
+        label: model.name || model.id,
+        group: model.provider,
+        effort: {
+          values: efforts.map((effort) => ({ value: effort })),
+        },
+      });
+    }
+    return { models };
   }
 
   spawnGjc(message: string, options: Record<string, unknown>, writer: GjcWorkerWriter): Promise<void> & { abortHandle?: string; processId?: number } {

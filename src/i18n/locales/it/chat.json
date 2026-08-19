@@ -111,6 +111,15 @@
     "placeholder": "Digita / per i comandi, @ per i file, o chiedi qualcosa a {{provider}}...",
     "placeholderDefault": "Scrivi il tuo messaggio...",
     "disabled": "Input disabilitato",
+    "modelReasoning": {
+      "label": "Modello e ragionamento",
+      "modelTitle": "Modello di chat",
+      "modelDescription": "Scegli il modello utilizzato per questa sessione.",
+      "defaultModel": "Predefinito",
+      "currentConfiguration": "Usa la configurazione corrente",
+      "reasoningTitle": "Ragionamento",
+      "reasoningDescription": "Scegli quanto ragionamento utilizza il modello di chat."
+    },
     "attachFiles": "Allega file",
     "attachImages": "Allega immagini",
     "send": "Invia",

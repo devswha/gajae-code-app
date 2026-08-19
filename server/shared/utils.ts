@@ -30,6 +30,22 @@ import type {
   WorkspacePathValidationResult,
 } from '@/shared/types.js';
 
+type GjcRuntimeModelCatalogLoader = () => Promise<unknown>;
+let gjcRuntimeModelCatalogLoader: GjcRuntimeModelCatalogLoader | undefined;
+
+/** Registers the process-owned worker catalog without coupling provider modules to the worker layer. */
+export function registerGjcRuntimeModelCatalogLoader(loader: GjcRuntimeModelCatalogLoader): void {
+  gjcRuntimeModelCatalogLoader = loader;
+}
+
+/** Reads the live GJC catalog through the worker registered during server startup. */
+export function loadGjcRuntimeModelCatalog(): Promise<unknown> {
+  if (!gjcRuntimeModelCatalogLoader) {
+    return Promise.reject(new Error('GJC runtime model catalog is unavailable.'));
+  }
+  return gjcRuntimeModelCatalogLoader();
+}
+
 //----------------- NORMALIZED MESSAGE HELPER INPUT TYPES ------------
 /**
  * Input payload accepted by `createNormalizedMessage`.

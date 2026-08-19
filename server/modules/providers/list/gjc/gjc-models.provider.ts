@@ -25,6 +25,41 @@ export const GJC_FALLBACK_MODELS: ProviderModelsDefinition = {
 const PROFILE_ROLES = ['default', 'planner', 'executor', 'architect', 'critic'] as const;
 type ProfileRole = typeof PROFILE_ROLES[number];
 type RoleMap = Partial<Record<ProfileRole, string>>;
+const EFFORTS = new Set(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function parseRuntimeModels(value: unknown): NonNullable<ProviderModelsDefinition['MODELS']> {
+  const response = record(value);
+  const result = response?.ok === true ? record(response.result) : response;
+  if (!Array.isArray(result?.models)) return [];
+
+  return result.models.flatMap((entry) => {
+    const model = record(entry);
+    if (!model || typeof model.value !== 'string' || !model.value.includes('/') || typeof model.label !== 'string') {
+      return [];
+    }
+    const effort = record(model.effort);
+    const values = Array.isArray(effort?.values)
+      ? effort.values.flatMap((candidate) => {
+          const option = record(candidate);
+          return typeof option?.value === 'string' && EFFORTS.has(option.value)
+            ? [{ value: option.value }]
+            : [];
+        })
+      : [];
+    return [{
+      value: model.value,
+      label: model.label,
+      ...(typeof model.group === 'string' ? { group: model.group } : {}),
+      effort: { values },
+    }];
+  });
+}
 
 function unquoteYamlScalar(value: string): string {
   const withoutComment = value.replace(/\s+#.*$/, '').trim();
@@ -151,7 +186,10 @@ async function getGjcPresetCatalog(homeDir: string): Promise<ProviderModelsDefin
 }
 
 export class GjcProviderModels implements IProviderModels {
-  constructor(private readonly homeDir: string = os.homedir()) {}
+  constructor(
+    private readonly homeDir: string = os.homedir(),
+    private readonly loadRuntimeModels?: () => Promise<unknown>,
+  ) {}
 
   /**
    * The GJC catalog is parsed from `config.yml` and `models.yml` in the agent
@@ -169,8 +207,20 @@ export class GjcProviderModels implements IProviderModels {
   }
 
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    const catalog = await getGjcPresetCatalog(this.homeDir);
-    return catalog.OPTIONS.length > 1 ? catalog : GJC_FALLBACK_MODELS;
+    const [catalog, runtimeCatalog] = await Promise.all([
+      getGjcPresetCatalog(this.homeDir),
+      this.loadRuntimeModels?.().catch(() => undefined),
+    ]);
+    const base = catalog.OPTIONS.length > 1 ? catalog : GJC_FALLBACK_MODELS;
+    const referencedModels = new Set(base.OPTIONS.flatMap((option) =>
+      Object.values(option.roles ?? {}).flatMap((selector) =>
+        selector.includes('/')
+          ? [selector.replace(/:(?:off|minimal|low|medium|high|xhigh|max)$/, '')]
+          : [],
+      ),
+    ));
+    const models = parseRuntimeModels(runtimeCatalog).filter((model) => referencedModels.has(model.value));
+    return models.length > 0 ? { ...base, MODELS: models } : base;
   }
 
   async getCurrentActiveModel(): Promise<ProviderCurrentActiveModel> {

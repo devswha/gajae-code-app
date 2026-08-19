@@ -40,9 +40,9 @@ import TokenUsageSummary from './TokenUsageSummary';
 import QueuedMessageCard from './QueuedMessageCard';
 import CommandGateCard from './CommandGateCard';
 import ModelPresetPicker from './ModelPresetPicker';
-import SessionModelPicker from './SessionModelPicker';
+import ModelAndReasoningPicker from './ModelAndReasoningPicker';
 import ContextUsageBadge from './ContextUsageBadge';
-import ReasoningEffortPicker, { type ReasoningEffort } from './ReasoningEffortPicker';
+import type { ReasoningEffort } from './reasoningEffort';
 import SkillPicker from './SkillPicker';
 
 interface MentionableFile {
@@ -125,6 +125,7 @@ interface ChatComposerProps {
   sendByCtrlEnter?: boolean;
   modelPreset?: string;
   modelPresetOptions?: ProviderModelOption[];
+  modelOptions?: ProviderModelOption[];
   modelPresetsLoading?: boolean;
   /** Monotonic signal: each increment opens the model preset popup. */
   modelPickerOpenTrigger?: number;
@@ -189,6 +190,7 @@ export default function ChatComposer({
   sendByCtrlEnter,
   modelPreset = 'default',
   modelPresetOptions = [],
+  modelOptions = [],
   modelPresetsLoading,
   modelPickerOpenTrigger,
   onSelectModelPreset = () => {},
@@ -424,19 +426,17 @@ export default function ChatComposer({
             )}
 
             {modelPresetOptions.length > 0 && (
-              <SessionModelPicker
+              <ModelAndReasoningPicker
                 value={modelPreset}
                 currentModel={displayedModel}
                 presetOptions={modelPresetOptions}
+                modelOptions={modelOptions}
                 loading={modelPresetsLoading}
                 onSelect={onSelectModelPreset}
+                reasoningEffort={reasoningEffort}
+                onSelectReasoningEffort={onSelectReasoningEffort}
               />
             )}
-
-            <ReasoningEffortPicker
-              value={reasoningEffort}
-              onSelect={onSelectReasoningEffort}
-            />
 
             {modelPresetOptions.length > 0 && (
               <ModelPresetPicker
@@ -505,9 +505,9 @@ export default function ChatComposer({
             >
               {isTranscribing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
-              ) : canQueueDraft ? (
+              ) : (
                 <ArrowUpIcon className="h-4 w-4" />
-              ) : undefined}
+              )}
             </PromptInputSubmit>
           </div>
         </PromptInputFooter>

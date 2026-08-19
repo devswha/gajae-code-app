@@ -112,6 +112,15 @@
     "placeholder": "Tapez / pour les commandes, @ pour les fichiers, ou posez une question à {{provider}}...",
     "placeholderDefault": "Tapez votre message...",
     "disabled": "Saisie désactivée",
+    "modelReasoning": {
+      "label": "Modèle et raisonnement",
+      "modelTitle": "Modèle de chat",
+      "modelDescription": "Choisissez le modèle utilisé pour cette session.",
+      "defaultModel": "Par défaut",
+      "currentConfiguration": "Utiliser la configuration actuelle",
+      "reasoningTitle": "Raisonnement",
+      "reasoningDescription": "Choisissez le niveau de raisonnement utilisé par le modèle de chat."
+    },
     "attachFiles": "Joindre des fichiers",
     "attachImages": "Joindre des images",
     "send": "Envoyer",

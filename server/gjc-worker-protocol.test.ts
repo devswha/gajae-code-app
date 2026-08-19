@@ -44,7 +44,7 @@ function protocolError(action: () => unknown, code?: string): void {
 test('declares the independent worker protocol v1 surface', () => {
   assert.equal(GJC_WORKER_PROTOCOL_VERSION, 1);
   assert.equal(GJC_WORKER_MAX_FRAME_BYTES, 64 * 1024 * 1024);
-  assert.deepEqual(GJC_WORKER_REQUEST_METHODS, ['worker.initialize', 'session.start', 'session.resume', 'turn.start', 'turn.abort', 'turn.steer', 'ask.reply', 'oauth.providers', 'oauth.status', 'oauth.start', 'oauth.submit', 'oauth.cancel', 'worker.shutdown']);
+  assert.deepEqual(GJC_WORKER_REQUEST_METHODS, ['worker.initialize', 'session.start', 'session.resume', 'turn.start', 'turn.abort', 'turn.steer', 'ask.reply', 'models.catalog', 'oauth.providers', 'oauth.status', 'oauth.start', 'oauth.submit', 'oauth.cancel', 'worker.shutdown']);
   assert.deepEqual(GJC_WORKER_EVENT_METHODS, ['session.created', 'message.delta', 'message.completed', 'tool.started', 'tool.completed', 'ask.presented', 'usage.updated', 'turn.completed', 'turn.failed', 'worker.status', 'oauth.phase', 'oauth.providers.updated', 'provider.auth.updated']);
 });
 

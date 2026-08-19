@@ -120,6 +120,15 @@
     "placeholder": "Type / for commands, @ for files, or ask {{provider}} anything...",
     "placeholderDefault": "Type your message...",
     "disabled": "Input disabled",
+    "modelReasoning": {
+      "label": "Model and reasoning",
+      "modelTitle": "Chat model",
+      "modelDescription": "Choose the model used for this session.",
+      "defaultModel": "Default",
+      "currentConfiguration": "Use current configuration",
+      "reasoningTitle": "Reasoning",
+      "reasoningDescription": "Choose how much reasoning the chat model uses."
+    },
     "attachFiles": "Attach files",
     "attachImages": "Attach images",
     "send": "Send",

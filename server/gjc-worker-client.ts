@@ -9,7 +9,11 @@ import type { Writable } from 'node:stream';
 
 import { GJC_AGENT_TOOL_NAMES } from './gjc-agent-tools.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
-import { createCompleteMessage, createNormalizedMessage } from './shared/utils.js';
+import {
+  createCompleteMessage,
+  createNormalizedMessage,
+  registerGjcRuntimeModelCatalogLoader,
+} from './shared/utils.js';
 import {
   GJC_WORKER_PROTOCOL_VERSION,
   GjcWorkerNdjsonDecoder,
@@ -414,6 +418,11 @@ export class GjcWorkerSupervisor {
   ): Promise<GjcWorkerResponsePayload> {
     await this.ensureWorker();
     return this.request(method, undefined, payload);
+  }
+
+  async modelCatalog(): Promise<GjcWorkerResponsePayload> {
+    await this.ensureWorker();
+    return this.request('models.catalog', undefined, {});
   }
 
   oauthProviders(): Promise<GjcWorkerResponsePayload> {
@@ -1169,6 +1178,7 @@ function appendWorkerDiagnostic(message: string): void {
 }
 
 const supervisor = new GjcWorkerSupervisor({ enrichOptions: enrichGjcSdkRunOptions, diagnostic: appendWorkerDiagnostic });
+registerGjcRuntimeModelCatalogLoader(() => supervisor.modelCatalog());
 export function getGjcWorkerSupervisor(): GjcWorkerSupervisor { return supervisor; }
 export function isGjcSessionActive(alias: string) { return supervisor.isActive(alias); }
 export function getActiveGjcSessions() { return supervisor.active(); }

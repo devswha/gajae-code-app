@@ -115,6 +115,15 @@
     "attachImages": "Resim ekle",
     "send": "Gönder",
     "stop": "Durdur",
+    "modelReasoning": {
+      "label": "Model ve muhakeme",
+      "modelTitle": "Sohbet modeli",
+      "modelDescription": "Bu oturumda kullanılacak modeli seçin.",
+      "defaultModel": "Varsayılan",
+      "currentConfiguration": "Geçerli yapılandırmayı kullan",
+      "reasoningTitle": "Muhakeme",
+      "reasoningDescription": "Sohbet modelinin ne kadar muhakeme kullanacağını seçin."
+    },
     "hintText": {
       "ctrlEnter": "Göndermek için Ctrl+Enter • Yeni satır için Shift+Enter • Mod değiştirmek için Tab • Slash komutları için /",
       "enter": "Göndermek için Enter • Yeni satır için Shift+Enter • Mod değiştirmek için Tab • Slash komutları için /",

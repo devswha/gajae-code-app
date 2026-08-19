@@ -108,3 +108,49 @@ test('every catalog option carries a group so clients can collapse the preset li
   const groups = new Set(catalog.OPTIONS.map((option) => option.group).filter(Boolean));
   assert.ok(groups.size < catalog.OPTIONS.length / 2, 'groups must collapse the catalog meaningfully');
 });
+
+test('runtime model metadata carries each model supported reasoning efforts', async (t) => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-efforts-'));
+  t.after(() => rm(homeDir, { recursive: true, force: true }));
+  const agentDir = path.join(homeDir, '.gjc', 'agent');
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'config.yml'), `modelProfile:
+  default: openai-codex/gpt-test
+  planner: custom/no-reasoning
+`, 'utf8');
+
+  const catalog = await new GjcProviderModels(homeDir, async () => ({
+    ok: true,
+    result: {
+      models: [
+        {
+          value: 'openai-codex/gpt-test',
+          label: 'GPT Test',
+          group: 'openai-codex',
+          effort: { values: [{ value: 'low' }, { value: 'high' }, { value: 'unsupported' }] },
+        },
+        {
+          value: 'custom/no-reasoning',
+          label: 'No reasoning',
+          group: 'custom',
+          effort: { values: [] },
+        },
+      ],
+    },
+  })).getSupportedModels();
+
+  assert.deepEqual(catalog.MODELS, [
+    {
+      value: 'openai-codex/gpt-test',
+      label: 'GPT Test',
+      group: 'openai-codex',
+      effort: { values: [{ value: 'low' }, { value: 'high' }] },
+    },
+    {
+      value: 'custom/no-reasoning',
+      label: 'No reasoning',
+      group: 'custom',
+      effort: { values: [] },
+    },
+  ]);
+});

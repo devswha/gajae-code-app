@@ -111,6 +111,15 @@
     "placeholder": "/ für Befehle, @ für Dateien eingeben oder {{provider}} etwas fragen...",
     "placeholderDefault": "Nachricht eingeben...",
     "disabled": "Eingabe deaktiviert",
+    "modelReasoning": {
+      "label": "Modell und Denktiefe",
+      "modelTitle": "Chat-Modell",
+      "modelDescription": "Wählen Sie das für diese Sitzung verwendete Modell aus.",
+      "defaultModel": "Standard",
+      "currentConfiguration": "Aktuelle Konfiguration verwenden",
+      "reasoningTitle": "Denktiefe",
+      "reasoningDescription": "Wählen Sie, wie viel Denktiefe das Chat-Modell verwendet."
+    },
     "attachFiles": "Dateien anhängen",
     "attachImages": "Bilder anhängen",
     "send": "Senden",

@@ -115,6 +115,15 @@
     "attachImages": "画像を添付",
     "send": "送信",
     "stop": "停止",
+    "modelReasoning": {
+      "label": "モデルと推論",
+      "modelTitle": "チャットモデル",
+      "modelDescription": "このセッションで使用するモデルを選択してください。",
+      "defaultModel": "デフォルト",
+      "currentConfiguration": "現在の設定を使用",
+      "reasoningTitle": "推論",
+      "reasoningDescription": "チャットモデルが使用する推論の量を選択してください。"
+    },
     "hintText": {
       "ctrlEnter": "Ctrl+Enterで送信 • Shift+Enterで改行 • Tabでモード切替 • / でスラッシュコマンド",
       "enter": "Enterで送信 • Shift+Enterで改行 • Tabでモード切替 • / でスラッシュコマンド",

@@ -3,6 +3,25 @@
 Status: Phases 1-3 shipped (feaa33e, d64af56, 3377739); phase 5 partly shipped (91f4821 queue, 26c818f steering); phases 4-6 approved for this session
 Saved: 2026-08-15
 
+## Current priority order
+
+1. P0 — DONE (27fb844): synchronized `main` with `origin/main`, resolved the
+   command-disposition conflict, and retained all local commits.
+2. P1 — Complete the core chat workflow in this order:
+   - Clickable composer status strip for cwd, branch, reasoning, and context
+   - Explicit steer-versus-queue control while a turn is running
+   - Current-activity bar above the composer
+   - Fork a session from a specific message
+3. P2 — Complete session management:
+   - Inline title editing
+   - Pin, fork, export, and reasoning visibility in one session menu
+4. P3 — Deliver Development Preview with localhost discovery and managed
+   Chromium/CDP, including focused component tests and browser smoke coverage.
+5. P4 — If public distribution is approved, complete Developer ID signing,
+   notarization, entitlement review, and clean-machine installation QA.
+6. P5 — Evaluate split-pane multi-session workspaces, then decide whether side
+   chat remains necessary.
+
 ## Objective
 
 Improve GJC App's coding workflow without redesigning its visual identity or restoring previously removed terminal and manual Git workflows.

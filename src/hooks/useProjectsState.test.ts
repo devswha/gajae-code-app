@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import type { Project } from '../types/app';
 
-import { projectsHaveChanges, readProjectsResponse } from './useProjectsState';
+import { projectsHaveChanges, readProjectsResponse, reconcileSelectedProject } from './useProjectsState';
 
 const autoProject: Project = {
   projectId: 'project-1',
@@ -52,4 +52,34 @@ test('readProjectsResponse rejects ok responses whose body is not an array', asy
 
   assert.equal(await readProjectsResponse(objectBody, 'refreshing'), null);
   assert.equal(await readProjectsResponse(invalidJson, 'refreshing'), null);
+});
+
+test('reconcileSelectedProject applies refreshed display metadata to the active project', () => {
+  const renamedProject = { ...autoProject, displayName: 'Renamed project' };
+
+  const reconciled = reconcileSelectedProject(autoProject, [renamedProject]);
+
+  assert.equal(reconciled?.displayName, 'Renamed project');
+});
+
+test('reconcileSelectedProject preserves expanded session pages during metadata refresh', () => {
+  const loadedProject: Project = {
+    ...autoProject,
+    sessions: [
+      { id: 'session-1', summary: 'First' },
+      { id: 'session-2', summary: 'Second' },
+    ],
+    sessionMeta: { hasMore: false, total: 2 },
+  };
+  const renamedProject: Project = {
+    ...autoProject,
+    displayName: 'Renamed project',
+    sessions: [{ id: 'session-1', summary: 'First' }],
+    sessionMeta: { hasMore: true, total: 2 },
+  };
+
+  const reconciled = reconcileSelectedProject(loadedProject, [renamedProject]);
+
+  assert.equal(reconciled?.displayName, 'Renamed project');
+  assert.deepEqual(reconciled?.sessions?.map((session) => session.id), ['session-1', 'session-2']);
 });

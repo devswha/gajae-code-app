@@ -22,7 +22,8 @@ export type AppUiCommandActionId =
   | 'open-session-picker'
   | 'start-new-chat'
   | 'open-settings'
-  | 'open-model-picker';
+  | 'open-model-picker'
+  | 'open-cost-modal';
 
 export type AppUiCommand = {
   name: string;
@@ -44,6 +45,7 @@ export type AppUiCommandActions = {
   startNewChat: () => void;
   openSettings: () => void;
   openModelPicker: () => void;
+  openCostModal: () => void;
 };
 
 export const APP_UI_COMMANDS: readonly AppUiCommand[] = [
@@ -83,6 +85,13 @@ export const APP_UI_COMMANDS: readonly AppUiCommand[] = [
     actionId: 'open-model-picker',
     interceptWithArgs: false,
   },
+  {
+    name: '/cost',
+    description: 'Review token usage for the active session',
+    namespace: 'app',
+    type: 'app',
+    actionId: 'open-cost-modal',
+  },
 ];
 
 const APP_UI_COMMANDS_BY_NAME = new Map(
@@ -108,6 +117,9 @@ export function runAppUiCommand(command: AppUiCommand, actions: AppUiCommandActi
       break;
     case 'open-model-picker':
       actions.openModelPicker();
+      break;
+    case 'open-cost-modal':
+      actions.openCostModal();
       break;
   }
 }
@@ -184,10 +196,12 @@ export function getTuiOnlyCommandNotice(commandName: string): string | null {
  * wins.
  */
 export const APP_UNSUPPORTED_COMMAND_HINTS: Readonly<Record<string, string>> = {
+  '/init': 'Generating AGENTS.md requires the GJC terminal until headless init is available.',
   '/move': 'Sessions follow the project you select — switch projects from the sidebar instead.',
   '/notify on': 'The app delivers its own notifications — manage them in Settings → Notifications.',
   '/notify off': 'The app delivers its own notifications — manage them in Settings → Notifications.',
   '/skill:team': 'It drives workers through tmux panes, which this app cannot show. Run `gjc` in a terminal for that, or use `/skill:ultragoal` here.',
+  '/transcript': 'Use the current chat and session history; the runtime transcript browser is TUI-only.',
 };
 
 export function getAppUnsupportedCommandNotice(commandForm: string): string | null {

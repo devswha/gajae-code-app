@@ -125,7 +125,7 @@ const GROUP_D: readonly Row[] = [
   ['D03', '/session info', 'command'],
   ['D04', '/session e2e-bogus', 'gate'],
   ['D05', '/jobs', 'command'],
-  ['D06', '/transcript', 'command'],
+  ['D06', '/transcript', 'notice'],
   ['D07', '/context', 'command'],
   ['D08', '/usage', 'command'],
   ['D09', '/changelog', 'command'],
@@ -259,11 +259,10 @@ const GROUP_F: readonly Row[] = [
 ];
 
 const GROUP_G: readonly Row[] = [
-  // A provider-bundled prompt rather than a runtime command: it reaches the
-  // model, which then writes AGENTS.md through the ordinary tool flow, where
-  // the write is permissioned like any other.
-  ['G01', '/init', 'command'],
-  ['G02', '/init e2e-arg', 'command'],
+  // AGENTS.md generation is terminal-only until the app has a headless init
+  // path, so both forms stop at the app's unsupported-command notice.
+  ['G01', '/init', 'notice'],
+  ['G02', '/init e2e-arg', 'notice'],
 ];
 
 const MATRIX: readonly Row[] = [

@@ -386,10 +386,57 @@ test('advertised GJC builtins execute in the SDK worker without becoming model p
     assert.equal(session.promptCalls, 0);
     assert.deepEqual(methods(f.frames), [
       'session.created',
-      'message.delta',
       'message.completed',
       'turn.completed',
       'worker.status',
+    ]);
+  } finally {
+    await f.close();
+  }
+});
+
+
+test('builtin stdout is terminal-safe, preserves Unicode, and retains export path provenance', async () => {
+  const f = await fixture(
+    'contract-model',
+    undefined,
+    { id: 'contract-model', provider: 'contract-provider' },
+    async (text, runtime) => {
+      if (text.startsWith('/export')) {
+        await runtime.output('Export failed: \uFFFD');
+      } else {
+        await runtime.output('\u001B[31m$5\t中🙂 `code` <markup>\u001B[0m\n\u001B]8;;https://example.test\u0007link\u001B]8;;\u0007');
+      }
+      return { consumed: true };
+    },
+  );
+  try {
+    await f.host.handle(request('session.start', 'builtin-stdout', {
+      message: '/jobs',
+      options: f.options,
+    }));
+    await f.host.handle(request('session.start', 'export-corruption', {
+      message: '/export nested/報告.html',
+      options: f.options,
+    }));
+
+    const outputs = f.frames
+      .filter((frame) => frame.kind === 'event' && frame.method === 'message.completed')
+      .map((frame) => ((frame.payload as Record<string, unknown>).message as Record<string, unknown>))
+      .filter((message) => message.isLocalCommandStdout === true);
+    assert.deepEqual(outputs, [
+      {
+        kind: 'text',
+        role: 'assistant',
+        content: '$5\t中🙂 `code` <markup>\nlink',
+        isLocalCommandStdout: true,
+      },
+      {
+        kind: 'text',
+        role: 'assistant',
+        content: 'Failed to export "nested/報告.html": the upstream export command returned a corrupted path.',
+        isLocalCommandStdout: true,
+      },
     ]);
   } finally {
     await f.close();

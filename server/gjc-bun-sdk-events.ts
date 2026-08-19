@@ -1,3 +1,5 @@
+import { stripVTControlCharacters } from 'node:util';
+
 import type { GjcSessionSnapshot } from './gjc-session-state.js';
 import type { GjcWorkerWriter } from './gjc-worker.js';
 
@@ -48,6 +50,11 @@ const object = (value: unknown): value is RecordValue => value !== null && typeo
 
 const str = (value: unknown): string => typeof value === 'string' ? value : '';
 const num = (value: unknown): number => typeof value === 'number' && Number.isFinite(value) ? value : 0;
+
+/** Removes terminal controls from SDK builtin-command output only. */
+export function normalizeBuiltinCommandStdout(value: string): string {
+  return stripVTControlCharacters(value);
+}
 
 /**
  * Longest notice/error text forwarded to the browser. The SDK's own strings are

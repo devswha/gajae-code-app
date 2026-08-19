@@ -44,3 +44,9 @@ jobs:
 
       - name: Verify
         run: npm run verify
+
+      - name: Verify standalone website
+        run: |
+          npm ci --prefix website
+          npm test --prefix website
+          npm run build --prefix website

@@ -182,6 +182,27 @@ const mergeExpandedSessionPages = (previousProjects: Project[], incomingProjects
   });
 };
 
+export const reconcileSelectedProject = (
+  previousProject: Project | null,
+  freshProjects: Project[],
+): Project | null => {
+  if (!previousProject) {
+    return null;
+  }
+
+  const freshProject = freshProjects.find(
+    (project) => project.projectId === previousProject.projectId,
+  );
+  if (!freshProject) {
+    return previousProject;
+  }
+
+  const [mergedProject] = mergeExpandedSessionPages([previousProject], [freshProject]);
+  return projectsHaveChanges([previousProject], [mergedProject])
+    ? mergedProject
+    : previousProject;
+};
+
 const mergeProjectSessionPage = (
   existingProject: Project,
   sessionsPage: ProjectSessionPage,
@@ -454,6 +475,10 @@ export function useProjectsState({
       if (!projectData) {
         return;
       }
+
+      setSelectedProject((previousProject) =>
+        reconcileSelectedProject(previousProject, projectData),
+      );
 
       setProjects((prevProjects) => {
         const mergedProjects = mergeExpandedSessionPages(prevProjects, projectData);

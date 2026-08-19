@@ -165,7 +165,21 @@ test('a user bubble is the size of what was typed', () => {
   });
 
   // Hidden with opacity alone, the controls row still held a 20px line inside
-  // the bubble, so a two-character message rendered a three-line bubble.
+  // bubble, so a two-character message rendered a three-line bubble.
   assert.match(html, /absolute right-1 top-full/);
   assert.doesNotMatch(html, /mt-1 flex items-center justify-end gap-1 text-xs text-blue-100/);
+});
+
+test('local command stdout renders as escaped preformatted text instead of Markdown math', () => {
+  const html = renderMessage({
+    type: 'assistant',
+    content: '$CacheHitRate: 0.5\n中🙂 `code` <tag>',
+    timestamp: '2026-08-13T00:00:00.000Z',
+    isLocalCommandStdout: true,
+  });
+
+  assert.match(html, /<pre[^>]*><code>/);
+  assert.match(html, /\$CacheHitRate: 0\.5/);
+  assert.match(html, /中🙂 `code` &lt;tag&gt;/);
+  assert.doesNotMatch(html, /class="katex|<em>|<strong>/);
 });

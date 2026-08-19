@@ -89,7 +89,7 @@ export function renderLandingPage() {
 
       <div class="hero-shot-wrap">
         <div class="hero-shot">
-          <img src="/screenshots/gajae-app-overview.jpg" alt="Gajae Code App workspace with sessions nested under a project" />
+          <img src="/screenshots/gajae-app-overview.jpg" alt="A completed turn in the chat workspace with tool rows and the composer controls" />
         </div>
       </div>
     </div>
@@ -118,12 +118,12 @@ export function renderLandingPage() {
             </div>
             <div class="grid-2">
               <figure class="shot-card">
-                <img src="/screenshots/model-presets.jpg" alt="Agent preset picker" />
-                <figcaption>Default, Planner, Executor, Architect, and Critic in one picker.</figcaption>
+                <img src="/screenshots/model-presets.jpg" alt="Chat model and reasoning picker" />
+                <figcaption>Pick the chat model, then the reasoning level it runs at.</figcaption>
               </figure>
               <figure class="shot-card">
                 <img src="/screenshots/skill-commands.jpg" alt="Skill command menu" />
-                <figcaption>Search project, user, and bundled skills with /skill:.</figcaption>
+                <figcaption>Slash commands, settings, and skills in one menu.</figcaption>
               </figure>
             </div>
           </section>

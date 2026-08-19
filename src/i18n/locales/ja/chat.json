@@ -124,6 +124,13 @@
       "reasoningTitle": "推論",
       "reasoningDescription": "チャットモデルが使用する推論の量を選択してください。"
     },
+    "agentConfiguration": {
+      "label": "エージェント設定",
+      "title": "エージェント設定",
+      "description": "チャット、プランナー、エグゼキューター、アーキテクト、クリティックの各ロールで使用するモデルを選択します。",
+      "search": "設定を検索",
+      "noMatches": "一致する設定がありません。"
+    },
     "hintText": {
       "ctrlEnter": "Ctrl+Enterで送信 • Shift+Enterで改行 • Tabでモード切替 • / でスラッシュコマンド",
       "enter": "Enterで送信 • Shift+Enterで改行 • Tabでモード切替 • / でスラッシュコマンド",

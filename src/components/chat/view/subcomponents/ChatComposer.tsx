@@ -39,7 +39,7 @@ import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
 import QueuedMessageCard from './QueuedMessageCard';
 import CommandGateCard from './CommandGateCard';
-import ModelPresetPicker from './ModelPresetPicker';
+import AgentConfigurationPicker from './AgentConfigurationPicker';
 import ModelAndReasoningPicker from './ModelAndReasoningPicker';
 import ContextUsageBadge from './ContextUsageBadge';
 import type { ReasoningEffort } from './reasoningEffort';
@@ -439,7 +439,7 @@ export default function ChatComposer({
             )}
 
             {modelPresetOptions.length > 0 && (
-              <ModelPresetPicker
+              <AgentConfigurationPicker
                 value={modelPreset}
                 options={modelPresetOptions}
                 loading={modelPresetsLoading}

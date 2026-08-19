@@ -124,6 +124,13 @@
       "reasoningTitle": "Muhakeme",
       "reasoningDescription": "Sohbet modelinin ne kadar muhakeme kullanacağını seçin."
     },
+    "agentConfiguration": {
+      "label": "Ajan yapılandırması",
+      "title": "Ajan yapılandırması",
+      "description": "Sohbet, planlayıcı, yürütücü, mimar ve eleştirmen rollerinde kullanılan modelleri seçin.",
+      "search": "Yapılandırmalarda ara",
+      "noMatches": "Eşleşen yapılandırma bulunamadı."
+    },
     "hintText": {
       "ctrlEnter": "Göndermek için Ctrl+Enter • Yeni satır için Shift+Enter • Mod değiştirmek için Tab • Slash komutları için /",
       "enter": "Göndermek için Enter • Yeni satır için Shift+Enter • Mod değiştirmek için Tab • Slash komutları için /",

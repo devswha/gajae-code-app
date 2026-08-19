@@ -120,6 +120,13 @@
       "reasoningTitle": "추론",
       "reasoningDescription": "채팅 모델이 사용할 추론의 양을 선택하세요."
     },
+    "agentConfiguration": {
+      "label": "에이전트 구성",
+      "title": "에이전트 구성",
+      "description": "채팅, 플래너, 실행기, 아키텍트, 크리틱 역할에 사용되는 모델을 선택하세요.",
+      "search": "구성 검색",
+      "noMatches": "일치하는 구성이 없습니다."
+    },
     "attachFiles": "파일 첨부",
     "attachImages": "이미지 첨부",
     "send": "전송",

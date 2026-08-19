@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { Boxes, Check, ChevronDown, ChevronRight, Loader2, Search } from 'lucide-react';
 
 import { cn } from '../../../../lib/utils';
 import type { ProviderModelOption } from '../../../../types/app';
 
-type ModelPresetPickerProps = {
+type AgentConfigurationPickerProps = {
   value: string;
   options: ProviderModelOption[];
   loading?: boolean;
@@ -86,7 +87,8 @@ function groupOptions(options: ProviderModelOption[]): Array<{ group: string; op
     .map(({ entry }) => entry);
 }
 
-export default function ModelPresetPicker({ value, options, loading = false, openTrigger, iconOnly = false, onSelect }: ModelPresetPickerProps) {
+export default function AgentConfigurationPicker({ value, options, loading = false, openTrigger, iconOnly = false, onSelect }: AgentConfigurationPickerProps) {
+  const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [query, setQuery] = useState('');
@@ -189,9 +191,9 @@ export default function ModelPresetPicker({ value, options, loading = false, ope
           onClick={() => setOpen((current) => !current)}
           disabled={loading || selecting || options.length === 0}
           className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
-          aria-label="모델 프리셋 선택"
+          aria-label={t('input.agentConfiguration.label')}
           aria-expanded={open}
-          title={`모델 프리셋: ${selected?.label ?? 'Current'}`}
+          title={`${t('input.agentConfiguration.title')}: ${selected?.label ?? 'Current'}`}
         >
           {(loading || selecting) ? <Loader2 className="size-4 animate-spin" /> : <Boxes className="size-4" />}
         </button>
@@ -201,7 +203,7 @@ export default function ModelPresetPicker({ value, options, loading = false, ope
           onClick={() => setOpen((current) => !current)}
           disabled={loading || selecting || options.length === 0}
           className="flex h-8 max-w-40 items-center gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
-          aria-label="모델 프리셋 선택"
+          aria-label={t('input.agentConfiguration.label')}
           aria-expanded={open}
         >
           {(loading || selecting) && <Loader2 className="size-3 animate-spin" />}
@@ -217,9 +219,9 @@ export default function ModelPresetPicker({ value, options, loading = false, ope
           style={{ bottom: popupPosition.bottom, right: popupPosition.right }}
         >
           <div className="px-2 pb-1.5 pt-1">
-            <p className="text-xs font-semibold">모델 프리셋</p>
+            <p className="text-xs font-semibold">{t('input.agentConfiguration.title')}</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              기본 에이전트와 4개 전문 에이전트 구성을 함께 선택합니다.
+              {t('input.agentConfiguration.description')}
             </p>
           </div>
 
@@ -229,8 +231,8 @@ export default function ModelPresetPicker({ value, options, loading = false, ope
               ref={searchRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="프리셋 검색"
-              aria-label="프리셋 검색"
+              placeholder={t('input.agentConfiguration.search')}
+              aria-label={t('input.agentConfiguration.search')}
               className="h-7 w-full rounded-md border border-input bg-background pl-7 pr-2 text-xs outline-none placeholder:text-muted-foreground focus:border-ring"
             />
           </div>
@@ -241,7 +243,7 @@ export default function ModelPresetPicker({ value, options, loading = false, ope
                 ? matches.map((option) => renderPresetRow(option))
                 : (
                   <p className="px-2.5 py-6 text-center text-[11px] text-muted-foreground">
-                    일치하는 프리셋이 없습니다.
+                    {t('input.agentConfiguration.noMatches')}
                   </p>
                 )
             ) : (

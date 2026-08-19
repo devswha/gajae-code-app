@@ -4,31 +4,36 @@ import path from 'node:path';
 import test from 'node:test';
 
 const LOCALES_DIR = path.join(process.cwd(), 'src/i18n/locales');
-const REQUIRED_KEYS = [
-  'label',
-  'modelTitle',
-  'modelDescription',
-  'defaultModel',
-  'currentConfiguration',
-  'reasoningTitle',
-  'reasoningDescription',
-] as const;
+const REQUIRED_KEYS = {
+  modelReasoning: [
+    'label',
+    'modelTitle',
+    'modelDescription',
+    'defaultModel',
+    'currentConfiguration',
+    'reasoningTitle',
+    'reasoningDescription',
+  ],
+  agentConfiguration: ['label', 'title', 'description', 'search', 'noMatches'],
+} as const;
 
-test('every locale translates the combined model and reasoning picker', () => {
+test('every locale translates the composer model controls', () => {
   const locales = readdirSync(LOCALES_DIR)
     .filter((name) => statSync(path.join(LOCALES_DIR, name)).isDirectory())
     .sort();
 
   for (const locale of locales) {
     const chat = JSON.parse(readFileSync(path.join(LOCALES_DIR, locale, 'chat.json'), 'utf8')) as {
-      input?: { modelReasoning?: Record<string, unknown> };
+      input?: Record<string, Record<string, unknown>>;
     };
-    const translations = chat.input?.modelReasoning;
-    assert.ok(translations, `${locale} is missing input.modelReasoning`);
-    assert.deepEqual(Object.keys(translations).sort(), [...REQUIRED_KEYS].sort(), `${locale} has the wrong picker keys`);
-    for (const key of REQUIRED_KEYS) {
-      assert.equal(typeof translations[key], 'string', `${locale} input.modelReasoning.${key} is not text`);
-      assert.ok(String(translations[key]).trim(), `${locale} input.modelReasoning.${key} is empty`);
+    for (const [surface, requiredKeys] of Object.entries(REQUIRED_KEYS)) {
+      const translations = chat.input?.[surface];
+      assert.ok(translations, `${locale} is missing input.${surface}`);
+      assert.deepEqual(Object.keys(translations).sort(), [...requiredKeys].sort(), `${locale} input.${surface} has the wrong keys`);
+      for (const key of requiredKeys) {
+        assert.equal(typeof translations[key], 'string', `${locale} input.${surface}.${key} is not text`);
+        assert.ok(String(translations[key]).trim(), `${locale} input.${surface}.${key} is empty`);
+      }
     }
   }
 });

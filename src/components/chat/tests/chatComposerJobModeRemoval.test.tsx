@@ -238,7 +238,7 @@ test('chat composer renders normal tools without background Job controls', () =>
   assert.doesNotMatch(html, /Delegate background job/i);
   assert.doesNotMatch(html, /Back to chat/i);
   assert.match(html, /lucide-plus/);
-  assert.match(html, /모델 프리셋 선택/);
+  assert.match(html, /input\.agentConfiguration\.label/);
   assert.match(html, /aria-label="input\.modelReasoning\.label"/);
   assert.match(html, />High</);
   assert.doesNotMatch(html, /Reasoning effort 선택/);

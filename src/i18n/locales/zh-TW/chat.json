@@ -124,6 +124,13 @@
       "reasoningTitle": "推理",
       "reasoningDescription": "選擇聊天模型使用的推理程度。"
     },
+    "agentConfiguration": {
+      "label": "Agent 設定",
+      "title": "Agent 設定",
+      "description": "選擇聊天、規劃器、執行器、架構師和評審所使用的模型。",
+      "search": "搜尋設定",
+      "noMatches": "沒有符合的設定。"
+    },
     "hintText": {
       "ctrlEnter": "Ctrl+Enter 傳送 • Shift+Enter 換行 • Tab 切換模式 • / 斜線指令",
       "enter": "Enter 傳送 • Shift+Enter 換行 • Tab 切換模式 • / 斜線指令",

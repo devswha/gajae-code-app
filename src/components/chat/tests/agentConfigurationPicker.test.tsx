@@ -5,7 +5,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { ProviderModelOption } from '../../../types/app';
-import ModelPresetPicker from '../view/subcomponents/ModelPresetPicker';
+import AgentConfigurationPicker from '../view/subcomponents/AgentConfigurationPicker';
 
 const options: ProviderModelOption[] = [
   {
@@ -38,7 +38,7 @@ const options: ProviderModelOption[] = [
 ];
 
 const renderPicker = (value: string) => renderToStaticMarkup(
-  createElement(ModelPresetPicker, {
+  createElement(AgentConfigurationPicker, {
     value,
     options,
     openTrigger: 1,
@@ -52,7 +52,7 @@ test('the closed trigger shows only the active preset label', () => {
   const html = renderPicker('profile:codex-eco');
 
   assert.match(html, /Codex Eco/);
-  assert.doesNotMatch(html, /모델 프리셋<\/p>/);
+  assert.doesNotMatch(html, /input\.agentConfiguration\.title<\/p>/);
 });
 
 test('every preset carries its group so the picker can collapse the catalog', () => {

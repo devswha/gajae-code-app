@@ -120,6 +120,13 @@
       "reasoningTitle": "Ragionamento",
       "reasoningDescription": "Scegli quanto ragionamento utilizza il modello di chat."
     },
+    "agentConfiguration": {
+      "label": "Configurazione agente",
+      "title": "Configurazione agente",
+      "description": "Scegli i modelli usati per i ruoli chat, pianificatore, esecutore, architetto e critico.",
+      "search": "Cerca configurazioni",
+      "noMatches": "Nessuna configurazione corrispondente."
+    },
     "attachFiles": "Allega file",
     "attachImages": "Allega immagini",
     "send": "Invia",

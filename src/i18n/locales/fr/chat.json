@@ -121,6 +121,13 @@
       "reasoningTitle": "Raisonnement",
       "reasoningDescription": "Choisissez le niveau de raisonnement utilisé par le modèle de chat."
     },
+    "agentConfiguration": {
+      "label": "Configuration de l'agent",
+      "title": "Configuration de l'agent",
+      "description": "Choisissez les modèles utilisés pour les rôles chat, planificateur, exécuteur, architecte et critique.",
+      "search": "Rechercher des configurations",
+      "noMatches": "Aucune configuration correspondante."
+    },
     "attachFiles": "Joindre des fichiers",
     "attachImages": "Joindre des images",
     "send": "Envoyer",

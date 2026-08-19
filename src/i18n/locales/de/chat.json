@@ -120,6 +120,13 @@
       "reasoningTitle": "Denktiefe",
       "reasoningDescription": "Wählen Sie, wie viel Denktiefe das Chat-Modell verwendet."
     },
+    "agentConfiguration": {
+      "label": "Agent-Konfiguration",
+      "title": "Agent-Konfiguration",
+      "description": "Wählen Sie die Modelle für die Rollen Chat, Planer, Executor, Architekt und Kritiker aus.",
+      "search": "Konfigurationen suchen",
+      "noMatches": "Keine passenden Konfigurationen."
+    },
     "attachFiles": "Dateien anhängen",
     "attachImages": "Bilder anhängen",
     "send": "Senden",

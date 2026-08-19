@@ -129,6 +129,13 @@
       "reasoningTitle": "Reasoning",
       "reasoningDescription": "Choose how much reasoning the chat model uses."
     },
+    "agentConfiguration": {
+      "label": "Agent configuration",
+      "title": "Agent configuration",
+      "description": "Choose models used for chat, planner, executor, architect, and critic roles.",
+      "search": "Search configurations",
+      "noMatches": "No matching configurations."
+    },
     "attachFiles": "Attach files",
     "attachImages": "Attach images",
     "send": "Send",

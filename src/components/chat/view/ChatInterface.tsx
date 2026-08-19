@@ -396,7 +396,6 @@ function ChatInterface({
       activity={sessionActivity}
       isLoading={isProcessing}
       onAbortSession={handleAbortSession}
-      tokenBudget={tokenBudget}
       sessionState={sessionState}
       onShowTokenUsage={showCostModal}
       onSubmit={handleSubmit}

@@ -36,7 +36,6 @@ import ActivityIndicator from './ActivityIndicator';
 import ImageAttachment from './ImageAttachment';
 import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
-import TokenUsageSummary from './TokenUsageSummary';
 import QueuedMessageCard from './QueuedMessageCard';
 import CommandGateCard from './CommandGateCard';
 import AgentConfigurationPicker from './AgentConfigurationPicker';
@@ -69,7 +68,6 @@ interface ChatComposerProps {
   activity: SessionActivity | null;
   isLoading: boolean;
   onAbortSession: () => void;
-  tokenBudget: Record<string, unknown> | null;
   sessionState: Record<string, unknown> | null;
   onShowTokenUsage: () => void;
   onSubmit: (
@@ -140,7 +138,6 @@ export default function ChatComposer({
   activity,
   isLoading,
   onAbortSession,
-  tokenBudget,
   sessionState,
   onShowTokenUsage,
   onSubmit,
@@ -454,11 +451,7 @@ export default function ChatComposer({
               onSelect={(skill, index) => onCommandSelect(skill, index, false)}
             />
 
-            <ContextUsageBadge sessionState={sessionState} />
-
-            <div className="hidden sm:block">
-              <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} />
-            </div>
+            <ContextUsageBadge sessionState={sessionState} onClick={onShowTokenUsage} />
 
           </PromptInputTools>
 

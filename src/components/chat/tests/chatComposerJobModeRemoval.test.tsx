@@ -41,7 +41,6 @@ const baseComposerProps = {
   activity: null,
   isLoading: false,
   onAbortSession: () => undefined,
-  tokenBudget: null,
   sessionState: null,
   onShowTokenUsage: () => undefined,
   onSubmit: () => undefined,
@@ -269,4 +268,20 @@ test('commands cannot bypass their normal pipeline through the steering action',
 
   assert.match(html, /aria-label="input\.queue\.sendNext"/);
   assert.doesNotMatch(html, /aria-label="input\.queue\.steerNow"/);
+});
+
+test('the composer shows context fullness as the single token-related control', () => {
+  const html = renderToStaticMarkup(createElement(ChatComposer, {
+    ...baseComposerProps,
+    sessionState: {
+      contextPercent: 42,
+      contextWindow: 128_000,
+      contextTokens: 53_760,
+    },
+  }));
+
+  assert.match(html, /aria-label="workspace\.statusTab\.context 42%"/);
+  assert.match(html, />42%<\/span>/);
+  assert.doesNotMatch(html, /Show token usage/);
+  assert.doesNotMatch(html, />tokens<\/span>/);
 });

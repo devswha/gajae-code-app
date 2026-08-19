@@ -10,9 +10,9 @@ Saved: 2026-08-15
 2. P1 — Complete the core chat workflow in this order:
    - Explicit steer-versus-queue control while a turn is running — DONE
      (629e864)
-   - Composer status strip — DROPPED after UI audit: model, reasoning, context,
-     token usage, and activity controls already exist in or above the composer;
-     cwd and Git remain available in Workspace Status
+   - Composer status strip — DROPPED after UI audit: model/reasoning, context,
+     and activity controls already exist in or above the composer; cwd and Git
+     remain available in Workspace Status
    - Current-activity bar above the composer — DONE in the existing UI
    - Fork a session from a specific message — DEFERRED pending demonstrated
      user need
@@ -83,15 +83,18 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
    - Keep preview visible beside the active chat
 
 5. Chat UX improvements
-   - Combined chat model and reasoning selector — DONE, pending commit
+   - Combined chat model and reasoning selector — DONE (2fe57ad)
      - One trigger shows the effective chat model and reasoning level. The
        popover first selects a model, then advances to only the reasoning
        levels that GJC's live model registry reports for that model.
-     - The separate preset control still owns the multi-role agent
+     - The separate Agent configuration control still owns the multi-role
        configuration, so model selection no longer competes with a second
        reasoning dropdown.
      - The primary send action now uses the simple upward arrow established by
        the reviewed Z.ai composer. Desktop and 390px mobile browser smoke pass.
+   - Multi-role preset naming — DONE (d8f773b)
+     - The separate surface is named Agent configuration throughout the UI and
+       translations so its five-role scope is distinct from the chat model.
    - Steer a running turn — DONE (26c818f), beyond the original list
      - chat.steer follows chat.abort's path: same run lookup and scope check,
        one new worker method, and the live session the adapter already holds.
@@ -103,8 +106,13 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
        and attachments remain queue-only so they keep their normal pipeline.
        A refused or unanswered steering request falls back to the queue.
      - Browser smoke covered desktop and 390px mobile running states. Both
-       actions remain visible on mobile; lower-priority token usage is hidden
-       there and the model trigger contracts before the action buttons move.
+       actions remain visible on mobile; the model trigger contracts before
+       the action buttons move.
+   - Context and token controls — DONE, pending commit
+     - The composer shows one explicit `Context N%` control and opens the
+       existing token detail surface from it.
+     - The separate cumulative-token pill was removed; detailed token buckets
+       remain available in Workspace Status and the token detail surface.
    - Fork a session from a specific message — DEFERRED
      - It branches chat history only; it does not restore the working tree or
        create a Git branch/worktree.

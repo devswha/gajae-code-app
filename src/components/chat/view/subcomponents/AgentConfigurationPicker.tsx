@@ -96,7 +96,7 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
   const rootRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const [popupPosition, setPopupPosition] = useState({ bottom: 0, right: 0 });
+  const [popupPosition, setPopupPosition] = useState({ bottom: 0, left: 0 });
 
   const selected = useMemo(
     () => options.find((option) => option.value === value) ?? options[0],
@@ -122,9 +122,12 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
     if (!open) return;
     const rect = rootRef.current?.getBoundingClientRect();
     if (rect) {
+      // Left-anchored and clamped like the model and skill popups: a
+      // right-anchored w-96 popup grows left off the viewport on phones,
+      // cutting off its own list.
       setPopupPosition({
         bottom: window.innerHeight - rect.top + 8,
-        right: Math.max(8, window.innerWidth - rect.right),
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 384 - 8)),
       });
     }
     const close = (event: MouseEvent) => {
@@ -190,7 +193,7 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
           type="button"
           onClick={() => setOpen((current) => !current)}
           disabled={loading || selecting || options.length === 0}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
           aria-label={t('input.agentConfiguration.label')}
           aria-expanded={open}
           title={`${t('input.agentConfiguration.title')}: ${selected?.label ?? 'Current'}`}
@@ -216,7 +219,7 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
         <div
           ref={popupRef}
           className="fixed z-[80] w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
-          style={{ bottom: popupPosition.bottom, right: popupPosition.right }}
+          style={{ bottom: popupPosition.bottom, left: popupPosition.left }}
         >
           <div className="px-2 pb-1.5 pt-1">
             <p className="text-xs font-semibold">{t('input.agentConfiguration.title')}</p>

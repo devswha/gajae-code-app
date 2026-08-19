@@ -61,14 +61,14 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
         type="button"
         onClick={() => setOpen((current) => !current)}
         disabled={skills.length === 0}
-        className="relative flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+        className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
         aria-label="스킬 선택"
         aria-expanded={open}
         title="스킬 선택"
       >
         <Sparkles className="size-4" />
         {skills.length > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+          <span className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
             {skills.length}
           </span>
         )}

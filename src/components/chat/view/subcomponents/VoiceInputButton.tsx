@@ -26,7 +26,7 @@ export default function VoiceInputButton({ state, onToggle, errorMsg }: Props) {
     );
 
   return (
-    <span className="relative inline-flex">
+    <span className="relative inline-flex shrink-0">
       {errorMsg && (
         <span className="absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white shadow-lg">
           {errorMsg}

@@ -197,7 +197,7 @@ export default function ModelAndReasoningPicker({
         type="button"
         onClick={() => setOpen((current) => !current)}
         disabled={loading || selecting || groups.length === 0}
-        className="flex h-8 max-w-32 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 sm:max-w-56"
+        className="flex h-8 min-w-0 max-w-40 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 sm:max-w-56"
         aria-label={t('input.modelReasoning.label')}
         aria-expanded={open}
         title={`${displayModel ?? t('input.modelReasoning.defaultModel')} · ${reasoningLabel}`}

@@ -414,6 +414,7 @@ export default function ChatComposer({
             <PromptInputButton
               tooltip={{ content: t('input.attachImages') }}
               onClick={openImagePicker}
+              className="shrink-0"
             >
               <PlusIcon />
             </PromptInputButton>

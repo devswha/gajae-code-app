@@ -8,13 +8,14 @@ Saved: 2026-08-15
 1. P0 — DONE (27fb844): synchronized `main` with `origin/main`, resolved the
    command-disposition conflict, and retained all local commits.
 2. P1 — Complete the core chat workflow in this order:
-   - Explicit steer-versus-queue control while a turn is running — DONE,
-     pending commit
+   - Explicit steer-versus-queue control while a turn is running — DONE
+     (629e864)
    - Composer status strip — DROPPED after UI audit: model, reasoning, context,
      token usage, and activity controls already exist in or above the composer;
      cwd and Git remain available in Workspace Status
    - Current-activity bar above the composer — DONE in the existing UI
-   - Fork a session from a specific message
+   - Fork a session from a specific message — DEFERRED pending demonstrated
+     user need
 3. P2 — Complete session management:
    - Inline title editing
    - Pin, fork, export, and reasoning visibility in one session menu
@@ -82,6 +83,15 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
    - Keep preview visible beside the active chat
 
 5. Chat UX improvements
+   - Combined chat model and reasoning selector — DONE, pending commit
+     - One trigger shows the effective chat model and reasoning level. The
+       popover first selects a model, then advances to only the reasoning
+       levels that GJC's live model registry reports for that model.
+     - The separate preset control still owns the multi-role agent
+       configuration, so model selection no longer competes with a second
+       reasoning dropdown.
+     - The primary send action now uses the simple upward arrow established by
+       the reviewed Z.ai composer. Desktop and 390px mobile browser smoke pass.
    - Steer a running turn — DONE (26c818f), beyond the original list
      - chat.steer follows chat.abort's path: same run lookup and scope check,
        one new worker method, and the live session the adapter already holds.
@@ -95,7 +105,11 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
      - Browser smoke covered desktop and 390px mobile running states. Both
        actions remain visible on mobile; lower-priority token usage is hidden
        there and the model trigger contracts before the action buttons move.
-   - Fork a session from a specific message
+   - Fork a session from a specific message — DEFERRED
+     - It branches chat history only; it does not restore the working tree or
+       create a Git branch/worktree.
+     - Do not implement until real usage shows that conversational branching
+       without a matching code snapshot is useful rather than misleading.
    - Inline session title editing
    - Session menu: pin, fork, export, reasoning visibility
    - Composer status strip — DROPPED as duplicative after auditing the current UI

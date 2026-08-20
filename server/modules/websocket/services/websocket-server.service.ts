@@ -12,6 +12,7 @@ type WebSocketServerDependencies = {
   verifyClient: Parameters<typeof verifyWebSocketClient>[1];
   chat: Parameters<typeof handleChatConnection>[2];
   shell: Parameters<typeof handleShellConnection>[1];
+  browser?: (ws: Parameters<typeof handleChatConnection>[0], request: AuthenticatedWebSocketRequest) => void;
 };
 
 /**
@@ -64,6 +65,11 @@ export function createWebSocketServer(
 
     if (pathname === '/desktop-notifications') {
       handleDesktopNotificationsConnection(ws, incomingRequest);
+      return;
+    }
+
+    if (pathname === '/ws/browser' && dependencies.browser) {
+      dependencies.browser(ws, incomingRequest);
       return;
     }
 

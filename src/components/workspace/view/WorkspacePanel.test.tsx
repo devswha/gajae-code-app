@@ -24,6 +24,7 @@ function render(overrides: Partial<WorkspacePanelProps> = {}): string {
     isMobile: false,
     editingFile: null,
     projectPath: '/work/alpha',
+    automationSessionId: 'session-alpha',
     resizeHandleRef: { current: null },
     onTabChange: () => undefined,
     onResizeStart: () => undefined,
@@ -45,6 +46,7 @@ test('the tab strip is a tablist whose selected tab owns the rendered panel', ()
   assert.match(html, /id="workspace-tab-status"[^>]*role="tab"[^>]*aria-selected="false"/);
   assert.match(html, /id="workspace-tab-files"[^>]*role="tab"[^>]*aria-selected="false"/);
   assert.match(html, /id="workspace-tab-editor"[^>]*role="tab"[^>]*aria-selected="true"/);
+  assert.match(html, /id="workspace-tab-browser"[^>]*role="tab"[^>]*aria-selected="false"/);
   assert.match(html, /role="tabpanel" id="workspace-tabpanel-editor" aria-labelledby="workspace-tab-editor"/);
 });
 
@@ -61,6 +63,7 @@ test('only the selected tab is reachable with Tab, the rest with arrow keys', ()
   assert.match(html, /id="workspace-tab-files"[^>]*tabindex="0"/);
   assert.match(html, /id="workspace-tab-status"[^>]*tabindex="-1"/);
   assert.match(html, /id="workspace-tab-editor"[^>]*tabindex="-1"/);
+  assert.match(html, /id="workspace-tab-browser"[^>]*tabindex="-1"/);
 });
 
 test('the resize handle is a focusable separator carrying the current width', () => {

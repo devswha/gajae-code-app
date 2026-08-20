@@ -274,7 +274,26 @@
     "tabs": {
       "status": "Status",
       "files": "Files",
-      "editor": "Editor"
+      "editor": "Editor",
+      "browser": "Browser"
+    },
+    "browser": {
+      "address": "Browser address",
+      "back": "Back",
+      "forward": "Forward",
+      "reload": "Reload",
+      "external": "Open in external browser",
+      "stop": "Stop browser session",
+      "preview": "Live Chromium preview",
+      "empty": "Enter an address or choose a local development URL.",
+      "installTitle": "Set up the development browser",
+      "installDescription": "Gajae downloads an isolated Chrome for Testing build and keeps its profile separate from your personal browser.",
+      "download": "Download Chromium and start",
+      "downloading": "Downloading… {{progress}}%",
+      "unsupported": "The automation preview currently requires Apple Silicon and macOS 14 or later.",
+      "error": "Browser automation failed.",
+      "cua": "Native apps · CUA Driver",
+      "cuaMissing": "Not installed"
     },
     "editorEmpty": {
       "title": "No file open",

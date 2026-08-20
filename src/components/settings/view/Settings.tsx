@@ -9,6 +9,7 @@ import VoiceSettingsTab from '../view/tabs/VoiceSettingsTab';
 import GitSettingsTab from '../view/tabs/git-settings/GitSettingsTab';
 import NotificationsSettingsTab from '../view/tabs/NotificationsSettingsTab';
 import AboutTab from '../view/tabs/AboutTab';
+import AutomationSettingsTab from '../view/tabs/AutomationSettingsTab';
 import { useSettingsController } from '../hooks/useSettingsController';
 import type { SettingsProps } from '../types/types';
 
@@ -165,6 +166,8 @@ function Settings({ isOpen, onClose, initialTab = 'appearance' }: SettingsProps)
 
 
               {activeTab === 'voice' && <VoiceSettingsTab />}
+
+              {activeTab === 'automation' && <AutomationSettingsTab />}
 
 
               {activeTab === 'about' && <AboutTab />}

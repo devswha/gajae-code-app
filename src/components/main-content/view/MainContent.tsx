@@ -150,6 +150,7 @@ function MainContent({
               projectName={selectedProject.displayName}
               projectPath={selectedProject.path}
               projectId={selectedProject.projectId}
+              automationSessionId={selectedSession?.id ?? `project-${selectedProject.projectId}`}
               resizeHandleRef={workspace.resizeHandleRef}
               onTabChange={workspace.setTab}
               onResizeStart={workspace.handleResizeStart}

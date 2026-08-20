@@ -357,6 +357,7 @@ export class GjcWorkerHost {
       const spawned = this.#runtime!.spawnGjc(input.message, {
         ...options(input.options)!,
         runHandle: run.runId,
+        appSessionId: run.scope,
         ...(run.providerSessionId ? { sessionId: run.providerSessionId } : {}),
       }, writer);
       run.abortHandle = spawned.abortHandle;

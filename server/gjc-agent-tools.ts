@@ -50,6 +50,12 @@ export const GJC_AGENT_TOOL_NAMES: readonly string[] = [
   // Resolves providers from the credentials already stored for this user and
   // returns a not-configured result when there are none.
   'web_search',
+
+  // App-owned automation transports replace the SDK defaults, so the agent
+  // and the visible Workspace Browser operate the same Chromium session while
+  // native application actions stay behind CUA Driver.
+  'browser',
+  'computer',
 ];
 
 /**
@@ -64,8 +70,6 @@ export const GJC_AGENT_TOOLS_WITHHELD: Readonly<Record<string, string>> = {
   monitor: 'Long-lived watchers with nowhere to surface in the app.',
   cron: 'Schedules work that outlives the session with no UI to review or cancel it.',
   goal: 'Goal-mode artifacts accumulate as files the app cannot display. Enable together with a goals view.',
-  browser: 'Spawns a real browser per call; heavy, and the app already runs in one.',
-  computer: 'Controls the host desktop. Far outside what a chat session should reach, and invisible to a remote browser client.',
   ssh: 'Opens connections to other machines from a UI with no session-scoped confirmation for them.',
   telegram_send: 'Sends messages off this machine.',
   irc: 'Network chat unrelated to coding in this app.',

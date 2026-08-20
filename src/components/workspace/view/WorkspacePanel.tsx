@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject } from 'react';
-import { Activity, FileCode2, FolderTree, PanelRightClose, X, type LucideIcon } from 'lucide-react';
+import { Activity, FileCode2, FolderTree, Globe2, PanelRightClose, X, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { PillBar, Pill } from '../../../shared/view/ui';
@@ -16,11 +16,13 @@ import {
 const FilesPanel = lazy(() => import('./FilesPanel'));
 const WorkspaceStatusTab = lazy(() => import('./WorkspaceStatusTab'));
 const CodeEditor = lazy(() => import('../../code-editor/view/CodeEditor'));
+const BrowserPanel = lazy(() => import('./BrowserPanel'));
 
 const TAB_ICONS: Record<WorkspaceTab, LucideIcon> = {
   status: Activity,
   files: FolderTree,
   editor: FileCode2,
+  browser: Globe2,
 };
 
 export type WorkspacePanelProps = {
@@ -32,6 +34,7 @@ export type WorkspacePanelProps = {
   projectName?: string;
   projectPath?: string;
   projectId?: string;
+  automationSessionId: string;
   resizeHandleRef: MutableRefObject<HTMLDivElement | null>;
   onTabChange: (tab: WorkspaceTab) => void;
   onResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void;
@@ -59,6 +62,7 @@ export default function WorkspacePanel({
   projectName,
   projectPath,
   projectId,
+  automationSessionId,
   resizeHandleRef,
   onTabChange,
   onResizeStart,
@@ -161,6 +165,7 @@ export default function WorkspacePanel({
           />
         )}
         {tab === 'files' && <FilesPanel onFileOpen={onFileOpen} />}
+        {tab === 'browser' && <BrowserPanel sessionId={automationSessionId} />}
         {tab === 'editor' && (
           <WorkspaceEditorTab
             editingFile={editingFile}

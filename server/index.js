@@ -53,6 +53,7 @@ import providerRoutes from './modules/providers/provider.routes.js';
 import voiceRoutes from './voice-proxy.js';
 import { assetsRoutes } from './modules/assets/index.js';
 import { initializeDatabase, projectsDb, sessionsDb } from './modules/database/index.js';
+import { automationRoutes, automationService, handleBrowserConnection } from './modules/automation/index.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
 import { c } from './utils/colors.js';
 import { evaluateExposure } from './utils/exposure-guard.js';
@@ -153,6 +154,7 @@ const { app, server, wss } = createGjcAppFactory({
         extractUrlsFromText,
         shouldAutoOpenUrlFromOutput,
     },
+    browser: handleBrowserConnection,
 });
 
 // Public health check endpoint (no authentication required)
@@ -188,6 +190,10 @@ app.use('/api/user', authenticateToken, userRoutes);
 
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);
+
+// Chromium/CDP and CUA Driver automation. The app factory's desktop guard and
+// the normal owner authentication both run before these routes.
+app.use('/api/automation', authenticateToken, automationRoutes);
 
 // Agent API Routes (uses API key authentication)
 
@@ -1539,6 +1545,7 @@ async function startServer() {
     try {
         // Initialize authentication database
         await initializeDatabase();
+        await automationService.startBridge();
         try {
             await gjcJobOrchestrator.reconcile();
         } catch (error) {
@@ -1635,6 +1642,12 @@ async function startServer() {
                 process.exitCode = 1;
                 setInterval(() => {}, 60 * 60 * 1000);
                 return;
+            }
+
+            try {
+                await automationService.shutdown();
+            } catch (err) {
+                console.error('[Automation] Sidecar shutdown failed:', err?.message || err);
             }
 
             if (gjcShutdownFenced) {

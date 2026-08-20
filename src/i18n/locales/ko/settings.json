@@ -70,7 +70,28 @@
     "appearance": "외관",
     "git": "Git",
     "notifications": "알림",
+    "automation": "자동화",
     "about": "정보"
+  },
+  "automation": {
+    "title": "브라우저 및 네이티브 앱",
+    "description": "격리된 Chromium 런타임과 별도로 설치한 CUA Driver 상태를 확인합니다.",
+    "chromium": "Chromium 사이드카",
+    "notDownloaded": "브라우저 패널을 처음 활성화할 때 다운로드",
+    "notInstalled": "설치되지 않음",
+    "installGuide": "설치 안내",
+    "accessibility": "손쉬운 사용",
+    "screenRecording": "화면 기록",
+    "granted": "허용됨",
+    "missing": "허용 필요",
+    "unknown": "알 수 없음",
+    "refresh": "진단 새로고침",
+    "grants": "항상 허용된 대상",
+    "grantsDescription": "항상 허용을 명시적으로 선택한 대상만 저장됩니다.",
+    "noGrants": "영구 자동화 권한이 없습니다.",
+    "origin": "웹사이트 오리진",
+    "application": "네이티브 앱",
+    "revoke": "권한 철회"
   },
   "notifications": {
     "title": "알림",

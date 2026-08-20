@@ -17,6 +17,7 @@ import { GjcBunAskController } from './gjc-bun-ask-controller.js';
 import { forwardPromptTerminal, forwardSdkEvent, normalizeBuiltinCommandStdout, type SdkRunState } from './gjc-bun-sdk-events.js';
 import { resolveContainedExportCommand } from './gjc-export-path.js';
 import { readSessionSnapshot } from './gjc-session-state.js';
+import { createGjcAutomationTools } from './gjc-automation-tools.js';
 type Model = ReturnType<ModelRegistry['getAll']>[number];
 
 export type ExactCredentialRef =
@@ -33,6 +34,7 @@ export type SdkRunConfig = {
   toolNames: string[];
   spawns: string;
   bashPolicy: AppBashPolicy;
+  appSessionId?: string;
 };
 
 export type GjcAgentSessionFactory = typeof createAgentSession;
@@ -103,6 +105,7 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
     || (candidate.bashPolicy.restrictionProfile !== undefined
       && candidate.bashPolicy.restrictionProfile !== 'workflow'
       && candidate.bashPolicy.restrictionProfile !== 'read-only')
+    || (candidate.appSessionId !== undefined && (typeof candidate.appSessionId !== 'string' || !candidate.appSessionId))
   ) throw new Error(FAILURE);
   return candidate as unknown as SdkRunConfig;
 }
@@ -382,6 +385,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           bashAllowedPrefixes: config.bashPolicy.allowedPrefixes,
           ...(config.bashPolicy.restrictionProfile ? { bashRestrictionProfile: config.bashPolicy.restrictionProfile } : {}),
           hasUI: true,
+          ...(config.appSessionId ? { customTools: createGjcAutomationTools(config.appSessionId) } : {}),
         });
         if (config.modelProfile) {
           await activateModelProfile({

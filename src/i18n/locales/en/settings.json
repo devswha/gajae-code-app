@@ -88,7 +88,28 @@
     "git": "Git",
     "voice": "Voice",
     "notifications": "Notifications",
+    "automation": "Automation",
     "about": "About"
+  },
+  "automation": {
+    "title": "Browser and native apps",
+    "description": "Inspect the isolated Chromium runtime and the separately installed CUA Driver.",
+    "chromium": "Chromium sidecar",
+    "notDownloaded": "Downloaded on first Browser-panel activation",
+    "notInstalled": "Not installed",
+    "installGuide": "Install guide",
+    "accessibility": "Accessibility",
+    "screenRecording": "Screen Recording",
+    "granted": "Granted",
+    "missing": "Missing",
+    "unknown": "Unknown",
+    "refresh": "Refresh diagnostics",
+    "grants": "Always-allowed targets",
+    "grantsDescription": "Only targets explicitly marked Always allow are persisted.",
+    "noGrants": "No persistent automation grants.",
+    "origin": "Website origin",
+    "application": "Native application",
+    "revoke": "Revoke grant"
   },
   "notifications": {
     "title": "Notifications",

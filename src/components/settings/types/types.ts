@@ -4,7 +4,7 @@ import type { InterfaceFontSize } from '../../../utils/interfaceFontSize';
 
 export type { InterfaceFontSize };
 
-export type SettingsMainTab = 'appearance' | 'git' | 'voice' | 'notifications' | 'about';
+export type SettingsMainTab = 'appearance' | 'git' | 'voice' | 'notifications' | 'automation' | 'about';
 export type ProjectSortOrder = 'name' | 'date';
 
 

@@ -12,6 +12,7 @@ const BUN_VERSION = '1.3.14';
 const NATIVE_MODULES = ['better-sqlite3', 'node-pty'];
 const RUNTIME_DEPENDENCIES = [
   '@gajae-code/coding-agent',
+  '@puppeteer/browsers',
   '@octokit/rest',
   '@vscode/ripgrep',
   'better-sqlite3',
@@ -22,8 +23,10 @@ const RUNTIME_DEPENDENCIES = [
   'mime-types',
   'multer',
   'node-pty',
+  'puppeteer-core',
   'shell-quote',
   'ws',
+  'zod',
 ];
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..', '..');

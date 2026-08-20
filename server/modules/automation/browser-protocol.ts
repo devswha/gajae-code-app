@@ -1,0 +1,151 @@
+export const BROWSER_PROTOCOL_VERSION = 1 as const;
+
+export type BrowserCommand =
+  | { action: 'navigate'; url: string; waitUntil?: BrowserWaitUntil }
+  | { action: 'back' }
+  | { action: 'forward' }
+  | { action: 'reload' }
+  | { action: 'click'; ref?: number; selector?: string; x?: number; y?: number }
+  | { action: 'type'; text: string; ref?: number; selector?: string }
+  | { action: 'fill'; text: string; ref?: number; selector?: string }
+  | { action: 'select'; values: string[]; ref?: number; selector?: string }
+  | { action: 'press'; key: string }
+  | { action: 'scroll'; dx?: number; dy?: number }
+  | { action: 'wait'; ms?: number; selector?: string; text?: string }
+  | { action: 'observe'; includeAll?: boolean }
+  | { action: 'extract'; selector?: string; format?: 'text' | 'html' }
+  | { action: 'screenshot' }
+  | { action: 'run'; code: string; timeoutMs?: number }
+  | { action: 'selectTab'; tabId: string };
+
+export type BrowserWaitUntil = 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2';
+
+export type BrowserInput =
+  | { kind: 'mouse'; event: 'move' | 'down' | 'up'; x: number; y: number; button?: 'left' | 'right' | 'middle'; clickCount?: number }
+  | { kind: 'wheel'; x: number; y: number; deltaX: number; deltaY: number }
+  | { kind: 'key'; event: 'down' | 'up'; key: string; code?: string; modifiers?: number }
+  | { kind: 'text'; text: string };
+
+export type BrowserTabState = {
+  id: string;
+  title: string;
+  url: string;
+  loading: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+};
+
+export type BrowserSessionState = {
+  sessionId: string;
+  activeTabId: string | null;
+  tabs: BrowserTabState[];
+};
+
+export type BrowserAutomationStatus = {
+  supported: boolean;
+  platform: NodeJS.Platform;
+  architecture: string;
+  browser: {
+    state: 'idle' | 'starting' | 'ready' | 'error';
+    installed: boolean;
+    buildId: string;
+    error?: string;
+  };
+  cua: {
+    installed: boolean;
+    version?: string;
+    daemon: 'running' | 'stopped' | 'unknown';
+    accessibility?: boolean;
+    screenRecording?: boolean;
+    error?: string;
+  };
+};
+
+export type BrowserRequestMethod =
+  | 'initialize'
+  | 'status'
+  | 'session.open'
+  | 'session.close'
+  | 'browser.command'
+  | 'browser.input'
+  | 'screencast.subscribe'
+  | 'screencast.unsubscribe'
+  | 'shutdown';
+
+export type BrowserRequestFrame = {
+  protocolVersion: typeof BROWSER_PROTOCOL_VERSION;
+  kind: 'request';
+  id: string;
+  method: BrowserRequestMethod;
+  sessionId?: string;
+  payload: Record<string, unknown>;
+};
+
+export type BrowserResponseFrame = {
+  protocolVersion: typeof BROWSER_PROTOCOL_VERSION;
+  kind: 'response';
+  id: string;
+  method: BrowserRequestMethod;
+  sessionId?: string;
+  ok: boolean;
+  result?: unknown;
+  error?: { code: string; message: string };
+};
+
+export type BrowserEventFrame = {
+  protocolVersion: typeof BROWSER_PROTOCOL_VERSION;
+  kind: 'event';
+  method: 'ready' | 'state' | 'frame' | 'async' | 'error' | 'download.progress';
+  sessionId?: string;
+  payload: Record<string, unknown>;
+};
+
+export type BrowserProtocolFrame = BrowserRequestFrame | BrowserResponseFrame | BrowserEventFrame;
+
+const MAX_FRAME_BYTES = 16 * 1024 * 1024;
+
+export function serializeBrowserFrame(frame: BrowserProtocolFrame): string {
+  const serialized = JSON.stringify(frame);
+  if (Buffer.byteLength(serialized) > MAX_FRAME_BYTES) {
+    throw new Error('Browser protocol frame is too large.');
+  }
+  return `${serialized}\n`;
+}
+export class BrowserNdjsonDecoder {
+  private buffer = '';
+
+  push(chunk: Buffer | string): BrowserProtocolFrame[] {
+    this.buffer += chunk.toString();
+    if (Buffer.byteLength(this.buffer) > MAX_FRAME_BYTES) {
+      this.buffer = '';
+      throw new Error('Browser protocol input exceeded its size limit.');
+    }
+
+    const frames: BrowserProtocolFrame[] = [];
+    let newline = this.buffer.indexOf('\n');
+    while (newline >= 0) {
+      const line = this.buffer.slice(0, newline).trim();
+      this.buffer = this.buffer.slice(newline + 1);
+      if (line) {
+        const parsed: unknown = JSON.parse(line);
+        if (!isBrowserProtocolFrame(parsed)) {
+          throw new Error('Invalid browser protocol frame.');
+        }
+        frames.push(parsed);
+      }
+      newline = this.buffer.indexOf('\n');
+    }
+    return frames;
+  }
+}
+
+export function isBrowserProtocolFrame(value: unknown): value is BrowserProtocolFrame {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const frame = value as Record<string, unknown>;
+  return frame.protocolVersion === BROWSER_PROTOCOL_VERSION
+    && (frame.kind === 'request' || frame.kind === 'response' || frame.kind === 'event');
+}
+
+export function safeSessionId(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value);
+}

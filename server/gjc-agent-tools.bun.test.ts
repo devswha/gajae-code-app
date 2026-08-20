@@ -50,13 +50,20 @@ test('the core coding loop is never accidentally dropped', () => {
   }
 });
 
-test('tools that reach outside this machine stay off', () => {
+test('unmediated tools that reach outside this machine stay off', () => {
   // The ones whose blast radius is not confined to the session. Named
   // explicitly so widening the set has to argue with this test.
-  for (const name of ['computer', 'ssh', 'telegram_send', 'irc', 'cron']) {
+  for (const name of ['ssh', 'telegram_send', 'irc', 'cron']) {
     assert.equal(GJC_AGENT_TOOL_NAMES.includes(name), false, `${name} must not be enabled`);
     assert.ok(name in GJC_AGENT_TOOLS_WITHHELD, `${name} must carry a written reason`);
   }
+});
+
+test('browser and computer use the app-owned automation transports', () => {
+  assert.equal(GJC_AGENT_TOOL_NAMES.includes('browser'), true);
+  assert.equal(GJC_AGENT_TOOL_NAMES.includes('computer'), true);
+  assert.equal('browser' in GJC_AGENT_TOOLS_WITHHELD, false);
+  assert.equal('computer' in GJC_AGENT_TOOLS_WITHHELD, false);
 });
 
 test('the skill tool is on, because the app advertises skills', () => {

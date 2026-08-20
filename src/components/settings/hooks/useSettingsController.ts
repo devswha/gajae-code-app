@@ -29,7 +29,7 @@ type NotificationPreferencesResponse = {
   preferences?: NotificationPreferencesState;
 };
 
-const KNOWN_MAIN_TABS: SettingsMainTab[] = ['appearance', 'git', 'voice', 'notifications', 'about'];
+const KNOWN_MAIN_TABS: SettingsMainTab[] = ['appearance', 'git', 'voice', 'notifications', 'automation', 'about'];
 
 const normalizeMainTab = (tab: string): SettingsMainTab => (
   KNOWN_MAIN_TABS.includes(tab as SettingsMainTab) ? (tab as SettingsMainTab) : 'appearance'

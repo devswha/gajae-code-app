@@ -1,4 +1,5 @@
 import {
+  APPLE_GATEKEEPER_HELP_URL,
   DOWNLOADS,
   DOCS_INSTALL_URL,
   DOCS_SELF_HOST_URL,
@@ -42,7 +43,7 @@ export function renderLandingPage() {
       <div class="hero-inner">
         <header class="site-header">
           <a class="brand" href="#top">
-            <img class="brand-mark" src="/icon-96.png" alt="" width="24" height="24" />
+            <img class="brand-mark" src="./icon-96.png" alt="" width="24" height="24" />
             <span>Gajae</span>
           </a>
           <nav class="nav" aria-label="Primary">
@@ -61,7 +62,7 @@ export function renderLandingPage() {
           </p>
           <div class="cta-block">
             <div class="cta-row">
-              <a class="btn btn-primary" href="${DOWNLOADS.macosArm64.href}">
+              <a class="btn btn-primary" href="${DOWNLOADS.macosArm64.href}" aria-describedby="macos-beta-notice">
                 ${appleIcon()}
                 Download for Mac
               </a>
@@ -74,6 +75,16 @@ export function renderLandingPage() {
               </a>
             </div>
             <a class="quiet-link all-options" href="#download">All download options</a>
+            <aside class="release-notice" id="macos-beta-notice">
+              <strong>Public beta · Apple notarization pending</strong>
+              <p>
+                macOS may block the first launch. After installing, open
+                <span>System Settings → Privacy &amp; Security → Open Anyway</span>.
+              </p>
+              <a class="plain-link" href="#macos-install">See first-launch steps</a>
+              <span aria-hidden="true"> · </span>
+              <a class="plain-link" href="${APPLE_GATEKEEPER_HELP_URL}">Apple support</a>
+            </aside>
             <div class="supports">
               <span>Supports</span>
               <span class="badge">Gajae Code</span>
@@ -89,7 +100,7 @@ export function renderLandingPage() {
 
       <div class="hero-shot-wrap">
         <div class="hero-shot">
-          <img src="/screenshots/gajae-app-overview.jpg" alt="A completed turn in the chat workspace with tool rows and the composer controls" />
+          <img src="./screenshots/gajae-app-overview.jpg" alt="A completed turn in the chat workspace with tool rows and the composer controls" />
         </div>
       </div>
     </div>
@@ -118,11 +129,11 @@ export function renderLandingPage() {
             </div>
             <div class="grid-2">
               <figure class="shot-card">
-                <img src="/screenshots/model-presets.jpg" alt="Chat model and reasoning picker" />
+                <img src="./screenshots/model-presets.jpg" alt="Chat model and reasoning picker" />
                 <figcaption>Pick the chat model, then the reasoning level it runs at.</figcaption>
               </figure>
               <figure class="shot-card">
-                <img src="/screenshots/skill-commands.jpg" alt="Skill command menu" />
+                <img src="./screenshots/skill-commands.jpg" alt="Skill command menu" />
                 <figcaption>Slash commands, settings, and skills in one menu.</figcaption>
               </figure>
             </div>
@@ -206,13 +217,18 @@ npm ci && npm run dev</pre>
               <p>Verify the checksum before opening the DMG or unpacking the server archive.</p>
             </div>
             <div class="grid-2">
-              <article class="download-card">
+              <article class="download-card" id="macos-install">
                 <h3>macOS</h3>
                 <p>Apple Silicon, macOS 11+. The current beta DMG is ad-hoc signed and not notarized.</p>
                 <pre class="code">cd ~/Downloads
 curl -L -O ${DOWNLOADS.macosArm64.href}
 curl -L -O ${DOWNLOADS.macosArm64.checksumHref}
 ${DOWNLOADS.macosArm64.verifyCommand}</pre>
+                <ol class="install-steps">
+                  <li>Open the verified DMG and drag Gajae Code App to Applications.</li>
+                  <li>Try to open the app once.</li>
+                  <li>If macOS blocks it, open <strong>System Settings → Privacy &amp; Security</strong> and choose <strong>Open Anyway</strong>.</li>
+                </ol>
               </article>
               <article class="download-card">
                 <h3>Linux server</h3>
@@ -253,7 +269,7 @@ ${DOWNLOADS.linuxServer.verifyCommand}</pre>
               )}
               ${faqItem(
                 'Why might macOS block the first launch?',
-                'The current beta DMG is ad-hoc signed and not Apple-notarized. Verify the checksum from GitHub Releases, then Control-click the app and choose Open.',
+                `The current beta DMG is ad-hoc signed and not Apple-notarized. Verify the checksum, try to open the app once, then use System Settings → Privacy &amp; Security → Open Anyway. <a class="plain-link" href="${APPLE_GATEKEEPER_HELP_URL}">Apple support</a>`,
               )}
             </div>
           </section>

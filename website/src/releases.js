@@ -6,6 +6,7 @@ export const LICENSE_URL = `${REPOSITORY_URL}/blob/main/LICENSE`;
 export const DOCS_INSTALL_URL = `${REPOSITORY_URL}/blob/main/docs/INSTALL.md`;
 export const DOCS_SELF_HOST_URL = `${REPOSITORY_URL}/blob/main/docs/SELF-HOST.md`;
 export const GAJAE_CODE_URL = 'https://github.com/devswha/gajae-code';
+export const APPLE_GATEKEEPER_HELP_URL = 'https://support.apple.com/102445';
 
 export const RELEASE = {
   version: '2.0.0-beta.3',

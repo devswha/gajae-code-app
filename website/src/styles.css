@@ -178,6 +178,30 @@ summary {
   font-size: 0.75rem;
 }
 
+.release-notice {
+  max-width: 38rem;
+  margin-top: 1.25rem;
+  padding: 1rem 1.125rem;
+  border: 1px solid rgba(240, 78, 35, 0.35);
+  border-radius: 0.75rem;
+  background: rgba(240, 78, 35, 0.08);
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+
+.release-notice strong {
+  color: var(--foreground);
+  font-size: 0.875rem;
+}
+
+.release-notice p {
+  margin: 0.35rem 0;
+}
+
+.release-notice p span {
+  color: var(--foreground);
+}
+
 .supports {
   display: flex;
   flex-wrap: wrap;
@@ -524,6 +548,20 @@ summary {
   color: var(--muted-foreground);
   font-size: 0.75rem;
   text-align: center;
+}
+
+.install-steps {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1.25rem 0 0;
+  padding-left: 1.25rem;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+
+.install-steps strong {
+  color: var(--foreground);
+  font-weight: 500;
 }
 
 .faq-list {

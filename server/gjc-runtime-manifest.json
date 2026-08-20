@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "gjcSdk": "0.14.0",
+  "gjcSdk": "0.14.2",
   "bun": "1.3.14",
-  "natives": "0.14.0",
+  "natives": "0.14.2",
   "platforms": {
     "linux-x64": {
       "files": [
@@ -38,7 +38,7 @@
         {
           "package": "@gajae-code/natives-darwin-arm64",
           "path": "native/pi_natives.darwin-arm64.node",
-          "sha256": "1c90d75fbd938be2652c4480941966530c9a6bc2a920e63d51f158ed4a178def"
+          "sha256": "c78343d8b6efc828f9418ae0736a8da1b3483b1d2c11391cb7a87e3b11d9c0b6"
         },
         {
           "package": "@gajae-code/natives",
@@ -48,12 +48,12 @@
         {
           "package": "@gajae-code/natives",
           "path": "native/index.js",
-          "sha256": "fe551e36cae301b4780e896f92a189beec15de27c092148484b274eb62a4015e"
+          "sha256": "3caeb8643adc1a51532b1627bb9a405586997c975cb9b335d1192506be780af8"
         },
         {
           "package": "@gajae-code/natives",
           "path": "native/loader-state.js",
-          "sha256": "87ce3028f8ddf4e6005e476d973dddd8f97dfde8292878f799efca76c8e6bd25"
+          "sha256": "74232e9e6b5a4490c3377d8b000cc663a410bdef2e70c615fe9f7cfbdc16baa8"
         }
       ]
     }

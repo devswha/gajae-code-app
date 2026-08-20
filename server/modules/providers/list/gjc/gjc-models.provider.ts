@@ -15,6 +15,8 @@ import {
   writeProviderSessionActiveModelChange,
 } from '@/shared/utils.js';
 
+import { primaryModelSelector } from '../../../../../shared/model-selectors.js';
+
 export const GJC_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
     { value: 'default', label: 'Default' },
@@ -74,7 +76,8 @@ function parseConfiguredRoles(source: string): RoleMap {
   const roles: RoleMap = {};
   for (const line of source.split(/\r?\n/)) {
     const match = line.match(/^\s+(default|planner|executor|architect|critic):\s*(.+)$/);
-    if (match) roles[match[1] as ProfileRole] = unquoteYamlScalar(match[2]);
+    const selector = match && primaryModelSelector(unquoteYamlScalar(match[2]));
+    if (match && selector) roles[match[1] as ProfileRole] = selector;
   }
   return roles;
 }
@@ -112,7 +115,8 @@ function parseProfiles(source: string): Array<{ name: string; label: string; rol
     }
     if (inMapping) {
       const role = line.match(/^ {6}(default|planner|executor|architect|critic):\s*(.+)$/);
-      if (role) current.roles[role[1] as ProfileRole] = unquoteYamlScalar(role[2]);
+      const selector = role && primaryModelSelector(unquoteYamlScalar(role[2]));
+      if (role && selector) current.roles[role[1] as ProfileRole] = selector;
       else if (/^ {4}\S/.test(line)) inMapping = false;
     }
   }

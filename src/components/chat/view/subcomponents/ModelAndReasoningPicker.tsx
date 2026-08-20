@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Check, ChevronDown, ChevronLeft, Loader2 } from 'lucide-react';
 
+import { primaryModelSelector } from '../../../../../shared/model-selectors';
 import { cn } from '../../../../lib/utils';
 import type { ProviderModelOption } from '../../../../types/app';
 
@@ -41,7 +42,8 @@ const providerOf = (modelId: string): string => (
  * model id — otherwise every effort variant shows up as its own "model".
  */
 export const stripEffortSuffix = (selector: string): string =>
-  selector.replace(/:(?:off|minimal|low|medium|high|xhigh|max)$/, '');
+  (primaryModelSelector(selector) ?? '')
+    .replace(/:(?:off|minimal|low|medium|high|xhigh|max)$/, '');
 
 /** Display order requested for provider groups; unlisted providers follow alphabetically. */
 const PROVIDER_ORDER = ['openai-codex', 'anthropic', 'kimi-code', 'zai', 'xai', 'grok-build'];

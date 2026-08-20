@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Boxes, Check, ChevronDown, ChevronRight, Loader2, Search } from 'lucide-react';
 
+import { primaryModelSelector } from '../../../../../shared/model-selectors';
 import { cn } from '../../../../lib/utils';
 import type { ProviderModelOption } from '../../../../types/app';
 
@@ -37,9 +38,12 @@ const groupRank = (group: string): number => {
 };
 
 function compactModelLabel(selector: string): string {
-  const withoutProvider = selector.includes('/') ? selector.slice(selector.indexOf('/') + 1) : selector;
+  const primary = primaryModelSelector(selector) ?? '';
+  const withoutProvider = primary.includes('/') ? primary.slice(primary.indexOf('/') + 1) : primary;
   return withoutProvider.replace(/:/, ' · ');
 }
+
+const modelSelectorTitle = (selector: string): string => primaryModelSelector(selector) ?? '';
 
 /** One-line summary of a preset: its default-role model, which is what users scan for. */
 function presetSummary(option: ProviderModelOption): string {
@@ -96,7 +100,7 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
   const rootRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const [popupPosition, setPopupPosition] = useState({ bottom: 0, left: 0 });
+  const [popupPosition, setPopupPosition] = useState({ bottom: 0, left: 0, maxHeight: 0 });
 
   const selected = useMemo(
     () => options.find((option) => option.value === value) ?? options[0],
@@ -128,6 +132,10 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
       setPopupPosition({
         bottom: window.innerHeight - rect.top + 8,
         left: Math.max(8, Math.min(rect.left, window.innerWidth - 384 - 8)),
+        // The role summary makes this popup taller than the model picker.
+        // Bound it to the space above the trigger so its header and first
+        // provider groups never disappear beyond the top of the viewport.
+        maxHeight: Math.max(0, rect.top - 16),
       });
     }
     const close = (event: MouseEvent) => {
@@ -177,7 +185,7 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
         <span className="min-w-0 flex-1 truncate text-xs font-medium">{option.label}</span>
         <span
           className="max-w-36 shrink-0 truncate text-[10px] text-muted-foreground"
-          title={option.roles?.default ?? option.description}
+          title={option.roles?.default ? modelSelectorTitle(option.roles.default) : option.description}
         >
           {presetSummary(option)}
         </span>
@@ -218,8 +226,12 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
       {open && createPortal(
         <div
           ref={popupRef}
-          className="fixed z-[80] w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
-          style={{ bottom: popupPosition.bottom, left: popupPosition.left }}
+          className="fixed z-[80] flex w-96 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+          style={{
+            bottom: popupPosition.bottom,
+            left: popupPosition.left,
+            maxHeight: popupPosition.maxHeight,
+          }}
         >
           <div className="px-2 pb-1.5 pt-1">
             <p className="text-xs font-semibold">{t('input.agentConfiguration.title')}</p>
@@ -240,7 +252,7 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
             />
           </div>
 
-          <div className="max-h-80 space-y-0.5 overflow-y-auto">
+          <div className="max-h-80 min-h-0 flex-1 space-y-0.5 overflow-y-auto">
             {normalizedQuery ? (
               matches.length > 0
                 ? matches.map((option) => renderPresetRow(option))
@@ -293,7 +305,7 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
                   return (
                     <div key={role} className="contents">
                       <span className="text-[10px] text-muted-foreground">{label}</span>
-                      <span className="truncate text-[10px] text-foreground/80" title={selector}>
+                      <span className="truncate text-[10px] text-foreground/80" title={modelSelectorTitle(selector)}>
                         {compactModelLabel(selector)}
                       </span>
                     </div>

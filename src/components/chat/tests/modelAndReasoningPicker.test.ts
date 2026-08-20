@@ -61,6 +61,18 @@ test('stripEffortSuffix removes only trailing known effort levels', () => {
   assert.equal(stripEffortSuffix('vendor/model:preview'), 'vendor/model:preview');
 });
 
+test('legacy fallback sequences cannot leak brackets or secondary models into the picker', () => {
+  const fallback = '[glm-zcode53/glm-5.3:high, glm-zcode/glm-5.2:high]';
+
+  assert.equal(stripEffortSuffix(fallback), 'glm-zcode53/glm-5.3');
+  assert.equal(resolveDisplayModel('default', undefined, [
+    { value: 'default', label: 'Current', roles: { default: fallback } },
+  ]), 'glm-zcode53/glm-5.3');
+  assert.deepEqual(deriveSessionModelOptions([
+    { value: 'default', label: 'Current', roles: { default: fallback } },
+  ]), [{ group: 'glm-zcode53', models: ['glm-zcode53/glm-5.3'] }]);
+});
+
 test('resolveDisplayModel prefers the live session model over every fallback', () => {
   assert.equal(
     resolveDisplayModel('profile:codex-medium', 'openai/live-model', catalog),

@@ -83,6 +83,49 @@ test('a direct selector in config.yml overrides the referenced profile role', as
   assert.equal(current?.roles?.critic, 'custom/override-critic');
 });
 
+test('inline fallback sequences expose their primary selector without YAML brackets', async (t) => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-config-fallbacks-'));
+  t.after(() => rm(homeDir, { recursive: true, force: true }));
+  const agentDir = path.join(homeDir, '.gjc', 'agent');
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'config.yml'), `modelRoles:
+  default: [glm-zcode53/glm-5.3:high, glm-zcode/glm-5.2:high]
+task:
+  agentModelOverrides:
+    planner: ["glm-zcode53/glm-5.3:medium", "glm-zcode/glm-5.2:medium"]
+    critic: ['glm-zcode53/glm-5.3:high', 'glm-zcode/glm-5.2:high']
+`, 'utf8');
+  await writeFile(path.join(agentDir, 'models.yml'), '', 'utf8');
+
+  const catalog = await new GjcProviderModels(homeDir).getSupportedModels();
+  const current = catalog.OPTIONS.find((option) => option.value === 'default');
+
+  assert.deepEqual(current?.roles, {
+    default: 'glm-zcode53/glm-5.3:high',
+    planner: 'glm-zcode53/glm-5.3:medium',
+    critic: 'glm-zcode53/glm-5.3:high',
+  });
+  assert.equal(JSON.stringify(current).includes(']'), false);
+});
+
+test('custom profile fallback sequences expose their primary selector', async (t) => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-profile-fallbacks-'));
+  t.after(() => rm(homeDir, { recursive: true, force: true }));
+  const agentDir = path.join(homeDir, '.gjc', 'agent');
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'models.yml'), `profiles:
+  glm-fallback:
+    display_name: GLM fallback
+    model_mapping:
+      default: [glm-zcode53/glm-5.3:high, glm-zcode/glm-5.2:high]
+`, 'utf8');
+
+  const catalog = await new GjcProviderModels(homeDir).getSupportedModels();
+  const profile = catalog.OPTIONS.find((option) => option.value === 'profile:glm-fallback');
+
+  assert.equal(profile?.roles?.default, 'glm-zcode53/glm-5.3:high');
+});
+
 test('every catalog option carries a group so clients can collapse the preset list', async (t) => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-groups-'));
   t.after(() => rm(homeDir, { recursive: true, force: true }));

@@ -16,8 +16,8 @@ http://127.0.0.1:4173
 
 ## 구성
 
-- 히어로 + 바로 보이는 macOS 다운로드: [paseo.sh](https://paseo.sh/)
-- 번호 섹션과 큰 제품 스크린샷: [localstudio.ai](https://localstudio.ai/)
+- 1024px 콘텐츠 폭, 절제된 타이포그래피, 직접 다운로드 흐름: [paseo.sh](https://paseo.sh/)
+- 합성된 제품 예시 없이 실제 Gajae Code App 스크린샷만 사용
 - 카피, 색, 캐릭터, 지원 범위는 Gajae Code App 기준
 
 Intel Mac / Windows / Linux 데스크톱 링크는 아직 만들지 않았습니다.

@@ -29,9 +29,9 @@ test('explains the unnotarized macOS beta before download', () => {
 
 test('uses real product screenshots instead of fabricated workflow samples', () => {
   const html = renderLandingPage();
-  assert.ok(html.includes('screenshots/gajae-app-overview.jpg'));
-  assert.ok(html.includes('screenshots/model-presets.jpg'));
-  assert.ok(html.includes('screenshots/skill-commands.jpg'));
+  assert.ok(html.includes('screenshots/english-workflow-light.jpg'));
+  assert.ok(html.includes('screenshots/model-reasoning-light.jpg'));
+  assert.ok(html.includes('screenshots/browser-verification-light.jpg'));
   assert.equal(html.includes('Live timeline'), false);
   assert.equal(html.includes('Ready to continue'), false);
   assert.equal(html.includes('src/auth/session.ts'), false);

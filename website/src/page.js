@@ -83,25 +83,25 @@ export function renderLandingPage() {
         </section>
 
         <section class="product-overview" id="features" aria-label="Gajae Code App workspace">
-          <img src="./screenshots/gajae-app-overview.jpg" alt="Gajae Code App showing a running task and its local conversation" />
+          <img src="./screenshots/english-workflow-light.jpg" alt="Gajae Code App summarizing an English task dashboard build and Chromium verification" />
         </section>
 
-        <section class="details" aria-label="Product details">
+        <section class="details" id="workflow" aria-label="Product details">
           <article class="detail">
             <div class="detail-copy">
               <p class="eyebrow">Session controls</p>
-              <h2>Choose the model for the work.</h2>
-              <p>Set the model and reasoning level on the session. Existing Gajae presets remain available.</p>
+              <h2>Match the model to the task.</h2>
+              <p>Use Sol with High reasoning for a deeper implementation pass, or switch models without leaving the session.</p>
             </div>
-            <img src="./screenshots/model-presets.jpg" alt="Model and reasoning controls in a new Gajae Code App session" />
+            <img src="./screenshots/model-reasoning-light.jpg" alt="Sol model and reasoning controls open beside a completed English coding task" />
           </article>
           <article class="detail">
             <div class="detail-copy">
-              <p class="eyebrow">Commands</p>
-              <h2>Keep commands in the conversation.</h2>
-              <p>Resume a session, open settings, and use installed skills without leaving the composer.</p>
+              <p class="eyebrow">Browser verification</p>
+              <h2>Check the result, not just the diff.</h2>
+              <p>The same run built this responsive task dashboard, added a task in Chromium, completed it, and confirmed the updated progress.</p>
             </div>
-            <img src="./screenshots/skill-commands.jpg" alt="Command menu open inside the Gajae Code App composer" />
+            <img src="./screenshots/browser-verification-light.jpg" alt="Responsive Daymark task dashboard after a browser interaction updated progress to fifty percent" />
           </article>
         </section>
 

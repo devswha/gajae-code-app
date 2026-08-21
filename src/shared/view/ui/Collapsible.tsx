@@ -92,7 +92,11 @@ const CollapsibleContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes
         {...props}
       >
         <div className="overflow-hidden">
-          {children}
+          {/* A zero-row CSS grid still lays out its descendants to determine
+              intrinsic size. Large CUA/tool results therefore consumed the
+              WebKit main thread even while their section looked collapsed.
+              Keep closed content out of the layout tree entirely. */}
+          {open ? children : null}
         </div>
       </div>
     );

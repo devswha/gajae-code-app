@@ -4,6 +4,7 @@ import type {
   NormalizedMessage,
   RealtimeClientConnection,
 } from '@/shared/types.js';
+import { prepareMessageForTransport } from '@/shared/tool-output-transport.js';
 import { createCompleteMessage, readObjectRecord } from '@/shared/utils.js';
 
 type ChatSessionWriterOptions = {
@@ -99,7 +100,10 @@ export class ChatSessionWriter {
       return;
     }
 
-    const outbound = this.options.decorateOutboundEvent(message);
+    // Live events need the same bounded transport shape as REST history. In
+    // particular, CUA accessibility snapshots can be hundreds of kilobytes;
+    // buffering or rendering those verbatim can stall the desktop WebView.
+    const outbound = this.options.decorateOutboundEvent(prepareMessageForTransport(message));
     if (outbound) {
       this.forward(outbound);
     }

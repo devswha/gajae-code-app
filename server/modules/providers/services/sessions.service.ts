@@ -11,6 +11,7 @@ import type {
   LLMProvider,
   NormalizedMessage,
 } from '@/shared/types.js';
+import { prepareMessagesForTransport } from '@/shared/tool-output-transport.js';
 import { AppError } from '@/shared/utils.js';
 
 type CreateAppSessionResult = {
@@ -70,62 +71,6 @@ function resolveProjectDisplayName(
   return path.basename(projectPath) || projectPath;
 }
 
-const HISTORY_TOOL_OUTPUT_PREVIEW_BYTES = 64 * 1024;
-
-function isUtf8ContinuationByte(value: number | undefined): boolean {
-  return value !== undefined && (value & 0xc0) === 0x80;
-}
-
-function utf8SafeHeadEnd(source: Buffer, requestedEnd: number): number {
-  let end = Math.min(Math.max(0, requestedEnd), source.length);
-  while (end > 0 && end < source.length && isUtf8ContinuationByte(source[end])) {
-    end -= 1;
-  }
-  return end;
-}
-
-function utf8SafeTailStart(source: Buffer, requestedStart: number): number {
-  let start = Math.min(Math.max(0, requestedStart), source.length);
-  while (start < source.length && isUtf8ContinuationByte(source[start])) {
-    start += 1;
-  }
-  return start;
-}
-
-function stringifyToolOutput(content: unknown): string {
-  if (typeof content === 'string') return content;
-  try {
-    return JSON.stringify(content, null, 2) ?? String(content ?? '');
-  } catch {
-    return String(content ?? '');
-  }
-}
-
-function buildToolOutputPreview(content: unknown): {
-  content: unknown;
-  truncated: boolean;
-  bytes: number;
-} {
-  const serialized = stringifyToolOutput(content);
-  const bytes = Buffer.byteLength(serialized);
-  if (bytes <= HISTORY_TOOL_OUTPUT_PREVIEW_BYTES) {
-    return { content, truncated: false, bytes };
-  }
-
-  const source = Buffer.from(serialized);
-  const headBytes = Math.floor(HISTORY_TOOL_OUTPUT_PREVIEW_BYTES * 0.75);
-  const tailBytes = HISTORY_TOOL_OUTPUT_PREVIEW_BYTES - headBytes;
-  const headEnd = utf8SafeHeadEnd(source, headBytes);
-  const tailStart = utf8SafeTailStart(source, source.length - tailBytes);
-  const head = source.subarray(0, headEnd).toString('utf8');
-  const tail = source.subarray(tailStart).toString('utf8');
-  return {
-    content: `${head}\n\n… [${tailStart - headEnd} bytes omitted] …\n\n${tail}`,
-    truncated: true,
-    bytes,
-  };
-}
-
 /**
  * Keeps history pages cheap to transfer without discarding persisted data.
  * The full tool result remains available through fetchToolResult().
@@ -134,40 +79,7 @@ export function prepareHistoryMessagesForTransport(
   messages: NormalizedMessage[],
   includeImages = true,
 ): NormalizedMessage[] {
-  return messages.map((message) => {
-    let prepared = includeImages || message.images === undefined
-      ? message
-      : { ...message, images: undefined };
-
-    if (message.kind === 'tool_result') {
-      const preview = buildToolOutputPreview(message.content);
-      if (preview.truncated) {
-        prepared = {
-          ...prepared,
-          content: preview.content as string,
-          toolResultTruncated: true,
-          toolResultBytes: preview.bytes,
-        };
-      }
-    }
-
-    if (message.toolResult && 'content' in message.toolResult) {
-      const preview = buildToolOutputPreview(message.toolResult.content);
-      if (preview.truncated) {
-        prepared = {
-          ...prepared,
-          toolResult: {
-            ...message.toolResult,
-            content: preview.content as string,
-          },
-          toolResultTruncated: true,
-          toolResultBytes: preview.bytes,
-        };
-      }
-    }
-
-    return prepared;
-  });
+  return prepareMessagesForTransport(messages, includeImages);
 }
 
 /**

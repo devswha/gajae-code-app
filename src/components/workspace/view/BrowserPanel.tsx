@@ -139,7 +139,13 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
             });
           }
         }
-        if (message.type === 'error') setError(message.message ?? t('workspace.browser.error'));
+        if (message.type === 'error') {
+          setError(
+            typeof message.payload?.message === 'string'
+              ? message.payload.message
+              : message.message ?? t('workspace.browser.error'),
+          );
+        }
         if (message.type === 'download.progress' && message.payload) {
           const downloaded = Number(message.payload.downloadedBytes ?? 0);
           const total = Number(message.payload.totalBytes ?? 0);
@@ -157,6 +163,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
             message: typeof message.payload.message === 'string' ? message.payload.message : '',
           }));
         }
+        if (message.type === 'async' && message.payload?.type === 'sidecar.recovered') setError(null);
         return;
       }
       if (!acceptFramesRef.current) return;
@@ -195,7 +202,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
     setBusy(true);
     setError(null);
     try {
-      const next = await jsonRequest<BrowserState>(`/api/automation/browser/${encodeURIComponent(sessionId)}/open`, {
+      const next = await jsonRequest<BrowserState>(`/api/browser/${encodeURIComponent(sessionId)}/open`, {
         method: 'POST',
         body: JSON.stringify({ url, allowDownload }),
       });
@@ -222,7 +229,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
   const command = useCallback(async (commandValue: Record<string, unknown>) => {
     setError(null);
     try {
-      const next = await jsonRequest<BrowserState>(`/api/automation/browser/${encodeURIComponent(sessionId)}/command`, {
+      const next = await jsonRequest<BrowserState>(`/api/browser/${encodeURIComponent(sessionId)}/command`, {
         method: 'POST',
         body: JSON.stringify({ command: commandValue }),
       });
@@ -233,7 +240,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
   }, [sessionId, t]);
 
   const sendInput = useCallback((input: Record<string, unknown>) => {
-    void jsonRequest(`/api/automation/browser/${encodeURIComponent(sessionId)}/input`, {
+    void jsonRequest(`/api/browser/${encodeURIComponent(sessionId)}/input`, {
       method: 'POST',
       body: JSON.stringify({ input }),
     }).catch((nextError) => setError(nextError instanceof Error ? nextError.message : t('workspace.browser.error')));
@@ -286,7 +293,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
       return null;
     });
     try {
-      await jsonRequest(`/api/automation/browser/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+      await jsonRequest(`/api/browser/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
       setState(null);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('workspace.browser.error'));

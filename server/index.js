@@ -53,7 +53,12 @@ import providerRoutes from './modules/providers/provider.routes.js';
 import voiceRoutes from './voice-proxy.js';
 import { assetsRoutes } from './modules/assets/index.js';
 import { initializeDatabase, projectsDb, sessionsDb } from './modules/database/index.js';
-import { automationRoutes, automationService, handleBrowserConnection } from './modules/automation/index.js';
+import {
+    automationRoutes,
+    automationService,
+    createBrowserAutomationRouter,
+    handleBrowserConnection,
+} from './modules/automation/index.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
 import { c } from './utils/colors.js';
 import { evaluateExposure } from './utils/exposure-guard.js';
@@ -194,6 +199,7 @@ app.use('/api/providers', authenticateToken, providerRoutes);
 // Chromium/CDP and CUA Driver automation. The app factory's desktop guard and
 // the normal owner authentication both run before these routes.
 app.use('/api/automation', authenticateToken, automationRoutes);
+app.use('/api/browser', authenticateToken, createBrowserAutomationRouter());
 
 // Agent API Routes (uses API key authentication)
 

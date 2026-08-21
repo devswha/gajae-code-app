@@ -194,5 +194,19 @@ test('real Chromium sidecar shares structured actions, tabs, and screencast stat
   const state = await sidecar.request('session.state', 'browser-e2e') as { activeTabId: string | null; tabs: unknown[] };
   assert.equal(state.tabs.length, 1);
   assert.ok(state.activeTabId);
-  assert.deepEqual(await sidecar.request('session.close', 'browser-e2e'), { closed: true });
+
+  const interrupted = assert.rejects(
+    sidecar.request('browser.command', 'browser-e2e', {
+      command: { action: 'run', code: 'new Promise(() => {})', timeoutMs: 30_000 },
+    }),
+    /closed|destroyed|Target|session|Protocol/iu,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const closeStarted = Date.now();
+  assert.deepEqual(await Promise.race([
+    sidecar.request('session.close', 'browser-e2e'),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('session.close was blocked behind browser.run')), 2_000)),
+  ]), { closed: true });
+  assert.ok(Date.now() - closeStarted < 2_000, 'session.close must interrupt a long browser.run');
+  await interrupted;
 });

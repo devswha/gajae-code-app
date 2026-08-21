@@ -15,6 +15,7 @@ import {
   type BrowserRequestFrame,
   type BrowserRequestMethod,
   type BrowserResponseFrame,
+  type BrowserSessionState,
 } from './browser-protocol.js';
 
 type Pending = {
@@ -26,6 +27,18 @@ type Pending = {
 };
 
 export type BrowserEventListener = (event: BrowserEventFrame) => void;
+
+type BrowserSidecarClientOptions = {
+  runtimePath?: string;
+  sidecarPath?: string;
+  recoveryAttempts?: number;
+  recoveryDelayMs?: number;
+};
+
+type RecoverableSession = {
+  state: BrowserSessionState;
+  subscribed: boolean;
+};
 
 const LOG_PATH = join(homedir(), '.gajae-app', 'logs', 'browser-sidecar.log');
 const LOG_MAX_BYTES = 4 * 1024 * 1024;
@@ -44,9 +57,14 @@ export class BrowserSidecarClient {
   private child?: ChildProcessWithoutNullStreams;
   private decoder = new BrowserNdjsonDecoder();
   private starting?: Promise<void>;
+  private recovering?: Promise<void>;
   private shuttingDown = false;
   private readonly pending = new Map<string, Pending>();
   private readonly listeners = new Set<BrowserEventListener>();
+  private readonly sessions = new Map<string, RecoverableSession>();
+  private ownedBrowserPid?: number;
+
+  constructor(private readonly options: BrowserSidecarClientOptions = {}) {}
 
   subscribe(listener: BrowserEventListener): () => void {
     this.listeners.add(listener);
@@ -89,13 +107,17 @@ export class BrowserSidecarClient {
     if (this.shuttingDown) return;
     this.shuttingDown = true;
     const child = this.child;
-    if (!child) return;
+    if (!child) {
+      this.sessions.clear();
+      return;
+    }
     try {
       await this.request('shutdown', undefined, {}, 2_000);
     } catch {
-      child.kill('SIGKILL');
+      this.killOwnedProcess(child);
     }
     this.child = undefined;
+    this.sessions.clear();
   }
 
   private async ensureStarted(): Promise<void> {
@@ -104,9 +126,11 @@ export class BrowserSidecarClient {
     if (this.shuttingDown) throw new Error('Browser automation is shutting down.');
     this.starting = (async () => {
       const compiled = !import.meta.url.endsWith('.ts');
-      const sidecarPath = fileURLToPath(new URL(compiled ? './browser-sidecar.js' : './browser-sidecar.ts', import.meta.url));
+      const sidecarPath = this.options.sidecarPath
+        ?? fileURLToPath(new URL(compiled ? './browser-sidecar.js' : './browser-sidecar.ts', import.meta.url));
       const bundledBun = fileURLToPath(new URL(compiled ? '../../../../dist-native/bun' : '../../../dist-native/bun', import.meta.url));
-      const bunPath = process.env.GAJAE_BROWSER_BUN_PATH
+      const bunPath = this.options.runtimePath
+        ?? process.env.GAJAE_BROWSER_BUN_PATH
         ?? (existsSync(bundledBun) ? bundledBun : undefined)
         ?? (!compiled && process.env.GAJAE_ALLOW_DEVELOPMENT_BUN === '1' ? 'bun' : undefined);
       if (!bunPath) throw new Error('Bundled Bun runtime is unavailable.');
@@ -142,6 +166,7 @@ export class BrowserSidecarClient {
     signal?: AbortSignal,
   ): Promise<unknown> {
     await this.ensureStarted();
+    if (this.recovering && method !== 'status' && method !== 'shutdown') await this.recovering;
     return this.requestStarted(method, sessionId, payload, timeoutMs, signal);
   }
 
@@ -197,8 +222,14 @@ export class BrowserSidecarClient {
       for (const frame of this.decoder.push(chunk)) {
         if (frame.kind === 'response') this.settle(frame);
         else if (frame.kind === 'event') {
-          for (const listener of this.listeners) {
-            try { listener(frame); } catch { /* One consumer cannot break the sidecar stream. */ }
+          if (frame.method === 'async' && frame.payload.type === 'browser.process') {
+            this.ownedBrowserPid = typeof frame.payload.pid === 'number'
+              && Number.isSafeInteger(frame.payload.pid)
+              && frame.payload.pid > 0
+              ? frame.payload.pid
+              : undefined;
+          } else {
+            this.emit(frame);
           }
         }
       }
@@ -218,7 +249,10 @@ export class BrowserSidecarClient {
       return;
     }
     if (!frame.ok) pending.reject(new Error(`${frame.error?.code ?? 'browser_error'}: ${frame.error?.message ?? 'Browser operation failed.'}`));
-    else pending.resolve(frame.result);
+    else {
+      this.remember(frame.method, responseSessionId, frame.result);
+      pending.resolve(frame.result);
+    }
   }
 
   private fail(child: ChildProcessWithoutNullStreams, error: Error): void {
@@ -230,5 +264,169 @@ export class BrowserSidecarClient {
       pending.reject(new Error('Browser sidecar disconnected.'));
     }
     this.pending.clear();
+    this.killOwnedProcess(child, this.ownedBrowserPid);
+    this.ownedBrowserPid = undefined;
+    if (this.shuttingDown || this.sessions.size === 0) return;
+
+    const snapshots = [...this.sessions.entries()].map(([sessionId, session]) => ({
+      sessionId,
+      subscribed: session.subscribed,
+      state: {
+        sessionId,
+        activeTabId: session.state.activeTabId,
+        tabs: session.state.tabs.map((tab) => ({ ...tab })),
+      },
+    }));
+    for (const snapshot of snapshots) {
+      this.emit({
+        protocolVersion: BROWSER_PROTOCOL_VERSION,
+        kind: 'event',
+        method: 'error',
+        sessionId: snapshot.sessionId,
+        payload: { code: 'sidecar_disconnected', message: error.message, recovering: true },
+      });
+      this.emit({
+        protocolVersion: BROWSER_PROTOCOL_VERSION,
+        kind: 'event',
+        method: 'state',
+        sessionId: snapshot.sessionId,
+        payload: { sessionId: snapshot.sessionId, activeTabId: null, tabs: [] },
+      });
+    }
+    this.startRecovery(snapshots);
+  }
+
+  private remember(method: BrowserRequestMethod, sessionId: string | undefined, value: unknown): void {
+    if (!sessionId) return;
+    if (method === 'session.close') {
+      this.sessions.delete(sessionId);
+      return;
+    }
+    const existing = this.sessions.get(sessionId) ?? {
+      state: { sessionId, activeTabId: null, tabs: [] },
+      subscribed: false,
+    };
+    if (method === 'screencast.subscribe') existing.subscribed = true;
+    if (method === 'screencast.unsubscribe') existing.subscribed = false;
+    const state = this.browserState(value, sessionId);
+    if (state) existing.state = state;
+    this.sessions.set(sessionId, existing);
+  }
+
+  private browserState(value: unknown, sessionId: string): BrowserSessionState | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const record = value as Record<string, unknown>;
+    if (record.sessionId !== sessionId || !Array.isArray(record.tabs)) return null;
+    const tabs = record.tabs.filter((tab): tab is BrowserSessionState['tabs'][number] => {
+      if (!tab || typeof tab !== 'object' || Array.isArray(tab)) return false;
+      const candidate = tab as Record<string, unknown>;
+      return typeof candidate.id === 'string'
+        && typeof candidate.title === 'string'
+        && typeof candidate.url === 'string'
+        && typeof candidate.loading === 'boolean'
+        && typeof candidate.canGoBack === 'boolean'
+        && typeof candidate.canGoForward === 'boolean';
+    });
+    if (tabs.length !== record.tabs.length) return null;
+    const activeTabId = typeof record.activeTabId === 'string' ? record.activeTabId : null;
+    return { sessionId, activeTabId, tabs: tabs.map((tab) => ({ ...tab })) };
+  }
+
+  private emit(event: BrowserEventFrame): void {
+    if (event.method === 'state' && event.sessionId) this.remember('session.state', event.sessionId, event.payload);
+    for (const listener of this.listeners) {
+      try { listener(event); } catch { /* One consumer cannot break recovery fan-out. */ }
+    }
+  }
+
+  private startRecovery(
+    snapshots: Array<{ sessionId: string; state: BrowserSessionState; subscribed: boolean }>,
+  ): void {
+    if (this.recovering || this.shuttingDown) return;
+    this.recovering = this.recoverSessions(snapshots).finally(() => {
+      this.recovering = undefined;
+    });
+  }
+
+  private async recoverSessions(
+    snapshots: Array<{ sessionId: string; state: BrowserSessionState; subscribed: boolean }>,
+  ): Promise<void> {
+    const attempts = Math.max(1, this.options.recoveryAttempts ?? 3);
+    let lastError: unknown;
+    for (let attempt = 0; attempt < attempts && !this.shuttingDown; attempt += 1) {
+      try {
+        await this.ensureStarted();
+        for (const snapshot of snapshots) await this.restoreSession(snapshot);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt + 1 < attempts) {
+          await new Promise((resolve) => setTimeout(resolve, (this.options.recoveryDelayMs ?? 150) * (attempt + 1)));
+        }
+      }
+    }
+    const message = lastError instanceof Error ? lastError.message : 'Browser sidecar recovery failed.';
+    for (const snapshot of snapshots) {
+      this.emit({
+        protocolVersion: BROWSER_PROTOCOL_VERSION,
+        kind: 'event',
+        method: 'error',
+        sessionId: snapshot.sessionId,
+        payload: { code: 'sidecar_recovery_failed', message, recovering: false },
+      });
+    }
+  }
+
+  private async restoreSession(snapshot: { sessionId: string; state: BrowserSessionState; subscribed: boolean }): Promise<void> {
+    const urls = snapshot.state.tabs.map((tab) => tab.url);
+    if (urls.length === 0) return;
+    const activeIndex = Math.max(0, snapshot.state.tabs.findIndex((tab) => tab.id === snapshot.state.activeTabId));
+    let state = await this.requestStarted('session.open', snapshot.sessionId, {
+      ...(urls[0] && urls[0] !== 'about:blank' ? { url: urls[0] } : {}),
+      allowDownload: false,
+    }, 45_000) as BrowserSessionState;
+    const restoredTabIds = [state.activeTabId];
+    for (const url of urls.slice(1)) {
+      state = await this.requestStarted('browser.command', snapshot.sessionId, {
+        command: { action: 'newTab', ...(url && url !== 'about:blank' ? { url } : {}) },
+      }, 45_000) as BrowserSessionState;
+      restoredTabIds.push(state.activeTabId);
+    }
+    const activeTabId = restoredTabIds[activeIndex];
+    if (activeTabId && state.activeTabId !== activeTabId) {
+      state = await this.requestStarted('browser.command', snapshot.sessionId, {
+        command: { action: 'selectTab', tabId: activeTabId },
+      }, 45_000) as BrowserSessionState;
+    }
+    if (snapshot.subscribed) {
+      state = await this.requestStarted('screencast.subscribe', snapshot.sessionId, {}, 30_000) as BrowserSessionState;
+    }
+    this.emit({
+      protocolVersion: BROWSER_PROTOCOL_VERSION,
+      kind: 'event',
+      method: 'state',
+      sessionId: snapshot.sessionId,
+      payload: state as unknown as Record<string, unknown>,
+    });
+    this.emit({
+      protocolVersion: BROWSER_PROTOCOL_VERSION,
+      kind: 'event',
+      method: 'async',
+      sessionId: snapshot.sessionId,
+      payload: { type: 'sidecar.recovered', tabs: state.tabs.length },
+    });
+  }
+
+  private killOwnedProcess(child: ChildProcessWithoutNullStreams, browserPid = this.ownedBrowserPid): void {
+    if (process.platform !== 'win32' && browserPid) {
+      try { process.kill(-browserPid, 'SIGKILL'); } catch { /* The browser may already be gone. */ }
+    }
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    try {
+      if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, 'SIGKILL');
+      else child.kill('SIGKILL');
+    } catch {
+      child.kill('SIGKILL');
+    }
   }
 }

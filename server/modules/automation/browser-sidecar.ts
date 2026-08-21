@@ -280,10 +280,15 @@ class BrowserRuntime {
       case 'run': {
         if (Buffer.byteLength(command.code) > MAX_RUN_CODE_BYTES) throw new Error('run_too_large: Browser script is too large.');
         const timeoutMs = Math.min(Math.max(command.timeoutMs ?? 30_000, 1), 300_000);
+        let timeout: ReturnType<typeof setTimeout> | undefined;
         const value = await Promise.race([
           page.evaluate((source) => (0, eval)(source), command.code),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('run_timeout: Browser script timed out.')), timeoutMs)),
-        ]);
+          new Promise((_, reject) => {
+            timeout = setTimeout(() => reject(new Error('run_timeout: Browser script timed out.')), timeoutMs);
+          }),
+        ]).finally(() => {
+          if (timeout) clearTimeout(timeout);
+        });
         const serialized = JSON.stringify(value);
         return { value: serialized && serialized.length > MAX_RESULT_TEXT ? `${serialized.slice(0, MAX_RESULT_TEXT)}…` : value };
       }
@@ -408,10 +413,13 @@ class BrowserRuntime {
       browser.on('disconnected', () => {
         this.browser = undefined;
         this.launchState = 'idle';
+        emit('async', { type: 'browser.process', pid: null });
         for (const session of this.sessions.values()) this.emitState(session);
       });
       this.browser = browser;
       this.launchState = 'ready';
+      const browserPid = browser.process()?.pid;
+      if (browserPid) emit('async', { type: 'browser.process', pid: browserPid });
       return browser;
     })().catch((error) => {
       this.launchState = 'error';
@@ -636,7 +644,8 @@ class BrowserRuntime {
 
 const runtime = new BrowserRuntime();
 const decoder = new BrowserNdjsonDecoder();
-let requestQueue = Promise.resolve();
+let globalRequestQueue = Promise.resolve();
+const sessionRequestQueues = new Map<string, Promise<void>>();
 
 async function handle(frame: BrowserRequestFrame): Promise<void> {
   let result: unknown;
@@ -700,16 +709,43 @@ async function handle(frame: BrowserRequestFrame): Promise<void> {
   }
 }
 
+function reportQueueError(error: unknown): void {
+  process.stderr.write(`${sanitizeError(error).message}\n`);
+}
+
+function enqueue(frame: BrowserRequestFrame): void {
+  // These operations are the cancellation/control plane. They must not sit
+  // behind a long page wait or run from the same session. Closing a page makes
+  // Puppeteer's in-flight operation reject, which drains that session queue.
+  if (frame.method === 'session.close'
+      || frame.method === 'screencast.unsubscribe'
+      || frame.method === 'browser.input'
+      || frame.method === 'shutdown') {
+    void handle(frame).catch(reportQueueError);
+    return;
+  }
+
+  if (frame.sessionId) {
+    const previous = sessionRequestQueues.get(frame.sessionId) ?? Promise.resolve();
+    const next = previous.then(() => handle(frame)).catch(reportQueueError);
+    sessionRequestQueues.set(frame.sessionId, next);
+    void next.finally(() => {
+      if (sessionRequestQueues.get(frame.sessionId!) === next) sessionRequestQueues.delete(frame.sessionId!);
+    });
+    return;
+  }
+
+  globalRequestQueue = globalRequestQueue.then(() => handle(frame)).catch(reportQueueError);
+}
+
 readline.createInterface({ input: process.stdin, crlfDelay: Infinity }).on('line', (line) => {
   try {
     for (const frame of decoder.push(`${line}\n`)) {
       if (frame.kind !== 'request') throw new Error('Only request frames are accepted.');
-      requestQueue = requestQueue.then(() => handle(frame)).catch((error) => {
-        process.stderr.write(`${sanitizeError(error).message}\n`);
-      });
+      enqueue(frame);
     }
   } catch (error) {
-    process.stderr.write(`${sanitizeError(error).message}\n`);
+    reportQueueError(error);
   }
 });
 

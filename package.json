@@ -65,6 +65,7 @@
     "pretest": "npm run build:core:dev",
     "test:e2e:gjc": "TSX_TSCONFIG_PATH=server/tsconfig.json node --import tsx --test --test-concurrency=1 server/e2e/gjc-slice4.browser.e2e.ts server/e2e/gjc-slice4.wire.e2e.ts",
     "test:e2e:browser": "TSX_TSCONFIG_PATH=server/tsconfig.json node --import tsx --test --test-concurrency=1 server/e2e/browser-sidecar.e2e.ts",
+    "browser:debug": "node scripts/browser-debug-client.mjs",
     "poc:opencodex:cua": "node scripts/check-opencodex-cua-poc.mjs",
     "lint": "eslint src/ server/ shared/ scripts/ vite.config.js tailwind.config.js",
     "lint:fix": "eslint src/ server/ shared/ scripts/ vite.config.js tailwind.config.js --fix",

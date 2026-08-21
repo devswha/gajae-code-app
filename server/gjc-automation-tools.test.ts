@@ -81,6 +81,53 @@ test('agent browser asks for origin access before opening and records allow once
   }
 });
 
+test('agent browser denial fails closed without opening the requested origin', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'gajae-automation-deny-'));
+  const socketPath = join(directory, 'bridge.sock');
+  const requests: Array<Record<string, unknown>> = [];
+  const server = net.createServer((socket) => {
+    let buffer = '';
+    socket.setEncoding('utf8');
+    socket.on('data', (chunk) => {
+      buffer += chunk;
+      const newline = buffer.indexOf('\n');
+      if (newline < 0) return;
+      const request = JSON.parse(buffer.slice(0, newline)) as Record<string, unknown>;
+      requests.push(request);
+      socket.end(`${JSON.stringify({
+        id: request.id,
+        ok: true,
+        result: { granted: false, origin: 'https://denied.example' },
+      })}\n`);
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(socketPath, () => resolve());
+  });
+
+  try {
+    const [browser] = createGjcAutomationTools('app-session', {
+      async select() { return 'Deny'; },
+    }, { socketPath, token: TEST_TOKEN });
+    assert.ok(browser);
+    await assert.rejects(
+      browser.execute(
+        'tool-call-denied',
+        { action: 'open', url: 'https://denied.example/private' },
+        undefined,
+        {} as never,
+        undefined,
+      ),
+      /access .* was denied/iu,
+    );
+    assert.deepEqual(requests.map((request) => request.operation), ['authorize']);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('agent computer asks for application access before controlling it', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'gajae-computer-tools-'));
   const socketPath = join(directory, 'bridge.sock');

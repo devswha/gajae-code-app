@@ -22,6 +22,9 @@ type MarkdownProps = {
 const isExternalHref = (href?: string): boolean =>
   !!href && (/^(https?:|mailto:|tel:|data:)/i.test(href) || href.startsWith('#'));
 
+export const isBrowserHref = (href?: string): href is string =>
+  typeof href === 'string' && /^https?:\/\//i.test(href);
+
 // Strip a trailing `:line` / `:line:col` suffix (e.g. `src/foo.ts:130`).
 const stripLineSuffix = (value: string): string => value.replace(/:\d+(?::\d+)?$/, '');
 
@@ -188,7 +191,7 @@ export function Markdown({ children, className }: MarkdownProps) {
   const content = normalizeInlineCodeFences(String(children ?? ''));
   const remarkPlugins = useMemo(() => [remarkGfm, remarkMath], []);
   const rehypePlugins = useMemo(() => [rehypeKatex], []);
-  const { openFileInEditor } = usePaletteOps();
+  const { openBrowser, openFileInEditor } = usePaletteOps();
 
   const components = useMemo(
     () => ({
@@ -214,6 +217,21 @@ export function Markdown({ children, className }: MarkdownProps) {
           );
         }
 
+        if (isBrowserHref(href)) {
+          return (
+            <a
+              href={href}
+              className="text-blue-600 hover:underline dark:text-blue-400"
+              onClick={(event) => {
+                event.preventDefault();
+                openBrowser(href);
+              }}
+            >
+              {linkChildren}
+            </a>
+          );
+        }
+
         return (
           <a
             href={href}
@@ -226,7 +244,7 @@ export function Markdown({ children, className }: MarkdownProps) {
         );
       },
     }),
-    [openFileInEditor],
+    [openBrowser, openFileInEditor],
   );
 
   return (

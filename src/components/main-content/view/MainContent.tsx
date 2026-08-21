@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useCallback, useEffect } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import type { MainContentProps } from '../types/types';
 import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
@@ -40,6 +40,8 @@ function MainContent({
   const { showRawParameters, showThinking, showImagePreviews, sendByCtrlEnter } = preferences;
 
   const workspace = useWorkspacePanel({ isMobile });
+  const [browserNavigation, setBrowserNavigation] = useState<{ id: number; url: string } | null>(null);
+  const browserNavigationIdRef = useRef(0);
 
   const { editingFile, handleFileOpen, handleCloseEditor } = useEditorFile({ selectedProject });
 
@@ -72,6 +74,11 @@ function MainContent({
     // Opens the file in the Workspace editor tab, keeping the chat in place.
     openFileInEditor: (filePath: string) => {
       resolvedFileOpen(filePath);
+    },
+    openBrowser: (url: string) => {
+      browserNavigationIdRef.current += 1;
+      setBrowserNavigation({ id: browserNavigationIdRef.current, url });
+      workspace.setTab('browser');
     },
   });
 
@@ -151,6 +158,8 @@ function MainContent({
               projectPath={selectedProject.path}
               projectId={selectedProject.projectId}
               automationSessionId={selectedSession?.id ?? `project-${selectedProject.projectId}`}
+              browserNavigation={browserNavigation}
+              onBrowserNavigationHandled={() => setBrowserNavigation(null)}
               resizeHandleRef={workspace.resizeHandleRef}
               onTabChange={workspace.setTab}
               onResizeStart={workspace.handleResizeStart}

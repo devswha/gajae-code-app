@@ -35,6 +35,8 @@ export type WorkspacePanelProps = {
   projectPath?: string;
   projectId?: string;
   automationSessionId: string;
+  browserNavigation?: { id: number; url: string } | null;
+  onBrowserNavigationHandled?: () => void;
   resizeHandleRef: MutableRefObject<HTMLDivElement | null>;
   onTabChange: (tab: WorkspaceTab) => void;
   onResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void;
@@ -63,6 +65,8 @@ export default function WorkspacePanel({
   projectPath,
   projectId,
   automationSessionId,
+  browserNavigation,
+  onBrowserNavigationHandled,
   resizeHandleRef,
   onTabChange,
   onResizeStart,
@@ -165,7 +169,13 @@ export default function WorkspacePanel({
           />
         )}
         {tab === 'files' && <FilesPanel onFileOpen={onFileOpen} />}
-        {tab === 'browser' && <BrowserPanel sessionId={automationSessionId} />}
+        {tab === 'browser' && (
+          <BrowserPanel
+            sessionId={automationSessionId}
+            navigationRequest={browserNavigation}
+            onNavigationHandled={onBrowserNavigationHandled}
+          />
+        )}
         {tab === 'editor' && (
           <WorkspaceEditorTab
             editingFile={editingFile}

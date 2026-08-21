@@ -12,6 +12,8 @@ export type PaletteOps = {
   // Opens a file in the editor side panel without changing the active tab
   // (used by in-chat file links so they behave like the inline edit view).
   openFileInEditor: (path: string) => void;
+  // Opens an HTTP(S) link in the session-owned Browser panel.
+  openBrowser: (url: string) => void;
   openSettings: (tab?: string) => void;
   refreshProjects: () => Promise<void> | void;
 };
@@ -26,6 +28,7 @@ const defaultOps: PaletteOps = {
   startNewChat: () => undefined,
   openFile: () => undefined,
   openFileInEditor: () => undefined,
+  openBrowser: () => undefined,
   openSettings: () => undefined,
   refreshProjects: () => undefined,
 };
@@ -45,6 +48,7 @@ export function usePaletteOps(): PaletteOps {
       openFile: (path) => (ref?.current.openFile ?? defaultOps.openFile)(path),
       openFileInEditor: (path) =>
         (ref?.current.openFileInEditor ?? defaultOps.openFileInEditor)(path),
+      openBrowser: (url) => (ref?.current.openBrowser ?? defaultOps.openBrowser)(url),
       openSettings: (tab) => (ref?.current.openSettings ?? defaultOps.openSettings)(tab),
       refreshProjects: () => (ref?.current.refreshProjects ?? defaultOps.refreshProjects)(),
     }),
@@ -60,6 +64,7 @@ export function usePaletteOpsRegister(partial: Partial<PaletteOps>) {
     startNewChat,
     openFile,
     openFileInEditor,
+    openBrowser,
     openSettings,
     refreshProjects,
   } = partial;
@@ -73,6 +78,7 @@ export function usePaletteOpsRegister(partial: Partial<PaletteOps>) {
     if (startNewChat) registry.startNewChat = startNewChat;
     if (openFile) registry.openFile = openFile;
     if (openFileInEditor) registry.openFileInEditor = openFileInEditor;
+    if (openBrowser) registry.openBrowser = openBrowser;
     if (openSettings) registry.openSettings = openSettings;
     if (refreshProjects) registry.refreshProjects = refreshProjects;
     return () => {
@@ -81,8 +87,9 @@ export function usePaletteOpsRegister(partial: Partial<PaletteOps>) {
       if (startNewChat && registry.startNewChat === startNewChat) registry.startNewChat = prev.startNewChat;
       if (openFile && registry.openFile === openFile) registry.openFile = prev.openFile;
       if (openFileInEditor && registry.openFileInEditor === openFileInEditor) registry.openFileInEditor = prev.openFileInEditor;
+      if (openBrowser && registry.openBrowser === openBrowser) registry.openBrowser = prev.openBrowser;
       if (openSettings && registry.openSettings === openSettings) registry.openSettings = prev.openSettings;
       if (refreshProjects && registry.refreshProjects === refreshProjects) registry.refreshProjects = prev.refreshProjects;
     };
-  }, [ref, openCommandPalette, openSessionPicker, startNewChat, openFile, openFileInEditor, openSettings, refreshProjects]);
+  }, [ref, openCommandPalette, openSessionPicker, startNewChat, openFile, openFileInEditor, openBrowser, openSettings, refreshProjects]);
 }

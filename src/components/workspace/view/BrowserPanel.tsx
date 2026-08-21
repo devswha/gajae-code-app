@@ -38,6 +38,8 @@ type AutomationStatus = {
 
 type BrowserPanelProps = {
   sessionId: string;
+  navigationRequest?: { id: number; url: string } | null;
+  onNavigationHandled?: () => void;
 };
 
 const COMMON_LOCAL_URLS = ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:4173', 'http://localhost:8000'];
@@ -57,7 +59,7 @@ function socketUrl(sessionId: string): string {
   return `${protocol}//${window.location.host}/ws/browser?sessionId=${encodeURIComponent(sessionId)}`;
 }
 
-export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
+export default function BrowserPanel({ sessionId, navigationRequest, onNavigationHandled }: BrowserPanelProps) {
   const { t } = useTranslation();
   const [status, setStatus] = useState<AutomationStatus | null>(null);
   const [state, setState] = useState<BrowserState | null>(null);
@@ -72,6 +74,7 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
   const socketRef = useRef<WebSocket | null>(null);
   const pointerFrameRef = useRef<number | null>(null);
   const acceptFramesRef = useRef(false);
+  const handledNavigationRef = useRef<number | null>(null);
 
   const activeTab = useMemo(
     () => state?.tabs.find((tab) => tab.id === state.activeTabId) ?? null,
@@ -198,6 +201,15 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
       setDownloadProgress(null);
     }
   }, [loadStatus, sessionId, t]);
+
+  useEffect(() => {
+    if (!navigationRequest || handledNavigationRef.current === navigationRequest.id) return;
+    setAddress(navigationRequest.url);
+    if (!status) return;
+    handledNavigationRef.current = navigationRequest.id;
+    onNavigationHandled?.();
+    if (status.supported && status.browser.installed) void open(navigationRequest.url, false);
+  }, [navigationRequest, onNavigationHandled, open, status]);
 
   const command = useCallback(async (commandValue: Record<string, unknown>) => {
     setError(null);

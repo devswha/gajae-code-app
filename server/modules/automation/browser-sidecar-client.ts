@@ -57,16 +57,16 @@ export class BrowserSidecarClient {
     return this.request('status', undefined, {});
   }
 
-  open(sessionId: string, payload: { url?: string; allowDownload?: boolean; waitUntil?: string }): Promise<unknown> {
-    return this.request('session.open', sessionId, payload);
+  open(sessionId: string, payload: { url?: string; allowDownload?: boolean; waitUntil?: string }, signal?: AbortSignal): Promise<unknown> {
+    return this.request('session.open', sessionId, payload, 45_000, signal);
   }
 
-  state(sessionId: string): Promise<unknown> {
-    return this.request('session.state', sessionId, {});
+  state(sessionId: string, signal?: AbortSignal): Promise<unknown> {
+    return this.request('session.state', sessionId, {}, 10_000, signal);
   }
 
-  close(sessionId: string): Promise<unknown> {
-    return this.request('session.close', sessionId, {});
+  close(sessionId: string, signal?: AbortSignal): Promise<unknown> {
+    return this.request('session.close', sessionId, {}, 10_000, signal);
   }
 
   command(sessionId: string, command: BrowserCommand, signal?: AbortSignal): Promise<unknown> {

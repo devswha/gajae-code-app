@@ -192,6 +192,7 @@ export class CuaDriverClient {
       const onAbort = () => {
         clearTimeout(timer);
         this.pending.delete(id);
+        this.notify('notifications/cancelled', { requestId: id, reason: 'Client request cancelled.' });
         reject(new Error('CUA Driver request was cancelled.'));
       };
       signal?.addEventListener('abort', onAbort, { once: true });

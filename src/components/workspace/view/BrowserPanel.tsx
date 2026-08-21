@@ -71,6 +71,7 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
   const frameRef = useRef<HTMLImageElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const pointerFrameRef = useRef<number | null>(null);
+  const acceptFramesRef = useRef(false);
 
   const activeTab = useMemo(
     () => state?.tabs.find((tab) => tab.id === state.activeTabId) ?? null,
@@ -102,6 +103,7 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
 
   useEffect(() => {
     let disposed = false;
+    acceptFramesRef.current = false;
     setState(null);
     setError(null);
     setDownloadProgress(null);
@@ -116,15 +118,42 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
       if (disposed) return;
       if (typeof event.data === 'string') {
         const message = JSON.parse(event.data) as { type: string; payload?: Record<string, unknown>; message?: string };
-        if (message.type === 'state' && message.payload) setState(message.payload as unknown as BrowserState);
+        if (message.type === 'state' && message.payload) {
+          const nextState = message.payload as unknown as BrowserState;
+          const hasActiveTab = Boolean(
+            nextState.activeTabId
+            && nextState.tabs.some((tab) => tab.id === nextState.activeTabId),
+          );
+          acceptFramesRef.current = hasActiveTab;
+          setState(nextState);
+          if (!hasActiveTab) {
+            setFrameUrl((previous) => {
+              if (previous) URL.revokeObjectURL(previous);
+              return null;
+            });
+          }
+        }
         if (message.type === 'error') setError(message.message ?? t('workspace.browser.error'));
         if (message.type === 'download.progress' && message.payload) {
           const downloaded = Number(message.payload.downloadedBytes ?? 0);
           const total = Number(message.payload.totalBytes ?? 0);
           setDownloadProgress(total > 0 ? Math.round((downloaded / total) * 100) : null);
         }
+        if (message.type === 'async' && message.payload?.type === 'download.attempt') {
+          setError(t('workspace.browser.downloadBlocked', {
+            filename: typeof message.payload.suggestedFilename === 'string'
+              ? message.payload.suggestedFilename
+              : t('workspace.browser.downloadUnknown'),
+          }));
+        }
+        if (message.type === 'async' && message.payload?.type === 'dialog') {
+          setError(t('workspace.browser.dialogDismissed', {
+            message: typeof message.payload.message === 'string' ? message.payload.message : '',
+          }));
+        }
         return;
       }
+      if (!acceptFramesRef.current) return;
       const packet = event.data as ArrayBuffer;
       const view = new DataView(packet);
       if (view.byteLength < 4) return;
@@ -139,6 +168,7 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
     };
     return () => {
       disposed = true;
+      acceptFramesRef.current = false;
       websocket.close();
       socketRef.current = null;
       if (pointerFrameRef.current !== null) cancelAnimationFrame(pointerFrameRef.current);
@@ -158,6 +188,7 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
         method: 'POST',
         body: JSON.stringify({ url, allowDownload }),
       });
+      acceptFramesRef.current = Boolean(next.activeTabId && next.tabs.some((tab) => tab.id === next.activeTabId));
       setState(next);
       await loadStatus();
     } catch (nextError) {
@@ -229,13 +260,14 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
 
   const stop = async () => {
     setBusy(true);
+    acceptFramesRef.current = false;
+    setFrameUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous);
+      return null;
+    });
     try {
       await jsonRequest(`/api/automation/browser/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
       setState(null);
-      setFrameUrl((previous) => {
-        if (previous) URL.revokeObjectURL(previous);
-        return null;
-      });
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('workspace.browser.error'));
     } finally {

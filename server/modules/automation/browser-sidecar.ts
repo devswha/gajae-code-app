@@ -104,12 +104,14 @@ function waitUntil(value: unknown): BrowserWaitUntil {
 
 class BrowserRuntime {
   private browser?: Browser;
+  private browserCdp?: CDPSession;
   private launchState: 'idle' | 'starting' | 'ready' | 'error' = 'idle';
   private launchError?: string;
   private launchPromise?: Promise<Browser>;
   private buildId: string = PUPPETEER_REVISIONS.chrome;
   private readonly sessions = new Map<string, Session>();
   private readonly ownerByTarget = new WeakMap<Target, string>();
+  private readonly ownerByFrameId = new Map<string, { sessionId: string; tabId: string }>();
 
   async status(): Promise<Record<string, unknown>> {
     const installed = await this.installedBrowser();
@@ -325,6 +327,8 @@ class BrowserRuntime {
     for (const id of [...this.sessions.keys()]) await this.close(id);
     await this.browser?.close().catch(() => {});
     this.browser = undefined;
+    this.browserCdp = undefined;
+    this.ownerByFrameId.clear();
     this.launchState = 'idle';
   }
 
@@ -384,8 +388,22 @@ class BrowserRuntime {
         userDataDir: PROFILE_ROOT,
         headless: true,
         defaultViewport: DEFAULT_VIEWPORT,
+        downloadBehavior: { policy: 'deny' },
         args: ['--disable-background-networking', '--disable-component-update', '--no-first-run'],
       });
+      const browserCdp = await browser.target().createCDPSession();
+      await browserCdp.send('Browser.setDownloadBehavior', { behavior: 'deny', eventsEnabled: true });
+      browserCdp.on('Browser.downloadWillBegin', (event) => {
+        const owner = this.ownerByFrameId.get(event.frameId);
+        if (!owner) return;
+        emit('async', {
+          type: 'download.attempt',
+          tabId: owner.tabId,
+          url: event.url,
+          suggestedFilename: event.suggestedFilename,
+        }, owner.sessionId);
+      });
+      this.browserCdp = browserCdp;
       browser.on('targetcreated', (target) => void this.onTargetCreated(target));
       browser.on('disconnected', () => {
         this.browser = undefined;
@@ -426,6 +444,15 @@ class BrowserRuntime {
     session.activeTabId = tab.id;
     this.ownerByTarget.set(page.target(), session.id);
     await page.setViewport(DEFAULT_VIEWPORT);
+    const cdp = await this.cdp(tab);
+    const rememberMainFrame = (frameId: string) => {
+      this.ownerByFrameId.set(frameId, { sessionId: session.id, tabId: tab.id });
+    };
+    const frameTree = await cdp.send('Page.getFrameTree');
+    rememberMainFrame(frameTree.frameTree.frame.id);
+    cdp.on('Page.frameNavigated', (event) => {
+      if (!event.frame.parentId) rememberMainFrame(event.frame.id);
+    });
     page.on('request', (request) => {
       if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
         tab.loading = true;
@@ -438,13 +465,26 @@ class BrowserRuntime {
     page.on('framenavigated', (frame) => {
       if (frame === page.mainFrame()) {
         tab.refs.clear();
+        emit('async', { type: 'navigation', tabId: tab.id, url: frame.url() }, session.id);
         this.emitState(session);
       }
     });
-    page.on('dialog', (dialog) => emit('async', { type: 'dialog', dialogType: dialog.type(), message: dialog.message() }, session.id));
+    page.on('dialog', (dialog) => {
+      emit('async', {
+        type: 'dialog',
+        dialogType: dialog.type(),
+        message: dialog.message(),
+        disposition: 'dismissed',
+      }, session.id);
+      void dialog.dismiss().catch(() => {});
+    });
     page.on('close', () => {
+      for (const [frameId, owner] of this.ownerByFrameId) {
+        if (owner.sessionId === session.id && owner.tabId === tab.id) this.ownerByFrameId.delete(frameId);
+      }
       session.tabs.delete(tab.id);
       if (session.activeTabId === tab.id) session.activeTabId = session.tabs.keys().next().value ?? null;
+      emit('async', { type: 'tab.closed', tabId: tab.id }, session.id);
       this.emitState(session);
     });
     this.emitState(session);

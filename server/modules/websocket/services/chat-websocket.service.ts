@@ -500,10 +500,14 @@ function handleChatSubscribe(
       chatRunRegistry.attachConnection(sessionId, ws);
     }
 
-    // Pending approvals are tracked under the provider-native id inside the
-    // Claude runtime; remap their sessionId so the client only sees app ids.
-    const pendingPermissions = (run?.providerSessionId
-      ? dependencies.getPendingApprovalsForSession(run.providerSessionId)
+    // Most provider runtimes track approvals under their provider-native id.
+    // GJC's app-owned automation bridge deliberately scopes them to the stable
+    // app session id so reconnects cannot leak an approval across app sessions.
+    const approvalScope = run?.provider === 'gjc'
+      ? run.appSessionId
+      : run?.providerSessionId;
+    const pendingPermissions = (approvalScope
+      ? dependencies.getPendingApprovalsForSession(approvalScope)
       : []
     ).map((approval) =>
       approval && typeof approval === 'object'

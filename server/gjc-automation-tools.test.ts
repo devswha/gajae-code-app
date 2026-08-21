@@ -5,7 +5,26 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { createGjcAutomationTools } from './gjc-automation-tools.js';
+import {
+  createGjcAutomationTools,
+  takeGjcAutomationBridgeTransport,
+} from './gjc-automation-tools.js';
+
+const TEST_TOKEN = 'a'.repeat(64);
+
+test('automation bridge capability is captured once and removed from the worker environment', () => {
+  const environment: NodeJS.ProcessEnv = {
+    GJC_AUTOMATION_SOCKET: '/tmp/gajae-test.sock',
+    GJC_AUTOMATION_TOKEN: TEST_TOKEN,
+  };
+  assert.deepEqual(takeGjcAutomationBridgeTransport(environment), {
+    socketPath: '/tmp/gajae-test.sock',
+    token: TEST_TOKEN,
+  });
+  assert.equal(environment.GJC_AUTOMATION_SOCKET, undefined);
+  assert.equal(environment.GJC_AUTOMATION_TOKEN, undefined);
+  assert.equal(takeGjcAutomationBridgeTransport(environment), undefined);
+});
 
 test('agent browser asks for origin access before opening and records allow once', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'gajae-automation-tools-'));
@@ -32,10 +51,6 @@ test('agent browser asks for origin access before opening and records allow once
     server.listen(socketPath, () => resolve());
   });
 
-  const previousSocket = process.env.GJC_AUTOMATION_SOCKET;
-  const previousToken = process.env.GJC_AUTOMATION_TOKEN;
-  process.env.GJC_AUTOMATION_SOCKET = socketPath;
-  process.env.GJC_AUTOMATION_TOKEN = 'test-token';
   const prompts: Array<{ title: string; options: string[] }> = [];
   try {
     const [browser] = createGjcAutomationTools('app-session', {
@@ -43,7 +58,7 @@ test('agent browser asks for origin access before opening and records allow once
         prompts.push({ title, options });
         return 'Allow once';
       },
-    });
+    }, { socketPath, token: TEST_TOKEN });
     assert.ok(browser);
     await browser.execute(
       'tool-call-1',
@@ -61,10 +76,6 @@ test('agent browser asks for origin access before opening and records allow once
     assert.equal((requests[1]?.payload as Record<string, unknown>).scope, 'session');
     assert.equal((requests[2]?.payload as Record<string, unknown>).allowDownload, false);
   } finally {
-    if (previousSocket === undefined) delete process.env.GJC_AUTOMATION_SOCKET;
-    else process.env.GJC_AUTOMATION_SOCKET = previousSocket;
-    if (previousToken === undefined) delete process.env.GJC_AUTOMATION_TOKEN;
-    else process.env.GJC_AUTOMATION_TOKEN = previousToken;
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });
   }
@@ -95,10 +106,6 @@ test('agent computer asks for application access before controlling it', async (
     server.listen(socketPath, () => resolve());
   });
 
-  const previousSocket = process.env.GJC_AUTOMATION_SOCKET;
-  const previousToken = process.env.GJC_AUTOMATION_TOKEN;
-  process.env.GJC_AUTOMATION_SOCKET = socketPath;
-  process.env.GJC_AUTOMATION_TOKEN = 'test-token';
   const prompts: Array<{ title: string; options: string[] }> = [];
   try {
     const [, computer] = createGjcAutomationTools('app-session', {
@@ -106,7 +113,7 @@ test('agent computer asks for application access before controlling it', async (
         prompts.push({ title, options });
         return 'Allow once';
       },
-    });
+    }, { socketPath, token: TEST_TOKEN });
     assert.ok(computer);
     await computer.execute(
       'tool-call-2',
@@ -123,10 +130,133 @@ test('agent computer asks for application access before controlling it', async (
     assert.deepEqual(requests.map((request) => request.operation), ['authorize', 'authorize', undefined]);
     assert.equal((requests[1]?.payload as Record<string, unknown>).scope, 'session');
   } finally {
-    if (previousSocket === undefined) delete process.env.GJC_AUTOMATION_SOCKET;
-    else process.env.GJC_AUTOMATION_SOCKET = previousSocket;
-    if (previousToken === undefined) delete process.env.GJC_AUTOMATION_TOKEN;
-    else process.env.GJC_AUTOMATION_TOKEN = previousToken;
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('agent computer preserves MCP image and text blocks without duplicating large output in details', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'gajae-computer-output-'));
+  const socketPath = join(directory, 'bridge.sock');
+  const imageData = 'a'.repeat(260_000);
+  const treeMarkdown = 'tree'.repeat(20_000);
+  const elements = Array.from({ length: 200 }, (_, index) => ({ index, label: `element-${index}` }));
+  const server = net.createServer((socket) => {
+    let buffer = '';
+    socket.setEncoding('utf8');
+    socket.on('data', (chunk) => {
+      buffer += chunk;
+      const newline = buffer.indexOf('\n');
+      if (newline < 0) return;
+      const request = JSON.parse(buffer.slice(0, newline)) as Record<string, unknown>;
+      const result = request.operation === 'authorize'
+        ? { granted: true, application: 'com.apple.TextEdit', label: 'TextEdit' }
+        : {
+            content: [
+              { type: 'image', data: imageData, mimeType: 'image/png' },
+              { type: 'text', text: 'window_id=7 pid=42\n- [0] AXWindow "README.md"' },
+            ],
+            structuredContent: {
+              window_id: 7,
+              window_bounds: { x: 10, y: 20, width: 640, height: 480 },
+              elements,
+              tree_markdown: treeMarkdown,
+            },
+          };
+      socket.end(`${JSON.stringify({ id: request.id, ok: true, result })}\n`);
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(socketPath, () => resolve());
+  });
+
+  try {
+    const [, computer] = createGjcAutomationTools('app-session', {
+      async select() { return 'Allow once'; },
+    }, { socketPath, token: TEST_TOKEN });
+    assert.ok(computer);
+    const result = await computer.execute(
+      'tool-call-large-output',
+      { action: 'get_window_state', arguments: { pid: 42, window_id: 7 } },
+      undefined,
+      {} as never,
+      undefined,
+    ) as { content: Array<Record<string, unknown>>; details: Record<string, unknown> };
+
+    assert.equal(result.content[0]?.type, 'image');
+    assert.equal(result.content[0]?.data, imageData);
+    assert.match(String(result.content[1]?.text), /AXWindow/);
+    assert.match(String(result.content[2]?.text), /"window_bounds"/u);
+    assert.match(String(result.content[2]?.text), /"width": 640/u);
+    assert.equal(result.details.window_id, 7);
+    assert.equal('elements' in result.details, false);
+    assert.equal('tree_markdown' in result.details, false);
+    assert.deepEqual(result.details.omitted, {
+      elements: 200,
+      treeMarkdownChars: treeMarkdown.length,
+      reason: 'Large accessibility payload is available to the model through the tool content and was omitted from UI details.',
+    });
+    assert.ok(JSON.stringify(result.details).length < 2_000);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('agent computer exposes compact structured metadata even when the original payload is small', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'gajae-computer-metadata-'));
+  const socketPath = join(directory, 'bridge.sock');
+  const server = net.createServer((socket) => {
+    let buffer = '';
+    socket.setEncoding('utf8');
+    socket.on('data', (chunk) => {
+      buffer += chunk;
+      const newline = buffer.indexOf('\n');
+      if (newline < 0) return;
+      const request = JSON.parse(buffer.slice(0, newline)) as Record<string, unknown>;
+      const result = request.operation === 'authorize'
+        ? { granted: true, application: 'com.apple.TextEdit', label: 'TextEdit' }
+        : {
+            content: [{ type: 'text', text: 'window_id=7 pid=42 size=640x480' }],
+            structuredContent: {
+              window_id: 7,
+              window_bounds: { x: 10, y: 20, width: 640, height: 480 },
+              elements: [{ index: 0, label: 'README.md' }],
+              tree_markdown: '- [0] AXWindow "README.md"',
+            },
+          };
+      socket.end(`${JSON.stringify({ id: request.id, ok: true, result })}\n`);
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(socketPath, () => resolve());
+  });
+
+  try {
+    const [, computer] = createGjcAutomationTools('app-session', {
+      async select() { return 'Allow once'; },
+    }, { socketPath, token: TEST_TOKEN });
+    assert.ok(computer);
+    const result = await computer.execute(
+      'tool-call-small-output',
+      { action: 'get_window_state', arguments: { pid: 42, window_id: 7 } },
+      undefined,
+      {} as never,
+      undefined,
+    ) as { content: Array<Record<string, unknown>>; details: Record<string, unknown> };
+
+    assert.match(String(result.content[1]?.text), /"x": 10/u);
+    assert.match(String(result.content[1]?.text), /"height": 480/u);
+    assert.equal('elements' in result.details, false);
+    assert.equal('tree_markdown' in result.details, false);
+    assert.deepEqual(result.details.omitted, {
+      elements: 1,
+      treeMarkdownChars: 26,
+      reason: 'Large accessibility payload is available to the model through the tool content and was omitted from UI details.',
+    });
+  } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });
   }

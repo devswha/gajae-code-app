@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import net from 'node:net';
 import test from 'node:test';
 
 import { AutomationGrantStore } from './automation-grants.js';
@@ -134,5 +136,115 @@ test('computer discovery does not require an application grant', async () => {
   } finally {
     if (previous === undefined) delete process.env.GAJAE_AUTOMATION;
     else process.env.GAJAE_AUTOMATION = previous;
+  }
+});
+
+test('stopping a session closes browser and CUA work and revokes only session grants', async () => {
+  const previous = process.env.GAJAE_AUTOMATION;
+  process.env.GAJAE_AUTOMATION = '1';
+  try {
+    const service = new AutomationService();
+    const grants = new AutomationGrantStore(memoryStorage());
+    Object.defineProperty(service, 'grants', { value: grants });
+    grants.grant({ kind: 'origin', value: 'https://session.example', scope: 'session', sessionId: 'session-a' });
+    grants.grant({ kind: 'application', value: 'com.example.Persistent', scope: 'always' });
+
+    const calls: string[] = [];
+    let cuaLabel = '';
+    service.browser.close = async (sessionId, signal) => {
+      assert.equal(sessionId, 'session-a');
+      assert.equal(signal?.aborted, false);
+      calls.push('browser.close');
+      return { closed: true };
+    };
+    service.cua.call = async (tool, args, signal) => {
+      if (tool === 'start_session') {
+        cuaLabel = String(args.session);
+        assert.match(cuaLabel, /^gajae-/u);
+        return { ok: true };
+      }
+      if (tool === 'list_apps') {
+        assert.equal(args.session, cuaLabel);
+        return { apps: [] };
+      }
+      assert.equal(tool, 'end_session');
+      assert.deepEqual(args, { session: cuaLabel });
+      assert.equal(signal?.aborted, false);
+      calls.push('cua.end_session');
+      return { ok: true };
+    };
+
+    await service.callComputer('session-a', 'list_apps', {});
+
+    assert.deepEqual(await service.stopSession('session-a'), { closed: true });
+    assert.deepEqual(calls.sort(), ['browser.close', 'cua.end_session']);
+    assert.deepEqual(grants.list('session-a').session, []);
+    assert.deepEqual(grants.list().always.applications, ['com.example.Persistent']);
+  } finally {
+    if (previous === undefined) delete process.env.GAJAE_AUTOMATION;
+    else process.env.GAJAE_AUTOMATION = previous;
+  }
+});
+
+test('disconnecting an automation bridge client cancels its in-flight CUA request', async () => {
+  const previousAutomation = process.env.GAJAE_AUTOMATION;
+  const previousSocket = process.env.GJC_AUTOMATION_SOCKET;
+  const previousToken = process.env.GJC_AUTOMATION_TOKEN;
+  process.env.GAJAE_AUTOMATION = '1';
+  const service = new AutomationService();
+  try {
+    let markStarted!: () => void;
+    let markAborted!: () => void;
+    const started = new Promise<void>((resolve) => { markStarted = resolve; });
+    const aborted = new Promise<void>((resolve) => { markAborted = resolve; });
+    let cuaLabel = '';
+    service.cua.call = async (tool, args, signal) => {
+      if (tool === 'start_session') {
+        cuaLabel = String(args.session);
+        assert.match(cuaLabel, /^gajae-/u);
+        return { ok: true };
+      }
+      if (tool === 'end_session') {
+        assert.deepEqual(args, { session: cuaLabel });
+        return { ok: true };
+      }
+      assert.equal(tool, 'list_apps');
+      assert.deepEqual(args, { session: cuaLabel });
+      assert.ok(signal);
+      markStarted();
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => {
+          markAborted();
+          reject(new Error('cancelled'));
+        }, { once: true });
+      });
+    };
+
+    await service.startBridge();
+    const socketPath = process.env.GJC_AUTOMATION_SOCKET;
+    const token = process.env.GJC_AUTOMATION_TOKEN;
+    assert.ok(socketPath);
+    assert.ok(token);
+    const socket = net.createConnection(socketPath);
+    await once(socket, 'connect');
+    socket.write(`${JSON.stringify({
+      id: 'disconnect-request',
+      token,
+      surface: 'computer',
+      sessionId: 'session-a',
+      tool: 'list_apps',
+      arguments: {},
+    })}\n`);
+    await started;
+    socket.destroy();
+    await aborted;
+  } finally {
+    await service.shutdown();
+    if (previousAutomation === undefined) delete process.env.GAJAE_AUTOMATION;
+    else process.env.GAJAE_AUTOMATION = previousAutomation;
+    if (previousSocket === undefined) delete process.env.GJC_AUTOMATION_SOCKET;
+    else process.env.GJC_AUTOMATION_SOCKET = previousSocket;
+    if (previousToken === undefined) delete process.env.GJC_AUTOMATION_TOKEN;
+    else process.env.GJC_AUTOMATION_TOKEN = previousToken;
   }
 });

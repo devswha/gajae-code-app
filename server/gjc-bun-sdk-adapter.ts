@@ -17,7 +17,12 @@ import { GjcBunAskController } from './gjc-bun-ask-controller.js';
 import { forwardPromptTerminal, forwardSdkEvent, normalizeBuiltinCommandStdout, type SdkRunState } from './gjc-bun-sdk-events.js';
 import { resolveContainedExportCommand } from './gjc-export-path.js';
 import { readSessionSnapshot } from './gjc-session-state.js';
-import { createGjcAutomationTools } from './gjc-automation-tools.js';
+import {
+  closeGjcAutomationSession,
+  createGjcAutomationTools,
+  takeGjcAutomationBridgeTransport,
+  type GjcAutomationBridgeTransport,
+} from './gjc-automation-tools.js';
 type Model = ReturnType<ModelRegistry['getAll']>[number];
 
 export type ExactCredentialRef =
@@ -43,6 +48,8 @@ export type GjcBunSdkAdapterOptions = {
   settings?: Settings;
   executeBuiltinCommand?: typeof executeAcpBuiltinSlashCommand;
   oauth?: GjcBunOAuthControllerOptions;
+  automationBridge?: GjcAutomationBridgeTransport;
+  closeAutomationSession?: (appSessionId: string) => Promise<void>;
 };
 
 type ActiveRun = {
@@ -59,6 +66,7 @@ type ActiveRun = {
   askController: GjcBunAskController;
   state: SdkRunState;
   abortState: 'idle' | 'aborting' | 'aborted';
+  appSessionId?: string;
 };
 
 const FAILURE = 'GJC SDK configuration is invalid.';
@@ -322,13 +330,22 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
     // `session.abort()` is still in flight, and that turn must not be reported
     // back to the user as an unexpected interruption.
     run.state.abortPending = true;
+    const closeAutomation = this.options.closeAutomationSession
+      ?? (this.options.automationBridge
+        ? (appSessionId: string) => closeGjcAutomationSession(appSessionId, this.options.automationBridge)
+        : undefined);
+    const automationCleanup = run.appSessionId && closeAutomation
+      ? closeAutomation(run.appSessionId).catch(() => {})
+      : Promise.resolve();
     try {
       await run.session.abort();
       run.askController.dispose();
       run.abortState = 'aborted';
       run.state.abortRequested = true;
+      await automationCleanup;
       return true;
     } catch {
+      await automationCleanup;
       run.abortState = 'idle';
       run.state.abortPending = false;
       return false;
@@ -416,7 +433,13 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           bashAllowedPrefixes: config.bashPolicy.allowedPrefixes,
           ...(config.bashPolicy.restrictionProfile ? { bashRestrictionProfile: config.bashPolicy.restrictionProfile } : {}),
           hasUI: true,
-          ...(config.appSessionId ? { customTools: createGjcAutomationTools(config.appSessionId, askController.uiContext) } : {}),
+          ...(config.appSessionId ? {
+            customTools: createGjcAutomationTools(
+              config.appSessionId,
+              askController.uiContext,
+              this.options.automationBridge,
+            ),
+          } : {}),
         });
         if (config.modelProfile) {
           await activateModelProfile({
@@ -439,7 +462,15 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           state,
           () => readSessionSnapshot(result.session, sessionManager),
         ));
-        const activeRun: ActiveRun = { session: result.session, sessionManager, unsubscribe, askController, state, abortState: 'idle' };
+        const activeRun: ActiveRun = {
+          session: result.session,
+          sessionManager,
+          unsubscribe,
+          askController,
+          state,
+          abortState: 'idle',
+          ...(config.appSessionId ? { appSessionId: config.appSessionId } : {}),
+        };
         setActive(activeRun);
         this.#runs.set(runId, activeRun);
         if (!resumedId) writer.setSessionId?.(sessionManager.getSessionId());
@@ -528,6 +559,11 @@ export async function ensureSdkThemeInitialized(): Promise<void> {
 
 export async function createGjcBunSdkAdapter(agentDir: string = process.env.GJC_WORKER_AGENT_DIR ?? ''): Promise<GjcBunSdkAdapter> {
   if (!agentDir) throw new Error(FAILURE);
+  // Capture the app-owned bridge capability in trusted adapter memory, then
+  // remove it before the SDK creates bash tools whose child processes inherit
+  // the worker environment. The model can use the injected tools but cannot
+  // print or reuse the bridge token through shell commands.
+  const automationBridge = takeGjcAutomationBridgeTransport();
   const [authStorage, settings] = await Promise.all([
     discoverAuthStorage(agentDir),
     Settings.init({ agentDir }),
@@ -535,5 +571,8 @@ export async function createGjcBunSdkAdapter(agentDir: string = process.env.GJC_
   ]);
   const modelRegistry = new ModelRegistry(authStorage);
   await modelRegistry.refresh();
-  return new GjcBunSdkAdapter(authStorage, modelRegistry, { settings });
+  return new GjcBunSdkAdapter(authStorage, modelRegistry, {
+    settings,
+    ...(automationBridge ? { automationBridge } : {}),
+  });
 }

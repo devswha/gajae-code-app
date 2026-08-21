@@ -301,6 +301,9 @@
       },
       "unsupported": "자동화 프리뷰는 현재 Apple Silicon 및 macOS 14 이상에서 사용할 수 있습니다.",
       "error": "브라우저 자동화에 실패했습니다.",
+      "downloadBlocked": "다운로드 차단됨: {{filename}}. 이 프리뷰에서는 다운로드 저장을 지원하지 않습니다.",
+      "downloadUnknown": "다운로드",
+      "dialogDismissed": "페이지가 대화상자를 열어 가재가 닫았습니다: {{message}}",
       "cua": "네이티브 앱 · CUA Driver",
       "cuaMissing": "설치되지 않음"
     },

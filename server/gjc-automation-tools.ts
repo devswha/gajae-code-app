@@ -45,20 +45,38 @@ type BridgeResponse = { id: string; ok: boolean; result?: unknown; error?: strin
 type BrowserAuthorization = { granted: boolean; origin: string | null };
 type ComputerAuthorization = { granted: boolean; application: string | null; label: string | null };
 
+export type GjcAutomationBridgeTransport = {
+  socketPath: string;
+  token: string;
+};
+
 const ALLOW_ONCE = 'Allow once';
 const ALLOW_ALWAYS = 'Always allow';
 const DENY = 'Deny';
+const MAX_CUA_TEXT_CHARS = 64 * 1024;
+const MAX_CUA_DETAILS_CHARS = 64 * 1024;
+
+export function takeGjcAutomationBridgeTransport(
+  environment: NodeJS.ProcessEnv = process.env,
+): GjcAutomationBridgeTransport | undefined {
+  const socketPath = environment.GJC_AUTOMATION_SOCKET;
+  const token = environment.GJC_AUTOMATION_TOKEN;
+  delete environment.GJC_AUTOMATION_SOCKET;
+  delete environment.GJC_AUTOMATION_TOKEN;
+  if (!socketPath || !/^[a-f0-9]{64}$/iu.test(token ?? '')) return undefined;
+  return { socketPath, token: token! };
+}
 
 function bridgeRequest(
+  transport: GjcAutomationBridgeTransport | undefined,
   request: Record<string, unknown>,
   signal?: AbortSignal,
+  timeoutMs = 310_000,
 ): Promise<unknown> {
-  const socketPath = process.env.GJC_AUTOMATION_SOCKET;
-  const token = process.env.GJC_AUTOMATION_TOKEN;
-  if (!socketPath || !token) return Promise.reject(new Error('App automation bridge is unavailable.'));
+  if (!transport) return Promise.reject(new Error('App automation bridge is unavailable.'));
   const id = `tool-${randomUUID()}`;
   return new Promise((resolve, reject) => {
-    const socket = net.createConnection(socketPath);
+    const socket = net.createConnection(transport.socketPath);
     let buffer = '';
     let settled = false;
     const finish = (error?: Error, value?: unknown) => {
@@ -71,9 +89,9 @@ function bridgeRequest(
     };
     const abort = () => finish(new Error('Automation request was cancelled.'));
     signal?.addEventListener('abort', abort, { once: true });
-    socket.setTimeout(310_000, () => finish(new Error('Automation request timed out.')));
+    socket.setTimeout(timeoutMs, () => finish(new Error('Automation request timed out.')));
     socket.on('connect', () => {
-      socket.write(`${JSON.stringify({ ...request, id, token })}\n`);
+      socket.write(`${JSON.stringify({ ...request, id, token: transport.token })}\n`);
     });
     socket.on('data', (chunk) => {
       buffer += chunk.toString();
@@ -93,6 +111,17 @@ function bridgeRequest(
   });
 }
 
+export async function closeGjcAutomationSession(
+  appSessionId: string,
+  transport: GjcAutomationBridgeTransport | undefined,
+): Promise<void> {
+  await bridgeRequest(transport, {
+    surface: 'browser',
+    sessionId: appSessionId,
+    operation: 'close',
+  }, undefined, 5_000);
+}
+
 function textResult(value: unknown) {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const record = value as Record<string, unknown>;
@@ -109,6 +138,62 @@ function textResult(value: unknown) {
   };
 }
 
+function compactCuaDetails(record: Record<string, unknown>): unknown {
+  const structured = record.structuredContent;
+  if (!structured || typeof structured !== 'object' || Array.isArray(structured)) return undefined;
+  const { elements, tree_markdown: treeMarkdown, ...metadata } = structured as Record<string, unknown>;
+  const compact = {
+    ...metadata,
+    ...((Array.isArray(elements) || typeof treeMarkdown === 'string') ? { omitted: {
+      ...(Array.isArray(elements) ? { elements: elements.length } : {}),
+      ...(typeof treeMarkdown === 'string' ? { treeMarkdownChars: treeMarkdown.length } : {}),
+      reason: 'Large accessibility payload is available to the model through the tool content and was omitted from UI details.',
+    } } : {}),
+  };
+  const serialized = JSON.stringify(compact);
+  if (serialized.length <= MAX_CUA_DETAILS_CHARS) return compact;
+  return {
+    omitted: {
+      metadataChars: serialized.length,
+      reason: 'Structured metadata exceeded the safe tool-result limit.',
+    },
+  };
+}
+
+function cuaResult(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return textResult(value);
+  const record = value as Record<string, unknown>;
+  if (!Array.isArray(record.content)) return textResult(value);
+
+  const content: Array<
+    { type: 'image'; data: string; mimeType: string }
+    | { type: 'text'; text: string }
+  > = [];
+  for (const block of record.content) {
+    if (!block || typeof block !== 'object' || Array.isArray(block)) continue;
+    const item = block as Record<string, unknown>;
+    if (item.type === 'image' && typeof item.data === 'string' && typeof item.mimeType === 'string') {
+      content.push({ type: 'image', data: item.data, mimeType: item.mimeType });
+      continue;
+    }
+    if (item.type === 'text' && typeof item.text === 'string') {
+      const text = item.text.length > MAX_CUA_TEXT_CHARS
+        ? `${item.text.slice(0, MAX_CUA_TEXT_CHARS)}\n… ${item.text.length - MAX_CUA_TEXT_CHARS} characters omitted`
+        : item.text;
+      content.push({ type: 'text', text });
+    }
+  }
+  if (content.length === 0) return textResult(value);
+  const details = compactCuaDetails(record);
+  if (details) {
+    content.push({
+      type: 'text',
+      text: `CUA structured metadata:\n${JSON.stringify(details, null, 2)}`,
+    });
+  }
+  return { content, details };
+}
+
 function browserCommand(action: z.infer<typeof browserActionSchema>): Record<string, unknown> {
   const { verb, wait_until, include_all, ...rest } = action;
   return {
@@ -123,9 +208,10 @@ function browserCommand(action: z.infer<typeof browserActionSchema>): Record<str
 export function createGjcAutomationTools(
   appSessionId: string,
   ui: Pick<ExtensionUIContext, 'select'>,
+  transport?: GjcAutomationBridgeTransport,
 ): CustomTool<any, any>[] {
   const ensureBrowserAccess = async (url: string | undefined, signal?: AbortSignal): Promise<void> => {
-    const check = await bridgeRequest({
+    const check = await bridgeRequest(transport, {
       surface: 'browser',
       sessionId: appSessionId,
       operation: 'authorize',
@@ -141,7 +227,7 @@ export function createGjcAutomationTools(
     if (choice !== ALLOW_ONCE && choice !== ALLOW_ALWAYS) {
       throw new Error(`Browser access to ${check.origin} was denied.`);
     }
-    const granted = await bridgeRequest({
+    const granted = await bridgeRequest(transport, {
       surface: 'browser',
       sessionId: appSessionId,
       operation: 'authorize',
@@ -160,7 +246,7 @@ export function createGjcAutomationTools(
       const params = browserSchema.parse(rawParams);
       if (params.action === 'open') {
         if (params.url) await ensureBrowserAccess(params.url, signal);
-        return textResult(await bridgeRequest({
+        return textResult(await bridgeRequest(transport, {
           surface: 'browser', sessionId: appSessionId, operation: 'open',
           // Chromium downloads are initiated only by the user's explicit action in
           // the Browser panel. Agent calls must never silently accept the download.
@@ -168,12 +254,12 @@ export function createGjcAutomationTools(
         }, signal));
       }
       if (params.action === 'close') {
-        return textResult(await bridgeRequest({ surface: 'browser', sessionId: appSessionId, operation: 'close' }, signal));
+        return textResult(await bridgeRequest(transport, { surface: 'browser', sessionId: appSessionId, operation: 'close' }, signal));
       }
       if (params.action === 'run') {
         if (!params.code) throw new Error('browser run requires code.');
         await ensureBrowserAccess(undefined, signal);
-        return textResult(await bridgeRequest({
+        return textResult(await bridgeRequest(transport, {
           surface: 'browser', sessionId: appSessionId, operation: 'command',
           payload: { command: { action: 'run', code: params.code, timeoutMs: params.timeout } },
         }, signal));
@@ -182,7 +268,7 @@ export function createGjcAutomationTools(
       const results = [];
       for (const action of params.actions) {
         await ensureBrowserAccess(action.verb === 'navigate' ? action.url : undefined, signal);
-        results.push(await bridgeRequest({
+        results.push(await bridgeRequest(transport, {
           surface: 'browser', sessionId: appSessionId, operation: 'command',
           payload: { command: browserCommand(action) },
         }, signal));
@@ -196,7 +282,7 @@ export function createGjcAutomationTools(
     args: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<void> => {
-    const check = await bridgeRequest({
+    const check = await bridgeRequest(transport, {
       surface: 'computer',
       sessionId: appSessionId,
       operation: 'authorize',
@@ -213,7 +299,7 @@ export function createGjcAutomationTools(
     if (choice !== ALLOW_ONCE && choice !== ALLOW_ALWAYS) {
       throw new Error(`Computer access to ${check.label ?? check.application} was denied.`);
     }
-    const granted = await bridgeRequest({
+    const granted = await bridgeRequest(transport, {
       surface: 'computer',
       sessionId: appSessionId,
       operation: 'authorize',
@@ -236,7 +322,7 @@ export function createGjcAutomationTools(
     async execute(_toolCallId, rawParams, _onUpdate, _ctx, signal) {
       const params = computerSchema.parse(rawParams);
       await ensureComputerAccess(params.action, params.arguments, signal);
-      return textResult(await bridgeRequest({
+      return cuaResult(await bridgeRequest(transport, {
         surface: 'computer', sessionId: appSessionId, tool: params.action, arguments: params.arguments,
       }, signal));
     },

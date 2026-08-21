@@ -46,6 +46,56 @@ class FakeWebSocket extends EventEmitter {
 
 const flushMessages = () => new Promise<void>((resolve) => setImmediate(resolve));
 
+test('chat.subscribe recovers GJC approvals from the app session scope', async () => {
+  const originalConnection = new FakeWebSocket();
+  const reconnectingSocket = new FakeWebSocket();
+  const requestedScopes: string[] = [];
+
+  try {
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-gjc-approval',
+      provider: 'gjc',
+      providerSessionId: 'provider-native-id',
+      connection: originalConnection as unknown as WebSocket,
+      userId: 'user-1',
+    });
+    assert.ok(run);
+
+    handleChatConnection(
+      reconnectingSocket as unknown as WebSocket,
+      { user: { id: 'user-1' } } as never,
+      {
+        spawnFns: {} as never,
+        abortFns: {} as never,
+        resolveToolApproval() {},
+        getPendingApprovalsForSession: (scope) => {
+          requestedScopes.push(scope);
+          return [{ requestId: 'approval-1', sessionId: scope, toolName: 'browser' }];
+        },
+      },
+    );
+
+    reconnectingSocket.emit('message', JSON.stringify({
+      type: 'chat.subscribe',
+      sessions: [{ sessionId: 'app-gjc-approval' }],
+    }));
+    await flushMessages();
+
+    assert.deepEqual(requestedScopes, ['app-gjc-approval']);
+    const subscribed = reconnectingSocket.sent.find((frame) => frame.kind === 'chat_subscribed');
+    assert.ok(subscribed);
+    assert.deepEqual(subscribed.pendingPermissions, [{
+      requestId: 'approval-1',
+      sessionId: 'app-gjc-approval',
+      toolName: 'browser',
+    }]);
+  } finally {
+    reconnectingSocket.emit('close');
+    chatRunRegistry.clearAll();
+    connectedClients.clear();
+  }
+});
+
 
 async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
   const previousDatabasePath = process.env.DATABASE_PATH;

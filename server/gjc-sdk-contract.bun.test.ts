@@ -220,6 +220,7 @@ async function fixture(
   executeBuiltinCommand?: GjcBunSdkAdapterOptions['executeBuiltinCommand'],
   oauthLogin?: OAuthLogin,
   oauthTimeoutMs?: number,
+  adapterOptionOverrides: Partial<GjcBunSdkAdapterOptions> = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), 'gjc-contract-'));
   const sessions: FakeAgentSession[] = [];
@@ -260,6 +261,7 @@ async function fixture(
     settings: settings as never,
     executeBuiltinCommand,
     ...(oauthTimeoutMs === undefined ? {} : { oauth: { timeoutMs: oauthTimeoutMs } }),
+    ...adapterOptionOverrides,
   });
   const frames: Array<Record<string, unknown>> = [];
   const host = new GjcWorkerHost({ runtime: async () => adapter, emit: (frame) => frames.push(frame as Record<string, unknown>) });
@@ -1125,6 +1127,49 @@ for (const phase of ['before-first-event', 'during-ask', 'vs-prompt-resolve'] as
     } finally { await f.close(); }
   });
 }
+test('abort closes the app automation session before reporting success', async () => {
+  const cleanup = deferred<void>();
+  const closedSessions: string[] = [];
+  const f = await fixture(
+    'contract-model',
+    undefined,
+    { id: 'contract-model', provider: 'contract-provider' },
+    undefined,
+    undefined,
+    undefined,
+    {
+      closeAutomationSession: async (appSessionId) => {
+        closedSessions.push(appSessionId);
+        await cleanup.promise;
+      },
+    },
+  );
+  try {
+    const run = f.host.handle(request('session.start', 'abort-automation', {
+      message: 'hello',
+      options: f.options,
+    }, 'app-session-a'));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    const abort = f.host.handle(request(
+      'turn.abort',
+      'abort-automation-request',
+      { runId: 'abort-automation' },
+      'app-session-a',
+    ));
+    await session.abortStarted.promise;
+    await Promise.resolve();
+    assert.deepEqual(closedSessions, ['app-session-a']);
+    assert.equal(response(f.frames, 'abort-automation-request'), undefined);
+    cleanup.resolve();
+    await abort;
+    await run;
+    assert.deepEqual(
+      (response(f.frames, 'abort-automation-request').payload as Record<string, unknown>).result,
+      { runId: 'abort-automation', aborted: true },
+    );
+  } finally { await f.close(); }
+});
 test('failed SDK abort rolls back suppression and allows subsequent terminal events', async () => {
   const f = await fixture();
   try {

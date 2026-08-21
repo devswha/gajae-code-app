@@ -230,7 +230,7 @@ export default function ChatComposer({
 
   // Detect if the AskUserQuestion interactive panel is active
   const hasQuestionPanel = pendingPermissionRequests.some(
-    (r) => r.toolName === 'AskUserQuestion'
+    (r) => r.toolName === 'AskUserQuestion' || r.toolName === 'ask'
   );
 
   // Hide the thinking/status bar while any permission request is pending

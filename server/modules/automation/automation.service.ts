@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { chmod, mkdir, rm } from 'node:fs/promises';
 import net, { type Server as NetServer, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -67,6 +67,18 @@ function windowRecords(value: unknown): CuaWindow[] {
     : [];
 }
 
+function cuaToolError(value: unknown): string | null {
+  const record = object(value);
+  if (record.isError !== true) return null;
+  const content = Array.isArray(record.content) ? record.content : [];
+  const message = content
+    .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item)))
+    .map((item) => typeof item.text === 'string' ? item.text : '')
+    .filter(Boolean)
+    .join('\n');
+  return message || 'CUA Driver rejected the session request.';
+}
+
 function requestedPid(args: Record<string, unknown>): number | undefined {
   if (typeof args.pid === 'number' && Number.isSafeInteger(args.pid) && args.pid > 0) return args.pid;
   const target = object(args.target);
@@ -99,6 +111,7 @@ export class AutomationService {
   private readonly bridgePath = process.env.GAJAE_AUTOMATION_SOCKET
     ?? join(tmpdir(), `gajae-automation-${process.pid}.sock`);
   private bridge?: NetServer;
+  private readonly cuaSessionLabels = new Map<string, string>();
 
   async status() {
     const [browser, cua] = await Promise.all([
@@ -120,9 +133,13 @@ export class AutomationService {
     return this.browser.subscribe(listener);
   }
 
-  async openBrowser(sessionId: string, payload: { url?: string; allowDownload?: boolean; waitUntil?: string }): Promise<unknown> {
+  async openBrowser(
+    sessionId: string,
+    payload: { url?: string; allowDownload?: boolean; waitUntil?: string },
+    signal?: AbortSignal,
+  ): Promise<unknown> {
     this.requireSupported();
-    return this.browser.open(sessionId, payload);
+    return this.browser.open(sessionId, payload, signal);
   }
 
   commandBrowser(sessionId: string, command: BrowserCommand, signal?: AbortSignal): Promise<unknown> {
@@ -137,11 +154,12 @@ export class AutomationService {
 
   async stopSession(sessionId: string): Promise<unknown> {
     this.grants.clearSession(sessionId);
-    const result = await this.browser.close(sessionId).catch(() => ({ closed: false }));
-    if ((await this.cua.status()).installed) {
-      await this.cua.call('end_session', { session: sessionId }).catch(() => {});
-    }
-    return result;
+    const signal = AbortSignal.timeout(2_500);
+    const [browser] = await Promise.allSettled([
+      this.browser.close(sessionId, signal),
+      this.endComputerSession(sessionId, signal),
+    ]);
+    return browser.status === 'fulfilled' ? browser.value : { closed: false };
   }
 
   grant(grant: AutomationGrant): void {
@@ -153,11 +171,12 @@ export class AutomationService {
   async authorizeBrowser(
     sessionId: string,
     payload: { url?: unknown; scope?: unknown },
+    signal?: AbortSignal,
   ): Promise<{ granted: boolean; origin: string | null }> {
     this.requireSupported();
     let rawUrl = typeof payload.url === 'string' ? payload.url : undefined;
     if (!rawUrl) {
-      const state = await this.browser.state(sessionId) as BrowserSessionState;
+      const state = await this.browser.state(sessionId, signal) as BrowserSessionState;
       rawUrl = state.tabs.find((tab) => tab.id === state.activeTabId)?.url;
     }
     if (!rawUrl) throw new Error('Open a browser tab before requesting browser access.');
@@ -177,6 +196,7 @@ export class AutomationService {
   async authorizeComputer(
     sessionId: string,
     payload: { tool?: unknown; arguments?: unknown; scope?: unknown; application?: unknown },
+    signal?: AbortSignal,
   ): Promise<CuaApplicationAuthorization> {
     this.requireSupported();
     if (!isCuaSafeTool(payload.tool)) throw new Error('Unsupported CUA Driver tool.');
@@ -196,7 +216,11 @@ export class AutomationService {
       || windowId !== undefined
       || (payload.tool === 'list_windows' && args.pid !== undefined);
     if (!application && needsApplication) {
-      const inventory = await this.cua.call(pid === undefined && windowId !== undefined ? 'list_windows' : 'list_apps', {});
+      const inventory = await this.cua.call(
+        pid === undefined && windowId !== undefined ? 'list_windows' : 'list_apps',
+        {},
+        signal,
+      );
       if (pid === undefined && windowId !== undefined) {
         const window = windowRecords(inventory).find((candidate) => candidate.window_id === windowId);
         if (window && typeof window.pid === 'number' && Number.isSafeInteger(window.pid) && window.pid > 0) {
@@ -204,7 +228,9 @@ export class AutomationService {
         }
       }
       let apps = applicationRecords(inventory);
-      if (pid !== undefined && apps.length === 0) apps = applicationRecords(await this.cua.call('list_apps', {}));
+      if (pid !== undefined && apps.length === 0) {
+        apps = applicationRecords(await this.cua.call('list_apps', {}, signal));
+      }
       const requestedName = typeof args.name === 'string' ? args.name.trim().toLocaleLowerCase() : '';
       const match = apps.find((app) => (
         (pid !== undefined && app.pid === pid)
@@ -238,8 +264,15 @@ export class AutomationService {
 
   async callComputer(sessionId: string, tool: CuaSafeTool, args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
     this.requireSupported();
-    const withSession = { ...args, session: typeof args.session === 'string' ? args.session : sessionId };
-    return this.cua.call(tool, withSession, signal);
+    const { session: _ignoredSession, ...scopedArgs } = args;
+    if (tool === 'end_session') return this.endComputerSession(sessionId, signal);
+    const { label, result } = await this.ensureComputerSession(
+      sessionId,
+      tool === 'start_session' ? scopedArgs : {},
+      signal,
+    );
+    if (tool === 'start_session') return result;
+    return this.cua.call(tool, { ...scopedArgs, session: label }, signal);
   }
 
   async startBridge(): Promise<void> {
@@ -262,13 +295,58 @@ export class AutomationService {
   }
 
   async shutdown(): Promise<void> {
-    await Promise.allSettled([this.browser.shutdown(), this.cua.shutdown()]);
+    const computerSessions = [...this.cuaSessionLabels.keys()];
+    await Promise.allSettled([
+      this.browser.shutdown(),
+      ...computerSessions.map((sessionId) => this.endComputerSession(sessionId, AbortSignal.timeout(2_000))),
+    ]);
+    await this.cua.shutdown();
     const bridge = this.bridge;
     this.bridge = undefined;
     if (bridge) await new Promise<void>((resolve) => bridge.close(() => resolve()));
     if (process.platform !== 'win32') await rm(this.bridgePath, { force: true }).catch(() => {});
     delete process.env.GJC_AUTOMATION_SOCKET;
     delete process.env.GJC_AUTOMATION_TOKEN;
+  }
+
+  private newComputerSessionLabel(): string {
+    return `gajae-${randomUUID()}`;
+  }
+
+  private async ensureComputerSession(
+    sessionId: string,
+    args: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<{ label: string; result: unknown }> {
+    let label = this.cuaSessionLabels.get(sessionId);
+    const hadLabel = Boolean(label);
+    if (!label) {
+      label = this.newComputerSessionLabel();
+      this.cuaSessionLabels.set(sessionId, label);
+    }
+    let result = await this.cua.call('start_session', { ...args, session: label }, signal);
+    let error = cuaToolError(result);
+    if (error && hadLabel) {
+      // Named sessions belong to one MCP transport lease. If cua-driver or the
+      // app server restarted, rotate the private label instead of exposing a
+      // dead public name to the coding agent.
+      label = this.newComputerSessionLabel();
+      this.cuaSessionLabels.set(sessionId, label);
+      result = await this.cua.call('start_session', { ...args, session: label }, signal);
+      error = cuaToolError(result);
+    }
+    if (error) {
+      this.cuaSessionLabels.delete(sessionId);
+      throw new Error(error);
+    }
+    return { label, result };
+  }
+
+  private async endComputerSession(sessionId: string, signal?: AbortSignal): Promise<unknown> {
+    const label = this.cuaSessionLabels.get(sessionId);
+    this.cuaSessionLabels.delete(sessionId);
+    if (!label) return { ended: false };
+    return this.cua.call('end_session', { session: label }, signal);
   }
 
   private requireSupported(): void {
@@ -296,6 +374,9 @@ export class AutomationService {
 
   private async handleBridgeLine(socket: Socket, line: string): Promise<void> {
     let request: BridgeRequest | undefined;
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    socket.once('close', abort);
     try {
       request = JSON.parse(line) as BridgeRequest;
       if (request.token !== this.bridgeToken || !safeBridgeId(request.id) || !safeBridgeId(request.sessionId)) {
@@ -303,18 +384,22 @@ export class AutomationService {
       }
       let result: unknown;
       if (request.surface === 'browser') {
-        if (request.operation === 'open') result = await this.openBrowser(request.sessionId, object(request.payload));
+        if (request.operation === 'open') result = await this.openBrowser(request.sessionId, object(request.payload), controller.signal);
         else if (request.operation === 'close') result = await this.stopSession(request.sessionId);
-        else if (request.operation === 'authorize') result = await this.authorizeBrowser(request.sessionId, object(request.payload));
-        else result = await this.commandBrowser(request.sessionId, object(request.payload?.command) as BrowserCommand);
+        else if (request.operation === 'authorize') result = await this.authorizeBrowser(request.sessionId, object(request.payload), controller.signal);
+        else result = await this.commandBrowser(
+          request.sessionId,
+          object(request.payload?.command) as BrowserCommand,
+          controller.signal,
+        );
       } else if (request.surface === 'computer' && request.operation === 'authorize') {
         result = await this.authorizeComputer(request.sessionId, {
           tool: request.tool,
           arguments: request.arguments,
           ...object(request.payload),
-        });
+        }, controller.signal);
       } else if (request.surface === 'computer' && isCuaSafeTool(request.tool)) {
-        result = await this.callComputer(request.sessionId, request.tool, object(request.arguments));
+        result = await this.callComputer(request.sessionId, request.tool, object(request.arguments), controller.signal);
       } else {
         throw new Error('Unsupported automation bridge request.');
       }
@@ -325,6 +410,8 @@ export class AutomationService {
         ok: false,
         error: error instanceof Error ? error.message.slice(0, 1_000) : 'Automation bridge request failed.',
       })}\n`);
+    } finally {
+      socket.off('close', abort);
     }
   }
 }

@@ -448,6 +448,27 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
             settings,
             profileName: config.modelProfile,
           });
+        } else if (config.modelId !== 'default') {
+          // createAgentSession receives the requested model, but a resumed
+          // session can still restore its previously configured default role
+          // chain when the turn starts. Mirror the upstream CLI's explicit
+          // --model startup override so the app's session pin owns both the
+          // live model and the default fallback controller for this run.
+          const thinkingLevel = config.effort && config.effort !== 'default' && config.effort !== 'inherit'
+            ? config.effort
+            : undefined;
+          await result.session.setModelTemporary(model, thinkingLevel, {
+            persistAsSessionDefault: true,
+            cause: 'startup-override',
+          });
+          result.session.setConfiguredModelChain(
+            'default',
+            [`${model.provider}/${model.id}`],
+            'startup-override',
+            undefined,
+            true,
+          );
+          result.session.seedDefaultFallbackResolution(0, []);
         }
         if (resolvedCredential.credential) writer.setCredential?.(resolvedCredential.credential);
         writer.setModel?.(model.id);

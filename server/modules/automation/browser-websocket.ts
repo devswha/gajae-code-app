@@ -37,10 +37,19 @@ export function handleBrowserConnection(
   const subscribeFrames = () => {
     if (closed || streamSubscribed) return;
     streamSubscribed = true;
-    void service.browser.subscribeFrames(sessionId).catch((error) => {
-      streamSubscribed = false;
-      if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'error', message: error instanceof Error ? error.message : 'Browser stream failed.' }));
-    });
+    void service.browser.subscribeFrames(sessionId)
+      .then((state) => {
+        // A static page may not emit another state event after this websocket
+        // attaches. Send the subscription snapshot so a remounted panel gets
+        // its tab strip even when nothing in the page changes.
+        if (ws.readyState === ws.OPEN && state && typeof state === 'object') {
+          ws.send(JSON.stringify({ type: 'state', sessionId, payload: state }));
+        }
+      })
+      .catch((error) => {
+        streamSubscribed = false;
+        if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'error', message: error instanceof Error ? error.message : 'Browser stream failed.' }));
+      });
   };
 
   const unsubscribe = service.subscribeBrowser((event) => {

@@ -111,6 +111,10 @@ function runCodexProbe(model, prompt) {
   };
 }
 
+function nodeReplBridgePrompt(marker) {
+  return `Use the available JavaScript orchestration tool to call tools.mcp__node_repl__js exactly once with arguments {code:"nodeRepl.write(\\"${marker}\\")",title:"Bridge probe"}. You must wait for the tool result, then reply exactly DONE. Do not use any other nested tool.`;
+}
+
 let config;
 let localModel = process.env.OPENCODEX_POC_MODEL || '';
 
@@ -182,18 +186,12 @@ if (wantsLive && localModel && codexVersion) {
 
   const nativeModel = process.env.OPENCODEX_NATIVE_MODEL || 'gpt-5.6-sol';
   const nativeMarker = 'NATIVE_CUA_BRIDGE_OK';
-  const nativeProbe = runCodexProbe(
-    nativeModel,
-    `Call mcp__node_repl__js exactly once with JavaScript nodeRepl.write("${nativeMarker}"), then reply exactly DONE. Do not use any other tool.`,
-  );
+  const nativeProbe = runCodexProbe(nativeModel, nodeReplBridgePrompt(nativeMarker));
   const nativePassed = nativeProbe.exitCode === 0 && completedMcpResultContains(nativeProbe.events, nativeMarker);
   benchmark('native Codex node_repl bridge', nativePassed ? 'pass' : 'fail', nativePassed ? nativeModel : `exit=${nativeProbe.exitCode}`);
 
   const localMarker = 'LOCAL_CUA_BRIDGE_OK';
-  const localProbe = runCodexProbe(
-    localModel,
-    `Call mcp__node_repl__js exactly once with JavaScript nodeRepl.write("${localMarker}"), then reply exactly DONE. Do not use any other tool.`,
-  );
+  const localProbe = runCodexProbe(localModel, nodeReplBridgePrompt(localMarker));
   const localPassed = localProbe.exitCode === 0 && completedMcpResultContains(localProbe.events, localMarker);
   benchmark('routed local node_repl bridge', localPassed ? 'pass' : 'gap', localPassed ? localModel : 'model returned no completed node_repl tool call');
 }

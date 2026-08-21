@@ -35,7 +35,10 @@ test('an open browser websocket resubscribes after the sidecar session is recrea
       return () => { listener = undefined; };
     },
     browser: {
-      async subscribeFrames() { subscribeCalls += 1; },
+      async subscribeFrames() {
+        subscribeCalls += 1;
+        return { sessionId: 'session-1', activeTabId: 'tab-1', tabs: [{ id: 'tab-1' }] };
+      },
       async unsubscribeFrames() { unsubscribeCalls += 1; },
     },
   };
@@ -47,6 +50,12 @@ test('an open browser websocket resubscribes after the sidecar session is recrea
   );
   assert.equal(subscribeCalls, 1);
   assert.ok(listener);
+  await Promise.resolve();
+  assert.deepEqual(JSON.parse(String(socket.sent[0])), {
+    type: 'state',
+    sessionId: 'session-1',
+    payload: { sessionId: 'session-1', activeTabId: 'tab-1', tabs: [{ id: 'tab-1' }] },
+  });
 
   listener({
     protocolVersion: 1,

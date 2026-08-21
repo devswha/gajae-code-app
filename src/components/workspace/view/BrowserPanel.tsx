@@ -106,7 +106,10 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
 
   useEffect(() => {
     let disposed = false;
-    acceptFramesRef.current = false;
+    // The sidecar can emit the first frame before its subscribe response/state
+    // snapshot reaches React. The websocket is already session-scoped, so
+    // accept that initial frame and let an explicit empty state disable frames.
+    acceptFramesRef.current = true;
     setState(null);
     setError(null);
     setDownloadProgress(null);
@@ -162,7 +165,12 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
       if (view.byteLength < 4) return;
       const headerLength = view.getUint32(0);
       if (headerLength <= 0 || headerLength + 4 > view.byteLength) return;
-      const header = JSON.parse(new TextDecoder().decode(packet.slice(4, 4 + headerLength))) as { mimeType?: string };
+      const header = JSON.parse(new TextDecoder().decode(packet.slice(4, 4 + headerLength))) as {
+        type?: string;
+        sessionId?: string;
+        mimeType?: string;
+      };
+      if (header.type !== 'frame' || header.sessionId !== sessionId) return;
       const nextUrl = URL.createObjectURL(new Blob([packet.slice(4 + headerLength)], { type: header.mimeType ?? 'image/jpeg' }));
       setFrameUrl((previous) => {
         if (previous) URL.revokeObjectURL(previous);

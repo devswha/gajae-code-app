@@ -163,6 +163,19 @@ class FakeAgentSession {
   readonly steeredMessages: string[] = [];
   /** Which queue each of those messages asked for. */
   readonly steerBehaviors: Array<'steer' | 'followUp'> = [];
+  readonly temporaryModelSelections: Array<{
+    model: unknown;
+    thinkingLevel: unknown;
+    options: unknown;
+  }> = [];
+  readonly configuredModelChains: Array<{
+    role: string;
+    entries: string[];
+    origin: string;
+    identity: unknown;
+    explicitHead: unknown;
+  }> = [];
+  readonly fallbackResolutions: Array<{ index: number; skipped: unknown[] }> = [];
   #turnInFlight = false;
 
   subscribe(listener: Listener): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
@@ -195,6 +208,21 @@ class FakeAgentSession {
   async dispose(): Promise<void> {
     this.disposed = true;
     if (this.disposeError) throw this.disposeError;
+  }
+  async setModelTemporary(model: unknown, thinkingLevel: unknown, options: unknown): Promise<void> {
+    this.temporaryModelSelections.push({ model, thinkingLevel, options });
+  }
+  setConfiguredModelChain(
+    role: string,
+    entries: string[],
+    origin: string,
+    identity: unknown,
+    explicitHead: unknown,
+  ): void {
+    this.configuredModelChains.push({ role, entries, origin, identity, explicitHead });
+  }
+  seedDefaultFallbackResolution(index: number, skipped: unknown[]): void {
+    this.fallbackResolutions.push({ index, skipped });
   }
   emit(event: unknown): void { for (const listener of this.#listeners) listener(event); }
   complete(): void { this.#prompt.resolve(); }
@@ -958,6 +986,51 @@ test('session effort is passed to the SDK as the turn thinking level', async () 
     session.complete();
     await run;
     assert.equal(f.factoryOptions[0]!.thinkingLevel, 'high');
+    assert.deepEqual(session.temporaryModelSelections, [{
+      model: { id: 'contract-model', provider: 'contract-provider' },
+      thinkingLevel: 'high',
+      options: { persistAsSessionDefault: true, cause: 'startup-override' },
+    }]);
+  } finally { await f.close(); }
+});
+test('a resumed session applies the app-pinned model as the authoritative default chain', async () => {
+  const f = await fixture(
+    ['glm-zcode53/glm-5.3:high', 'glm-zcode/glm-5.2:high'],
+    undefined,
+    [
+      { id: 'gpt-5.6-sol', provider: 'openai-codex' },
+      { id: 'glm-5.3', provider: 'glm-zcode53' },
+      { id: 'glm-5.2', provider: 'glm-zcode' },
+    ],
+  );
+  try {
+    const providerSessionId = 'resume-with-pinned-sol';
+    await writeFile(join(f.root, 'pinned.jsonl'), `${JSON.stringify({
+      type: 'session', version: 3, id: providerSessionId, timestamp: new Date().toISOString(), cwd: f.root,
+    })}\n`);
+    const run = f.host.handle(request('session.resume', 'resume-pinned-model', {
+      message: 'continue with sol',
+      options: { ...f.options, modelId: 'openai-codex/gpt-5.6-sol', effort: 'medium' },
+      providerSessionId,
+    }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    session.complete();
+    await run;
+
+    assert.deepEqual(session.temporaryModelSelections, [{
+      model: { id: 'gpt-5.6-sol', provider: 'openai-codex' },
+      thinkingLevel: 'medium',
+      options: { persistAsSessionDefault: true, cause: 'startup-override' },
+    }]);
+    assert.deepEqual(session.configuredModelChains, [{
+      role: 'default',
+      entries: ['openai-codex/gpt-5.6-sol'],
+      origin: 'startup-override',
+      identity: undefined,
+      explicitHead: true,
+    }]);
+    assert.deepEqual(session.fallbackResolutions, [{ index: 0, skipped: [] }]);
   } finally { await f.close(); }
 });
 test('sequential runs clone global settings for each cwd while retaining the session root', async () => {

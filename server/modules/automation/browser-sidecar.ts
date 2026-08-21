@@ -38,6 +38,7 @@ import {
   type BrowserTabState,
   type BrowserWaitUntil,
 } from './browser-protocol.js';
+import { normalizeAutomationUrl } from './automation-url.js';
 
 type Tab = {
   id: string;
@@ -95,18 +96,6 @@ function sanitizeError(error: unknown): { code: string; message: string } {
   return { code, message };
 }
 
-function normalizeUrl(raw: string): string {
-  const candidate = raw.trim();
-  if (!candidate) return 'about:blank';
-  if (candidate === 'about:blank') return candidate;
-  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(candidate) ? candidate : `http://${candidate}`;
-  const parsed = new URL(withScheme);
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('invalid_url: Only HTTP and HTTPS pages are supported.');
-  }
-  return parsed.href;
-}
-
 function waitUntil(value: unknown): BrowserWaitUntil {
   return value === 'load' || value === 'networkidle0' || value === 'networkidle2'
     ? value
@@ -133,14 +122,14 @@ class BrowserRuntime {
   }
 
   async open(sessionId: string, payload: Record<string, unknown>): Promise<BrowserSessionState> {
-    const browser = await this.ensureBrowser(payload.allowDownload === true);
+    const browser = await this.ensureBrowser(payload.allowDownload === true, sessionId);
     const session = this.session(sessionId);
     let tab = session.activeTabId ? session.tabs.get(session.activeTabId) : undefined;
     if (!tab || tab.page.isClosed()) {
       const page = await browser.newPage();
       tab = await this.registerPage(session, page);
     }
-    const url = typeof payload.url === 'string' ? normalizeUrl(payload.url) : undefined;
+    const url = typeof payload.url === 'string' ? normalizeAutomationUrl(payload.url) : undefined;
     if (url && tab.page.url() !== url) {
       tab.loading = true;
       this.emitState(session);
@@ -160,6 +149,12 @@ class BrowserRuntime {
       if (!tab.page.isClosed()) await tab.page.close().catch(() => {});
     }));
     return { closed: true };
+  }
+
+  stateFor(sessionId: string): BrowserSessionState {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('session_not_found: Open the browser session first.');
+    return this.state(session);
   }
 
   async subscribe(sessionId: string): Promise<BrowserSessionState> {
@@ -188,6 +183,27 @@ class BrowserRuntime {
       this.emitState(session);
       return this.state(session);
     }
+    if (command.action === 'newTab') {
+      const browser = await this.ensureBrowser(false, sessionId);
+      const page = await browser.newPage();
+      const created = await this.registerPage(session, page);
+      if (command.url) {
+        await page.goto(normalizeAutomationUrl(command.url), { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      }
+      session.activeTabId = created.id;
+      await this.ensureScreencast(session);
+      this.emitState(session);
+      return this.state(session);
+    }
+    if (command.action === 'closeTab') {
+      const closing = command.tabId ? session.tabs.get(command.tabId) : this.activeTab(session);
+      if (!closing) throw new Error('tab_not_found: Browser tab was not found.');
+      await this.stopScreencast(closing);
+      if (!closing.page.isClosed()) await closing.page.close();
+      await this.ensureScreencast(session);
+      this.emitState(session);
+      return this.state(session);
+    }
     const tab = this.activeTab(session);
     const page = tab.page;
 
@@ -195,7 +211,7 @@ class BrowserRuntime {
       case 'navigate':
         tab.loading = true;
         this.emitState(session);
-        await page.goto(normalizeUrl(command.url), { waitUntil: waitUntil(command.waitUntil), timeout: 30_000 });
+        await page.goto(normalizeAutomationUrl(command.url), { waitUntil: waitUntil(command.waitUntil), timeout: 30_000 });
         break;
       case 'back':
         tab.loading = true;
@@ -337,7 +353,7 @@ class BrowserRuntime {
       ?? installed.filter((item) => item.browser === BrowserBinary.CHROME).at(-1);
   }
 
-  private async ensureBrowser(allowDownload: boolean): Promise<Browser> {
+  private async ensureBrowser(allowDownload: boolean, sessionId?: string): Promise<Browser> {
     if (this.browser?.connected) return this.browser;
     if (this.launchPromise) return this.launchPromise;
     this.launchState = 'starting';
@@ -349,17 +365,17 @@ class BrowserRuntime {
       if (!installed) {
         if (!allowDownload) throw new Error('browser_download_required: Chromium must be downloaded before first use.');
         this.buildId = await resolveBuildId(BrowserBinary.CHROME, platform, BrowserTag.STABLE).catch(() => PUPPETEER_REVISIONS.chrome);
-        emit('download.progress', { phase: 'starting', buildId: this.buildId });
+        emit('download.progress', { phase: 'starting', buildId: this.buildId }, sessionId);
         installed = await install({
           browser: BrowserBinary.CHROME,
           buildId: this.buildId,
           cacheDir: CACHE_ROOT,
           platform,
           downloadProgressCallback(downloadedBytes, totalBytes) {
-            emit('download.progress', { phase: 'downloading', downloadedBytes, totalBytes, buildId: String(PUPPETEER_REVISIONS.chrome) });
+            emit('download.progress', { phase: 'downloading', downloadedBytes, totalBytes, buildId: String(PUPPETEER_REVISIONS.chrome) }, sessionId);
           },
         });
-        emit('download.progress', { phase: 'complete', buildId: this.buildId });
+        emit('download.progress', { phase: 'complete', buildId: this.buildId }, sessionId);
       }
       await mkdir(PROFILE_ROOT, { recursive: true });
       if (!existsSync(installed.executablePath)) throw new Error('browser_missing: Chromium executable was not found.');
@@ -597,6 +613,9 @@ async function handle(frame: BrowserRequestFrame): Promise<void> {
         break;
       case 'session.open':
         result = await runtime.open(frame.sessionId!, frame.payload);
+        break;
+      case 'session.state':
+        result = runtime.stateFor(frame.sessionId!);
         break;
       case 'session.close':
         result = await runtime.close(frame.sessionId!);

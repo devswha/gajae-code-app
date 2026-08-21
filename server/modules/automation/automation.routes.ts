@@ -3,6 +3,7 @@ import { Router, type Request, type Response } from 'express';
 import { safeSessionId, type BrowserCommand, type BrowserInput } from './browser-protocol.js';
 import { isCuaSafeTool } from './cua-client.js';
 import { automationService } from './automation.service.js';
+import { discoverLocalDevelopmentUrls } from './local-sites.js';
 
 const router = Router();
 
@@ -30,6 +31,17 @@ function sessionId(request: Request, response: Response): string | null {
 router.get('/status', async (_request, response) => {
   try {
     response.json(await automationService.status());
+  } catch (error) {
+    errorResponse(response, error);
+  }
+});
+
+router.get('/local-sites', async (request, response) => {
+  try {
+    const localPort = request.socket.localPort;
+    response.json({
+      urls: await discoverLocalDevelopmentUrls(new Set(localPort ? [localPort] : [])),
+    });
   } catch (error) {
     errorResponse(response, error);
   }
@@ -108,8 +120,12 @@ router.post('/grants', (request, response) => {
     response.status(400).json({ error: 'Invalid automation grant.' });
     return;
   }
-  automationService.grant({ kind, value, scope, ...(scope === 'session' ? { sessionId: requestedSessionId } : {}) });
-  response.json(automationService.grants.list(scope === 'session' ? requestedSessionId : undefined));
+  try {
+    automationService.grant({ kind, value, scope, ...(scope === 'session' ? { sessionId: requestedSessionId } : {}) });
+    response.json(automationService.grants.list(scope === 'session' ? requestedSessionId : undefined));
+  } catch (error) {
+    errorResponse(response, error);
+  }
 });
 
 router.delete('/grants', (request, response) => {

@@ -7,9 +7,11 @@ import {
   ExternalLink,
   LoaderCircle,
   MonitorDown,
+  Plus,
   RefreshCw,
   RotateCcw,
   Square,
+  X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -65,8 +67,10 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [localUrls, setLocalUrls] = useState(COMMON_LOCAL_URLS);
   const frameRef = useRef<HTMLImageElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
+  const pointerFrameRef = useRef<number | null>(null);
 
   const activeTab = useMemo(
     () => state?.tabs.find((tab) => tab.id === state.activeTabId) ?? null,
@@ -89,10 +93,18 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
 
   useEffect(() => {
     void loadStatus();
+    void jsonRequest<{ urls: string[] }>('/api/automation/local-sites')
+      .then((result) => {
+        if (result.urls.length > 0) setLocalUrls(result.urls);
+      })
+      .catch(() => {});
   }, [loadStatus]);
 
   useEffect(() => {
     let disposed = false;
+    setState(null);
+    setError(null);
+    setDownloadProgress(null);
     const websocket = new WebSocket(socketUrl(sessionId));
     websocket.binaryType = 'arraybuffer';
     socketRef.current = websocket;
@@ -129,6 +141,8 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
       disposed = true;
       websocket.close();
       socketRef.current = null;
+      if (pointerFrameRef.current !== null) cancelAnimationFrame(pointerFrameRef.current);
+      pointerFrameRef.current = null;
       setFrameUrl((previous) => {
         if (previous) URL.revokeObjectURL(previous);
         return null;
@@ -187,7 +201,7 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
 
   const navigate = (event: FormEvent) => {
     event.preventDefault();
-    if (state) void command({ action: 'navigate', url: address });
+    if (activeTab) void command({ action: 'navigate', url: address });
     else void open(address, false);
   };
 
@@ -199,6 +213,18 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
     }
     event.preventDefault();
     sendInput({ kind: 'text', text: event.key });
+  };
+
+  const handleKeyUp = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key.length === 1) return;
+    event.preventDefault();
+    sendInput({
+      kind: 'key',
+      event: 'up',
+      key: event.key,
+      code: event.code,
+      modifiers: (event.altKey ? 1 : 0) | (event.ctrlKey ? 2 : 0) | (event.metaKey ? 4 : 0) | (event.shiftKey ? 8 : 0),
+    });
   };
 
   const stop = async () => {
@@ -217,7 +243,16 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
     }
   };
 
-  if (status && !status.supported) {
+  if (!status) {
+    return (
+      <div className="flex h-full items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">
+        <LoaderCircle className="h-4 w-4 animate-spin" />
+        {t('workspace.browser.connecting')}
+      </div>
+    );
+  }
+
+  if (!status.supported) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
         {t('workspace.browser.unsupported')}
@@ -225,7 +260,7 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
     );
   }
 
-  if (status && !status.browser.installed && !state) {
+  if (!status.browser.installed && !state) {
     return (
       <div className="flex h-full items-center justify-center p-5">
         <div className="max-w-sm rounded-xl border border-border/70 bg-muted/20 p-5 text-center">
@@ -239,7 +274,11 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
             className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50"
           >
             {busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            {downloadProgress === null ? t('workspace.browser.download') : t('workspace.browser.downloading', { progress: downloadProgress })}
+            {busy && downloadProgress === null
+              ? t('workspace.browser.preparing')
+              : downloadProgress === null
+                ? t('workspace.browser.download')
+                : t('workspace.browser.downloading', { progress: downloadProgress })}
           </button>
           {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
         </div>
@@ -256,26 +295,34 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
         <form onSubmit={navigate} className="min-w-0 flex-1">
           <input value={address} onChange={(event) => setAddress(event.target.value)} aria-label={t('workspace.browser.address')} className="h-7 w-full rounded-md border border-border/70 bg-background px-2 text-xs text-foreground outline-none focus:border-primary" />
         </form>
-        <span title={connection} className={`h-2 w-2 rounded-full ${connection === 'live' ? 'bg-primary' : connection === 'connecting' ? 'bg-foreground/50' : 'bg-muted-foreground/40'}`} />
+        <span title={t(`workspace.browser.connection.${connection}`)} aria-label={t(`workspace.browser.connection.${connection}`)} className={`h-2 w-2 rounded-full ${connection === 'live' ? 'bg-primary' : connection === 'connecting' ? 'bg-foreground/50' : 'bg-muted-foreground/40'}`} />
         <button type="button" disabled={!activeTab} onClick={() => activeTab && window.open(activeTab.url, '_blank', 'noopener,noreferrer')} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label={t('workspace.browser.external')}><ExternalLink className="h-3.5 w-3.5" /></button>
         <button type="button" disabled={!state || busy} onClick={() => void stop()} className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30" aria-label={t('workspace.browser.stop')}><Square className="h-3.5 w-3.5" /></button>
       </div>
 
       {state && state.tabs.length > 0 && (
-        <div className="flex gap-1 overflow-x-auto border-b border-border/60 px-1.5 py-1">
+        <div className="flex items-center gap-1 overflow-x-auto border-b border-border/60 px-1.5 py-1">
           {state.tabs.map((tab) => (
-            <button key={tab.id} type="button" onClick={() => void command({ action: 'selectTab', tabId: tab.id })} className={`max-w-44 truncate rounded px-2 py-1 text-[11px] ${tab.id === state.activeTabId ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/50'}`}>
-              {tab.title || new URL(tab.url === 'about:blank' ? 'http://blank.local' : tab.url).hostname}
-            </button>
+            <div key={tab.id} className={`flex min-w-0 max-w-48 items-center rounded ${tab.id === state.activeTabId ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/50'}`}>
+              <button type="button" onClick={() => void command({ action: 'selectTab', tabId: tab.id })} className="min-w-0 flex-1 truncate px-2 py-1 text-left text-[11px]">
+                {tab.title || (tab.url === 'about:blank' ? t('workspace.browser.newTab') : new URL(tab.url).hostname)}
+              </button>
+              <button type="button" onClick={() => void command({ action: 'closeTab', tabId: tab.id })} className="mr-0.5 rounded p-0.5 hover:bg-background/70" aria-label={t('workspace.browser.closeTab')}>
+                <X className="h-3 w-3" />
+              </button>
+            </div>
           ))}
+          <button type="button" onClick={() => void command({ action: 'newTab' })} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={t('workspace.browser.newTab')}>
+            <Plus className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
 
       <div
         tabIndex={0}
         onKeyDown={handleKeyDown}
-        onKeyUp={(event) => sendInput({ kind: 'key', event: 'up', key: event.key, code: event.code })}
-        className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto bg-black/90 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+        onKeyUp={handleKeyUp}
+        className="relative flex min-h-0 flex-1 items-start justify-start overflow-auto bg-black/90 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
       >
         {frameUrl ? (
           <img
@@ -283,6 +330,23 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
             src={frameUrl}
             alt={t('workspace.browser.preview')}
             draggable={false}
+            onPointerMove={(event) => {
+              if (pointerFrameRef.current !== null) return;
+              const { clientX, clientY } = event;
+              pointerFrameRef.current = requestAnimationFrame(() => {
+                pointerFrameRef.current = null;
+                const image = frameRef.current;
+                if (!image) return;
+                const bounds = image.getBoundingClientRect();
+                if (!bounds.width || !bounds.height || !image.naturalWidth || !image.naturalHeight) return;
+                sendInput({
+                  kind: 'mouse',
+                  event: 'move',
+                  x: ((clientX - bounds.left) / bounds.width) * image.naturalWidth,
+                  y: ((clientY - bounds.top) / bounds.height) * image.naturalHeight,
+                });
+              });
+            }}
             onPointerDown={(event) => {
               const point = framePoint(event);
               if (!point) return;
@@ -300,14 +364,14 @@ export default function BrowserPanel({ sessionId }: BrowserPanelProps) {
               sendInput({ kind: 'wheel', ...point, deltaX: event.deltaX, deltaY: event.deltaY });
             }}
             onContextMenu={(event) => event.preventDefault()}
-            className="max-h-full max-w-full select-none object-contain"
+            className="h-auto w-full select-none object-contain object-top"
           />
         ) : (
-          <div className="p-6 text-center text-xs text-white/60">
+          <div className="m-auto p-6 text-center text-xs text-white/60">
             <RotateCcw className="mx-auto mb-2 h-5 w-5" />
             <p>{t('workspace.browser.empty')}</p>
             <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-              {COMMON_LOCAL_URLS.map((url) => <button key={url} type="button" onClick={() => { setAddress(url); void open(url, false); }} className="rounded border border-white/15 px-2 py-1 hover:bg-white/10">{url.replace('http://', '')}</button>)}
+              {localUrls.map((url) => <button key={url} type="button" onClick={() => { setAddress(url); void open(url, false); }} className="rounded border border-white/15 px-2 py-1 hover:bg-white/10">{url.replace('http://', '')}</button>)}
             </div>
           </div>
         )}

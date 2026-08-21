@@ -289,7 +289,16 @@
       "installTitle": "개발 브라우저 설정",
       "installDescription": "개인 브라우저와 분리된 Chrome for Testing 및 전용 프로필을 내려받습니다.",
       "download": "Chromium 다운로드 및 시작",
+      "preparing": "Chromium 준비 중…",
       "downloading": "다운로드 중… {{progress}}%",
+      "connecting": "개발 브라우저에 연결 중…",
+      "newTab": "새 탭",
+      "closeTab": "탭 닫기",
+      "connection": {
+        "connecting": "연결 중",
+        "live": "연결됨",
+        "offline": "오프라인"
+      },
       "unsupported": "자동화 프리뷰는 현재 Apple Silicon 및 macOS 14 이상에서 사용할 수 있습니다.",
       "error": "브라우저 자동화에 실패했습니다.",
       "cua": "네이티브 앱 · CUA Driver",

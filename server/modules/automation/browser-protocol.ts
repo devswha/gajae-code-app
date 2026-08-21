@@ -16,7 +16,9 @@ export type BrowserCommand =
   | { action: 'extract'; selector?: string; format?: 'text' | 'html' }
   | { action: 'screenshot' }
   | { action: 'run'; code: string; timeoutMs?: number }
-  | { action: 'selectTab'; tabId: string };
+  | { action: 'selectTab'; tabId: string }
+  | { action: 'newTab'; url?: string }
+  | { action: 'closeTab'; tabId?: string };
 
 export type BrowserWaitUntil = 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2';
 
@@ -65,6 +67,7 @@ export type BrowserRequestMethod =
   | 'initialize'
   | 'status'
   | 'session.open'
+  | 'session.state'
   | 'session.close'
   | 'browser.command'
   | 'browser.input'

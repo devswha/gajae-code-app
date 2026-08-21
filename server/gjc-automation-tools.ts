@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import net from 'node:net';
 
 import type { CustomTool } from '@gajae-code/coding-agent/extensibility/custom-tools/types';
+import type { ExtensionUIContext } from '@gajae-code/coding-agent/extensibility/extensions/types';
 import * as z from 'zod/v4';
 
 const browserActionSchema = z.object({
@@ -41,6 +42,12 @@ const computerSchema = z.object({
 });
 
 type BridgeResponse = { id: string; ok: boolean; result?: unknown; error?: string };
+type BrowserAuthorization = { granted: boolean; origin: string | null };
+type ComputerAuthorization = { granted: boolean; application: string | null; label: string | null };
+
+const ALLOW_ONCE = 'Allow once';
+const ALLOW_ALWAYS = 'Always allow';
+const DENY = 'Deny';
 
 function bridgeRequest(
   request: Record<string, unknown>,
@@ -113,7 +120,36 @@ function browserCommand(action: z.infer<typeof browserActionSchema>): Record<str
   };
 }
 
-export function createGjcAutomationTools(appSessionId: string): CustomTool<any, any>[] {
+export function createGjcAutomationTools(
+  appSessionId: string,
+  ui: Pick<ExtensionUIContext, 'select'>,
+): CustomTool<any, any>[] {
+  const ensureBrowserAccess = async (url: string | undefined, signal?: AbortSignal): Promise<void> => {
+    const check = await bridgeRequest({
+      surface: 'browser',
+      sessionId: appSessionId,
+      operation: 'authorize',
+      payload: { ...(url ? { url } : {}) },
+    }, signal) as BrowserAuthorization;
+    if (check.granted || !check.origin) return;
+
+    const choice = await ui.select(
+      `Allow the agent to use ${check.origin}?`,
+      [ALLOW_ONCE, ALLOW_ALWAYS, DENY],
+      { signal },
+    );
+    if (choice !== ALLOW_ONCE && choice !== ALLOW_ALWAYS) {
+      throw new Error(`Browser access to ${check.origin} was denied.`);
+    }
+    const granted = await bridgeRequest({
+      surface: 'browser',
+      sessionId: appSessionId,
+      operation: 'authorize',
+      payload: { url: check.origin, scope: choice === ALLOW_ALWAYS ? 'always' : 'session' },
+    }, signal) as BrowserAuthorization;
+    if (!granted.granted) throw new Error(`Browser access to ${check.origin} was not granted.`);
+  };
+
   const browser: CustomTool<any, any> = {
     name: 'browser',
     label: 'Browser',
@@ -123,6 +159,7 @@ export function createGjcAutomationTools(appSessionId: string): CustomTool<any, 
     async execute(_toolCallId, rawParams, _onUpdate, _ctx, signal) {
       const params = browserSchema.parse(rawParams);
       if (params.action === 'open') {
+        if (params.url) await ensureBrowserAccess(params.url, signal);
         return textResult(await bridgeRequest({
           surface: 'browser', sessionId: appSessionId, operation: 'open',
           // Chromium downloads are initiated only by the user's explicit action in
@@ -135,6 +172,7 @@ export function createGjcAutomationTools(appSessionId: string): CustomTool<any, 
       }
       if (params.action === 'run') {
         if (!params.code) throw new Error('browser run requires code.');
+        await ensureBrowserAccess(undefined, signal);
         return textResult(await bridgeRequest({
           surface: 'browser', sessionId: appSessionId, operation: 'command',
           payload: { command: { action: 'run', code: params.code, timeoutMs: params.timeout } },
@@ -143,6 +181,7 @@ export function createGjcAutomationTools(appSessionId: string): CustomTool<any, 
       if (!params.actions?.length) throw new Error('browser act requires one or more actions.');
       const results = [];
       for (const action of params.actions) {
+        await ensureBrowserAccess(action.verb === 'navigate' ? action.url : undefined, signal);
         results.push(await bridgeRequest({
           surface: 'browser', sessionId: appSessionId, operation: 'command',
           payload: { command: browserCommand(action) },
@@ -150,6 +189,42 @@ export function createGjcAutomationTools(appSessionId: string): CustomTool<any, 
       }
       return textResult(results.length === 1 ? results[0] : results);
     },
+  };
+
+  const ensureComputerAccess = async (
+    tool: z.infer<typeof computerSchema>['action'],
+    args: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<void> => {
+    const check = await bridgeRequest({
+      surface: 'computer',
+      sessionId: appSessionId,
+      operation: 'authorize',
+      tool,
+      arguments: args,
+    }, signal) as ComputerAuthorization;
+    if (check.granted || !check.application) return;
+
+    const choice = await ui.select(
+      `Allow the agent to control ${check.label ?? check.application}?`,
+      [ALLOW_ONCE, ALLOW_ALWAYS, DENY],
+      { signal },
+    );
+    if (choice !== ALLOW_ONCE && choice !== ALLOW_ALWAYS) {
+      throw new Error(`Computer access to ${check.label ?? check.application} was denied.`);
+    }
+    const granted = await bridgeRequest({
+      surface: 'computer',
+      sessionId: appSessionId,
+      operation: 'authorize',
+      tool,
+      arguments: args,
+      payload: {
+        application: check.application,
+        scope: choice === ALLOW_ALWAYS ? 'always' : 'session',
+      },
+    }, signal) as ComputerAuthorization;
+    if (!granted.granted) throw new Error(`Computer access to ${check.label ?? check.application} was not granted.`);
   };
 
   const computer: CustomTool<any, any> = {
@@ -160,6 +235,7 @@ export function createGjcAutomationTools(appSessionId: string): CustomTool<any, 
     concurrency: 'exclusive',
     async execute(_toolCallId, rawParams, _onUpdate, _ctx, signal) {
       const params = computerSchema.parse(rawParams);
+      await ensureComputerAccess(params.action, params.arguments, signal);
       return textResult(await bridgeRequest({
         surface: 'computer', sessionId: appSessionId, tool: params.action, arguments: params.arguments,
       }, signal));

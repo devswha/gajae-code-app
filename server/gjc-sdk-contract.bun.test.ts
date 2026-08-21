@@ -211,9 +211,12 @@ const request = (method: string, id: string, payload: Record<string, unknown> = 
 }) as GjcWorkerRequestFrame;
 
 async function fixture(
-  defaultModel = 'contract-model',
+  defaultModel: string | string[] = 'contract-model',
   modelProfile?: string,
-  model = { id: 'contract-model', provider: 'contract-provider' },
+  modelOrModels: { id: string; provider: string } | Array<{ id: string; provider: string }> = {
+    id: 'contract-model',
+    provider: 'contract-provider',
+  },
   executeBuiltinCommand?: GjcBunSdkAdapterOptions['executeBuiltinCommand'],
   oauthLogin?: OAuthLogin,
   oauthTimeoutMs?: number,
@@ -233,9 +236,11 @@ async function fixture(
     setRuntimeApiKey: () => {},
     removeRuntimeApiKey: () => {},
   };
+  const models = Array.isArray(modelOrModels) ? modelOrModels : [modelOrModels];
   const modelRegistry = {
     authStorage,
-    getAll: () => [model],
+    getAll: () => models,
+    getAvailable: () => models,
     getModelProfile: () => undefined,
     async refresh() { trace.push('modelRegistry.refresh'); },
   };
@@ -1014,6 +1019,43 @@ test('default model role resolves its selector without the thinking suffix', asy
     await run;
     assert.equal(f.factoryOptions[0]!.model && (f.factoryOptions[0]!.model as { id: string }).id, 'gpt-5.6-sol');
     assert.equal(((response(f.frames, 'default-model-role-suffix').payload as Record<string, unknown>).result as Record<string, unknown>).model, 'gpt-5.6-sol');
+  } finally { await f.close(); }
+});
+test('default model role uses the primary selector from a fallback chain', async () => {
+  const f = await fixture(['missing/model:high', 'openai-codex/gpt-5.6-terra:high'], undefined, {
+    id: 'gpt-5.6-terra',
+    provider: 'openai-codex',
+  });
+  try {
+    const run = f.host.handle(request('session.start', 'default-model-role-chain', {
+      message: 'hello',
+      options: { ...f.options, modelId: 'default' },
+    }));
+    const session = await firstSession(f.sessions);
+    session.complete();
+    await run;
+    assert.equal(f.factoryOptions[0]!.model && (f.factoryOptions[0]!.model as { id: string }).id, 'gpt-5.6-terra');
+  } finally { await f.close(); }
+});
+test('default model fallback skips providers that do not match the stored credential', async () => {
+  const f = await fixture(
+    ['glm-zcode53/glm-5.3:high', 'glm-zcode/glm-5.2:high'],
+    undefined,
+    [
+      { id: 'glm-5.3', provider: 'glm-zcode53' },
+      { id: 'glm-5.2', provider: 'glm-zcode' },
+    ],
+  );
+  f.authStorage.credentials.push({ id: 28, provider: 'glm-zcode' });
+  try {
+    const run = f.host.handle(request('session.start', 'default-model-stored-fallback', {
+      message: 'hello',
+      options: { ...f.options, modelId: 'default', credential: { kind: 'stored' } },
+    }));
+    const session = await firstSession(f.sessions);
+    session.complete();
+    await run;
+    assert.equal((f.factoryOptions[0]!.model as { provider: string }).provider, 'glm-zcode');
   } finally { await f.close(); }
 });
 test('default model profile resolves its selector without the thinking suffix', async () => {

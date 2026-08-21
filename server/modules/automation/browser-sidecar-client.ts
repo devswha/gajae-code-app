@@ -61,6 +61,10 @@ export class BrowserSidecarClient {
     return this.request('session.open', sessionId, payload);
   }
 
+  state(sessionId: string): Promise<unknown> {
+    return this.request('session.state', sessionId, {});
+  }
+
   close(sessionId: string): Promise<unknown> {
     return this.request('session.close', sessionId, {});
   }

@@ -2,7 +2,7 @@ import { createAgentSession, discoverAuthStorage } from '@gajae-code/coding-agen
 import { ModelRegistry } from '@gajae-code/coding-agent/config/model-registry';
 import { mergeModelProfiles, resolveProfileBindings } from '@gajae-code/coding-agent/config/model-profiles';
 import { activateModelProfile } from '@gajae-code/coding-agent/config/model-profile-activation';
-import { parseModelString } from '@gajae-code/coding-agent/config/model-resolver';
+import { resolveModelRoleValue } from '@gajae-code/coding-agent/config/model-resolver';
 import { Settings } from '@gajae-code/coding-agent/config/settings';
 import { AuthStorage } from '@gajae-code/coding-agent/session/auth-storage';
 import { SessionManager } from '@gajae-code/coding-agent/session/session-manager';
@@ -110,23 +110,48 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
   return candidate as unknown as SdkRunConfig;
 }
 
-function modelIdFromSelector(selector: string): string {
-  const parsed = parseModelString(selector);
-  if (!parsed || !parsed.provider || !parsed.id) throw new Error(FAILURE);
-  return `${parsed.provider}/${parsed.id}`;
+function modelsForCredential(
+  authStorage: AuthStorage,
+  modelRegistry: ModelRegistry,
+  credential: ExactCredentialRef,
+): Model[] {
+  const available = modelRegistry.getAvailable();
+  if (credential.kind === 'runtime-env') return available;
+
+  const rows: Array<{ id: number; provider: string }> = authStorage.exportSnapshot().credentials;
+  const eligibleProviders = new Set(
+    rows
+      .filter((row) => credential.providerId === undefined || row.provider === credential.providerId)
+      .filter((row) => credential.credentialId === undefined || row.id === credential.credentialId)
+      .map((row) => row.provider),
+  );
+  return available.filter((model) => eligibleProviders.has(model.provider));
 }
 
-function configuredDefaultModelId(settings: Settings, modelRegistry: ModelRegistry, modelProfile?: string): string {
+function configuredDefaultModelId(
+  settings: Settings,
+  authStorage: AuthStorage,
+  modelRegistry: ModelRegistry,
+  credential: ExactCredentialRef,
+  modelProfile?: string,
+): string {
+  const resolveConfigured = (selector: Parameters<typeof resolveModelRoleValue>[0]): string | undefined => {
+    const resolved = resolveModelRoleValue(selector, modelsForCredential(authStorage, modelRegistry, credential), {
+      settings,
+      modelRegistry,
+    });
+    return resolved.model ? `${resolved.model.provider}/${resolved.model.id}` : undefined;
+  };
   if (modelProfile) {
     const profile = modelRegistry.getModelProfile(modelProfile) ?? mergeModelProfiles().get(modelProfile);
     const selector = profile && resolveProfileBindings(profile).defaultSelector;
-    if (typeof selector !== 'string' || !selector) throw new Error(FAILURE);
-    return modelIdFromSelector(selector);
+    const resolved = resolveConfigured(selector);
+    if (!resolved) throw new Error(FAILURE);
+    return resolved;
   }
-  const roleModelId = settings.getModelRole('default');
-  if (typeof roleModelId === 'string' && roleModelId) {
-    return roleModelId.includes('/') ? modelIdFromSelector(roleModelId) : roleModelId;
-  }
+  const roleValue = settings.getModelRole('default');
+  const roleModelId = resolveConfigured(roleValue);
+  if (roleModelId) return roleModelId;
 
   const profileName = settings.get('modelProfile.default');
   if (typeof profileName !== 'string' || !profileName) throw new Error(FAILURE);
@@ -134,9 +159,9 @@ function configuredDefaultModelId(settings: Settings, modelRegistry: ModelRegist
   // ModelRegistry loads models.yml user profiles and merges them with builtins.
   const profile = modelRegistry.getModelProfile(profileName) ?? mergeModelProfiles().get(profileName);
   const selector = profile && resolveProfileBindings(profile).defaultSelector;
-  if (typeof selector !== 'string' || !selector) throw new Error(FAILURE);
-
-  return modelIdFromSelector(selector);
+  const resolved = resolveConfigured(selector);
+  if (!resolved) throw new Error(FAILURE);
+  return resolved;
 }
 
 function modelFor(registry: ModelRegistry, modelId: string): Model {
@@ -357,7 +382,13 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         process.env.GJC_WORKER_AGENT_DIR ? { agentDir: process.env.GJC_WORKER_AGENT_DIR } : {},
       );
       const configuredModelId = config.modelId === 'default'
-        ? configuredDefaultModelId(globalSettings, this.modelRegistry, config.modelProfile)
+        ? configuredDefaultModelId(
+          globalSettings,
+          this.authStorage,
+          this.modelRegistry,
+          config.credential,
+          config.modelProfile,
+        )
         : config.modelId;
       const settings = await globalSettings.cloneForCwd(config.cwd);
       const askController = new GjcBunAskController(writer);
@@ -385,7 +416,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           bashAllowedPrefixes: config.bashPolicy.allowedPrefixes,
           ...(config.bashPolicy.restrictionProfile ? { bashRestrictionProfile: config.bashPolicy.restrictionProfile } : {}),
           hasUI: true,
-          ...(config.appSessionId ? { customTools: createGjcAutomationTools(config.appSessionId) } : {}),
+          ...(config.appSessionId ? { customTools: createGjcAutomationTools(config.appSessionId, askController.uiContext) } : {}),
         });
         if (config.modelProfile) {
           await activateModelProfile({

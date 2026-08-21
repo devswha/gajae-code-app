@@ -289,7 +289,16 @@
       "installTitle": "Set up the development browser",
       "installDescription": "Gajae downloads an isolated Chrome for Testing build and keeps its profile separate from your personal browser.",
       "download": "Download Chromium and start",
+      "preparing": "Preparing Chromium…",
       "downloading": "Downloading… {{progress}}%",
+      "connecting": "Connecting to the development browser…",
+      "newTab": "New tab",
+      "closeTab": "Close tab",
+      "connection": {
+        "connecting": "Connecting",
+        "live": "Live",
+        "offline": "Offline"
+      },
       "unsupported": "The automation preview currently requires Apple Silicon and macOS 14 or later.",
       "error": "Browser automation failed.",
       "cua": "Native apps · CUA Driver",

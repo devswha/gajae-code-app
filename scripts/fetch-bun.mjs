@@ -8,17 +8,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pipeline } from 'node:stream/promises';
 
-const BUN_VERSION = '1.3.14';
+const BUN_VERSION = '1.4.0';
 const RELEASE_BASE_URL = `https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}`;
 const PLATFORMS = {
   'linux-x64': {
     archive: 'bun-linux-x64.zip',
-    archiveSha256: '951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f',
+    archiveSha256: '2d03fb5fb83ac8b567aca0a281b2ce1a1a19d488f56c2968d88c3f25e92fe452',
     binary: 'bun-linux-x64/bun',
   },
   'darwin-arm64': {
     archive: 'bun-darwin-aarch64.zip',
-    archiveSha256: 'd8b96221828ad6f97ac7ac0ab7e95872341af763001e8803e8267652c2652620',
+    archiveSha256: 'c669e97f6164e1c96e0701748db98dfa77492908cbd8394c7557134a735de381',
     binary: 'bun-darwin-aarch64/bun',
   },
 };

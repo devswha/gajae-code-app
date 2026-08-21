@@ -57,7 +57,7 @@ function runTests(label, files, { tsconfig } = {}) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-const REQUIRED_BUN_VERSION = '1.3.14';
+const REQUIRED_BUN_VERSION = '1.4.0';
 
 function resolveBunExecutable() {
   const bundled = path.join(process.cwd(), 'dist-native', process.platform === 'win32' ? 'bun.exe' : 'bun');
@@ -81,9 +81,8 @@ function runBunTests(label, files) {
     process.exit(1);
   }
   console.log(`\n[test] ${label}: ${files.length} files (bun ${bun.version})`);
-  // Bun 1.3.14 cannot safely execute multiple files that register `node:test`
-  // suites in one process (oven-sh/bun#5090). Isolate each contract file while
-  // preserving one aggregate test phase for CI.
+  // Keep each contract file isolated so leaked globals, timers, or worker state
+  // cannot make the aggregate Bun phase order-dependent.
   for (const file of files) {
     const result = spawnSync(bun.path, ['test', file], { cwd: process.cwd(), stdio: 'inherit' });
     if (result.error) throw result.error;

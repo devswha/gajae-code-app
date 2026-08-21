@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const NODE_VERSION = '22.22.2';
 const NODE_ARCHIVE_SHA256 = 'db4b275b83736df67533529a18cc55de2549a8329ace6c7bcc68f8d22d3c9000';
-const BUN_VERSION = '1.3.14';
+const BUN_VERSION = '1.4.0';
 const NATIVE_MODULES = ['better-sqlite3', 'node-pty'];
 const RUNTIME_DEPENDENCIES = [
   '@gajae-code/coding-agent',

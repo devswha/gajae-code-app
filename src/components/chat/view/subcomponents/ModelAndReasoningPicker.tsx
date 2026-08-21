@@ -119,6 +119,14 @@ export function reasoningOptionsForModel(
   return supported.length > 0 ? ['default', 'off', ...new Set(supported)] : [];
 }
 
+export async function persistChosenModel(
+  modelId: string,
+  currentValue: string,
+  onSelect: (modelId: string) => Promise<unknown> | unknown,
+): Promise<void> {
+  if (modelId !== currentValue) await onSelect(modelId);
+}
+
 /**
  * One composer control for the two settings that define the next answer:
  * the session's chat model and its reasoning effort. The separate preset
@@ -183,14 +191,25 @@ export default function ModelAndReasoningPicker({
     }
   };
 
-  const chooseModel = (modelId: string) => {
+  const chooseModel = async (modelId: string) => {
     const resolvedModel = modelId === DEFAULT_MODEL_VALUE ? displayModel : modelId;
     const options = reasoningOptionsForModel(resolvedModel, modelOptions);
     if (options.length > 0) {
+      // Choosing a model is the consequential action. Persist it before
+      // showing the optional reasoning step so dismissing the popup cannot
+      // silently leave the previous runtime model active.
+      if (modelId !== value) {
+        setSelecting(true);
+        try {
+          await persistChosenModel(modelId, value, onSelect);
+        } finally {
+          setSelecting(false);
+        }
+      }
       setPendingModel(modelId);
       return;
     }
-    void commitSelection(modelId, 'default');
+    await commitSelection(modelId, 'default');
   };
 
   return (
@@ -231,7 +250,7 @@ export default function ModelAndReasoningPicker({
               <div className="max-h-72 space-y-0.5 overflow-y-auto">
                 <button
                   type="button"
-                  onClick={() => chooseModel(DEFAULT_MODEL_VALUE)}
+                  onClick={() => { void chooseModel(DEFAULT_MODEL_VALUE); }}
                   className={cn(
                     'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent',
                     !isRawSelection && 'bg-accent/70',
@@ -257,7 +276,7 @@ export default function ModelAndReasoningPicker({
                         <button
                           key={model}
                           type="button"
-                          onClick={() => chooseModel(model)}
+                          onClick={() => { void chooseModel(model); }}
                           className={cn(
                             'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent',
                             isSelected && 'bg-accent/70',

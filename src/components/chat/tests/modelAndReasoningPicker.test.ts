@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   deriveSessionModelOptions,
+  persistChosenModel,
   reasoningOptionsForModel,
   resolveDisplayModel,
   stripEffortSuffix,
@@ -171,4 +172,16 @@ test('reasoning choices follow the runtime capabilities of the selected model', 
   );
   assert.deepEqual(reasoningOptionsForModel('custom/plain', models), []);
   assert.deepEqual(reasoningOptionsForModel('missing/model', models), []);
+});
+
+test('choosing a model persists it before the optional reasoning step', async () => {
+  const selected: string[] = [];
+  await persistChosenModel('openai-codex/gpt-5.6-sol', 'default', (model) => {
+    selected.push(model);
+  });
+  await persistChosenModel('openai-codex/gpt-5.6-sol', 'openai-codex/gpt-5.6-sol', (model) => {
+    selected.push(model);
+  });
+
+  assert.deepEqual(selected, ['openai-codex/gpt-5.6-sol']);
 });

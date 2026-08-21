@@ -33,8 +33,11 @@ test('uses a real latest-beta workflow recording and supporting product screensh
   assert.ok(html.includes('demos/gajae-build-process-poster.jpg'));
   assert.match(html, /<video[\s\S]*autoplay[\s\S]*controls[\s\S]*muted[\s\S]*playsinline/);
   assert.match(html, /Real workflow · Latest beta/);
+  assert.ok(html.includes('screenshots/workflow-build-light.jpg'));
   assert.ok(html.includes('screenshots/model-reasoning-light.jpg'));
   assert.ok(html.includes('screenshots/browser-verification-light.jpg'));
+  assert.match(html, /Follow the work, not just the answer\./);
+  assert.match(html, /Hand off without losing the page\./);
   assert.equal(html.includes('Live timeline'), false);
   assert.equal(html.includes('Ready to continue'), false);
   assert.equal(html.includes('src/auth/session.ts'), false);

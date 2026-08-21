@@ -96,7 +96,7 @@ export function renderLandingPage() {
             playsinline
             preload="metadata"
             poster="./demos/gajae-build-process-poster.jpg"
-            aria-label="Gajae Code App editing a dashboard and verifying it in the built-in Browser"
+            aria-label="Gajae Code App searching, editing, and verifying a dashboard in the built-in Browser"
           >
             <source src="./demos/gajae-build-process.mp4" type="video/mp4" />
           </video>
@@ -105,19 +105,27 @@ export function renderLandingPage() {
         <section class="details" id="workflow" aria-label="Product details">
           <article class="detail">
             <div class="detail-copy">
-              <p class="eyebrow">Session controls</p>
-              <h2>Match the model to the task.</h2>
-              <p>Use Sol with High reasoning for a deeper implementation pass, or switch models without leaving the session.</p>
+              <p class="eyebrow">Build timeline</p>
+              <h2>Follow the work, not just the answer.</h2>
+              <p>The request, code search, patch, and browser check stay together in one readable session.</p>
             </div>
-            <img src="./screenshots/model-reasoning-light.jpg" alt="Sol model and reasoning controls open beside a completed English coding task" />
+            <img src="./screenshots/workflow-build-light.jpg" alt="English dashboard request followed by search, patch, and browser verification steps in Gajae Code App" />
           </article>
           <article class="detail">
             <div class="detail-copy">
-              <p class="eyebrow">Browser verification</p>
-              <h2>Check the result, not just the diff.</h2>
-              <p>The same run built this responsive task dashboard, added a task in Chromium, completed it, and confirmed the updated progress.</p>
+              <p class="eyebrow">Session controls</p>
+              <h2>Match the model to the task.</h2>
+              <p>Keep Sol selected and choose the reasoning depth for the next turn without leaving the session.</p>
             </div>
-            <img src="./screenshots/browser-verification-light.jpg" alt="Responsive Daymark task dashboard after a browser interaction updated progress to fifty percent" />
+            <img src="./screenshots/model-reasoning-light.jpg" alt="Latest Sol model and reasoning controls open above an English coding session" />
+          </article>
+          <article class="detail">
+            <div class="detail-copy">
+              <p class="eyebrow">Shared browser</p>
+              <h2>Hand off without losing the page.</h2>
+              <p>The agent verifies in the built-in Chromium tab, then you can expand the same live page and continue from there.</p>
+            </div>
+            <img src="./screenshots/browser-verification-light.jpg" alt="Expanded Gajae Code App Browser showing the responsive Daymark dashboard without cropped or empty areas" />
           </article>
         </section>
 

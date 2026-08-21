@@ -15,6 +15,13 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import {
+  browserFramePoint,
+  DEFAULT_BROWSER_VIEWPORT,
+  normalizeBrowserViewport,
+  type BrowserViewportSize,
+} from '../../../../shared/browserViewport';
+
 type BrowserTab = {
   id: string;
   title: string;
@@ -71,6 +78,9 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [localUrls, setLocalUrls] = useState(COMMON_LOCAL_URLS);
   const frameRef = useRef<HTMLImageElement | null>(null);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const frameViewportRef = useRef<BrowserViewportSize>(DEFAULT_BROWSER_VIEWPORT);
+  const sentViewportRef = useRef<BrowserViewportSize | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const pointerFrameRef = useRef<number | null>(null);
   const acceptFramesRef = useRef(false);
@@ -176,8 +186,14 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
         type?: string;
         sessionId?: string;
         mimeType?: string;
+        metadata?: { deviceWidth?: unknown; deviceHeight?: unknown };
       };
       if (header.type !== 'frame' || header.sessionId !== sessionId) return;
+      const frameViewport = normalizeBrowserViewport(
+        header.metadata?.deviceWidth,
+        header.metadata?.deviceHeight,
+      );
+      if (frameViewport) frameViewportRef.current = frameViewport;
       const nextUrl = URL.createObjectURL(new Blob([packet.slice(4 + headerLength)], { type: header.mimeType ?? 'image/jpeg' }));
       setFrameUrl((previous) => {
         if (previous) URL.revokeObjectURL(previous);
@@ -246,15 +262,49 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
     }).catch((nextError) => setError(nextError instanceof Error ? nextError.message : t('workspace.browser.error')));
   }, [sessionId, t]);
 
+  const activeTabId = activeTab?.id ?? null;
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface || !activeTabId) return undefined;
+    sentViewportRef.current = null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const syncViewport = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        const bounds = surface.getBoundingClientRect();
+        const viewport = normalizeBrowserViewport(bounds.width, bounds.height);
+        const previous = sentViewportRef.current;
+        if (!viewport || (previous?.width === viewport.width && previous.height === viewport.height)) return;
+        sentViewportRef.current = viewport;
+        frameViewportRef.current = viewport;
+        sendInput({ kind: 'viewport', ...viewport });
+      }, 80);
+    };
+    syncViewport();
+    const observer = new ResizeObserver(syncViewport);
+    observer.observe(surface);
+    return () => {
+      observer.disconnect();
+      if (timer) clearTimeout(timer);
+    };
+  }, [activeTabId, sendInput]);
+
   const framePoint = useCallback((event: PointerEvent<HTMLImageElement> | WheelEvent<HTMLImageElement>) => {
     const image = frameRef.current;
     if (!image) return null;
     const bounds = image.getBoundingClientRect();
-    if (!bounds.width || !bounds.height || !image.naturalWidth || !image.naturalHeight) return null;
-    return {
-      x: ((event.clientX - bounds.left) / bounds.width) * image.naturalWidth,
-      y: ((event.clientY - bounds.top) / bounds.height) * image.naturalHeight,
-    };
+    return browserFramePoint({
+      clientX: event.clientX,
+      clientY: event.clientY,
+      boundsLeft: bounds.left,
+      boundsTop: bounds.top,
+      boundsWidth: bounds.width,
+      boundsHeight: bounds.height,
+      frameWidth: image.naturalWidth,
+      frameHeight: image.naturalHeight,
+      viewportWidth: frameViewportRef.current.width,
+      viewportHeight: frameViewportRef.current.height,
+    });
   }, []);
 
   const navigate = (event: FormEvent) => {
@@ -378,6 +428,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
       )}
 
       <div
+        ref={surfaceRef}
         tabIndex={0}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
@@ -397,12 +448,23 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
                 const image = frameRef.current;
                 if (!image) return;
                 const bounds = image.getBoundingClientRect();
-                if (!bounds.width || !bounds.height || !image.naturalWidth || !image.naturalHeight) return;
+                const point = browserFramePoint({
+                  clientX,
+                  clientY,
+                  boundsLeft: bounds.left,
+                  boundsTop: bounds.top,
+                  boundsWidth: bounds.width,
+                  boundsHeight: bounds.height,
+                  frameWidth: image.naturalWidth,
+                  frameHeight: image.naturalHeight,
+                  viewportWidth: frameViewportRef.current.width,
+                  viewportHeight: frameViewportRef.current.height,
+                });
+                if (!point) return;
                 sendInput({
                   kind: 'mouse',
                   event: 'move',
-                  x: ((clientX - bounds.left) / bounds.width) * image.naturalWidth,
-                  y: ((clientY - bounds.top) / bounds.height) * image.naturalHeight,
+                  ...point,
                 });
               });
             }}
@@ -423,7 +485,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
               sendInput({ kind: 'wheel', ...point, deltaX: event.deltaX, deltaY: event.deltaY });
             }}
             onContextMenu={(event) => event.preventDefault()}
-            className="h-auto w-full select-none object-contain object-top"
+            className="h-full w-full select-none object-contain"
           />
         ) : (
           <div className="m-auto p-6 text-center text-xs text-white/60">

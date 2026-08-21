@@ -55,10 +55,10 @@ class SidecarHarness {
     });
   }
 
-  async waitForEvent(method: string, timeoutMs = 5_000): Promise<BrowserProtocolFrame> {
+  async waitForEvent(method: string, timeoutMs = 5_000, fromIndex = 0): Promise<BrowserProtocolFrame> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      const event = this.events.find((candidate) => candidate.kind === 'event' && candidate.method === method);
+      const event = this.events.slice(fromIndex).find((candidate) => candidate.kind === 'event' && candidate.method === method);
       if (event) return event;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
@@ -131,6 +131,22 @@ test('real Chromium sidecar shares structured actions, tabs, and screencast stat
   assert.equal(opened.tabs.length, 1);
   await sidecar.request('screencast.subscribe', 'browser-e2e');
   await sidecar.waitForEvent('frame');
+
+  const resizedFrameStart = sidecar.events.length;
+  await sidecar.request('browser.input', 'browser-e2e', {
+    input: { kind: 'viewport', width: 517, height: 742 },
+  });
+  const resized = await sidecar.request('browser.command', 'browser-e2e', {
+    command: { action: 'run', code: '({ width: window.innerWidth, height: window.innerHeight })' },
+  }) as { value: { width: number; height: number } };
+  assert.deepEqual(resized.value, { width: 517, height: 742 });
+  const resizedFrame = await sidecar.waitForEvent('frame', 5_000, resizedFrameStart);
+  assert.equal(resizedFrame.kind === 'event' && resizedFrame.payload.metadata && typeof resizedFrame.payload.metadata === 'object'
+    ? (resizedFrame.payload.metadata as { deviceWidth?: number }).deviceWidth
+    : undefined, 517);
+  assert.equal(resizedFrame.kind === 'event' && resizedFrame.payload.metadata && typeof resizedFrame.payload.metadata === 'object'
+    ? (resizedFrame.payload.metadata as { deviceHeight?: number }).deviceHeight
+    : undefined, 742);
 
   const observed = await sidecar.request('browser.command', 'browser-e2e', {
     command: { action: 'observe' },

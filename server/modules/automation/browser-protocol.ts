@@ -26,7 +26,8 @@ export type BrowserInput =
   | { kind: 'mouse'; event: 'move' | 'down' | 'up'; x: number; y: number; button?: 'left' | 'right' | 'middle'; clickCount?: number }
   | { kind: 'wheel'; x: number; y: number; deltaX: number; deltaY: number }
   | { kind: 'key'; event: 'down' | 'up'; key: string; code?: string; modifiers?: number }
-  | { kind: 'text'; text: string };
+  | { kind: 'text'; text: string }
+  | { kind: 'viewport'; width: number; height: number };
 
 export type BrowserTabState = {
   id: string;

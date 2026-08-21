@@ -25,6 +25,12 @@ import puppeteer, {
 import { PUPPETEER_REVISIONS } from 'puppeteer-core/internal/revisions.js';
 
 import {
+  DEFAULT_BROWSER_VIEWPORT,
+  normalizeBrowserViewport,
+  type BrowserViewportSize,
+} from '../../../shared/browserViewport.js';
+
+import {
   BROWSER_PROTOCOL_VERSION,
   BrowserNdjsonDecoder,
   safeSessionId,
@@ -47,6 +53,8 @@ type Tab = {
   refs: Map<number, number>;
   cdp?: CDPSession;
   screencasting: boolean;
+  screencastListenerAttached: boolean;
+  viewport: BrowserViewportSize;
 };
 
 type Session = {
@@ -66,7 +74,6 @@ type AxNode = {
 
 const CACHE_ROOT = process.env.GAJAE_BROWSER_CACHE_DIR ?? join(homedir(), '.gajae-app', 'browser', 'chromium');
 const PROFILE_ROOT = process.env.GAJAE_BROWSER_PROFILE_DIR ?? join(homedir(), '.gajae-app', 'browser', 'profile');
-const DEFAULT_VIEWPORT = { width: 1280, height: 800 };
 const MAX_RUN_CODE_BYTES = 64 * 1024;
 const MAX_RESULT_TEXT = 256 * 1024;
 
@@ -303,7 +310,17 @@ class BrowserRuntime {
     if (!session) throw new Error('session_not_found: Open the browser session first.');
     const tab = this.activeTab(session);
     const cdp = await this.cdp(tab);
-    if (input.kind === 'mouse') {
+    if (input.kind === 'viewport') {
+      const viewport = normalizeBrowserViewport(input.width, input.height);
+      if (!viewport) throw new Error('invalid_viewport: Browser viewport dimensions must be positive finite numbers.');
+      if (viewport.width !== tab.viewport.width || viewport.height !== tab.viewport.height) {
+        const resumeScreencast = tab.screencasting && session.subscribed && session.activeTabId === tab.id;
+        if (resumeScreencast) await this.stopScreencast(tab);
+        tab.viewport = viewport;
+        await tab.page.setViewport({ ...viewport, deviceScaleFactor: 1 });
+        if (resumeScreencast) await this.startScreencast(session, tab);
+      }
+    } else if (input.kind === 'mouse') {
       await cdp.send('Input.dispatchMouseEvent', {
         type: input.event === 'move' ? 'mouseMoved' : input.event === 'down' ? 'mousePressed' : 'mouseReleased',
         x: input.x,
@@ -392,7 +409,7 @@ class BrowserRuntime {
         executablePath: installed.executablePath,
         userDataDir: PROFILE_ROOT,
         headless: true,
-        defaultViewport: DEFAULT_VIEWPORT,
+        defaultViewport: { ...DEFAULT_BROWSER_VIEWPORT, deviceScaleFactor: 1 },
         downloadBehavior: { policy: 'deny' },
         args: ['--disable-background-networking', '--disable-component-update', '--no-first-run'],
       });
@@ -447,11 +464,19 @@ class BrowserRuntime {
   private async registerPage(session: Session, page: Page): Promise<Tab> {
     const existing = [...session.tabs.values()].find((tab) => tab.page === page);
     if (existing) return existing;
-    const tab: Tab = { id: `tab-${randomUUID()}`, page, loading: false, refs: new Map(), screencasting: false };
+    const tab: Tab = {
+      id: `tab-${randomUUID()}`,
+      page,
+      loading: false,
+      refs: new Map(),
+      screencasting: false,
+      screencastListenerAttached: false,
+      viewport: DEFAULT_BROWSER_VIEWPORT,
+    };
     session.tabs.set(tab.id, tab);
     session.activeTabId = tab.id;
     this.ownerByTarget.set(page.target(), session.id);
-    await page.setViewport(DEFAULT_VIEWPORT);
+    await page.setViewport({ ...DEFAULT_BROWSER_VIEWPORT, deviceScaleFactor: 1 });
     const cdp = await this.cdp(tab);
     const rememberMainFrame = (frameId: string) => {
       this.ownerByFrameId.set(frameId, { sessionId: session.id, tabId: tab.id });
@@ -548,16 +573,19 @@ class BrowserRuntime {
     if (tab.screencasting || tab.page.isClosed()) return;
     const cdp = await this.cdp(tab);
     tab.screencasting = true;
-    cdp.on('Page.screencastFrame', (event) => {
-      void cdp.send('Page.screencastFrameAck', { sessionId: event.sessionId }).catch(() => {});
-      if (!tab.screencasting || session.activeTabId !== tab.id || !session.subscribed) return;
-      emit('frame', {
-        tabId: tab.id,
-        mimeType: 'image/jpeg',
-        data: event.data,
-        metadata: event.metadata as unknown as Record<string, unknown>,
-      }, session.id);
-    });
+    if (!tab.screencastListenerAttached) {
+      tab.screencastListenerAttached = true;
+      cdp.on('Page.screencastFrame', (event) => {
+        void cdp.send('Page.screencastFrameAck', { sessionId: event.sessionId }).catch(() => {});
+        if (!tab.screencasting || session.activeTabId !== tab.id || !session.subscribed) return;
+        emit('frame', {
+          tabId: tab.id,
+          mimeType: 'image/jpeg',
+          data: event.data,
+          metadata: event.metadata as unknown as Record<string, unknown>,
+        }, session.id);
+      });
+    }
     await cdp.send('Page.startScreencast', {
       format: 'jpeg', quality: 70, maxWidth: 1440, maxHeight: 900, everyNthFrame: 1,
     });
@@ -717,9 +745,13 @@ function enqueue(frame: BrowserRequestFrame): void {
   // These operations are the cancellation/control plane. They must not sit
   // behind a long page wait or run from the same session. Closing a page makes
   // Puppeteer's in-flight operation reject, which drains that session queue.
+  // Viewport changes are the exception among browser inputs: resizing restarts
+  // the screencast, so preserve their order instead of racing stop/start calls.
+  const isRealtimeBrowserInput = frame.method === 'browser.input'
+    && object(frame.payload.input).kind !== 'viewport';
   if (frame.method === 'session.close'
       || frame.method === 'screencast.unsubscribe'
-      || frame.method === 'browser.input'
+      || isRealtimeBrowserInput
       || frame.method === 'shutdown') {
     void handle(frame).catch(reportQueueError);
     return;

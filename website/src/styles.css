@@ -205,8 +205,27 @@ summary {
   padding-bottom: 10rem;
 }
 
-.product-overview img,
+.product-overview-copy {
+  max-width: 42rem;
+  margin-bottom: 2.25rem;
+}
+
+.product-overview-copy h2 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.product-overview-copy > p:last-child {
+  margin: 0.9rem 0 0;
+  color: var(--secondary);
+}
+
+.product-overview video,
 .detail img {
+  display: block;
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 0.85rem;

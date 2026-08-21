@@ -82,8 +82,24 @@ export function renderLandingPage() {
           </p>
         </section>
 
-        <section class="product-overview" id="features" aria-label="Gajae Code App workspace">
-          <img src="./screenshots/english-workflow-light.jpg" alt="Gajae Code App summarizing an English task dashboard build and Chromium verification" />
+        <section class="product-overview" id="features" aria-label="Gajae Code App build workflow">
+          <div class="product-overview-copy">
+            <p class="eyebrow">Real workflow · Latest beta</p>
+            <h2>Watch the work happen.</h2>
+            <p>An English request becomes a code search, a patch, and a live check in the built-in Browser—all in the same session.</p>
+          </div>
+          <video
+            autoplay
+            controls
+            loop
+            muted
+            playsinline
+            preload="metadata"
+            poster="./demos/gajae-build-process-poster.jpg"
+            aria-label="Gajae Code App editing a dashboard and verifying it in the built-in Browser"
+          >
+            <source src="./demos/gajae-build-process.mp4" type="video/mp4" />
+          </video>
         </section>
 
         <section class="details" id="workflow" aria-label="Product details">

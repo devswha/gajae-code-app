@@ -27,9 +27,12 @@ test('explains the unnotarized macOS beta before download', () => {
   assert.match(html, /id="macos-install"/);
 });
 
-test('uses real product screenshots instead of fabricated workflow samples', () => {
+test('uses a real latest-beta workflow recording and supporting product screenshots', () => {
   const html = renderLandingPage();
-  assert.ok(html.includes('screenshots/english-workflow-light.jpg'));
+  assert.ok(html.includes('demos/gajae-build-process.mp4'));
+  assert.ok(html.includes('demos/gajae-build-process-poster.jpg'));
+  assert.match(html, /<video[\s\S]*autoplay[\s\S]*controls[\s\S]*muted[\s\S]*playsinline/);
+  assert.match(html, /Real workflow · Latest beta/);
   assert.ok(html.includes('screenshots/model-reasoning-light.jpg'));
   assert.ok(html.includes('screenshots/browser-verification-light.jpg'));
   assert.equal(html.includes('Live timeline'), false);

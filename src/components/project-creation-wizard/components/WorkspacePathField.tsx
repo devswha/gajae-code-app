@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FolderOpen } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { Button, Input } from '../../../shared/view/ui';
 import { browseFilesystemFolders } from '../data/workspaceApi';
@@ -21,6 +22,7 @@ export default function WorkspacePathField({
   onChange,
   onAdvanceToConfirm,
 }: WorkspacePathFieldProps) {
+  const { t } = useTranslation();
   const [pathSuggestions, setPathSuggestions] = useState<FolderSuggestion[]>([]);
   const [showPathDropdown, setShowPathDropdown] = useState(false);
   const [showFolderBrowser, setShowFolderBrowser] = useState(false);
@@ -88,21 +90,22 @@ export default function WorkspacePathField({
             type="text"
             value={value}
             onChange={(event) => onChange(event.target.value)}
-            placeholder="/path/to/project/workspace"
+            placeholder={t('projectWizard.step2.existingPlaceholder')}
             className="w-full"
             disabled={disabled}
           />
 
           {showPathDropdown && pathSuggestions.length > 0 && (
-            <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+            <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-xl">
               {pathSuggestions.map((suggestion) => (
                 <button
                   key={suggestion.path}
+                  type="button"
                   onClick={() => handleSuggestionSelect(suggestion)}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="w-full rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent"
                 >
-                  <div className="font-medium text-gray-900 dark:text-white">{suggestion.name}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{suggestion.path}</div>
+                  <div className="text-foreground">{suggestion.name}</div>
+                  <div className="truncate text-[11px] text-muted-foreground">{suggestion.path}</div>
                 </button>
               ))}
             </div>
@@ -114,7 +117,8 @@ export default function WorkspacePathField({
           variant="outline"
           onClick={() => setShowFolderBrowser(true)}
           className="px-3"
-          title="Browse folders"
+          title={t('projectWizard.folderBrowser.browseFolders')}
+          aria-label={t('projectWizard.folderBrowser.browseFolders')}
           disabled={disabled}
         >
           <FolderOpen className="h-4 w-4" />

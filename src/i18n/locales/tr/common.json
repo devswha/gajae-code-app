@@ -203,6 +203,22 @@
       "providePath": "Lütfen bir çalışma alanı yolu gir",
       "failedToCreate": "Çalışma alanı oluşturulamadı",
       "failedToCreateFolder": "Klasör oluşturulamadı"
+    },
+    "folderBrowser": {
+      "title": "Klasör Seç",
+      "showHiddenFolders": "Gizli klasörleri göster",
+      "hideHiddenFolders": "Gizli klasörleri gizle",
+      "createNewFolder": "Yeni klasör oluştur",
+      "close": "Klasör tarayıcısını kapat",
+      "newFolderName": "Yeni klasör adı",
+      "create": "Oluştur",
+      "cancel": "İptal",
+      "failedToLoad": "Klasörler yüklenemedi",
+      "failedToCreate": "Klasör oluşturulamadı",
+      "noSubfolders": "Alt klasör bulunamadı",
+      "path": "Yol:",
+      "useThisFolder": "Bu klasörü kullan",
+      "browseFolders": "Klasörlere göz at"
     }
   },
   "notifications": {

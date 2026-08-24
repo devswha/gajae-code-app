@@ -203,6 +203,22 @@
       "providePath": "워크스페이스 경로를 입력해주세요",
       "failedToCreate": "워크스페이스 생성 실패",
       "failedToCreateFolder": "폴더 생성 실패"
+    },
+    "folderBrowser": {
+      "title": "폴더 선택",
+      "showHiddenFolders": "숨김 폴더 표시",
+      "hideHiddenFolders": "숨김 폴더 숨기기",
+      "createNewFolder": "새 폴더 만들기",
+      "close": "폴더 브라우저 닫기",
+      "newFolderName": "새 폴더 이름",
+      "create": "만들기",
+      "cancel": "취소",
+      "failedToLoad": "폴더를 불러오지 못했습니다",
+      "failedToCreate": "폴더를 만들지 못했습니다",
+      "noSubfolders": "하위 폴더가 없습니다",
+      "path": "경로:",
+      "useThisFolder": "이 폴더 사용",
+      "browseFolders": "폴더 찾아보기"
     }
   },
   "notifications": {

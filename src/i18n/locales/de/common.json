@@ -203,6 +203,22 @@
       "providePath": "Bitte gib einen Arbeitsbereichspfad an",
       "failedToCreate": "Arbeitsbereich konnte nicht erstellt werden",
       "failedToCreateFolder": "Ordner konnte nicht erstellt werden"
+    },
+    "folderBrowser": {
+      "title": "Ordner auswählen",
+      "showHiddenFolders": "Ausgeblendete Ordner anzeigen",
+      "hideHiddenFolders": "Ausgeblendete Ordner ausblenden",
+      "createNewFolder": "Neuen Ordner erstellen",
+      "close": "Ordnerauswahl schließen",
+      "newFolderName": "Neuer Ordnername",
+      "create": "Erstellen",
+      "cancel": "Abbrechen",
+      "failedToLoad": "Ordner konnten nicht geladen werden",
+      "failedToCreate": "Ordner konnte nicht erstellt werden",
+      "noSubfolders": "Keine Unterordner gefunden",
+      "path": "Pfad:",
+      "useThisFolder": "Diesen Ordner verwenden",
+      "browseFolders": "Ordner durchsuchen"
     }
   },
   "versionUpdate": {

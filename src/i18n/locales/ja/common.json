@@ -203,6 +203,22 @@
       "providePath": "ワークスペースのパスを入力してください",
       "failedToCreate": "ワークスペースの作成に失敗しました",
       "failedToCreateFolder": "フォルダの作成に失敗しました"
+    },
+    "folderBrowser": {
+      "title": "フォルダを選択",
+      "showHiddenFolders": "隠しフォルダを表示",
+      "hideHiddenFolders": "隠しフォルダを非表示",
+      "createNewFolder": "新しいフォルダを作成",
+      "close": "フォルダブラウザを閉じる",
+      "newFolderName": "新しいフォルダ名",
+      "create": "作成",
+      "cancel": "キャンセル",
+      "failedToLoad": "フォルダの読み込みに失敗しました",
+      "failedToCreate": "フォルダの作成に失敗しました",
+      "noSubfolders": "サブフォルダが見つかりません",
+      "path": "パス:",
+      "useThisFolder": "このフォルダを使用",
+      "browseFolders": "フォルダを参照"
     }
   },
   "notifications": {

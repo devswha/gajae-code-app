@@ -203,6 +203,22 @@
       "providePath": "請提供工作區路徑",
       "failedToCreate": "建立工作區失敗",
       "failedToCreateFolder": "建立資料夾失敗"
+    },
+    "folderBrowser": {
+      "title": "選擇資料夾",
+      "showHiddenFolders": "顯示隱藏資料夾",
+      "hideHiddenFolders": "隱藏隱藏資料夾",
+      "createNewFolder": "建立新資料夾",
+      "close": "關閉資料夾瀏覽器",
+      "newFolderName": "新資料夾名稱",
+      "create": "建立",
+      "cancel": "取消",
+      "failedToLoad": "載入資料夾失敗",
+      "failedToCreate": "建立資料夾失敗",
+      "noSubfolders": "找不到子資料夾",
+      "path": "路徑：",
+      "useThisFolder": "使用此資料夾",
+      "browseFolders": "瀏覽資料夾"
     }
   },
   "notifications": {

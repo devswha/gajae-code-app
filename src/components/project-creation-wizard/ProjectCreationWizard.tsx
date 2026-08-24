@@ -50,7 +50,7 @@ export default function ProjectCreationWizard({
   }, [onClose, onProjectCreated, t, workspacePath]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
       <div
         role="dialog"
         aria-modal="true"

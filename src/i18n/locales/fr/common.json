@@ -203,6 +203,22 @@
       "providePath": "Veuillez fournir un chemin d'espace de travail",
       "failedToCreate": "Échec de la création de l'espace de travail",
       "failedToCreateFolder": "Échec de la création du dossier"
+    },
+    "folderBrowser": {
+      "title": "Sélectionner un dossier",
+      "showHiddenFolders": "Afficher les dossiers masqués",
+      "hideHiddenFolders": "Masquer les dossiers masqués",
+      "createNewFolder": "Créer un dossier",
+      "close": "Fermer le navigateur de dossiers",
+      "newFolderName": "Nom du nouveau dossier",
+      "create": "Créer",
+      "cancel": "Annuler",
+      "failedToLoad": "Échec du chargement des dossiers",
+      "failedToCreate": "Échec de la création du dossier",
+      "noSubfolders": "Aucun sous-dossier trouvé",
+      "path": "Chemin :",
+      "useThisFolder": "Utiliser ce dossier",
+      "browseFolders": "Parcourir les dossiers"
     }
   },
   "notifications": {

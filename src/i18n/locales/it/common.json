@@ -203,6 +203,22 @@
       "providePath": "Fornisci un percorso per l'area di lavoro",
       "failedToCreate": "Impossibile creare l'area di lavoro",
       "failedToCreateFolder": "Impossibile creare la cartella"
+    },
+    "folderBrowser": {
+      "title": "Seleziona cartella",
+      "showHiddenFolders": "Mostra cartelle nascoste",
+      "hideHiddenFolders": "Nascondi cartelle nascoste",
+      "createNewFolder": "Crea nuova cartella",
+      "close": "Chiudi browser delle cartelle",
+      "newFolderName": "Nome della nuova cartella",
+      "create": "Crea",
+      "cancel": "Annulla",
+      "failedToLoad": "Impossibile caricare le cartelle",
+      "failedToCreate": "Impossibile creare la cartella",
+      "noSubfolders": "Nessuna sottocartella trovata",
+      "path": "Percorso:",
+      "useThisFolder": "Usa questa cartella",
+      "browseFolders": "Sfoglia cartelle"
     }
   },
   "notifications": {

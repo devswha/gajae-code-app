@@ -203,6 +203,22 @@
       "providePath": "Пожалуйста, укажите путь к рабочему пространству",
       "failedToCreate": "Не удалось создать рабочее пространство",
       "failedToCreateFolder": "Не удалось создать папку"
+    },
+    "folderBrowser": {
+      "title": "Выберите папку",
+      "showHiddenFolders": "Показать скрытые папки",
+      "hideHiddenFolders": "Скрыть скрытые папки",
+      "createNewFolder": "Создать новую папку",
+      "close": "Закрыть браузер папок",
+      "newFolderName": "Имя новой папки",
+      "create": "Создать",
+      "cancel": "Отмена",
+      "failedToLoad": "Не удалось загрузить папки",
+      "failedToCreate": "Не удалось создать папку",
+      "noSubfolders": "Подпапки не найдены",
+      "path": "Путь:",
+      "useThisFolder": "Использовать эту папку",
+      "browseFolders": "Обзор папок"
     }
   },
   "versionUpdate": {

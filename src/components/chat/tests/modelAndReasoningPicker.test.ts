@@ -48,6 +48,30 @@ test('deriveSessionModelOptions groups executable runtime models by provider', (
   assert.equal(new Set(all).size, all.length);
 });
 
+test('a missing runtime catalog falls back to preset roles instead of an empty picker', () => {
+  // Backends without MODELS (or a failed worker) must not disable the tab.
+  const groups = deriveSessionModelOptions([], catalog);
+
+  const all = groups.flatMap((group) => group.models.map((model) => model.value));
+  assert.deepEqual(all.sort(), ['anthropic/claude-opus-4', 'custom/codex', 'openai/gpt-5.6-sol']);
+  // Effort suffixes are stripped and labels compact to the bare model id.
+  assert.deepEqual(groups.find((group) => group.group === 'openai')?.models, [
+    { value: 'openai/gpt-5.6-sol', label: 'gpt-5.6-sol' },
+  ]);
+});
+
+test('runtime models stay authoritative over preset roles when present', () => {
+  const groups = deriveSessionModelOptions(
+    [{ value: 'cursor/composer-2.5', label: 'Composer 2.5' }],
+    catalog,
+  );
+
+  assert.deepEqual(groups, [{
+    group: 'cursor',
+    models: [{ value: 'cursor/composer-2.5', label: 'Composer 2.5' }],
+  }]);
+});
+
 test('effort suffixes never leak into runtime model rows', () => {
   const groups = deriveSessionModelOptions([
     {

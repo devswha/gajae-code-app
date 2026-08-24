@@ -84,15 +84,31 @@ const providerRank = (provider: string): number => {
  * Models the GJC worker reports as executable with the currently stored
  * subscriptions, grouped by their concrete provider. Preset roles can contain
  * an unavailable provider variant (for example OpenAI Codex while the same
- * canonical model is supplied by Cursor), so they must not author this list.
+ * canonical model is supplied by Cursor), so they must not author this list
+ * while runtime availability is known. When the runtime catalog is missing
+ * entirely (backend without `MODELS`, worker startup failure, stale cache),
+ * the preset role selectors keep the picker usable instead of rendering a
+ * dead, disabled control.
  */
 export function deriveSessionModelOptions(
   modelOptions: ProviderModelOption[],
+  presetOptions: ProviderModelOption[] = [],
 ): Array<{ group: string; models: Array<{ value: string; label: string }> }> {
   const seen = new Map<string, string>();
   for (const option of modelOptions) {
     const model = stripEffortSuffix(option.value.trim());
     if (model.includes('/') && !seen.has(model)) seen.set(model, option.label || compactModel(model));
+  }
+  if (seen.size === 0) {
+    for (const option of presetOptions) {
+      for (const selector of Object.values(option.roles ?? {})) {
+        // A model selector always reads provider/model; anything else (e.g. a
+        // profile name leaking out of config.yml) is not a selectable model.
+        if (typeof selector !== 'string') continue;
+        const model = stripEffortSuffix(selector.trim());
+        if (model.includes('/') && !seen.has(model)) seen.set(model, compactModel(model));
+      }
+    }
   }
   const groups = new Map<string, Array<{ value: string; label: string }>>();
   for (const [value, label] of [...seen.entries()].sort((left, right) => left[1].localeCompare(right[1]))) {
@@ -187,7 +203,10 @@ export default function ModelAndReasoningPicker({
   const popupRef = useRef<HTMLDivElement>(null);
   const [popupPosition, setPopupPosition] = useState({ bottom: 0, left: 0 });
 
-  const groups = useMemo(() => deriveSessionModelOptions(modelOptions), [modelOptions]);
+  const groups = useMemo(
+    () => deriveSessionModelOptions(modelOptions, presetOptions),
+    [modelOptions, presetOptions],
+  );
   const displayModel = resolveDisplayModel(value, currentModel, presetOptions);
   const displayModelLabel = modelDisplayLabel(displayModel, modelOptions);
   const isRawSelection = value !== DEFAULT_MODEL_VALUE && !value.startsWith('profile:');

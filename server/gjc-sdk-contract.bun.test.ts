@@ -270,6 +270,15 @@ async function fixture(
     authStorage,
     getAll: () => models,
     getAvailable: () => models,
+    getCanonicalModelSelections: (query: { candidates?: typeof models } = {}) =>
+      (query.candidates ?? models).map((model) => ({
+        record: {
+          id: model.id,
+          name: 'name' in model && typeof model.name === 'string' ? model.name : model.id,
+          variants: [{ canonicalId: model.id, selector: `${model.provider}/${model.id}`, model, source: 'bundled' }],
+        },
+        model,
+      })),
     getModelProfile: () => undefined,
     async refresh() { trace.push('modelRegistry.refresh'); },
   };
@@ -660,6 +669,7 @@ test('model catalog reports the runtime-supported reasoning levels', async () =>
     } as never,
   );
   try {
+    f.authStorage.credentials.push({ id: 1, provider: 'contract-provider' });
     await f.host.handle(request('models.catalog', 'model-catalog'));
     const payload = response(f.frames, 'model-catalog').payload as Record<string, unknown>;
     assert.deepEqual(payload, {
@@ -669,10 +679,33 @@ test('model catalog reports the runtime-supported reasoning levels', async () =>
           value: 'contract-provider/reasoning-model',
           label: 'Reasoning Model',
           group: 'contract-provider',
+          canonicalId: 'reasoning-model',
           effort: { values: [{ value: 'low' }, { value: 'high' }] },
         }],
       },
     });
+  } finally {
+    await f.close();
+  }
+});
+
+test('model catalog only exposes models backed by a stored subscription', async () => {
+  const f = await fixture(
+    'subscribed-model',
+    undefined,
+    [
+      { id: 'subscribed-model', name: 'Subscribed', provider: 'cursor' },
+      { id: 'unavailable-model', name: 'Unavailable', provider: 'openai-codex' },
+    ] as never,
+  );
+  try {
+    f.authStorage.credentials.push({ id: 25, provider: 'cursor' });
+    await f.host.handle(request('models.catalog', 'stored-model-catalog'));
+    const payload = response(f.frames, 'stored-model-catalog').payload as {
+      result: { models: Array<{ value: string }> };
+    };
+
+    assert.deepEqual(payload.result.models.map((model) => model.value), ['cursor/subscribed-model']);
   } finally {
     await f.close();
   }

@@ -25,8 +25,13 @@ const catalog: ProviderModelOption[] = [
   { value: 'profile:empty', label: 'No roles' },
 ];
 
-test('deriveSessionModelOptions unions role models, dedupes, and groups by provider', () => {
-  const groups = deriveSessionModelOptions(catalog);
+test('deriveSessionModelOptions groups executable runtime models by provider', () => {
+  const groups = deriveSessionModelOptions([
+    { value: 'openai/gpt-5.6-sol', label: 'Sol' },
+    { value: 'anthropic/claude-opus-4', label: 'Opus' },
+    { value: 'custom/codex', label: 'Codex' },
+    { value: 'openai/gpt-5.6-sol', label: 'Sol duplicate' },
+  ]);
 
   assert.deepEqual(groups.map((group) => group.group), ['anthropic', 'custom', 'openai']);
   assert.deepEqual(groups.find((group) => group.group === 'openai')?.models, ['openai/gpt-5.6-sol']);
@@ -36,17 +41,19 @@ test('deriveSessionModelOptions unions role models, dedupes, and groups by provi
   assert.equal(new Set(all).size, all.length);
 });
 
-test('effort suffixes never leak into the model list: variants collapse to one base id', () => {
+test('effort suffixes never leak into runtime model rows', () => {
   const groups = deriveSessionModelOptions([
     {
-      value: 'profile:a',
+      value: 'anthropic/claude-fable-5:medium',
       label: 'A',
-      roles: { default: 'anthropic/claude-fable-5:medium', critic: 'anthropic/claude-fable-5:high' },
     },
     {
-      value: 'profile:b',
+      value: 'anthropic/claude-fable-5:high',
       label: 'B',
-      roles: { default: 'anthropic/claude-fable-5:xhigh', executor: 'openai-codex/gpt-5.6-terra:xhigh' },
+    },
+    {
+      value: 'openai-codex/gpt-5.6-terra:xhigh',
+      label: 'Terra',
     },
   ]);
 
@@ -70,7 +77,7 @@ test('legacy fallback sequences cannot leak brackets or secondary models into th
     { value: 'default', label: 'Current', roles: { default: fallback } },
   ]), 'glm-zcode53/glm-5.3');
   assert.deepEqual(deriveSessionModelOptions([
-    { value: 'default', label: 'Current', roles: { default: fallback } },
+    { value: fallback, label: 'Fallback' },
   ]), [{ group: 'glm-zcode53', models: ['glm-zcode53/glm-5.3'] }]);
 });
 
@@ -95,27 +102,18 @@ test('resolveDisplayModel falls back to the selected preset default role, then C
 
 test('provider groups follow the requested order: codex, claude, kimi, glm, grok, then rest', () => {
   const groups = deriveSessionModelOptions([
-    {
-      value: 'profile:mix',
-      label: 'Mix',
-      roles: {
-        default: 'anthropic/claude-opus-5:xhigh',
-        planner: 'kimi-code/k3:high',
-        executor: 'openai-codex/gpt-5.6-terra:xhigh',
-        architect: 'zai/glm-5',
-        critic: 'xai/grok-5:high',
-      },
-    },
-    {
-      value: 'profile:rest',
-      label: 'Rest',
-      roles: { default: 'cursor/composer-2', planner: 'alibaba-token-plan/qwen3.7-max' },
-    },
+    { value: 'anthropic/claude-opus-5:xhigh', label: 'Claude' },
+    { value: 'kimi-code/k3:high', label: 'Kimi' },
+    { value: 'openai-codex/gpt-5.6-terra:xhigh', label: 'Codex' },
+    { value: 'zai/glm-5', label: 'GLM' },
+    { value: 'xai/grok-5:high', label: 'Grok' },
+    { value: 'cursor/composer-2', label: 'Cursor' },
+    { value: 'alibaba-token-plan/qwen3.7-max', label: 'Qwen' },
   ]);
 
   assert.deepEqual(
     groups.map((group) => group.group),
-    ['openai-codex', 'anthropic', 'kimi-code', 'zai', 'xai', 'alibaba-token-plan', 'cursor'],
+    ['openai-codex', 'cursor', 'anthropic', 'kimi-code', 'zai', 'xai', 'alibaba-token-plan'],
   );
 });
 
@@ -141,7 +139,7 @@ test('a profile-name reference never renders as a model and resolves through the
     'anthropic/claude-fable-5',
   );
   // The bare profile name is filtered out of the selectable model list.
-  const models = deriveSessionModelOptions(referencing).flatMap((group) => group.models);
+  const models = deriveSessionModelOptions([]).flatMap((group) => group.models);
   assert.ok(!models.includes('fable-opus-codex'));
   // An unresolvable reference falls back to no display rather than a bogus id.
   assert.equal(

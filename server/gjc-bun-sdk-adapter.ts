@@ -265,7 +265,13 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   modelCatalog() {
     const seen = new Set<string>();
     const models = [];
-    for (const model of this.modelRegistry.getAll()) {
+    const candidates = modelsForCredential(this.authStorage, this.modelRegistry, { kind: 'stored' });
+    const selections = this.modelRegistry.getCanonicalModelSelections({
+      availableOnly: true,
+      candidates,
+    });
+    for (const { record, model } of selections) {
+      if (!model) continue;
       const value = `${model.provider}/${model.id}`;
       if (seen.has(value)) continue;
       seen.add(value);
@@ -275,8 +281,9 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       }
       models.push({
         value,
-        label: model.name || model.id,
+        label: record.name || model.name || model.id,
         group: model.provider,
+        canonicalId: record.id,
         effort: {
           values: efforts.map((effort) => ({ value: effort })),
         },

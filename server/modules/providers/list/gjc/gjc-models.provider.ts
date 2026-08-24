@@ -35,7 +35,11 @@ function record(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function parseRuntimeModels(value: unknown): NonNullable<ProviderModelsDefinition['MODELS']> {
+type RuntimeModelOption = NonNullable<ProviderModelsDefinition['MODELS']>[number] & {
+  canonicalId?: string;
+};
+
+function parseRuntimeModels(value: unknown): RuntimeModelOption[] {
   const response = record(value);
   const result = response?.ok === true ? record(response.result) : response;
   if (!Array.isArray(result?.models)) return [];
@@ -58,6 +62,9 @@ function parseRuntimeModels(value: unknown): NonNullable<ProviderModelsDefinitio
       value: model.value,
       label: model.label,
       ...(typeof model.group === 'string' ? { group: model.group } : {}),
+      ...(typeof model.canonicalId === 'string' && model.canonicalId
+        ? { canonicalId: model.canonicalId }
+        : {}),
       effort: { values },
     }];
   });
@@ -196,14 +203,20 @@ export class GjcProviderModels implements IProviderModels {
   ) {}
 
   /**
-   * The GJC catalog is parsed from `config.yml` and `models.yml` in the agent
-   * directory — no network — so editing either one (or the CLI's own /model
-   * command doing it) must invalidate the cache immediately rather than after
-   * the multi-day TTL.
+   * The preset catalog comes from `config.yml` and `models.yml`, while runtime
+   * availability comes from the shared credential database. SQLite may keep a
+   * live write in its WAL, so all three auth files participate in the revision.
+   * This lets a terminal login/logout immediately invalidate the app cache.
    */
   async getCatalogRevision(): Promise<number | null> {
     const agentDir = path.join(this.homeDir, '.gjc', 'agent');
-    const stamps = await Promise.all(['config.yml', 'models.yml'].map(
+    const stamps = await Promise.all([
+      'config.yml',
+      'models.yml',
+      'agent.db',
+      'agent.db-wal',
+      'agent.db-shm',
+    ].map(
       (name) => stat(path.join(agentDir, name)).then((info) => info.mtimeMs).catch(() => 0),
     ));
     const newest = Math.max(...stamps);
@@ -217,13 +230,22 @@ export class GjcProviderModels implements IProviderModels {
     ]);
     const base = catalog.OPTIONS.length > 1 ? catalog : GJC_FALLBACK_MODELS;
     const referencedModels = new Set(base.OPTIONS.flatMap((option) =>
-      Object.values(option.roles ?? {}).flatMap((selector) =>
-        selector.includes('/')
-          ? [selector.replace(/:(?:off|minimal|low|medium|high|xhigh|max)$/, '')]
-          : [],
+      Object.values(option.roles ?? {}).map((selector) =>
+        selector.replace(/:(?:off|minimal|low|medium|high|xhigh|max)$/, ''),
       ),
     ));
-    const models = parseRuntimeModels(runtimeCatalog).filter((model) => referencedModels.has(model.value));
+    const referencedCanonicalIds = new Set(
+      [...referencedModels].map((selector) => selector.split('/').pop() ?? selector),
+    );
+    const models = parseRuntimeModels(runtimeCatalog)
+      .filter((model) => referencedModels.has(model.value)
+        || (model.canonicalId !== undefined && referencedCanonicalIds.has(model.canonicalId)))
+      .map((model) => ({
+        value: model.value,
+        label: model.label,
+        ...(model.group ? { group: model.group } : {}),
+        effort: model.effort,
+      }));
     return models.length > 0 ? { ...base, MODELS: models } : base;
   }
 

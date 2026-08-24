@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -196,4 +196,56 @@ test('runtime model metadata carries each model supported reasoning efforts', as
       effort: { values: [] },
     },
   ]);
+});
+
+test('runtime canonical models map stale preset providers to an active subscription', async (t) => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-subscription-'));
+  t.after(() => rm(homeDir, { recursive: true, force: true }));
+  const agentDir = path.join(homeDir, '.gjc', 'agent');
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'config.yml'), `modelRoles:
+  default: openai-codex/gpt-5.6-sol:medium
+`, 'utf8');
+
+  const catalog = await new GjcProviderModels(homeDir, async () => ({
+    ok: true,
+    result: {
+      models: [
+        {
+          value: 'cursor/gpt-5.6-sol-high',
+          label: 'GPT-5.6 Sol',
+          group: 'cursor',
+          canonicalId: 'gpt-5.6-sol',
+          effort: { values: [] },
+        },
+        {
+          value: 'cursor/unreferenced-model',
+          label: 'Unreferenced',
+          group: 'cursor',
+          canonicalId: 'unreferenced-model',
+          effort: { values: [] },
+        },
+      ],
+    },
+  })).getSupportedModels();
+
+  assert.deepEqual(catalog.MODELS?.map((model) => model.value), ['cursor/gpt-5.6-sol-high']);
+});
+
+test('credential database WAL changes invalidate the model catalog revision', async (t) => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-auth-revision-'));
+  t.after(() => rm(homeDir, { recursive: true, force: true }));
+  const agentDir = path.join(homeDir, '.gjc', 'agent');
+  await mkdir(agentDir, { recursive: true });
+  const configPath = path.join(agentDir, 'config.yml');
+  const walPath = path.join(agentDir, 'agent.db-wal');
+  await writeFile(configPath, '', 'utf8');
+  await writeFile(walPath, '', 'utf8');
+  await utimes(configPath, 10, 10);
+  await utimes(walPath, 20, 20);
+
+  const models = new GjcProviderModels(homeDir);
+  assert.equal(await models.getCatalogRevision(), 20_000);
+  await utimes(walPath, 30, 30);
+  assert.equal(await models.getCatalogRevision(), 30_000);
 });

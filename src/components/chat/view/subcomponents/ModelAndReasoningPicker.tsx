@@ -20,7 +20,7 @@ type ModelAndReasoningPickerProps = {
   value: string;
   /** Model the session runtime last reported; wins for display when present. */
   currentModel?: string;
-  /** Preset catalog; the raw model choices are derived from its role mappings. */
+  /** Preset catalog used to resolve the current/default display label. */
   presetOptions: ProviderModelOption[];
   /** Runtime model metadata, including the exact efforts GJC exposes per model. */
   modelOptions: ProviderModelOption[];
@@ -46,7 +46,7 @@ export const stripEffortSuffix = (selector: string): string =>
     .replace(/:(?:off|minimal|low|medium|high|xhigh|max)$/, '');
 
 /** Display order requested for provider groups; unlisted providers follow alphabetically. */
-const PROVIDER_ORDER = ['openai-codex', 'anthropic', 'kimi-code', 'zai', 'xai', 'grok-build'];
+const PROVIDER_ORDER = ['openai-codex', 'cursor', 'anthropic', 'kimi-code', 'zai', 'xai', 'grok-build'];
 
 const providerRank = (provider: string): number => {
   const index = PROVIDER_ORDER.indexOf(provider);
@@ -54,21 +54,18 @@ const providerRank = (provider: string): number => {
 };
 
 /**
- * Unique raw model ids mentioned by any preset role, grouped by provider
- * prefix. Runtime metadata supplies capabilities for these rows separately;
- * role mappings remain the authority for which models this focused picker
- * offers.
+ * Models the GJC worker reports as executable with the currently stored
+ * subscriptions, grouped by their concrete provider. Preset roles can contain
+ * an unavailable provider variant (for example OpenAI Codex while the same
+ * canonical model is supplied by Cursor), so they must not author this list.
  */
 export function deriveSessionModelOptions(
-  presetOptions: ProviderModelOption[],
+  modelOptions: ProviderModelOption[],
 ): Array<{ group: string; models: string[] }> {
   const seen = new Set<string>();
-  for (const option of presetOptions) {
-    for (const selector of Object.values(option.roles ?? {})) {
-      // A model selector always reads provider/model; anything else (e.g. a
-      // profile name leaking out of config.yml) is not a selectable model.
-      if (typeof selector === 'string' && selector.includes('/')) seen.add(stripEffortSuffix(selector.trim()));
-    }
+  for (const option of modelOptions) {
+    const model = stripEffortSuffix(option.value.trim());
+    if (model.includes('/')) seen.add(model);
   }
   const groups = new Map<string, string[]>();
   for (const model of [...seen].sort()) {
@@ -150,7 +147,7 @@ export default function ModelAndReasoningPicker({
   const popupRef = useRef<HTMLDivElement>(null);
   const [popupPosition, setPopupPosition] = useState({ bottom: 0, left: 0 });
 
-  const groups = useMemo(() => deriveSessionModelOptions(presetOptions), [presetOptions]);
+  const groups = useMemo(() => deriveSessionModelOptions(modelOptions), [modelOptions]);
   const displayModel = resolveDisplayModel(value, currentModel, presetOptions);
   const isRawSelection = value !== DEFAULT_MODEL_VALUE && !value.startsWith('profile:');
   const reasoningLabel = REASONING_EFFORT_LABELS[reasoningEffort];

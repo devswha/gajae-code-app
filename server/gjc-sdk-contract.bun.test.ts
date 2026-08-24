@@ -295,7 +295,7 @@ async function fixture(
   };
   const adapter = new GjcBunSdkAdapter(authStorage as never, modelRegistry as never, {
     createSessionFactory: factory,
-    settings: settings as never,
+    ...(adapterOptionOverrides.loadSettings ? {} : { settings: settings as never }),
     executeBuiltinCommand,
     ...(oauthTimeoutMs === undefined ? {} : { oauth: { timeoutMs: oauthTimeoutMs } }),
     ...adapterOptionOverrides,
@@ -1111,6 +1111,52 @@ test('default model role resolves deterministically and is reported in the start
     await run;
     assert.equal(f.factoryOptions[0]!.model && (f.factoryOptions[0]!.model as { id: string }).id, 'contract-model');
     assert.equal(((response(f.frames, 'default-model').payload as Record<string, unknown>).result as Record<string, unknown>).model, 'contract-model');
+  } finally { await f.close(); }
+});
+test('settings loader resolves the current default model role for each run', async () => {
+  let loads = 0;
+  const settingsFor = (modelId: string) => ({
+    getModelRole: () => `contract-provider/${modelId}`,
+    get: () => undefined,
+    cloneForCwd: async () => ({ getModelRole: () => `contract-provider/${modelId}` }),
+  });
+  const f = await fixture(
+    'first-model',
+    undefined,
+    [
+      { id: 'first-model', provider: 'contract-provider' },
+      { id: 'second-model', provider: 'contract-provider' },
+    ],
+    undefined,
+    undefined,
+    undefined,
+    {
+      loadSettings: async () => {
+        loads += 1;
+        return settingsFor(loads === 1 ? 'first-model' : 'second-model') as never;
+      },
+    },
+  );
+  try {
+    const first = f.host.handle(request('session.start', 'fresh-default-first', {
+      message: 'first',
+      options: { ...f.options, modelId: 'default' },
+    }));
+    const initialSession = await firstSession(f.sessions);
+    initialSession.complete();
+    await first;
+
+    const second = f.host.handle(request('session.start', 'fresh-default-second', {
+      message: 'second',
+      options: { ...f.options, modelId: 'default' },
+    }));
+    const secondSession = await waitFor(() => f.sessions[1]);
+    secondSession.complete();
+    await second;
+
+    assert.equal(loads, 2);
+    assert.equal((f.factoryOptions[0]!.model as { id: string }).id, 'first-model');
+    assert.equal((f.factoryOptions[1]!.model as { id: string }).id, 'second-model');
   } finally { await f.close(); }
 });
 test('default model role resolves its selector without the thinking suffix', async () => {

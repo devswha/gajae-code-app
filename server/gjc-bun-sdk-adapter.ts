@@ -46,6 +46,7 @@ export type GjcAgentSessionFactory = typeof createAgentSession;
 export type GjcBunSdkAdapterOptions = {
   createSessionFactory?: GjcAgentSessionFactory;
   settings?: Settings;
+  loadSettings?: () => Promise<Settings>;
   executeBuiltinCommand?: typeof executeAcpBuiltinSlashCommand;
   oauth?: GjcBunOAuthControllerOptions;
   automationBridge?: GjcAutomationBridgeTransport;
@@ -405,9 +406,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       const sessionManager = resumedId
         ? await resumeManager(resumedId, config.sessionRoot)
         : SessionManager.create(config.cwd, config.sessionRoot);
-      const globalSettings = this.options.settings ?? await Settings.init(
-        process.env.GJC_WORKER_AGENT_DIR ? { agentDir: process.env.GJC_WORKER_AGENT_DIR } : {},
-      );
+      const globalSettings = this.options.settings
+        ?? await this.options.loadSettings?.()
+        ?? await Settings.init(
+          process.env.GJC_WORKER_AGENT_DIR ? { agentDir: process.env.GJC_WORKER_AGENT_DIR } : {},
+        );
       const configuredModelId = config.modelId === 'default'
         ? configuredDefaultModelId(
           globalSettings,
@@ -595,15 +598,14 @@ export async function createGjcBunSdkAdapter(agentDir: string = process.env.GJC_
   // the worker environment. The model can use the injected tools but cannot
   // print or reuse the bridge token through shell commands.
   const automationBridge = takeGjcAutomationBridgeTransport();
-  const [authStorage, settings] = await Promise.all([
+  const [authStorage] = await Promise.all([
     discoverAuthStorage(agentDir),
-    Settings.init({ agentDir }),
     ensureSdkThemeInitialized(),
   ]);
   const modelRegistry = new ModelRegistry(authStorage);
   await modelRegistry.refresh();
   return new GjcBunSdkAdapter(authStorage, modelRegistry, {
-    settings,
+    loadSettings: () => Settings.init({ agentDir }),
     ...(automationBridge ? { automationBridge } : {}),
   });
 }

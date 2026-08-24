@@ -27,6 +27,7 @@ import { createGjcTerminalNotificationAdapter } from './modules/notifications/se
 import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
 import {
     abortGjcRun,
+    isGjcSessionActive,
     steerGjcRun,
     getPendingGjcApprovalsForSession,
     getGjcWorkerSupervisor,
@@ -112,7 +113,12 @@ function gjcSpawn(message, options, writer) {
 
 async function abortGjcChatRun(runId) {
     const result = await abortGjcRun(runId);
-    return result === 'not_started' || result === 'aborted';
+    if (result === 'not_started' || result === 'aborted') return true;
+    // 'unconfirmed' also covers a run that settled between the stop request and
+    // the worker call. A run the worker no longer tracks needs no abort, so
+    // report the stop as satisfied instead of raising ABORT_FAILED on a race
+    // the user cannot act on.
+    return !isGjcSessionActive(runId);
 }
 
 function steerGjcChatRun(runId, message) {

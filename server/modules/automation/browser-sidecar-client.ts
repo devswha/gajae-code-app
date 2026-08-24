@@ -66,6 +66,11 @@ export class BrowserSidecarClient {
 
   constructor(private readonly options: BrowserSidecarClientOptions = {}) {}
 
+  /** Pid of the Chromium process the sidecar currently owns, when known. */
+  get browserPid(): number | undefined {
+    return this.ownedBrowserPid;
+  }
+
   subscribe(listener: BrowserEventListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

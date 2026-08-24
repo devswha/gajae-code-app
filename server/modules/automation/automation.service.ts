@@ -101,6 +101,16 @@ const COMPUTER_DISCOVERY_TOOLS = new Set<CuaSafeTool>([
   'start_session', 'end_session', 'list_apps', 'get_accessibility_tree', 'move_cursor',
 ]);
 
+/**
+ * Synthetic identity for the app-owned Chrome-for-Testing sidecar. It runs
+ * outside any installed app bundle, so the CUA inventory cannot resolve its
+ * windows to a bundle id — without this identity every computer action against
+ * the Workspace Browser window fails as "unresolvable" even though the target
+ * is the app's own browser.
+ */
+export const WORKSPACE_BROWSER_APPLICATION_ID = 'app.gajae.workspace-browser';
+const WORKSPACE_BROWSER_LABEL = 'Workspace Browser';
+
 export class AutomationService {
   readonly browser = new BrowserSidecarClient();
   readonly cua = new CuaDriverClient();
@@ -211,11 +221,12 @@ export class AutomationService {
 
     let pid = requestedPid(args);
     const windowId = requestedWindowId(args);
+    const sidecarPid = this.browser.browserPid;
     const needsApplication = payload.tool === 'launch_app'
       || pid !== undefined
       || windowId !== undefined
       || (payload.tool === 'list_windows' && args.pid !== undefined);
-    if (!application && needsApplication) {
+    if (!application && needsApplication && !(pid !== undefined && pid === sidecarPid)) {
       const inventory = await this.cua.call(
         pid === undefined && windowId !== undefined ? 'list_windows' : 'list_apps',
         {},
@@ -238,6 +249,11 @@ export class AutomationService {
       ));
       if (match && typeof match.bundle_id === 'string') application = match.bundle_id.trim();
       if (match && typeof match.name === 'string' && match.name.trim()) label = match.name.trim();
+    }
+
+    if (!application && pid !== undefined && pid === sidecarPid) {
+      application = WORKSPACE_BROWSER_APPLICATION_ID;
+      label = WORKSPACE_BROWSER_LABEL;
     }
 
     if (!application) {

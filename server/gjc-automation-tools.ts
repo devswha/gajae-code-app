@@ -316,7 +316,7 @@ export function createGjcAutomationTools(
   const computer: NonNullable<AutomationTools['computer']> = {
     name: 'computer',
     label: 'Computer',
-    description: 'Control a reviewed native macOS application through CUA Driver. Inspect apps/windows before acting and verify mutations with a fresh get_window_state call. Browser pages belong in the browser tool.',
+    description: 'Control a reviewed native macOS application through CUA Driver. Inspect apps/windows before acting and verify mutations with a fresh get_window_state call. Input tools default to background delivery (no focus steal), but invoke_menu must briefly front the target app because the macOS menu bar only exists for the active application. Browser pages belong in the browser tool.',
     parameters: computerSchema as any,
     concurrency: 'exclusive',
     async execute(_toolCallId: string, rawParams: unknown, signal?: AbortSignal) {

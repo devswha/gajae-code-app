@@ -123,6 +123,60 @@ test('computer authorization resolves a window id to its owning application', as
   }
 });
 
+test('a sidecar browser window resolves to the Workspace Browser identity', async () => {
+  const previous = process.env.GAJAE_AUTOMATION;
+  process.env.GAJAE_AUTOMATION = '1';
+  try {
+    const service = new AutomationService();
+    Object.defineProperty(service, 'grants', { value: new AutomationGrantStore(memoryStorage()) });
+    Object.defineProperty(service.browser, 'browserPid', { value: 64876 });
+    // The pid is already known to be the app-owned sidecar; consulting the CUA
+    // inventory would be wasted work and cannot resolve it anyway.
+    service.cua.call = async () => { throw new Error('inventory must not be consulted'); };
+
+    assert.deepEqual(
+      await service.authorizeComputer('session-a', { tool: 'click', arguments: { pid: 64876, window_id: 18462 } }),
+      { granted: false, application: 'app.gajae.workspace-browser', label: 'Workspace Browser' },
+    );
+    assert.deepEqual(
+      await service.authorizeComputer('session-a', { tool: 'click', arguments: { pid: 64876 }, scope: 'session' }),
+      { granted: true, application: 'app.gajae.workspace-browser', label: 'Workspace Browser' },
+    );
+  } finally {
+    if (previous === undefined) delete process.env.GAJAE_AUTOMATION;
+    else process.env.GAJAE_AUTOMATION = previous;
+  }
+});
+
+test('a window id owned by the sidecar browser resolves through the window inventory', async () => {
+  const previous = process.env.GAJAE_AUTOMATION;
+  process.env.GAJAE_AUTOMATION = '1';
+  try {
+    const service = new AutomationService();
+    Object.defineProperty(service, 'grants', { value: new AutomationGrantStore(memoryStorage()) });
+    Object.defineProperty(service.browser, 'browserPid', { value: 64876 });
+    service.cua.call = async (tool) => {
+      assert.equal(tool, 'list_windows');
+      // Chrome for Testing runs outside any app bundle: the window is listed
+      // but no application record matches its pid.
+      return {
+        structuredContent: {
+          apps: [{ pid: 42, bundle_id: 'com.apple.TextEdit', name: 'TextEdit' }],
+          windows: [{ pid: 64876, window_id: 18462, title: 'Todo List' }],
+        },
+      };
+    };
+
+    assert.deepEqual(
+      await service.authorizeComputer('session-a', { tool: 'click', arguments: { window_id: 18462 } }),
+      { granted: false, application: 'app.gajae.workspace-browser', label: 'Workspace Browser' },
+    );
+  } finally {
+    if (previous === undefined) delete process.env.GAJAE_AUTOMATION;
+    else process.env.GAJAE_AUTOMATION = previous;
+  }
+});
+
 test('computer discovery does not require an application grant', async () => {
   const previous = process.env.GAJAE_AUTOMATION;
   process.env.GAJAE_AUTOMATION = '1';

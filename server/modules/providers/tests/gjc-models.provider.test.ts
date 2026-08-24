@@ -170,7 +170,7 @@ test('runtime model metadata carries each model supported reasoning efforts', as
           value: 'openai-codex/gpt-test',
           label: 'GPT Test',
           group: 'openai-codex',
-          effort: { values: [{ value: 'low' }, { value: 'high' }, { value: 'unsupported' }] },
+          effort: { default: 'high', values: [{ value: 'low' }, { value: 'high' }, { value: 'unsupported' }] },
         },
         {
           value: 'custom/no-reasoning',
@@ -187,7 +187,7 @@ test('runtime model metadata carries each model supported reasoning efforts', as
       value: 'openai-codex/gpt-test',
       label: 'GPT Test',
       group: 'openai-codex',
-      effort: { values: [{ value: 'low' }, { value: 'high' }] },
+      effort: { default: 'high', values: [{ value: 'low' }, { value: 'high' }] },
     },
     {
       value: 'custom/no-reasoning',
@@ -216,7 +216,7 @@ test('runtime canonical models map stale preset providers to an active subscript
           label: 'GPT-5.6 Sol',
           group: 'cursor',
           canonicalId: 'gpt-5.6-sol',
-          effort: { values: [] },
+          effort: { default: 'high', values: [] },
         },
         {
           value: 'cursor/unreferenced-model',
@@ -230,6 +230,7 @@ test('runtime canonical models map stale preset providers to an active subscript
   })).getSupportedModels();
 
   assert.deepEqual(catalog.MODELS?.map((model) => model.value), ['cursor/gpt-5.6-sol-high']);
+  assert.equal(catalog.MODELS?.[0]?.effort?.default, 'high');
 });
 
 test('credential database WAL changes invalidate the model catalog revision', async (t) => {

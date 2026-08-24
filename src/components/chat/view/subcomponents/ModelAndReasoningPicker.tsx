@@ -32,6 +32,14 @@ type ModelAndReasoningPickerProps = {
 
 const compactModel = (modelId: string): string => modelId.split('/').pop() ?? modelId;
 
+export const modelDisplayLabel = (
+  modelId: string | undefined,
+  modelOptions: ProviderModelOption[],
+): string | undefined => {
+  if (!modelId) return undefined;
+  return modelOptions.find((option) => option.value === modelId)?.label || compactModel(modelId);
+};
+
 const providerOf = (modelId: string): string => (
   modelId.includes('/') ? modelId.slice(0, modelId.indexOf('/')) : ''
 );
@@ -48,6 +56,25 @@ export const stripEffortSuffix = (selector: string): string =>
 /** Display order requested for provider groups; unlisted providers follow alphabetically. */
 const PROVIDER_ORDER = ['openai-codex', 'cursor', 'anthropic', 'kimi-code', 'zai', 'xai', 'grok-build'];
 
+const PROVIDER_LABELS: Readonly<Record<string, string>> = {
+  'openai-codex': 'ChatGPT',
+  cursor: 'Cursor',
+  anthropic: 'Anthropic',
+  'kimi-code': 'Kimi Code',
+  zai: 'Z.AI',
+  xai: 'xAI',
+  'grok-build': 'Grok Build',
+  'alibaba-token-plan': 'Alibaba Coding Plan',
+  'glm-zcode': 'GLM Coding Plan',
+};
+
+export const providerDisplayLabel = (provider: string): string =>
+  PROVIDER_LABELS[provider] ?? provider
+    .split('-')
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() ?? ''}${part.slice(1)}`)
+    .join(' ');
+
 const providerRank = (provider: string): number => {
   const index = PROVIDER_ORDER.indexOf(provider);
   return index === -1 ? PROVIDER_ORDER.length : index;
@@ -61,16 +88,17 @@ const providerRank = (provider: string): number => {
  */
 export function deriveSessionModelOptions(
   modelOptions: ProviderModelOption[],
-): Array<{ group: string; models: string[] }> {
-  const seen = new Set<string>();
+): Array<{ group: string; models: Array<{ value: string; label: string }> }> {
+  const seen = new Map<string, string>();
   for (const option of modelOptions) {
     const model = stripEffortSuffix(option.value.trim());
-    if (model.includes('/')) seen.add(model);
+    if (model.includes('/') && !seen.has(model)) seen.set(model, option.label || compactModel(model));
   }
-  const groups = new Map<string, string[]>();
-  for (const model of [...seen].sort()) {
-    const group = providerOf(model) || 'other';
+  const groups = new Map<string, Array<{ value: string; label: string }>>();
+  for (const [value, label] of [...seen.entries()].sort((left, right) => left[1].localeCompare(right[1]))) {
+    const group = providerOf(value) || 'other';
     const bucket = groups.get(group);
+    const model = { value, label };
     if (bucket) bucket.push(model);
     else groups.set(group, [model]);
   }
@@ -116,6 +144,18 @@ export function reasoningOptionsForModel(
   return supported.length > 0 ? ['default', 'off', ...new Set(supported)] : [];
 }
 
+export function displayedReasoningEffort(
+  selected: ReasoningEffort,
+  modelId: string | undefined,
+  modelOptions: ProviderModelOption[],
+): ReasoningEffort {
+  if (selected !== 'default') return selected;
+  const runtimeDefault = modelOptions.find((option) => option.value === modelId)?.effort?.default;
+  return runtimeDefault && runtimeDefault in REASONING_EFFORT_LABELS
+    ? runtimeDefault as ReasoningEffort
+    : selected;
+}
+
 export async function persistChosenModel(
   modelId: string,
   currentValue: string,
@@ -149,8 +189,10 @@ export default function ModelAndReasoningPicker({
 
   const groups = useMemo(() => deriveSessionModelOptions(modelOptions), [modelOptions]);
   const displayModel = resolveDisplayModel(value, currentModel, presetOptions);
+  const displayModelLabel = modelDisplayLabel(displayModel, modelOptions);
   const isRawSelection = value !== DEFAULT_MODEL_VALUE && !value.startsWith('profile:');
-  const reasoningLabel = REASONING_EFFORT_LABELS[reasoningEffort];
+  const displayedEffort = displayedReasoningEffort(reasoningEffort, displayModel, modelOptions);
+  const reasoningLabel = REASONING_EFFORT_LABELS[displayedEffort];
   const pendingModelId = pendingModel === DEFAULT_MODEL_VALUE ? displayModel : pendingModel;
   const pendingReasoningOptions = reasoningOptionsForModel(pendingModelId ?? undefined, modelOptions);
 
@@ -222,7 +264,7 @@ export default function ModelAndReasoningPicker({
       >
         {(loading || selecting) && <Loader2 className="size-3 animate-spin" />}
         <span className="min-w-0 truncate">
-          {displayModel ? compactModel(displayModel) : t('input.modelReasoning.defaultModel')}
+          {displayModelLabel ?? t('input.modelReasoning.defaultModel')}
         </span>
         <span className="shrink-0 text-border" aria-hidden>·</span>
         <span className="shrink-0">{reasoningLabel}</span>
@@ -265,22 +307,22 @@ export default function ModelAndReasoningPicker({
                 {groups.map(({ group, models }) => (
                   <div key={group}>
                     <p className="px-2.5 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {group}
+                      {providerDisplayLabel(group)}
                     </p>
                     {models.map((model) => {
-                      const isSelected = value === model;
+                      const isSelected = value === model.value;
                       return (
                         <button
-                          key={model}
+                          key={model.value}
                           type="button"
-                          onClick={() => { void chooseModel(model); }}
+                          onClick={() => { void chooseModel(model.value); }}
                           className={cn(
                             'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent',
                             isSelected && 'bg-accent/70',
                           )}
-                          title={model}
+                          title={model.value}
                         >
-                          <span className="min-w-0 flex-1 truncate">{compactModel(model)}</span>
+                          <span className="min-w-0 flex-1 truncate">{model.label}</span>
                           {isSelected && <Check className="size-3.5 shrink-0 text-primary" />}
                         </button>
                       );

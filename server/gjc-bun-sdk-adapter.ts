@@ -70,6 +70,7 @@ type ActiveRun = {
 };
 
 const FAILURE = 'GJC SDK configuration is invalid.';
+const MODEL_ID_EFFORT = /-(off|minimal|low|medium|high|xhigh|max)(?:-fast)?$/;
 const RUNTIME_CREDENTIAL_ENV_VARS = new Set([
   'GJC_RUNTIME_API_KEY',
 ]);
@@ -279,12 +280,14 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       if (model.reasoning) {
         efforts = getSupportedEfforts(model);
       }
+      const defaultEffort = MODEL_ID_EFFORT.exec(model.id)?.[1];
       models.push({
         value,
         label: record.name || model.name || model.id,
         group: model.provider,
         canonicalId: record.id,
         effort: {
+          ...(defaultEffort ? { default: defaultEffort } : {}),
           values: efforts.map((effort) => ({ value: effort })),
         },
       });

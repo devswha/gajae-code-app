@@ -27,7 +27,7 @@ export const GJC_FALLBACK_MODELS: ProviderModelsDefinition = {
 const PROFILE_ROLES = ['default', 'planner', 'executor', 'architect', 'critic'] as const;
 type ProfileRole = typeof PROFILE_ROLES[number];
 type RoleMap = Partial<Record<ProfileRole, string>>;
-const EFFORTS = new Set(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
+const EFFORTS = new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
 
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -50,6 +50,9 @@ function parseRuntimeModels(value: unknown): RuntimeModelOption[] {
       return [];
     }
     const effort = record(model.effort);
+    const defaultEffort = typeof effort?.default === 'string' && EFFORTS.has(effort.default)
+      ? effort.default
+      : undefined;
     const values = Array.isArray(effort?.values)
       ? effort.values.flatMap((candidate) => {
           const option = record(candidate);
@@ -65,7 +68,10 @@ function parseRuntimeModels(value: unknown): RuntimeModelOption[] {
       ...(typeof model.canonicalId === 'string' && model.canonicalId
         ? { canonicalId: model.canonicalId }
         : {}),
-      effort: { values },
+      effort: {
+        ...(defaultEffort ? { default: defaultEffort } : {}),
+        values,
+      },
     }];
   });
 }

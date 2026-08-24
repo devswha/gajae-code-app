@@ -691,10 +691,10 @@ test('model catalog reports the runtime-supported reasoning levels', async () =>
 
 test('model catalog only exposes models backed by a stored subscription', async () => {
   const f = await fixture(
-    'subscribed-model',
+    'subscribed-model-high',
     undefined,
     [
-      { id: 'subscribed-model', name: 'Subscribed', provider: 'cursor' },
+      { id: 'subscribed-model-high', name: 'Subscribed', provider: 'cursor' },
       { id: 'unavailable-model', name: 'Unavailable', provider: 'openai-codex' },
     ] as never,
   );
@@ -702,10 +702,11 @@ test('model catalog only exposes models backed by a stored subscription', async 
     f.authStorage.credentials.push({ id: 25, provider: 'cursor' });
     await f.host.handle(request('models.catalog', 'stored-model-catalog'));
     const payload = response(f.frames, 'stored-model-catalog').payload as {
-      result: { models: Array<{ value: string }> };
+      result: { models: Array<{ value: string; effort: { default?: string } }> };
     };
 
-    assert.deepEqual(payload.result.models.map((model) => model.value), ['cursor/subscribed-model']);
+    assert.deepEqual(payload.result.models.map((model) => model.value), ['cursor/subscribed-model-high']);
+    assert.equal(payload.result.models[0]?.effort.default, 'high');
   } finally {
     await f.close();
   }

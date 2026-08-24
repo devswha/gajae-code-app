@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 
 import {
   deriveSessionModelOptions,
+  displayedReasoningEffort,
+  modelDisplayLabel,
   persistChosenModel,
+  providerDisplayLabel,
   reasoningOptionsForModel,
   resolveDisplayModel,
   stripEffortSuffix,
@@ -34,10 +37,14 @@ test('deriveSessionModelOptions groups executable runtime models by provider', (
   ]);
 
   assert.deepEqual(groups.map((group) => group.group), ['anthropic', 'custom', 'openai']);
-  assert.deepEqual(groups.find((group) => group.group === 'openai')?.models, ['openai/gpt-5.6-sol']);
-  assert.deepEqual(groups.find((group) => group.group === 'custom')?.models, ['custom/codex']);
+  assert.deepEqual(groups.find((group) => group.group === 'openai')?.models, [
+    { value: 'openai/gpt-5.6-sol', label: 'Sol' },
+  ]);
+  assert.deepEqual(groups.find((group) => group.group === 'custom')?.models, [
+    { value: 'custom/codex', label: 'Codex' },
+  ]);
   // Duplicate across roles/presets collapses to a single entry.
-  const all = groups.flatMap((group) => group.models);
+  const all = groups.flatMap((group) => group.models.map((model) => model.value));
   assert.equal(new Set(all).size, all.length);
 });
 
@@ -57,8 +64,12 @@ test('effort suffixes never leak into runtime model rows', () => {
     },
   ]);
 
-  assert.deepEqual(groups.find((group) => group.group === 'anthropic')?.models, ['anthropic/claude-fable-5']);
-  assert.deepEqual(groups.find((group) => group.group === 'openai-codex')?.models, ['openai-codex/gpt-5.6-terra']);
+  assert.deepEqual(groups.find((group) => group.group === 'anthropic')?.models, [
+    { value: 'anthropic/claude-fable-5', label: 'A' },
+  ]);
+  assert.deepEqual(groups.find((group) => group.group === 'openai-codex')?.models, [
+    { value: 'openai-codex/gpt-5.6-terra', label: 'Terra' },
+  ]);
 });
 
 test('stripEffortSuffix removes only trailing known effort levels', () => {
@@ -78,7 +89,10 @@ test('legacy fallback sequences cannot leak brackets or secondary models into th
   ]), 'glm-zcode53/glm-5.3');
   assert.deepEqual(deriveSessionModelOptions([
     { value: fallback, label: 'Fallback' },
-  ]), [{ group: 'glm-zcode53', models: ['glm-zcode53/glm-5.3'] }]);
+  ]), [{
+    group: 'glm-zcode53',
+    models: [{ value: 'glm-zcode53/glm-5.3', label: 'Fallback' }],
+  }]);
 });
 
 test('resolveDisplayModel prefers the live session model over every fallback', () => {
@@ -117,6 +131,17 @@ test('provider groups follow the requested order: codex, claude, kimi, glm, grok
   );
 });
 
+test('model and provider labels hide transport identifiers from the picker', () => {
+  const models: ProviderModelOption[] = [
+    { value: 'cursor/gpt-5.6-sol-high', label: 'GPT-5.6 Sol' },
+  ];
+
+  assert.equal(modelDisplayLabel('cursor/gpt-5.6-sol-high', models), 'GPT-5.6 Sol');
+  assert.equal(modelDisplayLabel('custom/raw-id', models), 'raw-id');
+  assert.equal(providerDisplayLabel('alibaba-token-plan'), 'Alibaba Coding Plan');
+  assert.equal(providerDisplayLabel('custom-provider'), 'Custom Provider');
+});
+
 test('resolveDisplayModel strips an effort suffix from the live session report', () => {
   assert.equal(
     resolveDisplayModel('default', 'anthropic/claude-fable-5:high', catalog),
@@ -139,7 +164,7 @@ test('a profile-name reference never renders as a model and resolves through the
     'anthropic/claude-fable-5',
   );
   // The bare profile name is filtered out of the selectable model list.
-  const models = deriveSessionModelOptions([]).flatMap((group) => group.models);
+  const models = deriveSessionModelOptions([]).flatMap((group) => group.models.map((model) => model.value));
   assert.ok(!models.includes('fable-opus-codex'));
   // An unresolvable reference falls back to no display rather than a bogus id.
   assert.equal(
@@ -170,6 +195,20 @@ test('reasoning choices follow the runtime capabilities of the selected model', 
   );
   assert.deepEqual(reasoningOptionsForModel('custom/plain', models), []);
   assert.deepEqual(reasoningOptionsForModel('missing/model', models), []);
+});
+
+test('a fixed-effort subscription model reports its real level instead of Default', () => {
+  const models: ProviderModelOption[] = [
+    {
+      value: 'cursor/gpt-5.6-sol-high',
+      label: 'GPT-5.6 Sol',
+      effort: { default: 'high', values: [] },
+    },
+  ];
+
+  assert.equal(displayedReasoningEffort('default', 'cursor/gpt-5.6-sol-high', models), 'high');
+  assert.equal(displayedReasoningEffort('off', 'cursor/gpt-5.6-sol-high', models), 'off');
+  assert.equal(displayedReasoningEffort('default', 'missing/model', models), 'default');
 });
 
 test('choosing a model persists it before the optional reasoning step', async () => {

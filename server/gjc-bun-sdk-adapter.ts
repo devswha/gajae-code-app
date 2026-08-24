@@ -434,7 +434,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           ...(config.bashPolicy.restrictionProfile ? { bashRestrictionProfile: config.bashPolicy.restrictionProfile } : {}),
           hasUI: true,
           ...(config.appSessionId ? {
-            customTools: createGjcAutomationTools(
+            automationTools: createGjcAutomationTools(
               config.appSessionId,
               askController.uiContext,
               this.options.automationBridge,

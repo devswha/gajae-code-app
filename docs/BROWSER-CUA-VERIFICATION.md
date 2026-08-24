@@ -68,15 +68,14 @@ fail-closed approval path without modifying system security settings.
 
 ## Upstream SDK dependency
 
-`@gajae-code/coding-agent@0.14.2` and its upstream `main` branch do not yet
-provide an external backend interface for the reserved `browser` and `computer`
-tools. The app therefore still supplies these two tools through the SDK's
-`customTools` option. The requested architecture—inject at built-in tool
-materialization time without a same-name custom-tool overwrite—requires an
-upstream release. It is tracked in
-[gajae-code issue #4809](https://github.com/Yeachan-Heo/gajae-code/issues/4809).
+`@gajae-code/coding-agent@0.15.0` provides the typed `automationTools` SDK
+contract added by [gajae-code PR #4811](https://github.com/Yeachan-Heo/gajae-code/pull/4811).
+The app supplies its host-owned `browser` and `computer` implementations through
+that contract, so both surfaces are materialized as built-ins with canonical
+activation and provenance. The SDK forwards the normal `AbortSignal`, rejects
+same-name custom, extension, or MCP collisions, and does not create its default
+browser or native controller for these injected surfaces.
 
-After upstream publishes that API, replace `customTools` in
-`server/gjc-bun-sdk-adapter.ts`, update `@gajae-code/coding-agent`, and rerun the
-same gates and packaged-app scenarios above. No direct `node_modules` patch is
-permitted.
+`server/gjc-bun-sdk-adapter.ts` must continue to use `automationTools`, not
+same-name `customTools`, and the downstream contract tests pin that boundary.
+No direct `node_modules` patch is permitted.

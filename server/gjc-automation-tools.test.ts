@@ -53,7 +53,7 @@ test('agent browser asks for origin access before opening and records allow once
 
   const prompts: Array<{ title: string; options: string[] }> = [];
   try {
-    const [browser] = createGjcAutomationTools('app-session', {
+    const { browser } = createGjcAutomationTools('app-session', {
       async select(title, options) {
         prompts.push({ title, options });
         return 'Allow once';
@@ -63,8 +63,6 @@ test('agent browser asks for origin access before opening and records allow once
     await browser.execute(
       'tool-call-1',
       { action: 'open', url: 'https://example.com/page' },
-      undefined,
-      {} as never,
       undefined,
     );
 
@@ -107,7 +105,7 @@ test('agent browser denial fails closed without opening the requested origin', a
   });
 
   try {
-    const [browser] = createGjcAutomationTools('app-session', {
+    const { browser } = createGjcAutomationTools('app-session', {
       async select() { return 'Deny'; },
     }, { socketPath, token: TEST_TOKEN });
     assert.ok(browser);
@@ -116,12 +114,39 @@ test('agent browser denial fails closed without opening the requested origin', a
         'tool-call-denied',
         { action: 'open', url: 'https://denied.example/private' },
         undefined,
-        {} as never,
-        undefined,
       ),
       /access .* was denied/iu,
     );
     assert.deepEqual(requests.map((request) => request.operation), ['authorize']);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('agent browser forwards the standard AgentTool abort signal to the bridge request', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'gajae-automation-abort-'));
+  const socketPath = join(directory, 'bridge.sock');
+  let requestReceived!: () => void;
+  const received = new Promise<void>((resolve) => { requestReceived = resolve; });
+  const server = net.createServer((socket) => {
+    socket.once('data', () => requestReceived());
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(socketPath, () => resolve());
+  });
+
+  try {
+    const { browser } = createGjcAutomationTools('app-session', {
+      async select() { return 'Deny'; },
+    }, { socketPath, token: TEST_TOKEN });
+    assert.ok(browser);
+    const controller = new AbortController();
+    const execution = browser.execute('tool-call-abort', { action: 'close' }, controller.signal);
+    await received;
+    controller.abort();
+    await assert.rejects(execution, /cancelled/iu);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });
@@ -155,7 +180,7 @@ test('agent computer asks for application access before controlling it', async (
 
   const prompts: Array<{ title: string; options: string[] }> = [];
   try {
-    const [, computer] = createGjcAutomationTools('app-session', {
+    const { computer } = createGjcAutomationTools('app-session', {
       async select(title, options) {
         prompts.push({ title, options });
         return 'Allow once';
@@ -165,8 +190,6 @@ test('agent computer asks for application access before controlling it', async (
     await computer.execute(
       'tool-call-2',
       { action: 'click', arguments: { pid: 42, x: 10, y: 10 } },
-      undefined,
-      {} as never,
       undefined,
     );
 
@@ -219,15 +242,13 @@ test('agent computer preserves MCP image and text blocks without duplicating lar
   });
 
   try {
-    const [, computer] = createGjcAutomationTools('app-session', {
+    const { computer } = createGjcAutomationTools('app-session', {
       async select() { return 'Allow once'; },
     }, { socketPath, token: TEST_TOKEN });
     assert.ok(computer);
     const result = await computer.execute(
       'tool-call-large-output',
       { action: 'get_window_state', arguments: { pid: 42, window_id: 7 } },
-      undefined,
-      {} as never,
       undefined,
     ) as { content: Array<Record<string, unknown>>; details: Record<string, unknown> };
 
@@ -282,15 +303,13 @@ test('agent computer exposes compact structured metadata even when the original 
   });
 
   try {
-    const [, computer] = createGjcAutomationTools('app-session', {
+    const { computer } = createGjcAutomationTools('app-session', {
       async select() { return 'Allow once'; },
     }, { socketPath, token: TEST_TOKEN });
     assert.ok(computer);
     const result = await computer.execute(
       'tool-call-small-output',
       { action: 'get_window_state', arguments: { pid: 42, window_id: 7 } },
-      undefined,
-      {} as never,
       undefined,
     ) as { content: Array<Record<string, unknown>>; details: Record<string, unknown> };
 

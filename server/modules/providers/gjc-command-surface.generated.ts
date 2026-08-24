@@ -19,6 +19,7 @@ export const GJC_APP_BUILTIN_COMMANDS: readonly GjcAppCommand[] = [
   { name: "model", description: "Show current model selection", inputHint: "[target] <model>" },
   { name: "effort", description: "Show or set model reasoning effort", inputHint: "[inherit|off|minimal|low|medium|high|xhigh|max]" },
   { name: "fast", description: "Toggle fast mode", inputHint: "[on|off|status]" },
+  { name: "routing", description: "Show or set up sub-agent model autorouting", inputHint: "[on|off|status]" },
   { name: "export", description: "Export this session to an HTML file", inputHint: "[path]" },
   { name: "dump", description: "Return full transcript as plain text" },
   { name: "session", description: "Show session information", inputHint: "info|delete" },
@@ -57,8 +58,8 @@ export const GJC_APP_BUILTIN_COMMAND_NAMES = new Set([
  * runtime. Descriptions therefore match what the runtime actually ships.
  */
 export const GJC_BUNDLED_SKILLS: readonly { name: string; description: string }[] = [
+  { name: "autoresearch", description: "Goal-directed research missions that interleave web research with data experimentation and end on a structured best-effort verdict" },
   { name: "deep-interview", description: "Socratic deep interview with mathematical ambiguity gating before explicit execution approval" },
-  { name: "ralplan", description: "Consensus planning entrypoint that auto-gates vague team/ultragoal requests before execution" },
-  { name: "team", description: "Multi-worker GJC tmux team orchestration" },
+  { name: "ralplan", description: "Consensus planning entrypoint that auto-gates vague ultragoal requests before execution" },
   { name: "ultragoal", description: "Create and execute durable repo-native multi-goal plans over GJC goal mode artifacts." },
 ];

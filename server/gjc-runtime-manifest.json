@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
-  "gjcSdk": "0.14.2",
+  "gjcSdk": "0.15.0",
   "bun": "1.4.0",
-  "natives": "0.14.2",
+  "natives": "0.15.0",
   "platforms": {
     "linux-x64": {
       "files": [
         {
           "package": "@gajae-code/natives-linux-x64",
           "path": "native/pi_natives.linux-x64-baseline.node",
-          "sha256": "876675c85750d62555a5f0e0e1ed26427e27a7c1b5a1d90232c1a9e1e65185c2"
+          "sha256": "a6dd770947544a1edad6373093d07ec30ce7fb09d9107525dc10f65c3512af7c"
         },
         {
           "package": "@gajae-code/natives-linux-x64",
           "path": "native/pi_natives.linux-x64-modern.node",
-          "sha256": "d650e7a5a30d848804f5a2c96dd232fafcd6e8054bfcbff4ca8d3165c2d290a9"
+          "sha256": "9375a220ad832c865dd587e484dafd652c0c9753bbce3d1c6bde037d8b2ecfcd"
         },
         {
           "package": "@gajae-code/natives",
@@ -24,12 +24,12 @@
         {
           "package": "@gajae-code/natives",
           "path": "native/index.js",
-          "sha256": "fe551e36cae301b4780e896f92a189beec15de27c092148484b274eb62a4015e"
+          "sha256": "b019994621cf32889eddb080e0c97d1832544a8778030ac8ac50e14ac4c0ddca"
         },
         {
           "package": "@gajae-code/natives",
           "path": "native/loader-state.js",
-          "sha256": "87ce3028f8ddf4e6005e476d973dddd8f97dfde8292878f799efca76c8e6bd25"
+          "sha256": "fa78b89a5ffd09c5d7c79729ae51ff77620207fdb9a97cf6709f9460436272bf"
         }
       ]
     },
@@ -38,7 +38,7 @@
         {
           "package": "@gajae-code/natives-darwin-arm64",
           "path": "native/pi_natives.darwin-arm64.node",
-          "sha256": "c78343d8b6efc828f9418ae0736a8da1b3483b1d2c11391cb7a87e3b11d9c0b6"
+          "sha256": "e7d405a71a4f9a24ecd42533f8189f2a928e13e9b49df12c1ab95af7bee8bb56"
         },
         {
           "package": "@gajae-code/natives",
@@ -48,12 +48,12 @@
         {
           "package": "@gajae-code/natives",
           "path": "native/index.js",
-          "sha256": "3caeb8643adc1a51532b1627bb9a405586997c975cb9b335d1192506be780af8"
+          "sha256": "b019994621cf32889eddb080e0c97d1832544a8778030ac8ac50e14ac4c0ddca"
         },
         {
           "package": "@gajae-code/natives",
           "path": "native/loader-state.js",
-          "sha256": "74232e9e6b5a4490c3377d8b000cc663a410bdef2e70c615fe9f7cfbdc16baa8"
+          "sha256": "fa78b89a5ffd09c5d7c79729ae51ff77620207fdb9a97cf6709f9460436272bf"
         }
       ]
     }

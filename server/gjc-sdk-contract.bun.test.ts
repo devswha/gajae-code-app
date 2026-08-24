@@ -1200,6 +1200,25 @@ for (const phase of ['before-first-event', 'during-ask', 'vs-prompt-resolve'] as
     } finally { await f.close(); }
   });
 }
+test('app automation is injected through the SDK built-in automationTools contract', async () => {
+  const f = await fixture();
+  try {
+    const run = f.host.handle(request('session.start', 'automation-tools', {
+      message: 'hello',
+      options: f.options,
+    }, 'app-session-a'));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    const factoryInput = f.factoryOptions[0]!;
+    const automationTools = factoryInput.automationTools as Record<string, { name: string }>;
+    assert.equal(factoryInput.customTools, undefined);
+    assert.deepEqual(Object.keys(automationTools).sort(), ['browser', 'computer']);
+    assert.equal(automationTools.browser?.name, 'browser');
+    assert.equal(automationTools.computer?.name, 'computer');
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
 test('abort closes the app automation session before reporting success', async () => {
   const cleanup = deferred<void>();
   const closedSessions: string[] = [];

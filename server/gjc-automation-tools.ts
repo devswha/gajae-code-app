@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import net from 'node:net';
 
-import type { CustomTool } from '@gajae-code/coding-agent/extensibility/custom-tools/types';
+import type { AutomationTools } from '@gajae-code/coding-agent/sdk/session';
 import type { ExtensionUIContext } from '@gajae-code/coding-agent/extensibility/extensions/types';
 import * as z from 'zod/v4';
 
@@ -209,7 +209,7 @@ export function createGjcAutomationTools(
   appSessionId: string,
   ui: Pick<ExtensionUIContext, 'select'>,
   transport?: GjcAutomationBridgeTransport,
-): CustomTool<any, any>[] {
+): AutomationTools {
   const ensureBrowserAccess = async (url: string | undefined, signal?: AbortSignal): Promise<void> => {
     const check = await bridgeRequest(transport, {
       surface: 'browser',
@@ -236,13 +236,13 @@ export function createGjcAutomationTools(
     if (!granted.granted) throw new Error(`Browser access to ${check.origin} was not granted.`);
   };
 
-  const browser: CustomTool<any, any> = {
+  const browser: NonNullable<AutomationTools['browser']> = {
     name: 'browser',
     label: 'Browser',
     description: 'Control the Chromium browser shared with the Gajae Browser panel. Open a session, observe accessible elements, then act using refs or selectors. The browser persists across calls.',
     parameters: browserSchema as any,
     concurrency: 'exclusive',
-    async execute(_toolCallId, rawParams, _onUpdate, _ctx, signal) {
+    async execute(_toolCallId: string, rawParams: unknown, signal?: AbortSignal) {
       const params = browserSchema.parse(rawParams);
       if (params.action === 'open') {
         if (params.url) await ensureBrowserAccess(params.url, signal);
@@ -313,13 +313,13 @@ export function createGjcAutomationTools(
     if (!granted.granted) throw new Error(`Computer access to ${check.label ?? check.application} was not granted.`);
   };
 
-  const computer: CustomTool<any, any> = {
+  const computer: NonNullable<AutomationTools['computer']> = {
     name: 'computer',
     label: 'Computer',
     description: 'Control a reviewed native macOS application through CUA Driver. Inspect apps/windows before acting and verify mutations with a fresh get_window_state call. Browser pages belong in the browser tool.',
     parameters: computerSchema as any,
     concurrency: 'exclusive',
-    async execute(_toolCallId, rawParams, _onUpdate, _ctx, signal) {
+    async execute(_toolCallId: string, rawParams: unknown, signal?: AbortSignal) {
       const params = computerSchema.parse(rawParams);
       await ensureComputerAccess(params.action, params.arguments, signal);
       return cuaResult(await bridgeRequest(transport, {
@@ -328,5 +328,5 @@ export function createGjcAutomationTools(
     },
   };
 
-  return [browser, computer];
+  return { browser, computer };
 }

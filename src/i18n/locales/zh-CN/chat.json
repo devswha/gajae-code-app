@@ -117,12 +117,11 @@
     "stop": "停止",
     "modelReasoning": {
       "label": "模型与推理",
+      "providerTitle": "提供商",
       "modelTitle": "聊天模型",
-      "modelDescription": "选择此会话使用的模型。",
-      "defaultModel": "默认",
-      "currentConfiguration": "使用当前配置",
       "reasoningTitle": "推理",
-      "reasoningDescription": "选择聊天模型使用的推理程度。"
+      "defaultModel": "默认",
+      "currentConfiguration": "使用当前配置"
     },
     "agentConfiguration": {
       "label": "智能体配置",

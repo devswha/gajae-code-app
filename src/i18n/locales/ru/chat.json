@@ -117,12 +117,11 @@
     "stop": "Остановить",
     "modelReasoning": {
       "label": "Модель и рассуждения",
+      "providerTitle": "Провайдер",
       "modelTitle": "Модель чата",
-      "modelDescription": "Выберите модель, используемую для этого сеанса.",
-      "defaultModel": "По умолчанию",
-      "currentConfiguration": "Использовать текущую конфигурацию",
       "reasoningTitle": "Рассуждения",
-      "reasoningDescription": "Выберите объём рассуждений, используемых моделью чата."
+      "defaultModel": "По умолчанию",
+      "currentConfiguration": "Использовать текущую конфигурацию"
     },
     "agentConfiguration": {
       "label": "Конфигурация агента",

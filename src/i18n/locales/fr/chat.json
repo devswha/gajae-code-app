@@ -114,12 +114,11 @@
     "disabled": "Saisie désactivée",
     "modelReasoning": {
       "label": "Modèle et raisonnement",
+      "providerTitle": "Fournisseur",
       "modelTitle": "Modèle de chat",
-      "modelDescription": "Choisissez le modèle utilisé pour cette session.",
-      "defaultModel": "Par défaut",
-      "currentConfiguration": "Utiliser la configuration actuelle",
       "reasoningTitle": "Raisonnement",
-      "reasoningDescription": "Choisissez le niveau de raisonnement utilisé par le modèle de chat."
+      "defaultModel": "Par défaut",
+      "currentConfiguration": "Utiliser la configuration actuelle"
     },
     "agentConfiguration": {
       "label": "Configuration de l'agent",

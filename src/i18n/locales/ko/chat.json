@@ -113,12 +113,11 @@
     "disabled": "입력 비활성화",
     "modelReasoning": {
       "label": "모델 및 추론",
+      "providerTitle": "프로바이더",
       "modelTitle": "채팅 모델",
-      "modelDescription": "이 세션에 사용할 모델을 선택하세요.",
-      "defaultModel": "기본값",
-      "currentConfiguration": "현재 구성 사용",
       "reasoningTitle": "추론",
-      "reasoningDescription": "채팅 모델이 사용할 추론의 양을 선택하세요."
+      "defaultModel": "기본값",
+      "currentConfiguration": "현재 구성 사용"
     },
     "agentConfiguration": {
       "label": "에이전트 구성",

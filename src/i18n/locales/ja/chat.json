@@ -117,12 +117,11 @@
     "stop": "停止",
     "modelReasoning": {
       "label": "モデルと推論",
+      "providerTitle": "プロバイダー",
       "modelTitle": "チャットモデル",
-      "modelDescription": "このセッションで使用するモデルを選択してください。",
-      "defaultModel": "デフォルト",
-      "currentConfiguration": "現在の設定を使用",
       "reasoningTitle": "推論",
-      "reasoningDescription": "チャットモデルが使用する推論の量を選択してください。"
+      "defaultModel": "デフォルト",
+      "currentConfiguration": "現在の設定を使用"
     },
     "agentConfiguration": {
       "label": "エージェント設定",

@@ -7,12 +7,11 @@ const LOCALES_DIR = path.join(process.cwd(), 'src/i18n/locales');
 const REQUIRED_KEYS = {
   modelReasoning: [
     'label',
+    'providerTitle',
     'modelTitle',
-    'modelDescription',
+    'reasoningTitle',
     'defaultModel',
     'currentConfiguration',
-    'reasoningTitle',
-    'reasoningDescription',
   ],
   agentConfiguration: ['label', 'title', 'description', 'search', 'noMatches'],
 } as const;

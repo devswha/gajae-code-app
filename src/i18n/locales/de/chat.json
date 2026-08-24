@@ -113,12 +113,11 @@
     "disabled": "Eingabe deaktiviert",
     "modelReasoning": {
       "label": "Modell und Denktiefe",
+      "providerTitle": "Anbieter",
       "modelTitle": "Chat-Modell",
-      "modelDescription": "Wählen Sie das für diese Sitzung verwendete Modell aus.",
-      "defaultModel": "Standard",
-      "currentConfiguration": "Aktuelle Konfiguration verwenden",
       "reasoningTitle": "Denktiefe",
-      "reasoningDescription": "Wählen Sie, wie viel Denktiefe das Chat-Modell verwendet."
+      "defaultModel": "Standard",
+      "currentConfiguration": "Aktuelle Konfiguration verwenden"
     },
     "agentConfiguration": {
       "label": "Agent-Konfiguration",

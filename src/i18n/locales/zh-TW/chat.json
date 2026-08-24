@@ -117,12 +117,11 @@
     "stop": "停止",
     "modelReasoning": {
       "label": "模型與推理",
+      "providerTitle": "供應商",
       "modelTitle": "聊天模型",
-      "modelDescription": "選擇此工作階段使用的模型。",
-      "defaultModel": "預設",
-      "currentConfiguration": "使用目前設定",
       "reasoningTitle": "推理",
-      "reasoningDescription": "選擇聊天模型使用的推理程度。"
+      "defaultModel": "預設",
+      "currentConfiguration": "使用目前設定"
     },
     "agentConfiguration": {
       "label": "Agent 設定",

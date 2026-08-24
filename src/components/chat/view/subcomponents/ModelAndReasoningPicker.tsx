@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronDown, ChevronLeft, Loader2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 
 import { primaryModelSelector } from '../../../../../shared/model-selectors';
 import { cn } from '../../../../lib/utils';
@@ -182,8 +182,11 @@ export async function persistChosenModel(
 
 /**
  * One composer control for the two settings that define the next answer:
- * the session's chat model and its reasoning effort. The separate preset
- * control still owns the full multi-role agent configuration.
+ * the session's chat model and its reasoning effort. The popup is a cascading
+ * provider → model → reasoning panel: picking a provider only navigates,
+ * picking a model persists it immediately, and picking a reasoning level
+ * finishes the flow. The separate preset control still owns the full
+ * multi-role agent configuration.
  */
 export default function ModelAndReasoningPicker({
   value,
@@ -198,7 +201,10 @@ export default function ModelAndReasoningPicker({
   const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
-  const [pendingModel, setPendingModel] = useState<string | null>(null);
+  /** Provider column navigation; null follows the currently selected model. */
+  const [activeProvider, setActiveProvider] = useState<string | null>(null);
+  /** Model whose reasoning levels the third column offers. */
+  const [activeModel, setActiveModel] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const [popupPosition, setPopupPosition] = useState({ bottom: 0, left: 0 });
@@ -212,8 +218,19 @@ export default function ModelAndReasoningPicker({
   const isRawSelection = value !== DEFAULT_MODEL_VALUE && !value.startsWith('profile:');
   const displayedEffort = displayedReasoningEffort(reasoningEffort, displayModel, modelOptions);
   const reasoningLabel = REASONING_EFFORT_LABELS[displayedEffort];
-  const pendingModelId = pendingModel === DEFAULT_MODEL_VALUE ? displayModel : pendingModel;
-  const pendingReasoningOptions = reasoningOptionsForModel(pendingModelId ?? undefined, modelOptions);
+
+  /** Model id the check mark in the model column belongs to. */
+  const selectedModelId = isRawSelection ? stripEffortSuffix(value) : displayModel;
+  const selectedProvider = selectedModelId ? providerOf(selectedModelId) : null;
+  const shownProvider = activeProvider
+    ?? (selectedProvider && groups.some((entry) => entry.group === selectedProvider)
+      ? selectedProvider
+      : groups[0]?.group ?? null);
+  const shownModels = groups.find((entry) => entry.group === shownProvider)?.models ?? [];
+  const reasoningModelId = activeModel === DEFAULT_MODEL_VALUE
+    ? displayModel
+    : activeModel ?? selectedModelId;
+  const reasoningOptions = reasoningOptionsForModel(reasoningModelId ?? undefined, modelOptions);
 
   // The composer form clips its children (overflow-hidden rounded corners), so
   // the popup must escape through a body portal with fixed positioning.
@@ -223,7 +240,7 @@ export default function ModelAndReasoningPicker({
     if (rect) {
       setPopupPosition({
         bottom: window.innerHeight - rect.top + 8,
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 320 - 8)),
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 448 - 8)),
       });
     }
     const close = (event: MouseEvent) => {
@@ -235,39 +252,45 @@ export default function ModelAndReasoningPicker({
   }, [open]);
 
   useEffect(() => {
-    if (!open) setPendingModel(null);
+    if (!open) {
+      setActiveProvider(null);
+      setActiveModel(null);
+    }
   }, [open]);
 
-  const commitSelection = async (modelId: string, effort: ReasoningEffort) => {
+  const chooseModel = async (modelId: string) => {
+    // Choosing a model is the consequential action. Persist it before the
+    // optional reasoning choice so dismissing the popup cannot silently leave
+    // the previous runtime model active.
     setSelecting(true);
     try {
-      if (modelId !== value) await onSelect(modelId);
-      onSelectReasoningEffort(effort);
-      setOpen(false);
+      await persistChosenModel(modelId, value, onSelect);
     } finally {
       setSelecting(false);
     }
+    setActiveModel(modelId);
+    const resolvedModel = modelId === DEFAULT_MODEL_VALUE ? displayModel : modelId;
+    if (reasoningOptionsForModel(resolvedModel, modelOptions).length === 0) {
+      onSelectReasoningEffort('default');
+      setOpen(false);
+    }
   };
 
-  const chooseModel = async (modelId: string) => {
-    const resolvedModel = modelId === DEFAULT_MODEL_VALUE ? displayModel : modelId;
-    const options = reasoningOptionsForModel(resolvedModel, modelOptions);
-    if (options.length > 0) {
-      // Choosing a model is the consequential action. Persist it before
-      // showing the optional reasoning step so dismissing the popup cannot
-      // silently leave the previous runtime model active.
-      if (modelId !== value) {
-        setSelecting(true);
-        try {
-          await persistChosenModel(modelId, value, onSelect);
-        } finally {
-          setSelecting(false);
-        }
-      }
-      setPendingModel(modelId);
-      return;
+  const chooseReasoning = (effort: ReasoningEffort) => {
+    onSelectReasoningEffort(effort);
+    setOpen(false);
+  };
+
+  /** "Use current configuration" is a full reset: model and reasoning together. */
+  const chooseDefault = async () => {
+    setSelecting(true);
+    try {
+      await persistChosenModel(DEFAULT_MODEL_VALUE, value, onSelect);
+    } finally {
+      setSelecting(false);
     }
-    await commitSelection(modelId, 'default');
+    onSelectReasoningEffort('default');
+    setOpen(false);
   };
 
   return (
@@ -293,99 +316,116 @@ export default function ModelAndReasoningPicker({
       {open && createPortal(
         <div
           ref={popupRef}
-          className="fixed z-[80] w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+          className="fixed z-[80] w-[28rem] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
           style={{ bottom: popupPosition.bottom, left: popupPosition.left }}
         >
-          {pendingModel === null ? (
-            <>
-              <div className="px-2 pb-1.5 pt-1">
-                <p className="text-xs font-semibold">{t('input.modelReasoning.modelTitle')}</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  {t('input.modelReasoning.modelDescription')}
-                </p>
-              </div>
+          <button
+            type="button"
+            onClick={() => { void chooseDefault(); }}
+            className={cn(
+              'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent',
+              !isRawSelection && 'bg-accent/70',
+            )}
+          >
+            <span className="min-w-0 flex-1 truncate font-medium">
+              {t('input.modelReasoning.defaultModel')}
+            </span>
+            <span className="shrink-0 text-[10px] text-muted-foreground">
+              {t('input.modelReasoning.currentConfiguration')}
+            </span>
+            {!isRawSelection && <Check className="size-3.5 shrink-0 text-primary" />}
+          </button>
 
-              <div className="max-h-72 space-y-0.5 overflow-y-auto">
-                <button
-                  type="button"
-                  onClick={() => { void chooseModel(DEFAULT_MODEL_VALUE); }}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent',
-                    !isRawSelection && 'bg-accent/70',
-                  )}
-                >
-                  <span className="min-w-0 flex-1 truncate font-medium">
-                    {t('input.modelReasoning.defaultModel')}
-                  </span>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">
-                    {t('input.modelReasoning.currentConfiguration')}
-                  </span>
-                  {!isRawSelection && <Check className="size-3.5 shrink-0 text-primary" />}
-                </button>
-
-                {groups.map(({ group, models }) => (
-                  <div key={group}>
-                    <p className="px-2.5 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {providerDisplayLabel(group)}
-                    </p>
-                    {models.map((model) => {
-                      const isSelected = value === model.value;
-                      return (
-                        <button
-                          key={model.value}
-                          type="button"
-                          onClick={() => { void chooseModel(model.value); }}
-                          className={cn(
-                            'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent',
-                            isSelected && 'bg-accent/70',
-                          )}
-                          title={model.value}
-                        >
-                          <span className="min-w-0 flex-1 truncate">{model.label}</span>
-                          {isSelected && <Check className="size-3.5 shrink-0 text-primary" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="p-1">
-              <button
-                type="button"
-                onClick={() => setPendingModel(null)}
-                className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-accent"
-                aria-label={t('input.modelReasoning.modelTitle')}
-              >
-                <ChevronLeft className="size-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 truncate text-xs font-semibold">
-                  {pendingModelId ? compactModel(pendingModelId) : t('input.modelReasoning.defaultModel')}
-                </span>
-              </button>
-              <p className="px-1.5 pb-1 pt-2 text-xs font-semibold">
-                {t('input.modelReasoning.reasoningTitle')}
+          <div className="mt-1 flex divide-x divide-border/60 border-t border-border/60 pt-1">
+            <div className="min-w-0 flex-[1.1] pr-1" role="listbox" aria-label={t('input.modelReasoning.providerTitle')}>
+              <p className="px-2.5 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t('input.modelReasoning.providerTitle')}
               </p>
-              <p className="px-1.5 text-[11px] text-muted-foreground">
-                {t('input.modelReasoning.reasoningDescription')}
-              </p>
-              <div className="mt-2 grid grid-cols-2 gap-1">
-                {REASONING_EFFORT_OPTIONS
-                  .filter((option) => pendingReasoningOptions.includes(option.value))
-                  .map((option) => (
+              <div className="max-h-64 space-y-0.5 overflow-y-auto">
+                {groups.map(({ group }) => {
+                  const isShown = group === shownProvider;
+                  const holdsSelection = group === selectedProvider;
+                  return (
                     <button
-                      key={option.value}
+                      key={group}
                       type="button"
-                      onClick={() => { void commitSelection(pendingModel, option.value); }}
-                      className="flex items-center justify-between rounded-lg border border-border/60 px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:bg-accent hover:text-foreground"
+                      role="option"
+                      aria-selected={isShown}
+                      onClick={() => setActiveProvider(group)}
+                      className={cn(
+                        'flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent',
+                        isShown && 'bg-accent/70',
+                      )}
+                      title={providerDisplayLabel(group)}
                     >
-                      <span>{option.label}</span>
-                      <ChevronDown className="size-3 -rotate-90" aria-hidden />
+                      <span className="min-w-0 flex-1 truncate">{providerDisplayLabel(group)}</span>
+                      {holdsSelection && <span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden />}
+                      <ChevronRight className="size-3 shrink-0 text-muted-foreground/60" aria-hidden />
                     </button>
-                  ))}
+                  );
+                })}
               </div>
             </div>
-          )}
+
+            <div className="min-w-0 flex-[1.2] px-1" role="listbox" aria-label={t('input.modelReasoning.modelTitle')}>
+              <p className="px-2.5 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t('input.modelReasoning.modelTitle')}
+              </p>
+              <div className="max-h-64 space-y-0.5 overflow-y-auto">
+                {shownModels.map((model) => {
+                  const isSelected = model.value === selectedModelId;
+                  return (
+                    <button
+                      key={model.value}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => { void chooseModel(model.value); }}
+                      className={cn(
+                        'flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent',
+                        isSelected && 'bg-accent/70',
+                      )}
+                      title={model.value}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{model.label}</span>
+                      {isSelected && <Check className="size-3.5 shrink-0 text-primary" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="min-w-0 flex-[0.9] pl-1" role="listbox" aria-label={t('input.modelReasoning.reasoningTitle')}>
+              <p className="px-2.5 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t('input.modelReasoning.reasoningTitle')}
+              </p>
+              <div className="max-h-64 space-y-0.5 overflow-y-auto">
+                {reasoningOptions.length === 0 ? (
+                  <p className="px-2.5 py-1.5 text-xs text-muted-foreground/60" aria-hidden>–</p>
+                ) : REASONING_EFFORT_OPTIONS
+                  .filter((option) => reasoningOptions.includes(option.value))
+                  .map((option) => {
+                    const isSelected = option.value === reasoningEffort;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => chooseReasoning(option.value)}
+                        className={cn(
+                          'flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent',
+                          isSelected && 'bg-accent/70',
+                        )}
+                      >
+                        <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                        {isSelected && <Check className="size-3.5 shrink-0 text-primary" />}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
         </div>,
         document.body,
       )}

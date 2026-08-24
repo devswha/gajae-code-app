@@ -122,12 +122,11 @@
     "disabled": "Input disabled",
     "modelReasoning": {
       "label": "Model and reasoning",
+      "providerTitle": "Provider",
       "modelTitle": "Chat model",
-      "modelDescription": "Choose the model used for this session.",
-      "defaultModel": "Default",
-      "currentConfiguration": "Use current configuration",
       "reasoningTitle": "Reasoning",
-      "reasoningDescription": "Choose how much reasoning the chat model uses."
+      "defaultModel": "Default",
+      "currentConfiguration": "Use current configuration"
     },
     "agentConfiguration": {
       "label": "Agent configuration",

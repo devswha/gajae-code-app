@@ -117,12 +117,11 @@
     "stop": "Durdur",
     "modelReasoning": {
       "label": "Model ve muhakeme",
+      "providerTitle": "Sağlayıcı",
       "modelTitle": "Sohbet modeli",
-      "modelDescription": "Bu oturumda kullanılacak modeli seçin.",
-      "defaultModel": "Varsayılan",
-      "currentConfiguration": "Geçerli yapılandırmayı kullan",
       "reasoningTitle": "Muhakeme",
-      "reasoningDescription": "Sohbet modelinin ne kadar muhakeme kullanacağını seçin."
+      "defaultModel": "Varsayılan",
+      "currentConfiguration": "Geçerli yapılandırmayı kullan"
     },
     "agentConfiguration": {
       "label": "Ajan yapılandırması",

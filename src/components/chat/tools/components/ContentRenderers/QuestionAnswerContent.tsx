@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 
 import type { Question } from '../../../types/types';
 
+import { MarkdownContent } from './MarkdownContent';
+
 interface QuestionAnswerContentProps {
   questions: Question[];
   answers: Record<string, string>;
@@ -50,43 +52,44 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
         return (
           <div
             key={idx}
-            className="border-gray-150 overflow-hidden rounded-lg border bg-gray-50/50 dark:border-gray-700/50 dark:bg-gray-800/30"
+            className="overflow-hidden rounded-xl border border-border bg-card text-foreground"
           >
             <button
               type="button"
               onClick={() => setExpandedIdx(isExpanded ? null : idx)}
-              className="flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
+              className="flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors hover:bg-accent"
             >
               <div className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full ${
                 answerLabels.length > 0
-                  ? 'bg-blue-100 dark:bg-blue-900/40'
-                  : 'bg-gray-100 dark:bg-gray-800'
+                  ? 'bg-accent'
+                  : 'bg-muted'
               }`}>
                 {answerLabels.length > 0 ? (
-                  <svg className="h-2.5 w-2.5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+                  <svg className="h-2.5 w-2.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                 ) : (
-                  <div className="h-1.5 w-1.5 rounded-full bg-gray-300 dark:bg-gray-600" />
+                  <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
                 )}
               </div>
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   {q.header && (
-                    <span className="inline-flex items-center rounded border border-blue-100/80 bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-blue-600 dark:border-blue-800/40 dark:bg-blue-900/30 dark:text-blue-400">
+                    <span className="inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                       {q.header}
                     </span>
                   )}
                   {total > 1 && (
-                    <span className="text-[10px] tabular-nums text-gray-400 dark:text-gray-500">
+                    <span className="text-[10px] tabular-nums text-muted-foreground">
                       {idx + 1}/{total}
                     </span>
                   )}
                 </div>
-                <div className="mt-0.5 text-xs leading-snug text-gray-600 dark:text-gray-400">
-                  {q.question}
-                </div>
+                <MarkdownContent
+                  content={q.question}
+                  className="mt-0.5 text-sm leading-relaxed text-foreground [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5"
+                />
 
                 {!isExpanded && answerLabels.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1">
@@ -95,11 +98,11 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                       return (
                         <span
                           key={lbl}
-                          className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                          className="inline-flex items-center gap-1 rounded-md bg-accent px-1.5 py-0.5 text-xs font-medium text-foreground"
                         >
                           {lbl}
                           {isCustom && (
-                            <span className="text-[9px] font-normal text-blue-400 dark:text-blue-500">(custom)</span>
+                            <span className="text-[10px] font-normal text-muted-foreground">(custom)</span>
                           )}
                         </span>
                       );
@@ -108,14 +111,14 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                 )}
 
                 {!isExpanded && skipped && hasAnyAnswer && (
-                  <span className="mt-1 inline-block text-[10px] italic text-gray-400 dark:text-gray-500">
+                  <span className="mt-1 inline-block text-[10px] italic text-muted-foreground">
                     Skipped
                   </span>
                 )}
               </div>
 
               <svg
-                className={`mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-gray-400 transition-transform duration-200 dark:text-gray-500 ${
+                className={`mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform duration-200 ${
                   isExpanded ? 'rotate-180' : ''
                 }`}
                 fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}
@@ -125,37 +128,37 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
             </button>
 
             {isExpanded && (
-              <div className="border-t border-gray-100 px-3 pb-2.5 pt-0.5 dark:border-gray-700/40">
+              <div className="border-t border-border px-3 pb-2.5 pt-0.5">
                 <div className="ml-6.5 space-y-1">
                   {options.map((opt) => {
                     const wasSelected = answerLabels.includes(opt.label);
                     return (
                       <div
                         key={opt.label}
-                        className={`flex items-start gap-2 rounded-lg px-2.5 py-1.5 text-[12px] ${
+                        className={`flex items-start gap-2 rounded-lg px-2.5 py-1.5 text-xs leading-relaxed ${
                           wasSelected
-                            ? 'border border-blue-200/60 bg-blue-50/80 dark:border-blue-800/40 dark:bg-blue-900/20'
-                            : 'text-gray-400 dark:text-gray-500'
+                            ? 'border border-primary/40 bg-accent/70'
+                            : 'text-muted-foreground'
                         }`}
                       >
                         <div className={`mt-0.5 h-3.5 w-3.5 flex-shrink-0 ${q.multiSelect ? 'rounded-[3px]' : 'rounded-full'} flex items-center justify-center border-[1.5px] ${
                           wasSelected
-                            ? 'border-blue-500 bg-blue-500 dark:border-blue-400 dark:bg-blue-500'
-                            : 'border-gray-300 dark:border-gray-600'
+                            ? 'border-primary bg-primary'
+                            : 'border-border'
                         }`}>
                           {wasSelected && (
-                            <svg className="h-2 w-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+                            <svg className="h-2 w-2 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <span className={wasSelected ? 'font-medium text-gray-900 dark:text-gray-100' : ''}>
+                          <span className={wasSelected ? 'font-medium text-foreground' : ''}>
                             {opt.label}
                           </span>
                           {opt.description && (
-                            <span className={`mt-0.5 block text-[11px] ${
-                              wasSelected ? 'text-blue-600/70 dark:text-blue-300/70' : 'text-gray-400 dark:text-gray-600'
+                            <span className={`mt-0.5 block text-xs leading-relaxed ${
+                              wasSelected ? 'text-primary' : 'text-muted-foreground'
                             }`}>
                               {opt.description}
                             </span>
@@ -168,22 +171,22 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                   {answerLabels.filter(lbl => !options.some(o => o.label === lbl)).map(lbl => (
                     <div
                       key={lbl}
-                      className="flex items-start gap-2 rounded-lg border border-blue-200/60 bg-blue-50/80 px-2.5 py-1.5 text-[12px] dark:border-blue-800/40 dark:bg-blue-900/20"
+                      className="flex items-start gap-2 rounded-lg border border-primary/40 bg-accent/70 px-2.5 py-1.5 text-xs leading-relaxed"
                     >
-                      <div className={`mt-0.5 h-3.5 w-3.5 flex-shrink-0 ${q.multiSelect ? 'rounded-[3px]' : 'rounded-full'} flex items-center justify-center border-[1.5px] border-blue-500 bg-blue-500 dark:border-blue-400 dark:bg-blue-500`}>
-                        <svg className="h-2 w-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+                      <div className={`mt-0.5 h-3.5 w-3.5 flex-shrink-0 ${q.multiSelect ? 'rounded-[3px]' : 'rounded-full'} flex items-center justify-center border-[1.5px] border-primary bg-primary`}>
+                        <svg className="h-2 w-2 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <span className="font-medium text-gray-900 dark:text-gray-100">{lbl}</span>
-                        <span className="ml-1 text-[10px] text-blue-500 dark:text-blue-400">(custom)</span>
+                        <span className="font-medium text-foreground">{lbl}</span>
+                        <span className="ml-1 text-[10px] text-muted-foreground">(custom)</span>
                       </div>
                     </div>
                   ))}
 
                   {skipped && hasAnyAnswer && (
-                    <div className="px-2.5 py-1 text-[11px] italic text-gray-400 dark:text-gray-500">
+                    <div className="px-2.5 py-1 text-xs italic text-muted-foreground">
                       No answer provided
                     </div>
                   )}
@@ -195,7 +198,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
       })}
 
       {!hasAnyAnswer && total === 1 && (
-        <div className="text-[11px] italic text-gray-400 dark:text-gray-500">
+        <div className="text-xs italic text-muted-foreground">
           Skipped
         </div>
       )}

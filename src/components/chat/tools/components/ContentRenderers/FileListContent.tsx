@@ -12,7 +12,7 @@ interface FileListContentProps {
 }
 
 /**
- * Renders a compact comma-separated list of clickable file names
+ * Renders a compact list of clickable file paths
  * Used by: Grep/Glob results
  */
 export const FileListContent: React.FC<FileListContentProps> = ({
@@ -23,31 +23,27 @@ export const FileListContent: React.FC<FileListContentProps> = ({
   return (
     <div>
       {title && (
-        <div className="mb-1 text-[11px] text-gray-500 dark:text-gray-400">
+        <div className="mb-1 text-xs text-muted-foreground">
           {title}
         </div>
       )}
-      <div className="flex max-h-48 flex-wrap gap-x-1 gap-y-0.5 overflow-y-auto">
+      <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border bg-muted/30 p-2">
         {files.map((file, index) => {
           const filePath = typeof file === 'string' ? file : file.path;
-          const fileName = filePath.split('/').pop() || filePath;
           const handleClick = typeof file === 'string'
             ? () => onFileClick?.(file)
             : file.onClick;
 
           return (
-            <span key={index} className="inline-flex items-center">
+            <div key={index} className="min-w-0">
               <button
                 onClick={handleClick}
-                className="font-mono text-[11px] text-blue-600 transition-colors hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+                className="block max-w-full truncate font-mono text-xs text-muted-foreground transition-colors hover:text-primary hover:underline"
                 title={filePath}
               >
-                {fileName}
+                {filePath}
               </button>
-              {index < files.length - 1 && (
-                <span className="ml-1 text-[10px] text-gray-300 dark:text-gray-600">,</span>
-              )}
-            </span>
+            </div>
           );
         })}
       </div>

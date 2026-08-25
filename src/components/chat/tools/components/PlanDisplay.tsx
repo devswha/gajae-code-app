@@ -60,7 +60,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
 
   return (
     <Collapsible defaultOpen={defaultOpen}>
-      <Card className="my-1 flex flex-col shadow-none">
+      <Card className="my-1 flex flex-col rounded-lg border border-border bg-card shadow-none">
         {/* Header — always visible */}
         <CardHeader className="flex flex-row items-start justify-between space-y-0 px-4 pb-0 pt-4">
           <div className="flex items-center gap-2">
@@ -81,7 +81,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
             {content ? (
               <MarkdownContent
                 content={content}
-                className="prose prose-sm max-w-none dark:prose-invert"
+                className="prose prose-sm max-w-none text-muted-foreground"
               />
             ) : isStreaming ? (
               <div className="py-2">

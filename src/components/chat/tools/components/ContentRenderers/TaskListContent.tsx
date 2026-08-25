@@ -1,4 +1,5 @@
 import React from 'react';
+import { Check, Circle, Loader2 } from 'lucide-react';
 
 interface TaskItem {
   id: string;
@@ -38,31 +39,19 @@ function parseTaskContent(content: string): TaskItem[] {
 
 const statusConfig = {
   completed: {
-    icon: (
-      <svg className="h-3.5 w-3.5 text-green-500 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-    textClass: 'line-through text-gray-400 dark:text-gray-500',
-    badgeClass: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'
+    icon: <Check className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />,
+    textClass: 'line-through text-muted-foreground',
+    badgeClass: 'border-border bg-muted/30 text-muted-foreground'
   },
   in_progress: {
-    icon: (
-      <svg className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-    textClass: 'text-gray-900 dark:text-gray-100',
-    badgeClass: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+    icon: <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" aria-hidden="true" />,
+    textClass: 'text-foreground',
+    badgeClass: 'border-border bg-muted/30 text-foreground'
   },
   pending: {
-    icon: (
-      <svg className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="9" strokeWidth={2} />
-      </svg>
-    ),
-    textClass: 'text-gray-700 dark:text-gray-300',
-    badgeClass: 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700'
+    icon: <Circle className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />,
+    textClass: 'text-muted-foreground',
+    badgeClass: 'border-border bg-muted/30 text-muted-foreground'
   }
 };
 
@@ -76,7 +65,7 @@ export const TaskListContent: React.FC<TaskListContentProps> = ({ content }) => 
   // If we couldn't parse any tasks, fall back to text display
   if (tasks.length === 0) {
     return (
-      <pre className="whitespace-pre-wrap font-mono text-[11px] text-gray-600 dark:text-gray-400">
+      <pre className="whitespace-pre-wrap font-mono text-xs text-muted-foreground">
         {content}
       </pre>
     );
@@ -88,12 +77,12 @@ export const TaskListContent: React.FC<TaskListContentProps> = ({ content }) => 
   return (
     <div>
       <div className="mb-1.5 flex items-center gap-2">
-        <span className="text-[11px] text-gray-500 dark:text-gray-400">
+        <span className="text-xs text-muted-foreground">
           {completed}/{total} completed
         </span>
-        <div className="h-1 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+        <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-green-500 transition-all dark:bg-green-400"
+            className="h-full rounded-full bg-primary transition-all"
             style={{ width: `${total > 0 ? (completed / total) * 100 : 0}%` }}
           />
         </div>
@@ -107,7 +96,7 @@ export const TaskListContent: React.FC<TaskListContentProps> = ({ content }) => 
               className="group flex items-center gap-1.5 py-0.5"
             >
               <span className="flex-shrink-0">{config.icon}</span>
-              <span className="flex-shrink-0 font-mono text-[11px] text-gray-400 dark:text-gray-500">
+              <span className="flex-shrink-0 font-mono text-xs text-muted-foreground">
                 #{task.id}
               </span>
               <span className={`flex-1 truncate text-xs ${config.textClass}`}>

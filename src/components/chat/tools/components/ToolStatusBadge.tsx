@@ -1,23 +1,30 @@
+import { Ban, Check, Loader2, X } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
 import { cn } from '../../../../lib/utils';
 
 export type ToolStatus = 'running' | 'completed' | 'error' | 'denied';
 
-const STATUS_CONFIG: Record<ToolStatus, { label: string; className: string }> = {
+const STATUS_CONFIG: Record<ToolStatus, { label: string; className: string; Icon: LucideIcon }> = {
   running: {
     label: 'Running',
-    className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    className: 'text-muted-foreground',
+    Icon: Loader2,
   },
   completed: {
     label: 'Completed',
-    className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+    className: 'text-muted-foreground',
+    Icon: Check,
   },
   error: {
     label: 'Error',
-    className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    className: 'text-destructive',
+    Icon: X,
   },
   denied: {
     label: 'Denied',
-    className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+    className: 'text-muted-foreground',
+    Icon: Ban,
   },
 };
 
@@ -28,15 +35,11 @@ interface ToolStatusBadgeProps {
 
 export function ToolStatusBadge({ status, className }: ToolStatusBadgeProps) {
   const config = STATUS_CONFIG[status];
+  const { Icon } = config;
   return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded px-1.5 py-px text-[10px] font-medium',
-        config.className,
-        className,
-      )}
-    >
-      {config.label}
+    <span className={cn('inline-flex flex-shrink-0 items-center', config.className, className)}>
+      <Icon className={cn('size-3.5', status === 'running' && 'animate-spin')} aria-hidden="true" />
+      <span className="sr-only">{config.label}</span>
     </span>
   );
 }

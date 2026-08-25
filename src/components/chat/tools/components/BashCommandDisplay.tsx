@@ -69,12 +69,17 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
       className={cn(
         // Collapsed, a command is one line of text among the prose. The card
         // only appears once it is opened and actually has output to frame.
-        'group/cmd overflow-hidden rounded-md transition-colors duration-200',
+        'group/cmd overflow-hidden rounded-lg transition-colors duration-200',
         hasOutput && !open && 'hover:bg-muted/30',
-        open && 'border bg-muted/40',
-        open && (isError ? 'border-red-500/30' : 'border-border/60'),
+        open && 'border border-border bg-card',
       )}
     >
+      {open && (
+        <div className="flex items-center gap-1.5 border-b border-border px-3 py-2 text-xs">
+          {status && <ToolStatusBadge status={status} />}
+          <span className="font-medium text-foreground">Bash</span>
+        </div>
+      )}
       {/* Command header — clickable when there is output to expand */}
       <div
         role={hasOutput ? 'button' : undefined}
@@ -89,18 +94,19 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         }}
         className={cn(
           'flex items-center gap-2 px-1 py-0.5 outline-none',
-          open && 'px-2.5 py-1.5',
+          open && 'px-3 py-2',
           hasOutput && 'cursor-pointer focus-visible:ring-1 focus-visible:ring-ring',
         )}
       >
-        <ChevronRight
+        {!open && status && <ToolStatusBadge status={status} />}
+        {!open && <ChevronRight
           className={cn(
             'h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/70 transition-transform duration-200',
             open && 'rotate-90',
             !hasOutput && 'opacity-0',
           )}
-        />
-        <span className="flex-shrink-0 select-none font-mono text-xs font-semibold text-emerald-500 dark:text-emerald-400">
+        />}
+        <span className="flex-shrink-0 select-none font-mono text-xs text-muted-foreground">
           $
         </span>
         <code
@@ -112,10 +118,6 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
           {command}
         </code>
 
-        {isRunning && (
-          <span className="h-2.5 w-2.5 flex-shrink-0 animate-spin rounded-full border-[1.5px] border-muted-foreground/30 border-t-emerald-400" />
-        )}
-        {status && status !== 'running' && <ToolStatusBadge status={status} className="flex-shrink-0" />}
         {!open && hasOutput && !isRunning && (
           <span className="flex-shrink-0 text-[10px] tabular-nums text-muted-foreground/70 transition-opacity group-hover/cmd:opacity-0">
             {outputLineCount} {outputLineCount === 1 ? 'line' : 'lines'}
@@ -129,7 +131,7 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
           title="Copy command"
           aria-label="Copy command"
         >
-          {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? <Check className="h-3.5 w-3.5 text-foreground" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
       </div>
 
@@ -141,14 +143,18 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
 
       {/* Expanded output */}
       {open && hasOutput && (
-        <div className="settings-content-enter border-t border-border/50 bg-background/50">
+        <div className="settings-content-enter border-t border-border">
           {description && (
             <div className="px-3 pt-2 text-[11px] italic text-muted-foreground/70">{description}</div>
           )}
+          <div className="flex items-center gap-2 px-3 pt-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Output</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
           <pre
             className={cn(
               'max-h-80 overflow-auto whitespace-pre-wrap break-all px-3 py-2 font-mono text-xs leading-relaxed',
-              isError ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground',
+              isError ? 'text-destructive' : 'text-muted-foreground',
             )}
           >
             {trimmedOutput}

@@ -12,6 +12,7 @@ interface CollapsibleSectionProps {
   onTitleClick?: () => void;
   children: React.ReactNode;
   className?: string;
+  outputLabel?: string;
 }
 
 /**
@@ -26,9 +27,10 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   onTitleClick,
   children,
   className = '',
+  outputLabel,
 }) => {
   return (
-    <Collapsible defaultOpen={open} className={cn('group/section', className)}>
+    <Collapsible defaultOpen={open} className={cn('group/section rounded-lg group-data-[state=open]/section:border group-data-[state=open]/section:border-border', className)}>
       {/* When there's a clickable title (Edit/Write), only the chevron toggles collapse */}
       {onTitleClick ? (
         <div className="flex cursor-default select-none items-center gap-1.5 py-0.5 text-xs group-data-[state=open]/section:sticky group-data-[state=open]/section:top-0 group-data-[state=open]/section:z-10 group-data-[state=open]/section:-mx-1 group-data-[state=open]/section:bg-background group-data-[state=open]/section:px-1">
@@ -42,6 +44,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </CollapsibleTrigger>
+          {badge && <span className="flex-shrink-0">{badge}</span>}
           {toolName && (
             <span className="flex-shrink-0 font-medium text-muted-foreground">{toolName}</span>
           )}
@@ -50,11 +53,10 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
           )}
           <button
             onClick={onTitleClick}
-            className="flex-1 truncate text-left font-mono text-primary transition-colors hover:text-primary/80 hover:underline"
+            className="flex-1 truncate text-left font-mono text-muted-foreground transition-colors hover:text-primary hover:underline"
           >
             {title}
           </button>
-          {badge && <span className="ml-auto flex-shrink-0">{badge}</span>}
           {action && <span className="ml-1 flex-shrink-0">{action}</span>}
         </div>
       ) : (
@@ -67,20 +69,27 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
+          {badge && <span className="flex-shrink-0">{badge}</span>}
           {toolName && (
             <span className="flex-shrink-0 font-medium">{toolName}</span>
           )}
           {toolName && (
             <span className="flex-shrink-0 text-[10px] text-muted-foreground/40">/</span>
           )}
-          <span className="flex-1 truncate text-left">{title}</span>
-          {badge && <span className="ml-auto flex-shrink-0">{badge}</span>}
+          <span className="flex-1 truncate text-left font-mono text-muted-foreground">{title}</span>
           {action && <span className="ml-1 flex-shrink-0">{action}</span>}
         </CollapsibleTrigger>
       )}
 
-      <CollapsibleContent>
+      <CollapsibleContent className="group-data-[state=open]/section:border-t group-data-[state=open]/section:border-border">
         <div className="mt-1.5 pl-[18px]">
+          {outputLabel && (
+            <div className="mb-2 flex items-center gap-2">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{outputLabel}</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+          )}
           {children}
         </div>
       </CollapsibleContent>

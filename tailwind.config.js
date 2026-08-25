@@ -72,6 +72,9 @@ export default {
         'safe-area-inset-bottom': 'env(safe-area-inset-bottom)',
         'mobile-nav': 'var(--mobile-nav-total)',
       },
+      maxWidth: {
+        chat: 'var(--chat-column-width)',
+      },
       keyframes: {
         shimmer: {
           '0%': { backgroundPosition: '200% 0' },

@@ -94,6 +94,7 @@
     --mobile-nav-height: 52px;
     --mobile-nav-padding: 20px;
     --mobile-nav-total: calc(var(--mobile-nav-height) + var(--mobile-nav-padding) + env(safe-area-inset-bottom, 0px));
+    --chat-column-width: 54.25rem;
 
     /* Header safe area dimensions: the standalone offset is only applied in
        pwa-mode (below); in the browser the page starts at the viewport top. */
@@ -104,6 +105,18 @@
 
   body.pwa-mode {
     --header-total-padding: calc(var(--header-safe-area-top) + var(--header-base-padding));
+  }
+
+  @media (min-width: 1280px) {
+    :root {
+      --chat-column-width: 60rem;
+    }
+  }
+
+  @media (min-width: 1536px) {
+    :root {
+      --chat-column-width: 66rem;
+    }
   }
   
   /* Fallback for older iOS versions */

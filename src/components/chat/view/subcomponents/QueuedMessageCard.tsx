@@ -28,7 +28,7 @@ export default function QueuedMessageCard({
   const isNext = position === 1;
 
   return (
-    <div className="settings-content-enter mx-auto mb-1.5 max-w-[54.25rem] rounded-xl border border-dashed border-primary/25 bg-primary/[0.04] px-3 py-2">
+    <div className="settings-content-enter mx-auto mb-1.5 max-w-chat rounded-xl border border-dashed border-primary/25 bg-primary/[0.04] px-3 py-2">
       <div className="flex items-start gap-2.5">
         {total > 1 ? (
           <span

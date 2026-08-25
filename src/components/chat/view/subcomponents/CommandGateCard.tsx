@@ -35,7 +35,7 @@ export default function CommandGateCard({
     <div
       role="alertdialog"
       aria-label={t('input.gate.label', { defaultValue: 'Confirm command' })}
-      className="settings-content-enter mx-auto mb-2 max-w-[54.25rem] rounded-xl border border-destructive/30 bg-destructive/[0.04] px-3 py-2.5"
+      className="settings-content-enter mx-auto mb-2 max-w-chat rounded-xl border border-destructive/30 bg-destructive/[0.04] px-3 py-2.5"
     >
       <div className="flex items-start gap-2.5">
         <Icon className="mt-0.5 h-4 w-4 shrink-0 text-destructive/80" aria-hidden />

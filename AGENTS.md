@@ -55,6 +55,48 @@ dist-native/bun test server/gjc-sdk-contract.bun.test.ts
 
 `npm test` has a `pretest` that builds the Rust core (debug); tests fail without it.
 
+## Frontend stack
+
+React 18.2 + TypeScript 5.9 on Vite 7, function components and hooks throughout.
+Four legacy `.jsx` files remain (`src/main.jsx`, `src/contexts/AuthContext.jsx`,
+`src/contexts/ThemeContext.jsx`, `src/hooks/useLocalStorage.jsx`); everything else
+is `.ts`/`.tsx`. Routing is react-router-dom 7.
+
+- **The UI primitives are owned, not installed.** `src/shared/view/ui/` holds 19
+  shadcn-shaped components (Button, Dialog, Collapsible, Command, Tooltip,
+  ScrollArea, ActionMenu, ...) written in this repo. **There is no Radix
+  dependency.** Reaching for one to get a primitive that already exists here is
+  a regression, not a shortcut. `cmdk` backs the command palette, `lucide-react`
+  supplies icons.
+- **There is no state library.** No Redux, Zustand, Jotai or TanStack Query.
+  `src/stores/useSessionStore.ts` is a store by name only: `useState`/`useRef`
+  over a `Map` keyed by session id. Cross-cutting state lives in six contexts -
+  WebSocket, Auth, Theme, Permission, SessionStatus, PaletteOps.
+- **Server state**: `ws` for live messages, `authenticatedFetch` REST for the
+  rest. The provider's transcript on disk is the source of truth - there is no
+  messages table in SQLite and messages are never cached in localStorage.
+- **Styling**: Tailwind 3.4 with `darkMode: ["class"]` and
+  `@tailwindcss/typography`. `cn()` (`src/lib/utils.js`) is clsx +
+  tailwind-merge; variants use class-variance-authority. Pretendard Variable is
+  the sans stack and is also appended to the *serif* stack, because the Latin
+  serif faces carry no Hangul and Korean would otherwise fall back to a system
+  serif. Colors come from the semantic variables in `src/index.css`; see DESIGN.md.
+- **Editor and content**: CodeMirror 6 through `@uiw/react-codemirror`, with
+  `@codemirror/merge` for diffs and `@replit/codemirror-minimap`. Markdown is
+  react-markdown with remark-gfm/remark-math and rehype-katex (KaTeX's CSS is
+  imported in `src/main.jsx`), plus react-syntax-highlighter. **Raw HTML is not
+  rendered**: there is no `rehype-raw` in the pipeline, which is also why nothing
+  sanitizes - both `rehype-raw` and `dompurify` are declared in package.json and
+  imported nowhere.
+- **Bundle**: `vite.config.js` pins `manualChunks` by hand - vendor-react,
+  vendor-codemirror, vendor-markdown, vendor-syntax, vendor-icons, vendor-i18n,
+  vendor-tools. A new heavy dependency belongs in one of those groups.
+- The `build` block in `package.json` is electron-builder-shaped and no electron
+  tooling is installed, but it is **not** dead weight: `npm run check:identity`
+  asserts its `appId`, product name, executable name, artifact name, protocols
+  and macOS bundle keys against `shared/productIdentity.js`. The desktop shell
+  is Tauri 2.
+
 ## Architecture notes
 
 - **GJC provider isolation**: GJC is the *only* provider routed through an isolated

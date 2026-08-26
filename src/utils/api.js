@@ -144,6 +144,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ summary }),
     }),
+  toggleSessionStar: (sessionId) =>
+    authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(sessionId)}/toggle-star`, {
+      method: 'POST',
+    }),
   // `hardDelete` => server `?force=true` (remove DB row + Claude *.jsonl + sessions rows for path).
   deleteProject: (projectId, hardDelete = false) => {
     const params = new URLSearchParams();

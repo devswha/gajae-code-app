@@ -9,6 +9,7 @@ type SessionRow = {
   project_path: string | null;
   jsonl_path: string | null;
   custom_name: string | null;
+  isStarred: number;
   isArchived: number;
   created_at: string;
   updated_at: string;
@@ -18,7 +19,7 @@ export type ProjectSessionPageRow = SessionRow & {
 };
 
 const SESSION_ROW_COLUMNS =
-  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, isArchived, created_at, updated_at';
+  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, isStarred, isArchived, created_at, updated_at';
 
 const SQLITE_UTC_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 
@@ -522,6 +523,15 @@ export const sessionsDb = {
        SET isArchived = ?
        WHERE session_id = ?`
     ).run(isArchived ? 1 : 0, sessionId);
+  },
+
+  updateSessionIsStarred(sessionId: string, isStarred: boolean): void {
+    const db = getConnection();
+    db.prepare(
+      `UPDATE sessions
+       SET isStarred = ?
+       WHERE session_id = ?`
+    ).run(isStarred ? 1 : 0, sessionId);
   },
 
   deleteSessionById(sessionId: string): boolean {

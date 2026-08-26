@@ -24,6 +24,7 @@ type SidebarProjectSessionsProps = {
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
+  onToggleSessionStar?: (sessionId: string) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
   onDeleteSession: (
@@ -71,6 +72,7 @@ export default function SidebarProjectSessions({
   onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
+  onToggleSessionStar,
   onProjectSelect,
   onSessionSelect,
   onDeleteSession,
@@ -93,7 +95,7 @@ export default function SidebarProjectSessions({
         </div>
       ) : (
         <>
-          {sessions.map((session) => (
+          {[...sessions].sort((left, right) => Number(Boolean(right.isStarred)) - Number(Boolean(left.isStarred))).map((session) => (
             <SidebarSessionItem
               key={session.id}
               project={project}
@@ -109,6 +111,7 @@ export default function SidebarProjectSessions({
               onStartEditingSession={onStartEditingSession}
               onCancelEditingSession={onCancelEditingSession}
               onSaveEditingSession={onSaveEditingSession}
+              onToggleSessionStar={onToggleSessionStar}
               onProjectSelect={onProjectSelect}
               onSessionSelect={onSessionSelect}
               onDeleteSession={onDeleteSession}

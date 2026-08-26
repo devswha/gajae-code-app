@@ -37,13 +37,17 @@ export default function SidebarWorkList({ projectListProps }: SidebarWorkListPro
     onStartEditingSession,
     onCancelEditingSession,
     onSaveEditingSession,
+    onToggleSessionStar,
     t,
   } = projectListProps;
 
   const sessionRows = filteredProjects
     .flatMap((project) => getProjectSessions(project).map((session) => ({ project, session })))
     .filter(({ session }) => activeSessions.has(session.id) || attentionSessionIds.has(session.id))
-    .sort((a, b) => sessionTimestamp(b.session) - sessionTimestamp(a.session));
+    .sort((a, b) => (
+      Number(Boolean(b.session.isStarred)) - Number(Boolean(a.session.isStarred))
+      || sessionTimestamp(b.session) - sessionTimestamp(a.session)
+    ));
 
   if (isLoading || projects.length === 0) {
     return (
@@ -88,6 +92,7 @@ export default function SidebarWorkList({ projectListProps }: SidebarWorkListPro
           onStartEditingSession={onStartEditingSession}
           onCancelEditingSession={onCancelEditingSession}
           onSaveEditingSession={onSaveEditingSession}
+          onToggleSessionStar={onToggleSessionStar}
           onProjectSelect={onProjectSelect}
           onSessionSelect={onSessionSelect}
           onDeleteSession={onDeleteSession}

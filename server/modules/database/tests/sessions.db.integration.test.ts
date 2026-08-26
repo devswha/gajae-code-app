@@ -4,8 +4,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
+import Database from 'better-sqlite3';
+
 import { closeConnection, getDatabasePath } from '@/modules/database/connection.js';
 import { initializeDatabase } from '@/modules/database/init-db.js';
+import { runMigrations } from '@/modules/database/migrations.js';
 import { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
 
 async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
@@ -92,6 +95,71 @@ test('repository reads normalize SQLite UTC timestamps to ISO strings', async ()
     assert.match(row?.updated_at ?? '', /^\d{4}-\d{2}-\d{2}T/);
   });
 });
+
+test('session stars default off, persist, and reach every session reader', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createSession('session-starred', 'claude', '/workspace/demo-project', 'Starred Session');
+    assert.equal(sessionsDb.getSessionById('session-starred')?.isStarred, 0);
+
+    sessionsDb.updateSessionIsStarred('session-starred', true);
+
+    // The sidebar reads sessions through the project listing, so a flag that
+    // only the by-id reader returns would render as unpinned after a reload.
+    assert.equal(sessionsDb.getSessionById('session-starred')?.isStarred, 1);
+    assert.equal(sessionsDb.getSessionsByProjectPath('/workspace/demo-project')[0]?.isStarred, 1);
+
+    sessionsDb.updateSessionIsStarred('session-starred', false);
+    assert.equal(sessionsDb.getSessionById('session-starred')?.isStarred, 0);
+  });
+});
+
+test('session-star migration is idempotent and preserves existing values', () => {
+  const db = new Database(':memory:');
+  try {
+    db.exec(`
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_login DATETIME,
+        is_active BOOLEAN DEFAULT 1
+      );
+      CREATE TABLE sessions (
+        session_id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL DEFAULT 'claude',
+        provider_session_id TEXT,
+        custom_name TEXT,
+        project_path TEXT,
+        jsonl_path TEXT,
+        isArchived BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO sessions (session_id, provider, project_path)
+      VALUES ('existing-session', 'claude', '/workspace/demo-project');
+    `);
+
+    runMigrations(db);
+    db.prepare('UPDATE sessions SET isStarred = 1 WHERE session_id = ?').run('existing-session');
+    runMigrations(db);
+
+    const columns = db.prepare('PRAGMA table_info(sessions)').all() as Array<{
+      name: string;
+      dflt_value: string | null;
+    }>;
+    const starredColumns = columns.filter((column) => column.name === 'isStarred');
+    assert.equal(starredColumns.length, 1);
+    assert.equal(starredColumns[0]?.dflt_value, '0');
+    assert.deepEqual(
+      db.prepare('SELECT isStarred FROM sessions WHERE session_id = ?').get('existing-session') as { isStarred: number },
+      { isStarred: 1 },
+    );
+  } finally {
+    db.close();
+  }
+});
+
 test('sessionsDb uses the explicit DATABASE_PATH override', async () => {
   await withIsolatedDatabase(() => {
     assert.equal(getDatabasePath(), process.env.DATABASE_PATH);

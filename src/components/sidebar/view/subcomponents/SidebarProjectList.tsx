@@ -51,6 +51,7 @@ export type SidebarProjectListProps = {
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
+  onToggleSessionStar?: (sessionId: string) => void;
   t: TFunction;
 };
 
@@ -92,6 +93,7 @@ export default function SidebarProjectList({
   onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
+  onToggleSessionStar,
   t,
 }: SidebarProjectListProps) {
   const state = (
@@ -157,6 +159,7 @@ export default function SidebarProjectList({
               onStartEditingSession={onStartEditingSession}
               onCancelEditingSession={onCancelEditingSession}
               onSaveEditingSession={onSaveEditingSession}
+              onToggleSessionStar={onToggleSessionStar}
               t={t}
             />
           ))}

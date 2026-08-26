@@ -85,6 +85,7 @@ function Sidebar({
     closeArchive,
     refreshProjects,
     updateSessionSummary,
+    toggleSessionStar,
     collapseSidebar: handleCollapseSidebar,
     expandSidebar: handleExpandSidebar,
     setShowNewProject,
@@ -177,6 +178,9 @@ function Sidebar({
     },
     onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => {
       void updateSessionSummary(projectName, sessionId, summary, provider);
+    },
+    onToggleSessionStar: (sessionId: string) => {
+      void toggleSessionStar(sessionId);
     },
     t,
   };

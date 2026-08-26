@@ -11,6 +11,7 @@ type SessionSummary = {
   id: string;
   provider: string;
   summary: string;
+  isStarred: boolean;
   messageCount: number;
   lastActivity: string;
 };
@@ -19,6 +20,7 @@ type SessionRepositoryRow = {
   provider: string;
   session_id: string;
   custom_name?: string | null;
+  isStarred: number;
   updated_at?: string | null;
   created_at?: string | null;
 };
@@ -132,6 +134,7 @@ function mapSessionRowToSummary(row: SessionRepositoryRow): SessionSummary {
     id: row.session_id,
     provider: row.provider,
     summary: row.custom_name || '',
+    isStarred: Boolean(row.isStarred),
     messageCount: 0,
     lastActivity: row.updated_at ?? row.created_at ?? new Date().toISOString(),
   };

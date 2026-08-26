@@ -675,6 +675,22 @@ export function useSidebarController({
     [onRefresh, t],
   );
 
+  const toggleSessionStar = useCallback(async (sessionId: string) => {
+    try {
+      const response = await api.toggleSessionStar(sessionId);
+      if (!response.ok) {
+        console.error('[Sidebar] Failed to toggle session star:', response.status);
+        alert(t('messages.updateSessionError'));
+        return;
+      }
+
+      await onRefresh();
+    } catch (error) {
+      console.error('[Sidebar] Error toggling session star:', error);
+      alert(t('messages.updateSessionError'));
+    }
+  }, [onRefresh, t]);
+
   const collapseSidebar = useCallback(() => {
     setSidebarVisible(false);
   }, [setSidebarVisible]);
@@ -727,6 +743,7 @@ export function useSidebarController({
     closeArchive,
     refreshProjects,
     updateSessionSummary,
+    toggleSessionStar,
     collapseSidebar,
     expandSidebar,
     setShowNewProject,

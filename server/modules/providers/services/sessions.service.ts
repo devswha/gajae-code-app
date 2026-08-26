@@ -30,6 +30,7 @@ type ArchivedSessionListItem = {
   createdAt: string | null;
   updatedAt: string | null;
   lastActivity: string | null;
+  isStarred: boolean;
   isProjectArchived: boolean;
 };
 
@@ -276,6 +277,7 @@ export const sessionsService = {
         createdAt: session.created_at ?? null,
         updatedAt: session.updated_at ?? null,
         lastActivity: session.updated_at ?? session.created_at ?? null,
+        isStarred: Boolean(session.isStarred),
         isProjectArchived: Boolean(project?.isArchived),
       };
     });
@@ -405,6 +407,23 @@ export const sessionsService = {
 
     sessionsDb.updateSessionIsArchived(sessionId, false);
     return { sessionId, isArchived: false };
+  },
+
+  /**
+   * Flips one persisted session's starred state.
+   */
+  toggleSessionStarById(sessionId: string): { sessionId: string; isStarred: boolean } {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session) {
+      throw new AppError(`Session "${sessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    const isStarred = !session.isStarred;
+    sessionsDb.updateSessionIsStarred(sessionId, isStarred);
+    return { sessionId, isStarred };
   },
 
   /**

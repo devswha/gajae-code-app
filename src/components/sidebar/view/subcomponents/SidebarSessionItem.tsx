@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { Check, Edit2, Loader2, Trash2, X } from 'lucide-react';
+import { Check, Edit2, Loader2, MoreHorizontal, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, Tooltip, buttonVariants } from '../../../../shared/view/ui';
+import ActionMenu, { type ActionMenuItem } from '../../../../shared/view/ui/ActionMenu';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
@@ -23,6 +24,7 @@ type SidebarSessionItemProps = {
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
+  onToggleSessionStar?: (sessionId: string) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
   onDeleteSession: (
@@ -77,6 +79,7 @@ export default function SidebarSessionItem({
   onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
+  onToggleSessionStar,
   onProjectSelect,
   onSessionSelect,
   onDeleteSession,
@@ -123,6 +126,48 @@ export default function SidebarSessionItem({
   const requestDeleteSession = () => {
     onDeleteSession(project.projectId, session.id, sessionView.sessionName, session.__provider);
   };
+  const isStarred = Boolean(session.isStarred);
+  const sessionActions: ActionMenuItem[] = [
+    // Pinning is optional the same way deleting is: a host that does not wire
+    // the handler must not be given a menu entry that silently does nothing.
+    ...(onToggleSessionStar ? [{
+      key: 'pin',
+      label: t(isStarred ? 'sessions.unpin' : 'sessions.pin'),
+      icon: Star,
+      onSelect: () => onToggleSessionStar(session.id),
+    }] : []),
+    {
+      key: 'rename',
+      label: t('sessions.renameSession'),
+      icon: Edit2,
+      onSelect: () => onStartEditingSession(session.id, sessionView.sessionName),
+    },
+    ...(!isProcessing ? [{
+      key: 'delete',
+      label: t('sessions.deleteSession'),
+      icon: Trash2,
+      onSelect: requestDeleteSession,
+      isDanger: true,
+      showDividerBefore: true,
+    }] : []),
+  ];
+
+  const renderSessionMenu = () => (
+    <div
+      className="flex"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <ActionMenu
+        label=""
+        ariaLabel={t('tooltips.sessionActions')}
+        items={sessionActions}
+        icon={MoreHorizontal}
+        variant="ghost"
+        size="icon"
+        triggerClassName="size-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+      />
+    </div>
+  );
 
   return (
     <div className="group relative">
@@ -164,7 +209,10 @@ export default function SidebarSessionItem({
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1 truncate text-sm font-normal text-foreground">{sessionView.sessionName}</div>
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-normal text-foreground">
+                  {isStarred && <Star className="size-3 flex-shrink-0 fill-current text-primary" aria-label={t('sessions.pin')} />}
+                  <span className="truncate">{sessionView.sessionName}</span>
+                </div>
                 {isProcessing ? (
                   <span className="ml-auto flex-shrink-0">
                     <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
@@ -187,17 +235,7 @@ export default function SidebarSessionItem({
               </div>
             </div>
 
-            {!isProcessing && (
-              <button
-                className="ml-1 flex size-7 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-accent hover:text-destructive active:scale-95"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  requestDeleteSession();
-                }}
-              >
-                <Trash2 className="size-3 text-current" />
-              </button>
-            )}
+            {renderSessionMenu()}
           </div>
         </div>
       </div>
@@ -228,7 +266,10 @@ export default function SidebarSessionItem({
           <div className={cn('flex w-full min-w-0 items-center', compact ? 'gap-1.5' : 'gap-2')}>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1 truncate text-sm font-normal text-foreground">{sessionView.sessionName}</div>
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-normal text-foreground">
+                  {isStarred && <Star className="size-3 flex-shrink-0 fill-current text-primary" aria-label={t('sessions.pin')} />}
+                  <span className="truncate">{sessionView.sessionName}</span>
+                </div>
                 {isProcessing ? (
                   <span
                     className={cn(
@@ -265,7 +306,7 @@ export default function SidebarSessionItem({
           ref={editingContainerRef}
           className={cn(
             'absolute right-2 top-1/2 flex -translate-y-1/2 transform items-center gap-1 transition-all duration-200',
-            isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+            isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
           )}
         >
             {isEditing ? (
@@ -308,30 +349,7 @@ export default function SidebarSessionItem({
                 </button>
               </>
             ) : (
-              <>
-                <button
-                  className="flex h-6 w-6 items-center justify-center rounded bg-muted hover:bg-accent"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onStartEditingSession(session.id, sessionView.sessionName);
-                  }}
-                  title={t('tooltips.editSessionName')}
-                >
-                  <Edit2 className="h-3 w-3 text-muted-foreground" />
-                </button>
-                {!isProcessing && (
-                  <button
-                    className="flex h-6 w-6 items-center justify-center rounded bg-destructive/10 hover:bg-destructive/20"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      requestDeleteSession();
-                    }}
-                    title={t('tooltips.deleteSessionOptions', 'Archive or permanently delete this session')}
-                  >
-                    <Trash2 className="h-3 w-3 text-destructive" />
-                  </button>
-                )}
-              </>
+              renderSessionMenu()
             )}
           </div>
       </div>

@@ -45,7 +45,6 @@ export type JobTerminalPayload = {
 
 const IDENTIFIER = /^[A-Za-z0-9_.:-]{1,128}$/u;
 const TERMINAL_STATES = new Set<JobTerminalOutcome>(['succeeded', 'failed', 'aborted', 'interrupted']);
-const STATES = new Set<JobState>(['reserved', 'queued', 'running', 'aborting', 'ready', ...TERMINAL_STATES]);
 const ERROR_CODES = new Set<JobProjectionErrorCode>(['invalid_request', 'not_found', 'cursor_ahead', 'cursor_mismatch', 'authority_unavailable', 'storage_failure', 'buffer_overflow', 'protocol_violation']);
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 

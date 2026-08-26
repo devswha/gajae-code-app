@@ -257,12 +257,12 @@ export default tseslint.config(
   },
   {
     files: [
-      "shared/**/*.{js,cjs,mjs}",
-      "scripts/**/*.{js,cjs,mjs}",
+      "shared/**/*.{js,cjs,mjs,ts}",
+      "scripts/**/*.{js,cjs,mjs,ts}",
       "vite.config.js",
       "tailwind.config.js",
     ],
-    extends: [js.configs.recommended],
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
     plugins: {
       "import-x": importX,
       "unused-imports": unusedImports,
@@ -278,6 +278,9 @@ export default tseslint.config(
     rules: {
       "no-unused-vars": "off",
       "no-control-regex": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-require-imports": "off",
       "unused-imports/no-unused-imports": "error",
       "unused-imports/no-unused-vars": [
         "error",

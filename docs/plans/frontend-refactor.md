@@ -99,16 +99,21 @@ these on its own:**
   server is local and WS already announces changes.
 - **Retreat line:** if the spike disproves the hybrid, land Query for lists
   only and leave messages WS-owned (a smaller but real win); do not force it.
-- **Exit:** re-evaluate TanStack's `streamedQuery` as a replacement for the
-  fold once it drops its `experimental_` export prefix (still present in
-  5.102.6; the API has matured with `reducer`/`initialValue`/`refetchMode`,
-  which improves the future fit). Stability gates *adoption*, not
-  experimentation: the meaningful A/B becomes cheap immediately after the
-  messages slice lands, because both candidates then sit behind the same
-  `['messages', sessionId]` key and the comparison is one queryFn swap plus a
-  WS-to-AsyncIterable adapter. Measure render count while streaming, copy
-  cost on long transcripts, and steer/resume/reconnect behavior. Until then
-  there is no comparison baseline, so no experiment.
+- **streamedQuery: verdict is NO (2026-08-27, post-3b).** Not now, and
+  probably not after it stabilizes either. Three grounds: (1) the export is
+  still `experimental_streamedQuery` in 5.102.6, failing the adoption gate
+  on its own; (2) its model is "write every chunk into the cache", which is
+  the cost model this plan explicitly rejected - after 3a/3b the settled
+  window already lives in the cache and reconciles via invalidation, so the
+  problem streamedQuery solves no longer exists here; (3) adoption deletes
+  nothing: the multiplexed WS (steer/resume/permission frames) would need a
+  hand-written per-session AsyncIterable adapter, its restart-on-refetch
+  semantics do not map to live turns, and the disk-transcript merge logic
+  stays regardless. Net code increases. **Flip conditions (all three):** the
+  `experimental_` prefix is dropped, the runtime natively exposes per-turn
+  AsyncIterable streams, and a measured problem appears in the current tail
+  handling. The A/B (one queryFn swap behind `['messages', sessionId]`)
+  stays available as a diagnostic for that third condition only.
 - Every hook rewritten in P1 moves its tests to the DOM lane in the same
   commit; the static `renderToStaticMarkup` lane must not outlive the hooks it
   was a workaround for.

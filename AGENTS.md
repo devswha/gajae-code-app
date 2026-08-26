@@ -155,6 +155,10 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
 ## Key docs
 
 - `docs/V2-SESSION-HANDOFF.md` — current project status and how to resume work.
+- `docs/plans/frontend-refactor.md` — the client roadmap: what shipped, what is
+  next, and the sequencing that must not be reordered.
+- `docs/plans/local-studio-ui-adoption.md` — the UI/UX adoption plan, phases 1-5
+  shipped.
 - `server/GJC-LIVE-SPEC.md` — GJC provider/worker contract.
 - `docs/DESKTOP-TAURI-VERIFICATION.md` — desktop packaging/verification (incl. the
   human-gated notarization step).

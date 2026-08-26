@@ -91,6 +91,15 @@ test('the tools that only had a JSON dump now say what they were asked for', () 
   assert.equal(TOOL_CONFIGS.browser.input.getValue?.({ action: 'open', url: 'https://example.com' }), 'open https://example.com');
   assert.equal(TOOL_CONFIGS.lsp.input.getValue?.({ action: 'references', symbol: 'ToolRenderer' }), 'references ToolRenderer');
   assert.equal(TOOL_CONFIGS.computer.input.getValue?.({ action: 'keypress', keys: ['cmd', 'k'] }), 'keypress cmd+k');
+  // A top-level `keys` array does not survive the tool bridge, so real keypress
+  // work arrives nested in a batch; the row has to say what the batch did.
+  assert.equal(
+    TOOL_CONFIGS.computer.input.getValue?.({
+      action: 'batch',
+      actions: [{ action: 'screenshot' }, { action: 'keypress', keys: ['cmd', 'q'] }],
+    }),
+    'batch: screenshot, keypress cmd+q',
+  );
   // Unregistered tools still fall back rather than crash.
   assert.equal(getToolConfig('no_such_tool'), TOOL_CONFIGS.Default);
 });

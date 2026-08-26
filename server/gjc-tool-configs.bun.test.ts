@@ -74,7 +74,7 @@ const APP_WRITTEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // `computer` is a discriminated union of one schema per action, which the
   // generated catalog flattens to no properties at all. These are the fields
   // its union members declare.
-  computer: ['action', 'text', 'keys'],
+  computer: ['action', 'actions', 'text', 'keys'],
 };
 
 /** Records every field an accessor touches, and answers undefined to all of them. */

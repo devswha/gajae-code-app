@@ -108,6 +108,27 @@ function formatTodoOps(ops: unknown): string {
 }
 
 /**
+ * `computer` actions, including the batch form the tool bridge actually gets
+ * through: a top-level `keys` array is mangled on the way in, so real keypress
+ * work arrives nested inside `{ action: 'batch', actions: [...] }`. Rendering
+ * only the discriminant would print "batch" and drop everything it did.
+ */
+function describeComputerAction(input: unknown): string {
+  if (!input || typeof input !== 'object') return '';
+  const step = input as { action?: string; actions?: unknown[]; text?: string; keys?: unknown };
+
+  if (step.action === 'batch') {
+    const steps = (Array.isArray(step.actions) ? step.actions : [])
+      .map(describeComputerAction)
+      .filter(Boolean);
+    return steps.length > 0 ? `batch: ${steps.join(', ')}` : 'batch';
+  }
+
+  const detail = step.text || (Array.isArray(step.keys) ? step.keys.join('+') : '');
+  return [step.action, detail].filter(Boolean).join(' ');
+}
+
+/**
  * Tools whose call and result belong on one row, as the runtime's TUI merges
  * them: the command with its output folded underneath, inside the same block.
  * `bash` is the runtime's name for it; `Bash` is the same tool in a stored
@@ -332,16 +353,14 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
   },
 
   computer: {
-    // The runtime's schema is a discriminated union, one member per action, so
+    // The runtime's schema is a union, one member per action plus a batch, so
     // the generated catalog flattens to no properties at all. `action` is the
-    // discriminant every member carries, and `text`/`keys` are what the two
-    // typing actions add.
+    // discriminant every member carries; `text`/`keys` are what the typing
+    // actions add, and `actions` is the batch's payload.
     input: {
       type: 'one-line',
       label: 'Computer',
-      getValue: (input) => [input.action, input.text || (Array.isArray(input.keys) ? input.keys.join('+') : '')]
-        .filter(Boolean)
-        .join(' '),
+      getValue: (input) => describeComputerAction(input),
       action: 'none',
       colorScheme: {
         primary: 'text-gray-700 dark:text-gray-300',

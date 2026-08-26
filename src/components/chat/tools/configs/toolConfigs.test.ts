@@ -16,11 +16,16 @@ test('a shell call is one row, whatever the transcript calls the tool', () => {
   assert.equal(rendersCommandRow('Bash'), true);
   assert.equal(rendersCommandRow('read'), false);
 
-  // The command row already carries the output, so the generic result section
-  // must not print a second copy of it underneath.
-  assert.equal(shouldHideToolResult('bash', { content: 'ok', isError: false }), true);
-  // A failure still has to be visible somewhere.
-  assert.equal(shouldHideToolResult('bash', { content: 'boom', isError: true }), false);
+  // The command row carries the output, so the generic section is suppressed
+  // by the row itself, not by hiding the result config: a call whose arguments
+  // are missing renders no command row, and its output still has to land
+  // somewhere rather than disappear.
+  assert.equal(shouldHideToolResult('bash', { content: 'ok', isError: false }), false);
+  assert.equal(TOOL_CONFIGS.bash.result?.hidden, undefined);
+  assert.equal(
+    TOOL_CONFIGS.bash.result?.getContentProps?.({ content: 'exit 0' }).content,
+    'exit 0',
+  );
 });
 
 test('an edit renders as a diff of what it replaced', () => {

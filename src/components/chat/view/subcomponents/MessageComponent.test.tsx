@@ -225,6 +225,25 @@ test('a runtime shell call is a command row that carries its own output', () => 
   assert.doesNotMatch(html, /Parameters|Details/);
 });
 
+test('a shell result whose call lost its arguments still reaches the transcript', () => {
+  const html = renderMessage({
+    type: 'assistant',
+    content: '',
+    timestamp: '2026-08-26T00:00:00.000Z',
+    isToolUse: true,
+    toolName: 'bash',
+    toolId: 'tool-argless',
+    toolResult: { content: 'exit code 0', isError: false },
+  });
+
+  // Without the arguments there is no command row to fold the output into, so
+  // suppressing the generic section here would swallow it the way the old
+  // name mismatch did. The section is collapsed, so what the markup proves is
+  // that the output has a row to live in; its content is covered in
+  // toolConfigs.test.ts.
+  assert.match(html, /id="tool-result-tool-argless"/);
+});
+
 test('a failed tool reads as output, not as a card of prose', () => {
   const html = renderMessage({
     type: 'assistant',

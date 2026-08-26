@@ -162,11 +162,21 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
   bash: {
     // Rendered by BashCommandDisplay, not from this entry: the command on one
     // row with its output folded into the same row, which is how the runtime's
-    // own TUI shows it (`mergeCallAndResult`). Routed by `rendersCommandRow`,
-    // which also suppresses the generic result section so the output does not
-    // appear twice.
+    // own TUI shows it (`mergeCallAndResult`). `rendersCommandRow` suppresses
+    // the generic result section so the output does not appear twice.
     input: { type: 'hidden' },
-    result: { hidden: true }
+    // Deliberately not `hidden`. The suppression above only applies when the
+    // command row was actually rendered, which needs the call's arguments; a
+    // stored row that lost them would otherwise have its output swallowed
+    // entirely, which is the exact failure this tool already had once.
+    result: {
+      type: 'collapsible',
+      contentType: 'text',
+      getContentProps: (result) => ({
+        content: String(result?.content || ''),
+        format: 'code'
+      })
+    }
   },
 
   read: {

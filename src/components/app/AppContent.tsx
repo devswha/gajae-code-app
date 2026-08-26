@@ -11,23 +11,9 @@ import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
 import { useQueuedMessageAutoSend } from '../../hooks/useQueuedMessageAutoSend';
-import { api } from '../../utils/api';
 
-import { hiddenKeyboardHeight, parseStartedAt } from './appContentUtils';
-
-
-type RunningSessionApiItem = {
-  sessionId?: unknown;
-  startedAt?: unknown;
-  statusText?: unknown;
-  canInterrupt?: unknown;
-};
-
-type RunningSessionsApiPayload = {
-  data?: {
-    sessions?: RunningSessionApiItem[];
-  };
-};
+import { hiddenKeyboardHeight } from './appContentUtils';
+import { useRunningSessionsSync } from './useRunningSessionsSync';
 
 export default function AppContent() {
   return (
@@ -86,48 +72,7 @@ function AppContentInner() {
     markSessionProcessing,
   });
 
-  const refreshRunningSessions = useCallback(async () => {
-    try {
-      const response = await api.runningSessions();
-      if (!response.ok) {
-        return;
-      }
-
-      const payload = (await response.json()) as RunningSessionsApiPayload;
-      const sessions = Array.isArray(payload.data?.sessions) ? payload.data.sessions : [];
-
-      syncProcessingSessions(
-        sessions
-          .map((session) => {
-            if (typeof session.sessionId !== 'string' || !session.sessionId) {
-              return null;
-            }
-
-            return {
-              sessionId: session.sessionId,
-              startedAt: parseStartedAt(session.startedAt),
-              statusText: typeof session.statusText === 'string' ? session.statusText : undefined,
-              canInterrupt: typeof session.canInterrupt === 'boolean' ? session.canInterrupt : undefined,
-            };
-          })
-          .filter((session): session is NonNullable<typeof session> => Boolean(session)),
-      );
-    } catch (error) {
-      console.error('[AppContent] Failed to sync running sessions:', error);
-    }
-  }, [syncProcessingSessions]);
-
-  useEffect(() => {
-    void refreshRunningSessions();
-  }, [refreshRunningSessions]);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      void refreshRunningSessions();
-    }, 5000);
-
-    return () => window.clearInterval(interval);
-  }, [refreshRunningSessions]);
+  useRunningSessionsSync(syncProcessingSessions);
 
   const startNewChat = useCallback(() => {
     if (selectedProject) {

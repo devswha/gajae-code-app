@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { spawn as spawnChild } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Writable } from 'node:stream';
@@ -12,6 +12,7 @@ import { notifyRunFailed, notifyRunStopped } from './services/notification-orche
 import {
   createCompleteMessage,
   createNormalizedMessage,
+  getGjcLiveSessionRoot,
   registerGjcRuntimeModelCatalogLoader,
 } from './shared/utils.js';
 import {
@@ -267,7 +268,7 @@ export async function enrichGjcSdkRunOptions(options: GjcWorkerOptions): Promise
 
   const liveSessionRoot = typeof options.sessionRoot === 'string' && options.sessionRoot
     ? options.sessionRoot
-    : process.env.GJC_LIVE_SESSION_DIR ?? join(tmpdir(), 'gjc-live-sessions');
+    : getGjcLiveSessionRoot();
   const sessionRoot = typeof options.sessionId === 'string' && options.sessionId
     ? await resolveGjcResumeSessionRoot(options.sessionId, liveSessionRoot) ?? liveSessionRoot
     : liveSessionRoot;

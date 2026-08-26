@@ -555,6 +555,26 @@ export function getProviderSessionActiveModelChangesPath(): string {
   return path.join(os.homedir(), '.gajae-app', 'provider-session-active-model-changes.json');
 }
 
+/**
+ * Resolves the root that holds GJC session transcripts the app itself starts.
+ *
+ * These files are the conversation: the chat view renders them, and a session
+ * whose transcript is gone opens empty forever. They therefore belong beside
+ * the app's other durable state under `~/.gajae-app`, not in the system temp
+ * directory - macOS reaps `/var/folders/.../T` on its own schedule, which
+ * silently emptied every app-started session while their database rows stayed
+ * behind and kept listing them.
+ *
+ * `GJC_LIVE_SESSION_DIR` still wins so tests and isolated dev runs can redirect
+ * it. Every reader and writer resolves through here rather than rebuilding the
+ * path, so the location cannot drift between the worker, the synchronizer and
+ * the watcher.
+ */
+export function getGjcLiveSessionRoot(): string {
+  return process.env.GJC_LIVE_SESSION_DIR
+    || path.join(os.homedir(), '.gajae-app', 'gjc-live-sessions');
+}
+
 const buildProviderSessionActiveModelChangeKey = (
   provider: LLMProvider,
   sessionId: string,

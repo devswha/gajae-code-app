@@ -7,13 +7,14 @@ import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { LLMProvider } from '@/shared/types.js';
+import { getGjcLiveSessionRoot } from '@/shared/utils.js';
 import { generateDisplayName } from '@/modules/projects/index.js';
 
 type WatcherEventType = 'add' | 'change';
 
 const GJC_WATCH_PATHS = [...new Set([
   path.join(os.homedir(), '.gjc', 'agent', 'sessions'),
-  path.resolve(process.env.GJC_LIVE_SESSION_DIR || path.join(os.tmpdir(), 'gjc-live-sessions')),
+  path.resolve(getGjcLiveSessionRoot()),
 ])];
 
 const PROJECTS_UPDATE_DEBOUNCE_MS = 500;

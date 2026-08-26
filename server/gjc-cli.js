@@ -7,7 +7,7 @@ import crossSpawn from 'cross-spawn';
 
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
-import { createCompleteMessage, createNormalizedMessage } from './shared/utils.js';
+import { createCompleteMessage, createNormalizedMessage, getGjcLiveSessionRoot } from './shared/utils.js';
 import { attachGjcSdkBridge } from './gjc-sdk-bridge.js';
 
 // cross-spawn resolves .cmd shims/PATHEXT on Windows and delegates to
@@ -98,7 +98,7 @@ function signalGjcProcess(gjcProcess, signal) {
 // config are still read from the real home (we deliberately do NOT set
 // GJC_CODING_AGENT_DIR, which would isolate credentials too and break the
 // default model).
-const DEFAULT_SESSION_DIR = path.join(os.tmpdir(), 'gjc-live-sessions');
+const DEFAULT_SESSION_DIR = getGjcLiveSessionRoot();
 
 /**
  * Builds the gjc prompt argv token. Prompts are always written to a private

@@ -8,6 +8,7 @@ import { appConfigDb, sessionsDb } from '@/modules/database/index.js';
 import {
   extractFirstValidJsonlData,
   findFilesRecursivelyCreatedAfter,
+  getGjcLiveSessionRoot,
   normalizeSessionName,
   readFileTimestamps,
 } from '@/shared/utils.js';
@@ -69,8 +70,7 @@ function extractGjcTextFromContent(content: unknown): string {
 export class GjcSessionSynchronizer implements IProviderSessionSynchronizer {
   private readonly provider = 'gjc' as const;
   private readonly sessionsDir = path.join(os.homedir(), '.gjc', 'agent', 'sessions');
-  private readonly liveSessionsDir = process.env.GJC_LIVE_SESSION_DIR
-    || path.join(os.tmpdir(), 'gjc-live-sessions');
+  private readonly liveSessionsDir = getGjcLiveSessionRoot();
 
   /**
    * A top-level session is `sessions/<cwd-slug>/<ts>_<uuid>.jsonl`. Subagent

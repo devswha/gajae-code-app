@@ -78,6 +78,33 @@ cache. The hard part is not volume, it is the interval during which the same
 data lives in both the Query cache and the old `useState`. That question is
 answered by one day of code, not by more planning.
 
+**Decided before the spike (2026-08-27), so the spike cannot answer the wrong
+question — the projects domain has no streaming, so it would never surface
+these on its own:**
+
+- **Query owns lists and settled message history. The live turn does not live
+  in the cache.** Streaming deltas are never written per-token into the Query
+  cache (no per-token `setQueryData`); the in-flight tail stays WebSocket-owned
+  as today. On the turn's terminal event the tail is **folded** into the
+  history cache with one `setQueryData` call; reconciliation against the disk
+  transcript (invalidate → refetch) is deferred to the next session open. The
+  64 KiB tool-output transport budget makes the fold safe: a refetch returns
+  the same previews the tail already carries, and full outputs remain the
+  export service's job.
+- Discrete WS events (`session_upserted` deltas, list-changed notifications)
+  are cache writes or invalidations — they are events, not streams, so
+  `setQueryData`/`invalidateQueries` is the correct path for them.
+- Query keys: `['projects']`, `['sessions', projectId]`,
+  `['messages', sessionId]`. `refetchOnWindowFocus` is off globally — the
+  server is local and WS already announces changes.
+- **Retreat line:** if the spike disproves the hybrid, land Query for lists
+  only and leave messages WS-owned (a smaller but real win); do not force it.
+- **Exit:** re-evaluate TanStack's experimental `streamedQuery` as a
+  replacement for the fold once it is stable; do not build P1 on it.
+- Every hook rewritten in P1 moves its tests to the DOM lane in the same
+  commit; the static `renderToStaticMarkup` lane must not outlive the hooks it
+  was a workaround for.
+
 ### 2. UI state in a real store — NOT STARTED
 
 - `useSessionStore.ts` is a store by name only: `useState` + `useRef` over a
@@ -150,4 +177,6 @@ else in the tree. They are worth doing on a quiet day, not during a push.
 - Every step ships with tests that would fail if it were reverted.
 - `npm test`, `npm run typecheck` and `npm run lint` pass at each commit.
 - Bundle size is measured from a real build, not estimated.
-- No step leaves the app in a state where server data lives in two places.
+- No step leaves the app in a state where *settled* server data lives in two
+  places. The one deliberate exception is the in-flight turn: its live tail is
+  WebSocket-owned until the terminal fold (decided above).

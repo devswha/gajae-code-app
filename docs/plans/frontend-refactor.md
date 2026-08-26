@@ -154,11 +154,23 @@ these on its own:**
        today's exact ticket/offset guards. Realtime tails, merge pipeline,
        streaming, statuses and the slot LRU stay slot-local. Store API
        unchanged; hook tests moved to the DOM lane.
-     - **3b - NEXT.** Active-session subscription (activeSessionId becomes
-       state; `useQuery` subscribes to the active window) and invalidation
-       flows (`externalMessageUpdate` becomes an invalidation), then delete
-       whichever ticket machinery Query's per-key serialization provably
-       covers - with the DOM tests as the referee.
+     - **3b - DONE (a8ffa47).** The store runs an active-window observer
+       (subscription on the viewed session's window; queryFn = the bounded
+       reconcile; `staleTime: Infinity` so only invalidation fetches). The
+       sidebar's `session_upserted` watcher now invalidates
+       `['messages', sessionId]`, deleting the `externalMessageUpdate`
+       counter and its prop thread through four components. A streaming slot
+       disables the observer (the old skip-during-streaming guard, now
+       structural: the stale mark survives and reconciles on idle).
+       `getMessages` recomputes the merged view lazily on read, so any
+       out-of-band cache write is always reflected - this is the hook the
+       terminal fold and the streamedQuery A/B both plug into.
+     - **3c - open, deliberately deferred.** The ticket machinery stays: the
+       imperative fetch paths (explicit limit/offset windows) do not route
+       through the query's own fetcher, so Query's per-key serialization does
+       not yet cover what the tickets guard. Deleting them requires moving
+       fetch/fetchMore onto fetchQuery/infinite-query semantics first -
+       re-evaluate after the store has soaked in daily use.
      - The terminal-time bounded reconcile (`refreshFromServer` over the
        loaded window) already implements the fold contract's intent: no
        per-token cache writes, one settled write per turn. Deferring the

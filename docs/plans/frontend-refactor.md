@@ -99,8 +99,16 @@ these on its own:**
   server is local and WS already announces changes.
 - **Retreat line:** if the spike disproves the hybrid, land Query for lists
   only and leave messages WS-owned (a smaller but real win); do not force it.
-- **Exit:** re-evaluate TanStack's experimental `streamedQuery` as a
-  replacement for the fold once it is stable; do not build P1 on it.
+- **Exit:** re-evaluate TanStack's `streamedQuery` as a replacement for the
+  fold once it drops its `experimental_` export prefix (still present in
+  5.102.6; the API has matured with `reducer`/`initialValue`/`refetchMode`,
+  which improves the future fit). Stability gates *adoption*, not
+  experimentation: the meaningful A/B becomes cheap immediately after the
+  messages slice lands, because both candidates then sit behind the same
+  `['messages', sessionId]` key and the comparison is one queryFn swap plus a
+  WS-to-AsyncIterable adapter. Measure render count while streaming, copy
+  cost on long transcripts, and steer/resume/reconnect behavior. Until then
+  there is no comparison baseline, so no experiment.
 - Every hook rewritten in P1 moves its tests to the DOM lane in the same
   commit; the static `renderToStaticMarkup` lane must not outlive the hooks it
   was a workaround for.
@@ -124,8 +132,15 @@ these on its own:**
   `isLoading`); identity bail-outs live in one `structuralSharing` function.
 - DOM-lane tests: `src/hooks/useProjectsState.query.dom.bun.test.tsx` (5
   behaviors); the pure-helper node tests were untouched and still pass.
-- Next P1 slice: the sessions/messages domain, honoring the fold contract
-  above.
+- P1 slice order (lowest risk first, each landing on a working product):
+  1. **Running-sessions polling** - replace the hand-rolled
+     `setInterval(5000)` + mount effect in `AppContent` with a declared
+     `refetchInterval` query feeding `syncProcessingSessions`.
+  2. **git-panel domain** (`useGitPanelController`, 817 lines) - pure fetch
+     domain, no streaming; the projects pattern applies directly.
+  3. **sessions/messages domain** - the main event, honoring the fold
+     contract above. The streamedQuery A/B window opens right after this
+     lands.
 
 ### 2. UI state in a real store — NOT STARTED
 

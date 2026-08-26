@@ -188,7 +188,7 @@ these on its own:**
   hand-written cache/race infrastructure the domain carried, not with its
   line count.
 
-### 2. UI state in a real store — NOT STARTED
+### 2. UI state in a real store — SPIKE SHIPPED (afee5d8)
 
 - `useSessionStore.ts` is a store by name only: `useState` + `useRef` over a
   `Map`, so subscriptions cannot be split per field.
@@ -200,6 +200,29 @@ these on its own:**
   Theme, Permission, SessionStatus, PaletteOps. The first three are exactly what
   Context is for. `PaletteOpsContext` is the one to remove: it exists only
   because there is no global store to hold that state.
+
+**Spike results (afee5d8, measured 2026-08-27):**
+
+- Post-P1 measurement that green-lit the spike: `useProjectsState` still held
+  11 `useState`s and `useChatSessionState` 18, all genuine UI state, plus the
+  intact 19-field `sidebarSharedProps` bundle.
+- `useAppShellStore` (zustand@5.0.15, ~0.25 KB gzip in vendor-react) now owns
+  `selectedProject`/`selectedSession`/`activeTab`/`sidebarOpen`. Every action
+  accepts the same functional updaters the WS handler relies on, so the
+  handler's structure did not change; tab persistence moved into the store
+  with the state it persists.
+- First de-drill shipped: the sidebar reads the selection via selectors and
+  `sidebarSharedProps` dropped both fields (19 -> 17). Selector scoping is
+  locked by a DOM test: a `sidebarOpen` subscriber does not re-render when
+  `selectedSession` changes.
+- The mechanics are proven. Remaining P2 slices, in order:
+  1. De-drill the rest of the sidebar bundle (attention set, settings
+     open/close, loading) and delete `sidebarSharedProps` outright.
+  2. Replace `PaletteOpsContext` with store state (its reason to exist is
+     gone).
+  3. Evaluate `useChatSessionState`'s 18 states: scroll/viewport state stays
+     local by design; only cross-component pieces move.
+  4. Re-measure re-render scope before declaring P2 done.
 
 ### 3. React 19 + React Compiler — NOT STARTED
 

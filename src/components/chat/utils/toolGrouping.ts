@@ -15,8 +15,25 @@ export function isToolGroupItem(item: MessageListItem): item is ToolGroupItem {
   return '_isGroup' in item && (item as ToolGroupItem)._isGroup === true;
 }
 
+/**
+ * Tools whose calls stay on their own row.
+ *
+ * Grouping exists to collapse repetition, and it reads well for tools whose
+ * runs differ only by target - `Read x3` still tells you what happened. A shell
+ * command is the opposite: each one is a different instruction, and the command
+ * text is the whole point. Folding a run of them behind a count made identical
+ * work look different depending on how many happened in a row, which is the
+ * inconsistency this avoids.
+ */
+const UNGROUPED_TOOLS = new Set(['Bash', 'bash']);
+
 function isGroupableToolMessage(message: ChatMessage): message is ChatMessage & { toolName: string } {
-  return Boolean(message.isToolUse && message.toolName && !message.isSubagentContainer);
+  return Boolean(
+    message.isToolUse
+    && message.toolName
+    && !message.isSubagentContainer
+    && !UNGROUPED_TOOLS.has(message.toolName),
+  );
 }
 
 // Messages that render nothing (e.g. reasoning hidden when showThinking is off)

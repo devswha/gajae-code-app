@@ -7,6 +7,7 @@
  * No localStorage for messages. Backend JSONL is the source of truth.
  */
 
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { authenticatedFetch } from '../utils/api';
@@ -133,6 +134,13 @@ export interface SessionSlot {
 }
 
 const EMPTY: NormalizedMessage[] = [];
+export type MessagesWindow = {
+  messages: NormalizedMessage[];
+  total: number;
+  hasMore: boolean;
+  offset: number;
+  tokenUsage?: unknown;
+};
 export type JobProjectionSlot = {
   snapshot: JobSnapshot | null;
   lastAppliedSequence: number;
@@ -153,25 +161,50 @@ function createEmptyJobSlot(): JobProjectionSlot {
   };
 }
 
-function createEmptySlot(): SessionSlot {
-  return {
-    serverMessages: EMPTY,
+function createSlot(sessionId: string, queryClient: QueryClient): SessionSlot {
+  const queryKey = ['messages', sessionId] as const;
+  const getWindow = () => queryClient.getQueryData<MessagesWindow>(queryKey);
+  const slot = {
     realtimeMessages: EMPTY,
     merged: EMPTY,
     _lastServerRef: EMPTY,
     _lastRealtimeRef: EMPTY,
     status: 'idle',
-    fetchedAt: 0,
-    total: 0,
-    hasMore: false,
-    offset: 0,
-    tokenUsage: null,
     _fetchSeq: 0,
     _fetchMoreTicket: null,
     _pendingRequests: 0,
     _loadingTicket: null,
     _includeImages: true,
-  };
+  } as SessionSlot;
+
+  Object.defineProperties(slot, {
+    serverMessages: {
+      enumerable: true,
+      get: () => getWindow()?.messages ?? EMPTY,
+    },
+    total: {
+      enumerable: true,
+      get: () => getWindow()?.total ?? 0,
+    },
+    hasMore: {
+      enumerable: true,
+      get: () => getWindow()?.hasMore ?? false,
+    },
+    offset: {
+      enumerable: true,
+      get: () => getWindow()?.offset ?? 0,
+    },
+    tokenUsage: {
+      enumerable: true,
+      get: () => getWindow()?.tokenUsage,
+    },
+    fetchedAt: {
+      enumerable: true,
+      get: () => queryClient.getQueryState(queryKey)?.dataUpdatedAt ?? 0,
+    },
+  });
+
+  return slot;
 }
 
 function getRealtimeMessageIdentity(message: NormalizedMessage): string | null {
@@ -543,6 +576,7 @@ function dedupeMessagesById(messages: NormalizedMessage[]): NormalizedMessage[] 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useSessionStore() {
+  const queryClient = useQueryClient();
   const storeRef = useRef(new Map<string, SessionSlot>());
   const activeSessionIdRef = useRef<string | null>(null);
   // Bump to force re-render — only when the active session's data changes.
@@ -572,6 +606,7 @@ export function useSessionStore() {
       if (!candidate) {
         return;
       }
+      // Message windows remain in the Query cache; its gcTime owns retention.
       store.delete(candidate[0]);
     }
   }, []);
@@ -682,18 +717,18 @@ export function useSessionStore() {
 
   const getSlot = useCallback((sessionId: string): SessionSlot => {
     const store = storeRef.current;
-    const slot = store.get(sessionId) ?? createEmptySlot();
+    const slot = store.get(sessionId) ?? createSlot(sessionId, queryClient);
     touchSlot(sessionId, slot);
     return slot;
-  }, [touchSlot]);
+  }, [queryClient, touchSlot]);
 
   const beginRequest = useCallback((sessionId: string): SessionSlot => {
     const store = storeRef.current;
-    const slot = store.get(sessionId) ?? createEmptySlot();
+    const slot = store.get(sessionId) ?? createSlot(sessionId, queryClient);
     slot._pendingRequests += 1;
     touchSlot(sessionId, slot);
     return slot;
-  }, [touchSlot]);
+  }, [queryClient, touchSlot]);
 
   const has = useCallback((sessionId: string) => {
     return storeRef.current.has(sessionId);
@@ -749,18 +784,17 @@ export function useSessionStore() {
         return slot;
       }
 
-      slot.serverMessages = dedupeMessagesById(messages);
-      slot.total = data.total ?? messages.length;
-      slot.hasMore = Boolean(data.hasMore);
-      slot.offset = (opts.offset ?? 0) + messages.length;
-      slot.fetchedAt = Date.now();
+      queryClient.setQueryData<MessagesWindow>(['messages', sessionId], {
+        messages: dedupeMessagesById(messages),
+        total: data.total ?? messages.length,
+        hasMore: Boolean(data.hasMore),
+        offset: (opts.offset ?? 0) + messages.length,
+        tokenUsage: data.tokenUsage || slot.tokenUsage,
+      });
       if (slot.status === 'loading' && slot._loadingTicket === fetchTicket) {
         slot.status = 'idle';
       }
       recomputeMergedIfNeeded(slot);
-      if (data.tokenUsage) {
-        slot.tokenUsage = data.tokenUsage;
-      }
 
       notify(sessionId);
       return slot;
@@ -783,7 +817,7 @@ export function useSessionStore() {
       }
       trimInactiveSlots();
     }
-  }, [beginRequest, notify, trimInactiveSlots]);
+  }, [beginRequest, notify, queryClient, trimInactiveSlots]);
 
   /**
    * Load older (paginated) messages and prepend to serverMessages.
@@ -796,7 +830,7 @@ export function useSessionStore() {
     } = {},
   ) => {
     const store = storeRef.current;
-    const slot = store.get(sessionId) ?? createEmptySlot();
+    const slot = store.get(sessionId) ?? createSlot(sessionId, queryClient);
     if (typeof opts.includeImages === 'boolean') {
       slot._includeImages = opts.includeImages;
     }
@@ -839,12 +873,16 @@ export function useSessionStore() {
         return slot;
       }
 
-      slot.serverMessages = dedupeMessagesById([
-        ...olderMessages,
-        ...slot.serverMessages,
-      ]);
-      slot.hasMore = Boolean(data.hasMore);
-      slot.offset = expectedOffset + olderMessages.length;
+      queryClient.setQueryData<MessagesWindow>(['messages', sessionId], {
+        messages: dedupeMessagesById([
+          ...olderMessages,
+          ...slot.serverMessages,
+        ]),
+        total: slot.total,
+        hasMore: Boolean(data.hasMore),
+        offset: expectedOffset + olderMessages.length,
+        tokenUsage: slot.tokenUsage,
+      });
       if (slot.status === 'loading' && slot._loadingTicket === fetchTicket) {
         slot.status = 'idle';
       }
@@ -872,7 +910,7 @@ export function useSessionStore() {
       }
       trimInactiveSlots();
     }
-  }, [notify, touchSlot, trimInactiveSlots]);
+  }, [notify, queryClient, touchSlot, trimInactiveSlots]);
 
   /**
    * Append a realtime (WebSocket) message to the correct session slot.
@@ -944,11 +982,13 @@ export function useSessionStore() {
       }
 
       const messages: NormalizedMessage[] = data.messages || [];
-      slot.serverMessages = dedupeMessagesById(messages);
-      slot.total = data.total ?? messages.length;
-      slot.hasMore = Boolean(data.hasMore);
-      slot.offset = messages.length;
-      slot.fetchedAt = Date.now();
+      queryClient.setQueryData<MessagesWindow>(['messages', sessionId], {
+        messages: dedupeMessagesById(messages),
+        total: data.total ?? messages.length,
+        hasMore: Boolean(data.hasMore),
+        offset: messages.length,
+        tokenUsage: data.tokenUsage || slot.tokenUsage,
+      });
       if (slot.status === 'loading' && slot._loadingTicket === fetchTicket) {
         slot.status = 'idle';
       }
@@ -978,7 +1018,7 @@ export function useSessionStore() {
       }
       trimInactiveSlots();
     }
-  }, [beginRequest, notify, trimInactiveSlots]);
+  }, [beginRequest, notify, queryClient, trimInactiveSlots]);
 
   /**
    * Update session status.
@@ -1067,11 +1107,12 @@ export function useSessionStore() {
   const clear = useCallback(() => {
     const hadActiveSession = activeSessionIdRef.current !== null;
     storeRef.current.clear();
+    queryClient.removeQueries({ queryKey: ['messages'] });
     activeSessionIdRef.current = null;
     if (hadActiveSession) {
       setTick(n => n + 1);
     }
-  }, []);
+  }, [queryClient]);
 
 
   /**

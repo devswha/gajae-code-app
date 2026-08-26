@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { afterEach, test } from 'node:test';
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, cleanup, render } from '@testing-library/react';
 import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 
-import { useSessionStore, type SessionStore } from './useSessionStore';
+import { useSessionStore, type SessionSlot, type SessionStore } from './useSessionStore';
 
 type PendingRequest = {
   url: string;
@@ -15,16 +16,92 @@ function response(data: unknown): Response {
   return new Response(JSON.stringify({ data }), { status: 200 });
 }
 
-function createStore(): SessionStore {
+function createHarness(): { store: SessionStore; queryClient: QueryClient } {
   let store: SessionStore | undefined;
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   function StoreHarness() {
     store = useSessionStore();
     return null;
   }
-  renderToStaticMarkup(createElement(StoreHarness));
+  render(createElement(QueryClientProvider, { client: queryClient }, createElement(StoreHarness)));
   assert.ok(store);
-  return store;
+  return { store, queryClient };
 }
+
+function createStore(): SessionStore {
+  return createHarness().store;
+}
+
+afterEach(cleanup);
+
+test('settled server windows live in the query cache with referentially stable slot reads', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => response({
+    messages: [{ id: 'cached', sessionId: 'session', timestamp: '2026-01-01T00:00:00Z', kind: 'text', provider: 'gjc' }],
+    total: 1,
+    hasMore: false,
+  })) as typeof fetch;
+
+  try {
+    const { store, queryClient } = createHarness();
+    await store.fetchFromServer('session');
+
+    const slot = store.getSessionSlot('session')!;
+    const cachedWindow = queryClient.getQueryData(['messages', 'session']);
+    assert.equal(slot.serverMessages, (cachedWindow as { messages: SessionSlot['serverMessages'] }).messages);
+    assert.equal(slot.serverMessages, slot.serverMessages);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('LRU slot eviction leaves its settled message window in the query cache', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => response({
+    messages: [{ id: 'cached', sessionId: 'evicted', timestamp: '2026-01-01T00:00:00Z', kind: 'text', provider: 'gjc' }],
+    total: 1,
+    hasMore: false,
+  })) as typeof fetch;
+
+  try {
+    const { store, queryClient } = createHarness();
+    await store.fetchFromServer('evicted');
+    for (let index = 0; index < 60; index++) {
+      store.getSlot(`inactive-${index}`);
+    }
+
+    assert.equal(store.getSessionSlot('evicted'), undefined);
+    assert.deepEqual(
+      (queryClient.getQueryData(['messages', 'evicted']) as { messages: SessionSlot['serverMessages'] }).messages.map((message) => message.id),
+      ['cached'],
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('clear removes every settled message window from the query cache', () => {
+  const { store, queryClient } = createHarness();
+  queryClient.setQueryData(['messages', 'one'], {
+    messages: [],
+    total: 0,
+    hasMore: false,
+    offset: 0,
+  });
+  queryClient.setQueryData(['messages', 'two'], {
+    messages: [],
+    total: 0,
+    hasMore: false,
+    offset: 0,
+  });
+
+  store.clear();
+
+  assert.equal(queryClient.getQueryData(['messages', 'one']), undefined);
+  assert.equal(queryClient.getQueryData(['messages', 'two']), undefined);
+});
 
 test('fetchMore serializes a captured offset and deduplicates only matching message ids', async () => {
   const originalFetch = globalThis.fetch;
@@ -128,18 +205,22 @@ test('newer accepted pagination and refresh settle loading and reset the paginat
 
 test('inactive session slots are LRU-bounded while active and streaming slots survive until clear', () => {
   const store = createStore();
-  store.getSlot('active');
-  store.setActiveSession('active');
-  store.getSlot('streaming').status = 'streaming';
-  for (let index = 0; index < 60; index++) {
-    store.getSlot(`inactive-${index}`);
-  }
+  act(() => {
+    store.getSlot('active');
+    store.setActiveSession('active');
+    store.getSlot('streaming').status = 'streaming';
+    for (let index = 0; index < 60; index++) {
+      store.getSlot(`inactive-${index}`);
+    }
+  });
 
   assert.ok(store.getSessionSlot('active'));
   assert.ok(store.getSessionSlot('streaming'));
   assert.equal(store.getSessionSlot('inactive-0'), undefined);
 
-  store.clear();
+  act(() => {
+    store.clear();
+  });
   assert.equal(store.has('active'), false);
   assert.equal(store.has('streaming'), false);
 });
@@ -300,7 +381,9 @@ test('getMessages reflects a completed fetch and keeps empty reads identity-stab
 
   try {
     const store = createStore();
-    store.setActiveSession('session');
+    act(() => {
+      store.setActiveSession('session');
+    });
 
     // Empty reads (unknown session, pre-fetch) share one stable identity so
     // per-render reads do not churn downstream memos.
@@ -309,17 +392,22 @@ test('getMessages reflects a completed fetch and keeps empty reads identity-stab
     assert.equal(preFetch.length, 0);
     assert.equal(store.getMessages('session'), preFetch);
 
-    const request = store.fetchFromServer('session', { limit: 20, offset: 0 });
+    let request: Promise<SessionSlot>;
+    act(() => {
+      request = store.fetchFromServer('session', { limit: 20, offset: 0 });
+    });
     assert.ok(resolveRequest);
-    resolveRequest(response({
-      messages: [
-        { id: 'm-1', sessionId: 'session', timestamp: '2026-01-01T00:00:00Z', kind: 'text', role: 'user', content: 'hi', provider: 'gjc' },
-        { id: 'm-2', sessionId: 'session', timestamp: '2026-01-01T00:01:00Z', kind: 'text', role: 'assistant', content: 'hello', provider: 'gjc' },
-      ],
-      total: 2,
-      hasMore: false,
-    }));
-    await request;
+    await act(async () => {
+      resolveRequest!(response({
+        messages: [
+          { id: 'm-1', sessionId: 'session', timestamp: '2026-01-01T00:00:00Z', kind: 'text', role: 'user', content: 'hi', provider: 'gjc' },
+          { id: 'm-2', sessionId: 'session', timestamp: '2026-01-01T00:01:00Z', kind: 'text', role: 'assistant', content: 'hello', provider: 'gjc' },
+        ],
+        total: 2,
+        hasMore: false,
+      }));
+      await request!;
+    });
 
     // A fresh read after the fetch settles must expose the loaded window —
     // no other invalidation signal exists for render-time consumers.

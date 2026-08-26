@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 
@@ -14,7 +15,7 @@ import type {
 import type { SessionActivityMap } from './useSessionProtection';
 
 type UseProjectsStateArgs = {
-  sessionId?: string;
+  sessionId?: string | null;
   navigate: NavigateFunction;
   /** Subscription to the unified websocket event stream. */
   subscribe: (listener: (event: ServerEvent) => void) => () => void;
@@ -55,6 +56,7 @@ type RegisterOptimisticSessionArgs = {
 type ProjectSessionPage = Pick<Project, 'sessions' | 'sessionMeta'>;
 
 const DEFAULT_PROVIDER: LLMProvider = 'gjc';
+const PROJECTS_QUERY_KEY = ['projects'] as const;
 
 const serialize = (value: unknown) => JSON.stringify(value ?? null);
 
@@ -371,7 +373,27 @@ export function useProjectsState({
   isMobile,
   activeSessions,
 }: UseProjectsStateArgs) {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const queryClient = useQueryClient();
+  const projectsQuery = useQuery({
+    queryKey: PROJECTS_QUERY_KEY,
+    queryFn: async () => {
+      const data = await readProjectsResponse(await api.projects(), 'fetching');
+      if (data === null) {
+        throw new Error('projects fetch degraded');
+      }
+      return data;
+    },
+    structuralSharing: (oldData, newData) => {
+      const previous = (oldData as Project[] | undefined) ?? [];
+      const merged = mergeExpandedSessionPages(previous, newData as Project[]);
+      if (previous.length === 0) {
+        return merged;
+      }
+      return projectsHaveChanges(previous, merged) ? merged : previous;
+    },
+  });
+  const { data: projectsData, isLoading: isLoadingProjects, refetch: refetchProjects } = projectsQuery;
+  const projects = useMemo(() => projectsData ?? [], [projectsData]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedSession, setSelectedSession] = useState<ProjectSession | null>(null);
   const [attentionSessionIds, setAttentionSessionIds] = useState<Set<string>>(new Set());
@@ -387,7 +409,6 @@ export function useProjectsState({
 
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState<LoadingProgress | null>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -466,44 +487,14 @@ export function useProjectsState({
     });
   }, []);
 
-  const fetchProjects = useCallback(async ({ showLoadingState = true }: FetchProjectsOptions = {}) => {
-    try {
-      if (showLoadingState) {
-        setIsLoadingProjects(true);
-      }
-      const projectData = await readProjectsResponse(await api.projects(), 'fetching');
-      if (!projectData) {
-        return;
-      }
-
-      setSelectedProject((previousProject) =>
-        reconcileSelectedProject(previousProject, projectData),
-      );
-
-      setProjects((prevProjects) => {
-        const mergedProjects = mergeExpandedSessionPages(prevProjects, projectData);
-
-        if (prevProjects.length === 0) {
-          return mergedProjects;
-        }
-
-        return projectsHaveChanges(prevProjects, mergedProjects)
-          ? mergedProjects
-          : prevProjects;
-      });
-    } catch (error) {
-      console.error('Error fetching projects:', error);
-    } finally {
-      if (showLoadingState) {
-        setIsLoadingProjects(false);
-      }
-    }
-  }, []);
+  const fetchProjects = useCallback(async (_options: FetchProjectsOptions = {}) => {
+    await refetchProjects();
+  }, [refetchProjects]);
 
   const refreshProjectsSilently = useCallback(async () => {
     // Keep chat view stable while still syncing sidebar/session metadata in background.
-    await fetchProjects({ showLoadingState: false });
-  }, [fetchProjects]);
+    await refetchProjects();
+  }, [refetchProjects]);
 
   const registerOptimisticSession = useCallback(({
     sessionId: newSessionId,
@@ -542,18 +533,19 @@ export function useProjectsState({
       timestamp: now,
     };
 
-    setProjects((previousProjects) => {
-      const existingProject = previousProjects.find((candidate) => candidate.projectId === project.projectId);
+    queryClient.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (previousProjects) => {
+      const projects = previousProjects ?? [];
+      const existingProject = projects.find((candidate) => candidate.projectId === project.projectId);
       if (!existingProject) {
-        return [upsertSessionIntoProject(projectFromRegistration(project), upsert), ...previousProjects];
+        return [upsertSessionIntoProject(projectFromRegistration(project), upsert), ...projects];
       }
 
       const updatedProject = upsertSessionIntoProject(existingProject, upsert);
       if (updatedProject === existingProject) {
-        return previousProjects;
+        return projects;
       }
 
-      return previousProjects.map((candidate) =>
+      return projects.map((candidate) =>
         candidate.projectId === existingProject.projectId ? updatedProject : candidate,
       );
     });
@@ -572,7 +564,7 @@ export function useProjectsState({
         ? { ...previousSession, ...optimisticSession }
         : optimisticSession
     ));
-  }, []);
+  }, [queryClient]);
 
 
   const openSettings = useCallback((tab = 'tools') => {
@@ -581,9 +573,10 @@ export function useProjectsState({
   }, []);
 
   useEffect(() => {
-    void fetchProjects();
-  }, [fetchProjects]);
-
+    setSelectedProject((previousProject) =>
+      reconcileSelectedProject(previousProject, projectsData ?? []),
+    );
+  }, [projectsData]);
 
   // Auto-select the project when there is only one, so the user lands on the new session page
   useEffect(() => {
@@ -658,9 +651,10 @@ export function useProjectsState({
         markSessionAttention(upsert.sessionId);
       }
 
-      setProjects((previousProjects) => {
+      queryClient.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (previousProjects) => {
+        const projects = previousProjects ?? [];
         const targetProjectId = upsert.project?.projectId;
-        const existingProject = previousProjects.find((project) =>
+        const existingProject = projects.find((project) =>
           targetProjectId ? project.projectId === targetProjectId : getProjectSessions(project).some((session) => session.id === upsert.sessionId),
         );
 
@@ -668,7 +662,7 @@ export function useProjectsState({
           // First session of a project this client has never seen: create the
           // project entry from the event payload.
           if (!upsert.project) {
-            return previousProjects;
+            return projects;
           }
 
           const newProject: Project = {
@@ -681,15 +675,15 @@ export function useProjectsState({
             sessionMeta: { hasMore: false, total: 0 },
           } as Project;
 
-          return [...previousProjects, upsertSessionIntoProject(newProject, upsert)];
+          return [...projects, upsertSessionIntoProject(newProject, upsert)];
         }
 
         const updatedProject = upsertSessionIntoProject(existingProject, upsert);
         if (updatedProject === existingProject) {
-          return previousProjects;
+          return projects;
         }
 
-        return previousProjects.map((project) =>
+        return projects.map((project) =>
           project.projectId === existingProject.projectId ? updatedProject : project,
         );
       });
@@ -741,7 +735,7 @@ export function useProjectsState({
     };
 
     return subscribe(handleEvent);
-  }, [markSessionAttention, navigate, sessionId, subscribe]);
+  }, [markSessionAttention, navigate, queryClient, sessionId, subscribe]);
 
   useEffect(() => {
     return () => {
@@ -873,30 +867,23 @@ export function useProjectsState({
         navigate('/');
       }
 
-      setProjects((prevProjects) =>
-        prevProjects.map((project) => removeSessionFromProject(project, sessionIdToDelete)),
+      queryClient.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (previousProjects) =>
+        (previousProjects ?? []).map((project) => removeSessionFromProject(project, sessionIdToDelete)),
       );
     },
-    [clearSessionAttention, navigate, selectedSession?.id],
+    [clearSessionAttention, navigate, queryClient, selectedSession?.id],
   );
 
   const handleSidebarRefresh = useCallback(async () => {
     try {
-      const freshProjects = await readProjectsResponse(await api.projects(), 'refreshing');
-      if (!freshProjects) {
-        return;
-      }
-      const mergedProjects = mergeExpandedSessionPages(projects, freshProjects);
-
-      setProjects((prevProjects) =>
-        projectsHaveChanges(prevProjects, mergedProjects) ? mergedProjects : prevProjects,
-      );
+      await refetchProjects();
+      const refreshedProjects = queryClient.getQueryData<Project[]>(PROJECTS_QUERY_KEY) ?? [];
 
       if (!selectedProject) {
         return;
       }
 
-      const refreshedProject = mergedProjects.find((project) => project.projectId === selectedProject.projectId);
+      const refreshedProject = refreshedProjects.find((project) => project.projectId === selectedProject.projectId);
       if (!refreshedProject) {
         return;
       }
@@ -927,7 +914,7 @@ export function useProjectsState({
     } catch (error) {
       console.error('Error refreshing sidebar:', error);
     }
-  }, [projects, selectedProject, selectedSession]);
+  }, [queryClient, refetchProjects, selectedProject, selectedSession]);
 
   const loadMoreProjectSessions = useCallback(async (projectId: string) => {
     const project = projects.find((candidate) => candidate.projectId === projectId);
@@ -961,8 +948,8 @@ export function useProjectsState({
     const sessionsPage = (await response.json()) as ProjectSessionPage;
 
     let mergedProjectForSelection: Project | null = null;
-    setProjects((previousProjects) =>
-      previousProjects.map((candidate) => {
+    queryClient.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (previousProjects) =>
+      (previousProjects ?? []).map((candidate) => {
         if (candidate.projectId !== projectId) {
           return candidate;
         }
@@ -976,7 +963,7 @@ export function useProjectsState({
     if (selectedProject?.projectId === projectId && mergedProjectForSelection) {
       setSelectedProject(mergedProjectForSelection);
     }
-  }, [projects, selectedProject?.projectId]);
+  }, [projects, queryClient, selectedProject?.projectId]);
 
   // `projectId` is the DB identifier passed from the sidebar's delete flow
   // after the migration away from folder-derived project names.
@@ -988,9 +975,11 @@ export function useProjectsState({
         navigate('/');
       }
 
-      setProjects((prevProjects) => prevProjects.filter((project) => project.projectId !== projectId));
+      queryClient.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (previousProjects) =>
+        (previousProjects ?? []).filter((project) => project.projectId !== projectId),
+      );
     },
-    [navigate, selectedProject?.projectId],
+    [navigate, queryClient, selectedProject?.projectId],
   );
 
   const sidebarSharedProps = useMemo(

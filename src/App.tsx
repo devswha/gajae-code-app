@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
 
@@ -11,6 +12,14 @@ import i18n from './i18n/config.js';
 
 
 const DEPLOYMENT_ASSET_DIRECTORIES = new Set(['assets', 'static', 'icons', 'images']);
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 /**
  * Detect the router basename from explicit runtime config or deployment hints.
@@ -106,19 +115,21 @@ export default function App() {
   return (
     <I18nextProvider i18n={i18n}>
       <ThemeProvider>
-        <AuthProvider>
-          <WebSocketProvider>
-            <ProtectedRoute>
-              <Router basename={routerBasename}>
-                <DesktopDeepLinkBridge />
-                <Routes>
-                  {appShellRoutePaths.map((path) => <Route key={path} path={path} element={<AppContent />} />)}
-                  <Route path={rootFallbackRoutePath} element={<Navigate to="/" replace />} />
-                </Routes>
-              </Router>
-            </ProtectedRoute>
-          </WebSocketProvider>
-        </AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <WebSocketProvider>
+              <ProtectedRoute>
+                <Router basename={routerBasename}>
+                  <DesktopDeepLinkBridge />
+                  <Routes>
+                    {appShellRoutePaths.map((path) => <Route key={path} path={path} element={<AppContent />} />)}
+                    <Route path={rootFallbackRoutePath} element={<Navigate to="/" replace />} />
+                  </Routes>
+                </Router>
+              </ProtectedRoute>
+            </WebSocketProvider>
+          </AuthProvider>
+        </QueryClientProvider>
       </ThemeProvider>
     </I18nextProvider>
   );

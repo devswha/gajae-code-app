@@ -148,6 +148,11 @@ export const api = {
     authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(sessionId)}/toggle-star`, {
       method: 'POST',
     }),
+  // Returns the Markdown file itself rather than the usual JSON envelope, so the
+  // caller reads the body as a blob. It goes through authenticatedFetch because
+  // a plain link cannot carry the auth header.
+  exportSession: (sessionId) =>
+    authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(sessionId)}/export`),
   // `hardDelete` => server `?force=true` (remove DB row + Claude *.jsonl + sessions rows for path).
   deleteProject: (projectId, hardDelete = false) => {
     const params = new URLSearchParams();

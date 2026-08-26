@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 
 import { api } from '../../../utils/api';
+import { downloadBlob, filenameFromContentDisposition } from '../../../utils/download';
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type {
@@ -691,6 +692,34 @@ export function useSidebarController({
     }
   }, [onRefresh, t]);
 
+  /**
+   * Saves the conversation as Markdown.
+   *
+   * The runtime's own `/export` only runs inside a live turn and writes into
+   * the project directory; this reads the stored transcript instead, so it
+   * works on any session in the list and leaves nothing behind in the user's
+   * repository.
+   */
+  const exportSession = useCallback(async (sessionId: string) => {
+    try {
+      const response = await api.exportSession(sessionId);
+      if (!response.ok) {
+        console.error('[Sidebar] Failed to export session:', response.status);
+        alert(t('messages.exportSessionError'));
+        return;
+      }
+
+      const blob = await response.blob();
+      downloadBlob(
+        blob,
+        filenameFromContentDisposition(response.headers.get('content-disposition'), `${sessionId}.md`),
+      );
+    } catch (error) {
+      console.error('[Sidebar] Error exporting session:', error);
+      alert(t('messages.exportSessionError'));
+    }
+  }, [t]);
+
   const collapseSidebar = useCallback(() => {
     setSidebarVisible(false);
   }, [setSidebarVisible]);
@@ -744,6 +773,7 @@ export function useSidebarController({
     refreshProjects,
     updateSessionSummary,
     toggleSessionStar,
+    exportSession,
     collapseSidebar,
     expandSidebar,
     setShowNewProject,

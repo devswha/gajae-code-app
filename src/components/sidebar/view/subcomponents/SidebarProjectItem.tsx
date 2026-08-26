@@ -43,6 +43,7 @@ type SidebarProjectItemProps = {
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onToggleSessionStar?: (sessionId: string) => void;
+  onExportSession?: (sessionId: string) => void;
   t: TFunction;
 };
 
@@ -81,6 +82,7 @@ export default function SidebarProjectItem({
   onCancelEditingSession,
   onSaveEditingSession,
   onToggleSessionStar,
+  onExportSession,
   t,
 }: SidebarProjectItemProps) {
   const isSelected = selectedProject?.projectId === project.projectId;
@@ -185,6 +187,7 @@ export default function SidebarProjectItem({
           onCancelEditingSession={onCancelEditingSession}
           onSaveEditingSession={onSaveEditingSession}
           onToggleSessionStar={onToggleSessionStar}
+          onExportSession={onExportSession}
           onProjectSelect={onProjectSelect}
           onSessionSelect={onSessionSelect}
           onDeleteSession={onDeleteSession}

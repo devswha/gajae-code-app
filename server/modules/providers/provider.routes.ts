@@ -6,6 +6,7 @@ import { providerCommandsService } from '@/modules/providers/services/provider-c
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
 import { providerSkillsService } from '@/modules/providers/services/provider-skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
+import { exportSessionTranscript } from '@/modules/providers/services/session-export.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 import { getHomeDir, getHomeDirSuggestions } from '@/modules/providers/services/home-dirs.service.js';
 import type {
@@ -377,6 +378,27 @@ router.put(
     const summary = parseSessionRenameSummary(req.body);
     const result = sessionsService.renameSessionById(sessionId, summary);
     res.json(createApiSuccessResponse(result));
+  }),
+);
+
+/*
+ * Downloads one session as Markdown.
+ *
+ * Not wrapped in the standard success envelope: the response body is the file
+ * itself, so the browser can save it directly.
+ */
+router.get(
+  '/sessions/:sessionId/export',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const transcript = await exportSessionTranscript(sessionId);
+
+    res.setHeader('Content-Type', transcript.contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${transcript.asciiFilename}"; filename*=UTF-8''${encodeURIComponent(transcript.filename)}`,
+    );
+    res.send(transcript.body);
   }),
 );
 

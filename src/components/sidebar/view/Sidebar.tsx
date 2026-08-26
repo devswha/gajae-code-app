@@ -86,6 +86,7 @@ function Sidebar({
     refreshProjects,
     updateSessionSummary,
     toggleSessionStar,
+    exportSession,
     collapseSidebar: handleCollapseSidebar,
     expandSidebar: handleExpandSidebar,
     setShowNewProject,
@@ -181,6 +182,9 @@ function Sidebar({
     },
     onToggleSessionStar: (sessionId: string) => {
       void toggleSessionStar(sessionId);
+    },
+    onExportSession: (sessionId: string) => {
+      void exportSession(sessionId);
     },
     t,
   };

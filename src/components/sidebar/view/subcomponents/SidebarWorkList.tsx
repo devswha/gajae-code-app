@@ -38,6 +38,7 @@ export default function SidebarWorkList({ projectListProps }: SidebarWorkListPro
     onCancelEditingSession,
     onSaveEditingSession,
     onToggleSessionStar,
+    onExportSession,
     t,
   } = projectListProps;
 
@@ -93,6 +94,7 @@ export default function SidebarWorkList({ projectListProps }: SidebarWorkListPro
           onCancelEditingSession={onCancelEditingSession}
           onSaveEditingSession={onSaveEditingSession}
           onToggleSessionStar={onToggleSessionStar}
+          onExportSession={onExportSession}
           onProjectSelect={onProjectSelect}
           onSessionSelect={onSessionSelect}
           onDeleteSession={onDeleteSession}

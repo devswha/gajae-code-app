@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, Edit2, Loader2, MoreHorizontal, Star, Trash2, X } from 'lucide-react';
+import { Check, Download, Edit2, Loader2, MoreHorizontal, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, Tooltip, buttonVariants } from '../../../../shared/view/ui';
@@ -25,6 +25,7 @@ type SidebarSessionItemProps = {
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onToggleSessionStar?: (sessionId: string) => void;
+  onExportSession?: (sessionId: string) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
   onDeleteSession: (
@@ -64,6 +65,69 @@ const formatCompactSessionAge = (dateString: string, currentTime: Date): string 
   return `${diffInDays}d`;
 };
 
+type SessionActionOptions = {
+  sessionId: string;
+  sessionName: string;
+  isStarred: boolean;
+  isProcessing: boolean;
+  t: TFunction;
+  onToggleSessionStar?: (sessionId: string) => void;
+  onExportSession?: (sessionId: string) => void;
+  onStartEditingSession: (sessionId: string, initialName: string) => void;
+  onDeleteSession: () => void;
+};
+
+/**
+ * The row's overflow menu.
+ *
+ * Optional entries are driven by whether the host wired a handler: a menu item
+ * that silently does nothing is worse than one that is absent. Exported so the
+ * rule can be tested without opening a dropdown, whose contents only exist once
+ * it is open.
+ */
+export function buildSessionActions({
+  sessionId,
+  sessionName,
+  isStarred,
+  isProcessing,
+  t,
+  onToggleSessionStar,
+  onExportSession,
+  onStartEditingSession,
+  onDeleteSession,
+}: SessionActionOptions): ActionMenuItem[] {
+  return [
+    ...(onToggleSessionStar ? [{
+      key: 'pin',
+      label: t(isStarred ? 'sessions.unpin' : 'sessions.pin'),
+      icon: Star,
+      onSelect: () => onToggleSessionStar(sessionId),
+    }] : []),
+    {
+      key: 'rename',
+      label: t('sessions.renameSession'),
+      icon: Edit2,
+      onSelect: () => onStartEditingSession(sessionId, sessionName),
+    },
+    ...(onExportSession ? [{
+      key: 'export',
+      label: t('sessions.exportSession'),
+      icon: Download,
+      onSelect: () => onExportSession(sessionId),
+    }] : []),
+    // A running session keeps its transcript: deleting it mid-run would race
+    // the writer.
+    ...(!isProcessing ? [{
+      key: 'delete',
+      label: t('sessions.deleteSession'),
+      icon: Trash2,
+      onSelect: onDeleteSession,
+      isDanger: true,
+      showDividerBefore: true,
+    }] : []),
+  ];
+}
+
 export default function SidebarSessionItem({
   project,
   session,
@@ -80,6 +144,7 @@ export default function SidebarSessionItem({
   onCancelEditingSession,
   onSaveEditingSession,
   onToggleSessionStar,
+  onExportSession,
   onProjectSelect,
   onSessionSelect,
   onDeleteSession,
@@ -127,30 +192,17 @@ export default function SidebarSessionItem({
     onDeleteSession(project.projectId, session.id, sessionView.sessionName, session.__provider);
   };
   const isStarred = Boolean(session.isStarred);
-  const sessionActions: ActionMenuItem[] = [
-    // Pinning is optional the same way deleting is: a host that does not wire
-    // the handler must not be given a menu entry that silently does nothing.
-    ...(onToggleSessionStar ? [{
-      key: 'pin',
-      label: t(isStarred ? 'sessions.unpin' : 'sessions.pin'),
-      icon: Star,
-      onSelect: () => onToggleSessionStar(session.id),
-    }] : []),
-    {
-      key: 'rename',
-      label: t('sessions.renameSession'),
-      icon: Edit2,
-      onSelect: () => onStartEditingSession(session.id, sessionView.sessionName),
-    },
-    ...(!isProcessing ? [{
-      key: 'delete',
-      label: t('sessions.deleteSession'),
-      icon: Trash2,
-      onSelect: requestDeleteSession,
-      isDanger: true,
-      showDividerBefore: true,
-    }] : []),
-  ];
+  const sessionActions = buildSessionActions({
+    sessionId: session.id,
+    sessionName: sessionView.sessionName,
+    isStarred,
+    isProcessing,
+    t,
+    onToggleSessionStar,
+    onExportSession,
+    onStartEditingSession,
+    onDeleteSession: requestDeleteSession,
+  });
 
   const renderSessionMenu = () => (
     <div

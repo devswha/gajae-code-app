@@ -91,7 +91,7 @@ const readLegacyPreference = (key: UiPreferenceKey, fallback: boolean): boolean 
  * changed default would only ever reach new installs. Each migration runs once
  * and stamps this version, so a choice made afterwards is never overwritten.
  */
-export const UI_PREFERENCES_VERSION = 1;
+export const UI_PREFERENCES_VERSION = 2;
 
 const versionKey = (storageKey: string): string => `${storageKey}.version`;
 
@@ -124,6 +124,29 @@ const readStoredVersion = (storageKey: string): number => {
 };
 
 /**
+ * Stamps the version at load, next to the state the migration just produced.
+ *
+ * It deliberately does not ride along with the ordinary save effect. That
+ * effect runs for state a component is already holding, and a hot module
+ * replacement swaps this file underneath mounted hooks without re-running
+ * their initializer - so the new stamp landed beside a value that had never
+ * been migrated, and every later load then skipped the migration it was owed.
+ */
+const stampVersion = (storageKey: string, preferences: UiPreferences): void => {
+  try {
+    // State and stamp go down together. The hook has several instances and they
+    // do not all mount in the same commit, so a stamp written on its own let a
+    // later instance read the still-unmigrated state, skip the migration it was
+    // owed, and then persist that stale value over the migrated one.
+    localStorage.setItem(storageKey, JSON.stringify(preferences));
+    localStorage.setItem(versionKey(storageKey), String(UI_PREFERENCES_VERSION));
+  } catch {
+    // Storage is best-effort; a failed write only means the migration is
+    // evaluated again next load, which is harmless because it is idempotent.
+  }
+};
+
+/**
  * Exposed for tests: the migration only observably matters at load, and a
  * hook-level test would have to stand up React to reach it.
  */
@@ -148,7 +171,9 @@ function readInitialPreferences(storageKey: string): UiPreferences {
           return acc;
         }, { ...DEFAULTS });
 
-        return migratePreferences(stored, readStoredVersion(storageKey));
+        const migrated = migratePreferences(stored, readStoredVersion(storageKey));
+        stampVersion(storageKey, migrated);
+        return migrated;
       }
     }
   } catch {
@@ -160,7 +185,9 @@ function readInitialPreferences(storageKey: string): UiPreferences {
     return acc;
   }, { ...DEFAULTS });
 
-  return migratePreferences(legacy, readStoredVersion(storageKey));
+  const migratedLegacy = migratePreferences(legacy, readStoredVersion(storageKey));
+  stampVersion(storageKey, migratedLegacy);
+  return migratedLegacy;
 }
 
 function reducer(state: UiPreferences, action: UiPreferencesAction): UiPreferences {
@@ -217,9 +244,6 @@ export function useUiPreferences(storageKey = 'uiPreferences') {
     }
 
     localStorage.setItem(storageKey, JSON.stringify(state));
-    // Stamped alongside the state: once written, the migration above stops
-    // applying, so turning a preference back on afterwards sticks.
-    localStorage.setItem(versionKey(storageKey), String(UI_PREFERENCES_VERSION));
 
     window.dispatchEvent(
       new CustomEvent<SyncEventDetail>(SYNC_EVENT, {

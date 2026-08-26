@@ -4,7 +4,7 @@ import type { Project } from '../../../types/app';
 import type { SubagentChildTool } from '../types/types';
 import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
 
-import { getToolConfig } from './configs/toolConfigs';
+import { getToolConfig, rendersCommandRow } from './configs/toolConfigs';
 import { OneLineDisplay, BashCommandDisplay, CollapsibleDisplay, ToolDiffViewer, MarkdownContent, FileListContent, TodoListContent, TaskListContent, TextContent, QuestionAnswerContent, SubagentContainer } from './components';
 import { PlanDisplay } from './components/PlanDisplay';
 import { ToolStatusBadge } from './components/ToolStatusBadge';
@@ -112,10 +112,11 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
 
   if (!displayConfig) return null;
 
-  // Bash renders as a Codex-style command row: the command on a single line with
-  // a chevron that expands to show the output inline. The combined view lives on
-  // the input render; the separate result section is suppressed in MessageComponent.
-  if (toolName === 'Bash' && mode === 'input') {
+  // A shell call renders as a Codex-style command row: the command on a single
+  // line with a chevron that expands to show the output inline. The combined
+  // view lives on the input render; the separate result section is suppressed
+  // in MessageComponent.
+  if (rendersCommandRow(toolName) && mode === 'input') {
     const command = typeof parsedData === 'object' && parsedData !== null && 'command' in parsedData
       ? String(parsedData.command || '')
       : typeof toolInput === 'string'
@@ -123,9 +124,12 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
         : typeof rawToolInput === 'string'
           ? rawToolInput
           : '';
-    const description = typeof parsedData === 'object' && parsedData !== null && 'description' in parsedData
-      ? String(parsedData.description || '')
-      : undefined;
+    // Claude sends a written description; the runtime sends the directory it
+    // ran in. Either way this is the line under the command.
+    const details = typeof parsedData === 'object' && parsedData !== null
+      ? String(parsedData.description || (parsedData.cwd ? `in ${parsedData.cwd}` : '') || '')
+      : '';
+    const description = details || undefined;
     const output = typeof toolResult?.content === 'string'
       ? toolResult.content
       : toolResult?.content != null

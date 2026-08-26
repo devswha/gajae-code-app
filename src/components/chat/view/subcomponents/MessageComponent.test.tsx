@@ -200,6 +200,31 @@ test('a user bubble is the size of what was typed', () => {
   assert.doesNotMatch(html, /mt-1 flex items-center justify-end gap-1 text-xs text-primary-foreground\/80/);
 });
 
+test('a runtime shell call is a command row that carries its own output', () => {
+  const html = renderMessage({
+    type: 'assistant',
+    content: '',
+    timestamp: '2026-08-26T00:00:00.000Z',
+    isToolUse: true,
+    // The runtime sends the tool's own name, lowercase. Matching the literal
+    // 'Bash' meant a gjc command rendered as a labelled one-liner whose output
+    // had nowhere to go at all.
+    toolName: 'bash',
+    toolInput: { command: 'npm run typecheck', cwd: '/repo' },
+    toolId: 'tool-shell',
+    toolResult: { content: 'one\ntwo\nthree', isError: false },
+  });
+
+  assert.match(html, /npm run typecheck/);
+  // The prompt marker, not a repeated "bash" label.
+  assert.match(html, />\s*\$\s*<\/span>/);
+  // The output is attached to the row rather than dropped.
+  assert.match(html, /3 lines/);
+  assert.match(html, /in \/repo/);
+  // And it is not repeated underneath as a generic card.
+  assert.doesNotMatch(html, /Parameters|Details/);
+});
+
 test('a failed tool reads as output, not as a card of prose', () => {
   const html = renderMessage({
     type: 'assistant',

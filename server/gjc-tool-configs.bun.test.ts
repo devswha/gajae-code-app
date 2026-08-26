@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { BUILTIN_TOOLS } from '@gajae-code/coding-agent/tools/descriptors';
+import { TOOL_CATALOG } from '@gajae-code/coding-agent/tools/tool-catalog.generated';
 
-import { TOOL_CONFIGS } from '../src/components/chat/tools/configs/toolConfigs.js';
+import { TOOL_CONFIGS, rendersCommandRow } from '../src/components/chat/tools/configs/toolConfigs.js';
 
 import { GJC_AGENT_TOOL_NAMES } from './gjc-agent-tools.js';
 
@@ -62,4 +63,75 @@ test('the tools most calls go through have a config rather than the JSON fallbac
 
 test('the question config is shared, not duplicated', () => {
   assert.equal(TOOL_CONFIGS.ask, TOOL_CONFIGS.AskUserQuestion);
+});
+
+/**
+ * Fields a config reads that the runtime schema does not declare, each because
+ * the app itself writes them onto the input before rendering.
+ */
+const APP_WRITTEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  ask: ['answers'],
+  // `computer` is a discriminated union of one schema per action, which the
+  // generated catalog flattens to no properties at all. These are the fields
+  // its union members declare.
+  computer: ['action', 'text', 'keys'],
+};
+
+/** Records every field an accessor touches, and answers undefined to all of them. */
+function recordingInput(seen: Set<string>): Record<string, unknown> {
+  return new Proxy({}, {
+    get(_target, property) {
+      if (typeof property === 'string') seen.add(property);
+      return undefined;
+    },
+    has: () => true,
+  });
+}
+
+/*
+ * Names matching is not the same as fields matching. `todo_write` was keyed
+ * correctly and still rendered an empty card on every call, because its
+ * accessors read `phase`/`items`/`task` off the top level while the runtime
+ * sends `{ ops: [...] }`. A config that reads a field the tool never sends is
+ * as dead as a config under the wrong name, and looks healthier.
+ */
+test('every config reads fields the runtime actually sends', () => {
+  for (const [name, config] of Object.entries(TOOL_CONFIGS)) {
+    const entry = (TOOL_CATALOG as Record<string, { parameters?: { properties?: Record<string, unknown> } }>)[name];
+    if (!entry) continue; // Non-runtime keys are covered by the tests above.
+
+    const declared = new Set(Object.keys(entry.parameters?.properties ?? {}));
+    for (const extra of APP_WRITTEN_FIELDS[name] ?? []) declared.add(extra);
+
+    const seen = new Set<string>();
+    const input = recordingInput(seen);
+    const accessors = [
+      config.input.getValue,
+      config.input.getSecondary,
+      typeof config.input.title === 'function' ? config.input.title : undefined,
+      config.input.getContentProps,
+    ];
+    for (const accessor of accessors) accessor?.(input);
+
+    for (const field of seen) {
+      assert.equal(
+        declared.has(field),
+        true,
+        `${name} reads "${field}", which is not in its runtime schema (${[...declared].join(', ')})`,
+      );
+    }
+  }
+});
+
+/*
+ * The runtime merges a shell call with its output into one block. The app has
+ * the same row, but reached it by matching the literal name `Bash`, which the
+ * runtime never sends: a gjc `bash` call rendered as a labelled one-liner with
+ * its output repeated underneath as a separate generic card.
+ */
+test('the shell tool the runtime sends is the one the command row matches', () => {
+  assert.equal(GJC_AGENT_TOOL_NAMES.includes('bash'), true);
+  assert.equal(rendersCommandRow('bash'), true);
+  assert.equal(rendersCommandRow('Bash'), true, 'stored Claude/Codex transcripts still replay through this UI');
+  assert.equal(rendersCommandRow('read'), false);
 });

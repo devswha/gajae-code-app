@@ -41,6 +41,84 @@ export interface ToolDisplayConfig {
   };
 }
 
+type TodoOp = {
+  op?: string;
+  list?: { phase?: string; items?: string[] }[];
+  task?: string;
+  phase?: string;
+  items?: string[];
+  text?: string;
+};
+
+const asTodoOps = (ops: unknown): TodoOp[] => (Array.isArray(ops) ? ops as TodoOp[] : []);
+
+/** Title for a `todo_write` batch: what it did, not what tool did it. */
+function summarizeTodoOps(ops: unknown): string {
+  const list = asTodoOps(ops);
+  if (list.length === 0) return 'Todos';
+
+  const first = list[0];
+  if (list.length === 1) {
+    if (first.op === 'init') {
+      const tasks = (first.list ?? []).reduce((total, phase) => total + (phase.items?.length ?? 0), 0);
+      return `Task list, ${tasks} ${tasks === 1 ? 'task' : 'tasks'}`;
+    }
+    const subject = first.task || first.phase || first.text || '';
+    return subject ? `${first.op ?? 'todo'}: ${subject}` : String(first.op ?? 'Todos');
+  }
+
+  return `${list.length} todo updates`;
+}
+
+/** The batch as markdown, one line per operation, checkboxes where they mean something. */
+function formatTodoOps(ops: unknown): string {
+  const lines: string[] = [];
+
+  for (const entry of asTodoOps(ops)) {
+    switch (entry.op) {
+      case 'init':
+        for (const phase of entry.list ?? []) {
+          if (phase.phase) lines.push(`**${phase.phase}**`);
+          for (const item of phase.items ?? []) lines.push(`- [ ] ${item}`);
+        }
+        break;
+      case 'append':
+        if (entry.phase) lines.push(`**${entry.phase}**`);
+        for (const item of entry.items ?? []) lines.push(`- [ ] ${item}`);
+        break;
+      case 'start':
+        lines.push(`- > ${entry.task ?? ''}`);
+        break;
+      case 'done':
+        lines.push(`- [x] ${entry.task ?? ''}`);
+        break;
+      case 'rm':
+      case 'drop':
+        lines.push(`- ~~${entry.task ?? entry.phase ?? ''}~~`);
+        break;
+      case 'note':
+        lines.push(`> ${entry.text ?? ''}`);
+        break;
+      default:
+        if (entry.op) lines.push(`- ${entry.op} ${entry.task ?? entry.phase ?? ''}`.trimEnd());
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Tools whose call and result belong on one row, as the runtime's TUI merges
+ * them: the command with its output folded underneath, inside the same block.
+ * `bash` is the runtime's name for it; `Bash` is the same tool in a stored
+ * Claude/Codex transcript, and both are replayed through this UI.
+ */
+const COMMAND_ROW_TOOLS = new Set(['bash', 'Bash']);
+
+export function rendersCommandRow(toolName: string): boolean {
+  return COMMAND_ROW_TOOLS.has(toolName);
+}
+
 export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
   // ============================================================================
   // COMMAND TOOLS
@@ -61,22 +139,13 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
   // ==========================================================================
 
   bash: {
-    input: {
-      type: 'one-line',
-      icon: 'terminal',
-      getValue: (input) => input.command,
-      getSecondary: (input) => (input.cwd ? `in ${input.cwd}` : undefined),
-      action: 'copy',
-      style: 'terminal',
-      wrapText: true,
-      colorScheme: {
-        primary: 'text-green-400 font-mono',
-        secondary: 'text-gray-400',
-        background: '',
-        border: 'border-green-500 dark:border-green-400',
-        icon: 'text-green-500 dark:text-green-400'
-      }
-    }
+    // Rendered by BashCommandDisplay, not from this entry: the command on one
+    // row with its output folded into the same row, which is how the runtime's
+    // own TUI shows it (`mergeCallAndResult`). Routed by `rendersCommandRow`,
+    // which also suppresses the generic result section so the output does not
+    // appear twice.
+    input: { type: 'hidden' },
+    result: { hidden: true }
   },
 
   read: {
@@ -183,24 +252,124 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
   },
 
   todo_write: {
+    // The runtime sends `{ ops: [...] }` — one call is a batch of operations,
+    // not a list. Reading `phase`/`items`/`task` off the top level, as this
+    // entry used to, matched nothing the tool ever sends: every call rendered
+    // as an empty card titled "Task list".
     input: {
       type: 'collapsible',
-      title: (input) => input.phase || 'Task list',
+      title: (input) => summarizeTodoOps(input.ops),
       defaultOpen: false,
-      contentType: 'text',
+      contentType: 'markdown',
       getContentProps: (input) => ({
-        content: Array.isArray(input.items)
-          ? input.items.map((item: string) => `- ${item}`).join('\n')
-          : (input.task ?? ''),
-        format: 'markdown'
+        content: formatTodoOps(input.ops)
       })
+    },
+    result: {
+      hideOnSuccess: true
     }
   },
 
-  // `edit` is deliberately absent. Its parameter shape changes with the
-  // active edit mode (apply_patch and hashline use different fields), so a
-  // fixed accessor would render an empty diff for two of the three. Default
-  // shows the real arguments until the modes are handled explicitly.
+  edit: {
+    // One shape, from the runtime's schema: `{ path, edits: [{ old_text,
+    // new_text, all? }] }`. The replacements are stacked into a single
+    // before/after pair so one call renders as one diff, the way the TUI
+    // renders an edit; the result receipt adds nothing the diff does not
+    // already show, so it is kept for failures only.
+    input: {
+      type: 'collapsible',
+      title: (input) => input.path?.split('/').pop() || input.path || 'file',
+      defaultOpen: false,
+      contentType: 'diff',
+      actionButton: 'file-button',
+      getContentProps: (input) => {
+        const edits = Array.isArray(input.edits) ? input.edits : [];
+        return {
+          filePath: input.path || '',
+          oldContent: edits.map((edit: any) => String(edit?.old_text ?? '')).join('\n'),
+          newContent: edits.map((edit: any) => String(edit?.new_text ?? '')).join('\n')
+        };
+      }
+    },
+    result: {
+      hideOnSuccess: true
+    }
+  },
+
+  lsp: {
+    input: {
+      type: 'one-line',
+      label: 'LSP',
+      getValue: (input) => [input.action, input.symbol || input.query || input.file]
+        .filter(Boolean)
+        .join(' '),
+      action: 'jump-to-results',
+      colorScheme: {
+        primary: 'text-gray-700 dark:text-gray-300',
+        secondary: 'text-gray-500 dark:text-gray-400',
+        background: '',
+        border: 'border-gray-400 dark:border-gray-500',
+        icon: 'text-gray-500 dark:text-gray-400'
+      }
+    }
+  },
+
+  web_search: {
+    input: {
+      type: 'one-line',
+      label: 'Web Search',
+      getValue: (input) => input.query || '',
+      getSecondary: (input) => (input.recency ? `past ${input.recency}` : undefined),
+      action: 'jump-to-results',
+      colorScheme: {
+        primary: 'text-gray-700 dark:text-gray-300',
+        secondary: 'text-gray-500 dark:text-gray-400',
+        background: '',
+        border: 'border-gray-400 dark:border-gray-500',
+        icon: 'text-gray-500 dark:text-gray-400'
+      }
+    }
+  },
+
+  computer: {
+    // The runtime's schema is a discriminated union, one member per action, so
+    // the generated catalog flattens to no properties at all. `action` is the
+    // discriminant every member carries, and `text`/`keys` are what the two
+    // typing actions add.
+    input: {
+      type: 'one-line',
+      label: 'Computer',
+      getValue: (input) => [input.action, input.text || (Array.isArray(input.keys) ? input.keys.join('+') : '')]
+        .filter(Boolean)
+        .join(' '),
+      action: 'none',
+      colorScheme: {
+        primary: 'text-gray-700 dark:text-gray-300',
+        secondary: 'text-gray-500 dark:text-gray-400',
+        background: '',
+        border: 'border-gray-400 dark:border-gray-500',
+        icon: 'text-gray-500 dark:text-gray-400'
+      }
+    }
+  },
+
+  browser: {
+    input: {
+      type: 'one-line',
+      label: 'Browser',
+      getValue: (input) => [input.action, input.url || input.name || input.app]
+        .filter(Boolean)
+        .join(' '),
+      action: 'jump-to-results',
+      colorScheme: {
+        primary: 'text-gray-700 dark:text-gray-300',
+        secondary: 'text-gray-500 dark:text-gray-400',
+        background: '',
+        border: 'border-gray-400 dark:border-gray-500',
+        icon: 'text-gray-500 dark:text-gray-400'
+      }
+    }
+  },
 
 
   // ============================================================================

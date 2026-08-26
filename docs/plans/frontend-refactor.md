@@ -146,8 +146,25 @@ these on its own:**
      protection existed only because responses could outlive a project
      switch. Error payloads stay data because the views render them.
   3. **sessions/messages domain** - the main event, honoring the fold
-     contract above. The streamedQuery A/B window opens right after this
-     lands.
+     contract above, landing in sub-steps because chat is the product's core:
+     - **3a - DONE (36305fd).** The settled window lives in
+       `['messages', sessionId]`; the slot exposes it through getter-only
+       accessors (an accidental assignment now throws instead of forking the
+       data). One whole-window `setQueryData` per accepted response, behind
+       today's exact ticket/offset guards. Realtime tails, merge pipeline,
+       streaming, statuses and the slot LRU stay slot-local. Store API
+       unchanged; hook tests moved to the DOM lane.
+     - **3b - NEXT.** Active-session subscription (activeSessionId becomes
+       state; `useQuery` subscribes to the active window) and invalidation
+       flows (`externalMessageUpdate` becomes an invalidation), then delete
+       whichever ticket machinery Query's per-key serialization provably
+       covers - with the DOM tests as the referee.
+     - The terminal-time bounded reconcile (`refreshFromServer` over the
+       loaded window) already implements the fold contract's intent: no
+       per-token cache writes, one settled write per turn. Deferring the
+       reconcile to reopen is NOT worth the id/token-usage staleness it
+       would introduce; the contract's wording is refined accordingly.
+     - The streamedQuery A/B window opens once 3b lands.
 
   Running deletion tally for P1: projects -11, polling -55 (into a reusable
   hook), git-panel -310. The pattern holds: the payoff scales with how much

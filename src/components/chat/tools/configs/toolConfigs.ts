@@ -507,6 +507,20 @@ export function getToolConfig(toolName: string): ToolDisplayConfig {
 }
 
 /**
+ * How a tool's result renders. Most entries here describe only the call, on the
+ * reasoning that the runtime's result shapes are not pinned down per tool and a
+ * title reading a field it never sends would print something confidently wrong.
+ * That left the result with no config at all, which the renderer read as "draw
+ * nothing" - so a search's matches, a write's receipt and a web search's hits
+ * were dropped on the floor, and the jump-to-results link pointed at an empty
+ * anchor. Silence is not the fallback; `Default` is, which at least shows the
+ * output as it arrived. Suppression stays explicit, through `hidden`.
+ */
+export function getToolResultConfig(toolName: string): ToolDisplayConfig['result'] {
+  return getToolConfig(toolName).result ?? TOOL_CONFIGS.Default.result;
+}
+
+/**
  * Check if a tool result should be hidden
  */
 export function shouldHideToolResult(toolName: string, toolResult: any): boolean {

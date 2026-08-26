@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { TOOL_CONFIGS, getToolConfig, rendersCommandRow, shouldHideToolResult } from './toolConfigs';
+import { TOOL_CONFIGS, getToolConfig, getToolResultConfig, rendersCommandRow, shouldHideToolResult } from './toolConfigs';
 
 /*
  * These configs are the app's half of a contract with the runtime: the keys are
@@ -89,6 +89,22 @@ test('a todo batch is titled by what it did and listed by operation', () => {
 test('a malformed todo payload renders empty instead of throwing', () => {
   assert.equal(titleOf('todo_write', {}), 'Todos');
   assert.equal(TOOL_CONFIGS.todo_write.input.getContentProps?.({}).content, '');
+});
+
+test('a tool that describes only its call still shows the output it got', () => {
+  // These entries configure `input` alone on purpose. Read as "no result
+  // config, so render nothing", that dropped a search's matches and a write's
+  // receipt entirely, and left the jump-to-results link pointing at an empty
+  // anchor.
+  for (const tool of ['search', 'find', 'write', 'skill', 'ast_grep', 'lsp', 'web_search', 'browser', 'computer']) {
+    assert.equal(TOOL_CONFIGS[tool].result, undefined, `${tool} is expected to describe only its call`);
+    assert.equal(getToolResultConfig(tool), TOOL_CONFIGS.Default.result, `${tool} would render its output nowhere`);
+    assert.equal(shouldHideToolResult(tool, { content: 'output' }), false);
+  }
+
+  // Suppression stays something a config asks for, never something it forgets.
+  assert.equal(getToolResultConfig('read')?.hidden, true);
+  assert.equal(shouldHideToolResult('read', { content: 'file body' }), true);
 });
 
 test('the tools that only had a JSON dump now say what they were asked for', () => {

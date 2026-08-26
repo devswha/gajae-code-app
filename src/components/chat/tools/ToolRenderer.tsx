@@ -4,7 +4,7 @@ import type { Project } from '../../../types/app';
 import type { SubagentChildTool } from '../types/types';
 import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
 
-import { getToolConfig, rendersCommandRow } from './configs/toolConfigs';
+import { getToolConfig, getToolResultConfig, rendersCommandRow } from './configs/toolConfigs';
 import { OneLineDisplay, BashCommandDisplay, CollapsibleDisplay, ToolDiffViewer, MarkdownContent, FileListContent, TodoListContent, TaskListContent, TextContent, QuestionAnswerContent, SubagentContainer } from './components';
 import { PlanDisplay } from './components/PlanDisplay';
 import { ToolStatusBadge } from './components/ToolStatusBadge';
@@ -74,7 +74,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
   subagentState
 }) => {
   const config = getToolConfig(toolName);
-  const displayConfig: any = mode === 'input' ? config.input : config.result;
+  const displayConfig: any = mode === 'input' ? config.input : getToolResultConfig(toolName);
 
   const parsedData = useMemo(() => {
     try {

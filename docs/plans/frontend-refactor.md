@@ -46,7 +46,7 @@ Prerequisite for everything else, so it went first.
   behaviours that were previously unreachable, including Escape restoring focus
   to the trigger and an outside click deliberately not doing so.
 
-### 1. Server state through TanStack Query — NOT STARTED
+### 1. Server state through TanStack Query — SPIKE SHIPPED (a17f4dc)
 
 The evidence, measured 2026-08-27:
 
@@ -104,6 +104,28 @@ these on its own:**
 - Every hook rewritten in P1 moves its tests to the DOM lane in the same
   commit; the static `renderToStaticMarkup` lane must not outlive the hooks it
   was a workaround for.
+
+**Spike results (a17f4dc, measured 2026-08-27):**
+
+- `useProjectsState.ts` 1069 → 1058. The honest reading: the deleted fetch
+  infrastructure (~50 lines of loading-state bookkeeping, mount effect,
+  manual merge/bail-out) was almost offset by Query wiring. **The line count
+  of the god hooks is dominated by selection/navigation/client state, not by
+  server-state plumbing** — which strengthens P2's case and resets the
+  expectation for what P1 deletes: risk and duplication, not volume.
+- **The WebSocket handler did not fight the cache.** `session_upserted` is a
+  discrete keyed upsert via `setQueryData`, and the `structuralSharing` merge
+  receives the current cache as its previous value, so a refetch whose
+  payload is shorter (paged sessions, optimistic rows) cannot clobber it.
+  The decided architecture held without exceptions.
+- Behavior now structural instead of hand-enforced: a degraded
+  `/api/projects` response throws inside the queryFn and therefore keeps the
+  previous cache; a silent refresh is just `refetch()` (never flips
+  `isLoading`); identity bail-outs live in one `structuralSharing` function.
+- DOM-lane tests: `src/hooks/useProjectsState.query.dom.bun.test.tsx` (5
+  behaviors); the pure-helper node tests were untouched and still pass.
+- Next P1 slice: the sessions/messages domain, honoring the fold contract
+  above.
 
 ### 2. UI state in a real store — NOT STARTED
 

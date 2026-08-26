@@ -1,24 +1,30 @@
 # gajae-app v2 — Session Handoff (resume state)
 
-Last updated: 2026-07-20. Supersedes the 2026-07-18 handoff.
+Last updated: 2026-08-26. Supersedes the 2026-07-18 handoff.
 
 ## TL;DR
 
-- **v2 is complete.** Server/backend/web MVP (Slices 0–4 + 6), the Tauri
+- **The v2 baseline is complete.** Server/backend/web MVP (Slices 0–4 + 6), the Tauri
   desktop shell (Slice 5 C1–C6), **and the C7 interactive GUI smoke** are all
   done and verified. Electron is removed (C9/wave1); the C8 rollback drill is
   void (no rollback target; its data-survival axis is covered by the automated
   two-boot smoke, re-proven on the final build).
-- **Only remaining item: notarization (human-gated).** Developer ID
-  certificate + notarization credentials on the Mac, then
-  `docs/DESKTOP-TAURI-VERIFICATION.md` § "Remaining human gate".
+- **Post-v2 work has also landed.** Managed Chromium/CDP Development Preview
+  landed in `b37bec7` (`src/components/workspace/view/BrowserPanel.tsx` and
+  `server/modules/automation/browser-sidecar.ts`); context/token controls
+  landed in `ac9b819`
+  (`src/components/chat/view/subcomponents/ContextUsageBadge.tsx`).
+- **Notarization remains human-gated, not the only repository work.** It still
+  requires the Developer ID certificate + notarization credentials on the Mac;
+  see `docs/DESKTOP-TAURI-VERIFICATION.md` § "Remaining human gate".
 - v1 users are served by the frozen snapshot repo **`devswha/gajae-app-v1`**
   (cut at v1.0.0, release assets mirrored). Maintenance flows one way:
   this repo → cherry-pick to the snapshot.
 
 ## Working environment
 
-- **This Mac is now the primary tree**: `~/workspace/gajae-app`. Node via nvm
+- **This checkout is** `~/workspace/gajae-code-app` (repository guidance:
+  `AGENTS.md`). Node via nvm
   (`. "$HOME/.nvm/nvm.sh" && nvm use 22`
   → 22.23.1 — `npm test` refuses other majors), cargo 1.85.1
   (`. "$HOME/.cargo/env"`). `env -u CI npm run tauri -- build` (the wrapper
@@ -88,13 +94,13 @@ All four 2026-07-20 advisories are closed as of 2026-07-25:
 1. `gjc ultragoal status` in this checkout — the 2026-07-19/20 run is
    terminal; start a fresh plan for new work.
 2. **Notarization + DMG (need the user; deferred again on 2026-07-25):**
-   `docs/V2-PLAN.md` Phase 7 gates both behind beta.3 feature QA. When that
-   decision is made, install the Developer ID cert + notarytool credentials,
-   then follow `docs/DESKTOP-TAURI-VERIFICATION.md` § "Remaining human gate",
-   rebuild, and re-run the packaged smokes + `spctl` (should flip to
-   accepted).
-3. Push `checkpoint-c` to origin if not already pushed; the control tower
-   cuts releases from report collection.
+   when public distribution is approved, install the Developer ID certificate
+   + notarytool credentials, then follow
+   `docs/DESKTOP-TAURI-VERIFICATION.md` § "Remaining human gate", rebuild,
+   and re-run the packaged smokes + `spctl` (should flip to accepted).
+3. Start a fresh plan for the intended post-v2 work; the active browser surface
+   is `src/components/workspace/view/BrowserPanel.tsx`, not an outstanding v2
+   slice.
 4. The Linux x64 lane of the both-OS gate has not run for this session's
    commits — run `npm run verify` on the Linux tree before the next
    main-branch promotion. The `linux-x64` native closure in

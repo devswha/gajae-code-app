@@ -1,6 +1,6 @@
 # Local Studio UI/UX adoption plan
 
-Status: Phases 1-3 shipped (feaa33e, d64af56, 3377739); phase 5 partly shipped (91f4821 queue, 26c818f steering); phases 4-6 approved for this session
+Status: Phases 1-4 shipped (feaa33e, d64af56, 3377739, b37bec7); phase 5 partly shipped (91f4821 queue, 26c818f steering, ac9b819 context, inline titles in `src/components/sidebar/view/subcomponents/SidebarSessionItem.tsx`); phases 5-6 retain the open items stated below
 Saved: 2026-08-15
 
 ## Current priority order
@@ -17,10 +17,18 @@ Saved: 2026-08-15
    - Fork a session from a specific message — DEFERRED pending demonstrated
      user need
 3. P2 — Complete session management:
-   - Inline title editing
-   - Pin, fork, export, and reasoning visibility in one session menu
-4. P3 — Deliver Development Preview with localhost discovery and managed
-   Chromium/CDP, including focused component tests and browser smoke coverage.
+   - Inline title editing — DONE
+     (`src/components/sidebar/view/subcomponents/SidebarSessionItem.tsx`;
+     `src/components/sidebar/hooks/useSidebarController.ts:649`)
+   - Pin, fork, export, and reasoning visibility in one session menu — partly
+     shipped: reasoning visibility is in Quick Settings
+     (`src/components/quick-settings-panel/constants.ts:32` and
+     `src/components/main-content/view/MainContent.tsx:40`), and `/export` is
+     routed per session (`server/gjc-bun-sdk-adapter.ts:514`); no session-menu
+     pin, fork, export, or reasoning control was verified
+     (`src/components/sidebar/view/subcomponents/SidebarSessionItem.tsx:270-335`).
+4. P3 — DONE (b37bec7): Development Preview with localhost discovery and
+   managed Chromium/CDP, including focused tests and browser smoke coverage.
 5. P4 — If public distribution is approved, complete Developer ID signing,
    notarization, entitlement review, and clean-machine installation QA.
 6. P5 — Evaluate split-pane multi-session workspaces, then decide whether side
@@ -76,11 +84,17 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
      covered and a test that fails if hardcoded prose returns.
    - No second permanent column was added; the panel still owns one width.
 
-4. Development Preview
+4. Development Preview — DONE (b37bec7)
    - Detect reachable localhost development servers
+     (`server/modules/automation/local-sites.ts`, called by
+     `src/components/workspace/view/BrowserPanel.tsx:98`).
    - Address bar, back/forward, reload, and connection state
+     (`src/components/workspace/view/BrowserPanel.tsx:367-375`).
    - Live view backed by managed Chromium/CDP rather than iframe-only embedding
+     (`server/modules/automation/browser-sidecar.ts` and
+     `src/components/workspace/view/BrowserPanel.tsx:133-200`).
    - Keep preview visible beside the active chat
+     (`src/components/workspace/view/WorkspacePanel.tsx:172-176`).
 
 5. Chat UX improvements
    - Combined chat model and reasoning selector — DONE (2fe57ad)
@@ -108,7 +122,7 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
      - Browser smoke covered desktop and 390px mobile running states. Both
        actions remain visible on mobile; the model trigger contracts before
        the action buttons move.
-   - Context and token controls — DONE, pending commit
+   - Context and token controls — DONE (ac9b819)
      - The composer shows one explicit `Context N%` control and opens the
        existing token detail surface from it.
      - The separate cumulative-token pill was removed; detailed token buckets
@@ -118,8 +132,17 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
        create a Git branch/worktree.
      - Do not implement until real usage shows that conversational branching
        without a matching code snapshot is useful rather than misleading.
-   - Inline session title editing
-   - Session menu: pin, fork, export, reasoning visibility
+   - Inline session title editing — DONE
+     (`src/components/sidebar/view/subcomponents/SidebarSessionItem.tsx:270-321`;
+     `src/components/sidebar/hooks/useSidebarController.ts:649-672`).
+   - Session menu: pin, fork, export, reasoning visibility — partly shipped:
+     reasoning visibility is provided by Quick Settings
+     (`src/components/quick-settings-panel/constants.ts:32` and
+     `src/components/main-content/view/MainContent.tsx:40`), while export is
+     available through `/export` (`server/gjc-bun-sdk-adapter.ts:514-540`).
+     Could not verify a rendered session-menu control for pin, fork, export,
+     or reasoning visibility
+     (`src/components/sidebar/view/subcomponents/SidebarSessionItem.tsx:270-335`).
    - Composer status strip — DROPPED as duplicative after auditing the current UI
    - Clear current-activity bar above the composer — DONE
    - Multiple queued follow-up messages with edit, delete, and reorder — DONE (91f4821)

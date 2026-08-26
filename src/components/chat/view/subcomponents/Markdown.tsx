@@ -176,8 +176,10 @@ const markdownComponents = {
   // block children that <p> cannot. The readable measure therefore has to live
   // here: a `prose-p:` variant from a caller would match nothing. Code, tables
   // and tool output deliberately stay uncapped and span the whole column.
+  // 90ch runs ~62 Hangul or ~115 Latin characters in Pretendard 14px; the
+  // narrower 68ch measure left a 1200px window using 62% of its text column.
   p: ({ children }: { children?: React.ReactNode }) => (
-    <div className="mb-2 max-w-[68ch] last:mb-0">{children}</div>
+    <div className="mb-2 max-w-[90ch] last:mb-0">{children}</div>
   ),
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className="my-2 overflow-x-auto">

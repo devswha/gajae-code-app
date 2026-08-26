@@ -46,6 +46,10 @@ export default {
           DEFAULT: "hsl(var(--diff-removed))",
           foreground: "hsl(var(--diff-removed-foreground))",
         },
+        "chat-bubble": {
+          DEFAULT: "hsl(var(--chat-bubble))",
+          foreground: "hsl(var(--chat-bubble-foreground))",
+        },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",

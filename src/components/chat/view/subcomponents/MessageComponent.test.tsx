@@ -150,20 +150,39 @@ test('message text uses one typeface and a readable measure', () => {
 
   // The serif stack carries no Hangul, so a mixed sentence rendered two faces.
   assert.doesNotMatch(html, /font-serif/);
-  // The measure belongs on the text, not on the container. Measured in
-  // Pretendard 14px: 1ch is 8.34px, so 68ch runs 87 Latin or 47 Hangul
-  // characters per line - both inside reading tolerance. Capping the container
-  // instead also trapped code and tables at that width, which is why the
-  // max-w-none escapes below never actually took effect.
+  // The measure belongs on the text, not on the container: capping the
+  // container also trapped code and tables at that width, which is why the
+  // max-w-none escape below never actually took effect.
+  // Measured in Pretendard 14px, 1ch is 8.34px. 68ch held the line to 47
+  // Hangul characters but left a 1200px window - the desktop app's default -
+  // filling only 62% of its text column, so the measure is 90ch: ~62 Hangul,
+  // ~115 Latin. Long for Latin prose, deliberately, because this reads mostly
+  // Hangul and the narrower measure was reported as wasted panel twice.
   // Paragraphs render as div (see Markdown.tsx), so the measure has to ship on
   // that element - a prose-p: variant would assert a class that matches nothing.
-  assert.match(html, /mb-2 max-w-\[68ch\] last:mb-0/);
-  assert.match(html, /prose-li:max-w-\[68ch\]/);
+  assert.match(html, /mb-2 max-w-\[90ch\] last:mb-0/);
+  assert.match(html, /prose-li:max-w-\[90ch\]/);
   // A wrapped command is worse than a long one, so code keeps the full width -
   // which requires the container itself to stay uncapped.
   assert.match(html, /max-w-none/);
   // Static markup escapes the & in the arbitrary-variant class name.
   assert.match(html, /\[&(amp;)?_pre\]:max-w-none/);
+});
+
+test('the user bubble carries its own shade rather than the button accent', () => {
+  const html = renderMessage({
+    type: 'user',
+    content: 'contrast check',
+    timestamp: new Date('2026-08-18T07:00:00Z'),
+  });
+
+  // The accent that reads well as a small button only reaches 3.5:1 behind
+  // body text, and filling a whole bubble with it forced a choice between
+  // dark text on vivid orange or light text below AA. The bubble owns a
+  // darker shade so its light text clears AA without dulling every button.
+  assert.match(html, /bg-chat-bubble/);
+  assert.match(html, /text-chat-bubble-foreground/);
+  assert.doesNotMatch(html, /rounded-2xl[^"]*bg-primary\b/);
 });
 
 test('a user bubble is the size of what was typed', () => {

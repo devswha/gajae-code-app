@@ -170,7 +170,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               />
             )}
             {userCopyContent.trim().length > 0 || !message.images?.length ? (
-              <div className="group relative max-w-full rounded-2xl rounded-br-md bg-primary px-3 py-2 text-primary-foreground shadow-sm sm:px-4">
+              <div className="group relative max-w-full rounded-2xl rounded-br-md bg-chat-bubble px-3 py-2 text-chat-bubble-foreground shadow-sm sm:px-4">
                 <div dir="auto" className="whitespace-pre-wrap break-words text-sm">
                   {message.content}
                 </div>
@@ -254,7 +254,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               <>
                 <div className="flex flex-col">
                   <div className="flex flex-col">
-                    <Markdown className="prose prose-sm max-w-none dark:prose-invert prose-headings:max-w-[68ch] prose-blockquote:max-w-[68ch] prose-li:max-w-[68ch] [&_pre]:max-w-none [&_table]:max-w-none">
+                    <Markdown className="prose prose-sm max-w-none dark:prose-invert prose-headings:max-w-[90ch] prose-blockquote:max-w-[90ch] prose-li:max-w-[90ch] [&_pre]:max-w-none [&_table]:max-w-none">
                       {String(message.displayText || '')}
                     </Markdown>
                   </div>
@@ -292,7 +292,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                         <span className="text-xs font-medium text-destructive">{t('messageTypes.error')}</span>
                       </div>
                       <div className="relative text-sm text-foreground">
-                        <Markdown className="prose prose-sm max-w-none dark:prose-invert prose-headings:max-w-[68ch] prose-blockquote:max-w-[68ch] prose-li:max-w-[68ch] [&_pre]:max-w-none [&_table]:max-w-none">
+                        <Markdown className="prose prose-sm max-w-none dark:prose-invert prose-headings:max-w-[90ch] prose-blockquote:max-w-[90ch] prose-li:max-w-[90ch] [&_pre]:max-w-none [&_table]:max-w-none">
                           {String(effectiveToolResult.content || '')}
                         </Markdown>
                       </div>
@@ -424,7 +424,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               <Reasoning defaultOpen={false}>
                 <ReasoningTrigger />
                 <ReasoningContent>
-                  <Markdown className="prose prose-sm max-w-none dark:prose-invert prose-headings:max-w-[68ch] prose-blockquote:max-w-[68ch] prose-li:max-w-[68ch] [&_pre]:max-w-none [&_table]:max-w-none">
+                  <Markdown className="prose prose-sm max-w-none dark:prose-invert prose-headings:max-w-[90ch] prose-blockquote:max-w-[90ch] prose-li:max-w-[90ch] [&_pre]:max-w-none [&_table]:max-w-none">
                     {message.content}
                   </Markdown>
                   <div className="mt-3 flex items-center text-[11px]">
@@ -489,7 +489,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
                   // Normal rendering for non-JSON content
                   return message.type === 'assistant' ? (
-                    <Markdown className="prose prose-sm max-w-none dark:prose-invert prose-headings:max-w-[68ch] prose-blockquote:max-w-[68ch] prose-li:max-w-[68ch] [&_pre]:max-w-none [&_table]:max-w-none">
+                    <Markdown className="prose prose-sm max-w-none dark:prose-invert prose-headings:max-w-[90ch] prose-blockquote:max-w-[90ch] prose-li:max-w-[90ch] [&_pre]:max-w-none [&_table]:max-w-none">
                       {content}
                     </Markdown>
                   ) : (

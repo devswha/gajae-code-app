@@ -58,6 +58,12 @@
     --popover-foreground: 36 25% 4%;
     --primary: 14 89% 52%;
     --primary-foreground: 210 40% 98%;
+    /* The user bubble is the one place a whole block is filled with the accent,
+       so it needs its own shade: the vivid accent that reads well as a button
+       only reaches 3.5:1 behind body text. Darkening it lets the light text
+       clear WCAG AA while the accent itself stays untouched everywhere else. */
+    --chat-bubble: 14 89% 42%;
+    --chat-bubble-foreground: 0 0% 100%;
     --secondary: 44 15% 91%;
     --secondary-foreground: 36 15% 18%;
     --muted: 44 15% 91%;
@@ -107,13 +113,15 @@
     --header-total-padding: calc(var(--header-safe-area-top) + var(--header-base-padding));
   }
 
-  @media (min-width: 1280px) {
+  /* A 1200px window - the desktop app's default - sat below the old 1280px
+     step, so the widening never applied where it was most needed. */
+  @media (min-width: 1024px) {
     :root {
       --chat-column-width: 60rem;
     }
   }
 
-  @media (min-width: 1536px) {
+  @media (min-width: 1280px) {
     :root {
       --chat-column-width: 66rem;
     }
@@ -138,6 +146,8 @@
     --popover-foreground: 40 8% 93%;
     --primary: 16 90% 57%;
     --primary-foreground: 0 0% 8%;
+    --chat-bubble: 16 90% 40%;
+    --chat-bubble-foreground: 0 0% 100%;
     --secondary: 0 0% 17%;
     --secondary-foreground: 40 8% 93%;
     --muted: 0 0% 17%;

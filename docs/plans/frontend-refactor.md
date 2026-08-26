@@ -1,7 +1,7 @@
 # Frontend refactor plan
 
-Status: Phase 0 shipped (c4b0975 DOM test lane); phase 4 mostly shipped (e1b80da i18n and the dead re-export, 7974eaa api types); phases 1-3 not started
-Saved: 2026-08-27
+Status: Phase 0 shipped (c4b0975); phase 1 shipped (a17f4dc projects, 64399be polling, 5c97c83 git-panel, 36305fd + a8ffa47 messages 3a/3b; 3c deferred with rationale); phase 4 mostly shipped (e1b80da i18n, 7974eaa api types); phases 2-3 not started
+Saved: 2026-08-27 (P1 close-out)
 
 ## Current priority order
 

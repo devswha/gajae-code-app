@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { authenticatedFetch } from '../../../utils/api';
 import { DEFAULT_BRANCH, RECENT_COMMITS_LIMIT } from '../constants/constants';
@@ -19,25 +20,10 @@ import type {
 } from '../types/types';
 import { getAllChangedFiles } from '../utils/gitPanelUtils';
 
-// ! use authenticatedFetch directly. fetchWithAuth is redundant 
 const fetchWithAuth = authenticatedFetch as (url: string, options?: RequestInit) => Promise<Response>;
 
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError';
-}
-
-async function readJson<T>(response: Response, signal?: AbortSignal): Promise<T> {
-  if (signal?.aborted) {
-    throw new DOMException('Request aborted', 'AbortError');
-  }
-
-  const data = (await response.json()) as T;
-
-  if (signal?.aborted) {
-    throw new DOMException('Request aborted', 'AbortError');
-  }
-
-  return data;
+async function readJson<T>(response: Response): Promise<T> {
+  return response.json() as Promise<T>;
 }
 
 export function useGitPanelController({
@@ -45,742 +31,446 @@ export function useGitPanelController({
   activeView,
   onFileOpen,
 }: UseGitPanelControllerOptions): GitPanelController {
-  const [gitStatus, setGitStatus] = useState<GitStatusResponse | null>(null);
+  const queryClient = useQueryClient();
+  const projectId = selectedProject?.projectId;
+  const gitQueryKey = useMemo(() => ['git', projectId] as const, [projectId]);
+  const statusKey = useMemo(() => [...gitQueryKey, 'status'] as const, [gitQueryKey]);
+  const branchesKey = useMemo(() => [...gitQueryKey, 'branches'] as const, [gitQueryKey]);
+  const remoteStatusKey = useMemo(() => [...gitQueryKey, 'remote-status'] as const, [gitQueryKey]);
+  const commitsKey = useMemo(() => [...gitQueryKey, 'commits'] as const, [gitQueryKey]);
   const [gitDiff, setGitDiff] = useState<GitDiffMap>({});
-  const [isLoading, setIsLoading] = useState(false);
   const [currentBranch, setCurrentBranch] = useState('');
-  const [branches, setBranches] = useState<string[]>([]);
-  const [recentCommits, setRecentCommits] = useState<GitCommitSummary[]>([]);
   const [commitDiffs, setCommitDiffs] = useState<GitDiffMap>({});
-  const [remoteStatus, setRemoteStatus] = useState<GitRemoteStatus | null>(null);
-  const [localBranches, setLocalBranches] = useState<string[]>([]);
-  const [remoteBranches, setRemoteBranches] = useState<string[]>([]);
-  const [isCreatingBranch, setIsCreatingBranch] = useState(false);
-  const [isFetching, setIsFetching] = useState(false);
-  const [isPulling, setIsPulling] = useState(false);
-  const [isPushing, setIsPushing] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [isCreatingInitialCommit, setIsCreatingInitialCommit] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
 
-  const clearOperationError = useCallback(() => setOperationError(null), []);
-  // Tracks the DB projectId so async requests can detect stale responses when
-  // the user switches projects mid-flight.
-  const selectedProjectIdRef = useRef<string | null>(selectedProject?.projectId ?? null);
+  const statusQuery = useQuery({
+    queryKey: statusKey,
+    enabled: Boolean(projectId),
+    queryFn: async (): Promise<GitStatusResponse> => {
+      try {
+        const response = await fetchWithAuth(`/api/git/status?project=${encodeURIComponent(projectId!)}`);
+        return await readJson<GitStatusResponse>(response);
+      } catch (error) {
+        console.error('Error fetching git status:', error);
+        return { error: 'Git operation failed', details: String(error) };
+      }
+    },
+  });
+  const branchesQuery = useQuery({
+    queryKey: branchesKey,
+    enabled: Boolean(projectId),
+    queryFn: async (): Promise<Required<Pick<GitBranchesResponse, 'branches' | 'localBranches' | 'remoteBranches'>>> => {
+      try {
+        const response = await fetchWithAuth(`/api/git/branches?project=${encodeURIComponent(projectId!)}`);
+        const data = await readJson<GitBranchesResponse>(response);
+        if (!data.error && data.branches) {
+          return {
+            branches: data.branches,
+            localBranches: data.localBranches ?? data.branches,
+            remoteBranches: data.remoteBranches ?? [],
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching branches:', error);
+      }
+      return { branches: [], localBranches: [], remoteBranches: [] };
+    },
+  });
+  const remoteStatusQuery = useQuery({
+    queryKey: remoteStatusKey,
+    enabled: Boolean(projectId),
+    queryFn: async (): Promise<GitRemoteStatus | null> => {
+      try {
+        const response = await fetchWithAuth(`/api/git/remote-status?project=${encodeURIComponent(projectId!)}`);
+        const data = await readJson<GitRemoteStatus | GitApiErrorResponse>(response);
+        return data.error ? null : (data as GitRemoteStatus);
+      } catch (error) {
+        console.error('Error fetching remote status:', error);
+        return null;
+      }
+    },
+  });
+  const commitsQuery = useQuery({
+    queryKey: commitsKey,
+    enabled: Boolean(projectId) && activeView === 'history',
+    queryFn: async (): Promise<GitCommitSummary[]> => {
+      try {
+        const response = await fetchWithAuth(
+          `/api/git/commits?project=${encodeURIComponent(projectId!)}&limit=${RECENT_COMMITS_LIMIT}`,
+        );
+        const data = await readJson<GitCommitsResponse>(response);
+        return !data.error && data.commits ? data.commits : [];
+      } catch (error) {
+        console.error('Error fetching commits:', error);
+        return [];
+      }
+    },
+  });
 
-  useEffect(() => {
-    selectedProjectIdRef.current = selectedProject?.projectId ?? null;
-  }, [selectedProject]);
+  const invalidateAll = useCallback(() => {
+    if (projectId) {
+      void queryClient.invalidateQueries({ queryKey: gitQueryKey });
+    }
+  }, [gitQueryKey, projectId, queryClient]);
+  const clearOperationError = useCallback(() => setOperationError(null), []);
 
   const fetchFileDiff = useCallback(
-    async (filePath: string, signal?: AbortSignal) => {
-      if (!selectedProject) {
+    async (filePath: string) => {
+      if (!projectId) {
         return;
       }
-
-      // Git endpoints receive the DB projectId via the `project` query param.
-      const projectId = selectedProject.projectId;
 
       try {
         const response = await fetchWithAuth(
           `/api/git/diff?project=${encodeURIComponent(projectId)}&file=${encodeURIComponent(filePath)}`,
-          { signal },
         );
-        const data = await readJson<GitDiffResponse>(response, signal);
-
-        if (
-          signal?.aborted ||
-          selectedProjectIdRef.current !== projectId
-        ) {
-          return;
-        }
-
+        const data = await readJson<GitDiffResponse>(response);
         if (!data.error && data.diff) {
-          setGitDiff((previous) => ({
-            ...previous,
-            [filePath]: data.diff as string,
-          }));
+          setGitDiff((previous) => ({ ...previous, [filePath]: data.diff as string }));
         }
       } catch (error) {
-        if (signal?.aborted || isAbortError(error)) {
-          return;
-        }
-
         console.error('Error fetching file diff:', error);
       }
     },
-    [selectedProject],
+    [projectId],
   );
 
-  const fetchGitStatus = useCallback(async (signal?: AbortSignal) => {
-    if (!selectedProject) {
-      return;
-    }
-
-    // `project` query param carries the DB projectId everywhere now.
-    const projectId = selectedProject.projectId;
-
-    setIsLoading(true);
-    try {
-      const response = await fetchWithAuth(`/api/git/status?project=${encodeURIComponent(projectId)}`, { signal });
-      const data = await readJson<GitStatusResponse>(response, signal);
-
-      if (
-        signal?.aborted ||
-        selectedProjectIdRef.current !== projectId
-      ) {
-        return;
-      }
-
-      if (data.error) {
-        console.error('Git status error:', data.error);
-        setGitStatus({ error: data.error, details: data.details });
-        setCurrentBranch('');
-        return;
-      }
-
-      setGitStatus(data);
-      setCurrentBranch(data.branch || DEFAULT_BRANCH);
-
-      const changedFiles = getAllChangedFiles(data);
-      changedFiles.forEach((filePath) => {
-        void fetchFileDiff(filePath, signal);
-      });
-    } catch (error) {
-      if (signal?.aborted || isAbortError(error)) {
-        return;
-      }
-
-      if (
-        selectedProjectIdRef.current !== projectId
-      ) {
-        return;
-      }
-
-      console.error('Error fetching git status:', error);
-      setGitStatus({ error: 'Git operation failed', details: String(error) });
-      setCurrentBranch('');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [fetchFileDiff, selectedProject]);
-
-  const fetchBranches = useCallback(async () => {
-    if (!selectedProject) {
-      return;
-    }
-
-    try {
-      const response = await fetchWithAuth(`/api/git/branches?project=${encodeURIComponent(selectedProject.projectId)}`);
-      const data = await readJson<GitBranchesResponse>(response);
-
-      if (!data.error && data.branches) {
-        setBranches(data.branches);
-        setLocalBranches(data.localBranches ?? data.branches);
-        setRemoteBranches(data.remoteBranches ?? []);
-        return;
-      }
-
-      setBranches([]);
-      setLocalBranches([]);
-      setRemoteBranches([]);
-    } catch (error) {
-      console.error('Error fetching branches:', error);
-      setBranches([]);
-      setLocalBranches([]);
-      setRemoteBranches([]);
-    }
-  }, [selectedProject]);
-
-  const fetchRemoteStatus = useCallback(async () => {
-    if (!selectedProject) {
-      return;
-    }
-
-    try {
-      const response = await fetchWithAuth(`/api/git/remote-status?project=${encodeURIComponent(selectedProject.projectId)}`);
-      const data = await readJson<GitRemoteStatus | GitApiErrorResponse>(response);
-
-      if (!data.error) {
-        setRemoteStatus(data as GitRemoteStatus);
-        return;
-      }
-
-      setRemoteStatus(null);
-    } catch (error) {
-      console.error('Error fetching remote status:', error);
-      setRemoteStatus(null);
-    }
-  }, [selectedProject]);
-
-  const switchBranch = useCallback(
-    async (branchName: string) => {
-      if (!selectedProject) {
-        return false;
-      }
-
-      try {
-        const response = await fetchWithAuth('/api/git/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project: selectedProject.projectId,
-            branch: branchName,
-          }),
-        });
-
-        const data = await readJson<GitOperationResponse>(response);
-        if (!data.success) {
-          console.error('Failed to switch branch:', data.error);
-          return false;
-        }
-
-        setCurrentBranch(branchName);
-        void fetchGitStatus();
-        return true;
-      } catch (error) {
-        console.error('Error switching branch:', error);
-        return false;
-      }
-    },
-    [fetchGitStatus, selectedProject],
-  );
-
-  const createBranch = useCallback(
-    async (branchName: string) => {
-      const trimmedBranchName = branchName.trim();
-      if (!selectedProject || !trimmedBranchName) {
-        return false;
-      }
-
-      setIsCreatingBranch(true);
-      try {
-        const response = await fetchWithAuth('/api/git/create-branch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project: selectedProject.projectId,
-            branch: trimmedBranchName,
-          }),
-        });
-
-        const data = await readJson<GitOperationResponse>(response);
-        if (!data.success) {
-          console.error('Failed to create branch:', data.error);
-          return false;
-        }
-
-        setCurrentBranch(trimmedBranchName);
-        void fetchBranches();
-        void fetchGitStatus();
-        return true;
-      } catch (error) {
-        console.error('Error creating branch:', error);
-        return false;
-      } finally {
-        setIsCreatingBranch(false);
-      }
-    },
-    [fetchBranches, fetchGitStatus, selectedProject],
-  );
-
-  const deleteBranch = useCallback(
-    async (branchName: string) => {
-      if (!selectedProject) return false;
-
-      try {
-        const response = await fetchWithAuth('/api/git/delete-branch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ project: selectedProject.projectId, branch: branchName }),
-        });
-
-        const data = await readJson<GitOperationResponse>(response);
-        if (!data.success) {
-          setOperationError(data.error ?? 'Delete branch failed');
-          return false;
-        }
-
-        void fetchBranches();
-        return true;
-      } catch (error) {
-        setOperationError(error instanceof Error ? error.message : 'Delete branch failed');
-        return false;
-      }
-    },
-    [fetchBranches, selectedProject],
-  );
-
-  const handleFetch = useCallback(async () => {
-    if (!selectedProject) {
-      return;
-    }
-
-    setIsFetching(true);
-    try {
+  const fetchMutation = useMutation({
+    mutationFn: async (mutationProjectId: string) => {
       const response = await fetchWithAuth('/api/git/fetch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project: selectedProject.projectId,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: mutationProjectId }),
       });
-
-      const data = await readJson<GitOperationResponse>(response);
-      if (data.success) {
-        void fetchGitStatus();
-        void fetchRemoteStatus();
-        void fetchBranches();
-        return;
-      }
-
-      setOperationError(data.error ?? 'Fetch failed');
-    } catch (error) {
-      setOperationError(error instanceof Error ? error.message : 'Fetch failed');
-    } finally {
-      setIsFetching(false);
-    }
-  }, [fetchBranches, fetchGitStatus, fetchRemoteStatus, selectedProject]);
-
-  const handlePull = useCallback(async () => {
-    if (!selectedProject) {
-      return;
-    }
-
-    setIsPulling(true);
-    try {
+      return readJson<GitOperationResponse>(response);
+    },
+  });
+  const pullMutation = useMutation({
+    mutationFn: async (mutationProjectId: string) => {
       const response = await fetchWithAuth('/api/git/pull', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project: selectedProject.projectId,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: mutationProjectId }),
       });
-
-      const data = await readJson<GitOperationResponse>(response);
-      if (data.success) {
-        void fetchGitStatus();
-        void fetchRemoteStatus();
-        return;
-      }
-
-      setOperationError(data.error ?? 'Pull failed');
-    } catch (error) {
-      setOperationError(error instanceof Error ? error.message : 'Pull failed');
-    } finally {
-      setIsPulling(false);
-    }
-  }, [fetchGitStatus, fetchRemoteStatus, selectedProject]);
-
-  const handlePush = useCallback(async () => {
-    if (!selectedProject) {
-      return;
-    }
-
-    setIsPushing(true);
-    try {
+      return readJson<GitOperationResponse>(response);
+    },
+  });
+  const pushMutation = useMutation({
+    mutationFn: async (mutationProjectId: string) => {
       const response = await fetchWithAuth('/api/git/push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project: selectedProject.projectId,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: mutationProjectId }),
       });
-
-      const data = await readJson<GitOperationResponse>(response);
-      if (data.success) {
-        void fetchGitStatus();
-        void fetchRemoteStatus();
-        return;
-      }
-
-      setOperationError(data.error ?? 'Push failed');
-    } catch (error) {
-      setOperationError(error instanceof Error ? error.message : 'Push failed');
-    } finally {
-      setIsPushing(false);
-    }
-  }, [fetchGitStatus, fetchRemoteStatus, selectedProject]);
-
-  const handlePublish = useCallback(async () => {
-    if (!selectedProject) {
-      return;
-    }
-
-    setIsPublishing(true);
-    try {
+      return readJson<GitOperationResponse>(response);
+    },
+  });
+  const publishMutation = useMutation({
+    mutationFn: async ({ mutationProjectId, branch }: { mutationProjectId: string; branch: string }) => {
       const response = await fetchWithAuth('/api/git/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project: selectedProject.projectId,
-          branch: currentBranch,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: mutationProjectId, branch }),
       });
+      return readJson<GitOperationResponse>(response);
+    },
+  });
+  const createBranchMutation = useMutation({
+    mutationFn: async ({ mutationProjectId, branch }: { mutationProjectId: string; branch: string }) => {
+      const response = await fetchWithAuth('/api/git/create-branch', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: mutationProjectId, branch }),
+      });
+      return readJson<GitOperationResponse>(response);
+    },
+  });
+  const initialCommitMutation = useMutation({
+    mutationFn: async (mutationProjectId: string) => {
+      const response = await fetchWithAuth('/api/git/initial-commit', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: mutationProjectId }),
+      });
+      return readJson<GitOperationResponse>(response);
+    },
+  });
 
+  const switchBranch = useCallback(async (branchName: string) => {
+    if (!projectId) return false;
+    try {
+      const response = await fetchWithAuth('/api/git/checkout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: projectId, branch: branchName }),
+      });
       const data = await readJson<GitOperationResponse>(response);
+      if (!data.success) {
+        console.error('Failed to switch branch:', data.error);
+        return false;
+      }
+      setCurrentBranch(branchName);
+      invalidateAll();
+      return true;
+    } catch (error) {
+      console.error('Error switching branch:', error);
+      return false;
+    }
+  }, [invalidateAll, projectId]);
+
+  const createBranch = useCallback(async (branchName: string) => {
+    const trimmedBranchName = branchName.trim();
+    if (!projectId || !trimmedBranchName) return false;
+    try {
+      const data = await createBranchMutation.mutateAsync({ mutationProjectId: projectId, branch: trimmedBranchName });
+      if (!data.success) {
+        console.error('Failed to create branch:', data.error);
+        return false;
+      }
+      setCurrentBranch(trimmedBranchName);
+      invalidateAll();
+      return true;
+    } catch (error) {
+      console.error('Error creating branch:', error);
+      return false;
+    }
+  }, [createBranchMutation, invalidateAll, projectId]);
+
+  const deleteBranch = useCallback(async (branchName: string) => {
+    if (!projectId) return false;
+    try {
+      const response = await fetchWithAuth('/api/git/delete-branch', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: projectId, branch: branchName }),
+      });
+      const data = await readJson<GitOperationResponse>(response);
+      if (!data.success) {
+        setOperationError(data.error ?? 'Delete branch failed');
+        return false;
+      }
+      void queryClient.invalidateQueries({ queryKey: branchesKey });
+      return true;
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : 'Delete branch failed');
+      return false;
+    }
+  }, [branchesKey, projectId, queryClient]);
+
+  const runRemoteOperation = useCallback(async (
+    mutation: { mutateAsync: (mutationProjectId: string) => Promise<GitOperationResponse> },
+    fallback: string,
+  ) => {
+    if (!projectId) return;
+    try {
+      const data = await mutation.mutateAsync(projectId);
       if (data.success) {
-        void fetchGitStatus();
-        void fetchRemoteStatus();
+        invalidateAll();
         return;
       }
+      setOperationError(data.error ?? fallback);
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : fallback);
+    }
+  }, [invalidateAll, projectId]);
 
+  const handleFetch = useCallback(async () => runRemoteOperation(fetchMutation, 'Fetch failed'), [fetchMutation, runRemoteOperation]);
+  const handlePull = useCallback(async () => runRemoteOperation(pullMutation, 'Pull failed'), [pullMutation, runRemoteOperation]);
+  const handlePush = useCallback(async () => runRemoteOperation(pushMutation, 'Push failed'), [pushMutation, runRemoteOperation]);
+  const handlePublish = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const data = await publishMutation.mutateAsync({ mutationProjectId: projectId, branch: currentBranch });
+      if (data.success) {
+        invalidateAll();
+        return;
+      }
       console.error('Publish failed:', data.error);
     } catch (error) {
       console.error('Error publishing branch:', error);
-    } finally {
-      setIsPublishing(false);
     }
-  }, [currentBranch, fetchGitStatus, fetchRemoteStatus, selectedProject]);
+  }, [currentBranch, invalidateAll, projectId, publishMutation]);
 
-  const discardChanges = useCallback(
-    async (filePath: string) => {
-      if (!selectedProject) {
-        return;
-      }
-
-      try {
-        const response = await fetchWithAuth('/api/git/discard', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project: selectedProject.projectId,
-            file: filePath,
-          }),
-        });
-
-        const data = await readJson<GitOperationResponse>(response);
-        if (data.success) {
-          void fetchGitStatus();
-          return;
-        }
-
-        console.error('Discard failed:', data.error);
-      } catch (error) {
-        console.error('Error discarding changes:', error);
-      }
-    },
-    [fetchGitStatus, selectedProject],
-  );
-
-  const deleteUntrackedFile = useCallback(
-    async (filePath: string) => {
-      if (!selectedProject) {
-        return;
-      }
-
-      try {
-        const response = await fetchWithAuth('/api/git/delete-untracked', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project: selectedProject.projectId,
-            file: filePath,
-          }),
-        });
-
-        const data = await readJson<GitOperationResponse>(response);
-        if (data.success) {
-          void fetchGitStatus();
-          return;
-        }
-
-        console.error('Delete failed:', data.error);
-      } catch (error) {
-        console.error('Error deleting untracked file:', error);
-      }
-    },
-    [fetchGitStatus, selectedProject],
-  );
-
-  const stageFiles = useCallback(
-    async (files: string[]) => {
-      if (!selectedProject || files.length === 0) {
-        return false;
-      }
-
-      try {
-        const response = await fetchWithAuth('/api/git/stage', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project: selectedProject.projectId,
-            files,
-          }),
-        });
-
-        const data = await readJson<GitOperationResponse>(response);
-        if (!data.success) {
-          setOperationError(data.error ?? 'Stage failed');
-          return false;
-        }
-
-        // Refresh so the Staged section re-syncs from the real index.
-        await fetchGitStatus();
-        return true;
-      } catch (error) {
-        setOperationError(error instanceof Error ? error.message : 'Stage failed');
-        return false;
-      }
-    },
-    [fetchGitStatus, selectedProject],
-  );
-
-  const unstageFiles = useCallback(
-    async (files: string[]) => {
-      if (!selectedProject || files.length === 0) {
-        return false;
-      }
-
-      try {
-        const response = await fetchWithAuth('/api/git/unstage', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project: selectedProject.projectId,
-            files,
-          }),
-        });
-
-        const data = await readJson<GitOperationResponse>(response);
-        if (!data.success) {
-          setOperationError(data.error ?? 'Unstage failed');
-          return false;
-        }
-
-        await fetchGitStatus();
-        return true;
-      } catch (error) {
-        setOperationError(error instanceof Error ? error.message : 'Unstage failed');
-        return false;
-      }
-    },
-    [fetchGitStatus, selectedProject],
-  );
-
-  const fetchRecentCommits = useCallback(async () => {
-    if (!selectedProject) {
-      return;
-    }
-
+  const discardChanges = useCallback(async (filePath: string) => {
+    if (!projectId) return;
     try {
-      const response = await fetchWithAuth(
-        `/api/git/commits?project=${encodeURIComponent(selectedProject.projectId)}&limit=${RECENT_COMMITS_LIMIT}`,
-      );
-      const data = await readJson<GitCommitsResponse>(response);
-
-      if (!data.error && data.commits) {
-        setRecentCommits(data.commits);
-      }
-    } catch (error) {
-      console.error('Error fetching commits:', error);
-    }
-  }, [selectedProject]);
-
-  const fetchCommitDiff = useCallback(
-    async (commitHash: string) => {
-      if (!selectedProject) {
-        return;
-      }
-
-      try {
-        const response = await fetchWithAuth(
-          `/api/git/commit-diff?project=${encodeURIComponent(selectedProject.projectId)}&commit=${commitHash}`,
-        );
-        const data = await readJson<GitDiffResponse>(response);
-
-        if (!data.error && data.diff) {
-          setCommitDiffs((previous) => ({
-            ...previous,
-            [commitHash]: data.diff as string,
-          }));
-        }
-      } catch (error) {
-        console.error('Error fetching commit diff:', error);
-      }
-    },
-    [selectedProject],
-  );
-
-  const generateCommitMessage = useCallback(
-    async (files: string[]) => {
-      if (!selectedProject || files.length === 0) {
-        return null;
-      }
-
-      try {
-        const response = await authenticatedFetch('/api/git/generate-commit-message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project: selectedProject.projectId,
-            files,
-          }),
-        });
-
-        const data = await readJson<GitGenerateMessageResponse>(response);
-        if (data.message) {
-          return data.message;
-        }
-
-        console.error('Failed to generate commit message:', data.error);
-        return null;
-      } catch (error) {
-        console.error('Error generating commit message:', error);
-        return null;
-      }
-    },
-    [selectedProject],
-  );
-
-  const commitChanges = useCallback(
-    async (message: string, files: string[]) => {
-      if (!selectedProject || !message.trim() || files.length === 0) {
-        return false;
-      }
-
-      try {
-        const response = await fetchWithAuth('/api/git/commit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project: selectedProject.projectId,
-            message,
-            files,
-          }),
-        });
-
-        const data = await readJson<GitOperationResponse>(response);
-        if (data.success) {
-          void fetchGitStatus();
-          void fetchRemoteStatus();
-          return true;
-        }
-
-        console.error('Commit failed:', data.error);
-        return false;
-      } catch (error) {
-        console.error('Error committing changes:', error);
-        return false;
-      }
-    },
-    [fetchGitStatus, fetchRemoteStatus, selectedProject],
-  );
-
-  const createInitialCommit = useCallback(async () => {
-    if (!selectedProject) {
-      throw new Error('No project selected');
-    }
-
-    setIsCreatingInitialCommit(true);
-    try {
-      const response = await fetchWithAuth('/api/git/initial-commit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project: selectedProject.projectId,
-        }),
+      const response = await fetchWithAuth('/api/git/discard', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: projectId, file: filePath }),
       });
-
       const data = await readJson<GitOperationResponse>(response);
       if (data.success) {
-        void fetchGitStatus();
-        void fetchRemoteStatus();
+        void queryClient.invalidateQueries({ queryKey: statusKey });
+        return;
+      }
+      console.error('Discard failed:', data.error);
+    } catch (error) {
+      console.error('Error discarding changes:', error);
+    }
+  }, [projectId, queryClient, statusKey]);
+
+  const deleteUntrackedFile = useCallback(async (filePath: string) => {
+    if (!projectId) return;
+    try {
+      const response = await fetchWithAuth('/api/git/delete-untracked', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: projectId, file: filePath }),
+      });
+      const data = await readJson<GitOperationResponse>(response);
+      if (data.success) {
+        void queryClient.invalidateQueries({ queryKey: statusKey });
+        return;
+      }
+      console.error('Delete failed:', data.error);
+    } catch (error) {
+      console.error('Error deleting untracked file:', error);
+    }
+  }, [projectId, queryClient, statusKey]);
+
+  const stageFiles = useCallback(async (files: string[]) => {
+    if (!projectId || files.length === 0) return false;
+    try {
+      const response = await fetchWithAuth('/api/git/stage', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: projectId, files }),
+      });
+      const data = await readJson<GitOperationResponse>(response);
+      if (!data.success) {
+        setOperationError(data.error ?? 'Stage failed');
+        return false;
+      }
+      await queryClient.invalidateQueries({ queryKey: statusKey });
+      return true;
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : 'Stage failed');
+      return false;
+    }
+  }, [projectId, queryClient, statusKey]);
+
+  const unstageFiles = useCallback(async (files: string[]) => {
+    if (!projectId || files.length === 0) return false;
+    try {
+      const response = await fetchWithAuth('/api/git/unstage', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: projectId, files }),
+      });
+      const data = await readJson<GitOperationResponse>(response);
+      if (!data.success) {
+        setOperationError(data.error ?? 'Unstage failed');
+        return false;
+      }
+      await queryClient.invalidateQueries({ queryKey: statusKey });
+      return true;
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : 'Unstage failed');
+      return false;
+    }
+  }, [projectId, queryClient, statusKey]);
+
+  const fetchCommitDiff = useCallback(async (commitHash: string) => {
+    if (!projectId) return;
+    try {
+      const response = await fetchWithAuth(
+        `/api/git/commit-diff?project=${encodeURIComponent(projectId)}&commit=${commitHash}`,
+      );
+      const data = await readJson<GitDiffResponse>(response);
+      if (!data.error && data.diff) {
+        setCommitDiffs((previous) => ({ ...previous, [commitHash]: data.diff as string }));
+      }
+    } catch (error) {
+      console.error('Error fetching commit diff:', error);
+    }
+  }, [projectId]);
+
+  const generateCommitMessage = useCallback(async (files: string[]) => {
+    if (!projectId || files.length === 0) return null;
+    try {
+      const response = await authenticatedFetch('/api/git/generate-commit-message', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: projectId, files }),
+      });
+      const data = await readJson<GitGenerateMessageResponse>(response);
+      if (data.message) return data.message;
+      console.error('Failed to generate commit message:', data.error);
+      return null;
+    } catch (error) {
+      console.error('Error generating commit message:', error);
+      return null;
+    }
+  }, [projectId]);
+
+  const commitChanges = useCallback(async (message: string, files: string[]) => {
+    if (!projectId || !message.trim() || files.length === 0) return false;
+    try {
+      const response = await fetchWithAuth('/api/git/commit', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: projectId, message, files }),
+      });
+      const data = await readJson<GitOperationResponse>(response);
+      if (data.success) {
+        invalidateAll();
         return true;
       }
+      console.error('Commit failed:', data.error);
+      return false;
+    } catch (error) {
+      console.error('Error committing changes:', error);
+      return false;
+    }
+  }, [invalidateAll, projectId]);
 
+  const createInitialCommit = useCallback(async () => {
+    if (!projectId) throw new Error('No project selected');
+    try {
+      const data = await initialCommitMutation.mutateAsync(projectId);
+      if (data.success) {
+        invalidateAll();
+        return true;
+      }
       throw new Error(data.error || 'Failed to create initial commit');
     } catch (error) {
       console.error('Error creating initial commit:', error);
       throw error;
-    } finally {
-      setIsCreatingInitialCommit(false);
     }
-  }, [fetchGitStatus, fetchRemoteStatus, selectedProject]);
+  }, [initialCommitMutation, invalidateAll, projectId]);
 
-  const openFile = useCallback(
-    async (filePath: string) => {
-      if (!onFileOpen) {
-        return;
-      }
-
-      if (!selectedProject) {
-        onFileOpen(filePath);
-        return;
-      }
-
-      try {
-        const response = await fetchWithAuth(
-          `/api/git/file-with-diff?project=${encodeURIComponent(selectedProject.projectId)}&file=${encodeURIComponent(filePath)}`,
-        );
-        const data = await readJson<GitFileWithDiffResponse>(response);
-
-        if (data.error) {
-          console.error('Error fetching file with diff:', data.error);
-          onFileOpen(filePath);
-          return;
-        }
-
-        onFileOpen(filePath, {
-          old_string: data.oldContent || '',
-          new_string: data.currentContent || '',
-        });
-      } catch (error) {
-        console.error('Error opening file:', error);
-        onFileOpen(filePath);
-      }
-    },
-    [onFileOpen, selectedProject],
-  );
-
-  const refreshAll = useCallback(() => {
-    void fetchGitStatus();
-    void fetchBranches();
-    void fetchRemoteStatus();
-  }, [fetchBranches, fetchGitStatus, fetchRemoteStatus]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    // Reset repository-scoped state when project changes to avoid stale UI.
-    setCurrentBranch('');
-    setBranches([]);
-    setLocalBranches([]);
-    setRemoteBranches([]);
-    setGitStatus(null);
-    setRemoteStatus(null);
-    setGitDiff({});
-    setRecentCommits([]);
-    setCommitDiffs({});
-    setIsLoading(false);
-    setOperationError(null);
-
-    if (!selectedProject) {
-      return () => {
-        controller.abort();
-      };
-    }
-
-    void fetchGitStatus(controller.signal);
-    void fetchBranches();
-    void fetchRemoteStatus();
-
-    return () => {
-      controller.abort();
-    };
-  }, [fetchBranches, fetchGitStatus, fetchRemoteStatus, selectedProject]);
-
-  useEffect(() => {
-    if (!selectedProject || activeView !== 'history') {
+  const openFile = useCallback(async (filePath: string) => {
+    if (!onFileOpen) return;
+    if (!projectId) {
+      onFileOpen(filePath);
       return;
     }
-    void fetchRecentCommits();
-  }, [activeView, fetchRecentCommits, selectedProject]);
+    try {
+      const response = await fetchWithAuth(
+        `/api/git/file-with-diff?project=${encodeURIComponent(projectId)}&file=${encodeURIComponent(filePath)}`,
+      );
+      const data = await readJson<GitFileWithDiffResponse>(response);
+      if (data.error) {
+        console.error('Error fetching file with diff:', data.error);
+        onFileOpen(filePath);
+        return;
+      }
+      onFileOpen(filePath, { old_string: data.oldContent || '', new_string: data.currentContent || '' });
+    } catch (error) {
+      console.error('Error opening file:', error);
+      onFileOpen(filePath);
+    }
+  }, [onFileOpen, projectId]);
+
+  const refreshAll = useCallback(() => {
+    invalidateAll();
+  }, [invalidateAll]);
+
+  // Reset repository-scoped local state when the project changes; the
+  // query-backed state resets itself through the project-scoped keys.
+  useEffect(() => {
+    setGitDiff({});
+    setCommitDiffs({});
+    setCurrentBranch('');
+    setOperationError(null);
+  }, [projectId]);
+
+  useEffect(() => {
+    const data = statusQuery.data;
+    if (!data) return;
+    setCurrentBranch(data.error ? '' : data.branch || DEFAULT_BRANCH);
+  }, [statusQuery.data]);
+
+  useEffect(() => {
+    const data = statusQuery.data;
+    if (!data || data.error) return;
+    getAllChangedFiles(data).forEach((filePath) => { void fetchFileDiff(filePath); });
+  }, [fetchFileDiff, statusQuery.data]);
+
+  const gitStatus = statusQuery.data ?? null;
+  const branches = branchesQuery.data?.branches ?? [];
+  const localBranches = branchesQuery.data?.localBranches ?? [];
+  const remoteBranches = branchesQuery.data?.remoteBranches ?? [];
+  const recentCommits = commitsQuery.data ?? [];
+  const remoteStatus = remoteStatusQuery.data ?? null;
 
   return {
     gitStatus,
     gitDiff,
-    isLoading,
+    isLoading: statusQuery.isFetching,
     currentBranch,
     branches,
     localBranches,
@@ -788,12 +478,12 @@ export function useGitPanelController({
     recentCommits,
     commitDiffs,
     remoteStatus,
-    isCreatingBranch,
-    isFetching,
-    isPulling,
-    isPushing,
-    isPublishing,
-    isCreatingInitialCommit,
+    isCreatingBranch: createBranchMutation.isPending,
+    isFetching: fetchMutation.isPending,
+    isPulling: pullMutation.isPending,
+    isPushing: pushMutation.isPending,
+    isPublishing: publishMutation.isPending,
+    isCreatingInitialCommit: initialCommitMutation.isPending,
     operationError,
     clearOperationError,
     refreshAll,

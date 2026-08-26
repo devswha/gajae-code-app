@@ -1,6 +1,6 @@
 # Local Studio UI/UX adoption plan
 
-Status: Phases 1-4 shipped (feaa33e, d64af56, 3377739, b37bec7); phase 5 partly shipped (91f4821 queue, 26c818f steering, ac9b819 context, inline titles and the session ActionMenu in `src/components/sidebar/view/subcomponents/SidebarSessionItem.tsx`); one open item remains in phase 5 (export from the session menu), phase 6 is unevaluated
+Status: Phases 1-5 shipped (feaa33e, d64af56, 3377739, b37bec7, and in phase 5: 91f4821 queue, 26c818f steering, ac9b819 context, inline titles, the session ActionMenu, and 13cf015 Markdown export); fork remains deferred by choice, phase 6 is unevaluated
 Saved: 2026-08-15
 Re-verified against the tree: 2026-08-27
 
@@ -31,11 +31,14 @@ Re-verified against the tree: 2026-08-27
      (`src/components/settings/view/tabs/AppearanceSettingsTab.tsx:83-100` and
      `src/components/main-content/view/MainContent.tsx:40`), which is a better
      home than a per-session menu entry. Fork stays DEFERRED above.
-     Export is the one item still open, and it needs a decision before it can
-     be built: `/export` is a runtime slash command that only runs inside a
-     live turn (`server/gjc-bun-sdk-adapter.ts:514`), so a sidebar entry either
-     starts a turn in that session or the app grows its own transcript export
-     endpoint over the messages it already stores.
+     Export shipped as the app's own transcript export
+     (`server/modules/providers/services/session-export.service.ts`,
+     `GET /api/providers/sessions/:id/export`): the sidebar entry downloads the
+     session as Markdown. Driving the runtime's `/export` was rejected because
+     it only runs inside a live turn (`server/gjc-bun-sdk-adapter.ts:514`) and
+     writes into the project directory, so a menu click would have booted a
+     session to leave a file in the user's repository. `/export` stays for the
+     in-session case. Phase 5 has no open items.
 4. P3 — DONE (b37bec7): Development Preview with localhost discovery and
    managed Chromium/CDP, including focused tests and browser smoke coverage.
 5. P4 — If public distribution is approved, complete Developer ID signing,
@@ -150,9 +153,11 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
      reasoning visibility is provided by Settings → Appearance
      (`src/components/settings/view/tabs/AppearanceSettingsTab.tsx:83-100` and
      `src/components/main-content/view/MainContent.tsx:40`); fork is DEFERRED.
-     Export is still only reachable as `/export` from inside a running session
-     (`server/gjc-bun-sdk-adapter.ts:514-540`) and is the single open item of
-     this phase.
+     Export is in the menu and downloads Markdown built from the stored
+     transcript (`src/components/sidebar/view/subcomponents/SidebarSessionItem.tsx`
+     to `server/modules/providers/services/session-export.service.ts`), which
+     reads the provider directly so tool output over the 64KB transport budget
+     is exported whole rather than as the preview the chat view receives.
    - Composer status strip — DROPPED as duplicative after auditing the current UI
    - Clear current-activity bar above the composer — DONE
    - Multiple queued follow-up messages with edit, delete, and reorder — DONE (91f4821)

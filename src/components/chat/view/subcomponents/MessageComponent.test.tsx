@@ -225,6 +225,58 @@ test('a runtime shell call is a command row that carries its own output', () => 
   assert.doesNotMatch(html, /Parameters|Details/);
 });
 
+test('a search is one block: the call, with its matches folded inside it', () => {
+  const html = renderMessage({
+    type: 'assistant',
+    content: '',
+    timestamp: '2026-08-26T00:00:00.000Z',
+    isToolUse: true,
+    toolName: 'search',
+    toolInput: { pattern: 'rendersResultInline', paths: ['src'] },
+    toolId: 'tool-search',
+    toolResult: { content: 'one\ntwo\nthree\nfour', isError: false },
+  });
+
+  assert.match(html, /rendersResultInline/);
+  // Folded, with the size of the result visible before opening it.
+  assert.match(html, /4 lines/);
+  // The second card titled "Details" is gone, and so is the link that used to
+  // jump down to it.
+  assert.doesNotMatch(html, /Details/);
+  assert.doesNotMatch(html, /href="#tool-result-tool-search"/);
+});
+
+test('a failed search opens itself rather than folding the failure away', () => {
+  const html = renderMessage({
+    type: 'assistant',
+    content: '',
+    timestamp: '2026-08-26T00:00:00.000Z',
+    isToolUse: true,
+    toolName: 'search',
+    toolInput: { pattern: '(' },
+    toolId: 'tool-search-failed',
+    toolResult: { content: 'regex parse error: unclosed group', isError: true },
+  });
+
+  assert.match(html, /regex parse error: unclosed group/);
+  assert.match(html, /text-destructive/);
+});
+
+test('a call still running keeps its plain row, because there is nothing to fold', () => {
+  const html = renderMessage({
+    type: 'assistant',
+    content: '',
+    timestamp: '2026-08-26T00:00:00.000Z',
+    isToolUse: true,
+    toolName: 'search',
+    toolInput: { pattern: 'pending' },
+    toolId: 'tool-search-running',
+  });
+
+  assert.match(html, /pending/);
+  assert.doesNotMatch(html, /lines/);
+});
+
 test('a shell result whose call lost its arguments still reaches the transcript', () => {
   const html = renderMessage({
     type: 'assistant',

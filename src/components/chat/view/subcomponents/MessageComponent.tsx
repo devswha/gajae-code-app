@@ -11,7 +11,7 @@ import type {
 import type { CodeEditorDiffInfo } from '../../../code-editor/types/types';
 import { formatUsageLimitText } from '../../utils/chatFormatting';
 import type { Project } from '../../../../types/app';
-import { ToolRenderer, rendersCommandRow, shouldHideToolResult } from '../../tools';
+import { ToolRenderer, rendersResultInline, shouldHideToolResult } from '../../tools';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../../shared/view/ui';
 import { authenticatedFetch } from '../../../../utils/api';
 
@@ -270,8 +270,8 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   />
                 )}
 
-                {/* Tool Result Section — a shell call renders its output inside the command row above. */}
-                {effectiveToolResult && !(rendersCommandRow(message.toolName || '') && message.toolInput) && !shouldHideToolResult(message.toolName || 'UnknownTool', effectiveToolResult) && (
+                {/* Tool Result Section - merged tools render their output inside the call block above. */}
+                {effectiveToolResult && !(rendersResultInline(message.toolName || '') && message.toolInput) && !shouldHideToolResult(message.toolName || 'UnknownTool', effectiveToolResult) && (
                   effectiveToolResult.isError ? (
                     /* A failed tool is output, like Bash output: mono, dense,
                        height-capped. Rendered as a filled card of 16px prose it

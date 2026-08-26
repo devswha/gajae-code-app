@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { TOOL_CONFIGS, getToolConfig, getToolResultConfig, rendersCommandRow, shouldHideToolResult } from './toolConfigs';
+import { TOOL_CONFIGS, getToolConfig, getToolResultConfig, rendersCommandRow, rendersResultInline, shouldHideToolResult } from './toolConfigs';
 
 /*
  * These configs are the app's half of a contract with the runtime: the keys are
@@ -26,6 +26,21 @@ test('a shell call is one row, whatever the transcript calls the tool', () => {
     TOOL_CONFIGS.bash.result?.getContentProps?.({ content: 'exit 0' }).content,
     'exit 0',
   );
+});
+
+test('the tools the runtime merges are the tools the app merges', () => {
+  // Everything the runtime renders with mergeCallAndResult, minus the ones
+  // whose block already shows the change and whose result is only a receipt.
+  for (const tool of ['bash', 'search', 'find', 'ast_grep', 'skill', 'lsp', 'web_search', 'browser', 'computer']) {
+    assert.equal(rendersResultInline(tool), true, `${tool} should fold its output into the call`);
+  }
+
+  // read echoes the file the model already has; write/edit/todo_write restate
+  // a change the block above them shows, so they fold their receipt away
+  // instead of folding it in.
+  for (const tool of ['read', 'write', 'edit', 'todo_write']) {
+    assert.equal(rendersResultInline(tool), false, `${tool} must not claim an inline output block`);
+  }
 });
 
 test('an edit renders as a diff of what it replaced', () => {
@@ -93,10 +108,10 @@ test('a malformed todo payload renders empty instead of throwing', () => {
 
 test('a tool that describes only its call still shows the output it got', () => {
   // These entries configure `input` alone on purpose. Read as "no result
-  // config, so render nothing", that dropped a search's matches and a write's
-  // receipt entirely, and left the jump-to-results link pointing at an empty
-  // anchor.
-  for (const tool of ['search', 'find', 'write', 'skill', 'ast_grep', 'lsp', 'web_search', 'browser', 'computer']) {
+  // config, so render nothing", that dropped a search's matches and a web
+  // search's hits entirely, and left the jump-to-results link pointing at an
+  // empty anchor.
+  for (const tool of ['search', 'find', 'skill', 'ast_grep', 'lsp', 'web_search', 'browser', 'computer']) {
     assert.equal(TOOL_CONFIGS[tool].result, undefined, `${tool} is expected to describe only its call`);
     assert.equal(getToolResultConfig(tool), TOOL_CONFIGS.Default.result, `${tool} would render its output nowhere`);
     assert.equal(shouldHideToolResult(tool, { content: 'output' }), false);
@@ -105,6 +120,9 @@ test('a tool that describes only its call still shows the output it got', () => 
   // Suppression stays something a config asks for, never something it forgets.
   assert.equal(getToolResultConfig('read')?.hidden, true);
   assert.equal(shouldHideToolResult('read', { content: 'file body' }), true);
+  // A write receipt restates the block above it; a failed write does not.
+  assert.equal(shouldHideToolResult('write', { content: 'Successfully wrote 12 bytes' }), true);
+  assert.equal(shouldHideToolResult('write', { content: 'EACCES', isError: true }), false);
 });
 
 test('the tools that only had a JSON dump now say what they were asked for', () => {

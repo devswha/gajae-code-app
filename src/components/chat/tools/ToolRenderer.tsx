@@ -4,8 +4,8 @@ import type { Project } from '../../../types/app';
 import type { SubagentChildTool } from '../types/types';
 import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
 
-import { getToolConfig, getToolResultConfig, rendersCommandRow } from './configs/toolConfigs';
-import { OneLineDisplay, BashCommandDisplay, CollapsibleDisplay, ToolDiffViewer, MarkdownContent, FileListContent, TodoListContent, TaskListContent, TextContent, QuestionAnswerContent, SubagentContainer } from './components';
+import { getToolConfig, getToolResultConfig, rendersCommandRow, rendersResultInline } from './configs/toolConfigs';
+import { OneLineDisplay, BashCommandDisplay, CollapsibleDisplay, ToolCallRow, ToolDiffViewer, MarkdownContent, FileListContent, TodoListContent, TaskListContent, TextContent, QuestionAnswerContent, SubagentContainer } from './components';
 import { PlanDisplay } from './components/PlanDisplay';
 import { ToolStatusBadge } from './components/ToolStatusBadge';
 import type { ToolStatus } from './components/ToolStatusBadge';
@@ -152,12 +152,31 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
   if (displayConfig.type === 'one-line') {
     const value = displayConfig.getValue?.(parsedData) || '';
     const secondary = displayConfig.getSecondary?.(parsedData);
+    const inlineOutput = typeof toolResult?.content === 'string'
+      ? toolResult.content
+      : toolResult?.content != null
+        ? String(toolResult.content)
+        : '';
+
+    // The call and what it produced, in one block. Without output there is
+    // nothing to fold, so a call still running keeps the plain row it has now.
+    if (mode === 'input' && rendersResultInline(toolName) && inlineOutput.trim()) {
+      return (
+        <ToolCallRow
+          toolName={toolName}
+          label={displayConfig.label}
+          value={value}
+          secondary={secondary}
+          output={inlineOutput}
+          isError={Boolean(toolResult?.isError)}
+          status={toolStatus !== 'completed' ? toolStatus : undefined}
+        />
+      );
+    }
 
     return (
       <OneLineDisplay
         toolName={toolName}
-        toolResult={toolResult}
-        toolId={toolId}
         icon={displayConfig.icon}
         label={displayConfig.label}
         value={value}
@@ -167,7 +186,6 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
         style={displayConfig.style}
         wrapText={displayConfig.wrapText}
         colorScheme={displayConfig.colorScheme}
-        resultId={mode === 'input' ? `tool-result-${toolId}` : undefined}
         status={toolStatus !== 'completed' ? toolStatus : undefined}
       />
     );

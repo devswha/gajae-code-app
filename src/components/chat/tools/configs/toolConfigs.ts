@@ -129,10 +129,38 @@ function describeComputerAction(input: unknown): string {
 }
 
 /**
- * Tools whose call and result belong on one row, as the runtime's TUI merges
- * them: the command with its output folded underneath, inside the same block.
- * `bash` is the runtime's name for it; `Bash` is the same tool in a stored
- * Claude/Codex transcript, and both are replayed through this UI.
+ * Tools whose call and result belong in one block, as the runtime's TUI merges
+ * them (`mergeCallAndResult`): the call is the header and the output folds
+ * inside it. Rendered as two rows - the call, then a separate card titled
+ * "Details" - each call took twice the height for a second title that said
+ * nothing, and the size of the result stayed invisible until it was opened.
+ *
+ * `read` is deliberately absent: its result is the file, which is already in
+ * the model's context and buries the conversation when echoed. So are the
+ * tools whose block already shows the change itself - `write`, `edit`,
+ * `todo_write` - where the result is a receipt the block above restates.
+ */
+const INLINE_RESULT_TOOLS = new Set([
+  'bash',
+  'Bash',
+  'search',
+  'find',
+  'ast_grep',
+  'skill',
+  'lsp',
+  'web_search',
+  'browser',
+  'computer',
+]);
+
+export function rendersResultInline(toolName: string): boolean {
+  return INLINE_RESULT_TOOLS.has(toolName);
+}
+
+/**
+ * The shell subset of the above: `bash` is the runtime's name, `Bash` the same
+ * tool in a stored Claude/Codex transcript, and both get the command row with
+ * its `$` prompt rather than the generic call row.
  */
 const COMMAND_ROW_TOOLS = new Set(['bash', 'Bash']);
 
@@ -210,6 +238,11 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
         content: input.content ?? '',
         format: 'code'
       })
+    },
+    result: {
+      // "Successfully wrote N bytes to <path>" restates the block above it.
+      // A failed write still shows, like every other failure.
+      hideOnSuccess: true
     }
   },
 
@@ -222,7 +255,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
         const paths = Array.isArray(input.paths) ? input.paths : [];
         return paths.length > 0 ? `in ${paths.join(', ')}` : undefined;
       },
-      action: 'jump-to-results',
+      action: 'none',
       colorScheme: {
         primary: 'text-gray-700 dark:text-gray-300',
         secondary: 'text-gray-500 dark:text-gray-400',
@@ -238,7 +271,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       type: 'one-line',
       label: 'Find',
       getValue: (input) => (Array.isArray(input.paths) ? input.paths.join(', ') : ''),
-      action: 'jump-to-results',
+      action: 'none',
       colorScheme: {
         primary: 'text-gray-700 dark:text-gray-300',
         secondary: 'text-gray-500 dark:text-gray-400',
@@ -254,7 +287,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       type: 'one-line',
       label: 'AST Grep',
       getValue: (input) => input.pat || '',
-      action: 'jump-to-results',
+      action: 'none',
       colorScheme: {
         primary: 'text-gray-700 dark:text-gray-300',
         secondary: 'text-gray-500 dark:text-gray-400',
@@ -334,7 +367,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getValue: (input) => [input.action, input.symbol || input.query || input.file]
         .filter(Boolean)
         .join(' '),
-      action: 'jump-to-results',
+      action: 'none',
       colorScheme: {
         primary: 'text-gray-700 dark:text-gray-300',
         secondary: 'text-gray-500 dark:text-gray-400',
@@ -351,7 +384,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       label: 'Web Search',
       getValue: (input) => input.query || '',
       getSecondary: (input) => (input.recency ? `past ${input.recency}` : undefined),
-      action: 'jump-to-results',
+      action: 'none',
       colorScheme: {
         primary: 'text-gray-700 dark:text-gray-300',
         secondary: 'text-gray-500 dark:text-gray-400',
@@ -389,7 +422,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getValue: (input) => [input.action, input.url || input.name || input.app]
         .filter(Boolean)
         .join(' '),
-      action: 'jump-to-results',
+      action: 'none',
       colorScheme: {
         primary: 'text-gray-700 dark:text-gray-300',
         secondary: 'text-gray-500 dark:text-gray-400',

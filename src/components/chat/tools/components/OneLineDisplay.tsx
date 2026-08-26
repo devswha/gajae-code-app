@@ -5,7 +5,7 @@ import { copyTextToClipboard } from '../../../../utils/clipboard';
 import { ToolStatusBadge } from './ToolStatusBadge';
 import type { ToolStatus } from './ToolStatusBadge';
 
-type ActionType = 'copy' | 'open-file' | 'jump-to-results' | 'none';
+type ActionType = 'copy' | 'open-file' | 'none';
 
 interface OneLineDisplayProps {
   toolName: string;
@@ -24,9 +24,6 @@ interface OneLineDisplayProps {
     border?: string;
     icon?: string;
   };
-  resultId?: string;
-  toolResult?: any;
-  toolId?: string;
   status?: ToolStatus;
 }
 
@@ -51,8 +48,6 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
     border: 'border-border',
     icon: 'text-muted-foreground',
   },
-  toolResult,
-  toolId,
   status,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -127,34 +122,6 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
         >
           {displayName}
         </button>
-      </div>
-    );
-  }
-
-  // Search / jump-to-results style
-  if (action === 'jump-to-results') {
-    return (
-      <div className={'group flex items-center gap-1.5 py-0.5'}>
-        {status && <ToolStatusBadge status={status} />}
-        <span className="flex-shrink-0 text-xs font-medium text-foreground">{label || toolName}</span>
-        <span className={`min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground ${colorScheme.primary}`}>
-          {value}
-        </span>
-        {secondary && (
-          <span className="flex-shrink-0 text-[11px] italic text-muted-foreground/60">
-            {secondary}
-          </span>
-        )}
-        {toolResult && (
-          <a
-            href={`#tool-result-${toolId}`}
-            className="flex flex-shrink-0 items-center gap-0.5 text-[11px] text-primary transition-colors hover:text-primary/80"
-          >
-            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </a>
-        )}
       </div>
     );
   }

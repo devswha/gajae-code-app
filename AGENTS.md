@@ -61,8 +61,8 @@ dist-native/bun test src/shared/view/ui/ActionMenu.dom.bun.test.tsx
 ## Frontend stack
 
 React 18.2 + TypeScript 5.9 on Vite 7, function components and hooks throughout.
-Four legacy `.jsx` files remain (`src/main.jsx`, `src/contexts/AuthContext.jsx`,
-`src/contexts/ThemeContext.jsx`, `src/hooks/useLocalStorage.jsx`); everything else
+Three legacy `.jsx` files remain (`src/main.jsx`, `src/contexts/ThemeContext.jsx`,
+`src/hooks/useLocalStorage.jsx`); everything else
 is `.ts`/`.tsx`. Routing is react-router-dom 7.
 
 - **The UI primitives are owned, not installed.** `src/shared/view/ui/` holds 19

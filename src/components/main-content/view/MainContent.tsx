@@ -33,7 +33,6 @@ function MainContent({
   onNavigateToSession,
   onSessionEstablished,
   onShowSettings,
-  externalMessageUpdate,
   newSessionTrigger,
 }: MainContentProps) {
   const { preferences } = useUiPreferences();
@@ -138,7 +137,6 @@ function MainContent({
                   showThinking={showThinking}
                   showImagePreviews={showImagePreviews}
                   sendByCtrlEnter={sendByCtrlEnter}
-                  externalMessageUpdate={externalMessageUpdate}
                   newSessionTrigger={newSessionTrigger}
                 />
               </Suspense>

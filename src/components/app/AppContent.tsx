@@ -42,7 +42,6 @@ function AppContentInner() {
     activeTab,
     sidebarOpen,
     isLoadingProjects,
-    externalMessageUpdate,
     newSessionTrigger,
     setActiveTab,
     setSidebarOpen,
@@ -174,7 +173,6 @@ function AppContentInner() {
             registerOptimisticSession({ sessionId: targetSessionId, ...context })
           }
           onShowSettings={openSettings}
-          externalMessageUpdate={externalMessageUpdate}
           newSessionTrigger={newSessionTrigger}
         />
       </div>

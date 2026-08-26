@@ -38,7 +38,6 @@ interface UseChatSessionStateArgs {
   selectedSession: ProjectSession | null;
   ws: WebSocket | null;
   sendMessage: (message: unknown) => void;
-  externalMessageUpdate?: number;
   newSessionTrigger?: number;
   processingSessions?: SessionActivityMap;
   onSessionIdle?: MarkSessionIdle;
@@ -119,7 +118,6 @@ export function useChatSessionState({
   selectedSession,
   ws,
   sendMessage,
-  externalMessageUpdate,
   newSessionTrigger,
   processingSessions,
   onSessionIdle,
@@ -652,38 +650,11 @@ export function useChatSessionState({
     showImagePreviews,
   ]);
 
-  // External message update (e.g. WebSocket reconnect, background refresh)
-  useEffect(() => {
-    if (!externalMessageUpdate || !selectedSession || !selectedProject) return;
-
-    const reloadExternalMessages = async () => {
-      try {
-        // Skip store refresh during active streaming
-        if (!isProcessing) {
-          await sessionStore.refreshFromServer(selectedSession.id, {
-            includeImages: showImagePreviews,
-          });
-
-          if (isNearBottom()) {
-            setTimeout(() => scrollToBottom(), 200);
-          }
-        }
-      } catch (error) {
-        console.error('Error reloading messages from external update:', error);
-      }
-    };
-
-    reloadExternalMessages();
-  }, [
-    externalMessageUpdate,
-    isNearBottom,
-    scrollToBottom,
-    selectedProject,
-    selectedSession,
-    sessionStore,
-    isProcessing,
-    showImagePreviews,
-  ]);
+  // External transcript updates (another client or the CLI editing the viewed
+  // session) arrive as an invalidation of ['messages', sessionId]; the session
+  // store's active-window observer refetches the bounded reconcile window and
+  // re-renders. The old externalMessageUpdate counter and its reload effect
+  // are gone.
 
   // Search navigation target
   useEffect(() => {

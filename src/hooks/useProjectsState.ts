@@ -413,7 +413,6 @@ export function useProjectsState({
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState('agents');
-  const [externalMessageUpdate, setExternalMessageUpdate] = useState(0);
   /**
    * `newSessionTrigger` is an explicit, monotonic intent signal for user-driven
    * New Session actions.
@@ -639,14 +638,15 @@ export function useProjectsState({
 
       // The transcript of the currently viewed session changed on disk while
       // no run is active here (e.g. edited from another client or the CLI):
-      // signal the chat view to reload its messages.
+      // invalidate its message window. The session store's active-window
+      // observer refetches the bounded reconcile and re-renders the chat.
       const currentSelectedSession = selectedSessionRef.current;
       if (
         currentSelectedSession
         && upsert.sessionId === currentSelectedSession.id
         && !activeSessionsRef.current.has(upsert.sessionId)
       ) {
-        setExternalMessageUpdate((prev) => prev + 1);
+        void queryClient.invalidateQueries({ queryKey: ['messages', upsert.sessionId] });
       } else {
         markSessionAttention(upsert.sessionId);
       }
@@ -1036,7 +1036,6 @@ export function useProjectsState({
     isInputFocused,
     showSettings,
     settingsInitialTab,
-    externalMessageUpdate,
     newSessionTrigger,
     setActiveTab,
     setSidebarOpen,

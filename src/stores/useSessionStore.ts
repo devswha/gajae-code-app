@@ -7,8 +7,8 @@
  * No localStorage for messages. Backend JSONL is the source of truth.
  */
 
-import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { authenticatedFetch } from '../utils/api';
 import type { LLMProvider } from '../types/app';
@@ -575,10 +575,36 @@ function dedupeMessagesById(messages: NormalizedMessage[]): NormalizedMessage[] 
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
+/**
+ * Bounded reconcile fetch shared by `refreshFromServer` and the active-window
+ * observer's queryFn: re-request only the currently loaded window and shape
+ * the response as a `MessagesWindow`.
+ */
+async function fetchReconcileWindow(sessionId: string, slot: SessionSlot): Promise<MessagesWindow> {
+  const loadedCount = slot.serverMessages.length + slot.realtimeMessages.length;
+  const url = buildRefreshMessagesUrl(sessionId, loadedCount, slot._includeImages);
+  const response = await authenticatedFetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const body = await response.json();
+  const data = body?.data ?? body;
+  const messages: NormalizedMessage[] = data.messages || [];
+  return {
+    messages: dedupeMessagesById(messages),
+    total: data.total ?? messages.length,
+    hasMore: Boolean(data.hasMore),
+    offset: messages.length,
+    tokenUsage: data.tokenUsage || slot.tokenUsage,
+  };
+}
+
 export function useSessionStore() {
   const queryClient = useQueryClient();
   const storeRef = useRef(new Map<string, SessionSlot>());
   const activeSessionIdRef = useRef<string | null>(null);
+  // State mirror of the active session id so the active-window observer below
+  // re-subscribes when the viewed session changes. Callbacks keep reading the
+  // ref to stay identity-stable.
+  const [activeSessionId, setActiveSessionIdState] = useState<string | null>(null);
   // Bump to force re-render — only when the active session's data changes.
   const jobSlotsRef = useRef(new Map<string, JobProjectionSlot>());
   const activeJobIdRef = useRef<string | null>(null);
@@ -706,6 +732,7 @@ export function useSessionStore() {
 
   const setActiveSession = useCallback((sessionId: string | null) => {
     activeSessionIdRef.current = sessionId;
+    setActiveSessionIdState(sessionId);
     if (sessionId) {
       const slot = storeRef.current.get(sessionId);
       if (slot) {
@@ -733,6 +760,60 @@ export function useSessionStore() {
   const has = useCallback((sessionId: string) => {
     return storeRef.current.has(sessionId);
   }, []);
+
+  /**
+   * Active-window observer.
+   *
+   * Subscribes to the viewed session's `['messages', sessionId]` entry so an
+   * invalidation (e.g. the sidebar's `session_upserted` watcher seeing the
+   * transcript change on disk with no local run active) refetches the bounded
+   * reconcile window and re-renders the chat. This replaces the old
+   * `externalMessageUpdate` counter and its four-component prop thread.
+   *
+   * - `enabled` requires an existing window: the initial load stays with
+   *   `fetchFromServer` and its explicit limit/offset options.
+   * - A streaming slot disables the observer, mirroring the old "skip store
+   *   refresh during active streaming" guard; the stale mark survives and the
+   *   refetch runs when streaming ends and the observer re-enables.
+   * - `staleTime: Infinity`: the observer never refetches on its own; only an
+   *   invalidation (or mounting over an invalidated entry) runs the queryFn.
+   */
+  const activeSlotForObserver = activeSessionId ? storeRef.current.get(activeSessionId) : undefined;
+  const activeWindowQuery = useQuery({
+    queryKey: ['messages', activeSessionId ?? '__no_active_session__'],
+    enabled: Boolean(
+      activeSessionId
+      && activeSlotForObserver
+      && activeSlotForObserver.status !== 'streaming'
+      && queryClient.getQueryData<MessagesWindow>(['messages', activeSessionId]) !== undefined,
+    ),
+    staleTime: Infinity,
+    queryFn: async () => {
+      const sessionId = activeSessionIdRef.current;
+      const slot = sessionId ? storeRef.current.get(sessionId) : undefined;
+      if (!sessionId || !slot) throw new Error('no active session window');
+      return fetchReconcileWindow(sessionId, slot);
+    },
+  });
+
+  // After any settled-window change for the active session (observer reconcile
+  // or an imperative write), drop realtime rows the transcript now owns and
+  // recompute the merged view. Pruning only ever removes rows, so skipping the
+  // assignment when nothing was dropped keeps identities stable.
+  const activeWindowUpdatedAt = activeWindowQuery.dataUpdatedAt;
+  useEffect(() => {
+    const sessionId = activeSessionIdRef.current;
+    if (!sessionId) return;
+    const slot = storeRef.current.get(sessionId);
+    if (!slot) return;
+    const pruned = pruneRealtimeSupersededByServer(slot.serverMessages, slot.realtimeMessages);
+    if (pruned.length !== slot.realtimeMessages.length) {
+      slot.realtimeMessages = pruned;
+    }
+    if (recomputeMergedIfNeeded(slot)) {
+      notify(sessionId);
+    }
+  }, [activeWindowUpdatedAt, notify]);
 
   /**
    * Fetch messages from the provider sessions endpoint and populate serverMessages.
@@ -967,28 +1048,15 @@ export function useSessionStore() {
     try {
       // Bound the reconcile fetch to the currently-loaded window so a large
       // transcript is not re-pulled in full on every refresh (latest-N + scroll-up
-      // lazy-load stays intact). total/hasMore below keep older messages reachable.
-      const loadedCount = slot.serverMessages.length + slot.realtimeMessages.length;
-      const url = buildRefreshMessagesUrl(sessionId, loadedCount, slot._includeImages);
-      const response = await authenticatedFetch(url);
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const body = await response.json();
-      const data = body?.data ?? body;
+      // lazy-load stays intact). total/hasMore keep older messages reachable.
+      const reconciled = await fetchReconcileWindow(sessionId, slot);
 
       // Only the latest request may replace this session's loaded window.
       if (fetchTicket !== slot._fetchSeq) {
         return;
       }
 
-      const messages: NormalizedMessage[] = data.messages || [];
-      queryClient.setQueryData<MessagesWindow>(['messages', sessionId], {
-        messages: dedupeMessagesById(messages),
-        total: data.total ?? messages.length,
-        hasMore: Boolean(data.hasMore),
-        offset: messages.length,
-        tokenUsage: data.tokenUsage || slot.tokenUsage,
-      });
+      queryClient.setQueryData<MessagesWindow>(['messages', sessionId], reconciled);
       if (slot.status === 'loading' && slot._loadingTicket === fetchTicket) {
         slot.status = 'idle';
       }
@@ -1109,6 +1177,7 @@ export function useSessionStore() {
     storeRef.current.clear();
     queryClient.removeQueries({ queryKey: ['messages'] });
     activeSessionIdRef.current = null;
+    setActiveSessionIdState(null);
     if (hadActiveSession) {
       setTick(n => n + 1);
     }
@@ -1123,14 +1192,22 @@ export function useSessionStore() {
    * identity-stable to keep downstream memos from recomputing on no-ops.
    */
   const getMessages = useCallback((sessionId: string): NormalizedMessage[] => {
-    return storeRef.current.get(sessionId)?.merged ?? EMPTY;
+    const slot = storeRef.current.get(sessionId);
+    if (!slot) return EMPTY;
+    // The settled window can change underneath the slot (observer reconcile,
+    // invalidation refetch, any out-of-band cache write). Recompute lazily on
+    // read; the reference-equality guard makes the common case free.
+    recomputeMergedIfNeeded(slot);
+    return slot.merged;
   }, []);
 
   /**
    * Get session slot (for status, pagination info, etc.).
    */
   const getSessionSlot = useCallback((sessionId: string): SessionSlot | undefined => {
-    return storeRef.current.get(sessionId);
+    const slot = storeRef.current.get(sessionId);
+    if (slot) recomputeMergedIfNeeded(slot);
+    return slot;
   }, []);
 
   return useMemo(() => ({

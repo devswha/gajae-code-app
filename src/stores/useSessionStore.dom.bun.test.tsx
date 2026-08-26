@@ -420,6 +420,133 @@ test('getMessages reflects a completed fetch and keeps empty reads identity-stab
   }
 });
 
+test('invalidating the active window runs one bounded reconcile and the result reaches getMessages', async () => {
+  const originalFetch = globalThis.fetch;
+  const pending: PendingRequest[] = [];
+  globalThis.fetch = ((url: string) => new Promise<Response>((resolve) => {
+    pending.push({ url, resolve });
+  })) as typeof fetch;
+
+  try {
+    const { store, queryClient } = createHarness();
+    let initial: Promise<unknown>;
+    act(() => {
+      store.setActiveSession('session');
+      initial = store.fetchFromServer('session', { limit: 20, offset: 0 });
+    });
+    await act(async () => {
+      pending.shift()!.resolve(response({
+        messages: [{ id: 'v1', sessionId: 'session', timestamp: '2026-01-01T00:00:00Z', kind: 'text', role: 'assistant', content: 'first', provider: 'gjc' }],
+        total: 1,
+        hasMore: false,
+      }));
+      await initial!;
+    });
+    // Flush a render so the observer sees the existing window and mounts enabled.
+    await act(async () => {});
+    assert.equal(pending.length, 0, 'a fresh window must not refetch on its own');
+
+    let invalidated: Promise<unknown>;
+    act(() => {
+      invalidated = queryClient.invalidateQueries({ queryKey: ['messages', 'session'] });
+    });
+    await act(async () => {
+      assert.equal(pending.length, 1, 'invalidation must trigger exactly one reconcile fetch');
+      assert.match(pending[0].url, /limit=20/, 'the reconcile is bounded to the loaded window');
+      pending.shift()!.resolve(response({
+        messages: [
+          { id: 'v1', sessionId: 'session', timestamp: '2026-01-01T00:00:00Z', kind: 'text', role: 'assistant', content: 'first', provider: 'gjc' },
+          { id: 'v2', sessionId: 'session', timestamp: '2026-01-01T00:01:00Z', kind: 'text', role: 'user', content: 'external edit', provider: 'gjc' },
+        ],
+        total: 2,
+        hasMore: false,
+      }));
+      await invalidated!;
+    });
+
+    assert.deepEqual(store.getMessages('session').map((message) => message.id), ['v1', 'v2']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a streaming slot defers the reconcile until streaming ends', async () => {
+  const originalFetch = globalThis.fetch;
+  const pending: PendingRequest[] = [];
+  globalThis.fetch = ((url: string) => new Promise<Response>((resolve) => {
+    pending.push({ url, resolve });
+  })) as typeof fetch;
+
+  try {
+    const { store, queryClient } = createHarness();
+    let initial: Promise<unknown>;
+    act(() => {
+      store.setActiveSession('session');
+      initial = store.fetchFromServer('session', { limit: 20, offset: 0 });
+    });
+    await act(async () => {
+      pending.shift()!.resolve(response({
+        messages: [{ id: 's1', sessionId: 'session', timestamp: '2026-01-01T00:00:00Z', kind: 'text', role: 'user', content: 'hi', provider: 'gjc' }],
+        total: 1,
+        hasMore: false,
+      }));
+      await initial!;
+    });
+
+    act(() => {
+      store.setStatus('session', 'streaming');
+    });
+    await act(async () => {
+      void queryClient.invalidateQueries({ queryKey: ['messages', 'session'] });
+    });
+    assert.equal(pending.length, 0, 'no reconcile may run while the session streams');
+
+    act(() => {
+      store.setStatus('session', 'idle');
+    });
+    await act(async () => {});
+    assert.equal(pending.length, 1, 'the stale mark survives streaming and refetches on idle');
+    await act(async () => {
+      pending.shift()!.resolve(response({
+        messages: [{ id: 's1', sessionId: 'session', timestamp: '2026-01-01T00:00:00Z', kind: 'text', role: 'user', content: 'hi', provider: 'gjc' }],
+        total: 1,
+        hasMore: false,
+      }));
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('an out-of-band cache write reaches getMessages through the lazy recompute', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => response({
+    messages: [{ id: 'w1', sessionId: 'session', timestamp: '2026-01-01T00:00:00Z', kind: 'text', role: 'user', content: 'hi', provider: 'gjc' }],
+    total: 1,
+    hasMore: false,
+  })) as typeof fetch;
+
+  try {
+    const { store, queryClient } = createHarness();
+    await store.fetchFromServer('session');
+    assert.deepEqual(store.getMessages('session').map((message) => message.id), ['w1']);
+
+    queryClient.setQueryData(['messages', 'session'], {
+      messages: [
+        { id: 'w1', sessionId: 'session', timestamp: '2026-01-01T00:00:00Z', kind: 'text', role: 'user', content: 'hi', provider: 'gjc' },
+        { id: 'w2', sessionId: 'session', timestamp: '2026-01-01T00:01:00Z', kind: 'text', role: 'assistant', content: 'folded', provider: 'gjc' },
+      ],
+      total: 2,
+      hasMore: false,
+      offset: 2,
+    });
+
+    assert.deepEqual(store.getMessages('session').map((message) => message.id), ['w1', 'w2']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('a realtime row without an id cannot break the merge on a later turn', async () => {
   // A provider runtime that writes plain `{ kind, ... }` events instead of going
   // through the envelope helper produces id-less realtime rows. The first turn

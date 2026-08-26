@@ -120,7 +120,6 @@ export interface ChatInterfaceProps {
   showThinking?: boolean;
   showImagePreviews?: boolean;
   sendByCtrlEnter?: boolean;
-  externalMessageUpdate?: number;
   newSessionTrigger?: number;
   onTaskClick?: (...args: unknown[]) => void;
 }

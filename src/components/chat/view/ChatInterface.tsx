@@ -51,7 +51,6 @@ function ChatInterface({
   showThinking,
   showImagePreviews,
   sendByCtrlEnter,
-  externalMessageUpdate,
   newSessionTrigger,
 }: ChatInterfaceProps) {
   const { subscribe } = useWebSocket();
@@ -140,7 +139,6 @@ function ChatInterface({
     selectedSession,
     ws,
     sendMessage,
-    externalMessageUpdate,
     newSessionTrigger,
     processingSessions,
     onSessionIdle,

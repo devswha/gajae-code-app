@@ -236,6 +236,7 @@ function AppContentInner() {
 
       <CommandPalette
         selectedProject={selectedProject}
+        currentSessionId={sessionId}
         onStartNewChat={handleNewSession}
         onOpenSettings={() => openSettings()}
         onShowTab={setActiveTab}

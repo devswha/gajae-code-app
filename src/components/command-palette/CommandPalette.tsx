@@ -50,6 +50,12 @@ const PAGE_LABELS: Record<Page, string> = {
 
 type CommandPaletteProps = {
   selectedProject: Project | null;
+  /**
+   * Session currently open. Opening a session is already the resume, so
+   * picking the open one has nothing left to do; the picker says so instead of
+   * closing on a silent no-op that reads as a broken command.
+   */
+  currentSessionId?: string;
   onStartNewChat: (project: Project) => void;
   onOpenSettings: (tab?: string) => void;
   onShowTab?: (tab: AppTab) => void;
@@ -64,6 +70,7 @@ const NAV_TABS: Array<{ id: AppTab; label: string; keywords: string }> = [
 
 export default function CommandPalette({
   selectedProject,
+  currentSessionId,
   onStartNewChat,
   onOpenSettings,
   onShowTab,
@@ -300,6 +307,11 @@ export default function CommandPalette({
                         <span className="truncate text-xs text-muted-foreground">{s.snippet}</span>
                       )}
                     </div>
+                    {s.id === currentSessionId && (
+                      <span className="shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Current
+                      </span>
+                    )}
                     {s.provider && (
                       <span className="text-xs text-muted-foreground">{s.provider}</span>
                     )}

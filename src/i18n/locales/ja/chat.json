@@ -13,7 +13,6 @@
   },
   "messageTypes": {
     "user": "U",
-    "error": "エラー",
     "tool": "ツール",
     "claude": "Claude",
     "cursor": "Cursor",

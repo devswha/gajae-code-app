@@ -50,8 +50,9 @@ const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 /**
  * System notices sit between chat turns as a quiet record of something the agent
  * did to the run itself — an interrupted response, a model fallback, a
- * compaction that rewrote history. They are deliberately calmer than an `error`
- * row (which means the turn failed) but must stay legible at a glance.
+ * compaction that rewrote history. A failed turn shares the row: an error is a
+ * line of machine output, not a document, and the avatar-plus-name header it
+ * used to carry made every failure taller than the answer it replaced.
  */
 const NOTICE_STYLES = {
   info: {
@@ -193,16 +194,17 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             )}
           </div>
         </div>
-      ) : message.isSystemNotice ? (
-        /* Run-level record (interrupt, fallback, compaction) between turns */
+      ) : message.isSystemNotice || message.type === 'error' ? (
+        /* Run-level record (interrupt, fallback, compaction) or a failed turn */
         (() => {
-          const { Icon, container, icon } = NOTICE_STYLES[message.noticeLevel ?? 'info'];
+          const level = message.type === 'error' ? 'error' : message.noticeLevel ?? 'info';
+          const { Icon, container, icon } = NOTICE_STYLES[level];
           return (
             <div className="w-full py-0.5">
               <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${container}`} role="note">
                 <Icon className={`mt-px h-3.5 w-3.5 flex-shrink-0 ${icon}`} aria-hidden="true" />
-                <span className="sr-only">{t(`messageTypes.notice.${message.noticeLevel ?? 'info'}`)}</span>
-                <span dir="auto" className="min-w-0 whitespace-pre-wrap break-words">{message.content}</span>
+                <span className="sr-only">{t(`messageTypes.notice.${level}`)}</span>
+                <span dir="auto" className="max-h-80 min-w-0 overflow-auto whitespace-pre-wrap break-words">{message.content}</span>
               </div>
             </div>
           );
@@ -216,34 +218,25 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
           </div>
         </div>
       ) : (
-        /* Claude/Error/Tool messages on the left */
+        /* Claude/Tool messages on the left */
         <div className="w-full">
-          {!isGrouped && (message.type === 'error' || isForeignProviderTurn) && (
-            /* An error announces itself, and a stored transcript from another
-               agent says which agent it was. A live GJC answer does neither: it
-               is already identified by being prose on the left, opposite the
-               user's blue bubbles, so its name and logo were a label nobody
-               needed to read on every turn. */
+          {!isGrouped && isForeignProviderTurn && (
+            /* A stored transcript from another agent says which agent it was. A
+               live GJC answer does not: it is already identified by being prose
+               on the left, opposite the user's blue bubbles, so its name and
+               logo were a label nobody needed to read on every turn. */
             <div className="mb-2 flex items-center space-x-3">
-              {message.type === 'error' ? (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-destructive text-sm text-destructive-foreground">
-                  !
-                </div>
-              ) : (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full p-1 text-sm text-foreground">
-                  <SessionProviderLogo provider={provider} className="h-full w-full" />
-                </div>
-              )}
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full p-1 text-sm text-foreground">
+                <SessionProviderLogo provider={provider} className="h-full w-full" />
+              </div>
               <div className="text-sm font-medium text-foreground">
-                {message.type === 'error'
-                  ? t('messageTypes.error')
-                  : provider === 'cursor'
-                    ? t('messageTypes.cursor')
-                    : provider === 'codex'
-                      ? t('messageTypes.codex')
-                      : provider === 'opencode'
-                        ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
-                        : t('messageTypes.claude')}
+                {provider === 'cursor'
+                  ? t('messageTypes.cursor')
+                  : provider === 'codex'
+                    ? t('messageTypes.codex')
+                    : provider === 'opencode'
+                      ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
+                      : t('messageTypes.claude')}
               </div>
             </div>
           )}
@@ -280,21 +273,17 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 {/* Tool Result Section — Bash renders its output inside the command row above. */}
                 {effectiveToolResult && message.toolName !== 'Bash' && !shouldHideToolResult(message.toolName || 'UnknownTool', effectiveToolResult) && (
                   effectiveToolResult.isError ? (
-                    // Error results - red error box with content
-                    <div
-                      id={`tool-result-${message.toolId}`}
-                      className="relative mt-2 scroll-mt-4 rounded border border-destructive/30 bg-destructive/10 p-3"
-                    >
-                      <div className="relative mb-2 flex items-center gap-1.5">
-                        <svg className="h-4 w-4 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        <span className="text-xs font-medium text-destructive">{t('messageTypes.error')}</span>
-                      </div>
-                      <div className="relative text-sm text-foreground">
-                        <Markdown className="prose prose-base max-w-none dark:prose-invert [&_pre]:max-w-none [&_table]:max-w-none">
+                    /* A failed tool is output, like Bash output: mono, dense,
+                       height-capped. Rendered as a filled card of 16px prose it
+                       took more of the transcript than the answer around it,
+                       for a message that is usually one line long. */
+                    <div id={`tool-result-${message.toolId}`} className="scroll-mt-4 py-0.5 pl-2">
+                      <div className="flex items-start gap-1.5">
+                        <OctagonAlertIcon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-destructive" aria-hidden="true" />
+                        <span className="sr-only">{t('tools.error')}</span>
+                        <pre dir="auto" className="max-h-80 min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-destructive">
                           {String(effectiveToolResult.content || '')}
-                        </Markdown>
+                        </pre>
                       </div>
                     </div>
                   ) : (

@@ -13,7 +13,6 @@
   },
   "messageTypes": {
     "user": "П",
-    "error": "Ошибка",
     "tool": "Инструмент",
     "claude": "Claude",
     "cursor": "Cursor",

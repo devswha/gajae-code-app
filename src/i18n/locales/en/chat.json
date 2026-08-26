@@ -13,7 +13,6 @@
   },
   "messageTypes": {
     "user": "U",
-    "error": "Error",
     "tool": "Tool",
     "claude": "Claude",
     "cursor": "Cursor",

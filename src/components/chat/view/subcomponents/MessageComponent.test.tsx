@@ -200,6 +200,42 @@ test('a user bubble is the size of what was typed', () => {
   assert.doesNotMatch(html, /mt-1 flex items-center justify-end gap-1 text-xs text-primary-foreground\/80/);
 });
 
+test('a failed tool reads as output, not as a card of prose', () => {
+  const html = renderMessage({
+    type: 'assistant',
+    content: '',
+    timestamp: '2026-08-26T00:00:00.000Z',
+    isToolUse: true,
+    toolName: 'Read',
+    toolInput: JSON.stringify({ file_path: '/tmp/missing.ts' }),
+    toolId: 'tool-failed',
+    toolResult: { content: 'File does not exist.', isError: true },
+  });
+
+  // Same treatment as Bash output: monospace, dense, height-capped.
+  assert.match(html, /<pre[^>]*font-mono[^>]*>File does not exist\./);
+  assert.match(html, /max-h-80/);
+  // The filled 16px-prose card made a one-line failure taller than the answer
+  // it replaced.
+  assert.doesNotMatch(html, /border-destructive\/30 bg-destructive\/10/);
+  // Colour alone must not say "this failed".
+  assert.match(html, /sr-only">Tool Error</);
+});
+
+test('a failed turn is a notice row rather than an avatar and a heading', () => {
+  const html = renderMessage({
+    type: 'error',
+    content: 'Failed to start a new session: connection refused',
+    timestamp: '2026-08-26T00:00:00.000Z',
+  });
+
+  assert.match(html, /Failed to start a new session/);
+  assert.match(html, /role="note"/);
+  assert.match(html, /sr-only">Error</);
+  // The 32px "!" badge and its Error caption doubled the height of a sentence.
+  assert.doesNotMatch(html, /h-8 w-8[^"]*bg-destructive/);
+});
+
 test('local command stdout renders as escaped preformatted text instead of Markdown math', () => {
   const html = renderMessage({
     type: 'assistant',

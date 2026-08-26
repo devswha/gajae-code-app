@@ -13,7 +13,6 @@
   },
   "messageTypes": {
     "user": "S",
-    "error": "Hata",
     "tool": "Araç",
     "claude": "Claude",
     "cursor": "Cursor",

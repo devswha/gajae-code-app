@@ -81,7 +81,56 @@ const readLegacyPreference = (key: UiPreferenceKey, fallback: boolean): boolean 
   }
 };
 
-const readInitialPreferences = (storageKey: string): UiPreferences => {
+/**
+ * Bumped when a default changes in a way that should reach profiles that never
+ * chose the old value.
+ *
+ * Preferences are written to storage in full on first mount, so every profile
+ * carries an explicit copy of whatever the defaults were at the time - a stored
+ * value says nothing about whether anyone picked it. Without a marker, a
+ * changed default would only ever reach new installs. Each migration runs once
+ * and stamps this version, so a choice made afterwards is never overwritten.
+ */
+export const UI_PREFERENCES_VERSION = 1;
+
+const versionKey = (storageKey: string): string => `${storageKey}.version`;
+
+/**
+ * Applies default changes that shipped after a profile was first written.
+ *
+ * v1: `showThinking` off. A replayed transcript carries no thinking duration,
+ * so the collapsed row reads "Thought for a few seconds" on every entry
+ * whatever actually happened, and the reasoning is already behind a click.
+ */
+const migratePreferences = (
+  preferences: UiPreferences,
+  storedVersion: number,
+): UiPreferences => {
+  if (storedVersion >= UI_PREFERENCES_VERSION) {
+    return preferences;
+  }
+  return { ...preferences, showThinking: DEFAULTS.showThinking };
+};
+
+const readStoredVersion = (storageKey: string): number => {
+  try {
+    const raw = localStorage.getItem(versionKey(storageKey));
+    if (raw === null) return 0;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * Exposed for tests: the migration only observably matters at load, and a
+ * hook-level test would have to stand up React to reach it.
+ */
+export const readInitialPreferencesForTest = (storageKey: string): UiPreferences =>
+  readInitialPreferences(storageKey);
+
+function readInitialPreferences(storageKey: string): UiPreferences {
   if (typeof window === 'undefined') {
     return DEFAULTS;
   }
@@ -94,21 +143,25 @@ const readInitialPreferences = (storageKey: string): UiPreferences => {
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         const parsedRecord = parsed as Record<string, unknown>;
 
-        return PREFERENCE_KEYS.reduce((acc, key) => {
+        const stored = PREFERENCE_KEYS.reduce((acc, key) => {
           acc[key] = parseBoolean(parsedRecord[key], DEFAULTS[key]);
           return acc;
         }, { ...DEFAULTS });
+
+        return migratePreferences(stored, readStoredVersion(storageKey));
       }
     }
   } catch {
     // Fall back to legacy keys when unified key is missing or invalid.
   }
 
-  return PREFERENCE_KEYS.reduce((acc, key) => {
+  const legacy = PREFERENCE_KEYS.reduce((acc, key) => {
     acc[key] = readLegacyPreference(key, DEFAULTS[key]);
     return acc;
   }, { ...DEFAULTS });
-};
+
+  return migratePreferences(legacy, readStoredVersion(storageKey));
+}
 
 function reducer(state: UiPreferences, action: UiPreferencesAction): UiPreferences {
   switch (action.type) {
@@ -164,6 +217,9 @@ export function useUiPreferences(storageKey = 'uiPreferences') {
     }
 
     localStorage.setItem(storageKey, JSON.stringify(state));
+    // Stamped alongside the state: once written, the migration above stops
+    // applying, so turning a preference back on afterwards sticks.
+    localStorage.setItem(versionKey(storageKey), String(UI_PREFERENCES_VERSION));
 
     window.dispatchEvent(
       new CustomEvent<SyncEventDetail>(SYNC_EVENT, {

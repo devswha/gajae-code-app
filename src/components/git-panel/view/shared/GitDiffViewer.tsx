@@ -50,8 +50,8 @@ export default function GitDiffViewer({ diff, isMobile, wrapText }: GitDiffViewe
       <div
         key={index}
         className={`px-3 py-0.5 font-mono text-xs ${isMobile && wrapText ? 'whitespace-pre-wrap break-all' : 'overflow-x-auto whitespace-pre'
-          } ${isAddition ? 'bg-green-50 text-green-700 dark:bg-green-950/50 dark:text-green-300' :
-            isDeletion ? 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300' :
+          } ${isAddition ? 'bg-diff-added text-diff-added-foreground' :
+            isDeletion ? 'bg-diff-removed text-diff-removed-foreground' :
               isHeader ? 'bg-primary/5 text-primary' :
                 'text-muted-foreground/70'
           }`}

@@ -137,9 +137,9 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
     >
       {/* Drag overlay */}
       {upload.isDragOver && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center border-2 border-dashed border-blue-500 bg-blue-500/10">
+        <div className="absolute inset-0 z-50 flex items-center justify-center border-2 border-dashed border-primary bg-primary/10">
           <div className="flex items-center gap-3 rounded-lg bg-background/95 px-6 py-4 shadow-lg">
-            <Upload className="h-6 w-6 text-blue-500" />
+            <Upload className="h-6 w-6 text-primary" />
             <span className="text-sm font-medium">{t('fileTree.dropToUpload', 'Drop files to upload')}</span>
           </div>
         </div>
@@ -173,7 +173,7 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
             style={{ paddingLeft: `${(operations.newItemParent.split('/').length - 1) * 16 + 4}px` }}
           >
             {operations.newItemType === 'directory' ? (
-              <Folder className={cn(ICON_SIZE_CLASS, 'text-blue-500')} />
+              <Folder className={cn(ICON_SIZE_CLASS, 'text-muted-foreground')} />
             ) : (
               <span className="ml-[18px]">{renderFileIcon(operations.newItemName)}</span>
             )}
@@ -235,11 +235,11 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
 
       {/* Delete Confirmation Dialog */}
       {operations.deleteConfirmation.isOpen && operations.deleteConfirmation.item && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="mx-4 max-w-sm rounded-lg border border-border bg-background p-4 shadow-lg">
             <div className="mb-4 flex items-center gap-3">
-              <div className="rounded-full bg-red-100 p-2 dark:bg-red-900/30">
-                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+              <div className="rounded-full bg-destructive/10 p-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
               </div>
               <div>
                 <h3 className="font-medium text-foreground">
@@ -268,7 +268,7 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
               <button
                 onClick={operations.handleConfirmDelete}
                 disabled={operationLoading}
-                className="flex items-center gap-2 rounded-md bg-red-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-md bg-destructive px-3 py-1.5 text-sm text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-50"
               >
                 {operationLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {t('fileTree.delete.confirm', 'Delete')}
@@ -284,8 +284,8 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
           className={cn(
             'fixed bottom-4 right-4 z-[9999] px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-bottom-2',
             toast.type === 'success'
-              ? 'bg-green-600 text-white'
-              : 'bg-red-600 text-white'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-destructive text-destructive-foreground'
           )}
         >
           {toast.type === 'success' ? (

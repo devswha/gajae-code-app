@@ -141,7 +141,7 @@ export default function SidebarSessionItem({
                 : t('tooltips.activeSessionIndicator')}
               className={cn(
                 'h-2 w-2 animate-pulse rounded-full',
-                showAttentionIndicator ? 'bg-amber-500' : 'bg-green-500',
+                showAttentionIndicator ? 'bg-destructive' : 'bg-primary',
               )}
             />
           </Tooltip>
@@ -156,7 +156,7 @@ export default function SidebarSessionItem({
             !isSelected && isProcessing
               ? 'bg-muted/30'
               : !isSelected && sessionView.isActive
-              ? 'bg-green-500/5'
+              ? 'bg-muted/30'
               : 'hover:bg-accent/70',
           )}
           onClick={selectMobileSession}
@@ -214,7 +214,7 @@ export default function SidebarSessionItem({
             !isSelected && isProcessing
               ? 'bg-muted/30 hover:bg-muted/40'
               : !isSelected && sessionView.isActive
-                ? 'bg-green-500/5 hover:bg-green-500/10'
+                ? 'bg-muted/30 hover:bg-muted/40'
                 : 'hover:bg-accent/70',
           )}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
@@ -287,48 +287,48 @@ export default function SidebarSessionItem({
                   autoFocus
                 />
                 <button
-                  className="flex h-6 w-6 items-center justify-center rounded bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40"
+                  className="flex h-6 w-6 items-center justify-center rounded bg-primary/10 hover:bg-primary/20"
                   onClick={(event) => {
                     event.stopPropagation();
                     saveEditedSession();
                   }}
                   title={t('tooltips.save')}
                 >
-                  <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                  <Check className="h-3 w-3 text-primary" />
                 </button>
                 <button
-                  className="flex h-6 w-6 items-center justify-center rounded bg-gray-50 hover:bg-gray-100 dark:bg-gray-900/20 dark:hover:bg-gray-900/40"
+                  className="flex h-6 w-6 items-center justify-center rounded bg-muted hover:bg-accent"
                   onClick={(event) => {
                     event.stopPropagation();
                     onCancelEditingSession();
                   }}
                   title={t('tooltips.cancel')}
                 >
-                  <X className="h-3 w-3 text-gray-600 dark:text-gray-400" />
+                  <X className="h-3 w-3 text-muted-foreground" />
                 </button>
               </>
             ) : (
               <>
                 <button
-                  className="flex h-6 w-6 items-center justify-center rounded bg-gray-50 hover:bg-gray-100 dark:bg-gray-900/20 dark:hover:bg-gray-900/40"
+                  className="flex h-6 w-6 items-center justify-center rounded bg-muted hover:bg-accent"
                   onClick={(event) => {
                     event.stopPropagation();
                     onStartEditingSession(session.id, sessionView.sessionName);
                   }}
                   title={t('tooltips.editSessionName')}
                 >
-                  <Edit2 className="h-3 w-3 text-gray-600 dark:text-gray-400" />
+                  <Edit2 className="h-3 w-3 text-muted-foreground" />
                 </button>
                 {!isProcessing && (
                   <button
-                    className="flex h-6 w-6 items-center justify-center rounded bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40"
+                    className="flex h-6 w-6 items-center justify-center rounded bg-destructive/10 hover:bg-destructive/20"
                     onClick={(event) => {
                       event.stopPropagation();
                       requestDeleteSession();
                     }}
                     title={t('tooltips.deleteSessionOptions', 'Archive or permanently delete this session')}
                   >
-                    <Trash2 className="h-3 w-3 text-red-600 dark:text-red-400" />
+                    <Trash2 className="h-3 w-3 text-destructive" />
                   </button>
                 )}
               </>

@@ -72,7 +72,7 @@ function BranchRow({ name, isCurrent, isRemote, aheadCount, behindCount, isMobil
         {isCurrent && (aheadCount > 0 || behindCount > 0) && (
           <div className="flex items-center gap-2 text-xs">
             {aheadCount > 0 && (
-              <span className="text-green-600 dark:text-green-400">↑{aheadCount} ahead</span>
+              <span className="text-muted-foreground">↑{aheadCount} ahead</span>
             )}
             {behindCount > 0 && (
               <span className="text-primary">↓{behindCount} behind</span>

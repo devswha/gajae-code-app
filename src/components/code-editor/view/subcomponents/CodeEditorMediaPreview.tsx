@@ -209,7 +209,7 @@ export default function CodeEditorMediaPreview({
           href={currentUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+          className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           aria-label={labels.openInNewTab}
           title={labels.openInNewTab}
         >
@@ -222,7 +222,7 @@ export default function CodeEditorMediaPreview({
         <button
           type="button"
           onClick={onToggleFullscreen}
-          className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+          className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           aria-label={isFullscreen ? labels.exitFullscreen : labels.fullscreen}
           title={isFullscreen ? labels.exitFullscreen : labels.fullscreen}
         >
@@ -240,7 +240,7 @@ export default function CodeEditorMediaPreview({
       <button
         type="button"
         onClick={onClose}
-        className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+        className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
         aria-label={labels.close}
         title={labels.close}
       >
@@ -254,7 +254,7 @@ export default function CodeEditorMediaPreview({
   const header = (
     <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-3 py-1.5">
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <h3 className="truncate text-sm font-medium text-gray-900 dark:text-white">{file.name}</h3>
+        <h3 className="truncate text-sm font-medium text-foreground">{file.name}</h3>
       </div>
       {headerActions}
     </div>
@@ -271,7 +271,7 @@ export default function CodeEditorMediaPreview({
 
   const containerClassName = isFullscreen
     ? 'fixed inset-0 z-[9999] bg-background flex flex-col'
-    : 'fixed inset-0 z-[9999] md:bg-black/50 md:flex md:items-center md:justify-center md:p-4';
+    : 'fixed inset-0 z-[9999] md:flex md:items-center md:justify-center md:bg-background/80 md:p-4 md:backdrop-blur-sm';
 
   const innerClassName = isFullscreen
     ? 'bg-background flex flex-col w-full h-full'

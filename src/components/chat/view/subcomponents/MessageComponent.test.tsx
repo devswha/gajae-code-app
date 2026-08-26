@@ -64,9 +64,9 @@ test('a user turn is its bubble alone, with no avatar badge beside it', () => {
   });
 
   assert.match(html, /ship it/);
-  // The right-hand column of blue bubbles already says who is speaking.
+  // The right-hand column of accent bubbles already says who is speaking.
   assert.doesNotMatch(html, />\s*U\s*</);
-  assert.doesNotMatch(html, /h-8 w-8[^"]*rounded-full[^"]*bg-blue-600/);
+  assert.doesNotMatch(html, /h-8 w-8[^"]*rounded-full[^"]*bg-primary/);
 });
 
 test('a tool call is a row, not a card', () => {
@@ -176,7 +176,7 @@ test('a user bubble is the size of what was typed', () => {
   // Hidden with opacity alone, the controls row still held a 20px line inside
   // bubble, so a two-character message rendered a three-line bubble.
   assert.match(html, /absolute right-1 top-full/);
-  assert.doesNotMatch(html, /mt-1 flex items-center justify-end gap-1 text-xs text-blue-100/);
+  assert.doesNotMatch(html, /mt-1 flex items-center justify-end gap-1 text-xs text-primary-foreground\/80/);
 });
 
 test('local command stdout renders as escaped preformatted text instead of Markdown math', () => {

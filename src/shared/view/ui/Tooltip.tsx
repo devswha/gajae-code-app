@@ -16,15 +16,15 @@ type TooltipProps = {
 function getArrowClasses(position: TooltipPosition): string {
   switch (position) {
     case 'top':
-      return 'top-full left-1/2 transform -translate-x-1/2 border-t-gray-900 dark:border-t-gray-100';
+      return 'top-full left-1/2 transform -translate-x-1/2 border-t-popover';
     case 'bottom':
-      return 'bottom-full left-1/2 transform -translate-x-1/2 border-b-gray-900 dark:border-b-gray-100';
+      return 'bottom-full left-1/2 transform -translate-x-1/2 border-b-popover';
     case 'left':
-      return 'left-full top-1/2 transform -translate-y-1/2 border-l-gray-900 dark:border-l-gray-100';
+      return 'left-full top-1/2 transform -translate-y-1/2 border-l-popover';
     case 'right':
-      return 'right-full top-1/2 transform -translate-y-1/2 border-r-gray-900 dark:border-r-gray-100';
+      return 'right-full top-1/2 transform -translate-y-1/2 border-r-popover';
     default:
-      return 'top-full left-1/2 transform -translate-x-1/2 border-t-gray-900 dark:border-t-gray-100';
+      return 'top-full left-1/2 transform -translate-x-1/2 border-t-popover';
   }
 }
 
@@ -182,7 +182,7 @@ function Tooltip({
           ref={tooltipRef}
           style={tooltipStyle || { position: 'fixed', top: '-9999px', left: '-9999px', opacity: 0 }}
           className={cn(
-            'px-2 py-1 text-xs font-medium text-white bg-gray-900 dark:bg-gray-100 dark:text-gray-900 rounded shadow-lg whitespace-nowrap pointer-events-none',
+            'pointer-events-none whitespace-nowrap rounded bg-popover px-2 py-1 text-xs font-medium text-popover-foreground shadow-lg',
             'animate-in fade-in-0 zoom-in-95 duration-200',
             className
           )}

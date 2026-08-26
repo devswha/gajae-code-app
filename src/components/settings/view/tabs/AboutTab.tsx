@@ -58,7 +58,7 @@ export default function AboutTab() {
                 href={releasesUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600 transition-colors hover:bg-green-500/20 dark:text-green-400"
+                className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/20"
               >
                 {t('apiKeys.version.updateAvailable', { version: latestVersion })}
                 <ExternalLink className="h-2.5 w-2.5" />

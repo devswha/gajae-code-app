@@ -304,7 +304,7 @@ export default function SidebarArchiveContent({
               <p className="mt-1 truncate text-xs text-muted-foreground/70" title={project.fullPath}>{project.fullPath}</p>
             </div>
             <button
-              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
+              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary/20"
               onClick={() => onRestoreArchivedProject(project.projectId)}
               aria-label={t('archived.restoreProject', 'Restore workspace')}
               title={t('archived.restoreProject', 'Restore workspace')}
@@ -343,10 +343,10 @@ export default function SidebarArchiveContent({
                     <p className="mt-0.5 text-[11px] uppercase tracking-wide text-muted-foreground/70">{session.provider}</p>
                   </div>
                 </button>
-                <button className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/30" onClick={() => onRestoreArchivedSession(session.sessionId)} aria-label={t('archived.restore', 'Restore session')} title={t('archived.restore', 'Restore session')}>
+                <button className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary/20" onClick={() => onRestoreArchivedSession(session.sessionId)} aria-label={t('archived.restore', 'Restore session')} title={t('archived.restore', 'Restore session')}>
                   <RotateCcw className="h-3.5 w-3.5" />
                 </button>
-                <button className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-700 transition-colors hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30" onClick={() => onDeleteArchivedSession(session)} aria-label={t('archived.deletePermanently', 'Delete permanently')} title={t('archived.deletePermanently', 'Delete permanently')}>
+                <button className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive transition-colors hover:bg-destructive/20" onClick={() => onDeleteArchivedSession(session)} aria-label={t('archived.deletePermanently', 'Delete permanently')} title={t('archived.deletePermanently', 'Delete permanently')}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>

@@ -24,9 +24,9 @@ export default function ContextUsageBadge({ sessionState, onClick }: ContextUsag
   const used = finite(sessionState?.contextTokens);
   const rounded = Math.round(percent);
   const tone = rounded >= 90
-    ? 'text-red-500'
+    ? 'text-destructive'
     : rounded >= 70
-      ? 'text-amber-500'
+      ? 'text-primary'
       : 'text-muted-foreground';
   const label = t('workspace.statusTab.context');
 

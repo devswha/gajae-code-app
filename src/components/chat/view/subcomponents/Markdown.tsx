@@ -74,7 +74,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockPro
   if (shouldInline) {
     return (
       <code
-        className={`whitespace-pre-wrap break-words rounded-md border border-gray-200 bg-gray-100 px-1.5 py-0.5 font-mono text-[0.9em] text-gray-900 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-100 ${className || ''
+        className={`whitespace-pre-wrap break-words rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground ${className || ''
           }`}
         {...props}
       >
@@ -89,7 +89,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockPro
   return (
     <div className="group relative my-2">
       {language && language !== 'text' && (
-        <div className="absolute left-3 top-2 z-10 text-xs font-medium uppercase text-gray-400">{language}</div>
+        <div className="absolute left-3 top-2 z-10 text-xs font-medium uppercase text-muted-foreground">{language}</div>
       )}
 
       <button
@@ -168,7 +168,7 @@ const markdownComponents = {
   // dark-themed <pre> shell that would frame the block.
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   blockquote: ({ children }: { children?: React.ReactNode }) => (
-    <blockquote className="my-2 border-l-4 border-gray-300 pl-4 italic text-gray-600 dark:border-gray-600 dark:text-gray-400">
+    <blockquote className="my-2 border-l-4 border-border pl-4 italic text-muted-foreground">
       {children}
     </blockquote>
   ),
@@ -181,15 +181,15 @@ const markdownComponents = {
   ),
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className="my-2 overflow-x-auto">
-      <table className="min-w-full border-collapse border border-gray-200 dark:border-gray-700">{children}</table>
+      <table className="min-w-full border-collapse border border-border">{children}</table>
     </div>
   ),
-  thead: ({ children }: { children?: React.ReactNode }) => <thead className="bg-gray-50 dark:bg-gray-800">{children}</thead>,
+  thead: ({ children }: { children?: React.ReactNode }) => <thead className="bg-muted">{children}</thead>,
   th: ({ children }: { children?: React.ReactNode }) => (
-    <th className="border border-gray-200 px-3 py-2 text-left text-sm font-semibold dark:border-gray-700">{children}</th>
+    <th className="border border-border px-3 py-2 text-left text-sm font-semibold">{children}</th>
   ),
   td: ({ children }: { children?: React.ReactNode }) => (
-    <td className="border border-gray-200 px-3 py-2 align-top text-sm dark:border-gray-700">{children}</td>
+    <td className="border border-border px-3 py-2 align-top text-sm">{children}</td>
   ),
 };
 
@@ -212,7 +212,7 @@ export function Markdown({ children, className }: MarkdownProps) {
           return (
             <a
               href={href || fileRef}
-              className="cursor-pointer text-blue-600 hover:underline dark:text-blue-400"
+              className="cursor-pointer text-primary hover:underline"
               onClick={(event) => {
                 event.preventDefault();
                 openFileInEditor(stripLineSuffix(fileRef));
@@ -227,7 +227,7 @@ export function Markdown({ children, className }: MarkdownProps) {
           return (
             <a
               href={href}
-              className="text-blue-600 hover:underline dark:text-blue-400"
+              className="text-primary hover:underline"
               onClick={(event) => {
                 event.preventDefault();
                 openBrowser(href);
@@ -241,7 +241,7 @@ export function Markdown({ children, className }: MarkdownProps) {
         return (
           <a
             href={href}
-            className="text-blue-600 hover:underline dark:text-blue-400"
+            className="text-primary hover:underline"
             target="_blank"
             rel="noopener noreferrer"
           >

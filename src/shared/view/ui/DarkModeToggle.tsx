@@ -43,13 +43,13 @@ function DarkModeToggle({
       <span
         className={cn(
           'flex h-5 w-5 transform items-center justify-center rounded-full shadow-sm transition-transform duration-200',
-          isEnabled ? 'translate-x-[22px] bg-white' : 'translate-x-[2px] bg-foreground/60 dark:bg-foreground/80',
+          isEnabled ? 'translate-x-[22px] bg-card' : 'translate-x-[2px] bg-muted-foreground/60',
         )}
       >
         {isEnabled ? (
           <Moon className="h-3 w-3 text-primary" />
         ) : (
-          <Sun className="h-3 w-3 text-white dark:text-background" />
+          <Sun className="h-3 w-3 text-background" />
         )}
       </span>
     </button>

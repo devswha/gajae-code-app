@@ -61,13 +61,13 @@ const NOTICE_STYLES = {
   },
   warning: {
     Icon: AlertTriangleIcon,
-    container: 'border-amber-300/60 bg-amber-50/60 text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/20 dark:text-amber-100',
-    icon: 'text-amber-600 dark:text-amber-400',
+    container: 'border-border bg-muted text-foreground',
+    icon: 'text-primary',
   },
   error: {
     Icon: OctagonAlertIcon,
-    container: 'border-red-300/60 bg-red-50/60 text-red-900 dark:border-red-800/40 dark:bg-red-950/20 dark:text-red-100',
-    icon: 'text-red-600 dark:text-red-400',
+    container: 'border-destructive/30 bg-destructive/10 text-foreground',
+    icon: 'text-destructive',
   },
 } as const;
 
@@ -158,7 +158,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
       className={`chat-message group/turn ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end px-3 sm:px-0' : 'px-3 sm:px-0'} ${startsExchange ? 'mt-6 border-t border-border/40 pt-6' : ''}`}
     >
       {message.type === 'user' ? (
-        /* User turn on the right. No avatar: one column of blue bubbles on the
+        /* User turn on the right. No avatar: one column of accent bubbles on the
            right already says who is speaking, and the badge only pushed the
            bubble inward on every desktop row. */
         <div className="flex w-full items-end sm:w-auto sm:max-w-[85%] md:max-w-md lg:max-w-lg xl:max-w-xl">
@@ -170,7 +170,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               />
             )}
             {userCopyContent.trim().length > 0 || !message.images?.length ? (
-              <div className="group relative max-w-full rounded-2xl rounded-br-md bg-blue-600 px-3 py-2 text-white shadow-sm sm:px-4">
+              <div className="group relative max-w-full rounded-2xl rounded-br-md bg-primary px-3 py-2 text-primary-foreground shadow-sm sm:px-4">
                 <div dir="auto" className="whitespace-pre-wrap break-words text-sm">
                   {message.content}
                 </div>
@@ -211,8 +211,8 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
         /* Compact task notification on the left */
         <div className="w-full">
           <div className="flex items-center gap-2 py-0.5">
-            <span className={`inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full ${message.taskStatus === 'completed' ? 'bg-green-400 dark:bg-green-500' : 'bg-amber-400 dark:bg-amber-500'}`} />
-            <span className="text-xs text-gray-500 dark:text-gray-400">{message.content}</span>
+            <span className={`inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full ${message.taskStatus === 'completed' ? 'bg-muted-foreground' : 'bg-primary'}`} />
+            <span className="text-xs text-muted-foreground">{message.content}</span>
           </div>
         </div>
       ) : (
@@ -226,7 +226,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                needed to read on every turn. */
             <div className="mb-2 flex items-center space-x-3">
               {message.type === 'error' ? (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-600 text-sm text-white">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-destructive text-sm text-destructive-foreground">
                   !
                 </div>
               ) : (
@@ -234,7 +234,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   <SessionProviderLogo provider={provider} className="h-full w-full" />
                 </div>
               )}
-              <div className="text-sm font-medium text-gray-900 dark:text-white">
+              <div className="text-sm font-medium text-foreground">
                 {message.type === 'error'
                   ? t('messageTypes.error')
                   : provider === 'cursor'
@@ -283,16 +283,16 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     // Error results - red error box with content
                     <div
                       id={`tool-result-${message.toolId}`}
-                      className="relative mt-2 scroll-mt-4 rounded border border-red-200/60 bg-red-50/50 p-3 dark:border-red-800/40 dark:bg-red-950/10"
+                      className="relative mt-2 scroll-mt-4 rounded border border-destructive/30 bg-destructive/10 p-3"
                     >
                       <div className="relative mb-2 flex items-center gap-1.5">
-                        <svg className="h-4 w-4 text-red-500 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="h-4 w-4 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
-                        <span className="text-xs font-medium text-red-700 dark:text-red-300">{t('messageTypes.error')}</span>
+                        <span className="text-xs font-medium text-destructive">{t('messageTypes.error')}</span>
                       </div>
-                      <div className="relative text-sm text-red-900 dark:text-red-100">
-                        <Markdown className="prose prose-sm prose-red max-w-none dark:prose-invert prose-headings:max-w-[68ch] prose-blockquote:max-w-[68ch] prose-li:max-w-[68ch] [&_pre]:max-w-none [&_table]:max-w-none">
+                      <div className="relative text-sm text-foreground">
+                        <Markdown className="prose prose-sm max-w-none dark:prose-invert prose-headings:max-w-[68ch] prose-blockquote:max-w-[68ch] prose-li:max-w-[68ch] [&_pre]:max-w-none [&_table]:max-w-none">
                           {String(effectiveToolResult.content || '')}
                         </Markdown>
                       </div>
@@ -331,7 +331,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                       </span>
                     )}
                     {fullToolResultError && (
-                      <span className="text-red-600 dark:text-red-400">
+                      <span className="text-destructive">
                         {t('session.messages.fullToolOutputFailed')}
                       </span>
                     )}
@@ -340,15 +340,15 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               </>
             ) : message.isInteractivePrompt ? (
               // Special handling for interactive prompts
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+              <div className="rounded-lg border border-border bg-muted p-4">
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-amber-500">
-                    <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary">
+                    <svg className="h-5 w-5 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div className="flex-1">
-                    <h4 className="mb-3 text-base font-semibold text-amber-900 dark:text-amber-100">
+                    <h4 className="mb-3 text-base font-semibold text-foreground">
                       {t('interactive.title')}
                     </h4>
                     {(() => {
@@ -372,7 +372,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
                       return (
                         <>
-                          <p className="mb-4 text-sm text-amber-800 dark:text-amber-200">
+                          <p className="mb-4 text-sm text-foreground">
                             {questionLine}
                           </p>
 
@@ -382,15 +382,15 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                               <button
                                 key={option.number}
                                 className={`w-full rounded-lg border-2 px-4 py-3 text-left transition-all ${option.isSelected
-                                  ? 'border-amber-600 bg-amber-600 text-white shadow-md dark:border-amber-700 dark:bg-amber-700'
-                                  : 'border-amber-300 bg-white text-amber-900 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-100'
+                                  ? 'border-primary bg-primary text-primary-foreground shadow-md'
+                                  : 'border-border bg-card text-foreground'
                                   } cursor-not-allowed opacity-75`}
                                 disabled
                               >
                                 <div className="flex items-center gap-3">
                                   <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${option.isSelected
-                                    ? 'bg-white/20'
-                                    : 'bg-amber-100 dark:bg-amber-800/50'
+                                    ? 'bg-primary-foreground/20'
+                                    : 'bg-secondary'
                                     }`}>
                                     {option.number}
                                   </span>
@@ -405,11 +405,11 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                             ))}
                           </div>
 
-                          <div className="rounded-lg bg-amber-100 p-3 dark:bg-amber-800/30">
-                            <p className="mb-1 text-sm font-medium text-amber-900 dark:text-amber-100">
+                          <div className="rounded-lg bg-secondary p-3">
+                            <p className="mb-1 text-sm font-medium text-foreground">
                               {t('interactive.waiting')}
                             </p>
-                            <p className="text-xs text-amber-800 dark:text-amber-200">
+                            <p className="text-xs text-muted-foreground">
                               {t('interactive.instruction')}
                             </p>
                           </div>
@@ -424,7 +424,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               <Reasoning defaultOpen={false}>
                 <ReasoningTrigger />
                 <ReasoningContent>
-                  <Markdown className="prose prose-sm prose-gray max-w-none dark:prose-invert prose-headings:max-w-[68ch] prose-blockquote:max-w-[68ch] prose-li:max-w-[68ch] [&_pre]:max-w-none [&_table]:max-w-none">
+                  <Markdown className="prose prose-sm max-w-none dark:prose-invert prose-headings:max-w-[68ch] prose-blockquote:max-w-[68ch] prose-li:max-w-[68ch] [&_pre]:max-w-none [&_table]:max-w-none">
                     {message.content}
                   </Markdown>
                   <div className="mt-3 flex items-center text-[11px]">
@@ -433,7 +433,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 </ReasoningContent>
               </Reasoning>
             ) : (
-              <div dir="auto" className="text-sm text-gray-700 dark:text-gray-300">
+              <div dir="auto" className="text-sm text-foreground">
                 {/* Reasoning accordion */}
                 {showThinking && message.reasoning && (
                   <Reasoning className="mb-3" defaultOpen={false}>
@@ -489,7 +489,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
                   // Normal rendering for non-JSON content
                   return message.type === 'assistant' ? (
-                    <Markdown className="prose prose-sm prose-gray max-w-none dark:prose-invert prose-headings:max-w-[68ch] prose-blockquote:max-w-[68ch] prose-li:max-w-[68ch] [&_pre]:max-w-none [&_table]:max-w-none">
+                    <Markdown className="prose prose-sm max-w-none dark:prose-invert prose-headings:max-w-[68ch] prose-blockquote:max-w-[68ch] prose-li:max-w-[68ch] [&_pre]:max-w-none [&_table]:max-w-none">
                       {content}
                     </Markdown>
                   ) : (

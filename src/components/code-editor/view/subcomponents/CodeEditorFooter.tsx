@@ -13,7 +13,7 @@ export default function CodeEditorFooter({
 }: CodeEditorFooterProps) {
   return (
     <div className="flex flex-shrink-0 items-center justify-between border-t border-border bg-muted px-3 py-1.5">
-      <div className="flex items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
         <span>
           {linesLabel} {content.split('\n').length}
         </span>
@@ -22,7 +22,7 @@ export default function CodeEditorFooter({
         </span>
       </div>
 
-      <div className="text-xs text-gray-500 dark:text-gray-400">{shortcutsLabel}</div>
+      <div className="text-xs text-muted-foreground">{shortcutsLabel}</div>
     </div>
   );
 }

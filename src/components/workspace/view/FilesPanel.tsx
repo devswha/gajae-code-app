@@ -161,7 +161,7 @@ export default function FilesPanel({ onFileOpen }: FilesPanelProps) {
           <div className="px-4 py-8 text-center text-sm text-muted-foreground">{t('workspace.filesTab.opening')}</div>
         )}
         {state.kind === 'error' && (
-          <div className="px-4 py-8 text-center text-sm text-red-500">{t(`workspace.filesTab.${state.reason}`)}</div>
+          <div className="px-4 py-8 text-center text-sm text-destructive">{t(`workspace.filesTab.${state.reason}`)}</div>
         )}
         {state.kind === 'ready' && (
           <FileTree

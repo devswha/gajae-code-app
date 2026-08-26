@@ -23,8 +23,9 @@ job projection protocol). `scripts/` holds build/release/verify tooling.
   On the primary Mac: `. "$HOME/.nvm/nvm.sh" && nvm use 22`.
 - Rust/cargo required for `check:core`, `build:core*`, and the Tauri shell
   (`. "$HOME/.cargo/env"`).
-- Bun **exactly 1.4.0** for `*.bun.test.ts` files (pinned in `scripts/fetch-bun.mjs`):
-  `dist-native/bun` or PATH; fetch with `node scripts/fetch-bun.mjs`.
+- Bun **exactly 1.4.0** for `*.bun.test.ts` and `*.dom.bun.test.tsx` files (pinned in
+  `scripts/fetch-bun.mjs`): `dist-native/bun` or PATH; fetch with
+  `node scripts/fetch-bun.mjs`.
 - Server binds loopback by default (fail-closed; it can run shell commands).
   `SERVER_PORT` defaults to 3001, Vite dev on 5173. Do not export `SERVER_PORT=0`.
 - Tauri builds choke on `CI=1`: use `env -u CI npm run tauri -- build`.
@@ -51,6 +52,8 @@ TSX_TSCONFIG_PATH=server/tsconfig.json node --import tsx --test server/gjc-worke
 TSX_TSCONFIG_PATH=tsconfig.json node --import tsx --test src/stores/useSessionStore.test.ts
 # bun-runtime test (files named *.bun.test.ts)
 dist-native/bun test server/gjc-sdk-contract.bun.test.ts
+# component test with a real DOM (files named *.dom.bun.test.tsx)
+dist-native/bun test src/shared/view/ui/ActionMenu.dom.bun.test.tsx
 ```
 
 `npm test` has a `pretest` that builds the Rust core (debug); tests fail without it.
@@ -88,6 +91,13 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   rendered**: there is no `rehype-raw` in the pipeline, which is also why nothing
   sanitizes - both `rehype-raw` and `dompurify` are declared in package.json and
   imported nowhere.
+- **Testing**: client tests render with `renderToStaticMarkup` and assert on the
+  HTML string, which cannot reach a hook, an event or an effect. Anything that
+  needs one goes in a `*.dom.bun.test.tsx` file, which Bun runs with happy-dom
+  registered by `scripts/bun-dom-preload.ts` and `@testing-library/react`
+  available. The preload is scoped by file name on purpose: server contract
+  suites must never get a `window`, or code branching on `typeof window` takes
+  the browser path in a server test. Both API styles use `node:test`.
 - **Bundle**: `vite.config.js` pins `manualChunks` by hand - vendor-react,
   vendor-codemirror, vendor-markdown, vendor-syntax, vendor-icons, vendor-i18n,
   vendor-tools. A new heavy dependency belongs in one of those groups.

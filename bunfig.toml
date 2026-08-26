@@ -1,0 +1,5 @@
+# Bun runs the *.bun.test.ts contract suites and the *.dom.bun.test.tsx
+# component tests. The preload gives a DOM to the second kind only; see
+# scripts/bun-dom-preload.ts for why it cannot be an import inside the test.
+[test]
+preload = ["./scripts/bun-dom-preload.ts"]

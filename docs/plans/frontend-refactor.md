@@ -140,10 +140,9 @@ else in the tree. They are worth doing on a quiet day, not during a push.
 
 ## Known loose ends
 
-- `dompurify` and `rehype-raw` are declared in `package.json` and imported
-  nowhere. Raw HTML is not rendered, so nothing needs sanitising. Remove them
-  unless a future feature is waiting on them.
-- Four `.jsx` files remain: `src/main.jsx`, `src/contexts/ThemeContext.jsx`,
+- ~~`dompurify` and `rehype-raw` are declared in `package.json` and imported
+  nowhere.~~ Removed, together with the equally unimported `chokidar`.
+- Three `.jsx` files remain: `src/main.jsx`, `src/contexts/ThemeContext.jsx`,
   `src/hooks/useLocalStorage.jsx`, plus `src/i18n/*.js`.
 
 ## Acceptance criteria

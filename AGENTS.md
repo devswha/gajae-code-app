@@ -88,9 +88,8 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   `@codemirror/merge` for diffs and `@replit/codemirror-minimap`. Markdown is
   react-markdown with remark-gfm/remark-math and rehype-katex (KaTeX's CSS is
   imported in `src/main.jsx`), plus react-syntax-highlighter. **Raw HTML is not
-  rendered**: there is no `rehype-raw` in the pipeline, which is also why nothing
-  sanitizes - both `rehype-raw` and `dompurify` are declared in package.json and
-  imported nowhere.
+  rendered**: there is no `rehype-raw` in the pipeline, which is also why no
+  sanitizer is installed. Do not add one without the other.
 - **Testing**: client tests render with `renderToStaticMarkup` and assert on the
   HTML string, which cannot reach a hook, an event or an effect. Anything that
   needs one goes in a `*.dom.bun.test.tsx` file, which Bun runs with happy-dom

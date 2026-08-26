@@ -72,7 +72,6 @@ export default defineConfig(({ mode }) => {
               'react-markdown',
               'remark-gfm',
               'remark-math',
-              'rehype-raw',
               'rehype-katex',
               'katex'
             ],

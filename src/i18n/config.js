@@ -1,66 +1,69 @@
 /**
  * i18n Configuration
  *
- * Configures i18next for internationalization support.
- * Features:
- * - Lazy-loading of translation namespaces
- * - Language detection from localStorage
- * - Fallback to English for missing translations
- * - Development mode warnings for missing keys
+ * English is bundled: it is the fallback every other language falls through to,
+ * and the app must be able to render before any network work happens. The other
+ * nine languages are chunks, fetched when one is actually chosen.
+ *
+ * They used to be static imports, all ten of them - roughly 516KB of JSON in
+ * the main bundle so that a user could read the ~52KB written in their own
+ * language. The `useSuspense: true` comment claiming lazy-loading had been
+ * there the whole time; nothing was ever lazy.
  */
 
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
-// Import translation resources
+import enChat from './locales/en/chat.json';
+import enCodeEditor from './locales/en/codeEditor.json';
 import enCommon from './locales/en/common.json';
 import enSettings from './locales/en/settings.json';
 import enSidebar from './locales/en/sidebar.json';
-import enChat from './locales/en/chat.json';
-import enCodeEditor from './locales/en/codeEditor.json';
-import koCommon from './locales/ko/common.json';
-import koSettings from './locales/ko/settings.json';
-import koSidebar from './locales/ko/sidebar.json';
-import koChat from './locales/ko/chat.json';
-import koCodeEditor from './locales/ko/codeEditor.json';
-import zhCommon from './locales/zh-CN/common.json';
-import zhSettings from './locales/zh-CN/settings.json';
-import zhSidebar from './locales/zh-CN/sidebar.json';
-import zhChat from './locales/zh-CN/chat.json';
-import zhCodeEditor from './locales/zh-CN/codeEditor.json';
-import jaCommon from './locales/ja/common.json';
-import jaSettings from './locales/ja/settings.json';
-import jaSidebar from './locales/ja/sidebar.json';
-import jaChat from './locales/ja/chat.json';
-import jaCodeEditor from './locales/ja/codeEditor.json';
-import ruCommon from './locales/ru/common.json';
-import ruSettings from './locales/ru/settings.json';
-import ruSidebar from './locales/ru/sidebar.json';
-import ruChat from './locales/ru/chat.json';
-import ruCodeEditor from './locales/ru/codeEditor.json';
-import deCommon from './locales/de/common.json';
-import deSettings from './locales/de/settings.json';
-import deSidebar from './locales/de/sidebar.json';
-import deChat from './locales/de/chat.json';
-import deCodeEditor from './locales/de/codeEditor.json';
-import trCommon from './locales/tr/common.json';
-import trSettings from './locales/tr/settings.json';
-import trSidebar from './locales/tr/sidebar.json';
-import trChat from './locales/tr/chat.json';
-import trCodeEditor from './locales/tr/codeEditor.json';
-import itCommon from './locales/it/common.json';
-import itSettings from './locales/it/settings.json';
-import itSidebar from './locales/it/sidebar.json';
-import itChat from './locales/it/chat.json';
-import itCodeEditor from './locales/it/codeEditor.json';
-import zhTWCommon from './locales/zh-TW/common.json';
-import zhTWSettings from './locales/zh-TW/settings.json';
-import zhTWSidebar from './locales/zh-TW/sidebar.json';
-import zhTWChat from './locales/zh-TW/chat.json';
-import zhTWCodeEditor from './locales/zh-TW/codeEditor.json';
-// Import supported languages configuration
 import { languages } from './languages.js';
+
+/**
+ * Every language the selector offers, except the bundled one. French was
+ * offered by `languages.js` and never registered here, so choosing it silently
+ * served English; a table built from one place cannot drift like that again.
+ */
+export const LANGUAGE_BUNDLES = {
+  de: () => import('./locales/de/index.js'),
+  fr: () => import('./locales/fr/index.js'),
+  it: () => import('./locales/it/index.js'),
+  ja: () => import('./locales/ja/index.js'),
+  ko: () => import('./locales/ko/index.js'),
+  ru: () => import('./locales/ru/index.js'),
+  tr: () => import('./locales/tr/index.js'),
+  'zh-CN': () => import('./locales/zh-CN/index.js'),
+  'zh-TW': () => import('./locales/zh-TW/index.js'),
+};
+
+/**
+ * i18next asks for one namespace at a time; a language arrives as one chunk
+ * holding all five, so the first namespace pays for the request and the rest
+ * are already resolved.
+ */
+const lazyLanguageBackend = {
+  type: 'backend',
+  init: () => {},
+  read(language, namespace, callback) {
+    const load = LANGUAGE_BUNDLES[language];
+    if (!load) {
+      // English is bundled, and anything else is not a language we ship.
+      callback(null, {});
+      return;
+    }
+
+    load()
+      .then((bundle) => callback(null, bundle.default?.[namespace] ?? {}))
+      .catch((error) => {
+        console.error(`Failed to load ${language} translations:`, error);
+        // `false` tells i18next not to retry; English still renders.
+        callback(error, false);
+      });
+  },
+};
 
 // Get saved language preference from localStorage
 const getSavedLanguage = () => {
@@ -76,12 +79,16 @@ const getSavedLanguage = () => {
   }
 };
 
-// Initialize i18next
-i18n
+/**
+ * Resolves once the starting language is in the store. `main.jsx` waits on it
+ * so a non-English user never sees a frame of English first.
+ */
+export const i18nReady = i18n
+  .use(lazyLanguageBackend)
   .use(LanguageDetector) // Detect user language
   .use(initReactI18next) // Pass i18n instance to react-i18next
   .init({
-    // Resources containing all translations
+    // Only the fallback is bundled; the backend above supplies the rest.
     resources: {
       en: {
         common: enCommon,
@@ -90,69 +97,20 @@ i18n
         chat: enChat,
         codeEditor: enCodeEditor,
       },
-      ko: {
-        common: koCommon,
-        settings: koSettings,
-        sidebar: koSidebar,
-        chat: koChat,
-        codeEditor: koCodeEditor,
-      },
-      'zh-CN': {
-        common: zhCommon,
-        settings: zhSettings,
-        sidebar: zhSidebar,
-        chat: zhChat,
-        codeEditor: zhCodeEditor,
-      },
-      ja: {
-        common: jaCommon,
-        settings: jaSettings,
-        sidebar: jaSidebar,
-        chat: jaChat,
-        codeEditor: jaCodeEditor,
-      },
-      ru: {
-        common: ruCommon,
-        settings: ruSettings,
-        sidebar: ruSidebar,
-        chat: ruChat,
-        codeEditor: ruCodeEditor,
-      },
-      de: {
-        common: deCommon,
-        settings: deSettings,
-        sidebar: deSidebar,
-        chat: deChat,
-        codeEditor: deCodeEditor,
-      },
-      tr: {
-        common: trCommon,
-        settings: trSettings,
-        sidebar: trSidebar,
-        chat: trChat,
-        codeEditor: trCodeEditor,
-      },
-      it: {
-        common: itCommon,
-        settings: itSettings,
-        sidebar: itSidebar,
-        chat: itChat,
-        codeEditor: itCodeEditor,
-      },
-      'zh-TW': {
-        common: zhTWCommon,
-        settings: zhTWSettings,
-        sidebar: zhTWSidebar,
-        chat: zhTWChat,
-        codeEditor: zhTWCodeEditor,
-      },
     },
+
+    // Required for a bundled language to coexist with a backend: without it
+    // i18next treats `resources` as the complete set and never asks.
+    partialBundledLanguages: true,
 
     // Default language
     lng: getSavedLanguage(),
 
     // Fallback language when a translation is missing
     fallbackLng: 'en',
+
+    // 'zh-CN' must not send the backend looking for a 'zh' bundle we do not ship.
+    load: 'currentOnly',
 
     // Enable debug mode in development (logs missing keys to console)
     debug: false,
@@ -177,7 +135,9 @@ i18n
 
     // React-specific settings
     react: {
-      useSuspense: true, // Use Suspense for lazy-loading
+      // The wait happens once in main.jsx, before the first render, so no
+      // component ever suspends on a translation.
+      useSuspense: false,
       bindI18n: 'languageChanged', // Re-render on language change
       bindI18nStore: false, // Don't re-render on resource changes
     },

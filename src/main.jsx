@@ -8,6 +8,9 @@ import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css'
 import './index.css'
 import 'katex/dist/katex.min.css'
 import { applyInterfaceFontSize, readInterfaceFontSize } from './utils/interfaceFontSize.ts'
+// Initialize i18n. Only English is bundled, so a user whose language is a
+// chunk waits for it here rather than reading a frame of English first.
+import { i18nReady } from './i18n/config.js'
 
 // Apply the persisted interface font size before first paint so the UI does
 // not flash at the default size.
@@ -21,17 +24,18 @@ if (enableReactInspectionTools) {
   void import('react-scan')
 }
 
-// Initialize i18n
-import './i18n/config.js'
-
 // Unregister any legacy PWA service worker left from prior versions.
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations()
     .then((registrations) => registrations.forEach((registration) => registration.unregister()))
     .catch(() => {})
 }
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-)
+// `finally`, not `then`: a locale chunk that fails to load must not cost the
+// user their app. English is already in the store.
+i18nReady.finally(() => {
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  )
+})

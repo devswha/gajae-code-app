@@ -37,7 +37,7 @@ const DEFAULTS: UiPreferences = {
   // Off by default: a replayed transcript carries no thinking duration, so the
   // collapsed row reads "Thought for a few seconds" on every entry regardless
   // of what happened, and the reasoning itself is already behind a click.
-  // Quick Settings turns it back on for anyone who wants it.
+  // Settings → Appearance turns it back on for anyone who wants it.
   showThinking: false,
   showImagePreviews: true,
   sendByCtrlEnter: false,

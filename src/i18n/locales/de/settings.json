@@ -30,25 +30,15 @@
     "resetToDefaults": "Auf Standardwerte zurücksetzen",
     "cancelChanges": "Änderungen abbrechen"
   },
-  "quickSettings": {
-    "title": "Schnelleinstellungen",
+  "preferences": {
     "sections": {
-      "appearance": "Darstellung",
       "toolDisplay": "Werkzeuganzeige",
       "inputSettings": "Eingabeeinstellungen"
     },
-    "darkMode": "Darkmode",
     "showRawParameters": "Rohe Parameter anzeigen",
     "showThinking": "Denken anzeigen",
     "sendByCtrlEnter": "Mit Strg+Enter senden",
-    "sendByCtrlEnterDescription": "Wenn aktiviert, sendet Strg+Enter die Nachricht anstelle von Enter. Dies ist nützlich für IME-Benutzer:innen, um versehentliches Senden zu vermeiden.",
-    "dragHandle": {
-      "dragging": "Handle wird gezogen",
-      "closePanel": "Einstellungspanel schließen",
-      "openPanel": "Einstellungspanel öffnen",
-      "draggingStatus": "Wird gezogen...",
-      "toggleAndMove": "Klicken zum Umschalten, ziehen zum Verschieben"
-    }
+    "sendByCtrlEnterDescription": "Wenn aktiviert, sendet Strg+Enter die Nachricht anstelle von Enter. Dies ist nützlich für IME-Benutzer:innen, um versehentliches Senden zu vermeiden."
   },
   "terminalShortcuts": {
     "title": "Terminal-Tastenkürzel",

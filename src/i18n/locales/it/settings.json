@@ -30,25 +30,15 @@
     "resetToDefaults": "Ripristina predefiniti",
     "cancelChanges": "Annulla modifiche"
   },
-  "quickSettings": {
-    "title": "Impostazioni rapide",
+  "preferences": {
     "sections": {
-      "appearance": "Aspetto",
       "toolDisplay": "Visualizzazione strumenti",
       "inputSettings": "Impostazioni input"
     },
-    "darkMode": "Modalità scura",
     "showRawParameters": "Mostra parametri grezzi",
     "showThinking": "Mostra ragionamento",
     "sendByCtrlEnter": "Invia con Ctrl+Invio",
-    "sendByCtrlEnterDescription": "Se abilitato, premere Ctrl+Invio invierà il messaggio invece di Invio. Utile per gli utenti IME per evitare invii accidentali.",
-    "dragHandle": {
-      "dragging": "Trascinamento maniglia",
-      "closePanel": "Chiudi pannello impostazioni",
-      "openPanel": "Apri pannello impostazioni",
-      "draggingStatus": "Trascinamento...",
-      "toggleAndMove": "Clicca per attivare/disattivare, trascina per spostare"
-    }
+    "sendByCtrlEnterDescription": "Se abilitato, premere Ctrl+Invio invierà il messaggio invece di Invio. Utile per gli utenti IME per evitare invii accidentali."
   },
   "terminalShortcuts": {
     "title": "Scorciatoie terminale",

@@ -4,7 +4,6 @@ import { ArrowDownIcon } from 'lucide-react';
 
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
-import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { ChatInterfaceProps } from '../types/types';
 import type { ProjectSession } from '../../../types/app';
 import { useChatProviderState } from '../hooks/useChatProviderState';
@@ -541,8 +540,6 @@ function ChatInterface({
           </>
         )}
       </div>
-
-      <QuickSettingsPanel />
 
       <CommandResultModal
         payload={commandModalPayload}

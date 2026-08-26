@@ -80,36 +80,36 @@ export default function AppearanceSettingsTab({
         </SettingsCard>
       </SettingsSection>
 
-      <SettingsSection title={t('quickSettings.sections.toolDisplay')}>
+      <SettingsSection title={t('preferences.sections.toolDisplay')}>
         <SettingsCard divided>
-          <SettingsRow label={t('quickSettings.showThinking')}>
+          <SettingsRow label={t('preferences.showThinking')}>
             <SettingsToggle
               checked={preferences.showThinking}
               onChange={(value) => setPreference('showThinking', value)}
-              ariaLabel={t('quickSettings.showThinking')}
+              ariaLabel={t('preferences.showThinking')}
             />
           </SettingsRow>
 
-          <SettingsRow label={t('quickSettings.showRawParameters')}>
+          <SettingsRow label={t('preferences.showRawParameters')}>
             <SettingsToggle
               checked={preferences.showRawParameters}
               onChange={(value) => setPreference('showRawParameters', value)}
-              ariaLabel={t('quickSettings.showRawParameters')}
+              ariaLabel={t('preferences.showRawParameters')}
             />
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
 
-      <SettingsSection title={t('quickSettings.sections.inputSettings')}>
+      <SettingsSection title={t('preferences.sections.inputSettings')}>
         <SettingsCard>
           <SettingsRow
-            label={t('quickSettings.sendByCtrlEnter')}
-            description={t('quickSettings.sendByCtrlEnterDescription')}
+            label={t('preferences.sendByCtrlEnter')}
+            description={t('preferences.sendByCtrlEnterDescription')}
           >
             <SettingsToggle
               checked={preferences.sendByCtrlEnter}
               onChange={(value) => setPreference('sendByCtrlEnter', value)}
-              ariaLabel={t('quickSettings.sendByCtrlEnter')}
+              ariaLabel={t('preferences.sendByCtrlEnter')}
             />
           </SettingsRow>
         </SettingsCard>

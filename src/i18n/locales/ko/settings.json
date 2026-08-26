@@ -30,25 +30,15 @@
     "resetToDefaults": "기본값으로 초기화",
     "cancelChanges": "변경 취소"
   },
-  "quickSettings": {
-    "title": "빠른 설정",
+  "preferences": {
     "sections": {
-      "appearance": "외관",
       "toolDisplay": "도구 표시",
       "inputSettings": "입력 설정"
     },
-    "darkMode": "다크 모드",
     "showRawParameters": "Raw 파라미터 표시",
     "showThinking": "생각 과정 표시",
     "sendByCtrlEnter": "Ctrl+Enter로 전송",
-    "sendByCtrlEnterDescription": "활성화하면 Enter 대신 Ctrl+Enter로 메시지를 전송합니다. IME 사용자가 실수로 전송하는 것을 방지하는 데 유용합니다.",
-    "dragHandle": {
-      "dragging": "드래그 핸들",
-      "closePanel": "설정 패널 닫기",
-      "openPanel": "설정 패널 열기",
-      "draggingStatus": "드래그 중...",
-      "toggleAndMove": "클릭하여 토글, 드래그하여 이동"
-    }
+    "sendByCtrlEnterDescription": "활성화하면 Enter 대신 Ctrl+Enter로 메시지를 전송합니다. IME 사용자가 실수로 전송하는 것을 방지하는 데 유용합니다."
   },
   "terminalShortcuts": {
     "title": "터미널 단축키",

@@ -87,8 +87,7 @@ test('an expanded panel drops the separator because there is nothing left to res
 test('the mobile panel is an overlay with a dismiss backdrop and no resizing', () => {
   const html = render({ isMobile: true });
 
-  // Same layering as the quick-settings drawer: above the chat, below the
-  // mobile sidebar, so navigation always wins.
+  // Above the chat, below the mobile sidebar, so navigation always wins.
   assert.match(html, /class="fixed inset-0 z-30 bg-background\/80 backdrop-blur-sm"/);
   assert.match(html, /fixed inset-y-0 right-0 z-40/);
   assert.doesNotMatch(html, /role="separator"/);

@@ -21,8 +21,8 @@ Saved: 2026-08-15
      (`src/components/sidebar/view/subcomponents/SidebarSessionItem.tsx`;
      `src/components/sidebar/hooks/useSidebarController.ts:649`)
    - Pin, fork, export, and reasoning visibility in one session menu — partly
-     shipped: reasoning visibility is in Quick Settings
-     (`src/components/quick-settings-panel/constants.ts:32` and
+     shipped: reasoning visibility is in Settings → Appearance
+     (`src/components/settings/view/tabs/AppearanceSettingsTab.tsx:83-100` and
      `src/components/main-content/view/MainContent.tsx:40`), and `/export` is
      routed per session (`server/gjc-bun-sdk-adapter.ts:514`); no session-menu
      pin, fork, export, or reasoning control was verified
@@ -49,7 +49,7 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
    - Open state, selected tab and width persist together under one storage key,
      migrating the old files-panel flag.
    - Chat keeps the rest of the row, so switching tools never reflows it.
-   - Mobile: drawer at the quick-settings layer, below the sidebar.
+   - Mobile: drawer above the chat, below the sidebar.
 
 2. Session Status — DONE (d64af56)
    - First tab in the strip; model, reasoning level, context usage with the
@@ -136,8 +136,8 @@ Improve GJC App's coding workflow without redesigning its visual identity or res
      (`src/components/sidebar/view/subcomponents/SidebarSessionItem.tsx:270-321`;
      `src/components/sidebar/hooks/useSidebarController.ts:649-672`).
    - Session menu: pin, fork, export, reasoning visibility — partly shipped:
-     reasoning visibility is provided by Quick Settings
-     (`src/components/quick-settings-panel/constants.ts:32` and
+     reasoning visibility is provided by Settings → Appearance
+     (`src/components/settings/view/tabs/AppearanceSettingsTab.tsx:83-100` and
      `src/components/main-content/view/MainContent.tsx:40`), while export is
      available through `/export` (`server/gjc-bun-sdk-adapter.ts:514-540`).
      Could not verify a rendered session-menu control for pin, fork, export,

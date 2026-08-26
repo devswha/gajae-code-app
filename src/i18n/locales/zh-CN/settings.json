@@ -30,25 +30,15 @@
     "resetToDefaults": "重置为默认值",
     "cancelChanges": "取消更改"
   },
-  "quickSettings": {
-    "title": "快速设置",
+  "preferences": {
     "sections": {
-      "appearance": "外观",
       "toolDisplay": "工具显示",
       "inputSettings": "输入设置"
     },
-    "darkMode": "深色模式",
     "showRawParameters": "显示原始参数",
     "showThinking": "显示思考过程",
     "sendByCtrlEnter": "使用 Ctrl+Enter 发送",
-    "sendByCtrlEnterDescription": "启用后，按 Ctrl+Enter 发送消息，而不是仅按 Enter。这对于使用输入法的用户可以避免意外发送。",
-    "dragHandle": {
-      "dragging": "正在拖拽手柄",
-      "closePanel": "关闭设置面板",
-      "openPanel": "打开设置面板",
-      "draggingStatus": "正在拖拽...",
-      "toggleAndMove": "点击切换，拖拽移动"
-    }
+    "sendByCtrlEnterDescription": "启用后，按 Ctrl+Enter 发送消息，而不是仅按 Enter。这对于使用输入法的用户可以避免意外发送。"
   },
   "terminalShortcuts": {
     "title": "终端快捷键",

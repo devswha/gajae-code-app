@@ -172,7 +172,13 @@ const markdownComponents = {
       {children}
     </blockquote>
   ),
-  p: ({ children }: { children?: React.ReactNode }) => <div className="mb-2 last:mb-0">{children}</div>,
+  // Paragraphs render as div because a Markdown paragraph can legally contain
+  // block children that <p> cannot. The readable measure therefore has to live
+  // here: a `prose-p:` variant from a caller would match nothing. Code, tables
+  // and tool output deliberately stay uncapped and span the whole column.
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <div className="mb-2 max-w-[68ch] last:mb-0">{children}</div>
+  ),
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className="my-2 overflow-x-auto">
       <table className="min-w-full border-collapse border border-gray-200 dark:border-gray-700">{children}</table>

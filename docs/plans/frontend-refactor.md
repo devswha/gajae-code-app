@@ -133,14 +133,26 @@ these on its own:**
 - DOM-lane tests: `src/hooks/useProjectsState.query.dom.bun.test.tsx` (5
   behaviors); the pure-helper node tests were untouched and still pass.
 - P1 slice order (lowest risk first, each landing on a working product):
-  1. **Running-sessions polling** - replace the hand-rolled
-     `setInterval(5000)` + mount effect in `AppContent` with a declared
-     `refetchInterval` query feeding `syncProcessingSessions`.
-  2. **git-panel domain** (`useGitPanelController`, 817 lines) - pure fetch
-     domain, no streaming; the projects pattern applies directly.
+  1. **Running-sessions polling** - DONE (64399be). `useRunningSessionsSync`
+     declares the poll as a `refetchInterval` query. Found and locked a real
+     contract: the sync effect keys on `dataUpdatedAt` because structural
+     sharing keeps equal payloads referentially stable while
+     `useSessionProtection`'s grace window needs every poll delivered.
+  2. **git-panel domain** - DONE (5c97c83). 817 -> 507 lines (-310). Four
+     project-scoped queries + six mutations replaced eight fetchers, six
+     loading flags, and all refresh chains. The big win was structural: the
+     project-scoped cache key deleted `selectedProjectIdRef`, the
+     AbortController plumbing and every stale-response guard - that race
+     protection existed only because responses could outlive a project
+     switch. Error payloads stay data because the views render them.
   3. **sessions/messages domain** - the main event, honoring the fold
      contract above. The streamedQuery A/B window opens right after this
      lands.
+
+  Running deletion tally for P1: projects -11, polling -55 (into a reusable
+  hook), git-panel -310. The pattern holds: the payoff scales with how much
+  hand-written cache/race infrastructure the domain carried, not with its
+  line count.
 
 ### 2. UI state in a real store — NOT STARTED
 

@@ -38,8 +38,6 @@ export type SessionDeleteConfirmation = {
 
 export type SidebarProps = {
   projects: Project[];
-  selectedProject: Project | null;
-  selectedSession: ProjectSession | null;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
   onProjectSelect: (project: Project) => void;

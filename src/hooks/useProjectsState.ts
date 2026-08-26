@@ -4,8 +4,8 @@ import type { NavigateFunction } from 'react-router-dom';
 
 import { api } from '../utils/api';
 import type { ServerEvent } from '../contexts/WebSocketContext';
+import { useAppShellStore } from '../stores/useAppShellStore';
 import type {
-  AppTab,
   LLMProvider,
   LoadingProgress,
   Project,
@@ -346,26 +346,6 @@ const removeSessionFromProject = (project: Project, sessionIdToDelete: string): 
   return updatedProject;
 };
 
-// 'shell'/'git'/'files' were removed as tabs (Files is a side panel now);
-// persisted selections fall back to 'chat' via isValidTab.
-const VALID_TABS: Set<string> = new Set(['chat', 'tasks', 'browser']);
-
-const isValidTab = (tab: string): tab is AppTab => {
-  return VALID_TABS.has(tab) || tab.startsWith('plugin:');
-};
-
-const readPersistedTab = (): AppTab => {
-  try {
-    const stored = localStorage.getItem('activeTab');
-    if (stored && isValidTab(stored)) {
-      return stored as AppTab;
-    }
-  } catch {
-    // localStorage unavailable
-  }
-  return 'chat';
-};
-
 export function useProjectsState({
   sessionId,
   navigate,
@@ -394,21 +374,15 @@ export function useProjectsState({
   });
   const { data: projectsData, isLoading: isLoadingProjects, refetch: refetchProjects } = projectsQuery;
   const projects = useMemo(() => projectsData ?? [], [projectsData]);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [selectedSession, setSelectedSession] = useState<ProjectSession | null>(null);
+  const selectedProject = useAppShellStore((state) => state.selectedProject);
+  const selectedSession = useAppShellStore((state) => state.selectedSession);
+  const activeTab = useAppShellStore((state) => state.activeTab);
+  const sidebarOpen = useAppShellStore((state) => state.sidebarOpen);
+  const setSelectedProject = useAppShellStore((state) => state.setSelectedProject);
+  const setSelectedSession = useAppShellStore((state) => state.setSelectedSession);
+  const setActiveTab = useAppShellStore((state) => state.setActiveTab);
+  const setSidebarOpen = useAppShellStore((state) => state.setSidebarOpen);
   const [attentionSessionIds, setAttentionSessionIds] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<AppTab>(readPersistedTab);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('activeTab', activeTab);
-    } catch {
-      // Silently ignore storage errors
-    }
-  }, [activeTab]);
-
-
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState<LoadingProgress | null>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -563,7 +537,7 @@ export function useProjectsState({
         ? { ...previousSession, ...optimisticSession }
         : optimisticSession
     ));
-  }, [queryClient]);
+  }, [queryClient, setSelectedProject, setSelectedSession]);
 
 
   const openSettings = useCallback((tab = 'tools') => {
@@ -575,14 +549,14 @@ export function useProjectsState({
     setSelectedProject((previousProject) =>
       reconcileSelectedProject(previousProject, projectsData ?? []),
     );
-  }, [projectsData]);
+  }, [projectsData, setSelectedProject]);
 
   // Auto-select the project when there is only one, so the user lands on the new session page
   useEffect(() => {
     if (!isLoadingProjects && projects.length === 1 && !selectedProject && !sessionId) {
       setSelectedProject(projects[0]);
     }
-  }, [isLoadingProjects, projects, selectedProject, sessionId]);
+  }, [isLoadingProjects, projects, selectedProject, sessionId, setSelectedProject]);
 
   // Realtime sidebar updates. The backend pushes per-session deltas
   // (`session_upserted`) instead of full project snapshots, so each event is
@@ -735,7 +709,15 @@ export function useProjectsState({
     };
 
     return subscribe(handleEvent);
-  }, [markSessionAttention, navigate, queryClient, sessionId, subscribe]);
+  }, [
+    markSessionAttention,
+    navigate,
+    queryClient,
+    sessionId,
+    setSelectedProject,
+    setSelectedSession,
+    subscribe,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -799,7 +781,15 @@ export function useProjectsState({
       __projectId: selectedProject.projectId,
       summary: '',
     });
-  }, [sessionId, projects, selectedProject, selectedSession?.id, selectedSession?.__provider]);
+  }, [
+    projects,
+    selectedProject,
+    selectedSession?.__provider,
+    selectedSession?.id,
+    sessionId,
+    setSelectedProject,
+    setSelectedSession,
+  ]);
 
   const handleProjectSelect = useCallback(
     (project: Project) => {
@@ -811,7 +801,7 @@ export function useProjectsState({
         setSidebarOpen(false);
       }
     },
-    [isMobile, navigate],
+    [isMobile, navigate, setSelectedProject, setSelectedSession, setSidebarOpen],
   );
 
   const handleSessionSelect = useCallback(
@@ -840,7 +830,16 @@ export function useProjectsState({
 
       navigate(`/session/${session.id}`);
     },
-    [activeTab, clearSessionAttention, isMobile, navigate, selectedProject?.projectId],
+    [
+      activeTab,
+      clearSessionAttention,
+      isMobile,
+      navigate,
+      selectedProject?.projectId,
+      setActiveTab,
+      setSelectedSession,
+      setSidebarOpen,
+    ],
   );
 
   const handleNewSession = useCallback(
@@ -855,7 +854,7 @@ export function useProjectsState({
         setSidebarOpen(false);
       }
     },
-    [isMobile, navigate],
+    [isMobile, navigate, setActiveTab, setSelectedProject, setSelectedSession, setSidebarOpen],
   );
 
   const handleSessionDelete = useCallback(
@@ -871,7 +870,7 @@ export function useProjectsState({
         (previousProjects ?? []).map((project) => removeSessionFromProject(project, sessionIdToDelete)),
       );
     },
-    [clearSessionAttention, navigate, queryClient, selectedSession?.id],
+    [clearSessionAttention, navigate, queryClient, selectedSession?.id, setSelectedSession],
   );
 
   const handleSidebarRefresh = useCallback(async () => {
@@ -914,7 +913,7 @@ export function useProjectsState({
     } catch (error) {
       console.error('Error refreshing sidebar:', error);
     }
-  }, [queryClient, refetchProjects, selectedProject, selectedSession]);
+  }, [queryClient, refetchProjects, selectedProject, selectedSession, setSelectedProject, setSelectedSession]);
 
   const loadMoreProjectSessions = useCallback(async (projectId: string) => {
     const project = projects.find((candidate) => candidate.projectId === projectId);
@@ -963,7 +962,7 @@ export function useProjectsState({
     if (selectedProject?.projectId === projectId && mergedProjectForSelection) {
       setSelectedProject(mergedProjectForSelection);
     }
-  }, [projects, queryClient, selectedProject?.projectId]);
+  }, [projects, queryClient, selectedProject?.projectId, setSelectedProject]);
 
   // `projectId` is the DB identifier passed from the sidebar's delete flow
   // after the migration away from folder-derived project names.
@@ -979,14 +978,12 @@ export function useProjectsState({
         (previousProjects ?? []).filter((project) => project.projectId !== projectId),
       );
     },
-    [navigate, queryClient, selectedProject?.projectId],
+    [navigate, queryClient, selectedProject?.projectId, setSelectedProject, setSelectedSession],
   );
 
   const sidebarSharedProps = useMemo(
     () => ({
       projects,
-      selectedProject,
-      selectedSession,
       activeSessions,
       attentionSessionIds,
       onProjectSelect: handleProjectSelect,
@@ -1019,8 +1016,7 @@ export function useProjectsState({
       activeSessions,
       projects,
       settingsInitialTab,
-      selectedProject,
-      selectedSession,
+      setShowSettings,
       showSettings,
     ],
   );

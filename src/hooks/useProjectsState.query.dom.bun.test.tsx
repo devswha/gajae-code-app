@@ -7,6 +7,7 @@ import { createElement } from 'react';
 
 import type { ServerEvent } from '../contexts/WebSocketContext';
 import type { Project } from '../types/app';
+import { resetAppShellStore } from '../stores/useAppShellStore';
 
 import { useProjectsState } from './useProjectsState';
 
@@ -96,7 +97,10 @@ const installFetch = (responses: Array<{ status?: number; body: unknown }>) => {
   };
 };
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  resetAppShellStore();
+});
 
 test('mount fetches projects once and exposes initial loading state', async () => {
   const fetch = installFetch([{ body: [project()] }]);
@@ -201,6 +205,21 @@ test('degraded refetches retain the previous project cache', async () => {
 
     assert.deepEqual(harness.getState().projects.map((item) => item.displayName), ['Project one']);
     assert.equal(fetch.calls(), 2);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('sidebar shared props omit shell selections while the hook return keeps them', async () => {
+  const fetch = installFetch([{ body: [project()] }]);
+  try {
+    const harness = renderHarness();
+    await waitFor(() => assert.equal(harness.getState().projects.length, 1));
+
+    assert.equal('selectedProject' in harness.getState().sidebarSharedProps, false);
+    assert.equal('selectedSession' in harness.getState().sidebarSharedProps, false);
+    assert.ok('selectedProject' in harness.getState());
+    assert.ok('selectedSession' in harness.getState());
   } finally {
     fetch.restore();
   }

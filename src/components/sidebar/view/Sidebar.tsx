@@ -6,6 +6,7 @@ import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useSidebarController } from '../hooks/useSidebarController';
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
+import { useAppShellStore } from '../../../stores/useAppShellStore';
 import type { LLMProvider, Project } from '../../../types/app';
 import type { SidebarProps } from '../types/types';
 
@@ -16,8 +17,6 @@ import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList
 
 function Sidebar({
   projects,
-  selectedProject,
-  selectedSession,
   activeSessions,
   attentionSessionIds,
   onProjectSelect,
@@ -41,6 +40,8 @@ function Sidebar({
   const { preferences, setPreference } = useUiPreferences();
   const { sidebarVisible } = preferences;
   const paletteOps = usePaletteOps();
+  const selectedProject = useAppShellStore((state) => state.selectedProject);
+  const selectedSession = useAppShellStore((state) => state.selectedSession);
 
   const {
     isSidebarCollapsed,

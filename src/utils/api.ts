@@ -1,6 +1,12 @@
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
 
-const withBootstrapTimeout = (request, externalSignal) => {
+/** Anything that survives `JSON.stringify`. Request bodies are not inspected here. */
+type JsonBody = unknown;
+
+const withBootstrapTimeout = (
+  request: (signal: AbortSignal) => Promise<Response>,
+  externalSignal?: AbortSignal | null,
+): Promise<Response> => {
   const controller = new AbortController();
   const abort = () => controller.abort();
   const timeout = setTimeout(abort, AUTH_BOOTSTRAP_TIMEOUT_MS);
@@ -14,8 +20,8 @@ const withBootstrapTimeout = (request, externalSignal) => {
 };
 
 // Utility function for same-origin API calls.
-export const authenticatedFetch = (url, options = {}) => {
-  const defaultHeaders = {};
+export const authenticatedFetch = (url: string, options: RequestInit = {}): Promise<Response> => {
+  const defaultHeaders: Record<string, string> = {};
 
   // Only set Content-Type for non-FormData requests
   if (!(options.body instanceof FormData)) {
@@ -27,7 +33,9 @@ export const authenticatedFetch = (url, options = {}) => {
     credentials: 'same-origin',
     headers: {
       ...defaultHeaders,
-      ...options.headers,
+      // Callers pass plain objects; a `Headers` instance would not spread, and
+      // none is ever passed. Preserved as-is from the JavaScript this replaced.
+      ...(options.headers as Record<string, string> | undefined),
     },
   });
 };
@@ -35,7 +43,7 @@ export const authenticatedFetch = (url, options = {}) => {
 // API endpoints
 export const api = {
   auth: {
-    user: (options = {}) => withBootstrapTimeout(
+    user: (options: RequestInit = {}) => withBootstrapTimeout(
       (signal) => authenticatedFetch('/api/auth/user', { ...options, signal }),
       options.signal,
     ),
@@ -48,30 +56,30 @@ export const api = {
   projects: () => authenticatedFetch('/api/projects?skipSynchronization=1'),
   gjcJobs: {
     list: () => authenticatedFetch('/api/gjc/jobs'),
-    get: (jobId) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}`),
-    create: (input) => authenticatedFetch('/api/gjc/jobs', {
+    get: (jobId: string) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}`),
+    create: (input: JsonBody) => authenticatedFetch('/api/gjc/jobs', {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-    abort: (jobId) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/abort`, { method: 'POST' }),
-    turn: (jobId, input) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/turns`, {
+    abort: (jobId: string) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/abort`, { method: 'POST' }),
+    turn: (jobId: string, input: JsonBody) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/turns`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-    resume: (jobId, input) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/resume`, {
+    resume: (jobId: string, input: JsonBody) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/resume`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-    replay: (jobId, after = 0) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/replay?after=${encodeURIComponent(after)}`),
-    diff: (jobId) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/git/diff`),
-    commit: (jobId, input) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/git/commit`, {
+    replay: (jobId: string, after: number = 0) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/replay?after=${encodeURIComponent(after)}`),
+    diff: (jobId: string) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/git/diff`),
+    commit: (jobId: string, input: JsonBody) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/git/commit`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-    publish: (jobId) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/git/publish`, {
+    publish: (jobId: string) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/git/publish`, {
       method: 'POST',
     }),
-    createPullRequest: (jobId, input) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/git/pr`, {
+    createPullRequest: (jobId: string, input: JsonBody) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/git/pr`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
@@ -79,12 +87,12 @@ export const api = {
   archivedProjects: () => authenticatedFetch('/api/projects/archived'),
   // Read-only working-tree summary for the Workspace status tab: branch plus
   // the files git reports as changed. Never writes to the repository.
-  gitStatus: (projectId) =>
+  gitStatus: (projectId: string) =>
     authenticatedFetch(`/api/git/status?project=${encodeURIComponent(projectId)}`),
   // Home-relative directory autocomplete ({ home, suggestions }).
-  dirSuggestions: (prefix) =>
+  dirSuggestions: (prefix: string) =>
     authenticatedFetch(`/api/providers/fs/dir-suggestions?prefix=${encodeURIComponent(prefix)}`),
-  projectSessions: (projectId, { limit = 20, offset = 0 } = {}) => {
+  projectSessions: (projectId: string, { limit = 20, offset = 0 }: { limit?: number; offset?: number } = {}) => {
     const params = new URLSearchParams();
     params.set('limit', String(limit));
     params.set('offset', String(offset));
@@ -92,7 +100,11 @@ export const api = {
   },
   // Unified endpoint for persisted session messages.
   // Provider/project metadata are resolved by the backend from sessionId.
-  unifiedSessionMessages: (sessionId, _provider = 'gjc', { limit = null, offset = 0 } = {}) => {
+  unifiedSessionMessages: (
+    sessionId: string,
+    _provider: string = 'gjc',
+    { limit = null, offset = 0 }: { limit?: number | null; offset?: number } = {},
+  ) => {
     const params = new URLSearchParams();
     if (limit !== null) {
       params.append('limit', String(limit));
@@ -101,19 +113,19 @@ export const api = {
     const queryString = params.toString();
     return authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(sessionId)}/messages${queryString ? `?${queryString}` : ''}`);
   },
-  renameProject: (projectId, displayName) =>
+  renameProject: (projectId: string, displayName: string) =>
     authenticatedFetch(`/api/projects/${projectId}/rename`, {
       method: 'PUT',
       body: JSON.stringify({ displayName }),
     }),
-  restoreProject: (projectId) =>
+  restoreProject: (projectId: string) =>
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/restore`, {
       method: 'POST',
     }),
   // Session deletion now mirrors project deletion:
   // - default: archive only (`isArchived = 1`)
   // - hardDelete: remove the row and, by default, its persisted transcript file
-  deleteSession: (sessionId, hardDelete = false) => {
+  deleteSession: (sessionId: string, hardDelete: boolean = false) => {
     const params = new URLSearchParams();
     if (hardDelete) {
       params.set('force', 'true');
@@ -127,7 +139,7 @@ export const api = {
     authenticatedFetch('/api/providers/sessions/archived'),
   // Bulk-archives sessions idle past `olderThanDays`. Pass `dryRun` to get the
   // count without changing anything; both modes run the same selection.
-  archiveIdleSessions: (olderThanDays, dryRun = false) =>
+  archiveIdleSessions: (olderThanDays: number, dryRun: boolean = false) =>
     authenticatedFetch('/api/providers/sessions/archive-idle', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -135,26 +147,26 @@ export const api = {
     }),
   runningSessions: () =>
     authenticatedFetch('/api/providers/sessions/running'),
-  restoreSession: (sessionId) =>
+  restoreSession: (sessionId: string) =>
     authenticatedFetch(`/api/providers/sessions/${sessionId}/restore`, {
       method: 'POST',
     }),
-  renameSession: (sessionId, summary) =>
+  renameSession: (sessionId: string, summary: string) =>
     authenticatedFetch(`/api/providers/sessions/${sessionId}`, {
       method: 'PUT',
       body: JSON.stringify({ summary }),
     }),
-  toggleSessionStar: (sessionId) =>
+  toggleSessionStar: (sessionId: string) =>
     authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(sessionId)}/toggle-star`, {
       method: 'POST',
     }),
   // Returns the Markdown file itself rather than the usual JSON envelope, so the
   // caller reads the body as a blob. It goes through authenticatedFetch because
   // a plain link cannot carry the auth header.
-  exportSession: (sessionId) =>
+  exportSession: (sessionId: string) =>
     authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(sessionId)}/export`),
   // `hardDelete` => server `?force=true` (remove DB row + Claude *.jsonl + sessions rows for path).
-  deleteProject: (projectId, hardDelete = false) => {
+  deleteProject: (projectId: string, hardDelete: boolean = false) => {
     const params = new URLSearchParams();
     if (hardDelete) params.set('force', 'true');
     const qs = params.toString();
@@ -162,60 +174,60 @@ export const api = {
       method: 'DELETE',
     });
   },
-  searchConversationsUrl: (query, limit = 50) => {
+  searchConversationsUrl: (query: string, limit: number = 50) => {
     const params = new URLSearchParams({ q: query, limit: String(limit) });
     return `/api/providers/search/sessions?${params.toString()}`;
   },
-  createProject: (projectData) =>
+  createProject: (projectData: JsonBody) =>
     authenticatedFetch('/api/projects/create-project', {
       method: 'POST',
       body: JSON.stringify(projectData),
     }),
-  migrateLegacyProjectStars: (projectIds) =>
+  migrateLegacyProjectStars: (projectIds: string[]) =>
     authenticatedFetch('/api/projects/migrate-legacy-stars', {
       method: 'POST',
       body: JSON.stringify({ projectIds }),
     }),
-  promoteProject: (projectId) =>
+  promoteProject: (projectId: string) =>
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/promote`, {
       method: 'POST',
     }),
-  toggleProjectStar: (projectId) =>
+  toggleProjectStar: (projectId: string) =>
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/toggle-star`, {
       method: 'POST',
     }),
-  readFile: (projectId, filePath) =>
+  readFile: (projectId: string, filePath: string) =>
     authenticatedFetch(`/api/projects/${projectId}/file?filePath=${encodeURIComponent(filePath)}`),
-  readFileBlob: (projectId, filePath) =>
+  readFileBlob: (projectId: string, filePath: string) =>
     authenticatedFetch(`/api/projects/${projectId}/files/content?path=${encodeURIComponent(filePath)}`),
-  saveFile: (projectId, filePath, content) =>
+  saveFile: (projectId: string, filePath: string, content: string) =>
     authenticatedFetch(`/api/projects/${projectId}/file`, {
       method: 'PUT',
       body: JSON.stringify({ filePath, content }),
     }),
-  getFiles: (projectId, options = {}) =>
+  getFiles: (projectId: string, options: RequestInit = {}) =>
     authenticatedFetch(`/api/projects/${projectId}/files`, options),
 
   // File operations
-  createFile: (projectId, { path, type, name }) =>
+  createFile: (projectId: string, { path, type, name }: { path: string; type: string; name: string }) =>
     authenticatedFetch(`/api/projects/${projectId}/files/create`, {
       method: 'POST',
       body: JSON.stringify({ path, type, name }),
     }),
 
-  renameFile: (projectId, { oldPath, newName }) =>
+  renameFile: (projectId: string, { oldPath, newName }: { oldPath: string; newName: string }) =>
     authenticatedFetch(`/api/projects/${projectId}/files/rename`, {
       method: 'PUT',
       body: JSON.stringify({ oldPath, newName }),
     }),
 
-  deleteFile: (projectId, { path, type }) =>
+  deleteFile: (projectId: string, { path, type }: { path: string; type: string }) =>
     authenticatedFetch(`/api/projects/${projectId}/files`, {
       method: 'DELETE',
       body: JSON.stringify({ path, type }),
     }),
 
-  uploadFiles: (projectId, formData) =>
+  uploadFiles: (projectId: string, formData: FormData) =>
     authenticatedFetch(`/api/projects/${projectId}/files/upload`, {
       method: 'POST',
       body: formData,
@@ -224,14 +236,14 @@ export const api = {
 
 
   // Browse filesystem for project suggestions
-  browseFilesystem: (dirPath = null) => {
+  browseFilesystem: (dirPath: string | null = null) => {
     const params = new URLSearchParams();
     if (dirPath) params.append('path', dirPath);
 
     return authenticatedFetch(`/api/browse-filesystem?${params}`);
   },
 
-  createFolder: (folderPath) =>
+  createFolder: (folderPath: string) =>
     authenticatedFetch('/api/create-folder', {
       method: 'POST',
       body: JSON.stringify({ path: folderPath }),
@@ -240,7 +252,7 @@ export const api = {
   // User endpoints
   user: {
     gitConfig: () => authenticatedFetch('/api/user/git-config'),
-    updateGitConfig: (gitName, gitEmail) =>
+    updateGitConfig: (gitName: string, gitEmail: string) =>
       authenticatedFetch('/api/user/git-config', {
         method: 'POST',
         body: JSON.stringify({ gitName, gitEmail }),
@@ -248,22 +260,22 @@ export const api = {
   },
 
   // Generic GET method for any endpoint
-  get: (endpoint) => authenticatedFetch(`/api${endpoint}`),
+  get: (endpoint: string) => authenticatedFetch(`/api${endpoint}`),
 
   // Generic POST method for any endpoint
-  post: (endpoint, body) => authenticatedFetch(`/api${endpoint}`, {
+  post: (endpoint: string, body?: JsonBody) => authenticatedFetch(`/api${endpoint}`, {
     method: 'POST',
     ...(body instanceof FormData ? { body } : { body: JSON.stringify(body) }),
   }),
 
   // Generic PUT method for any endpoint
-  put: (endpoint, body) => authenticatedFetch(`/api${endpoint}`, {
+  put: (endpoint: string, body: JsonBody) => authenticatedFetch(`/api${endpoint}`, {
     method: 'PUT',
     body: JSON.stringify(body),
   }),
 
   // Generic DELETE method for any endpoint
-  delete: (endpoint, options = {}) => authenticatedFetch(`/api${endpoint}`, {
+  delete: (endpoint: string, options: RequestInit = {}) => authenticatedFetch(`/api${endpoint}`, {
     method: 'DELETE',
     ...options,
   }),

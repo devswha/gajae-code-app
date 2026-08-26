@@ -1,4 +1,4 @@
-import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../types/app';
+import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
 
 export type ProjectSortOrder = 'name' | 'date';
@@ -37,9 +37,7 @@ export type SessionDeleteConfirmation = {
 };
 
 export type SidebarProps = {
-  projects: Project[];
   activeSessions: SessionActivityMap;
-  attentionSessionIds: ReadonlySet<string>;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: ProjectSession) => void;
   onNewSession: (project: Project) => void;
@@ -48,13 +46,7 @@ export type SidebarProps = {
   // `projectId` is the DB identifier; the sidebar hands it back to the parent
   // when the delete flow completes.
   onProjectDelete?: (projectId: string) => void;
-  isLoading: boolean;
-  loadingProgress: LoadingProgress | null;
   onRefresh: () => Promise<void> | void;
-  onShowSettings: () => void;
-  showSettings: boolean;
-  settingsInitialTab: string;
-  onCloseSettings: () => void;
   isMobile: boolean;
 };
 

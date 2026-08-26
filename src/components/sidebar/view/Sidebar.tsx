@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
+import { useProjectsQuery } from '../../../hooks/useProjectsQuery';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useSidebarController } from '../hooks/useSidebarController';
@@ -16,22 +17,14 @@ import SidebarModals from './subcomponents/SidebarModals';
 import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList';
 
 function Sidebar({
-  projects,
   activeSessions,
-  attentionSessionIds,
   onProjectSelect,
   onSessionSelect,
   onNewSession,
   onSessionDelete,
   onLoadMoreSessions,
   onProjectDelete,
-  isLoading,
-  loadingProgress,
   onRefresh,
-  onShowSettings,
-  showSettings,
-  settingsInitialTab,
-  onCloseSettings,
   isMobile,
 }: SidebarProps) {
   const { t } = useTranslation(['sidebar', 'common']);
@@ -40,8 +33,17 @@ function Sidebar({
   const { preferences, setPreference } = useUiPreferences();
   const { sidebarVisible } = preferences;
   const paletteOps = usePaletteOps();
+  const projectsQuery = useProjectsQuery();
+  const projects = projectsQuery.data ?? [];
+  const isLoading = projectsQuery.isLoading;
   const selectedProject = useAppShellStore((state) => state.selectedProject);
   const selectedSession = useAppShellStore((state) => state.selectedSession);
+  const attentionSessionIds = useAppShellStore((state) => state.attentionSessionIds);
+  const loadingProgress = useAppShellStore((state) => state.loadingProgress);
+  const showSettings = useAppShellStore((state) => state.showSettings);
+  const settingsInitialTab = useAppShellStore((state) => state.settingsInitialTab);
+  const openSettings = useAppShellStore((state) => state.openSettings);
+  const setShowSettings = useAppShellStore((state) => state.setShowSettings);
 
   const {
     isSidebarCollapsed,
@@ -194,25 +196,25 @@ function Sidebar({
     <>
         <SidebarModals
           projects={projects}
-        showSettings={showSettings}
-        settingsInitialTab={settingsInitialTab}
-        onCloseSettings={onCloseSettings}
-        showNewProject={showNewProject}
-        onCloseNewProject={() => setShowNewProject(false)}
-        onProjectCreated={handleProjectCreated}
-        deleteConfirmation={deleteConfirmation}
-        onCancelDeleteProject={() => setDeleteConfirmation(null)}
-        onConfirmDeleteProject={confirmDeleteProject}
-        sessionDeleteConfirmation={sessionDeleteConfirmation}
-        onCancelDeleteSession={() => setSessionDeleteConfirmation(null)}
-        onConfirmDeleteSession={confirmDeleteSession}
-        t={t}
-      />
+          showSettings={showSettings}
+          settingsInitialTab={settingsInitialTab}
+          onCloseSettings={() => setShowSettings(false)}
+          showNewProject={showNewProject}
+          onCloseNewProject={() => setShowNewProject(false)}
+          onProjectCreated={handleProjectCreated}
+          deleteConfirmation={deleteConfirmation}
+          onCancelDeleteProject={() => setDeleteConfirmation(null)}
+          onConfirmDeleteProject={confirmDeleteProject}
+          sessionDeleteConfirmation={sessionDeleteConfirmation}
+          onCancelDeleteSession={() => setSessionDeleteConfirmation(null)}
+          onConfirmDeleteSession={confirmDeleteSession}
+          t={t}
+        />
 
       {isSidebarCollapsed ? (
         <SidebarCollapsed
           onExpand={handleExpandSidebar}
-          onShowSettings={onShowSettings}
+          onShowSettings={() => openSettings()}
           t={t}
         />
       ) : (
@@ -248,7 +250,7 @@ function Sidebar({
             onCreateProject={() => setShowNewProject(true)}
             onCollapseSidebar={handleCollapseSidebar}
             currentVersion={currentVersion}
-            onShowSettings={onShowSettings}
+            onShowSettings={() => openSettings()}
             projectListProps={projectListProps}
             t={t}
           />

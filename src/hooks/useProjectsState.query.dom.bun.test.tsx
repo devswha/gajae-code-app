@@ -210,14 +210,23 @@ test('degraded refetches retain the previous project cache', async () => {
   }
 });
 
-test('sidebar shared props omit shell selections while the hook return keeps them', async () => {
+test('sidebar shared props contain only navigation dependencies while the hook return keeps shell state', async () => {
   const fetch = installFetch([{ body: [project()] }]);
   try {
     const harness = renderHarness();
     await waitFor(() => assert.equal(harness.getState().projects.length, 1));
 
-    assert.equal('selectedProject' in harness.getState().sidebarSharedProps, false);
-    assert.equal('selectedSession' in harness.getState().sidebarSharedProps, false);
+    assert.deepEqual(Object.keys(harness.getState().sidebarSharedProps), [
+      'activeSessions',
+      'onProjectSelect',
+      'onSessionSelect',
+      'onNewSession',
+      'onSessionDelete',
+      'onLoadMoreSessions',
+      'onProjectDelete',
+      'onRefresh',
+      'isMobile',
+    ]);
     assert.ok('selectedProject' in harness.getState());
     assert.ok('selectedSession' in harness.getState());
   } finally {

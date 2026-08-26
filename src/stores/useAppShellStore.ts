@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import type { AppTab, Project, ProjectSession } from '../types/app';
+import type { AppTab, LoadingProgress, Project, ProjectSession } from '../types/app';
 
 type Updater<T> = T | ((prev: T) => T);
 
@@ -9,10 +9,19 @@ export type AppShellState = {
   selectedSession: ProjectSession | null;
   activeTab: AppTab;
   sidebarOpen: boolean;
+  showSettings: boolean;
+  settingsInitialTab: string;
+  attentionSessionIds: Set<string>;
+  loadingProgress: LoadingProgress | null;
   setSelectedProject: (next: Updater<Project | null>) => void;
   setSelectedSession: (next: Updater<ProjectSession | null>) => void;
   setActiveTab: (next: Updater<AppTab>) => void;
   setSidebarOpen: (next: Updater<boolean>) => void;
+  openSettings: (tab?: string) => void;
+  setShowSettings: (next: Updater<boolean>) => void;
+  markSessionAttention: (sessionId: string, viewedSessionId: string | null) => void;
+  clearSessionAttention: (sessionId: string) => void;
+  setLoadingProgress: (next: Updater<LoadingProgress | null>) => void;
 };
 
 // 'shell'/'git'/'files' were removed as tabs (Files is a side panel now);
@@ -43,10 +52,19 @@ const createInitialState = (): AppShellState => ({
   selectedSession: null,
   activeTab: readPersistedTab(),
   sidebarOpen: false,
+  showSettings: false,
+  settingsInitialTab: 'agents',
+  attentionSessionIds: new Set(),
+  loadingProgress: null,
   setSelectedProject: () => undefined,
   setSelectedSession: () => undefined,
   setActiveTab: () => undefined,
   setSidebarOpen: () => undefined,
+  openSettings: () => undefined,
+  setShowSettings: () => undefined,
+  markSessionAttention: () => undefined,
+  clearSessionAttention: () => undefined,
+  setLoadingProgress: () => undefined,
 });
 
 export const useAppShellStore = create<AppShellState>()((set) => ({
@@ -69,6 +87,40 @@ export const useAppShellStore = create<AppShellState>()((set) => ({
   setSidebarOpen: (next) => set((state) => ({
     sidebarOpen: resolve(next, state.sidebarOpen),
   })),
+  openSettings: (tab = 'tools') => set({
+    settingsInitialTab: tab,
+    showSettings: true,
+  }),
+  setShowSettings: (next) => set((state) => ({
+    showSettings: resolve(next, state.showSettings),
+  })),
+  markSessionAttention: (sessionId, viewedSessionId) => {
+    if (sessionId === viewedSessionId) {
+      return;
+    }
+
+    set((state) => {
+      if (state.attentionSessionIds.has(sessionId)) {
+        return state;
+      }
+
+      const attentionSessionIds = new Set(state.attentionSessionIds);
+      attentionSessionIds.add(sessionId);
+      return { attentionSessionIds };
+    });
+  },
+  clearSessionAttention: (sessionId) => set((state) => {
+    if (!state.attentionSessionIds.has(sessionId)) {
+      return state;
+    }
+
+    const attentionSessionIds = new Set(state.attentionSessionIds);
+    attentionSessionIds.delete(sessionId);
+    return { attentionSessionIds };
+  }),
+  setLoadingProgress: (next) => set((state) => ({
+    loadingProgress: resolve(next, state.loadingProgress),
+  })),
 }));
 
 export const resetAppShellStore = () => {
@@ -78,5 +130,10 @@ export const resetAppShellStore = () => {
     setSelectedSession: useAppShellStore.getState().setSelectedSession,
     setActiveTab: useAppShellStore.getState().setActiveTab,
     setSidebarOpen: useAppShellStore.getState().setSidebarOpen,
+    openSettings: useAppShellStore.getState().openSettings,
+    setShowSettings: useAppShellStore.getState().setShowSettings,
+    markSessionAttention: useAppShellStore.getState().markSessionAttention,
+    clearSessionAttention: useAppShellStore.getState().clearSessionAttention,
+    setLoadingProgress: useAppShellStore.getState().setLoadingProgress,
   }, true);
 };

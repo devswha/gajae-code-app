@@ -5,11 +5,12 @@ import { groupConsecutiveTools, isToolGroupItem } from '../utils/toolGrouping';
 import type { ChatMessage } from '../types/types';
 
 /**
- * Grouping collapses repetition, which reads well when a run differs only by
- * target. It reads badly for shell commands: each one is a different
- * instruction, so folding a run behind a count made the same work look
- * different depending on how many happened to land in a row - the transcript
- * appeared to open and close at random.
+ * Grouping collapses repetition so a long turn stays scannable.
+ *
+ * Excluding shell commands was tried and reverted: one call and several then
+ * looked alike, but a long turn rendered a hundred separate command rows and
+ * the transcript got harder to read than before. The count stays; the commands
+ * are one click away.
  */
 
 const toolCall = (toolName: string, id: string): ChatMessage => ({
@@ -36,34 +37,33 @@ test('a run of reads collapses into one group', () => {
   assert.equal(isToolGroupItem(items[0]), true);
 });
 
-test('consecutive shell commands each keep their own row', () => {
+test('a run of shell commands collapses too, so a long turn stays scannable', () => {
   const items = groupConsecutiveTools([
     toolCall('Bash', 'a'),
     toolCall('Bash', 'b'),
     toolCall('Bash', 'c'),
   ]);
 
-  assert.equal(items.length, 3);
-  assert.equal(items.some(isToolGroupItem), false);
+  assert.equal(items.length, 1);
+  assert.equal(isToolGroupItem(items[0]), true);
 });
 
-test('a lone shell command renders exactly like one inside a run', () => {
-  // The point of the change: one bash call and three bash calls produce the
-  // same kind of row, so nothing appears to open or close on its own.
-  const single = groupConsecutiveTools([toolCall('Bash', 'only')]);
-  const run = groupConsecutiveTools([toolCall('Bash', 'a'), toolCall('Bash', 'b')]);
+test('a lone shell command stays a plain row', () => {
+  // Below the threshold there is nothing to collapse, so the command shows.
+  const items = groupConsecutiveTools([toolCall('Bash', 'only')]);
 
-  assert.equal(single.every((item) => !isToolGroupItem(item)), true);
-  assert.equal(run.every((item) => !isToolGroupItem(item)), true);
+  assert.equal(items.length, 1);
+  assert.equal(isToolGroupItem(items[0]), false);
 });
 
-test('shell commands do not merge a surrounding run of another tool', () => {
+test('a different tool between runs breaks them apart', () => {
   const items = groupConsecutiveTools([
     toolCall('Read', 'a'),
     toolCall('Bash', 'b'),
     toolCall('Read', 'c'),
   ]);
 
+  // Three lone calls: no two adjacent entries share a tool name.
   assert.equal(items.length, 3);
   assert.equal(items.some(isToolGroupItem), false);
 });

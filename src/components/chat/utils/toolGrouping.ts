@@ -16,24 +16,16 @@ export function isToolGroupItem(item: MessageListItem): item is ToolGroupItem {
 }
 
 /**
- * Tools whose calls stay on their own row.
+ * Every tool call groups, shell commands included.
  *
- * Grouping exists to collapse repetition, and it reads well for tools whose
- * runs differ only by target - `Read x3` still tells you what happened. A shell
- * command is the opposite: each one is a different instruction, and the command
- * text is the whole point. Folding a run of them behind a count made identical
- * work look different depending on how many happened in a row, which is the
- * inconsistency this avoids.
+ * Excluding Bash was tried and reverted: it removed the apparent inconsistency
+ * between one call and several, but a long turn then rendered a hundred
+ * separate command rows, and the transcript became harder to scan than the
+ * thing the change set out to fix. A run folded behind a count is the more
+ * useful default; the commands are one click away.
  */
-const UNGROUPED_TOOLS = new Set(['Bash', 'bash']);
-
 function isGroupableToolMessage(message: ChatMessage): message is ChatMessage & { toolName: string } {
-  return Boolean(
-    message.isToolUse
-    && message.toolName
-    && !message.isSubagentContainer
-    && !UNGROUPED_TOOLS.has(message.toolName),
-  );
+  return Boolean(message.isToolUse && message.toolName && !message.isSubagentContainer);
 }
 
 // Messages that render nothing (e.g. reasoning hidden when showThinking is off)

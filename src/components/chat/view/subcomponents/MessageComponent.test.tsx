@@ -162,6 +162,14 @@ test('message text uses one typeface and a readable measure', () => {
   // that element - a prose-p: variant would assert a class that matches nothing.
   assert.match(html, /mb-2 max-w-\[90ch\] last:mb-0/);
   assert.match(html, /prose-li:max-w-\[90ch\]/);
+  // Body text is 16px, not the 14px prose-sm the tool renderers use. The
+  // measure is expressed in ch, so it scales with the type: at 14px the
+  // paragraph box came to 751px and left a fifth of the column empty, and at
+  // 16px it reaches 858px with the SAME 115 Latin / 62 Hangul per line.
+  // Widening the measure instead would have bought that space by making lines
+  // longer. ChatGPT and Claude both sit near 768px at 16px for the same reason.
+  assert.match(html, /prose prose-base/);
+  assert.doesNotMatch(html, /prose prose-sm/);
   // A wrapped command is worse than a long one, so code keeps the full width -
   // which requires the container itself to stay uncapped.
   assert.match(html, /max-w-none/);

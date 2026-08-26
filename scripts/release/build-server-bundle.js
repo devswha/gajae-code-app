@@ -478,7 +478,6 @@ const buildInputs = [
   'packaging/systemd/gajae-app.service',
   'docs/SELF-HOST.md',
   'docs/INSTALL.md',
-  'docker/README.md',
   'docker/gjc/Dockerfile',
   'docker/shared/install-gajae-app.sh',
   'docker/shared/start-gajae-app.sh',

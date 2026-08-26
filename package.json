@@ -17,8 +17,7 @@
     "dist/",
     "dist-server/",
     "dist-native/",
-    "scripts/",
-    "README.md"
+    "scripts/"
   ],
   "homepage": "https://github.com/devswha/gajae-code-app",
   "repository": {

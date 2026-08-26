@@ -150,10 +150,6 @@ function validateProtectedFile(relativePath, buffer) {
   }
 }
 
-function validateMainReadme(text) {
-  scanText('README.md', text);
-}
-
 function validateProvenanceDocument(relativePath, text) {
   const nameRanges = exactRanges(text, UPSTREAM_NAME);
   const urlRanges = exactRanges(text, UPSTREAM_URL);
@@ -181,11 +177,6 @@ function scanSpecialFile(relativePath, buffer) {
   }
 
   const text = buffer.toString('utf8');
-
-  if (relativePath === 'README.md') {
-    validateMainReadme(text);
-    return;
-  }
 
   if (relativePath === 'CHANGELOG.md') {
     validateChangelog(text);

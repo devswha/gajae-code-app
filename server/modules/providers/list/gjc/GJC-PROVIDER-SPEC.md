@@ -26,7 +26,7 @@ Gajae Code App의 provider `gjc`(Gajae Code) 구현 기록. 초기 read-only 세
 - `gjc-mcp.provider.ts` — gjc MCP 설정 위치 확정 필요(미조사). 최소 안전 stub(빈 목록) 또는 조사 후.
 - `gjc-models.provider.ts` — codex-models 원형. models.db 카탈로그 or 정적 fallback.
 
-## 등록 (README 8단계)
+## 등록
 - `server/shared/types.ts` `LLMProvider` union에 `'gjc'`.
 - `src/types/app.ts` `LLMProvider`(프론트).
 - `server/modules/providers/provider.registry.ts` — `GjcProvider` 등록.

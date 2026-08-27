@@ -358,6 +358,13 @@ export default function SidebarSessionItem({
           ref={editingContainerRef}
           className={cn(
             'absolute right-2 top-1/2 flex -translate-y-1/2 transform items-center gap-1 transition-all duration-200',
+            // The translate transform makes this wrapper a stacking context, which
+            // traps the action menu's z-50 inside it - without an explicit z-index
+            // the NEXT session rows paint over the open menu and steal its clicks.
+            // Keep the wrapper lifted and visible for exactly as long as the menu
+            // is open (aria-expanded), which also survives browsers that do not
+            // focus buttons on click (no group-focus-within there).
+            'has-[[aria-expanded=true]]:z-50 has-[[aria-expanded=true]]:opacity-100',
             isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
           )}
         >

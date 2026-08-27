@@ -2,7 +2,7 @@ import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 
 
 import type { MainContentProps } from '../types/types';
 import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
-import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
+import { usePaletteOpsRegister } from '../../../stores/usePaletteOpsStore';
 import { SessionStatusProvider } from '../../../contexts/SessionStatusContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useFileOpenResolver } from '../../../hooks/useFileOpenResolver';

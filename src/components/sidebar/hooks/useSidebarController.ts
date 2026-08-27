@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next';
 
 import { api } from '../../../utils/api';
 import { downloadBlob, filenameFromContentDisposition } from '../../../utils/download';
-import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
+import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type {
   ArchivedProjectListItem,

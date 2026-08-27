@@ -4,7 +4,7 @@ import type { Extension } from '@codemirror/state';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
+import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useCodeEditorDocument } from '../hooks/useCodeEditorDocument';
 import { useCodeEditorSettings } from '../hooks/useCodeEditorSettings';

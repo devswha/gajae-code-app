@@ -71,13 +71,16 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   dependency.** Reaching for one to get a primitive that already exists here is
   a regression, not a shortcut. `cmdk` backs the command palette, `lucide-react`
   supplies icons.
-- **There is no state library.** No Redux, Zustand, Jotai or TanStack Query.
-  `src/stores/useSessionStore.ts` is a store by name only: `useState`/`useRef`
-  over a `Map` keyed by session id. Cross-cutting state lives in six contexts -
-  WebSocket, Auth, Theme, Permission, SessionStatus, PaletteOps.
-- **Server state**: `ws` for live messages, `authenticatedFetch` REST for the
-  rest. The provider's transcript on disk is the source of truth - there is no
-  messages table in SQLite and messages are never cached in localStorage.
+- **State**: server state lives in **TanStack Query** (projects/git/messages
+  window caches; see `docs/plans/frontend-refactor.md` P1), shell UI state in
+  **Zustand** (`src/stores/useAppShellStore.ts`, `usePaletteOpsStore.ts`).
+  `src/stores/useSessionStore.ts` keeps realtime tails and the merge pipeline
+  over the Query-backed message windows. Cross-cutting state lives in five
+  contexts - WebSocket, Auth, Theme, Permission, SessionStatus.
+- **Server state**: `ws` for live messages, `authenticatedFetch` REST behind
+  TanStack Query for the rest. The provider's transcript on disk is the source
+  of truth - there is no messages table in SQLite and messages are never
+  cached in localStorage.
 - **Styling**: Tailwind 3.4 with `darkMode: ["class"]` and
   `@tailwindcss/typography`. `cn()` (`src/lib/utils.js`) is clsx +
   tailwind-merge; variants use class-variance-authority. Pretendard Variable is

@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 
 import { normalizeInlineCodeFences } from '../../utils/chatFormatting';
 import { copyTextToClipboard } from '../../../../utils/clipboard';
-import { usePaletteOps } from '../../../../contexts/PaletteOpsContext';
+import { usePaletteOps } from '../../../../stores/usePaletteOpsStore';
 import { useTheme } from '../../../../contexts/ThemeContext';
 
 type MarkdownProps = {

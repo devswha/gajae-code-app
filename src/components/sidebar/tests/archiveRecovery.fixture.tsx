@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import '../../../index.css';
-import { PaletteOpsProvider } from '../../../contexts/PaletteOpsContext';
 import type { Project } from '../../../types/app';
 import { useSidebarController } from '../hooks/useSidebarController';
 import SidebarContent from '../view/subcomponents/SidebarContent';
@@ -177,8 +176,4 @@ if (!rootElement) {
   throw new Error('Archive fixture root is unavailable');
 }
 
-createRoot(rootElement).render(
-  <PaletteOpsProvider>
-    <ArchiveFixture />
-  </PaletteOpsProvider>,
-);
+createRoot(rootElement).render(<ArchiveFixture />);

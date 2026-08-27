@@ -27,7 +27,7 @@ import {
   DialogTitle,
 } from '../../shared/view/ui';
 import { useTheme } from '../../contexts/ThemeContext';
-import { usePaletteOps, usePaletteOpsRegister } from '../../contexts/PaletteOpsContext';
+import { usePaletteOps, usePaletteOpsRegister } from '../../stores/usePaletteOpsStore';
 import { SETTINGS_MAIN_TABS } from '../settings/constants/constants';
 import type { AppTab, Project } from '../../types/app';
 

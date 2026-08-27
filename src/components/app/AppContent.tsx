@@ -6,7 +6,7 @@ import Sidebar from '../sidebar/view/Sidebar';
 import MainContent from '../main-content/view/MainContent';
 import CommandPalette from '../command-palette/CommandPalette';
 import { useWebSocket } from '../../contexts/WebSocketContext';
-import { PaletteOpsProvider, usePaletteOpsRegister } from '../../contexts/PaletteOpsContext';
+import { usePaletteOpsRegister } from '../../stores/usePaletteOpsStore';
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
@@ -16,14 +16,6 @@ import { hiddenKeyboardHeight } from './appContentUtils';
 import { useRunningSessionsSync } from './useRunningSessionsSync';
 
 export default function AppContent() {
-  return (
-    <PaletteOpsProvider>
-      <AppContentInner />
-    </PaletteOpsProvider>
-  );
-}
-
-function AppContentInner() {
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { t } = useTranslation('common');

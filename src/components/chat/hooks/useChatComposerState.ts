@@ -12,7 +12,7 @@ import type {
 import { useDropzone } from 'react-dropzone';
 
 import { authenticatedFetch } from '../../../utils/api';
-import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
+import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
 import type { MarkSessionProcessing } from '../../../hooks/useSessionProtection';
 import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
 import { classifyCommandInput, isAutoSendable } from '../commandDispatchPolicy';
@@ -516,8 +516,8 @@ export function useChatComposerState({
   }, [gjcModel, tokenBudget]);
 
   // App-level slash commands (/resume, /sessions, /new, /settings) run local
-  // UI actions instead of reaching the provider. Falls back to no-ops when no
-  // PaletteOpsProvider is mounted (e.g. isolated tests).
+  // UI actions instead of reaching the provider. Unregistered ops degrade to
+  // no-ops (e.g. isolated tests).
   // Monotonic signal consumed by the composer's ModelPresetPicker: each bump
   // opens the picker popup (same pattern as newSessionTrigger).
   const [modelPickerTrigger, setModelPickerTrigger] = useState(0);

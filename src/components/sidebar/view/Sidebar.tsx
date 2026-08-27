@@ -6,7 +6,7 @@ import { useProjectsQuery } from '../../../hooks/useProjectsQuery';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useSidebarController } from '../hooks/useSidebarController';
-import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
+import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
 import { useAppShellStore } from '../../../stores/useAppShellStore';
 import type { LLMProvider, Project } from '../../../types/app';
 import type { SidebarProps } from '../types/types';

@@ -1,7 +1,7 @@
 # Frontend refactor plan
 
-Status: Phases 0-3 shipped (P0 c4b0975 DOM lane; P1 a17f4dc/64399be/5c97c83/36305fd/a8ffa47, 3c deferred with rationale; P2 afee5d8/fa04327/37359fc, chat-local state stays local by audit; P3 4e1be31 React 19 + Compiler). Phase 4: 2 of 4 shipped (e1b80da i18n, 7974eaa api types); the two file-movement items (shared buckets, view/subcomponents flattening) remain quiet-day work.
-Saved: 2026-08-27 (P3 close-out - the roadmap's engineering phases are complete)
+Status: ALL PHASES SHIPPED. P0 c4b0975 (DOM lane); P1 a17f4dc/64399be/5c97c83/36305fd/a8ffa47 (3c deferred with rationale); P2 afee5d8/fa04327/37359fc (chat-local state stays local by audit); P3 4e1be31 (React 19 + Compiler); P4 e1b80da/7974eaa/94f13b1/1bb01e7. Open by choice: P1-3c ticket deletion (needs soak evidence) and the optional deletion of compiler-redundant manual memoization.
+Saved: 2026-08-27 (P4 close-out — the plan is complete)
 
 ## Current priority order
 
@@ -295,14 +295,21 @@ these on its own:**
   only untyped layer. Typecheck passed without touching a call site.
 - **Dead re-export — DONE (e1b80da).** `src/contexts/AuthContext.jsx` was a
   one-line re-export nothing imported.
-- **Shared buckets — NOT STARTED.** `src/lib/`, `src/utils/` and
-  `src/shared/view/` are three homes with no rule about which to use.
-- **`view/subcomponents/` — NOT STARTED.** One meaningless nesting level, in
-  four component folders; `chat/view/subcomponents/` alone holds 26 files.
+- **Shared buckets — DONE (94f13b1).** The rule: `src/utils/` is the home
+  for framework-free shared helpers; `src/shared/view/` stays the UI kit.
+  `src/lib/` is gone — `lib/utils.js` became `utils/cn.js` (its dead
+  `safeJsonParse` export had zero importers and was deleted, not moved) and
+  the voice helpers moved alongside the other utils. Direction chosen by
+  importer count (lib 38 < utils 47), 38 import sites rewritten.
+- **`view/subcomponents/` — DONE (1bb01e7).** All four folders folded up
+  into their `view/` parents (chat 26 files, sidebar 17, code-editor 7,
+  main-content 5; 55 moves). One lesson worth keeping: a bare side-effect
+  import (`import '../x'` with no `from`) slipped through the mechanical
+  rewrite and only the test lane caught it — gates, not grep, are the
+  authority on a file-movement diff.
 
-Both remaining items are pure file movement: hundreds of changed import paths,
-a diff that hides real work in review, and a magnet for conflicts with anyone
-else in the tree. They are worth doing on a quiet day, not during a push.
+The quiet day arrived (no concurrent work in the tree) and both landed with
+the full gate green at each commit.
 
 ## Explicit exclusions
 

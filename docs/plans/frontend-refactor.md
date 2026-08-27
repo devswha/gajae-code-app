@@ -1,7 +1,7 @@
 # Frontend refactor plan
 
-Status: Phase 0 shipped (c4b0975); phase 1 shipped (a17f4dc projects, 64399be polling, 5c97c83 git-panel, 36305fd + a8ffa47 messages 3a/3b; 3c deferred with rationale); phase 4 mostly shipped (e1b80da i18n, 7974eaa api types); phases 2-3 not started
-Saved: 2026-08-27 (P1 close-out)
+Status: Phase 0 shipped (c4b0975); phase 1 shipped (a17f4dc projects, 64399be polling, 5c97c83 git-panel, 36305fd + a8ffa47 messages 3a/3b; 3c deferred with rationale); phase 2 shipped (afee5d8 spike, fa04327 sidebar de-drill, 37359fc PaletteOps deletion; chat-local state stays local by audit); phase 4 mostly shipped (e1b80da i18n, 7974eaa api types); phase 3 not started
+Saved: 2026-08-27 (P2 close-out)
 
 ## Current priority order
 
@@ -188,7 +188,7 @@ these on its own:**
   hand-written cache/race infrastructure the domain carried, not with its
   line count.
 
-### 2. UI state in a real store — SPIKE SHIPPED (afee5d8)
+### 2. UI state in a real store — DONE (afee5d8, fa04327, 37359fc)
 
 - `useSessionStore.ts` is a store by name only: `useState` + `useRef` over a
   `Map`, so subscriptions cannot be split per field.
@@ -225,13 +225,32 @@ these on its own:**
      bundle is NOT deleted outright (revising the original wording): what
      remains are functions whose dependencies (navigate, queryClient) belong
      to the hook. `useProjectsState`: 1053 -> 921 lines (-132).
-  2. Replace `PaletteOpsContext` with store state (its reason to exist is
-     gone).
-  3. Evaluate `useChatSessionState`'s 18 states: scroll/viewport state stays
-     local by design; only cross-component pieces move.
-  4. Re-measure re-render scope before declaring P2 done.
-  The gjc e2e suite (7 wire/browser scenarios) was run green after the P1+P2
-  spike batch before this slice landed.
+  2. **DONE (37359fc).** `PaletteOpsContext` is deleted. The ops registry is
+     a providerless Zustand module (`usePaletteOpsStore`): later registration
+     wins, unregister restores the previous owner, unregistered ops degrade
+     to no-ops — all locked by DOM tests — and the exposed wrappers are
+     module-level constants, so consumers hold permanently stable
+     identities. Contexts: six -> five.
+  3. **DONE (verdict: no move).** Audited all 17 `useState`s in
+     `useChatSessionState` (the plan said 18; one had already died with the
+     externalMessageUpdate removal). Every one is chat-view-local by design:
+     viewport/scroll (isUserScrolledUp, hasNewMessagesBelow,
+     visibleMessageCount, searchTarget), pagination/loading flags, the
+     load-all overlay trio, pendingUserMessage, tokenBudget/sessionState.
+     None is threaded through component layers — they live and are consumed
+     inside the chat subtree, and the cross-cutting snapshot the workspace
+     panel needs already flows through SessionStatusContext. Moving them to
+     the global store would be scope inflation with no de-drilling payoff.
+  4. **DONE — P2 is closed.** Final measurements: `sidebarSharedProps`
+     19 -> 9 fields (state props all gone; what remains are
+     navigate/queryClient-bound callbacks plus activeSessions/isMobile);
+     `useProjectsState` 1069 (pre-P1) -> 921; contexts 6 -> 5; selector
+     scoping is regression-locked by the shell-store DOM test (a
+     `sidebarOpen` subscriber does not re-render on `selectedSession`
+     changes). The gjc e2e suite (7 wire/browser scenarios) ran green on
+     this line of work.
+
+  P3 is now unblocked per the plan's own ordering.
 
 ### 3. React 19 + React Compiler — NOT STARTED
 

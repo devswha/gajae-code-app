@@ -20,10 +20,10 @@ import {
 import { useOAuthLogin } from '../hooks/useOAuthLogin';
 import OAuthLoginDialog from '../OAuthLoginDialog';
 
-import ChatMessagesPane from './subcomponents/ChatMessagesPane';
-import ChatComposer from './subcomponents/ChatComposer';
-import CommandResultModal from './subcomponents/CommandResultModal';
-import type { ReasoningEffort } from './subcomponents/reasoningEffort';
+import ChatMessagesPane from './ChatMessagesPane';
+import ChatComposer from './ChatComposer';
+import CommandResultModal from './CommandResultModal';
+import type { ReasoningEffort } from './reasoningEffort';
 
 const REASONING_EFFORTS = new Set<ReasoningEffort>([
   'default', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max',

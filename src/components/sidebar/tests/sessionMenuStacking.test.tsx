@@ -5,7 +5,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { TFunction } from 'i18next';
 
-import SidebarSessionItem from '../view/subcomponents/SidebarSessionItem';
+import SidebarSessionItem from '../view/SidebarSessionItem';
 import type { SessionWithProvider } from '../types/types';
 import type { Project } from '../../../types/app';
 

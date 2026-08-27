@@ -16,7 +16,7 @@ import {
   runAppUiCommand,
 } from '../appUiCommands';
 import { useChatComposerState } from '../hooks/useChatComposerState';
-import CommandMenu from '../view/subcomponents/CommandMenu';
+import CommandMenu from '../view/CommandMenu';
 
 const selectedProject: Project = {
   projectId: 'project-1',

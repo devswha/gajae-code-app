@@ -11,10 +11,10 @@ import { useAppShellStore } from '../../../stores/useAppShellStore';
 import type { LLMProvider, Project } from '../../../types/app';
 import type { SidebarProps } from '../types/types';
 
-import SidebarCollapsed from './subcomponents/SidebarCollapsed';
-import SidebarContent from './subcomponents/SidebarContent';
-import SidebarModals from './subcomponents/SidebarModals';
-import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList';
+import SidebarCollapsed from './SidebarCollapsed';
+import SidebarContent from './SidebarContent';
+import SidebarModals from './SidebarModals';
+import type { SidebarProjectListProps } from './SidebarProjectList';
 
 function Sidebar({
   activeSessions,

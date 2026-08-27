@@ -5,7 +5,7 @@ import { createElement, type ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createInstance, type TFunction } from 'i18next';
 
-import SidebarArchiveContent from '../view/subcomponents/SidebarArchiveContent';
+import SidebarArchiveContent from '../view/SidebarArchiveContent';
 
 /*
  * Bulk archiving from the archive screen.

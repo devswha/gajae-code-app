@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { createInstance, type TFunction } from 'i18next';
 
-import { buildSessionActions } from '../view/subcomponents/SidebarSessionItem';
+import { buildSessionActions } from '../view/SidebarSessionItem';
 import { downloadBlob, filenameFromContentDisposition } from '../../../utils/download';
 
 /*

@@ -8,8 +8,8 @@ import { MemoryRouter } from 'react-router-dom';
 import type { Project } from '../../../types/app';
 import type { MainContentHeaderProps, MainContentProps, MainContentStateViewProps } from '../types/types';
 
-import MainContentHeader from './subcomponents/MainContentHeader';
-import MainContentStateView from './subcomponents/MainContentStateView';
+import MainContentHeader from './MainContentHeader';
+import MainContentStateView from './MainContentStateView';
 
 const selectedProject: Project = {
   projectId: 'project-alpha',

@@ -127,7 +127,7 @@ test('Given search is gone when CSS is inspected then obsolete nav search and gl
 });
 
 test('Given runtime has no sidebar filter when project state source is inspected then no search-empty branch remains', () => {
-  const source = readFileSync(path.join(ROOT, 'src/components/sidebar/view/subcomponents/SidebarProjectsState.tsx'), 'utf8');
+  const source = readFileSync(path.join(ROOT, 'src/components/sidebar/view/SidebarProjectsState.tsx'), 'utf8');
   const obsoleteSourceText = [
     'Search',
     'filteredProjectsCount === 0',

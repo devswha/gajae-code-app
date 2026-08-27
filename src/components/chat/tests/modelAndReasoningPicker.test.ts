@@ -10,7 +10,7 @@ import {
   reasoningOptionsForModel,
   resolveDisplayModel,
   stripEffortSuffix,
-} from '../view/subcomponents/ModelAndReasoningPicker';
+} from '../view/ModelAndReasoningPicker';
 import type { ProviderModelOption } from '../../../types/app';
 
 const catalog: ProviderModelOption[] = [

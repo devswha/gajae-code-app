@@ -14,12 +14,12 @@ import { createMinimapExtension, createScrollToFirstChunkExtension, getLanguageE
 import { getEditorFontSizeTheme, getEditorStyles } from '../utils/editorStyles';
 import { createEditorToolbarPanelExtension } from '../utils/editorToolbarPanel';
 
-import CodeEditorFooter from './subcomponents/CodeEditorFooter';
-import CodeEditorHeader from './subcomponents/CodeEditorHeader';
-import CodeEditorLoadingState from './subcomponents/CodeEditorLoadingState';
-import CodeEditorSurface from './subcomponents/CodeEditorSurface';
-import CodeEditorBinaryFile from './subcomponents/CodeEditorBinaryFile';
-import CodeEditorMediaPreview from './subcomponents/CodeEditorMediaPreview';
+import CodeEditorFooter from './CodeEditorFooter';
+import CodeEditorHeader from './CodeEditorHeader';
+import CodeEditorLoadingState from './CodeEditorLoadingState';
+import CodeEditorSurface from './CodeEditorSurface';
+import CodeEditorBinaryFile from './CodeEditorBinaryFile';
+import CodeEditorMediaPreview from './CodeEditorMediaPreview';
 
 type CodeEditorProps = {
   file: CodeEditorFile;

@@ -12,7 +12,7 @@ import {
   type PendingCommandGate,
   type QueuedDraft,
 } from '../hooks/useChatComposerState';
-import ChatComposer from '../view/subcomponents/ChatComposer';
+import ChatComposer from '../view/ChatComposer';
 
 const selectedProject: Project = {
   projectId: 'project-1',

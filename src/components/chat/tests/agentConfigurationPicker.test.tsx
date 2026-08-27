@@ -5,7 +5,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { ProviderModelOption } from '../../../types/app';
-import AgentConfigurationPicker from '../view/subcomponents/AgentConfigurationPicker';
+import AgentConfigurationPicker from '../view/AgentConfigurationPicker';
 
 const options: ProviderModelOption[] = [
   {

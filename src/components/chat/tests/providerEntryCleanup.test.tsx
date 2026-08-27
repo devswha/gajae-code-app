@@ -8,8 +8,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { ProjectSession } from '../../../types/app';
 import type { ChatMessage } from '../types/types';
 import { isHistoricalNonGjcReadOnlySession } from '../view/ChatInterface';
-import MessageComponent from '../view/subcomponents/MessageComponent';
-import ProviderSelectionEmptyState from '../view/subcomponents/ProviderSelectionEmptyState';
+import MessageComponent from '../view/MessageComponent';
+import ProviderSelectionEmptyState from '../view/ProviderSelectionEmptyState';
 
 const historicalSessions = [
   {

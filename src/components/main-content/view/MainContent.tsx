@@ -9,8 +9,8 @@ import { useFileOpenResolver } from '../../../hooks/useFileOpenResolver';
 import { useEditorFile } from '../../code-editor/hooks/useEditorFile';
 import { useWorkspacePanel } from '../../workspace/hooks/useWorkspacePanel';
 
-import MainContentHeader from './subcomponents/MainContentHeader';
-import MainContentStateView from './subcomponents/MainContentStateView';
+import MainContentHeader from './MainContentHeader';
+import MainContentStateView from './MainContentStateView';
 import ErrorBoundary from './ErrorBoundary';
 
 const ChatInterface = lazy(() => import('../../chat/view/ChatInterface'));

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import '../../../index.css';
 import type { Project } from '../../../types/app';
 import { useSidebarController } from '../hooks/useSidebarController';
-import SidebarContent from '../view/subcomponents/SidebarContent';
+import SidebarContent from '../view/SidebarContent';
 
 const requests: string[] = [];
 const fixtureProjects: Project[] = [{

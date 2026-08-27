@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { formatTokens, type SessionStatusSnapshot } from '../../../contexts/sessionStatusSnapshot';
-import { reasoningEffortLabel } from '../../chat/view/subcomponents/reasoningEffort';
+import { reasoningEffortLabel } from '../../chat/view/reasoningEffort';
 import { useProjectGitSummary } from '../hooks/useProjectGitSummary';
 
 export type WorkspaceStatusTabProps = {

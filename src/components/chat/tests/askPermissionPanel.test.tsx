@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import { getPermissionPanel } from '../tools/configs/permissionPanelRegistry';
 import type { PendingPermissionRequest } from '../types/types';
-import PermissionRequestsBanner from '../view/subcomponents/PermissionRequestsBanner';
+import PermissionRequestsBanner from '../view/PermissionRequestsBanner';
 
 /*
  * Asking the user a question.

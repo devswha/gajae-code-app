@@ -22,7 +22,7 @@ interface UseFileMentionsOptions {
   selectedProject: Project | null;
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
-  textareaRef: RefObject<HTMLTextAreaElement>;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
 }
 
 const flattenFileTree = (files: ProjectFileNode[], basePath = ''): MentionableFile[] => {

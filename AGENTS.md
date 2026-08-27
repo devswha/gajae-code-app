@@ -60,7 +60,10 @@ dist-native/bun test src/shared/view/ui/ActionMenu.dom.bun.test.tsx
 
 ## Frontend stack
 
-React 18.2 + TypeScript 5.9 on Vite 7, function components and hooks throughout.
+React 19.2 + TypeScript 5.9 on Vite 7 with the React Compiler enabled
+(babel-plugin-react-compiler via @vitejs/plugin-react - do not add manual
+memoization for performance; the compiler owns it), function components and
+hooks throughout.
 Three legacy `.jsx` files remain (`src/main.jsx`, `src/contexts/ThemeContext.jsx`,
 `src/hooks/useLocalStorage.jsx`); everything else
 is `.ts`/`.tsx`. Routing is react-router-dom 7.

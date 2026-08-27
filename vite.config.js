@@ -25,7 +25,12 @@ export default defineConfig(({ mode }) => {
   const allowedHosts = parseAllowedHosts(env.ALLOWED_HOSTS)
 
   return {
-    plugins: [react()],
+    plugins: [
+      // React Compiler (stable 1.0): build-time auto-memoization. Rules of
+      // React are enforced by eslint-plugin-react-hooks; components the
+      // compiler cannot prove safe are skipped, not broken.
+      react({ babel: { plugins: [['babel-plugin-react-compiler', {}]] } }),
+    ],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url))
@@ -57,7 +62,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            'vendor-react': ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query', 'zustand'],
+            'vendor-react': ['react', 'react-dom', 'react-dom/client', 'react-router-dom', '@tanstack/react-query', 'zustand'],
             'vendor-codemirror': [
               '@uiw/react-codemirror',
               '@codemirror/lang-css',

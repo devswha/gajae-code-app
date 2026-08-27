@@ -34,7 +34,7 @@ type TypedSettingsProps = {
   initialTab: string;
 };
 
-const SettingsComponent = Settings as (props: TypedSettingsProps) => JSX.Element;
+const SettingsComponent = Settings as (props: TypedSettingsProps) => React.JSX.Element;
 
 function TypedSettings(props: TypedSettingsProps) {
   return <SettingsComponent {...props} />;

@@ -105,9 +105,9 @@ interface ChatComposerProps {
   getRootProps: <T extends DropzoneRootProps>(props?: T) => T;
   getInputProps: <T extends DropzoneInputProps>(props?: T) => T;
   openImagePicker: () => void;
-  inputHighlightRef: RefObject<HTMLDivElement>;
+  inputHighlightRef: RefObject<HTMLDivElement | null>;
   renderInputWithMentions: (text: string) => ReactNode;
-  textareaRef: RefObject<HTMLTextAreaElement>;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
   input: string;
   onVoiceTranscript?: (text: string, send?: boolean) => void;
   onInputChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;

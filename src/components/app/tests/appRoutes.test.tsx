@@ -28,7 +28,9 @@ test('Given stale Jobs or unknown paths when matching routes then the root repla
     assert.equal(route?.path, '*', pathname);
     assert.ok(isValidElement(route?.element), pathname);
     assert.equal(route.element.type, Navigate, pathname);
-    assert.equal(route.element.props.to, '/', pathname);
-    assert.equal(route.element.props.replace, true, pathname);
+    // React 19 types ReactElement.props as unknown; the assertion narrows it.
+    const elementProps = route.element.props as { to?: unknown; replace?: unknown };
+    assert.equal(elementProps.to, '/', pathname);
+    assert.equal(elementProps.replace, true, pathname);
   }
 });

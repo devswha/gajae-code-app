@@ -25,7 +25,7 @@ type FileTreeListProps = {
   setRenameValue?: (value: string) => void;
   handleConfirmRename?: () => void;
   handleCancelRename?: () => void;
-  renameInputRef?: RefObject<HTMLInputElement>;
+  renameInputRef?: RefObject<HTMLInputElement | null>;
   operationLoading?: boolean;
 };
 

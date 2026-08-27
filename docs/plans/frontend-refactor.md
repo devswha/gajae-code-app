@@ -216,13 +216,22 @@ these on its own:**
   locked by a DOM test: a `sidebarOpen` subscriber does not re-render when
   `selectedSession` changes.
 - The mechanics are proven. Remaining P2 slices, in order:
-  1. De-drill the rest of the sidebar bundle (attention set, settings
-     open/close, loading) and delete `sidebarSharedProps` outright.
+  1. **DONE (fa04327).** Settings cluster, attention set and loadingProgress
+     moved into the store; the projects query became the shared
+     `useProjectsQuery` so the sidebar observes the cache directly.
+     `sidebarSharedProps` is down to 9: the seven navigate-dependent
+     callbacks plus `activeSessions`/`isMobile` - state props are gone, and
+     callbacks-as-props is idiomatic React, not drilling pathology. The
+     bundle is NOT deleted outright (revising the original wording): what
+     remains are functions whose dependencies (navigate, queryClient) belong
+     to the hook. `useProjectsState`: 1053 -> 921 lines (-132).
   2. Replace `PaletteOpsContext` with store state (its reason to exist is
      gone).
   3. Evaluate `useChatSessionState`'s 18 states: scroll/viewport state stays
      local by design; only cross-component pieces move.
   4. Re-measure re-render scope before declaring P2 done.
+  The gjc e2e suite (7 wire/browser scenarios) was run green after the P1+P2
+  spike batch before this slice landed.
 
 ### 3. React 19 + React Compiler — NOT STARTED
 

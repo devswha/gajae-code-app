@@ -1,7 +1,7 @@
 import { Ban, Check, Loader2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-import { cn } from '../../../../lib/utils';
+import { cn } from '../../../../utils/cn';
 
 export type ToolStatus = 'running' | 'completed' | 'error' | 'denied';
 

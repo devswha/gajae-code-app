@@ -4,7 +4,7 @@ import { ChevronDown, Eye, FileText, FolderPlus, List, Loader2, RefreshCw, Searc
 import { useTranslation } from 'react-i18next';
 
 import { Button, Input } from '../../../shared/view/ui';
-import { cn } from '../../../lib/utils';
+import { cn } from '../../../utils/cn';
 import { MAX_FILE_UPLOAD_SIZE_LABEL } from '../constants/constants';
 import type { FileTreeViewMode } from '../types/types';
 

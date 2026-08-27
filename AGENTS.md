@@ -85,7 +85,7 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   of truth - there is no messages table in SQLite and messages are never
   cached in localStorage.
 - **Styling**: Tailwind 3.4 with `darkMode: ["class"]` and
-  `@tailwindcss/typography`. `cn()` (`src/lib/utils.js`) is clsx +
+  `@tailwindcss/typography`. `cn()` (`src/utils/cn.js`) is clsx +
   tailwind-merge; variants use class-variance-authority. Pretendard Variable is
   the sans stack and is also appended to the *serif* stack, because the Latin
   serif faces carry no Hangul and Korean would otherwise fall back to a system

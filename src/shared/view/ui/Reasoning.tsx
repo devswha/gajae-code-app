@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { BrainIcon, ChevronDownIcon } from 'lucide-react';
 
-import { cn } from '../../../lib/utils';
+import { cn } from '../../../utils/cn';
 
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './Collapsible';
 import { Shimmer } from './Shimmer';

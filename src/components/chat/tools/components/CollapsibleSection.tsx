@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../../../../shared/view/ui';
-import { cn } from '../../../../lib/utils';
+import { cn } from '../../../../utils/cn';
 
 interface CollapsibleSectionProps {
   title: string;

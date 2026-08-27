@@ -1,7 +1,7 @@
 import { Bell, GitBranch, Info, Mic, MonitorCog, Palette } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { cn } from '../../../lib/utils';
+import { cn } from '../../../utils/cn';
 import { PillBar, Pill } from '../../../shared/view/ui';
 import type { SettingsMainTab } from '../types/types';
 

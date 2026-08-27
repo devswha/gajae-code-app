@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { voicePlayer, voiceId, type VoiceSnapshot } from '../../../lib/voicePlayer';
+import { voicePlayer, voiceId, type VoiceSnapshot } from '../../../utils/voicePlayer';
 
 export type TtsState = VoiceSnapshot['state'];
 
 /**
  * Thin adapter over the app-level voicePlayer. Playback lives outside React (see
- * lib/voicePlayer), so switching chats or re-rendering a message no longer cuts the
+ * utils/voicePlayer), so switching chats or re-rendering a message no longer cuts the
  * audio off. This hook just reflects the player's state for one message and forwards taps.
  */
 export function useTts(getText: () => string) {

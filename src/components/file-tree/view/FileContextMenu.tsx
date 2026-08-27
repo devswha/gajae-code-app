@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Mouse
 import { useTranslation } from 'react-i18next';
 import { Copy, Download, FileText, FolderPlus, Pencil, RefreshCw, Trash2, type LucideIcon } from 'lucide-react';
 
-import { cn } from '../../../lib/utils';
+import { cn } from '../../../utils/cn';
 
 type FileContextItem = {
   name: string;

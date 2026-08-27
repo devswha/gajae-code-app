@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { ChevronDown, Loader2, type LucideIcon } from 'lucide-react';
 
-import { cn } from '../../../lib/utils';
+import { cn } from '../../../utils/cn';
 
 import { Button } from './Button';
 

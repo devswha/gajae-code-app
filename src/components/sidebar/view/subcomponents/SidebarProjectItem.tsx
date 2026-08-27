@@ -1,7 +1,7 @@
 import { Check, ChevronRight, Edit3, Folder, Plus, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { cn } from '../../../../lib/utils';
+import { cn } from '../../../../utils/cn';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type { SessionWithProvider } from '../../types/types';

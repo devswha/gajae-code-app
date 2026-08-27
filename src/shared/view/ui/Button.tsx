@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 
-import { cn } from '../../../lib/utils';
+import { cn } from '../../../utils/cn';
 
 // Keep visual variants centralized so all button usages stay consistent.
 const buttonVariants = cva(

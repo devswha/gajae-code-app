@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Check, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 
 import { primaryModelSelector } from '../../../../../shared/model-selectors';
-import { cn } from '../../../../lib/utils';
+import { cn } from '../../../../utils/cn';
 import type { ProviderModelOption } from '../../../../types/app';
 
 import {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { transcribeVoice } from '../../../lib/voiceApi';
+import { transcribeVoice } from '../../../utils/voiceApi';
 
 // Mobile-safe recording: iOS Safari 18.4+ supports webm/opus; older iOS needs mp4.
 const MIME_CANDIDATES = [

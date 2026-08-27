@@ -1,7 +1,7 @@
 import { AlertCircle, CheckCircle2, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { cn } from '../../../lib/utils';
+import { cn } from '../../../utils/cn';
 import type { FileTreeUploadProgressState } from '../hooks/useFileTreeUpload';
 
 type FileTreeUploadProgressProps = {

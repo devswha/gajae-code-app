@@ -2,7 +2,7 @@ import { useCallback, useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Check, X, Loader2, Folder, Upload } from 'lucide-react';
 
-import { cn } from '../../../lib/utils';
+import { cn } from '../../../utils/cn';
 import { ICON_SIZE_CLASS, getFileIconData } from '../constants/fileIcons';
 import { useExpandedDirectories } from '../hooks/useExpandedDirectories';
 import { useFileTreeData } from '../hooks/useFileTreeData';

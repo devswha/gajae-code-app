@@ -4,7 +4,7 @@ import type { TFunction } from 'i18next';
 
 import { Badge, Tooltip, buttonVariants } from '../../../../shared/view/ui';
 import ActionMenu, { type ActionMenuItem } from '../../../../shared/view/ui/ActionMenu';
-import { cn } from '../../../../lib/utils';
+import { cn } from '../../../../utils/cn';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
 import { createSessionViewModel } from '../../utils/utils';

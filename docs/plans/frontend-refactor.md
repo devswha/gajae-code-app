@@ -1,7 +1,7 @@
 # Frontend refactor plan
 
-Status: Phase 0 shipped (c4b0975); phase 1 shipped (a17f4dc projects, 64399be polling, 5c97c83 git-panel, 36305fd + a8ffa47 messages 3a/3b; 3c deferred with rationale); phase 2 shipped (afee5d8 spike, fa04327 sidebar de-drill, 37359fc PaletteOps deletion; chat-local state stays local by audit); phase 4 mostly shipped (e1b80da i18n, 7974eaa api types); phase 3 not started
-Saved: 2026-08-27 (P2 close-out)
+Status: Phases 0-3 shipped (P0 c4b0975 DOM lane; P1 a17f4dc/64399be/5c97c83/36305fd/a8ffa47, 3c deferred with rationale; P2 afee5d8/fa04327/37359fc, chat-local state stays local by audit; P3 4e1be31 React 19 + Compiler). Phase 4: 2 of 4 shipped (e1b80da i18n, 7974eaa api types); the two file-movement items (shared buckets, view/subcomponents flattening) remain quiet-day work.
+Saved: 2026-08-27 (P3 close-out - the roadmap's engineering phases are complete)
 
 ## Current priority order
 
@@ -252,7 +252,7 @@ these on its own:**
 
   P3 is now unblocked per the plan's own ordering.
 
-### 3. React 19 + React Compiler — NOT STARTED
+### 3. React 19 + React Compiler — DONE (4e1be31)
 
 - `useChatComposerState.ts` holds 31 `useCallback`s and `useSessionStore.ts` 30.
   That is a person doing a compiler's job.
@@ -263,6 +263,24 @@ these on its own:**
   react-syntax-highlighter. **Nothing blocks the upgrade.**
 - `@types/react` moves to 19 with it, and the compiler arrives as a Babel plugin
   through `@vitejs/plugin-react`.
+
+**Results (4e1be31, 2026-08-27):**
+
+- react/react-dom 19.2.8, types 19.2.18, babel-plugin-react-compiler 1.0.0.
+  The peer-dependency audit held: the entire type damage was 13 mechanical
+  errors in three kinds (RefObject props widening to include null, one
+  `JSX.Element` moving under `React.JSX`, one test narrowing the now-unknown
+  `ReactElement.props`). Zero runtime code changes were needed.
+- Verified by the full promotion gate plus the 7-scenario gjc e2e suite
+  against the compiled bundle. `react-dom/client` joined the vendor-react
+  manualChunks so the client entry stays out of the app chunk.
+- **Honest cost:** the compiler's memo slots add roughly 40 KB gzip across
+  the main-path chunks in exchange for auto-memoized rendering.
+- Optional follow-up for a quiet day, not a blocker: the ~60 hand-written
+  `useCallback`/`useMemo`s the compiler has made redundant can be deleted
+  incrementally (they are harmless, just noise). Do not add new manual
+  memoization for performance - the compiler owns it now (recorded in
+  AGENTS.md).
 
 ### 4. Housekeeping — 2 of 4 done
 

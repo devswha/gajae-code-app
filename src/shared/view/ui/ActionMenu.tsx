@@ -129,8 +129,13 @@ export default function ActionMenu({
         onClick={() => setIsOpen((current) => !current)}
       >
         {TriggerIcon && <TriggerIcon className="h-4 w-4" />}
-        <span>{label}</span>
-        <ChevronDown className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
+        {/* Icon-only triggers (empty label, e.g. the session row's "...") get no
+            chevron: a second icon overflows the square icon-size button and
+            splits the visual target from the hit area. */}
+        {label && <span>{label}</span>}
+        {label && (
+          <ChevronDown className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
+        )}
       </Button>
 
       {isOpen && (

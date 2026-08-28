@@ -28,7 +28,7 @@ export default function QueuedMessageCard({
   const isNext = position === 1;
 
   return (
-    <div className="settings-content-enter mx-auto mb-1.5 max-w-chat rounded-xl border border-dashed border-primary/25 bg-primary/[0.04] px-3 py-2">
+    <div className="mx-auto mb-1.5 max-w-chat settings-content-enter rounded-xl border border-dashed border-primary/25 bg-primary/4 px-3 py-2">
       <div className="flex items-start gap-2.5">
         {total > 1 ? (
           <span
@@ -42,15 +42,15 @@ export default function QueuedMessageCard({
         )}
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-primary/70">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-primary/70 uppercase">
             <span>{t('input.queue.label')}</span>
-            <span className="normal-case text-muted-foreground/60">
+            <span className="text-muted-foreground/60 normal-case">
               {/* Only the head is sent when the current turn ends; the rest
                   follow one per turn, so promising otherwise would be a lie. */}
               · {isNext ? t('input.queue.willSend') : t('input.queue.willFollow')}
             </span>
           </div>
-          <p className="mt-0.5 line-clamp-2 break-words text-sm text-foreground/90">{content}</p>
+          <p className="mt-0.5 line-clamp-2 text-sm wrap-break-word text-foreground/90">{content}</p>
           {imageCount > 0 && (
             <p className="mt-0.5 text-xs text-muted-foreground">
               {t('input.queue.images', { count: imageCount })}

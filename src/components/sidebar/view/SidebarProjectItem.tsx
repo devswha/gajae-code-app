@@ -105,7 +105,7 @@ export default function SidebarProjectItem({
               type="text"
               value={editingName}
               onChange={(event) => onEditingNameChange(event.target.value)}
-              className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+              className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm text-foreground outline-hidden focus:ring-1 focus:ring-ring"
               placeholder={t('projects.projectNamePlaceholder')}
               autoFocus
               onKeyDown={(event) => {
@@ -125,22 +125,22 @@ export default function SidebarProjectItem({
             <button
               type="button"
               className={cn(
-                'flex h-9 w-full min-w-0 items-center gap-2 rounded-lg px-2.5 pr-9 text-left text-sm outline-none transition-colors hover:bg-accent/70 focus-visible:ring-1 focus-visible:ring-ring',
+                'flex h-9 w-full min-w-0 items-center gap-2 rounded-lg px-2.5 pr-9 text-left text-sm outline-hidden transition-colors hover:bg-accent/70 focus-visible:ring-1 focus-visible:ring-ring',
                 isSelected && 'bg-accent text-accent-foreground',
               )}
               onClick={selectProject}
               title={project.fullPath}
               aria-expanded={showSessions ? isExpanded : undefined}
             >
-              <Folder className={cn('size-4 flex-shrink-0 stroke-[1.7] text-muted-foreground', isSelected && 'text-foreground')} aria-hidden />
+              <Folder className={cn('stroke-1.7 size-4 shrink-0 text-muted-foreground', isSelected && 'text-foreground')} aria-hidden />
               <span className="min-w-0 flex-1 truncate">{project.displayName}</span>
-              <span className="text-[0.6875rem] tabular-nums text-muted-foreground transition-opacity group-hover/project:opacity-0">{sessionCount}</span>
+              <span className="text-[0.6875rem] text-muted-foreground tabular-nums transition-opacity group-hover/project:opacity-0">{sessionCount}</span>
               {showSessions && (
-                <ChevronRight className={cn('size-3.5 flex-shrink-0 text-muted-foreground transition-transform', isExpanded && 'rotate-90')} aria-hidden />
+                <ChevronRight className={cn('size-3.5 shrink-0 text-muted-foreground transition-transform', isExpanded && 'rotate-90')} aria-hidden />
               )}
             </button>
 
-            <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center rounded-md bg-accent/95 opacity-0 shadow-sm transition-opacity group-focus-within/project:opacity-100 group-hover/project:opacity-100">
+            <div className="absolute top-1/2 right-1 flex -translate-y-1/2 items-center rounded-md bg-accent/95 opacity-0 shadow-xs transition-opacity group-focus-within/project:opacity-100 group-hover/project:opacity-100">
               <button
                 className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                 onClick={() => onNewSession(project)}

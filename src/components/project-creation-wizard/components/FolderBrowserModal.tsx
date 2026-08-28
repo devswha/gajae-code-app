@@ -106,7 +106,7 @@ export default function FolderBrowserModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-70 flex items-center justify-center bg-background/80 p-4 backdrop-blur-xs">
       <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-popover text-popover-foreground shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
           <div className="flex items-center gap-2">

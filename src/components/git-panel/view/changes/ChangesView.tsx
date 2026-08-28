@@ -223,7 +223,7 @@ export default function ChangesView({
           <div className={isMobile ? 'pb-4' : ''}>
             {/* STAGED section */}
             <div className="flex items-center justify-between border-b border-border/60 bg-muted/30 px-3 py-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                 Staged ({selectedFiles.size})
               </span>
               {selectedFiles.size > 0 && (
@@ -240,7 +240,7 @@ export default function ChangesView({
               )}
             </div>
             {selectedFiles.size === 0 ? (
-              <div className="px-3 py-2 text-xs italic text-muted-foreground">No staged files</div>
+              <div className="px-3 py-2 text-xs text-muted-foreground italic">No staged files</div>
             ) : (
               <FileChangeList
                 gitStatus={gitStatus}
@@ -260,7 +260,7 @@ export default function ChangesView({
 
             {/* CHANGES section */}
             <div className="flex items-center justify-between border-b border-border/60 bg-muted/30 px-3 py-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                 Changes ({unstagedFiles.size})
               </span>
               {unstagedFiles.size > 0 && (
@@ -277,7 +277,7 @@ export default function ChangesView({
               )}
             </div>
             {unstagedFiles.size === 0 ? (
-              <div className="px-3 py-2 text-xs italic text-muted-foreground">All changes staged</div>
+              <div className="px-3 py-2 text-xs text-muted-foreground italic">All changes staged</div>
             ) : (
               <FileChangeList
                 gitStatus={gitStatus}

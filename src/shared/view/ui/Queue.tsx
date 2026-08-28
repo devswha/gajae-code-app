@@ -74,7 +74,7 @@ export const QueueItemIndicator = React.forwardRef<HTMLDivElement, React.HTMLAtt
         ref={ref}
         data-slot="queue-item-indicator"
         aria-hidden="true"
-        className={cn('mt-0.5 flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center', className)}
+        className={cn('mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center', className)}
         {...props}
       >
         {status === 'completed' && (

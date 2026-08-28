@@ -241,7 +241,7 @@ export default function CodeEditor({
 
   const outerContainerClassName = isSidebar
     ? 'w-full h-full flex flex-col'
-    : `fixed inset-0 z-[9999] md:flex md:items-center md:justify-center md:bg-background/80 md:p-4 md:backdrop-blur-sm ${isFullscreen ? 'md:p-0' : ''}`;
+    : `fixed inset-0 z-9999 md:flex md:items-center md:justify-center md:bg-background/80 md:p-4 md:backdrop-blur-xs ${isFullscreen ? 'md:p-0' : ''}`;
 
   const innerContainerClassName = isSidebar
     ? 'bg-background flex flex-col w-full h-full'

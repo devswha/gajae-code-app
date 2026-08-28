@@ -224,7 +224,7 @@ export default function SidebarSessionItem({
   return (
     <div className="group relative">
       {(showAttentionIndicator || showRecentIndicator) && (
-        <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 transform">
+        <div className="absolute top-1/2 left-0 -translate-x-1 -translate-y-1/2 transform">
           <Tooltip
             content={showAttentionIndicator
               ? t('tooltips.attentionRequiredIndicator', { defaultValue: 'Session needs attention' })
@@ -248,7 +248,7 @@ export default function SidebarSessionItem({
       <div className="md:hidden">
         <div
           className={cn(
-            'relative mx-0 my-0.5 rounded-lg border border-transparent bg-transparent p-2 active:scale-[0.98] transition-all duration-150',
+            'active:scale-0.98 relative mx-0 my-0.5 rounded-lg border border-transparent bg-transparent p-2 transition-all duration-150',
             isSelected ? 'bg-accent text-accent-foreground' : '',
             !isSelected && isProcessing
               ? 'bg-muted/30'
@@ -262,11 +262,11 @@ export default function SidebarSessionItem({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-normal text-foreground">
-                  {isStarred && <Star className="size-3 flex-shrink-0 fill-current text-primary" aria-label={t('sessions.pin')} />}
+                  {isStarred && <Star className="size-3 shrink-0 fill-current text-primary" aria-label={t('sessions.pin')} />}
                   <span className="truncate">{sessionView.sessionName}</span>
                 </div>
                 {isProcessing ? (
-                  <span className="ml-auto flex-shrink-0">
+                  <span className="ml-auto shrink-0">
                     <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
                       <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -274,7 +274,7 @@ export default function SidebarSessionItem({
                     </Tooltip>
                   </span>
                 ) : compactSessionAge && (
-                  <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
+                  <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
                 )}
               </div>
               <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
@@ -319,13 +319,13 @@ export default function SidebarSessionItem({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-normal text-foreground">
-                  {isStarred && <Star className="size-3 flex-shrink-0 fill-current text-primary" aria-label={t('sessions.pin')} />}
+                  {isStarred && <Star className="size-3 shrink-0 fill-current text-primary" aria-label={t('sessions.pin')} />}
                   <span className="truncate">{sessionView.sessionName}</span>
                 </div>
                 {isProcessing ? (
                   <span
                     className={cn(
-                      'ml-auto flex-shrink-0 transition-opacity duration-200',
+                      'ml-auto shrink-0 transition-opacity duration-200',
                       isEditing ? 'opacity-0' : 'group-hover:opacity-0',
                     )}
                   >
@@ -338,7 +338,7 @@ export default function SidebarSessionItem({
                 ) : compactSessionAge && (
                   <span
                     className={cn(
-                      'ml-auto flex-shrink-0 text-[11px] text-muted-foreground transition-opacity duration-200',
+                      'ml-auto shrink-0 text-[11px] text-muted-foreground transition-opacity duration-200',
                       isEditing ? 'opacity-0' : 'group-hover:opacity-0',
                     )}
                   >
@@ -357,15 +357,15 @@ export default function SidebarSessionItem({
         <div
           ref={editingContainerRef}
           className={cn(
-            'absolute right-2 top-1/2 flex -translate-y-1/2 transform items-center gap-1 transition-all duration-200',
+            'absolute top-1/2 right-2 flex -translate-y-1/2 transform items-center gap-1 transition-all duration-200',
             // The translate transform makes this wrapper a stacking context, which
             // traps the action menu's z-50 inside it - without an explicit z-index
             // the NEXT session rows paint over the open menu and steal its clicks.
             // Keep the wrapper lifted and visible for exactly as long as the menu
             // is open (aria-expanded), which also survives browsers that do not
             // focus buttons on click (no group-focus-within there).
-            'has-[[aria-expanded=true]]:z-50 has-[[aria-expanded=true]]:opacity-100',
-            isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+            'has-aria-expanded:z-50 has-aria-expanded:opacity-100',
+            isEditing ? 'opacity-100' : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
           )}
         >
             {isEditing ? (
@@ -383,7 +383,7 @@ export default function SidebarSessionItem({
                     }
                   }}
                   onClick={(event) => event.stopPropagation()}
-                  className="w-32 rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-32 rounded border border-border bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
                   autoFocus
                 />
                 <button

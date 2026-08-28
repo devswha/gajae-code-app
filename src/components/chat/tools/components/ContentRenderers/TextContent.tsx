@@ -34,7 +34,7 @@ export const TextContent: React.FC<TextContentProps> = ({
 
   if (format === 'code') {
     return (
-      <pre className={`mt-1 overflow-hidden whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/30 p-2 font-mono text-xs text-muted-foreground ${className}`}>
+      <pre className={`mt-1 overflow-hidden rounded-lg border border-border bg-muted/30 p-2 font-mono text-xs wrap-break-word whitespace-pre-wrap text-muted-foreground ${className}`}>
         {content}
       </pre>
     );
@@ -42,7 +42,7 @@ export const TextContent: React.FC<TextContentProps> = ({
 
   // Plain text
   return (
-    <div className={`mt-1 whitespace-pre-wrap text-sm text-foreground ${className}`}>
+    <div className={`mt-1 text-sm whitespace-pre-wrap text-foreground ${className}`}>
       {content}
     </div>
   );

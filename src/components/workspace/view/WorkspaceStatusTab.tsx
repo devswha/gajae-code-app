@@ -96,7 +96,7 @@ export default function WorkspaceStatusTab({
       <Section title={t('workspace.statusTab.location')}>
         <Row label={t('workspace.statusTab.project')}>{projectName ?? unreported}</Row>
         <Row label={t('workspace.statusTab.directory')}>
-          <span className="break-all font-mono text-[11px]" title={status.cwd ?? projectPath}>
+          <span className="font-mono text-[11px] break-all" title={status.cwd ?? projectPath}>
             {status.cwd ?? projectPath ?? unreported}
           </span>
         </Row>
@@ -150,7 +150,7 @@ function Section({ title, action, children }: { title: string; action?: ReactNod
   return (
     <section className="mb-4 last:mb-0">
       <div className="mb-1 flex items-center justify-between gap-2">
-        <h3 className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/80">{title}</h3>
+        <h3 className="text-[10px] font-semibold tracking-wide text-muted-foreground/80 uppercase">{title}</h3>
         {action}
       </div>
       <div className="rounded-md border border-border/60 px-2.5 py-1.5">{children}</div>
@@ -161,7 +161,7 @@ function Section({ title, action, children }: { title: string; action?: ReactNod
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-1">
-      <span className="flex-shrink-0 text-muted-foreground">{label}</span>
+      <span className="shrink-0 text-muted-foreground">{label}</span>
       <span className="min-w-0 text-right text-foreground">{children}</span>
     </div>
   );

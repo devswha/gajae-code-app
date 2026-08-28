@@ -241,7 +241,7 @@ function OAuthLoginDialog({
                 href={authorizationUrl}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="block break-all text-xs text-primary underline underline-offset-4"
+                className="block text-xs break-all text-primary underline underline-offset-4"
               >
                 {authorizationUrl}
               </a>

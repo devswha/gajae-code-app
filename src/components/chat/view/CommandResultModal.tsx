@@ -112,15 +112,15 @@ function MetricCard({
 
   return (
     <div
-      className={`group rounded-2xl border border-border/70 bg-background/75 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md ${
+      className={`group rounded-2xl border border-border/70 bg-background/75 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md ${
         compact ? 'p-3' : 'p-4'
       }`}
     >
       <div className={`inline-flex rounded-xl border ${compact ? 'mb-2 p-1.5' : 'mb-3 p-2'} ${toneClass}`}>
         <Icon className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
       </div>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-      <p className={`${compact ? 'mt-0.5 text-[13px]' : 'mt-1 text-sm'} break-all font-semibold text-foreground`}>{value}</p>
+      <p className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">{label}</p>
+      <p className={`${compact ? 'mt-0.5 text-[13px]' : 'mt-1 text-sm'} font-semibold break-all text-foreground`}>{value}</p>
     </div>
   );
 }
@@ -136,12 +136,12 @@ function SearchField({
 }) {
   return (
     <div className="relative">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-10 rounded-xl border-border/70 bg-background/75 pl-9 pr-3 shadow-none focus-visible:ring-primary/40"
+        className="h-10 rounded-xl border-border/70 bg-background/75 pr-3 pl-9 shadow-none focus-visible:ring-primary/40"
       />
     </div>
   );
@@ -175,7 +175,7 @@ function HelpContent({ data }: { data: HelpCommandData }) {
             {filteredCommands.map((command, index) => (
               <div
                 key={`${command.namespace || 'builtin'}-${command.name}`}
-                className="settings-content-enter rounded-2xl border border-border/70 bg-background/75 p-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-muted/25"
+                className="settings-content-enter rounded-2xl border border-border/70 bg-background/75 p-3 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-muted/25"
                 style={{ animationDelay: `${Math.min(index * 18, 160)}ms` }}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -304,13 +304,13 @@ function ModelsContent({
       {/* Compact context bar: active model + refresh, no clutter */}
       <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-muted/20 px-3.5 py-2.5">
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
             Active model · {providerLabel}
           </p>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <span className="break-all font-mono text-sm font-semibold text-foreground">{currentModel}</span>
+            <span className="font-mono text-sm font-semibold break-all text-foreground">{currentModel}</span>
             {pendingSessionModel && pendingSessionModel !== currentModel && (
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-500 dark:text-emerald-400">
+              <span className="text-[11px] font-semibold tracking-[0.14em] text-emerald-500 uppercase dark:text-emerald-400">
                 → {pendingSessionModel} next
               </span>
             )}
@@ -335,7 +335,7 @@ function ModelsContent({
       )}
 
       {filteredOptions.length > 0 ? (
-        <div className="scrollbar-thin -mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="-mr-1 scrollbar-thin min-h-0 flex-1 overflow-y-auto pr-1">
           <div className="grid gap-2 md:grid-cols-2">
             {filteredOptions.map((option, index) => {
               const isCurrent = option.value === currentModel;
@@ -348,7 +348,7 @@ function ModelsContent({
                   onClick={() => handleSelectModel(option.value)}
                   disabled={Boolean(changingModel)}
                   aria-label={`Select model ${option.value}`}
-                  className={`settings-content-enter group flex min-h-16 flex-col rounded-2xl border p-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-60 ${
+                  className={`group flex min-h-16 settings-content-enter flex-col rounded-2xl border p-3 text-left shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden disabled:cursor-default disabled:opacity-60 ${
                     isCurrent
                       ? 'border-primary/45 bg-primary/10'
                       : isPendingSelection
@@ -358,7 +358,7 @@ function ModelsContent({
                   style={{ animationDelay: `${Math.min(index * 14, 180)}ms` }}
                 >
                   <span className="flex items-center justify-between gap-2">
-                    <span className="break-all font-mono text-sm font-semibold text-foreground">{option.value}</span>
+                    <span className="font-mono text-sm font-semibold break-all text-foreground">{option.value}</span>
                     {isCurrent ? (
                       <BadgeCheck className="h-4 w-4 shrink-0 text-primary" />
                     ) : isChanging ? (
@@ -372,10 +372,10 @@ function ModelsContent({
                     <span className="mt-1 text-xs leading-5 text-muted-foreground">{option.description}</span>
                   )}
                   {isCurrent && (
-                    <span className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Current selection</span>
+                    <span className="mt-2 text-[11px] font-semibold tracking-[0.16em] text-primary uppercase">Current selection</span>
                   )}
                   {isPendingSelection && !isCurrent && (
-                    <span className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-500 dark:text-emerald-400">
+                    <span className="mt-2 text-[11px] font-semibold tracking-[0.16em] text-emerald-500 uppercase dark:text-emerald-400">
                       Applies next response
                     </span>
                   )}
@@ -465,12 +465,12 @@ function CostContent({ data }: { data: CostCommandData }) {
       <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Provider</p>
+            <p className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">Provider</p>
             <p className="mt-1 text-sm font-semibold text-foreground">{provider}</p>
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Model</p>
-            <p className="mt-1 break-all font-mono text-sm text-foreground">{model}</p>
+            <p className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">Model</p>
+            <p className="mt-1 font-mono text-sm break-all text-foreground">{model}</p>
           </div>
         </div>
       </div>
@@ -578,7 +578,7 @@ export default function CommandResultModal({
               <HeaderIcon className={isModelsModal ? 'h-4 w-4' : 'h-5 w-5'} />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <p className="text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
                 {activeMeta?.eyebrow}
               </p>
               <p className="mt-0.5 text-lg font-semibold tracking-tight text-foreground sm:text-xl">
@@ -602,7 +602,7 @@ export default function CommandResultModal({
           </Button>
         </div>
 
-        <div className="settings-content-enter min-h-0 flex-1 overflow-hidden px-4 py-4 sm:px-6 sm:py-5">
+        <div className="min-h-0 flex-1 settings-content-enter overflow-hidden px-4 py-4 sm:px-6 sm:py-5">
           {payload?.kind === 'help' && <HelpContent data={payload.data as HelpCommandData} />}
           {payload?.kind === 'models' && (
             <ModelsContent

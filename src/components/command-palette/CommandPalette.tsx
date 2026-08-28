@@ -308,7 +308,7 @@ export default function CommandPalette({
                       )}
                     </div>
                     {s.id === currentSessionId && (
-                      <span className="shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      <span className="shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
                         Current
                       </span>
                     )}

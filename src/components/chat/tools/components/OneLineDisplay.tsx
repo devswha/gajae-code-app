@@ -67,7 +67,7 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
   const renderCopyButton = () => (
     <button
       onClick={handleAction}
-      className="ml-1 flex-shrink-0 text-muted-foreground/40 opacity-0 transition-all hover:text-muted-foreground group-hover:opacity-100"
+      className="ml-1 shrink-0 text-muted-foreground/40 opacity-0 transition-all group-hover:opacity-100 hover:text-muted-foreground"
       title="Copy to clipboard"
       aria-label="Copy to clipboard"
     >
@@ -90,16 +90,16 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
         <div className="flex items-start gap-1.5">
           {status && <ToolStatusBadge status={status} className="mt-0.5" />}
           <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
-            <span className="flex-shrink-0 text-xs font-medium text-foreground">{label || toolName}</span>
-            <code className={`min-w-0 flex-1 font-mono text-xs text-muted-foreground ${wrapText ? 'whitespace-pre-wrap break-all' : 'block truncate'}`}>
+            <span className="shrink-0 text-xs font-medium text-foreground">{label || toolName}</span>
+            <code className={`min-w-0 flex-1 font-mono text-xs text-muted-foreground ${wrapText ? 'break-all whitespace-pre-wrap' : 'block truncate'}`}>
               <span className="select-none">$ </span>{value}
             </code>
             {action === 'copy' && renderCopyButton()}
           </div>
         </div>
         {secondary && (
-          <div className="ml-7 mt-1">
-            <span className="text-[11px] italic text-muted-foreground/60">
+          <div className="mt-1 ml-7">
+            <span className="text-[11px] text-muted-foreground/60 italic">
               {secondary}
             </span>
           </div>
@@ -114,7 +114,7 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
     return (
       <div className={'group flex items-center gap-1.5 py-0.5'}>
         {status && <ToolStatusBadge status={status} />}
-        <span className="flex-shrink-0 text-xs font-medium text-foreground">{label || toolName}</span>
+        <span className="shrink-0 text-xs font-medium text-foreground">{label || toolName}</span>
         <button
           onClick={handleAction}
           className="truncate font-mono text-xs text-muted-foreground transition-colors hover:text-primary hover:underline"
@@ -131,16 +131,16 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
     <div className={`group flex items-center gap-1.5 ${colorScheme.background || ''} py-0.5`}>
       {status && <ToolStatusBadge status={status} />}
       {icon && icon !== 'terminal' && (
-        <span className={`${colorScheme.icon} flex-shrink-0 text-xs`}>{icon}</span>
+        <span className={`${colorScheme.icon} shrink-0 text-xs`}>{icon}</span>
       )}
       {(label || toolName) && (
-        <span className="flex-shrink-0 text-xs font-medium text-foreground">{label || toolName}</span>
+        <span className="shrink-0 text-xs font-medium text-foreground">{label || toolName}</span>
       )}
-      <span className={`font-mono text-xs text-muted-foreground ${wrapText ? 'whitespace-pre-wrap break-all' : 'truncate'} min-w-0 flex-1 ${colorScheme.primary}`}>
+      <span className={`font-mono text-xs text-muted-foreground ${wrapText ? 'break-all whitespace-pre-wrap' : 'truncate'} min-w-0 flex-1 ${colorScheme.primary}`}>
         {value}
       </span>
       {secondary && (
-        <span className={`text-[11px] ${colorScheme.secondary} flex-shrink-0 italic`}>
+        <span className={`text-[11px] ${colorScheme.secondary} shrink-0 italic`}>
           {secondary}
         </span>
       )}

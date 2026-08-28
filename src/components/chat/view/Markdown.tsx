@@ -73,7 +73,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockPro
   if (shouldInline) {
     return (
       <code
-        className={`whitespace-pre-wrap break-words rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground ${className || ''
+        className={`rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[0.9em] wrap-break-word whitespace-pre-wrap text-foreground ${className || ''
           }`}
         {...props}
       >
@@ -88,7 +88,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockPro
   return (
     <div className="group relative my-2">
       {language && language !== 'text' && (
-        <div className="absolute left-3 top-2 z-10 text-xs font-medium uppercase text-muted-foreground">{language}</div>
+        <div className="absolute top-2 left-3 z-10 text-xs font-medium text-muted-foreground uppercase">{language}</div>
       )}
 
       <button
@@ -101,7 +101,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockPro
             }
           })
         }
-        className="absolute right-2 top-2 z-10 rounded-md border border-border bg-card/90 px-2 py-1 text-xs text-foreground/80 opacity-0 transition-opacity hover:bg-muted focus:opacity-100 active:opacity-100 group-hover:opacity-100"
+        className="absolute top-2 right-2 z-10 rounded-md border border-border bg-card/90 px-2 py-1 text-xs text-foreground/80 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted focus:opacity-100 active:opacity-100"
         title={copied ? t('codeBlock.copied') : t('codeBlock.copyCode')}
         aria-label={copied ? t('codeBlock.copied') : t('codeBlock.copyCode')}
       >
@@ -167,7 +167,7 @@ const markdownComponents = {
   // dark-themed <pre> shell that would frame the block.
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   blockquote: ({ children }: { children?: React.ReactNode }) => (
-    <blockquote className="my-2 border-l-4 border-border pl-4 italic text-muted-foreground">
+    <blockquote className="my-2 border-l-4 border-border pl-4 text-muted-foreground italic">
       {children}
     </blockquote>
   ),

@@ -26,7 +26,7 @@ export default function CodeEditorSurface({
   if (markdownPreview && isMarkdownFile) {
     return (
       <div className="h-full overflow-y-auto bg-card">
-        <div className="prose prose-sm mx-auto max-w-none px-8 py-6 dark:prose-invert prose-headings:font-semibold prose-a:text-primary prose-code:text-sm prose-pre:bg-muted prose-img:rounded-lg">
+        <div className="mx-auto prose prose-sm max-w-none px-8 py-6 dark:prose-invert prose-headings:font-semibold prose-a:text-primary prose-code:text-sm prose-pre:bg-muted prose-img:rounded-lg">
           <MarkdownPreview content={content} />
         </div>
       </div>

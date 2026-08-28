@@ -68,7 +68,7 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
       >
         <Sparkles className="size-4" />
         {skills.length > 0 && (
-          <span className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+          <span className="absolute top-0 right-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
             {skills.length}
           </span>
         )}
@@ -77,22 +77,22 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
       {open && createPortal(
         <div
           ref={popupRef}
-          className="fixed z-[80] w-80 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+          className="fixed z-80 w-80 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
           style={{ bottom: popupPosition.bottom, left: popupPosition.left }}
         >
-          <div className="px-2 pb-1.5 pt-1">
+          <div className="px-2 pt-1 pb-1.5">
             <p className="text-xs font-semibold">스킬</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">현재 프로젝트에서 사용할 스킬을 선택합니다.</p>
           </div>
           <div className="relative px-1 pb-1.5">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-3 -translate-y-1/2 text-muted-foreground" />
             <input
               ref={searchRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="스킬 검색"
               aria-label="스킬 검색"
-              className="h-7 w-full rounded-md border border-input bg-background pl-7 pr-2 text-xs outline-none placeholder:text-muted-foreground focus:border-ring"
+              className="h-7 w-full rounded-md border border-input bg-background pr-2 pl-7 text-xs outline-hidden placeholder:text-muted-foreground focus:border-ring"
             />
           </div>
           <div className="max-h-72 overflow-y-auto">

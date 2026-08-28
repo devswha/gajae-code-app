@@ -125,7 +125,7 @@ export default function CommitComposer({
               value={commitMessage}
               onChange={(event) => setCommitMessage(event.target.value)}
               placeholder="Message (Ctrl+Enter to commit)"
-              className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2 pr-20 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2 pr-20 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/30 focus:ring-2 focus:ring-primary/20 focus:outline-hidden"
               rows={3}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
@@ -134,7 +134,7 @@ export default function CommitComposer({
                 }
               }}
             />
-            <div className="absolute right-2 top-2 flex gap-1">
+            <div className="absolute top-2 right-2 flex gap-1">
               <button
                 onClick={() => void handleGenerateMessage()}
                 disabled={selectedFileCount === 0 || isGeneratingMessage}

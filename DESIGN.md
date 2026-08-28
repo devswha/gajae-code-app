@@ -1,6 +1,6 @@
 # Gajae Code App Design System
 
-This document extracts the current product design system from `src/index.css`, `tailwind.config.js`, `src/shared/view/ui`, `src/components/app/AppContent.tsx`, the sidebar, and chat surfaces. It documents what exists today; it is not a redesign brief.
+This document extracts the current product design system from `src/index.css` (which, since Tailwind 4, also carries the `@theme` aliases that used to live in `tailwind.config.js`), `src/shared/view/ui`, `src/components/app/AppContent.tsx`, the sidebar, and chat surfaces. It documents what exists today; it is not a redesign brief.
 
 ## 1. Atmosphere & Identity
 
@@ -16,7 +16,7 @@ Primary personas:
 
 ### Palette
 
-All new product colors must route through semantic CSS variables in `src/index.css` and Tailwind aliases in `tailwind.config.js`. Existing status exceptions are recorded as debt in Section 8.
+All new product colors must route through semantic CSS variables in `src/index.css` and the `@theme` aliases in the same file. Existing status exceptions are recorded as debt in Section 8.
 
 | Role | Token | Light | Dark | Usage |
 |------|-------|-------|------|-------|

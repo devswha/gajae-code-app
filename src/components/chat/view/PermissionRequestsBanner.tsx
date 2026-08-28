@@ -84,7 +84,7 @@ export default function PermissionRequestsBanner({
                 <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
                   View tool input
                 </summary>
-                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/50 p-2 text-xs text-muted-foreground">
+                <pre className="mt-2 max-h-40 overflow-auto rounded-md border bg-muted/50 p-2 text-xs whitespace-pre-wrap text-muted-foreground">
                   {rawInput}
                 </pre>
               </details>

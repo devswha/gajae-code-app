@@ -116,7 +116,7 @@ function MainContent({
 
       <SessionStatusProvider>
       <div ref={workspace.containerRef} className="flex min-h-0 flex-1 overflow-hidden">
-        <div className={`flex min-h-0 min-w-[200px] flex-1 flex-col overflow-hidden ${workspace.expanded ? 'hidden' : ''}`}>
+        <div className={`flex min-h-0 min-w-50 flex-1 flex-col overflow-hidden ${workspace.expanded ? 'hidden' : ''}`}>
           <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
             <ErrorBoundary showDetails>
               <Suspense fallback={null}>

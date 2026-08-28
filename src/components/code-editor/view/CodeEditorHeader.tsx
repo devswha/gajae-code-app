@@ -55,14 +55,14 @@ export default function CodeEditorHeader({
   const saveTitle = saveSuccess ? labels.saved : saving ? labels.saving : labels.save;
 
   return (
-    <div className="flex min-w-0 flex-shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-1.5">
+    <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-1.5">
       {/* File info - can shrink */}
       <div className="flex min-w-0 flex-1 shrink items-center gap-2">
         <div className="min-w-0 shrink">
           <div className="flex min-w-0 items-center gap-2">
             <h3 className="truncate text-sm font-medium text-foreground">{file.name}</h3>
             {file.diffInfo && (
-              <span className="shrink-0 whitespace-nowrap rounded bg-accent/70 px-1.5 py-0.5 text-[10px] text-accent-foreground">
+              <span className="shrink-0 rounded bg-accent/70 px-1.5 py-0.5 text-[10px] whitespace-nowrap text-accent-foreground">
                 {labels.showingChanges}
               </span>
             )}

@@ -37,7 +37,7 @@ export function ToolStatusBadge({ status, className }: ToolStatusBadgeProps) {
   const config = STATUS_CONFIG[status];
   const { Icon } = config;
   return (
-    <span className={cn('inline-flex flex-shrink-0 items-center', config.className, className)}>
+    <span className={cn('inline-flex shrink-0 items-center', config.className, className)}>
       <Icon className={cn('size-3.5', status === 'running' && 'animate-spin')} aria-hidden="true" />
       <span className="sr-only">{config.label}</span>
     </span>

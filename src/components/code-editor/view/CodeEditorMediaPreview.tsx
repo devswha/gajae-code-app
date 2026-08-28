@@ -196,7 +196,7 @@ export default function CodeEditorMediaPreview({
       {!loading && !currentUrl && (
         <div className="flex flex-col items-center gap-3 p-8 text-center text-muted-foreground">
           <p className="text-sm">{error || labels.error}</p>
-          <p className="break-all text-xs">{file.path}</p>
+          <p className="text-xs break-all">{file.path}</p>
         </div>
       )}
     </div>
@@ -252,7 +252,7 @@ export default function CodeEditorMediaPreview({
   );
 
   const header = (
-    <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-3 py-1.5">
+    <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-1.5">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <h3 className="truncate text-sm font-medium text-foreground">{file.name}</h3>
       </div>
@@ -270,8 +270,8 @@ export default function CodeEditorMediaPreview({
   }
 
   const containerClassName = isFullscreen
-    ? 'fixed inset-0 z-[9999] bg-background flex flex-col'
-    : 'fixed inset-0 z-[9999] md:flex md:items-center md:justify-center md:bg-background/80 md:p-4 md:backdrop-blur-sm';
+    ? 'fixed inset-0 z-9999 bg-background flex flex-col'
+    : 'fixed inset-0 z-9999 md:flex md:items-center md:justify-center md:bg-background/80 md:p-4 md:backdrop-blur-xs';
 
   const innerClassName = isFullscreen
     ? 'bg-background flex flex-col w-full h-full'

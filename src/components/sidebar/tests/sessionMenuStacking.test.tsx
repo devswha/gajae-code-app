@@ -65,12 +65,12 @@ test('the menu wrapper lifts itself while the menu is open', () => {
 
   assert.match(
     markup,
-    /has-\[\[aria-expanded=true\]\]:z-50/,
+    /has-aria-expanded:z-50/,
     'the open menu must escape the transform stacking context above later rows',
   );
   assert.match(
     markup,
-    /has-\[\[aria-expanded=true\]\]:opacity-100/,
+    /has-aria-expanded:opacity-100/,
     'the wrapper must stay visible while the menu is open, independent of hover and focus',
   );
 });

@@ -89,7 +89,7 @@ export default function ActivityIndicator({ activity, onAbort, isInputFocused = 
         <div className={`${tabSurfaceClassName} gap-2`}>
           <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
           <Shimmer className="font-medium">{`${label}…`}</Shimmer>
-          <span className="tabular-nums text-muted-foreground/60">{elapsedLabel}</span>
+          <span className="text-muted-foreground/60 tabular-nums">{elapsedLabel}</span>
         </div>
 
         {renderedActivity.canInterrupt && onAbort && (

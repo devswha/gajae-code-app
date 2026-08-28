@@ -96,7 +96,7 @@ export default function FileChangeItem({
       </div>
 
       <div
-        className={`duration-400 overflow-hidden bg-muted/50 transition-all ease-in-out ${isExpanded && diff ? 'max-h-[600px] translate-y-0 opacity-100' : 'max-h-0 -translate-y-1 opacity-0'
+        className={`overflow-hidden bg-muted/50 transition-all duration-400 ease-in-out ${isExpanded && diff ? 'max-h-150 translate-y-0 opacity-100' : 'max-h-0 -translate-y-1 opacity-0'
           }`}
       >
         <div className="flex items-center justify-between border-b border-border p-2">

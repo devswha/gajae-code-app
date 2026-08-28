@@ -145,7 +145,7 @@ export default function ActionMenu({
           role="menu"
           tabIndex={-1}
           className={cn(
-            'absolute top-full z-50 mt-2 min-w-[220px] rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg',
+            'absolute top-full z-50 mt-2 min-w-55 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg',
             'animate-in fade-in-0 zoom-in-95',
             align === 'right' ? 'right-0' : 'left-0',
           )}
@@ -162,7 +162,7 @@ export default function ActionMenu({
                   onClick={() => runItem(item)}
                   className={cn(
                     'flex w-full items-start gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors',
-                    'focus:bg-accent focus:outline-none',
+                    'focus:bg-accent focus:outline-hidden',
                     item.disabled || item.loading
                       ? 'cursor-not-allowed opacity-50'
                       : item.isDanger
@@ -171,12 +171,12 @@ export default function ActionMenu({
                   )}
                 >
                   {item.loading ? (
-                    <Loader2 className="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin" />
+                    <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
                   ) : (
-                    Icon && <Icon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    Icon && <Icon className="mt-0.5 h-4 w-4 shrink-0" />
                   )}
                   <span className="min-w-0 flex-1">
-                    <span className="block font-medium leading-5">{item.label}</span>
+                    <span className="block leading-5 font-medium">{item.label}</span>
                     {item.description && (
                       <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">
                         {item.description}

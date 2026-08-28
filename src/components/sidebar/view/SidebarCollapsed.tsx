@@ -24,7 +24,7 @@ export default function SidebarCollapsed({
   t,
 }: SidebarCollapsedProps) {
   return (
-    <div className="flex h-full w-12 flex-col items-center gap-1 bg-background/80 py-3 backdrop-blur-sm">
+    <div className="flex h-full w-12 flex-col items-center gap-1 bg-background/80 py-3 backdrop-blur-xs">
       {/* Expand button with brand logo */}
       <button
         onClick={onExpand}
@@ -35,7 +35,7 @@ export default function SidebarCollapsed({
         <PanelLeftOpen className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
       </button>
 
-      <div className="nav-divider my-1 w-6" />
+      <div className="my-1 nav-divider w-6" />
 
       {/* Settings */}
       <button

@@ -105,12 +105,12 @@ export default function ToolGroupContainer({
         aria-expanded={isExpanded}
       >
         <ChevronRight
-          className={`h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+          className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`}
           aria-hidden
         />
-        <span className={`${iconClass} flex-shrink-0 text-xs font-medium`}>{icon}</span>
-        <span className="min-w-0 flex-shrink-0 text-xs font-medium text-foreground">{label}</span>
-        <span className="flex-shrink-0 text-[11px] tabular-nums text-muted-foreground/60">
+        <span className={`${iconClass} shrink-0 text-xs font-medium`}>{icon}</span>
+        <span className="min-w-0 shrink-0 text-xs font-medium text-foreground">{label}</span>
+        <span className="shrink-0 text-[11px] text-muted-foreground/60 tabular-nums">
           ×{group.messages.length}
         </span>
         {preview && (

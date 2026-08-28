@@ -98,7 +98,7 @@ export default function WorkspacePanel({
   }, [onTabChange, tab]);
 
   const header = (
-    <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-border/60 px-2 py-1.5">
+    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-2 py-1.5">
       <PillBar role="tablist" aria-label={t('workspace.title')}>
         {WORKSPACE_TABS.map((candidate) => {
           const Icon = TAB_ICONS[candidate];
@@ -126,7 +126,7 @@ export default function WorkspacePanel({
         })}
       </PillBar>
 
-      <div className="flex flex-shrink-0 items-center gap-0.5">
+      <div className="flex shrink-0 items-center gap-0.5">
         {!isMobile && (
           <button
             type="button"
@@ -202,7 +202,7 @@ export default function WorkspacePanel({
           type="button"
           aria-label={t('workspace.close')}
           onClick={onClose}
-          className="fixed inset-0 z-30 bg-background/80 backdrop-blur-sm"
+          className="fixed inset-0 z-30 bg-background/80 backdrop-blur-xs"
         />
         <aside
           aria-label={t('workspace.title')}
@@ -217,7 +217,7 @@ export default function WorkspacePanel({
 
   return (
     <div
-      className={`flex min-h-0 ${expanded ? 'flex-1' : 'flex-shrink-0'}`}
+      className={`flex min-h-0 ${expanded ? 'flex-1' : 'shrink-0'}`}
       style={expanded ? undefined : { width: `${width}px`, minWidth: `${MIN_WORKSPACE_PANEL_WIDTH}px` }}
     >
       {!expanded && (
@@ -232,7 +232,7 @@ export default function WorkspacePanel({
           onMouseDown={onResizeStart}
           onKeyDown={onResizeKeyDown}
           title={t('workspace.resize')}
-          className="group relative w-1 flex-shrink-0 cursor-col-resize bg-border/60 transition-colors hover:bg-primary focus-visible:bg-primary focus-visible:outline-none"
+          className="group relative w-1 shrink-0 cursor-col-resize bg-border/60 transition-colors hover:bg-primary focus-visible:bg-primary focus-visible:outline-hidden"
         >
           <div className="absolute inset-y-0 left-1/2 w-1 -translate-x-1/2 bg-primary opacity-0 transition-opacity group-hover:opacity-100" />
         </div>

@@ -464,11 +464,11 @@ function ChatInterface({
       <div className="flex h-full min-h-0 flex-col">
         {isNewSessionLanding ? (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-[10vh] sm:px-6">
-            <div className="w-full max-w-[46rem]">
+            <div className="w-full max-w-184">
               <h1 className="text-center text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 {t('newSession.greeting', { defaultValue: 'What are we building today?' })}
               </h1>
-              <p className="mb-8 mt-2 text-center text-sm text-muted-foreground">
+              <p className="mt-2 mb-8 text-center text-sm text-muted-foreground">
                 {t('newSession.subtitle', {
                   project: selectedProject.displayName,
                   defaultValue: 'Gajae Code is ready to work in {{project}}.',
@@ -511,9 +511,9 @@ function ChatInterface({
               selectedProject={selectedProject}
             />
 
-            <div className="relative flex-shrink-0">
+            <div className="relative shrink-0">
               {isUserScrolledUp && chatMessages.length > 0 && (
-                <div className="pointer-events-none absolute -top-11 left-0 right-0 z-20 flex justify-center">
+                <div className="pointer-events-none absolute -top-11 right-0 left-0 z-20 flex justify-center">
                   <button
                     type="button"
                     onClick={scrollToBottomAndReset}
@@ -522,7 +522,7 @@ function ChatInterface({
                     className={
                       hasNewMessagesBelow
                         ? 'pointer-events-auto flex h-8 items-center gap-1.5 rounded-full border border-primary/30 bg-primary px-3 text-xs font-medium text-primary-foreground shadow-md transition-all duration-200 hover:brightness-110'
-                        : 'pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground'
+                        : 'pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-xs transition-all duration-200 hover:bg-accent hover:text-foreground'
                     }
                   >
                     {hasNewMessagesBelow && (

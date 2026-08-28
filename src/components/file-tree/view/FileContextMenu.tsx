@@ -268,8 +268,8 @@ export default function FileContextMenu({
           aria-label={t('fileTree.context.menuLabel', 'File context menu')}
           style={{ position: 'fixed', left: menuPosition.x, top: menuPosition.y, zIndex: 9999 }}
           className={cn(
-            'min-w-[180px] py-1 px-1',
-            'bg-popover border border-border rounded-lg shadow-lg',
+            'min-w-45 px-1 py-1',
+            'rounded-lg border border-border bg-popover shadow-lg',
             'animate-in fade-in-0 zoom-in-95',
             'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
           )}
@@ -289,17 +289,17 @@ export default function FileContextMenu({
                   disabled={isLoading || action.isDisabled}
                   onClick={() => runMenuActionAndClose(action.onSelect)}
                   className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors',
-                    'focus:outline-none focus:bg-accent',
+                    'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors',
+                    'focus:bg-accent focus:outline-hidden',
                     action.isDisabled
-                      ? 'opacity-50 cursor-not-allowed'
+                      ? 'cursor-not-allowed opacity-50'
                       : action.isDanger
                       ? 'text-destructive hover:bg-destructive/10'
                       : 'hover:bg-accent',
                     isLoading && 'pointer-events-none',
                   )}
                 >
-                  {action.icon && <action.icon className="h-4 w-4 flex-shrink-0" />}
+                  {action.icon && <action.icon className="h-4 w-4 shrink-0" />}
                   <span className="flex-1">{action.label}</span>
                   {action.shortcut && <span className="font-mono text-xs text-muted-foreground">{action.shortcut}</span>}
                 </button>

@@ -57,7 +57,7 @@ export default function FileTreeUploadProgress({ upload }: FileTreeUploadProgres
           : 'border-primary/20 bg-primary/10 text-foreground',
       )}
     >
-      <div className="flex min-h-[36px] items-center gap-2">
+      <div className="flex min-h-9 items-center gap-2">
         <div
           className={cn(
             'flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
@@ -69,7 +69,7 @@ export default function FileTreeUploadProgress({ upload }: FileTreeUploadProgres
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-3">
             <span className="truncate text-xs font-medium">{title}</span>
-            <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+            <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
               {isUploading ? `${progress}%` : isComplete ? t('common.done', 'Done') : t('common.failed', 'Failed')}
             </span>
           </div>

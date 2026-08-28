@@ -31,8 +31,8 @@ function DarkModeToggle({
     <button
       onClick={handleToggle}
       className={cn(
-        'relative inline-flex h-7 w-12 flex-shrink-0 touch-manipulation cursor-pointer items-center rounded-full border-2 transition-colors duration-200',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        'relative inline-flex h-7 w-12 shrink-0 cursor-pointer touch-manipulation items-center rounded-full border-2 transition-colors duration-200',
+        'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden',
         isEnabled ? 'border-primary bg-primary' : 'border-border bg-muted',
       )}
       role="switch"
@@ -42,7 +42,7 @@ function DarkModeToggle({
       <span className="sr-only">{ariaLabel}</span>
       <span
         className={cn(
-          'flex h-5 w-5 transform items-center justify-center rounded-full shadow-sm transition-transform duration-200',
+          'flex h-5 w-5 transform items-center justify-center rounded-full shadow-xs transition-transform duration-200',
           isEnabled ? 'translate-x-[22px] bg-card' : 'translate-x-[2px] bg-muted-foreground/60',
         )}
       >

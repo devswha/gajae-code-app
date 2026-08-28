@@ -50,16 +50,16 @@ export default function ProjectCreationWizard({
   }, [onClose, onProjectCreated, t, workspacePath]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-60 flex items-center justify-center bg-background/80 p-4 backdrop-blur-xs">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-project-title"
         className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
       >
-        <div className="flex items-center justify-between px-5 pb-2 pt-5">
+        <div className="flex items-center justify-between px-5 pt-5 pb-2">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex size-9 flex-shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
               <FolderPlus className="size-4" />
             </div>
             <div className="min-w-0">

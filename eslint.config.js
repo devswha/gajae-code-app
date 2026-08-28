@@ -35,6 +35,9 @@ export default tseslint.config(
     },
     settings: {
       react: { version: "detect" },
+      // eslint-plugin-tailwindcss v4 resolves utilities from the CSS-first
+      // entry point (there is no tailwind.config.js anymore).
+      tailwindcss: { cssConfigPath: "./src/index.css" },
     },
     rules: {
       // --- Unused imports/vars ---
@@ -260,7 +263,6 @@ export default tseslint.config(
       "shared/**/*.{js,cjs,mjs,ts}",
       "scripts/**/*.{js,cjs,mjs,ts}",
       "vite.config.js",
-      "tailwind.config.js",
     ],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     plugins: {

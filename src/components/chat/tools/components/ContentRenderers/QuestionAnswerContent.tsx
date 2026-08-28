@@ -59,7 +59,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
               onClick={() => setExpandedIdx(isExpanded ? null : idx)}
               className="flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors hover:bg-accent"
             >
-              <div className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full ${
+              <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${
                 answerLabels.length > 0
                   ? 'bg-accent'
                   : 'bg-muted'
@@ -76,12 +76,12 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   {q.header && (
-                    <span className="inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                       {q.header}
                     </span>
                   )}
                   {total > 1 && (
-                    <span className="text-[10px] tabular-nums text-muted-foreground">
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
                       {idx + 1}/{total}
                     </span>
                   )}
@@ -111,14 +111,14 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                 )}
 
                 {!isExpanded && skipped && hasAnyAnswer && (
-                  <span className="mt-1 inline-block text-[10px] italic text-muted-foreground">
+                  <span className="mt-1 inline-block text-[10px] text-muted-foreground italic">
                     Skipped
                   </span>
                 )}
               </div>
 
               <svg
-                className={`mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform duration-200 ${
+                className={`mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${
                   isExpanded ? 'rotate-180' : ''
                 }`}
                 fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}
@@ -128,7 +128,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
             </button>
 
             {isExpanded && (
-              <div className="border-t border-border px-3 pb-2.5 pt-0.5">
+              <div className="border-t border-border px-3 pt-0.5 pb-2.5">
                 <div className="ml-6.5 space-y-1">
                   {options.map((opt) => {
                     const wasSelected = answerLabels.includes(opt.label);
@@ -141,7 +141,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                             : 'text-muted-foreground'
                         }`}
                       >
-                        <div className={`mt-0.5 h-3.5 w-3.5 flex-shrink-0 ${q.multiSelect ? 'rounded-[3px]' : 'rounded-full'} flex items-center justify-center border-[1.5px] ${
+                        <div className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${q.multiSelect ? 'rounded-[3px]' : 'rounded-full'} flex items-center justify-center border-[1.5px] ${
                           wasSelected
                             ? 'border-primary bg-primary'
                             : 'border-border'
@@ -173,7 +173,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                       key={lbl}
                       className="flex items-start gap-2 rounded-lg border border-primary/40 bg-accent/70 px-2.5 py-1.5 text-xs leading-relaxed"
                     >
-                      <div className={`mt-0.5 h-3.5 w-3.5 flex-shrink-0 ${q.multiSelect ? 'rounded-[3px]' : 'rounded-full'} flex items-center justify-center border-[1.5px] border-primary bg-primary`}>
+                      <div className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${q.multiSelect ? 'rounded-[3px]' : 'rounded-full'} flex items-center justify-center border-[1.5px] border-primary bg-primary`}>
                         <svg className="h-2 w-2 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
@@ -186,7 +186,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                   ))}
 
                   {skipped && hasAnyAnswer && (
-                    <div className="px-2.5 py-1 text-xs italic text-muted-foreground">
+                    <div className="px-2.5 py-1 text-xs text-muted-foreground italic">
                       No answer provided
                     </div>
                   )}
@@ -198,7 +198,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
       })}
 
       {!hasAnyAnswer && total === 1 && (
-        <div className="text-xs italic text-muted-foreground">
+        <div className="text-xs text-muted-foreground italic">
           Skipped
         </div>
       )}

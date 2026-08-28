@@ -17,15 +17,15 @@ export default function SettingsToggle({ checked, onChange, ariaLabel, disabled 
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        'relative inline-flex h-7 w-12 flex-shrink-0 touch-manipulation cursor-pointer items-center rounded-full border-2 transition-colors duration-200',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        'relative inline-flex h-7 w-12 shrink-0 cursor-pointer touch-manipulation items-center rounded-full border-2 transition-colors duration-200',
+        'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden',
         checked ? 'border-primary bg-primary' : 'border-border bg-muted',
         disabled && 'cursor-not-allowed opacity-50',
       )}
     >
       <span
         className={cn(
-          'pointer-events-none inline-block h-5 w-5 rounded-full shadow-sm transition-transform duration-200',
+          'pointer-events-none inline-block h-5 w-5 rounded-full shadow-xs transition-transform duration-200',
           checked ? 'translate-x-[22px] bg-white' : 'translate-x-[2px] bg-foreground/60 dark:bg-foreground/80',
         )}
       />

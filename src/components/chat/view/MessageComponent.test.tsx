@@ -196,7 +196,7 @@ test('a user bubble is the size of what was typed', () => {
 
   // Hidden with opacity alone, the controls row still held a 20px line inside
   // bubble, so a two-character message rendered a three-line bubble.
-  assert.match(html, /absolute right-1 top-full/);
+  assert.match(html, /absolute top-full right-1/);
   assert.doesNotMatch(html, /mt-1 flex items-center justify-end gap-1 text-xs text-primary-foreground\/80/);
 });
 

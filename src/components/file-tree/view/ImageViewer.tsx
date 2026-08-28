@@ -59,7 +59,7 @@ export default function ImageViewer({ file, onClose }: ImageViewerProps) {
   }, [imagePath]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs">
       <div className="mx-4 max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg bg-card shadow-xl">
         <div className="flex items-center justify-between border-b p-4">
           <h3 className="text-lg font-semibold text-foreground">{file.name}</h3>
@@ -68,7 +68,7 @@ export default function ImageViewer({ file, onClose }: ImageViewerProps) {
           </Button>
         </div>
 
-        <div className="flex min-h-[400px] items-center justify-center bg-muted p-4">
+        <div className="flex min-h-100 items-center justify-center bg-muted p-4">
           {loading && (
             <div className="text-center text-muted-foreground">
               <p>Loading image...</p>
@@ -84,7 +84,7 @@ export default function ImageViewer({ file, onClose }: ImageViewerProps) {
           {!loading && !imageUrl && (
             <div className="text-center text-muted-foreground">
               <p>{error || 'Unable to load image'}</p>
-              <p className="mt-2 break-all text-sm">{file.path}</p>
+              <p className="mt-2 text-sm break-all">{file.path}</p>
             </div>
           )}
         </div>

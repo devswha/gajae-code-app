@@ -61,7 +61,7 @@ export default function ConfirmActionModal({ action, onCancel, onConfirm }: Conf
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-background/80 backdrop-blur-sm" onClick={onCancel} />
+      <div className="fixed inset-0 bg-background/80 backdrop-blur-xs" onClick={onCancel} />
       <div
         className="relative w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
         role="dialog"

@@ -44,7 +44,7 @@ export default function CodeEditorBinaryFile({
   if (isSidebar) {
     return (
       <div className="flex h-full w-full flex-col bg-background">
-        <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-3 py-1.5">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <h3 className="truncate text-sm font-medium text-foreground">{file.name}</h3>
           </div>
@@ -65,8 +65,8 @@ export default function CodeEditorBinaryFile({
   }
 
   const containerClassName = isFullscreen
-    ? 'fixed inset-0 z-[9999] bg-background flex flex-col'
-    : 'fixed inset-0 z-[9999] md:flex md:items-center md:justify-center md:bg-background/80 md:p-4 md:backdrop-blur-sm';
+    ? 'fixed inset-0 z-9999 bg-background flex flex-col'
+    : 'fixed inset-0 z-9999 md:flex md:items-center md:justify-center md:bg-background/80 md:p-4 md:backdrop-blur-xs';
 
   const innerClassName = isFullscreen
     ? 'bg-background flex flex-col w-full h-full'
@@ -75,7 +75,7 @@ export default function CodeEditorBinaryFile({
   return (
     <div className={containerClassName}>
       <div className={innerClassName}>
-        <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-3 py-1.5">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <h3 className="truncate text-sm font-medium text-foreground">{file.name}</h3>
           </div>

@@ -26,7 +26,7 @@ function RefBadge({ refName, color }: { refName: string; color: string }) {
 
   return (
     <span
-      className="inline-flex max-w-40 items-center gap-1 rounded-full border px-1.5 py-px text-[10px] font-medium leading-4"
+      className="inline-flex max-w-40 items-center gap-1 rounded-full border px-1.5 py-px text-[10px] leading-4 font-medium"
       style={{
         borderColor: color,
         color,
@@ -78,7 +78,7 @@ export default function CommitHistoryItem({
         className="flex w-full cursor-pointer items-start border-0 bg-transparent p-3 text-left transition-colors hover:bg-accent/50"
         onClick={onToggle}
       >
-        <span className="mr-2 mt-1 rounded p-0.5 hover:bg-accent">
+        <span className="mt-1 mr-2 rounded p-0.5 hover:bg-accent">
           {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         </span>
         <div className="min-w-0 flex-1">
@@ -98,7 +98,7 @@ export default function CommitHistoryItem({
                 {commit.date}
               </p>
             </div>
-            <span className="flex-shrink-0 font-mono text-sm text-muted-foreground/60">
+            <span className="shrink-0 font-mono text-sm text-muted-foreground/60">
               {commit.hash.substring(0, 7)}
             </span>
           </div>
@@ -107,9 +107,9 @@ export default function CommitHistoryItem({
 
       {isExpanded && diff && (
         <div className="bg-muted/50">
-          <div className="max-h-[32rem] overflow-y-auto p-3">
+          <div className="max-h-128 overflow-y-auto p-3">
             {/* Full hash */}
-            <p className="mb-2 select-all font-mono text-xs text-muted-foreground/70">
+            <p className="mb-2 font-mono text-xs text-muted-foreground/70 select-all">
               {commit.hash}
             </p>
 
@@ -146,7 +146,7 @@ export default function CommitHistoryItem({
             {/* Changed files list */}
             {fileSummary && fileSummary.files.length > 0 && (
               <div className="mb-3">
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+                <p className="mb-1.5 text-xs font-semibold tracking-wider text-muted-foreground/60 uppercase">
                   Changed Files
                 </p>
                 <div className="rounded-md border border-border/60">
@@ -158,7 +158,7 @@ export default function CommitHistoryItem({
                       }`}
                     >
                       <span
-                        className={`inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border text-[9px] font-bold ${getStatusBadgeClass(file.status)}`}
+                        className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[9px] font-bold ${getStatusBadgeClass(file.status)}`}
                       >
                         {file.status}
                       </span>
@@ -168,7 +168,7 @@ export default function CommitHistoryItem({
                         )}
                         <span className="font-medium text-foreground">{file.filename}</span>
                       </span>
-                      <span className="flex-shrink-0 font-mono text-muted-foreground/60">
+                      <span className="shrink-0 font-mono text-muted-foreground/60">
                         {file.insertions > 0 && (
                           <span className="text-diff-added-foreground">+{file.insertions}</span>
                         )}

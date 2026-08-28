@@ -53,7 +53,7 @@ export default function FileTreeHeader({
   };
 
   return (
-    <div className="space-y-2 border-b border-border px-3 pb-2 pt-3">
+    <div className="space-y-2 border-b border-border px-3 pt-3 pb-2">
       {/* Title and Toolbar */}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-foreground">{t('fileTree.files')}</h3>
@@ -139,7 +139,7 @@ export default function FileTreeHeader({
               aria-label={t('fileTree.refresh', 'Refresh')}
               disabled={operationLoading}
             >
-              <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
+              <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
             </Button>
           )}
           {onCollapseAll && (
@@ -192,19 +192,19 @@ export default function FileTreeHeader({
 
       {/* Search Bar */}
       <div className="relative">
-        <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Search className="absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="text"
           placeholder={t('fileTree.searchPlaceholder')}
           value={searchQuery}
           onChange={(event) => onSearchQueryChange(event.target.value)}
-          className="h-8 pl-8 pr-8 text-sm"
+          className="h-8 pr-8 pl-8 text-sm"
         />
         {searchQuery && (
           <Button
             variant="ghost"
             size="sm"
-            className="absolute right-0.5 top-1/2 h-5 w-5 -translate-y-1/2 p-0 hover:bg-accent"
+            className="absolute top-1/2 right-0.5 h-5 w-5 -translate-y-1/2 p-0 hover:bg-accent"
             onClick={() => onSearchQueryChange('')}
             title={t('fileTree.clearSearch')}
             aria-label={t('fileTree.clearSearch')}

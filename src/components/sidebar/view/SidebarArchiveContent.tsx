@@ -291,20 +291,20 @@ export default function SidebarArchiveContent({
         )}`}
       </p>
       {archivedProjects.map((project) => (
-        <div key={project.projectId} className="overflow-hidden rounded-xl border border-border/70 bg-card/60 shadow-sm">
+        <div key={project.projectId} className="overflow-hidden rounded-xl border border-border/70 bg-card/60 shadow-xs">
           <div className="flex items-start justify-between gap-3 border-b border-border/60 px-3 py-2.5">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <Folder className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="truncate text-sm font-normal text-foreground">{project.displayName}</span>
-                <span className="inline-flex items-center justify-center rounded-full bg-muted px-1 py-px text-center text-[7px] font-medium uppercase leading-none tracking-[0.02em] text-muted-foreground">
+                <span className="inline-flex items-center justify-center rounded-full bg-muted px-1 py-px text-center text-[7px] leading-none font-medium tracking-[0.02em] text-muted-foreground uppercase">
                   {t('archived.projectArchived', 'Project archived')}
                 </span>
               </div>
               <p className="mt-1 truncate text-xs text-muted-foreground/70" title={project.fullPath}>{project.fullPath}</p>
             </div>
             <button
-              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary/20"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary/20"
               onClick={() => onRestoreArchivedProject(project.projectId)}
               aria-label={t('archived.restoreProject', 'Restore workspace')}
               title={t('archived.restoreProject', 'Restore workspace')}
@@ -315,21 +315,21 @@ export default function SidebarArchiveContent({
         </div>
       ))}
       {groupedArchivedSessions.map((group) => (
-        <div key={group.key} className="overflow-hidden rounded-xl border border-border/70 bg-card/60 shadow-sm">
+        <div key={group.key} className="overflow-hidden rounded-xl border border-border/70 bg-card/60 shadow-xs">
           <div className="flex items-start justify-between gap-3 border-b border-border/60 px-3 py-2.5">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <Folder className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="truncate text-sm font-normal text-foreground">{group.projectDisplayName}</span>
                 {group.isProjectArchived && (
-                  <span className="inline-flex items-center justify-center rounded-full bg-muted px-1 py-px text-center text-[7px] font-medium uppercase leading-none tracking-[0.02em] text-muted-foreground">
+                  <span className="inline-flex items-center justify-center rounded-full bg-muted px-1 py-px text-center text-[7px] leading-none font-medium tracking-[0.02em] text-muted-foreground uppercase">
                     {t('archived.projectArchived', 'Project archived')}
                   </span>
                 )}
               </div>
               {group.projectPath && <p className="mt-1 truncate text-xs text-muted-foreground/70" title={group.projectPath}>{group.projectPath}</p>}
             </div>
-            <span className="flex-shrink-0 text-[11px] text-muted-foreground">{group.sessions.length}</span>
+            <span className="shrink-0 text-[11px] text-muted-foreground">{group.sessions.length}</span>
           </div>
           <div className="divide-y divide-border/50">
             {group.sessions.map((session) => (
@@ -338,15 +338,15 @@ export default function SidebarArchiveContent({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-xs font-normal text-foreground">{session.sessionTitle}</span>
-                      {session.lastActivity && <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{formatCompactArchivedAge(session.lastActivity)}</span>}
+                      {session.lastActivity && <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{formatCompactArchivedAge(session.lastActivity)}</span>}
                     </div>
-                    <p className="mt-0.5 text-[11px] uppercase tracking-wide text-muted-foreground/70">{session.provider}</p>
+                    <p className="mt-0.5 text-[11px] tracking-wide text-muted-foreground/70 uppercase">{session.provider}</p>
                   </div>
                 </button>
-                <button className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary/20" onClick={() => onRestoreArchivedSession(session.sessionId)} aria-label={t('archived.restore', 'Restore session')} title={t('archived.restore', 'Restore session')}>
+                <button className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary/20" onClick={() => onRestoreArchivedSession(session.sessionId)} aria-label={t('archived.restore', 'Restore session')} title={t('archived.restore', 'Restore session')}>
                   <RotateCcw className="h-3.5 w-3.5" />
                 </button>
-                <button className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive transition-colors hover:bg-destructive/20" onClick={() => onDeleteArchivedSession(session)} aria-label={t('archived.deletePermanently', 'Delete permanently')} title={t('archived.deletePermanently', 'Delete permanently')}>
+                <button className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive transition-colors hover:bg-destructive/20" onClick={() => onDeleteArchivedSession(session)} aria-label={t('archived.deletePermanently', 'Delete permanently')} title={t('archived.deletePermanently', 'Delete permanently')}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>

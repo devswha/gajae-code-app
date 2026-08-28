@@ -18,7 +18,7 @@ export default function SettingsRow({ label, description, children, className }:
           <div className="mt-0.5 text-sm text-muted-foreground">{description}</div>
         )}
       </div>
-      <div className="flex-shrink-0">{children}</div>
+      <div className="shrink-0">{children}</div>
     </div>
   );
 }

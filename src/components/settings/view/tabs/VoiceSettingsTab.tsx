@@ -7,7 +7,7 @@ import { useUiPreferences } from '../../../../hooks/useUiPreferences';
 import { useVoiceConfig } from '../../../../hooks/useVoiceConfig';
 
 const inputClass =
-  'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring';
+  'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring';
 
 function Field({ label, ...props }: { label: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (

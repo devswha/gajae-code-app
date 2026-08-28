@@ -171,15 +171,15 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               />
             )}
             {userCopyContent.trim().length > 0 || !message.images?.length ? (
-              <div className="group relative max-w-full rounded-2xl rounded-br-md bg-chat-bubble px-3 py-2 text-chat-bubble-foreground shadow-sm sm:px-4">
-                <div dir="auto" className="whitespace-pre-wrap break-words text-base">
+              <div className="group relative max-w-full rounded-2xl rounded-br-md bg-chat-bubble px-3 py-2 text-chat-bubble-foreground shadow-xs sm:px-4">
+                <div dir="auto" className="text-base wrap-break-word whitespace-pre-wrap">
                   {message.content}
                 </div>
                 {/* Outside the bubble's flow: hidden with opacity it still held
                     its 20px row, so a one-line message sat in a 60px bubble of
                     which a third was invisible. Absolute keeps the bubble the
                     size of what was typed. */}
-                <div className="pointer-events-none absolute right-1 top-full z-10 mt-0.5 flex items-center justify-end gap-1 whitespace-nowrap text-[11px] text-muted-foreground opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/turn:pointer-events-auto group-hover/turn:opacity-100">
+                <div className="pointer-events-none absolute top-full right-1 z-10 mt-0.5 flex items-center justify-end gap-1 text-[11px] whitespace-nowrap text-muted-foreground opacity-0 transition-opacity group-hover/turn:pointer-events-auto group-hover/turn:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
                   {shouldShowUserCopyControl && (
                     <MessageCopyControl content={userCopyContent} messageType="user" />
                   )}
@@ -202,9 +202,9 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
           return (
             <div className="w-full py-0.5">
               <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${container}`} role="note">
-                <Icon className={`mt-px h-3.5 w-3.5 flex-shrink-0 ${icon}`} aria-hidden="true" />
+                <Icon className={`mt-px h-3.5 w-3.5 shrink-0 ${icon}`} aria-hidden="true" />
                 <span className="sr-only">{t(`messageTypes.notice.${level}`)}</span>
-                <span dir="auto" className="max-h-80 min-w-0 overflow-auto whitespace-pre-wrap break-words">{message.content}</span>
+                <span dir="auto" className="max-h-80 min-w-0 overflow-auto wrap-break-word whitespace-pre-wrap">{message.content}</span>
               </div>
             </div>
           );
@@ -213,7 +213,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
         /* Compact task notification on the left */
         <div className="w-full">
           <div className="flex items-center gap-2 py-0.5">
-            <span className={`inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full ${message.taskStatus === 'completed' ? 'bg-muted-foreground' : 'bg-primary'}`} />
+            <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${message.taskStatus === 'completed' ? 'bg-muted-foreground' : 'bg-primary'}`} />
             <span className="text-xs text-muted-foreground">{message.content}</span>
           </div>
         </div>
@@ -226,7 +226,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                on the left, opposite the user's blue bubbles, so its name and
                logo were a label nobody needed to read on every turn. */
             <div className="mb-2 flex items-center space-x-3">
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full p-1 text-sm text-foreground">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full p-1 text-sm text-foreground">
                 <SessionProviderLogo provider={provider} className="h-full w-full" />
               </div>
               <div className="text-sm font-medium text-foreground">
@@ -279,9 +279,9 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                        for a message that is usually one line long. */
                     <div id={`tool-result-${message.toolId}`} className="scroll-mt-4 py-0.5 pl-2">
                       <div className="flex items-start gap-1.5">
-                        <OctagonAlertIcon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-destructive" aria-hidden="true" />
+                        <OctagonAlertIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
                         <span className="sr-only">{t('tools.error')}</span>
-                        <pre dir="auto" className="max-h-80 min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-destructive">
+                        <pre dir="auto" className="max-h-80 min-w-0 flex-1 overflow-auto font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap text-destructive">
                           {String(effectiveToolResult.content || '')}
                         </pre>
                       </div>
@@ -331,7 +331,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               // Special handling for interactive prompts
               <div className="rounded-lg border border-border bg-muted p-4">
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary">
                     <svg className="h-5 w-5 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -377,7 +377,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                                 disabled
                               >
                                 <div className="flex items-center gap-3">
-                                  <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${option.isSelected
+                                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${option.isSelected
                                     ? 'bg-primary-foreground/20'
                                     : 'bg-secondary'
                                     }`}>
@@ -438,7 +438,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 {(() => {
                   if (message.isLocalCommandStdout) {
                     return (
-                      <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-sm">
+                      <pre className="overflow-x-auto font-mono text-sm wrap-break-word whitespace-pre-wrap">
                         <code>{String(message.content || '')}</code>
                       </pre>
                     );
@@ -464,7 +464,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                           </div>
                           <div className="overflow-hidden rounded-lg border border-border bg-muted">
                             <pre className="overflow-x-auto p-4">
-                              <code className="block whitespace-pre font-mono text-sm text-foreground">
+                              <code className="block font-mono text-sm whitespace-pre text-foreground">
                                 {formatted}
                               </code>
                             </pre>

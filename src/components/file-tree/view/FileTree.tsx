@@ -235,7 +235,7 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
 
       {/* Delete Confirmation Dialog */}
       {operations.deleteConfirmation.isOpen && operations.deleteConfirmation.item && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-9999 flex items-center justify-center bg-background/80 backdrop-blur-xs">
           <div className="mx-4 max-w-sm rounded-lg border border-border bg-background p-4 shadow-lg">
             <div className="mb-4 flex items-center gap-3">
               <div className="rounded-full bg-destructive/10 p-2">
@@ -282,7 +282,7 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
       {toast && (
         <div
           className={cn(
-            'fixed bottom-4 right-4 z-[9999] px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-bottom-2',
+            'animate-in slide-in-from-bottom-2 fixed right-4 bottom-4 z-9999 flex items-center gap-2 rounded-lg px-4 py-2 shadow-lg',
             toast.type === 'success'
               ? 'bg-primary text-primary-foreground'
               : 'bg-destructive text-destructive-foreground'

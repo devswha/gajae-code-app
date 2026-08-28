@@ -88,7 +88,7 @@ test('the mobile panel is an overlay with a dismiss backdrop and no resizing', (
   const html = render({ isMobile: true });
 
   // Above the chat, below the mobile sidebar, so navigation always wins.
-  assert.match(html, /class="fixed inset-0 z-30 bg-background\/80 backdrop-blur-sm"/);
+  assert.match(html, /class="fixed inset-0 z-30 bg-background\/80 backdrop-blur-xs"/);
   assert.match(html, /fixed inset-y-0 right-0 z-40/);
   assert.doesNotMatch(html, /role="separator"/);
   assert.doesNotMatch(html, /workspace\.expand|workspace\.collapse/);

@@ -299,7 +299,7 @@ export default function ModelAndReasoningPicker({
         type="button"
         onClick={() => setOpen((current) => !current)}
         disabled={loading || selecting || groups.length === 0}
-        className="flex h-8 min-w-0 max-w-40 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 sm:max-w-56"
+        className="flex h-8 max-w-40 min-w-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 sm:max-w-56"
         aria-label={t('input.modelReasoning.label')}
         aria-expanded={open}
         title={`${displayModel ?? t('input.modelReasoning.defaultModel')} · ${reasoningLabel}`}
@@ -316,7 +316,7 @@ export default function ModelAndReasoningPicker({
       {open && createPortal(
         <div
           ref={popupRef}
-          className="fixed z-[80] w-[28rem] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+          className="fixed z-80 w-md max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
           style={{ bottom: popupPosition.bottom, left: popupPosition.left }}
         >
           <button
@@ -338,7 +338,7 @@ export default function ModelAndReasoningPicker({
 
           <div className="mt-1 flex divide-x divide-border/60 border-t border-border/60 pt-1">
             <div className="min-w-0 flex-[1.1] pr-1" role="listbox" aria-label={t('input.modelReasoning.providerTitle')}>
-              <p className="px-2.5 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="px-2.5 pt-1 pb-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
                 {t('input.modelReasoning.providerTitle')}
               </p>
               <div className="max-h-64 space-y-0.5 overflow-y-auto">
@@ -368,7 +368,7 @@ export default function ModelAndReasoningPicker({
             </div>
 
             <div className="min-w-0 flex-[1.2] px-1" role="listbox" aria-label={t('input.modelReasoning.modelTitle')}>
-              <p className="px-2.5 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="px-2.5 pt-1 pb-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
                 {t('input.modelReasoning.modelTitle')}
               </p>
               <div className="max-h-64 space-y-0.5 overflow-y-auto">
@@ -396,7 +396,7 @@ export default function ModelAndReasoningPicker({
             </div>
 
             <div className="min-w-0 flex-[0.9] pl-1" role="listbox" aria-label={t('input.modelReasoning.reasoningTitle')}>
-              <p className="px-2.5 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="px-2.5 pt-1 pb-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
                 {t('input.modelReasoning.reasoningTitle')}
               </p>
               <div className="max-h-64 space-y-0.5 overflow-y-auto">

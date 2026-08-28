@@ -65,7 +65,7 @@ export const TaskListContent: React.FC<TaskListContentProps> = ({ content }) => 
   // If we couldn't parse any tasks, fall back to text display
   if (tasks.length === 0) {
     return (
-      <pre className="whitespace-pre-wrap font-mono text-xs text-muted-foreground">
+      <pre className="font-mono text-xs whitespace-pre-wrap text-muted-foreground">
         {content}
       </pre>
     );
@@ -95,14 +95,14 @@ export const TaskListContent: React.FC<TaskListContentProps> = ({ content }) => 
               key={task.id}
               className="group flex items-center gap-1.5 py-0.5"
             >
-              <span className="flex-shrink-0">{config.icon}</span>
-              <span className="flex-shrink-0 font-mono text-xs text-muted-foreground">
+              <span className="shrink-0">{config.icon}</span>
+              <span className="shrink-0 font-mono text-xs text-muted-foreground">
                 #{task.id}
               </span>
               <span className={`flex-1 truncate text-xs ${config.textClass}`}>
                 {task.subject}
               </span>
-              <span className={`flex-shrink-0 rounded border px-1 py-px text-[10px] ${config.badgeClass}`}>
+              <span className={`shrink-0 rounded border px-1 py-px text-[10px] ${config.badgeClass}`}>
                 {task.status.replace('_', ' ')}
               </span>
             </div>

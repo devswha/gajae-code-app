@@ -39,7 +39,7 @@ import {
 
 import type { FileIconData, FileIconMap } from '../types/types';
 
-export const ICON_SIZE_CLASS = 'w-4 h-4 flex-shrink-0';
+export const ICON_SIZE_CLASS = 'w-4 h-4 shrink-0';
 
 const FILE_ICON_MAP: FileIconMap = {
   js: { icon: FileCode, color: 'text-yellow-500' },

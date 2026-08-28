@@ -50,16 +50,16 @@ export const ToolCallRow: React.FC<ToolCallRowProps> = ({
         action={(
           <span className="flex items-center gap-2">
             {secondary && (
-              <span className="truncate text-[11px] italic text-muted-foreground/60">{secondary}</span>
+              <span className="truncate text-[11px] text-muted-foreground/60 italic">{secondary}</span>
             )}
-            <span className="text-[10px] tabular-nums text-muted-foreground/70">
+            <span className="text-[10px] text-muted-foreground/70 tabular-nums">
               {lineCount} {lineCount === 1 ? 'line' : 'lines'}
             </span>
           </span>
         )}
       >
         <pre
-          className={`max-h-80 overflow-auto whitespace-pre-wrap break-all font-mono text-xs leading-relaxed ${
+          className={`max-h-80 overflow-auto font-mono text-xs leading-relaxed break-all whitespace-pre-wrap ${
             isError ? 'text-destructive' : 'text-muted-foreground'
           }`}
         >

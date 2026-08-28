@@ -7,7 +7,7 @@ Guidance for coding agents working in this repository.
 Gajae Code App (`gajae-app`, v2.0.0-beta.x) — a self-hosted web + desktop UI for the GJC
 coding agent. AGPL-3.0-or-later. Four runtime layers:
 
-- `src/` — React 18 SPA (Vite 7, Tailwind 3, react-router, i18next, CodeMirror).
+- `src/` — React 19 SPA (Vite 7, Tailwind 4, react-router, i18next, CodeMirror).
 - `server/` — Express backend (`server/index.js` entry), SQLite via better-sqlite3,
   WebSocket, node-pty terminals. TypeScript + JS mixed, run through `tsx`.
 - `native/gajae-core/` — Rust core, built to `dist-native/` by `scripts/build-rust-core.mjs`.
@@ -84,7 +84,8 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   TanStack Query for the rest. The provider's transcript on disk is the source
   of truth - there is no messages table in SQLite and messages are never
   cached in localStorage.
-- **Styling**: Tailwind 3.4 with `darkMode: ["class"]` and
+- **Styling**: Tailwind 4 (CSS-first: `@theme` and the `dark` custom variant
+  live in `src/index.css`; there is no `tailwind.config.js`) with
   `@tailwindcss/typography`. `cn()` (`src/utils/cn.js`) is clsx +
   tailwind-merge; variants use class-variance-authority. Pretendard Variable is
   the sans stack and is also appended to the *serif* stack, because the Latin
@@ -127,7 +128,7 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
 - **Product identity is checked**: `npm run check:identity` verifies names/URLs/scheme
   against `shared/productIdentity.js`. Change identity constants there, nowhere else.
 - **Design system**: all product colors route through semantic CSS variables in
-  `src/index.css` + Tailwind aliases in `tailwind.config.js`. See `DESIGN.md` before
+  `src/index.css` + the `@theme` color aliases in the same file. See `DESIGN.md` before
   touching UI styling; do not hardcode palette values.
 - **Bundled runtime manifest**: `server/gjc-runtime-manifest.json` is filled by
   `npm run fill:runtime-manifest` (runs automatically before dev/build:server).

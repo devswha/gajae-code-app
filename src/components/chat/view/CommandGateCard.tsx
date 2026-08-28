@@ -35,19 +35,19 @@ export default function CommandGateCard({
     <div
       role="alertdialog"
       aria-label={t('input.gate.label', { defaultValue: 'Confirm command' })}
-      className="settings-content-enter mx-auto mb-2 max-w-chat rounded-xl border border-destructive/30 bg-destructive/[0.04] px-3 py-2.5"
+      className="mx-auto mb-2 max-w-chat settings-content-enter rounded-xl border border-destructive/30 bg-destructive/4 px-3 py-2.5"
     >
       <div className="flex items-start gap-2.5">
         <Icon className="mt-0.5 h-4 w-4 shrink-0 text-destructive/80" aria-hidden />
 
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-destructive/80">
+          <div className="text-[11px] font-medium tracking-wide text-destructive/80 uppercase">
             {classified
               ? t('input.gate.label', { defaultValue: 'Confirm command' })
               : t('input.gate.unknownLabel', { defaultValue: 'Unrecognized command' })}
           </div>
-          <p className="mt-0.5 break-words font-mono text-sm text-foreground/90">{text}</p>
-          <p className="mt-1 break-words text-xs text-muted-foreground">{summary}</p>
+          <p className="mt-0.5 font-mono text-sm wrap-break-word text-foreground/90">{text}</p>
+          <p className="mt-1 text-xs wrap-break-word text-muted-foreground">{summary}</p>
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">

@@ -34,7 +34,7 @@ export default function ContextUsageBadge({ sessionState, onClick }: ContextUsag
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border/70 bg-background/70 px-2 text-xs shadow-sm transition-colors hover:border-primary/25 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border/70 bg-background/70 px-2 text-xs shadow-xs transition-colors hover:border-primary/25 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-hidden"
       title={used !== undefined
         ? `${label}: ${used.toLocaleString()} / ${contextWindow.toLocaleString()} ${t('workspace.statusTab.tokens').toLowerCase()}`
         : `${t('workspace.statusTab.contextWindow')}: ${contextWindow.toLocaleString()} ${t('workspace.statusTab.tokens').toLowerCase()}`}

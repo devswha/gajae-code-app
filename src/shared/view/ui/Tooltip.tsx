@@ -182,14 +182,14 @@ function Tooltip({
           ref={tooltipRef}
           style={tooltipStyle || { position: 'fixed', top: '-9999px', left: '-9999px', opacity: 0 }}
           className={cn(
-            'pointer-events-none whitespace-nowrap rounded bg-popover px-2 py-1 text-xs font-medium text-popover-foreground shadow-lg',
+            'pointer-events-none rounded bg-popover px-2 py-1 text-xs font-medium whitespace-nowrap text-popover-foreground shadow-lg',
             'animate-in fade-in-0 zoom-in-95 duration-200',
             className
           )}
         >
           {content}
           {/* Arrow */}
-          <div className={cn('absolute w-0 h-0 border-4 border-transparent', getArrowClasses(position))} />
+          <div className={cn('absolute h-0 w-0 border-4 border-transparent', getArrowClasses(position))} />
         </div>,
         document.body
       )}

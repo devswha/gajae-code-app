@@ -23,7 +23,7 @@ export default function SidebarHeader({
 
   return (
     <header
-      className="flex flex-shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-4 md:px-4 md:pb-3 md:pt-5"
+      className="flex shrink-0 items-center justify-between gap-3 px-4 pt-4 pb-2 md:px-4 md:pt-5 md:pb-3"
       style={isPWA && isMobile ? { paddingTop: '16px' } : undefined}
     >
       {/*
@@ -34,16 +34,16 @@ export default function SidebarHeader({
         `title` keeping the full name recoverable when it does clip.
       */}
       <div className="flex min-w-0 items-center gap-1.5">
-        <img src="/mark.svg" alt="" className="size-7 flex-shrink-0 object-contain" />
+        <img src="/mark.svg" alt="" className="size-7 shrink-0 object-contain" />
         <h1
-          className="truncate text-[1.125rem] font-semibold tracking-[-0.02em] text-foreground"
+          className="truncate text-lg font-semibold tracking-[-0.02em] text-foreground"
           title={BRAND_NAME}
         >
           {BRAND_NAME}
         </h1>
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-0.5">
+      <div className="flex shrink-0 items-center gap-0.5">
         <Button
           variant="ghost"
           size="sm"
@@ -52,7 +52,7 @@ export default function SidebarHeader({
           aria-label={searchLabel}
           title={`${searchLabel} (Ctrl+K)`}
         >
-          <Search className="size-[1.125rem]" />
+          <Search className="size-4.5" />
         </Button>
         {!isMobile && (
           <Button

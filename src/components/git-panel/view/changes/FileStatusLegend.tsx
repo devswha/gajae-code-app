@@ -42,7 +42,7 @@ export default function FileStatusLegend({ isMobile }: FileStatusLegendProps) {
                 >
                   {item.status}
                 </span>
-                <span className="italic text-muted-foreground">{item.label}</span>
+                <span className="text-muted-foreground italic">{item.label}</span>
               </span>
             ))}
           </div>

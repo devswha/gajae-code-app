@@ -109,10 +109,10 @@ function Settings({ isOpen, onClose, initialTab = 'appearance' }: SettingsProps)
 
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-sm md:p-4">
+    <div className="modal-backdrop fixed inset-0 z-9999 flex items-center justify-center bg-background/80 backdrop-blur-xs md:p-4">
       <div className="flex h-full w-full flex-col overflow-hidden border border-border bg-background shadow-2xl md:h-[90vh] md:max-w-4xl md:rounded-xl">
         {/* Header */}
-        <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-4 py-3 md:px-5">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3 md:px-5">
           <h2 className="text-base font-semibold text-foreground">{t('title')}</h2>
           <div className="flex items-center gap-2">
             {saveStatus === 'success' && (
@@ -134,8 +134,8 @@ function Settings({ isOpen, onClose, initialTab = 'appearance' }: SettingsProps)
           <SettingsSidebar activeTab={activeTab} onChange={setActiveTab} />
 
           {/* Content */}
-          <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
-            <div key={activeTab} className="settings-content-enter min-w-0 space-y-6 overflow-x-hidden p-4 pb-safe-area-inset-bottom md:space-y-8 md:p-6">
+          <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+            <div key={activeTab} className="min-w-0 settings-content-enter space-y-6 overflow-x-hidden p-4 pb-safe-area-inset-bottom md:space-y-8 md:p-6">
               {activeTab === 'appearance' && (
                 <AppearanceSettingsTab
                   projectSortOrder={projectSortOrder}

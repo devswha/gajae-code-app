@@ -70,7 +70,7 @@ export const SubagentContainer: React.FC<SubagentContainerProps> = ({
       >
         {/* Prompt/request to the subagent */}
         {prompt && (
-          <div className="mb-2 line-clamp-4 whitespace-pre-wrap break-words text-xs text-muted-foreground">
+          <div className="mb-2 line-clamp-4 text-xs wrap-break-word whitespace-pre-wrap text-muted-foreground">
             {prompt}
           </div>
         )}
@@ -107,7 +107,7 @@ export const SubagentContainer: React.FC<SubagentContainerProps> = ({
           <Collapsible className="mt-2">
             <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
               <svg
-                className="h-2.5 w-2.5 flex-shrink-0 transition-transform duration-150 data-[state=open]:rotate-90"
+                className="h-2.5 w-2.5 shrink-0 transition-transform duration-150 data-[state=open]:rotate-90"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -120,7 +120,7 @@ export const SubagentContainer: React.FC<SubagentContainerProps> = ({
               <div className="mt-1 space-y-0.5 border-l border-border pl-3">
                 {childTools.map((child, index) => (
                   <div key={child.toolId} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span className="w-4 flex-shrink-0 text-right text-muted-foreground/60">{index + 1}.</span>
+                    <span className="w-4 shrink-0 text-right text-muted-foreground/60">{index + 1}.</span>
                     <span className="font-medium text-foreground">{child.toolName}</span>
                     {getCompactToolDisplay(child.toolName, child.toolInput) && (
                       <span className="truncate font-mono text-muted-foreground/70">
@@ -128,7 +128,7 @@ export const SubagentContainer: React.FC<SubagentContainerProps> = ({
                       </span>
                     )}
                     {child.toolResult?.isError && (
-                      <span className="flex-shrink-0 text-destructive">(error)</span>
+                      <span className="shrink-0 text-destructive">(error)</span>
                     )}
                   </div>
                 ))}
@@ -170,11 +170,11 @@ export const SubagentContainer: React.FC<SubagentContainerProps> = ({
               }
 
               return typeof content === 'string' ? (
-                <div className="line-clamp-6 whitespace-pre-wrap break-words">
+                <div className="line-clamp-6 wrap-break-word whitespace-pre-wrap">
                   {content}
                 </div>
               ) : content ? (
-                <pre className="line-clamp-6 whitespace-pre-wrap break-words font-mono text-xs">
+                <pre className="line-clamp-6 font-mono text-xs wrap-break-word whitespace-pre-wrap">
                   {JSON.stringify(content, null, 2)}
                 </pre>
               ) : null;

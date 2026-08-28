@@ -226,14 +226,14 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
       {open && createPortal(
         <div
           ref={popupRef}
-          className="fixed z-[80] flex w-96 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+          className="fixed z-80 flex w-96 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
           style={{
             bottom: popupPosition.bottom,
             left: popupPosition.left,
             maxHeight: popupPosition.maxHeight,
           }}
         >
-          <div className="px-2 pb-1.5 pt-1">
+          <div className="px-2 pt-1 pb-1.5">
             <p className="text-xs font-semibold">{t('input.agentConfiguration.title')}</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               {t('input.agentConfiguration.description')}
@@ -241,14 +241,14 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
           </div>
 
           <div className="relative px-1 pb-1.5">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-3 -translate-y-1/2 text-muted-foreground" />
             <input
               ref={searchRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t('input.agentConfiguration.search')}
               aria-label={t('input.agentConfiguration.search')}
-              className="h-7 w-full rounded-md border border-input bg-background pl-7 pr-2 text-xs outline-none placeholder:text-muted-foreground focus:border-ring"
+              className="h-7 w-full rounded-md border border-input bg-background pr-2 pl-7 text-xs outline-hidden placeholder:text-muted-foreground focus:border-ring"
             />
           </div>
 
@@ -280,7 +280,7 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
                       <ChevronRight
                         className={cn('size-3 shrink-0 text-muted-foreground transition-transform', isExpanded && 'rotate-90')}
                       />
-                      <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <span className="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
                         {group}
                       </span>
                       {containsSelected && !isExpanded && <Check className="size-3 shrink-0 text-primary" />}
@@ -294,8 +294,8 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
           </div>
 
           {selected?.roles && (
-            <div className="mt-1 border-t border-border px-2.5 pb-1 pt-2">
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="mt-1 border-t border-border px-2.5 pt-2 pb-1">
+              <p className="mb-1 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
                 현재: {selected.label}
               </p>
               <div className="grid grid-cols-[4.25rem_1fr] gap-x-2 gap-y-1">

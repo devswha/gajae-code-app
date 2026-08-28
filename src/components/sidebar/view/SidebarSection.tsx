@@ -27,21 +27,21 @@ export default function SidebarSection({
       <div className="group/section flex h-9 items-center gap-1 px-2">
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-left text-[0.8125rem] font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+          className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-left text-[0.8125rem] font-medium text-muted-foreground outline-hidden transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
           onClick={() => onOpenChange(!open)}
           aria-expanded={open}
           aria-controls={`${id}-content`}
         >
           <span id={`${id}-heading`} className="truncate">{title}</span>
           <ChevronRight
-            className={cn('size-3.5 flex-shrink-0 transition-transform duration-150', open && 'rotate-90')}
+            className={cn('size-3.5 shrink-0 transition-transform duration-150', open && 'rotate-90')}
             aria-hidden
           />
         </button>
         {onAction && actionLabel && (
           <button
             type="button"
-            className="flex size-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-60 outline-none transition-all hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring group-hover/section:opacity-100"
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-60 outline-hidden transition-all group-hover/section:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring"
             onClick={onAction}
             aria-label={actionLabel}
             title={actionLabel}

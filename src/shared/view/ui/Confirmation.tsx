@@ -57,7 +57,7 @@ export const ConfirmationTitle: React.FC<ConfirmationTitleProps> = ({
 }) => (
   <div
     data-slot="confirmation-title"
-    className={cn('text-muted-foreground inline text-sm', className)}
+    className={cn('inline text-sm text-muted-foreground', className)}
     {...props}
   />
 );

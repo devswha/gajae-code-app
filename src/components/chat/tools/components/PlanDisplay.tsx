@@ -62,7 +62,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
     <Collapsible defaultOpen={defaultOpen}>
       <Card className="my-1 flex flex-col rounded-lg border border-border bg-card shadow-none">
         {/* Header — always visible */}
-        <CardHeader className="flex flex-row items-start justify-between space-y-0 px-4 pb-0 pt-4">
+        <CardHeader className="flex flex-row items-start justify-between space-y-0 px-4 pt-4 pb-0">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
             <CardTitle className="text-sm font-semibold">
@@ -77,7 +77,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
 
         {/* Collapsible content */}
         <CollapsibleContent>
-          <CardContent className="px-4 pb-4 pt-3">
+          <CardContent className="px-4 pt-3 pb-4">
             {content ? (
               <MarkdownContent
                 content={content}
@@ -93,7 +93,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
               <Collapsible className="mt-3">
                 <CollapsibleTrigger className="flex items-center gap-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground">
                   <svg
-                    className="h-2.5 w-2.5 flex-shrink-0 transition-transform duration-150 data-[state=open]:rotate-90"
+                    className="h-2.5 w-2.5 shrink-0 transition-transform duration-150 data-[state=open]:rotate-90"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -103,7 +103,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
                   raw params
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <pre className="mt-1 overflow-hidden whitespace-pre-wrap break-words rounded border border-border/40 bg-muted p-2 font-mono text-[11px] text-muted-foreground">
+                  <pre className="mt-1 overflow-hidden rounded border border-border/40 bg-muted p-2 font-mono text-[11px] wrap-break-word whitespace-pre-wrap text-muted-foreground">
                     {rawContent}
                   </pre>
                 </CollapsibleContent>
@@ -114,7 +114,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
 
         {/* Footer — always visible when permission is pending */}
         {pendingRequest && (
-          <CardFooter className="justify-end gap-2 border-t border-border/40 px-4 pb-3 pt-3">
+          <CardFooter className="justify-end gap-2 border-t border-border/40 px-4 pt-3 pb-3">
             <Button
               variant="ghost"
               size="sm"

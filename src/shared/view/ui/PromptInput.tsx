@@ -42,7 +42,7 @@ export const PromptInput = React.forwardRef<HTMLFormElement, PromptInputProps>(
           ref={ref}
           data-slot="prompt-input"
           className={cn(
-            'relative overflow-hidden rounded-2xl border border-border/60 bg-card shadow-md shadow-black/[0.03] transition-all duration-200 focus-within:border-border focus-within:shadow-lg focus-within:ring-1 focus-within:ring-primary/10',
+            'relative overflow-hidden rounded-2xl border border-border/60 bg-card shadow-md shadow-black/3 transition-all duration-200 focus-within:border-border focus-within:shadow-lg focus-within:ring-1 focus-within:ring-primary/10',
             className
           )}
           {...props}
@@ -95,7 +95,7 @@ export const PromptInputTextarea = React.forwardRef<
     ref={ref}
     data-slot="prompt-input-textarea"
     className={cn(
-      'chat-input-placeholder block max-h-[40vh] w-full resize-none overflow-y-auto bg-transparent px-4 py-2 text-sm leading-6 text-foreground placeholder-muted-foreground/50 focus:outline-none sm:max-h-[300px]',
+      'chat-input-placeholder block max-h-[40vh] w-full resize-none overflow-y-auto bg-transparent px-4 py-2 text-sm leading-6 text-foreground placeholder-muted-foreground/50 focus:outline-hidden sm:max-h-75',
       className
     )}
     {...props}
@@ -112,7 +112,7 @@ export const PromptInputFooter = React.forwardRef<
   <div
     ref={ref}
     data-slot="prompt-input-footer"
-    className={cn('flex items-center justify-between px-3 pb-2 pt-0', className)}
+    className={cn('flex items-center justify-between px-3 pt-0 pb-2', className)}
     {...props}
   />
 ));

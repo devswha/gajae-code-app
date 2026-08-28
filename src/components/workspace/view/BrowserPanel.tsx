@@ -402,7 +402,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
         <button type="button" disabled={!activeTab?.canGoForward} onClick={() => void command({ action: 'forward' })} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label={t('workspace.browser.forward')}><ArrowRight className="h-3.5 w-3.5" /></button>
         <button type="button" disabled={!state} onClick={() => void command({ action: 'reload' })} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label={t('workspace.browser.reload')}><RefreshCw className={`h-3.5 w-3.5 ${activeTab?.loading ? 'animate-spin' : ''}`} /></button>
         <form onSubmit={navigate} className="min-w-0 flex-1">
-          <input value={address} onChange={(event) => setAddress(event.target.value)} aria-label={t('workspace.browser.address')} className="h-7 w-full rounded-md border border-border/70 bg-background px-2 text-xs text-foreground outline-none focus:border-primary" />
+          <input value={address} onChange={(event) => setAddress(event.target.value)} aria-label={t('workspace.browser.address')} className="h-7 w-full rounded-md border border-border/70 bg-background px-2 text-xs text-foreground outline-hidden focus:border-primary" />
         </form>
         <span title={t(`workspace.browser.connection.${connection}`)} aria-label={t(`workspace.browser.connection.${connection}`)} className={`h-2 w-2 rounded-full ${connection === 'live' ? 'bg-primary' : connection === 'connecting' ? 'bg-foreground/50' : 'bg-muted-foreground/40'}`} />
         <button type="button" disabled={!activeTab} onClick={() => activeTab && window.open(activeTab.url, '_blank', 'noopener,noreferrer')} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label={t('workspace.browser.external')}><ExternalLink className="h-3.5 w-3.5" /></button>
@@ -412,7 +412,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
       {state && state.tabs.length > 0 && (
         <div className="flex items-center gap-1 overflow-x-auto border-b border-border/60 px-1.5 py-1">
           {state.tabs.map((tab) => (
-            <div key={tab.id} className={`flex min-w-0 max-w-48 items-center rounded ${tab.id === state.activeTabId ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/50'}`}>
+            <div key={tab.id} className={`flex max-w-48 min-w-0 items-center rounded ${tab.id === state.activeTabId ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/50'}`}>
               <button type="button" onClick={() => void command({ action: 'selectTab', tabId: tab.id })} className="min-w-0 flex-1 truncate px-2 py-1 text-left text-[11px]">
                 {tab.title || (tab.url === 'about:blank' ? t('workspace.browser.newTab') : new URL(tab.url).hostname)}
               </button>
@@ -432,7 +432,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
         tabIndex={0}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
-        className="relative flex min-h-0 flex-1 items-start justify-start overflow-auto bg-black/90 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+        className="relative flex min-h-0 flex-1 items-start justify-start overflow-auto bg-black/90 outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
       >
         {frameUrl ? (
           <img
@@ -485,7 +485,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
               sendInput({ kind: 'wheel', ...point, deltaX: event.deltaX, deltaY: event.deltaY });
             }}
             onContextMenu={(event) => event.preventDefault()}
-            className="h-full w-full select-none object-contain"
+            className="h-full w-full object-contain select-none"
           />
         ) : (
           <div className="m-auto p-6 text-center text-xs text-white/60">

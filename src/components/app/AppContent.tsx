@@ -111,7 +111,7 @@ export default function AppContent() {
   return (
     <div className="fixed inset-0 flex bg-background">
       {!isMobile ? (
-        <div className="h-full flex-shrink-0 border-r border-border/50">
+        <div className="h-full shrink-0 border-r border-border/50">
           <Sidebar {...sidebarProps} />
         </div>
       ) : (
@@ -120,7 +120,7 @@ export default function AppContent() {
             }`}
         >
           <button
-            className="fixed inset-0 bg-background/60 backdrop-blur-sm transition-opacity duration-150 ease-out"
+            className="fixed inset-0 bg-background/60 backdrop-blur-xs transition-opacity duration-150 ease-out"
             onClick={(event) => {
               event.stopPropagation();
               setSidebarOpen(false);

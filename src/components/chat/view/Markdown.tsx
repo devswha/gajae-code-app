@@ -3,10 +3,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useTranslation } from 'react-i18next';
 
+import SyntaxHighlighter, { oneDark, oneLight } from '../../../shared/view/syntaxHighlighter';
 import { normalizeInlineCodeFences } from '../utils/chatFormatting';
 import { copyTextToClipboard } from '../../../utils/clipboard';
 import { usePaletteOps } from '../../../stores/usePaletteOpsStore';

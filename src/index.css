@@ -523,17 +523,6 @@
     }
   }
   
-  /* Ensure parent container doesn't override textarea styles */
-  .dark .bg-gray-800 textarea {
-    color: rgb(243 244 246) !important;
-    -webkit-text-fill-color: rgb(243 244 246) !important;
-  }
-  
-  /* Fix focus-within container issues in dark mode */
-  .dark .focus-within\:ring-2:focus-within {
-    background-color: rgb(20 20 20) !important;
-  }
-  
   /* Ensure textarea remains transparent with visible text */
   .dark textarea.bg-transparent {
     background-color: transparent !important;
@@ -553,7 +542,6 @@
   }
   
   /* More specific selector for chat input textarea */
-  .dark .bg-gray-800 textarea::placeholder,
   .dark textarea.bg-transparent::placeholder {
     color: rgb(75 85 99) !important; /* gray-600 - darker gray */
     opacity: 1 !important;

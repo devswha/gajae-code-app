@@ -1,6 +1,6 @@
 # Frontend refactor plan
 
-Status: ALL PHASES SHIPPED. P0 c4b0975 (DOM lane); P1 a17f4dc/64399be/5c97c83/36305fd/a8ffa47 (3c deferred with rationale); P2 afee5d8/fa04327/37359fc (chat-local state stays local by audit); P3 4e1be31 (React 19 + Compiler); P4 e1b80da/7974eaa/94f13b1/1bb01e7. Open by choice: P1-3c ticket deletion (needs soak evidence) and the optional deletion of compiler-redundant manual memoization.
+Status: ALL PHASES SHIPPED. P0 c4b0975 (DOM lane); P1 a17f4dc/64399be/5c97c83/36305fd/a8ffa47 (3c deferred with rationale); P2 afee5d8/fa04327/37359fc (chat-local state stays local by audit); P3 4e1be31 (React 19 + Compiler); P4 e1b80da/7974eaa/94f13b1/1bb01e7. Open by choice: only the optional deletion of compiler-redundant manual memoization (P1-3c was re-evaluated on 2026-08-31 and closed as will-not-do).
 Saved: 2026-08-27 (P4 close-out — the plan is complete)
 
 ## Current priority order
@@ -170,12 +170,21 @@ these on its own:**
        `getMessages` recomputes the merged view lazily on read, so any
        out-of-band cache write is always reflected - this is the hook the
        terminal fold and the streamedQuery A/B both plug into.
-     - **3c - open, deliberately deferred.** The ticket machinery stays: the
-       imperative fetch paths (explicit limit/offset windows) do not route
-       through the query's own fetcher, so Query's per-key serialization does
-       not yet cover what the tickets guard. Deleting them requires moving
-       fetch/fetchMore onto fetchQuery/infinite-query semantics first -
-       re-evaluate after the store has soaked in daily use.
+     - **3c - CLOSED, will not do (re-evaluated 2026-08-31).** The soak
+       happened: the dev server ran on real data for three days of daily
+       chat use with zero session-store defects. But the re-read settles it
+       on structure, not soak time - the deferral reason was never
+       "unproven", it was "not covered". The three imperative fetch paths
+       (`fetchFromServer` with explicit limit/offset, `fetchMore` with a
+       captured cursor, `refreshFromServer`) are called directly by the chat
+       view and never route through the query's own fetcher, so Query's
+       per-key serialization still cannot see them; the 36 ticket references
+       guard orderings nothing else guards. Deleting them means first moving
+       pagination onto infinite-query semantics - a real refactor of the
+       product's core path, whose entire payoff is deleting correct,
+       test-covered code that costs nothing to keep. Bad trade; the tickets
+       stay. **Reopen only if** pagination is being rewritten for another
+       reason, or a defect proves the tickets and the cache disagree.
      - The terminal-time bounded reconcile (`refreshFromServer` over the
        loaded window) already implements the fold contract's intent: no
        per-token cache writes, one settled write per turn. Deferring the

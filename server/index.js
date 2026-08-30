@@ -1434,8 +1434,12 @@ async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden =
             release();
         }
     } catch (error) {
-        // Only log non-permission errors to avoid spam
-        if (error.code !== 'EACCES' && error.code !== 'EPERM') {
+        // Expected, non-actionable races and denials stay quiet:
+        // - EACCES/EPERM: unreadable system dirs.
+        // - ENOENT/ENOTDIR: the entry vanished (or was replaced by a file)
+        //   between the parent's readdir and this recursion - routine for
+        //   ephemeral artifacts like GJC session lock files.
+        if (!['EACCES', 'EPERM', 'ENOENT', 'ENOTDIR'].includes(error.code)) {
             console.error('Error reading directory:', error);
         }
         return [];

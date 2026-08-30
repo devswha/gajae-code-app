@@ -17,10 +17,10 @@
 
 @theme {
   --font-sans:
-    'Pretendard Variable', Pretendard, 'Encode Sans', -apple-system,
+    'Pretendard Variable', Pretendard, -apple-system,
     BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-serif:
-    Merriweather, Georgia, Cambria, 'Times New Roman', 'Pretendard Variable',
+    Georgia, Cambria, 'Times New Roman', 'Pretendard Variable',
     Pretendard, serif;
 
   --color-border: hsl(var(--border));
@@ -729,7 +729,7 @@
   body {
     @apply bg-background text-foreground;
 
-    font-family: "Pretendard Variable", Pretendard, "Encode Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     margin: 0;

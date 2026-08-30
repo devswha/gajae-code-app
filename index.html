@@ -6,13 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>Gajae Code App</title>
 
-    <!-- Fonts: Encode Sans (UI) + Merriweather (chat) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Encode+Sans:wght@400;500;600;700&family=Merriweather:ital,wght@0,400;0,700;1,400;1,700&display=swap"
-      rel="stylesheet"
-    />
+    <!-- Fonts: Pretendard Variable is self-hosted and imported in src/main.jsx.
+         No external font requests: the old Encode Sans (UI) / Merriweather
+         (chat serif) Google Fonts load served nothing - Pretendard outranks
+         Encode Sans for every glyph it covers, and font-serif is banned by a
+         regression test (the serif stack carries no Hangul). -->
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" crossorigin="use-credentials"  />

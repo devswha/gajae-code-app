@@ -446,19 +446,25 @@ Building cards first means writing parsers for our own lossy serialization.
 | 4 | Per-turn changed-files card + revert | 5 / 4 | **yes** |
 | 5 | Loaded-window turn minimap | 3 / 2 | no |
 
-**1. Thread-scoped drafts.** We key unsent text by *project*
-(`draft_input_${projectId}`,
-`src/components/chat/hooks/useChatComposerState.ts:240-245,1269-1290`), so two
-threads in one project share and overwrite one draft. They scope to thread
-identity and report quota loss instead of silently discarding
-(`.t3code-ref/apps/web/src/promptStashStore.ts:139-183`). Text and model
-selection only - do not serialize `File` objects.
+**1. Thread-scoped drafts.** Shipped in `8341fd7`. The key was a bare
+`draft_input_<projectId>` template inlined at five call sites, so every session
+in a project shared one slot. `draftInputKey(projectId, sessionId)` in
+`src/components/chat/utils/chatStorage.ts` now prefers the session, and the
+five inlined removals collapsed into one `clearStoredDraft` helper that retires
+both shapes - a first message is typed before its session exists, so it lands
+under the project key while every later message lands under the session key.
 
-**2. Composer overflow.** Our tools row is `overflow-hidden` while holding
-attach, voice, two model controls, skills and context usage
-(`src/components/chat/view/ChatComposer.tsx:406-448`) - at narrow widths
-controls simply vanish. They measure and demote secondary controls into a menu.
-Buildable with our owned `ActionMenu`; no new dependency.
+We deliberately did **not** copy their draft schema: it pulls Effect Schema and
+attachment serialization into what is a `localStorage` string.
+
+**2. Composer overflow.** Shipped in `c295d09`, but not the way this section
+originally proposed. t3code measures the composer and demotes secondary
+controls into a menu. Two of our six controls are themselves menus
+(`ModelAndReasoningPicker`, `SkillPicker`), so demoting them means nesting a
+menu inside a menu or duplicating each control in two places that then drift.
+The row now wraps instead. It costs a second line on a narrow viewport and
+keeps every control reachable, with no duplicated definition. Revisit the
+measured overflow menu only if the extra line proves to be a real problem.
 
 **3. Settled-turn folding.** After a turn settles they hide intermediate
 commentary behind "Worked for ..." / "You stopped after ..." and leave the final
@@ -478,6 +484,21 @@ alongside the tool cards, do not replace them.
 **5. Minimap.** Hover/keyboard navigation previewing each user turn and its
 final answer (`.../MessagesTimeline.tsx:673-918`). Reimplement over our loaded
 Query window and DOM scroll container - do not import LegendList to copy it.
+
+## Found while fixing drafts, not yet addressed
+
+`safeLocalStorage`'s quota handler deletes every key starting with
+`draft_input_` **or** `queued_message_` and then retries the write
+(`src/components/chat/utils/chatStorage.ts:5-23`). The queue reader in the same
+file documents that its storage "holds a message the user is still waiting on"
+and goes to some length to normalize three historical shapes rather than drop
+one. The sweeper throws those away first, silently, to make room for an
+unrelated write.
+
+Drafts are cheap to lose; a queued message the user is waiting on is not. The
+sweep should take drafts first, retry, and only consider queued messages if
+that was not enough - and say something when it does. Left alone here because
+it is a separate defect from the key scoping and deserves its own change.
 
 ## Blocked below the UI
 
@@ -509,8 +530,10 @@ in the provider contract before any of that chrome is worth building.
 0. ~~**Fix the tool boundary.**~~ Done in `6dcaa73`. Verified still complete
    against SDK 0.15.6 after rebasing onto `origin/main`: the partition test
    passes, so the bump introduced no undecided builtin.
-1. **Thread-scoped drafts + composer overflow** - two small client wins that
-   need no protocol change and no other work first.
+1. ~~**Thread-scoped drafts + composer overflow.**~~ Done in `8341fd7` and
+   `c295d09`. Drafts key by session with the pre-session project key kept at
+   its original shape so older drafts still load; the tools row wraps instead
+   of clipping. Both guards were mutation-tested against the old behaviour.
 2. **WebSocket per-method authorization** - unrelated hole, still open.
 3. **Structured tool-result payloads in Worker Protocol v1** - the gate. Every
    capability card below is blocked on it, so it comes before all of them.

@@ -165,6 +165,7 @@ export default tseslint.config(
             "server/shared/claude-cli-path.ts",
             "server/shared/image-attachments.ts",
             "server/shared/tool-output-transport.ts",
+            "server/shared/request-origin.ts",
             "server/middleware/desktop-auth.js",
             "server/middleware/auth.js",
           ], // classify shared utility files so modules can depend on them explicitly

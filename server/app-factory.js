@@ -3,9 +3,12 @@ import http from 'node:http';
 import cors from 'cors';
 import express from 'express';
 
+import { parseAllowedHosts } from '../shared/networkHosts.js';
+
 import { createDesktopAuth, DESKTOP_BOOTSTRAP_PATH } from './middleware/desktop-auth.js';
 import { createWebSocketServer } from './modules/websocket/index.js';
 import { createGjcJobsRouter } from './routes/gjc-jobs.js';
+import { isAllowedRequestOrigin } from './shared/request-origin.js';
 
 /**
  * Builds the production GJC HTTP and WebSocket composition with explicit
@@ -41,7 +44,32 @@ export function createGjcAppFactory({
     browser,
   });
   app.locals.wss = wss;
-  app.use(cors(desktopAuth.corsOptions ?? undefined));
+
+  // The owner is implicit, so reaching the API is the whole of being authorized
+  // to use it. A cross-origin `fetch` is *sent* regardless of CORS - CORS only
+  // decides whether the caller may read the reply - so a hostile page could
+  // otherwise start turns and delete sessions on a loopback-bound server, and
+  // read every project and transcript besides. Rejecting the request is the
+  // check; the CORS headers below merely stop describing this as public.
+  const originPolicy = (request) => ({
+    hostHeader: request.headers.host,
+    allowedHosts: parseAllowedHosts(process.env.ALLOWED_HOSTS),
+  });
+  app.use(desktopAuth.corsOptions
+    ? cors(desktopAuth.corsOptions)
+    // The delegate form is what gives the decision the request's Host, which is
+    // what makes the dev client on another port work without opening the door
+    // to every other origin.
+    : cors((request, callback) => callback(null, {
+      origin: isAllowedRequestOrigin(request.headers.origin, originPolicy(request)),
+    })));
+  app.use((request, response, next) => {
+    if (isAllowedRequestOrigin(request.headers.origin, originPolicy(request))) {
+      return next();
+    }
+    console.log('[WARN] Request rejected for origin:', request.headers.origin);
+    return response.status(403).json({ error: 'Forbidden origin' });
+  });
   if (desktopAuth.enabled) {
     app.get(DESKTOP_BOOTSTRAP_PATH, desktopAuth.bootstrap);
     app.use((request, response, next) => {

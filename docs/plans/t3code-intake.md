@@ -596,7 +596,21 @@ in the provider contract before any of that chrome is worth building.
    on every send, so a send from an established session deleted the text typed
    into the project's not-yet-started chat. `draftKeysToClear` now names only
    the slots one send owns.
-2. **WebSocket per-method authorization** - unrelated hole, still open.
+2. ~~**WebSocket authorization.**~~ Done, and the hole was wider than the note.
+   `authenticateWebSocket` never reads the request - it returns the implicit
+   owner - and outside desktop mode nothing checked Origin, on either transport.
+   A WebSocket handshake is exempt from the same-origin policy and a
+   cross-origin `fetch` is sent regardless of CORS, so any page the owner
+   visited could open `ws://127.0.0.1:3001/ws` or call the API and read every
+   project and transcript, then start a turn. Loopback binding is no defence:
+   the hostile page runs in the owner's own browser. Verified by probe before
+   the fix - a socket opened from `https://evil.example` was served session
+   summaries immediately.
+
+   `server/shared/request-origin.ts` is now the one policy, enforced on the
+   upgrade and on every HTTP request. Per-*method* scopes were not built: there
+   is exactly one implicit user, so a scope check would be ceremony. Revisit
+   with multi-user or the ticket auth in step 4.
 3. ~~**Structured tool-result payloads.**~~ Done in `095774b`. No protocol
    change was needed: `run.writer.send` passes the message through whole, and
    `toolUseResult` was already threaded server-to-client. Live and history fill

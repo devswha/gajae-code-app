@@ -216,17 +216,99 @@ the product owner explicitly decides to continue public distribution. See
 Phase 7 in `docs/V2-PLAN.md` for the ordered readiness checklist.
 
 The Mac has no Developer ID certificate and no notarization credentials
-(`security find-identity -v -p codesigning` → 0 valid; `xcrun notarytool
-history` → "Must provide credentials"). Ad-hoc signing is the current bar.
+(`security find-identity -v -p codesigning` → 0 valid identities, re-checked
+2026-08-31). Ad-hoc signing is the current bar, and `spctl -a -t exec -vv`
+reports `rejected` for every DMG shipped so far.
 
-To ship a Gatekeeper-clean (notarized) DMG, provide on the Mac:
-- A **Developer ID Application** certificate in the login keychain.
-- Notarization creds: either a `xcrun notarytool store-credentials` profile, or
-  `APPLE_API_KEY` + `APPLE_API_ISSUER` + `APPLE_API_KEY_PATH`.
+### What the packaging pipeline already does
 
-Then set `src-tauri/tauri.conf.json` `bundle.macOS.signingIdentity` to the
-Developer ID identity and export the notarization env before
-`npm run tauri -- build`; Tauri signs, notarizes, and staples.
+`scripts/release/finalize-macos-app.mjs` takes its identity from
+`APPLE_SIGNING_IDENTITY` (ad-hoc when unset) and, for whatever identity it is
+given:
+
+- signs every Mach-O in the bundle — found by file magic, not by a name list,
+  because a vendored binary outside such a list (`@vscode/ripgrep`'s `rg`, the
+  GJC natives) ships unsigned and fails notarization;
+- signs with the hardened runtime and, for a real identity, a secure timestamp;
+- gives `bun` the sidecar's library-validation exception, without which dyld
+  refuses the GJC addon (`mapping process and mapped file have different Team
+  IDs`) as soon as the runtime is hardened;
+- restamps `gjc-runtime-manifest.json` inside the bundle after signing. Signing
+  a native rewrites its bytes and the bundled worker refuses to start unless it
+  still hashes to the pinned value (`GJC runtime manifest validation failed.`).
+  The manifest is verified against the installed bytes *before* signing, so
+  provenance is still checked; the restamp records what actually ships and runs
+  before the outer signature seals the bundle.
+
+`scripts/release/make-macos-dmg.mjs` signs the disk image with the same
+identity, because an unsigned image cannot carry a stapled ticket.
+
+### Remaining human gate
+
+Provide on the Mac:
+
+- An **Apple Developer Program** membership (99 USD/year) and a **Developer ID
+  Application** certificate in the login keychain
+  (Xcode → Settings → Accounts → Manage Certificates → +, or a CSR through
+  developer.apple.com; keep the private key).
+- Notarization credentials, stored once:
+
+```sh
+# App Store Connect API key (preferred; no password in the keychain)
+xcrun notarytool store-credentials gajae-notary \
+  --key ~/private_keys/AuthKey_XXXXXXXXXX.p8 --key-id XXXXXXXXXX --issuer <issuer-uuid>
+
+# or an app-specific password from appleid.apple.com
+xcrun notarytool store-credentials gajae-notary \
+  --apple-id you@example.com --team-id TEAMID1234 --password abcd-efgh-ijkl-mnop
+```
+
+Then cut the release with the identity exported:
+
+```sh
+export APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID1234)"
+security find-identity -v -p codesigning        # must list that identity
+
+npm run server:payload:macos
+env -u CI npm run tauri -- build --bundles app  # Tauri's own ad-hoc pass
+npm run desktop:sign:macos                      # re-signs everything with the identity
+
+# 1. notarize the app, so a copied-out .app carries its own ticket
+ditto -c -k --keepParent \
+  "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Gajae Code App.app" /tmp/gajae-app.zip
+xcrun notarytool submit /tmp/gajae-app.zip --keychain-profile gajae-notary --wait
+xcrun stapler staple "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Gajae Code App.app"
+
+# 2. package and notarize the image the release publishes
+npm run desktop:dmg:macos
+DMG="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/gajae-app-desktop-$(node -p "require('./package.json').version")-macos-arm64.dmg"
+xcrun notarytool submit "$DMG" --keychain-profile gajae-notary --wait
+xcrun stapler staple "$DMG"
+shasum -a 256 "$DMG" > "$DMG.sha256"   # stapling changes the image
+```
+
+Acceptance (all must pass before publishing a notarized DMG):
+
+```sh
+xcrun stapler validate "$DMG"
+spctl -a -t open --context context:primary-signature -vv "$DMG"   # accepted
+hdiutil attach "$DMG" -mountpoint /tmp/gajae-dmg -nobrowse
+spctl -a -t exec -vv "/tmp/gajae-dmg/Gajae Code App.app"          # accepted, source=Notarized Developer ID
+codesign -dv --verbose=4 "/tmp/gajae-dmg/Gajae Code App.app" 2>&1 | grep -E 'Authority|TeamIdentifier|flags'
+node scripts/release/smoke-packaged-server.mjs --tauri-app "/tmp/gajae-dmg/Gajae Code App.app"
+hdiutil detach /tmp/gajae-dmg
+```
+
+If `notarytool submit` fails, read the reasons — they are specific:
+
+```sh
+xcrun notarytool log <submission-id> --keychain-profile gajae-notary
+```
+
+To notarize in CI instead of locally, the macOS release job needs the
+certificate `.p12` and its password, plus the notarization credentials, as
+repository secrets; it imports the `.p12` into a temporary keychain, exports
+`APPLE_SIGNING_IDENTITY`, and runs the same two submit/staple steps.
 
 ## Automated packaged-server smoke (Mac)
 

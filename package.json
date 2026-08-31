@@ -68,10 +68,11 @@
     "poc:opencodex:cua": "node scripts/check-opencodex-cua-poc.mjs",
     "lint": "eslint src/ server/ shared/ scripts/ vite.config.js",
     "lint:fix": "eslint src/ server/ shared/ scripts/ vite.config.js --fix",
-    "verify": "npm run audit && npm run typecheck && npm run check:core && npm test && npm run lint && npm run check:identity && npm run build",
+    "verify": "npm run audit && npm run check:licenses && npm run typecheck && npm run check:core && npm test && npm run lint && npm run check:identity && npm run build",
     "start": "npm run build && npm run server",
     "postinstall": "node scripts/fix-node-pty.js",
-    "prepare": "husky"
+    "prepare": "husky",
+    "check:licenses": "node scripts/check-dependency-licenses.mjs"
   },
   "build": {
     "appId": "app.gajae.desktop",

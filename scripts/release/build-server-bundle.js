@@ -6,6 +6,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { removeExcludedDistributionPackages } from './distribution-exclusions.mjs';
+
 const TARGET_NODE_MAJOR = 22;
 const TARGET_NODE_VERSION = [22, 22, 2];
 const TARGET_GLIBC_VERSION = [2, 35, 0];
@@ -531,6 +533,13 @@ try {
     },
   });
   await assertInstalledGjcSdkDependencies(stageDir);
+
+  // Same decision as the desktop payload, applied to the same tree: the
+  // packages install normally and are deleted from what ships. Both
+  // distributions have to agree, or the license posture depends on which
+  // artifact a user happened to install.
+  const excluded = await removeExcludedDistributionPackages(fs, path, path.join(stageDir, 'node_modules'));
+  console.log(`Excluded ${excluded.join(', ')} from the bundle (see scripts/release/distribution-exclusions.mjs).`);
 
   console.log(`Rebuilding ${NATIVE_MODULES.join(', ')} from source for Node.js ${TARGET_NODE_MAJOR}...`);
   await run('npm', ['rebuild', '--omit=dev', '--build-from-source', ...NATIVE_MODULES], {

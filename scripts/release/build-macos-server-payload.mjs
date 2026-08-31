@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { removeExcludedDistributionPackages } from './distribution-exclusions.mjs';
+
 const NODE_VERSION = '22.22.2';
 const NODE_ARCHIVE_SHA256 = 'db4b275b83736df67533529a18cc55de2549a8329ace6c7bcc68f8d22d3c9000';
 const BUN_VERSION = '1.4.0';
@@ -204,11 +206,17 @@ async function smoke(payloadNode) {
 }
 
 if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error(`macOS payload requires darwin-arm64; received ${process.platform}-${process.arch}.`);
-await required(['dist', 'dist-server', 'shared', 'public', 'package.json', 'package-lock.json', 'server/gjc-runtime-manifest.json', 'scripts/fix-node-pty.js', 'dist-native/gajae-core', 'dist-native/bun']);
+await required(['dist', 'dist-server', 'shared', 'public', 'package.json', 'package-lock.json', 'server/gjc-runtime-manifest.json', 'scripts/fix-node-pty.js', 'dist-native/gajae-core', 'dist-native/bun', 'LICENSE', 'NOTICE']);
 await fs.rm(payloadDir, { recursive: true, force: true });
 await fs.mkdir(payloadDir, { recursive: true });
 try {
-  for (const input of ['dist', 'dist-server', 'shared', 'public', 'server/gjc-runtime-manifest.json', 'scripts/fix-node-pty.js', 'scripts/gajae-app-runtime.mjs', 'package.json', 'package-lock.json', 'dist-native']) await copy(input);
+  // LICENSE and NOTICE ship with the payload for the same reason the server
+  // tarball carries them: this is a conveyed copy of an AGPL work, and the
+  // license text plus the upstream attribution the LICENSE's Section 7 terms
+  // require are part of what has to travel with it. The desktop bundle used to
+  // omit both while the tarball included them, so compliance depended on which
+  // artifact a user happened to install.
+  for (const input of ['dist', 'dist-server', 'shared', 'public', 'server/gjc-runtime-manifest.json', 'scripts/fix-node-pty.js', 'scripts/gajae-app-runtime.mjs', 'package.json', 'package-lock.json', 'dist-native', 'LICENSE', 'NOTICE']) await copy(input);
   await downloadPinnedNode();
   const payloadNode = path.join(payloadDir, 'node', 'bin', 'node');
   if ((await capture(payloadNode, ['--version'])).trim() !== `v${NODE_VERSION}`) throw new Error('Pinned Node runtime version verification failed.');
@@ -221,6 +229,12 @@ try {
   await run(payloadNode, [npmCli, 'rebuild', '--omit=dev', '--build-from-source', ...NATIVE_MODULES], { cwd: payloadDir, env: { ...npmEnvironment, npm_config_build_from_source: 'true' } });
   await run(payloadNode, [path.join(payloadDir, 'scripts', 'fix-node-pty.js')], { cwd: payloadDir, env: npmEnvironment });
   await verifyManifest();
+  // Nothing upstream is patched: the packages install normally and are deleted
+  // from this payload, so a runtime bump re-applies the decision without anyone
+  // remembering to. `npm run check:dependency-licenses` is what notices when the
+  // tree grows a new one.
+  const excluded = await removeExcludedDistributionPackages(fs, path, path.join(payloadDir, 'node_modules'));
+  console.log(`Excluded ${excluded.join(', ')} from the payload (see scripts/release/distribution-exclusions.mjs).`);
   const prunedMetadataFiles = await pruneNonRuntimeMetadata(path.join(payloadDir, 'node_modules'))
     + await pruneNonRuntimeMetadata(path.join(payloadDir, 'dist-server'));
   await codesignNativeClosure(payloadDir);

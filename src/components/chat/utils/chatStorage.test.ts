@@ -3,6 +3,7 @@ import test, { beforeEach } from 'node:test';
 
 import {
   clearQueuedMessages,
+  draftInputKey,
   queuedMessageKey,
   readQueuedMessages,
   reorderQueue,
@@ -23,6 +24,57 @@ const store = new Map<string, string>();
 beforeEach(() => store.clear());
 
 const SESSION = 'session-1';
+
+/*
+ * Draft keys.
+ *
+ * These existed as a bare `draft_input_<projectId>` template inlined at five
+ * call sites, which meant every session in a project shared one slot: opening
+ * a second conversation showed the first one's unsent text, and typing there
+ * overwrote it.
+ */
+
+test('two sessions in one project keep separate drafts', () => {
+  const a = draftInputKey('proj-1', 'session-a');
+  const b = draftInputKey('proj-1', 'session-b');
+
+  assert.notEqual(a, b);
+
+  localStorage.setItem(a, 'draft for A');
+  localStorage.setItem(b, 'draft for B');
+
+  // The regression this guards: writing B must not reach A.
+  assert.equal(localStorage.getItem(a), 'draft for A');
+  assert.equal(localStorage.getItem(b), 'draft for B');
+});
+
+test('a chat with no session yet falls back to the project slot', () => {
+  // A first message is typed before a session exists, so it needs somewhere to
+  // live that does not depend on an id the backend has not allocated.
+  assert.equal(draftInputKey('proj-1'), 'draft_input_proj-1');
+  assert.equal(draftInputKey('proj-1', null), 'draft_input_proj-1');
+  assert.equal(draftInputKey('proj-1', undefined), 'draft_input_proj-1');
+});
+
+test('the pre-session slot keeps its original key so old drafts still load', () => {
+  // Drafts written by earlier versions live under this exact key. Renaming it
+  // would not lose data loudly; it would orphan text the user still expects.
+  localStorage.setItem('draft_input_proj-1', 'typed before the upgrade');
+
+  assert.equal(localStorage.getItem(draftInputKey('proj-1')), 'typed before the upgrade');
+});
+
+test('both draft shapes carry the prefix the quota sweeper matches', () => {
+  // safeLocalStorage drops keys starting with `draft_input_` when the quota is
+  // exceeded. A session-scoped key that missed the prefix would survive that
+  // sweep and keep the store full.
+  assert.equal(draftInputKey('proj-1').startsWith('draft_input_'), true);
+  assert.equal(draftInputKey('proj-1', 'session-a').startsWith('draft_input_'), true);
+});
+
+test('a draft key never collides with a queue key', () => {
+  assert.notEqual(draftInputKey('x', SESSION), queuedMessageKey(SESSION));
+});
 
 test('a queue round-trips in send order', () => {
   writeQueuedMessages(SESSION, [{ content: 'first' }, { content: 'second', options: { model: 'x' } }]);

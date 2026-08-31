@@ -19,6 +19,7 @@ import { classifyCommandInput, isAutoSendable } from '../commandDispatchPolicy';
 import { decideQueueFlush } from '../utils/queueFlush';
 import {
   clearQueuedMessages,
+  draftInputKey,
   readQueuedMessages,
   reorderQueue,
   safeLocalStorage,
@@ -239,9 +240,12 @@ export function useChatComposerState({
 }: UseChatComposerStateArgs) {
   const [input, setInput] = useState(() => {
     if (typeof window !== 'undefined' && selectedProject) {
-      // Draft inputs are keyed by the DB projectId so per-project drafts
-      // survive display-name changes.
-      return safeLocalStorage.getItem(`draft_input_${selectedProject.projectId}`) || '';
+      // Same key the load effect below resolves. Computed inline because
+      // `sessionKey` is declared after this initializer, and reading the wrong
+      // shape here would paint one session's draft into another before the
+      // effect corrected it.
+      const initialSession = selectedSession?.id || currentSessionId || null;
+      return safeLocalStorage.getItem(draftInputKey(selectedProject.projectId, initialSession)) || '';
     }
     return '';
   });
@@ -264,6 +268,24 @@ export function useChatComposerState({
   // to currentSessionId for a just-established session that hasn't been
   // handed back to the parent's `selectedSession` prop yet.
   const sessionKey = selectedSession?.id || currentSessionId || null;
+
+  /**
+   * Retires the stored draft for the conversation that just consumed it.
+   *
+   * Both key shapes are removed because a first message is typed before its
+   * session exists - saved under the project key - while every later message
+   * is saved under the session key. `settledSession` names the session that
+   * took the text when the caller knows it, which is the newly created one on
+   * a first send and therefore not yet visible in `sessionKey`.
+   */
+  const clearStoredDraft = useCallback((settledSession?: string | null) => {
+    if (!selectedProjectId) return;
+    safeLocalStorage.removeItem(draftInputKey(selectedProjectId));
+    if (sessionKey) safeLocalStorage.removeItem(draftInputKey(selectedProjectId, sessionKey));
+    if (settledSession && settledSession !== sessionKey) {
+      safeLocalStorage.removeItem(draftInputKey(selectedProjectId, settledSession));
+    }
+  }, [selectedProjectId, sessionKey]);
 
   const [queuedDrafts, setQueuedDrafts] = useState<QueuedDraft[]>(() => {
     if (typeof window === 'undefined' || !sessionKey) {
@@ -477,10 +499,10 @@ export function useChatComposerState({
       textareaRef.current.style.height = 'auto';
     }
     if (selectedProject) {
-      safeLocalStorage.removeItem(`draft_input_${selectedProject.projectId}`);
+      clearStoredDraft();
     }
     onLogin?.(providerId);
-  }, [onLogin, selectedProject]);
+  }, [clearStoredDraft, onLogin, selectedProject]);
 
   const showCostModal = useCallback(() => {
     const breakdown =
@@ -761,7 +783,7 @@ export function useChatComposerState({
           textareaRef.current.style.height = 'auto';
         }
         // selectedProject is guaranteed by the guard at the top of handleSubmit.
-        safeLocalStorage.removeItem(`draft_input_${selectedProject.projectId}`);
+        clearStoredDraft();
         return;
       }
 
@@ -968,12 +990,13 @@ export function useChatComposerState({
         textareaRef.current.style.height = 'auto';
       }
 
-      safeLocalStorage.removeItem(`draft_input_${selectedProject.projectId}`);
+      clearStoredDraft(targetSessionId);
     },
     [
       selectedSession,
       attachedImages,
       buildSendOptions,
+      clearStoredDraft,
       currentSessionId,
       executeCommand,
       handleLoginCommand,
@@ -1041,11 +1064,12 @@ export function useChatComposerState({
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
-      safeLocalStorage.removeItem(`draft_input_${selectedProject.projectId}`);
+      clearStoredDraft(steerTarget);
     },
     [
       attachedImages.length,
       buildSendOptions,
+      clearStoredDraft,
       currentSessionId,
       isLoading,
       resetCommandMenuState,
@@ -1266,28 +1290,32 @@ export function useChatComposerState({
     inputValueRef.current = input;
   }, [input]);
 
+  // Load the draft belonging to whichever conversation is now in view. Keyed
+  // by session once one exists, so switching between two sessions of the same
+  // project no longer shows — and then overwrites — the other one's text.
   useEffect(() => {
     if (!selectedProjectId) {
       return;
     }
-    const savedInput = safeLocalStorage.getItem(`draft_input_${selectedProjectId}`) || '';
+    const savedInput = safeLocalStorage.getItem(draftInputKey(selectedProjectId, sessionKey)) || '';
     setInput((previous) => {
       const next = previous === savedInput ? previous : savedInput;
       inputValueRef.current = next;
       return next;
     });
-  }, [selectedProjectId]);
+  }, [selectedProjectId, sessionKey]);
 
   useEffect(() => {
     if (!selectedProjectId) {
       return;
     }
+    const key = draftInputKey(selectedProjectId, sessionKey);
     if (input !== '') {
-      safeLocalStorage.setItem(`draft_input_${selectedProjectId}`, input);
+      safeLocalStorage.setItem(key, input);
     } else {
-      safeLocalStorage.removeItem(`draft_input_${selectedProjectId}`);
+      safeLocalStorage.removeItem(key);
     }
-  }, [input, selectedProjectId]);
+  }, [input, selectedProjectId, sessionKey]);
 
   // Persist the queue under its session's key. Must be defined BEFORE the swap
   // effect below: on a session switch there is one commit where `sessionKey`

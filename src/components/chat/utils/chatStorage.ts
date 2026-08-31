@@ -55,6 +55,24 @@ export type StoredQueuedMessage = {
 export const queuedMessageKey = (sessionId: string) => `queued_message_${sessionId}`;
 
 /**
+ * Where a composer's unsent text lives.
+ *
+ * A draft belongs to the conversation it was typed into, not to the project.
+ * Keying it by project meant two sessions in one project shared one slot, so
+ * switching between them showed the wrong draft and typing in either silently
+ * overwrote the other.
+ *
+ * A draft can also predate its session: the composer of a not-yet-started chat
+ * has a project but no session id. That case keeps the original
+ * `draft_input_<projectId>` shape rather than moving to a `p_` prefix, so
+ * drafts written by earlier versions still load instead of being orphaned.
+ *
+ * Both shapes share the `draft_input_` prefix the quota sweeper matches on.
+ */
+export const draftInputKey = (projectId: string, sessionId?: string | null) =>
+  (sessionId ? `draft_input_session_${sessionId}` : `draft_input_${projectId}`);
+
+/**
  * Reads a session's queued messages, oldest first.
  *
  * Three shapes reach this reader, because the key outlives app versions: the

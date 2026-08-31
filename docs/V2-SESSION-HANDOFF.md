@@ -1,6 +1,6 @@
 # gajae-app v2 — Session Handoff (resume state)
 
-Last updated: 2026-08-26. Supersedes the 2026-07-18 handoff.
+Last updated: 2026-08-31. Supersedes the 2026-07-18 handoff.
 
 ## TL;DR
 
@@ -89,24 +89,47 @@ All four 2026-07-20 advisories are closed as of 2026-07-25:
   so Cmd-Q-style combos cannot be synthesized. Upstream gjc issue, still open;
   the quit contract was verified via the equivalent AppleEvent path.
 
+## Release state (2026-08-31)
+
+`v2.0.0-beta.5` is published and `main` is exactly the tag. `v2.0.0-beta.4`
+carried the 188 commits that had accumulated since beta.3 (React 19 + Compiler,
+Tailwind 4, TanStack Query/Zustand split, GJC SDK 0.15.0 on Bun 1.4.0, in-app
+OAuth login, the composer/model-picker overhaul, shared browser/CUA automation);
+beta.5 followed the same day with the native-watcher fix below.
+
+Two things had quietly broken the release lane and were fixed as part of the
+cut:
+
+- `scripts/release/build-server-bundle.js` asserted an exact SDK version from a
+  literal last touched at 0.11.8, so every dispatch after the runtime moved had
+  failed. The pin now comes from `server/gjc-runtime-manifest.json`.
+- The recursive native watcher missed transcripts a directory already held when
+  it appeared (inotify emits the folder's creation before it registers the
+  watch; a populated directory moved into a root is reported as one path). CI
+  had been failing on it intermittently since 2026-08-27. Fixed in
+  `native/gajae-core/src/watcher.rs` with a deterministic regression test.
+
+The website (`https://devswha.github.io/gajae-code-app/`) deploys from `main`
+and its advertised version is now asserted against the app's own, so a release
+bump that forgets it fails the gate.
+
 ## How to resume (next session)
 
 1. `gjc ultragoal status` in this checkout — the 2026-07-19/20 run is
    terminal; start a fresh plan for new work.
-2. **Notarization + DMG (need the user; deferred again on 2026-07-25):**
-   when public distribution is approved, install the Developer ID certificate
-   + notarytool credentials, then follow
-   `docs/DESKTOP-TAURI-VERIFICATION.md` § "Remaining human gate", rebuild,
-   and re-run the packaged smokes + `spctl` (should flip to accepted).
+2. **Notarization + DMG (needs the user):** when public distribution is
+   approved, install the Developer ID certificate + notarytool credentials,
+   then follow `docs/DESKTOP-TAURI-VERIFICATION.md` § "Remaining human gate",
+   rebuild, and re-run the packaged smokes + `spctl` (should flip to accepted).
+   Every shipped DMG so far is ad-hoc signed and Gatekeeper-blocked.
 3. Start a fresh plan for the intended post-v2 work; the active browser surface
    is `src/components/workspace/view/BrowserPanel.tsx`, not an outstanding v2
    slice.
-4. The Linux x64 lane of the both-OS gate has not run for this session's
-   commits — run `npm run verify` on the Linux tree before the next
-   main-branch promotion. The `linux-x64` native closure in
-   `server/gjc-runtime-manifest.json` was likewise computed from the
-   published tarball rather than on Linux; reverify there with
-   `npm run fill:runtime-manifest` before cutting a server bundle.
+4. CI now runs `npm run verify` on Linux for Node 22 and 24 on every push, so
+   the both-OS gate no longer needs a manual Linux pass. The `linux-x64`
+   native closure in `server/gjc-runtime-manifest.json` is still computed from
+   the published tarball rather than on Linux; the release job verifies it
+   there when it builds the server bundle.
 
 ## Key gotchas
 

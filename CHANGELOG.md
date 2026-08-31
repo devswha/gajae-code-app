@@ -4,6 +4,30 @@ All notable changes to Gajae Code App are documented in this file. Current and
 future desktop and server artifacts are published only through
 [GitHub Releases](https://github.com/devswha/gajae-code-app/releases).
 
+## 2.0.0-beta.6 (2026-08-31)
+
+### Runtime
+
+- Bundled GJC runtime moves to SDK 0.15.6 (natives 0.15.6) with both platform
+  closures refilled. The runtime advertises a new `/aside` command (Run the
+  Aside CLI), which the app now routes to the runtime instead of the model.
+
+### Packaging
+
+- The macOS bundle is ready for Developer ID signing and notarization: every
+  Mach-O inside it is signed (found by file format, so vendored binaries can no
+  longer slip through unsigned), `bun` carries the library-validation exception
+  it needs once the runtime is hardened, the pinned native closure is restamped
+  after signing so the worker still starts, and the disk image is signed so it
+  can carry a stapled ticket. Set `APPLE_SIGNING_IDENTITY` to use a real
+  identity; unset, the build stays ad-hoc as before.
+
+### Release lane
+
+- Releases are announced by the job that publishes them. The previous
+  notification workflow waited for an event that a token-created release never
+  raises, so it had never run once.
+
 ## 2.0.0-beta.5 (2026-08-31)
 
 ### Fixes

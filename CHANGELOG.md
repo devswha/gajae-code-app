@@ -4,6 +4,23 @@ All notable changes to Gajae Code App are documented in this file. Current and
 future desktop and server artifacts are published only through
 [GitHub Releases](https://github.com/devswha/gajae-code-app/releases).
 
+## 2.0.0-beta.5 (2026-08-31)
+
+### Fixes
+
+- A session transcript written into a directory that had just appeared under a
+  watched root could go unreported: a recursive watch covers a subdirectory only
+  once the platform has registered it, and a populated directory moved into a
+  root was reported as one path whose contents were never observed. Every
+  directory an event names is now rescanned and the transcripts it holds are
+  reported.
+- The Linux server bundle took its exact GJC SDK pin from a literal that had
+  gone stale at 0.11.8, so every release dispatch after the runtime moved to
+  0.15.0 failed before staging anything. The pin now comes from the runtime
+  manifest the server verifies at boot.
+- The download page advertised the previous release; the version it shows is
+  now checked against the app's own.
+
 ## 2.0.0-beta.4 (2026-08-31)
 
 ### Chat

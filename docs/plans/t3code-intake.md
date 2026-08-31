@@ -474,6 +474,43 @@ consecutive calls of the same tool (`src/components/chat/utils/toolGrouping.ts:3
 steering, interruption, multi-segment answers and page splits. Add `turnId` +
 terminal state to the normalized envelope first.
 
+> **Where turn identity comes from — measured 2026-09-01.**
+>
+> It does not have to be invented, carried through the live path, or persisted
+> in a sidecar. The transcript already records it.
+>
+> Each line of a session `.jsonl` under `~/.gjc/agent/sessions/<session>/` is a
+> record with `{ type, id, parentId, timestamp, message }`, and
+> `message.role` is one of `user`, `assistant`, `toolResult`. `parentId` makes
+> the transcript a lineage chain rather than a flat list, and that is the
+> difference between inference and reading.
+>
+> In a 554-message sample the eight `user` records split cleanly:
+>
+> - **six root a chain segment** — their parent is absent from the message set.
+>   These began a turn.
+> - **two have a `toolResult` parent** — injected while a turn was already
+>   running. These are steers and ask-replies, and they do *not* start a turn.
+>
+> So `turnId` is the id of the `user` record that roots the segment, and a
+> `user` record with a message parent belongs to the enclosing turn. This is
+> exactly the case the warning above is about, and following `parentId` gets it
+> right where reading the flat order gets it wrong.
+>
+> Two consequences worth keeping:
+>
+> 1. **History and live agree by construction.** The id is in the transcript, so
+>    a reloaded turn keeps the identity it had live. No sidecar table, no
+>    mapping to lose.
+> 2. **The worker still knows more.** It sees `turn.start` versus `turn.steer`
+>    and emits `turn.completed` / `turn.failed`, which is where the *terminal
+>    state* comes from — the transcript records what happened, not how it ended.
+>    Derive `turnId` from the chain; take terminal state from the protocol.
+>
+> Open: whether an aborted turn leaves a distinguishable record, and whether a
+> compaction rewrites `parentId`. Both are answerable from a transcript of each
+> case and should be checked before the reader is written.
+
 **4. Per-turn changed-files card.** The visible endpoint of the checkpoint work
 above: a file tree of what the turn changed, with revert anchored to the
 initiating user message (`.../ChangedFilesTree.tsx:25-174`). Our diff is

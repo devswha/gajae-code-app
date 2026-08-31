@@ -504,6 +504,11 @@ const buildInputs = [
   'docker/shared/start-gajae-app.sh',
   'LICENSE',
   'NOTICE',
+  // Most of the packages installed below require their license text to travel
+  // with them. Generated from the dependency tree by
+  // scripts/generate-third-party-notices.mjs; `npm run verify` fails when it is
+  // stale, so shipping it cannot silently describe an older tree.
+  'THIRD-PARTY-NOTICES.md',
 ];
 
 await validateRequiredInputs(buildInputs);

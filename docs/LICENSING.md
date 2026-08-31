@@ -86,18 +86,30 @@ between forking `markit-ai`, dropping the feature another way, or staying AGPL.
 
 ## Third-party notices
 
-Redistributing a dependency carries its notice obligations. Two are open and
-neither is fixed yet:
+Redistributing a dependency carries its notice obligations, and most of the 582
+packages in a distribution require their license text to travel with them.
 
-- `@gajae-code/coding-agent` ships **no LICENSE file** despite declaring MIT, so
-  the copyright and permission notice MIT requires is absent from what we
-  redistribute.
-- Pretendard is **OFL-1.1** and its subset fonts ship in `dist/assets/`, but the
-  OFL text is nowhere in the repository.
+`THIRD-PARTY-NOTICES.md` is generated from the dependency tree by
+`scripts/generate-third-party-notices.mjs`. It reads the tree rather than a
+hand-kept list, because a list answers for the day it was written and stops
+being true on the next install. `npm run check:notices` runs inside
+`npm run verify` and fails when the file no longer matches the tree, so a
+distribution cannot ship notices describing an older set of dependencies. Both
+distribution builders carry the file.
 
-The fix for both is a generated `THIRD-PARTY-NOTICES` produced at build time from
-the shipped tree, so new dependencies are covered without anyone maintaining a
-list by hand.
+It closes the two obligations that were being missed outright:
+
+- `@gajae-code/coding-agent` declares MIT but ships **no license file**, so the
+  notice it requires was absent from everything we redistribute. Twenty-eight
+  packages are in that position; each is listed with its declared license and
+  copyright holder rather than passed over.
+- Pretendard is **OFL-1.1** and its subset fonts ship in `dist/assets/`. Its
+  license lives at `dist/LICENSE.txt` inside the package, which is why the
+  generator looks beyond each package root.
+
+Excluded packages are deliberately absent from the notices: the build removes
+them, so this project does not redistribute them, and a notice for something
+that does not ship makes the real entries harder to trust.
 
 ## The engine boundary
 

@@ -206,7 +206,7 @@ async function smoke(payloadNode) {
 }
 
 if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error(`macOS payload requires darwin-arm64; received ${process.platform}-${process.arch}.`);
-await required(['dist', 'dist-server', 'shared', 'public', 'package.json', 'package-lock.json', 'server/gjc-runtime-manifest.json', 'scripts/fix-node-pty.js', 'dist-native/gajae-core', 'dist-native/bun', 'LICENSE', 'NOTICE']);
+await required(['dist', 'dist-server', 'shared', 'public', 'package.json', 'package-lock.json', 'server/gjc-runtime-manifest.json', 'scripts/fix-node-pty.js', 'dist-native/gajae-core', 'dist-native/bun', 'LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md']);
 await fs.rm(payloadDir, { recursive: true, force: true });
 await fs.mkdir(payloadDir, { recursive: true });
 try {
@@ -216,7 +216,7 @@ try {
   // require are part of what has to travel with it. The desktop bundle used to
   // omit both while the tarball included them, so compliance depended on which
   // artifact a user happened to install.
-  for (const input of ['dist', 'dist-server', 'shared', 'public', 'server/gjc-runtime-manifest.json', 'scripts/fix-node-pty.js', 'scripts/gajae-app-runtime.mjs', 'package.json', 'package-lock.json', 'dist-native', 'LICENSE', 'NOTICE']) await copy(input);
+  for (const input of ['dist', 'dist-server', 'shared', 'public', 'server/gjc-runtime-manifest.json', 'scripts/fix-node-pty.js', 'scripts/gajae-app-runtime.mjs', 'package.json', 'package-lock.json', 'dist-native', 'LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md']) await copy(input);
   await downloadPinnedNode();
   const payloadNode = path.join(payloadDir, 'node', 'bin', 'node');
   if ((await capture(payloadNode, ['--version'])).trim() !== `v${NODE_VERSION}`) throw new Error('Pinned Node runtime version verification failed.');

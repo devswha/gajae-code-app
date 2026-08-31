@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
-import { readToolResultLimits } from './ToolResultLimits';
+import i18next from 'i18next';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { initReactI18next } from 'react-i18next';
+
+import { ToolResultLimits, readToolResultLimits } from './ToolResultLimits';
 
 /*
  * A tool that stops at a cap returns less than it found, and says so only in
@@ -62,6 +69,54 @@ test('a malformed cap is ignored rather than rendered as a confident sentence', 
   assert.equal(readToolResultLimits(withLimits({ matchLimit: { reached: 50 } })), undefined);
   assert.equal(readToolResultLimits(withLimits({ matchLimit: 'yes' })), undefined);
   assert.equal(readToolResultLimits(withLimits({ columnTruncated: { maxColumn: 0 } })), undefined);
+});
+
+/*
+ * The copy has to come out of the namespace the component asks for.
+ *
+ * `tools.*` lives in the `chat` bundle and the app sets `defaultNS: 'common'`
+ * with no `fallbackNS`, so a bare `useTranslation()` resolved nothing and the
+ * row rendered the literal key `tools.limitReached` in every language. The
+ * bundles are loaded from disk and i18next is initialized the way
+ * `src/i18n/config.js` does, so this fails if either side moves.
+ */
+
+const bundle = (namespace: string) => JSON.parse(readFileSync(
+  fileURLToPath(new URL(`../../../../i18n/locales/en/${namespace}.json`, import.meta.url)),
+  'utf8',
+));
+
+await i18next.use(initReactI18next).init({
+  lng: 'en',
+  fallbackLng: 'en',
+  ns: ['common', 'settings', 'sidebar', 'chat', 'codeEditor'],
+  defaultNS: 'common',
+  keySeparator: '.',
+  nsSeparator: ':',
+  resources: { en: { common: bundle('common'), chat: bundle('chat') } },
+  interpolation: { escapeValue: false },
+  react: { useSuspense: false },
+});
+
+const render = (limits: unknown) =>
+  renderToStaticMarkup(createElement(ToolResultLimits, { toolResult: withLimits(limits) }));
+
+test('a cap notice renders its translated sentence, not the raw key', () => {
+  const html = render({ matchLimit: { reached: 50, suggestion: 200 } });
+
+  assert.doesNotMatch(html, /tools\.limitReached/);
+  assert.match(html, /Stopped at 50 results; a limit of 200 would return more\./);
+});
+
+test('a column truncation renders its translated sentence too', () => {
+  const html = render({ columnTruncated: { maxColumn: 200 } });
+
+  assert.doesNotMatch(html, /tools\.columnTruncated/);
+  assert.match(html, /Long lines were cut at column 200\./);
+});
+
+test('a result that hit no cap renders nothing at all', () => {
+  assert.equal(render({}), '');
 });
 
 test('a hostile details shape never throws', () => {

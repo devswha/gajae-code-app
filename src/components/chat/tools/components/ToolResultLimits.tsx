@@ -59,7 +59,9 @@ export function readToolResultLimits(toolResult: unknown): Limits | undefined {
 }
 
 export function ToolResultLimits({ toolResult }: { toolResult: unknown }) {
-  const { t } = useTranslation();
+  // The `tools.*` copy lives in the `chat` bundle, and i18n has no fallbackNS:
+  // a bare useTranslation() resolves against `common` and renders the raw key.
+  const { t } = useTranslation('chat');
   const limits = readToolResultLimits(toolResult);
   if (!limits) return null;
 

@@ -20,6 +20,7 @@ import { decideQueueFlush } from '../utils/queueFlush';
 import {
   clearQueuedMessages,
   draftInputKey,
+  draftKeysToClear,
   readQueuedMessages,
   reorderQueue,
   safeLocalStorage,
@@ -272,18 +273,17 @@ export function useChatComposerState({
   /**
    * Retires the stored draft for the conversation that just consumed it.
    *
-   * Both key shapes are removed because a first message is typed before its
-   * session exists - saved under the project key - while every later message
-   * is saved under the session key. `settledSession` names the session that
-   * took the text when the caller knows it, which is the newly created one on
-   * a first send and therefore not yet visible in `sessionKey`.
+   * Scoped to that conversation only: sending from an established session must
+   * not touch the project slot, which now belongs to the project's
+   * not-yet-started chat rather than being a synonym for this one.
+   * `settledSession` names the session that took the text when the caller knows
+   * it, which is the newly created one on a first send and therefore not yet
+   * visible in `sessionKey`.
    */
   const clearStoredDraft = useCallback((settledSession?: string | null) => {
     if (!selectedProjectId) return;
-    safeLocalStorage.removeItem(draftInputKey(selectedProjectId));
-    if (sessionKey) safeLocalStorage.removeItem(draftInputKey(selectedProjectId, sessionKey));
-    if (settledSession && settledSession !== sessionKey) {
-      safeLocalStorage.removeItem(draftInputKey(selectedProjectId, settledSession));
+    for (const key of draftKeysToClear(selectedProjectId, sessionKey, settledSession)) {
+      safeLocalStorage.removeItem(key);
     }
   }, [selectedProjectId, sessionKey]);
 

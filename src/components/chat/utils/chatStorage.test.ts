@@ -4,6 +4,7 @@ import test, { beforeEach } from 'node:test';
 import {
   clearQueuedMessages,
   draftInputKey,
+  draftKeysToClear,
   queuedMessageKey,
   readQueuedMessages,
   reorderQueue,
@@ -74,6 +75,44 @@ test('both draft shapes carry the prefix the quota sweeper matches', () => {
 
 test('a draft key never collides with a queue key', () => {
   assert.notEqual(draftInputKey('x', SESSION), queuedMessageKey(SESSION));
+});
+
+/*
+ * Which slots a send retires.
+ *
+ * Splitting one slot into two made "clear the draft" ambiguous: the project
+ * slot stopped meaning "this conversation" and started meaning "the chat that
+ * has not started yet". Clearing both on every send deleted text the user had
+ * typed into a different composer.
+ */
+
+test('sending from an established session leaves the unstarted chat draft alone', () => {
+  localStorage.setItem(draftInputKey('proj-1'), 'typed into the new chat');
+
+  const cleared = draftKeysToClear('proj-1', SESSION);
+
+  assert.deepEqual(cleared, [draftInputKey('proj-1', SESSION)]);
+  cleared.forEach((key) => localStorage.removeItem(key));
+  assert.equal(localStorage.getItem(draftInputKey('proj-1')), 'typed into the new chat');
+});
+
+test('a first send retires the project slot that actually held the text', () => {
+  // No session existed when the text was typed, so the project slot is the
+  // conversation, and the session it just created has to go with it.
+  const cleared = draftKeysToClear('proj-1', null, 'session-new');
+
+  assert.deepEqual(cleared, [draftInputKey('proj-1'), draftInputKey('proj-1', 'session-new')]);
+});
+
+test('a send from a session that settled under the same id clears one slot', () => {
+  assert.deepEqual(draftKeysToClear('proj-1', SESSION, SESSION), [draftInputKey('proj-1', SESSION)]);
+});
+
+test('steering to another session retires that session too', () => {
+  assert.deepEqual(
+    draftKeysToClear('proj-1', SESSION, 'session-2'),
+    [draftInputKey('proj-1', SESSION), draftInputKey('proj-1', 'session-2')],
+  );
 });
 
 test('a queue round-trips in send order', () => {

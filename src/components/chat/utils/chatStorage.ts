@@ -73,6 +73,31 @@ export const draftInputKey = (projectId: string, sessionId?: string | null) =>
   (sessionId ? `draft_input_session_${sessionId}` : `draft_input_${projectId}`);
 
 /**
+ * The draft slots a completed send retires.
+ *
+ * Only the conversation that actually held the text is cleared. Once the two
+ * key shapes exist side by side, the project slot is no longer a synonym for
+ * "this session" — it is the not-yet-started chat's draft, and a send from an
+ * established session must leave it alone or it silently deletes text the user
+ * typed somewhere else.
+ *
+ * `settledSessionId` names the session that consumed the text when the caller
+ * knows it. On a first send that is the freshly created session, which the
+ * composer has not observed as `sessionId` yet.
+ */
+export function draftKeysToClear(
+  projectId: string,
+  sessionId?: string | null,
+  settledSessionId?: string | null,
+): string[] {
+  const keys = new Set<string>([draftInputKey(projectId, sessionId)]);
+  if (settledSessionId) {
+    keys.add(draftInputKey(projectId, settledSessionId));
+  }
+  return [...keys];
+}
+
+/**
  * Reads a session's queued messages, oldest first.
  *
  * Three shapes reach this reader, because the key outlives app versions: the

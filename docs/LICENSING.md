@@ -122,19 +122,35 @@ from the installed runtime and was living in `server/modules/providers/`, so the
 engine had to import the app to read it. It now sits beside the engine that
 generates it, and the app imports it from there - the allowed direction.
 
-### What is not separable yet
+### How the last two couplings went
 
-`server/gjc-cli.js` and `server/gjc-worker-node-runtime.ts` are the pre-worker
-spawn path, still loaded as the Node-only production runtime. `gjc-cli.js`
-imports `providerAuthService` and the notification orchestrator from the app,
-**and only to supply default values its caller can already override**
-(`gjc-cli.js:232-234`). Injecting that pair at the wiring point instead is the
-whole remaining job; the two files then join `gjc-engine` and the boundary is
-complete.
+`server/gjc-cli.js`, the pre-worker spawn path, was the last file reaching into
+the app. It imported two things, and neither turned out to be a real dependency:
 
-They are deliberately left out of the `gjc-engine` list rather than exempted
-inside it. A rule that skipped them quietly would describe a boundary that does
-not exist.
+- **The notification orchestrator.** Used only as the default value of two
+  options, and the sole production caller - `gjc-worker-node-runtime.ts` -
+  already passed no-ops over them. The app owns run notifications and delivers
+  them from its own side of the protocol. The defaults are now no-ops, which is
+  what production was already doing.
+- **`providerAuthService.isProviderInstalled`.** Used only to choose between two
+  error messages after a failed run: the CLI's own, or "gjc is not on PATH".
+  Answering that pulled the app's provider registry, and the credential database
+  behind it, into the engine to learn something the engine can ask the CLI
+  directly. It now spawns `gjc --version` itself - asynchronously, unlike the
+  app's synchronous probe, so the grace period the caller wraps it in means
+  something.
+
+Both files are in `gjc-engine` now and the boundary holds end to end. The only
+file in `server/gjc-*` still importing the app is `gjc-worker-client.ts`, which
+is supposed to: it is the app's end of the protocol.
+
+### What extraction still needs
+
+The code boundary is done. Moving the engine to its own repository additionally
+needs the protocol documented as an interface others could implement, a decision
+on whether `src-tauri` ships with the engine or the shell, and the third-party
+notices below - which the engine would carry, since it is the side that bundles
+the runtime.
 
 ## Adding a dependency
 

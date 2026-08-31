@@ -156,15 +156,8 @@ export default tseslint.config(
           // makes it separable from the AGPL shell. The rule below keeps it that
           // way, because the property is easy to lose and expensive to rebuild.
           //
-          // Three files are deliberately absent. `gjc-worker-client.ts` is the
-          // app's end of the protocol and runs in the app's process. `gjc-cli.js`
-          // and `gjc-worker-node-runtime.ts` are the pre-worker spawn path, which
-          // still reaches into the app for `providerAuthService` and the
-          // notification orchestrator - and only to supply default values its
-          // caller can already override (`gjc-cli.js:232-234`). Injecting that
-          // pair at the wiring point instead is what moves them in here and
-          // finishes the boundary; see docs/LICENSING.md. Listing them now would
-          // make this rule a claim rather than a fact.
+          // `gjc-worker-client.ts` is deliberately absent: it is the app's end of
+          // the protocol and runs in the app's process.
           type: "gjc-engine",
           pattern: [
             "server/gjc-agent-tools.ts",
@@ -174,6 +167,7 @@ export default tseslint.config(
             "server/gjc-bun-sdk-adapter.ts",
             "server/gjc-bun-sdk-events.ts",
             "server/gjc-bun-worker.ts",
+            "server/gjc-cli.js",
             "server/gjc-command-surface.generated.ts",
             "server/gjc-export-path.ts",
             "server/gjc-runtime-manifest.ts",
@@ -182,6 +176,7 @@ export default tseslint.config(
             "server/gjc-session-state.ts",
             "server/gjc-windows-job.ts",
             "server/gjc-worker.ts",
+            "server/gjc-worker-node-runtime.ts",
             "server/gjc-worker-protocol.ts",
           ],
           mode: "file",

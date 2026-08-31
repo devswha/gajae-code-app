@@ -5,8 +5,6 @@ import { randomUUID } from 'node:crypto';
 
 import crossSpawn from 'cross-spawn';
 
-import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
-import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { createCompleteMessage, createNormalizedMessage, getGjcLiveSessionRoot } from './shared/utils.js';
 import { attachGjcSdkBridge } from './gjc-sdk-bridge.js';
 
@@ -15,6 +13,32 @@ import { attachGjcSdkBridge } from './gjc-sdk-bridge.js';
 const spawnFunction = crossSpawn;
 
 const PROVIDER = 'gjc';
+
+/**
+ * Whether the `gjc` CLI is reachable, asked directly rather than through the
+ * app's provider registry.
+ *
+ * This runs inside the worker, and the only thing the answer decides is which
+ * error message a failed run gets: the CLI's own message, or "gjc is not on
+ * PATH". Routing that through `providerAuthService` pulled the app's provider
+ * registry - and the credential database behind it - into the engine to learn
+ * something the engine can ask the CLI itself.
+ *
+ * Spawned asynchronously on purpose. The synchronous probe the app uses blocks
+ * for as long as the CLI takes to answer, which would also freeze the grace
+ * period the caller wraps this in.
+ */
+function probeProviderInstalled(command = PROVIDER) {
+  return new Promise((resolve) => {
+    try {
+      const probe = spawnFunction(command, ['--version'], { stdio: 'ignore' });
+      probe.on('error', () => resolve(false));
+      probe.on('close', (code) => resolve(code === 0));
+    } catch {
+      resolve(false);
+    }
+  });
+}
 
 // Stable run-handle and provider-session id aliases -> child process. A fresh
 // run is registered by handle before its NDJSON header reveals the provider id.
@@ -229,9 +253,13 @@ export function spawnGjcWithRuntime(message, options = {}, writer, runtime = {})
     const {
       spawn = spawnFunction,
       attachSdkBridge: attachBridge = attachGjcSdkBridge,
-      isProviderInstalled = providerAuthService.isProviderInstalled.bind(providerAuthService),
-      notifyRunFailed: notifyFailed = notifyRunFailed,
-      notifyRunStopped: notifyStopped = notifyRunStopped,
+      isProviderInstalled = probeProviderInstalled,
+      // The app owns run notifications and delivers them from its own side of
+      // the worker protocol; the only production caller already passes no-ops.
+      // Defaulting to them here keeps that fact local instead of importing the
+      // app's orchestrator to be overridden.
+      notifyRunFailed: notifyFailed = () => {},
+      notifyRunStopped: notifyStopped = () => {},
       detached = true,
       sdkUsageFlushGraceMs = SDK_USAGE_FLUSH_GRACE_MS,
       sdkBridgeCloseGraceMs = SDK_BRIDGE_CLOSE_GRACE_MS,

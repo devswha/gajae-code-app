@@ -285,3 +285,19 @@ test('the composer shows context fullness as the single token-related control', 
   assert.doesNotMatch(html, /Show token usage/);
   assert.doesNotMatch(html, />tokens<\/span>/);
 });
+
+test('the composer tools row wraps instead of clipping its trailing controls', () => {
+  // This row holds attach, voice, two model controls, skills and context
+  // usage. It used to carry `overflow-hidden`, so a narrow viewport cut the
+  // trailing controls off with nothing indicating they were there. Layout
+  // cannot be measured in a static render, so the guard is on the two classes
+  // that decide it: clipping must stay gone and wrapping must stay on.
+  const html = renderToStaticMarkup(createElement(ChatComposer, {
+    ...baseComposerProps,
+  }));
+
+  const toolsRow = /<div[^>]*data-slot="prompt-input-tools"[^>]*>/.exec(html)?.[0];
+  assert.ok(toolsRow, 'the composer no longer renders a tools row');
+  assert.doesNotMatch(toolsRow, /overflow-hidden/);
+  assert.match(toolsRow, /flex-wrap/);
+});

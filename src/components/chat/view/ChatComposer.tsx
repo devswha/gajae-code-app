@@ -409,7 +409,14 @@ export default function ChatComposer({
         </PromptInputBody>
 
         <PromptInputFooter>
-          <PromptInputTools className="min-w-0 overflow-hidden">
+          {/*
+            Wraps rather than clips. This row carries attach, voice, two model
+            controls, skills and context usage; `overflow-hidden` meant a narrow
+            viewport silently cut the trailing ones off with nothing to show
+            that they existed. Wrapping costs a second line on narrow screens
+            and keeps every control reachable.
+          */}
+          <PromptInputTools className="min-w-0 flex-wrap gap-y-1">
 
             <PromptInputButton
               tooltip={{ content: t('input.attachImages') }}

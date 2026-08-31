@@ -7,19 +7,15 @@ import { dirname, isAbsolute, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Writable } from 'node:stream';
 
-import { GJC_AGENT_TOOL_NAMES } from './gjc-agent-tools.js';
-import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import {
-  createCompleteMessage,
-  createNormalizedMessage,
-  getGjcLiveSessionRoot,
-  registerGjcRuntimeModelCatalogLoader,
-} from './shared/utils.js';
-import {
+  GJC_AGENT_TOOL_NAMES,
   GJC_WORKER_PROTOCOL_VERSION,
+  GJC_WINDOWS_JOB_GUARD_ACK,
+  GJC_WINDOWS_JOB_GUARD_READY,
   GjcWorkerNdjsonDecoder,
   GjcWorkerProtocolError,
   GjcWorkerRequestTracker,
+  createWindowsJobLaunch,
   serializeGjcWorkerFrame,
   type GjcWorkerEventFrame,
   type GjcWorkerGlobalEventMethod,
@@ -28,12 +24,14 @@ import {
   type GjcWorkerResponsePayload,
   type GjcWorkerResponseFrame,
   type JsonObject,
-} from './gjc-worker-protocol.js';
+} from './gjc-engine.js';
+import { notifyRunFailed, notifyRunStopped } from './modules/notifications/index.js';
 import {
-  createWindowsJobLaunch,
-  GJC_WINDOWS_JOB_GUARD_ACK,
-  GJC_WINDOWS_JOB_GUARD_READY,
-} from './gjc-windows-job.js';
+  createCompleteMessage,
+  createNormalizedMessage,
+  getGjcLiveSessionRoot,
+  registerGjcRuntimeModelCatalogLoader,
+} from './shared/utils.js';
 
 type RunStoppedNotification = {
   userId: string | number | null;
@@ -212,7 +210,7 @@ function containedBy(root: string, path: string): boolean {
 type GjcSessionPathLookup = (sessionId: string) => Promise<string | undefined>;
 
 async function sessionJsonlPath(sessionId: string): Promise<string | undefined> {
-  const { sessionsDb } = await import('./modules/database/repositories/sessions.db.js');
+  const { sessionsDb } = await import('./modules/database/index.js');
   const session = sessionsDb.getSessionByProviderSessionId('gjc', sessionId)
     ?? sessionsDb.getSessionById(sessionId);
   return session?.provider === 'gjc' ? session.jsonl_path ?? undefined : undefined;
@@ -256,7 +254,7 @@ export async function enrichGjcSdkRunOptions(options: GjcWorkerOptions): Promise
   }
   if (modelId === null || modelId === undefined) {
     try {
-      const { providerModelsService } = await import('./modules/providers/services/provider-models.service.js');
+      const { providerModelsService } = await import('./modules/providers/index.js');
       modelId = (await providerModelsService.getCurrentActiveModel('gjc')).model;
     } catch {
       throw new GjcConfigurationError('Unable to resolve the active GJC model.');

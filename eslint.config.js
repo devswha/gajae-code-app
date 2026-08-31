@@ -158,6 +158,23 @@ export default tseslint.config(
           //
           // `gjc-worker-client.ts` is deliberately absent: it is the app's end of
           // the protocol and runs in the app's process.
+          // The engine's published surface. Everything outside the engine reaches
+          // it here or not at all, so this file is the whole importable contract
+          // that has to survive the engine moving to its own repository.
+          type: "gjc-engine-api",
+          pattern: ["server/gjc-engine.ts"],
+          mode: "file",
+        },
+        {
+          // The application's end of the worker protocol. It runs in the
+          // application's process and may use application services, which is why
+          // it is not part of the engine - but it is still on the far side of the
+          // published surface and must go through it like everything else.
+          type: "gjc-engine-client",
+          pattern: ["server/gjc-worker-client.ts"],
+          mode: "file",
+        },
+        {
           type: "gjc-engine",
           pattern: [
             "server/gjc-agent-tools.ts",
@@ -300,6 +317,16 @@ export default tseslint.config(
               disallow: { to: { type: ["backend-module", "backend-legacy-runtime"] } },
               message:
                 "The GJC engine may not import the app around it, barrel included. Move the shared piece next to the engine, or pass it through server/gjc-worker-protocol.ts.",
+            },
+            {
+              // Reaching past `gjc-engine.ts` makes every internal symbol look
+              // like part of the interface, which is the state this replaced:
+              // four modules imported by path, and nobody able to say what moving
+              // the engine would break.
+              from: { type: ["backend-module", "gjc-engine-client"] },
+              disallow: { to: { type: "gjc-engine" } },
+              message:
+                "Import the engine through server/gjc-engine.ts. Its exports are the published surface; if what you need is missing, export it there deliberately.",
             },
           ],
         },

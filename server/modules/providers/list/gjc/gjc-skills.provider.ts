@@ -6,7 +6,7 @@ import matter from 'gray-matter';
 
 import type { IProviderSkills } from '@/shared/interfaces.js';
 import type { ProviderSkill, ProviderSkillListOptions } from '@/shared/types.js';
-import { GJC_BUNDLED_SKILLS } from '@/gjc-command-surface.generated.js';
+import { GJC_BUNDLED_SKILLS } from '@/gjc-engine.js';
 
 // Names and descriptions come from each SKILL.md in the installed runtime,
 // generated rather than transcribed: `BUNDLED_SKILLS` is not exported upstream,

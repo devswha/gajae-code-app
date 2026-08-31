@@ -10,12 +10,12 @@ import {
   notificationPreferencesDb,
   sessionsDb,
   userDb,
-} from '../../modules/database/index.js';
+} from '@/modules/database/index.js';
 import {
   registerDesktopNotificationClient,
   unregisterDesktopNotificationClient,
-} from '../../modules/notifications/services/desktop-notification-clients.service.js';
-import { notifyRunStopped } from '../notification-orchestrator.js';
+} from '@/modules/notifications/services/desktop-notification-clients.service.js';
+import { notifyRunStopped } from '@/modules/notifications/services/notification-orchestrator.service.js';
 
 async function withIsolatedDatabase(runTest) {
   const previousDatabasePath = process.env.DATABASE_PATH;

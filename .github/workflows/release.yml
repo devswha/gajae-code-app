@@ -33,12 +33,12 @@ jobs:
       release_tag: ${{ steps.metadata.outputs.release_tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           architecture: x64
@@ -133,7 +133,7 @@ jobs:
           node extracted/scripts/gajae-app-runtime.mjs --help
 
       - name: Upload canonical server release assets
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gajae-app-server-release
           path: release-assets/*
@@ -151,12 +151,12 @@ jobs:
       release_tag: ${{ steps.metadata.outputs.release_tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           architecture: arm64
@@ -251,7 +251,7 @@ jobs:
           trap - EXIT
 
       - name: Upload canonical desktop release assets
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gajae-app-desktop-release
           path: release-assets/*
@@ -265,13 +265,13 @@ jobs:
       contents: read
     steps:
       - name: Set up Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           architecture: x64
 
       - name: Download canonical server release assets
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: gajae-app-server-release
           path: release-assets
@@ -335,13 +335,13 @@ jobs:
       contents: write
     steps:
       - name: Download canonical server release assets
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: gajae-app-server-release
           path: release-assets
 
       - name: Download canonical desktop release assets
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: gajae-app-desktop-release
           path: release-assets
@@ -396,3 +396,28 @@ jobs:
             --title "Gajae Code App $RELEASE_TAG" \
             "${prerelease_args[@]}" \
             --generate-notes
+
+      # A release created with GITHUB_TOKEN does not raise `release: published`,
+      # so a separate notification workflow listening for that event never runs.
+      # The lane that publishes announces.
+      - name: Announce the release
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SERVER_ASSET_NAME: ${{ needs.build.outputs.artifact_name }}
+          DESKTOP_ASSET_NAME: ${{ needs.desktop-macos.outputs.artifact_name }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DISCORD_WEBHOOK_URL:-}" ]; then
+            echo "No DISCORD_WEBHOOK_URL secret configured; skipping the announcement."
+            exit 0
+          fi
+          release_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}"
+          jq -n \
+            --arg title "Gajae Code App $RELEASE_TAG" \
+            --arg url "$release_url" \
+            --arg description "$(printf '%s\n%s' "$DESKTOP_ASSET_NAME" "$SERVER_ASSET_NAME")" \
+            '{embeds: [{title: $title, url: $url, description: $description, color: 2105893}]}' \
+            | curl --fail-with-body --silent --show-error \
+                --header 'Content-Type: application/json' \
+                --data @- "$DISCORD_WEBHOOK_URL"

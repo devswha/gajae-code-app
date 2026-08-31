@@ -15,6 +15,7 @@ export type GjcAppCommand = {
 };
 
 export const GJC_APP_BUILTIN_COMMANDS: readonly GjcAppCommand[] = [
+  { name: "aside", description: "Run the Aside CLI", inputHint: "[exec|repl|mcp|account|help|<prompt>]" },
   { name: "notify", description: "Notification status, health, test, recovery, and session on/off", inputHint: "[on|off|status|health|test|recovery|setup]" },
   { name: "model", description: "Show current model selection", inputHint: "[target] <model>" },
   { name: "effort", description: "Show or set model reasoning effort", inputHint: "[inherit|off|minimal|low|medium|high|xhigh|max]" },

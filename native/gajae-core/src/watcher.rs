@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::ffi::OsStr;
 use std::io::{self, Read, Write};
 use std::path::{Component, Path, PathBuf};
@@ -5,7 +6,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, TrySendError};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 
@@ -13,6 +14,16 @@ const READY_FRAME: &[u8] = b"{\"protocolVersion\":1,\"kind\":\"ready\"}\n";
 const WATCH_ERROR: &[u8] = b"gajae-core: watcher failed\n";
 const MAX_FRAME_BYTES: usize = 64 * 1024;
 const EVENT_CHANNEL_CAPACITY: usize = 256;
+/// A recursive watch covers a subdirectory only once the platform backend has
+/// registered it, and inotify hands the folder's creation to the handler
+/// *before* it registers. A transcript written into that directory inside the
+/// window produces no event of its own, and a populated directory renamed into
+/// a root is reported as one path whose contents were never observed at all. So
+/// every directory an event names is rescanned once the window has closed and
+/// the transcripts it holds are reported as adds.
+const BACKFILL_DELAY: Duration = Duration::from_millis(150);
+const MAX_PENDING_BACKFILLS: usize = 64;
+const MAX_BACKFILL_ENTRIES: usize = 4096;
 
 #[derive(Clone, Copy)]
 enum OutputEvent {
@@ -69,6 +80,7 @@ pub fn run(roots: Vec<PathBuf>) -> bool {
         return fail();
     }
 
+    let mut backfills: VecDeque<(PathBuf, Instant)> = VecDeque::new();
     loop {
         if failed.load(Ordering::Acquire) {
             return fail();
@@ -79,10 +91,13 @@ pub fn run(roots: Vec<PathBuf>) -> bool {
             Err(mpsc::TryRecvError::Disconnected) => return fail(),
             Err(mpsc::TryRecvError::Empty) => {}
         }
+        if !write_due_backfill_frames(&mut stdout, &roots, &mut backfills) {
+            return fail();
+        }
 
         match events_rx.recv_timeout(Duration::from_millis(100)) {
             Ok(Ok(event)) => {
-                if !write_event_frames(&mut stdout, &roots, event) {
+                if !write_event_frames(&mut stdout, &roots, event, &mut backfills) {
                     return fail();
                 }
             }
@@ -105,7 +120,12 @@ fn wait_for_stdin_eof() -> bool {
     }
 }
 
-fn write_event_frames(stdout: &mut impl Write, roots: &[PathBuf], event: Event) -> bool {
+fn write_event_frames(
+    stdout: &mut impl Write,
+    roots: &[PathBuf],
+    event: Event,
+    backfills: &mut VecDeque<(PathBuf, Instant)>,
+) -> bool {
     let Some((kind, destination_only)) = output_event(event.kind) else {
         return true;
     };
@@ -117,12 +137,80 @@ fn write_event_frames(stdout: &mut impl Write, roots: &[PathBuf], event: Event) 
     };
     for path in paths {
         if let Some(frame) = frame_for_path(kind, path, roots) {
-            if stdout.write_all(&frame).is_err() || stdout.flush().is_err() {
+            if !write_frame(stdout, &frame) {
+                return false;
+            }
+        }
+        if is_directory(path) && !backfills.iter().any(|(pending, _)| pending == path) {
+            if backfills.len() >= MAX_PENDING_BACKFILLS {
+                backfills.pop_front();
+            }
+            backfills.push_back((path.clone(), Instant::now() + BACKFILL_DELAY));
+        }
+    }
+    true
+}
+
+fn write_due_backfill_frames(
+    stdout: &mut impl Write,
+    roots: &[PathBuf],
+    backfills: &mut VecDeque<(PathBuf, Instant)>,
+) -> bool {
+    let now = Instant::now();
+    while let Some(due) = backfills.front().map(|(_, due)| *due) {
+        if due > now {
+            return true;
+        }
+        let Some((directory, _)) = backfills.pop_front() else {
+            return true;
+        };
+        for frame in backfill_frames(&directory, roots) {
+            if !write_frame(stdout, &frame) {
                 return false;
             }
         }
     }
     true
+}
+
+/// Reports every transcript already sitting in a newly created directory. Only
+/// real directories are descended and symlinks are never followed, so the walk
+/// cannot cycle or leave the tree it was handed.
+fn backfill_frames(directory: &Path, roots: &[PathBuf]) -> Vec<Vec<u8>> {
+    let mut frames = Vec::new();
+    let mut queue = vec![directory.to_path_buf()];
+    let mut scanned = 0_usize;
+    while let Some(current) = queue.pop() {
+        let Ok(entries) = std::fs::read_dir(&current) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if scanned >= MAX_BACKFILL_ENTRIES {
+                return frames;
+            }
+            scanned += 1;
+            let path = entry.path();
+            let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if metadata.is_dir() {
+                queue.push(path);
+            } else if metadata.is_file() {
+                if let Some(frame) = frame_for_path(OutputEvent::Add, &path, roots) {
+                    frames.push(frame);
+                }
+            }
+        }
+    }
+    frames
+}
+
+fn is_directory(path: &Path) -> bool {
+    std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.is_dir())
+}
+
+fn write_frame(stdout: &mut impl Write, frame: &[u8]) -> bool {
+    stdout.write_all(frame).is_ok() && stdout.flush().is_ok()
 }
 
 fn output_event(kind: EventKind) -> Option<(OutputEvent, bool)> {
@@ -195,9 +283,71 @@ fn fail() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{OutputEvent, frame_for_path, frame_for_resolved_path};
+    use super::{OutputEvent, backfill_frames, frame_for_path, frame_for_resolved_path};
     use std::fs;
     use std::path::PathBuf;
+
+    fn scratch_directory(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "gajae-core-watch-{label}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+        ))
+    }
+
+    #[test]
+    fn backfills_transcripts_a_new_directory_already_contains() {
+        let container = scratch_directory("backfill-test");
+        let root = container.join("root");
+        let created = root.join("workspace");
+        let nested = created.join("nested");
+        fs::create_dir_all(&nested).unwrap();
+        let root = fs::canonicalize(&root).unwrap();
+        let created = fs::canonicalize(&created).unwrap();
+        fs::write(created.join("session.jsonl"), b"{}\n").unwrap();
+        fs::write(created.join("ignored.txt"), b"ignored").unwrap();
+        fs::write(nested.join("nested.jsonl"), b"{}\n").unwrap();
+
+        let frames = backfill_frames(&created, std::slice::from_ref(&root));
+        let reported = frames
+            .iter()
+            .map(|frame| String::from_utf8(frame.clone()).unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(reported.len(), 2, "{reported:?}");
+        assert!(
+            reported
+                .iter()
+                .all(|frame| frame.contains("\"event\":\"add\""))
+        );
+        assert!(reported.iter().any(|frame| frame.contains("session.jsonl")));
+        assert!(reported.iter().any(|frame| frame.contains("nested.jsonl")));
+        assert!(!reported.iter().any(|frame| frame.contains("ignored.txt")));
+
+        fs::remove_dir_all(container).unwrap();
+    }
+
+    #[test]
+    fn backfill_reports_nothing_outside_the_watched_roots() {
+        let container = scratch_directory("backfill-escape-test");
+        let root = container.join("root");
+        let created = root.join("workspace");
+        fs::create_dir_all(&created).unwrap();
+        let outside = container.join("outside.jsonl");
+        fs::write(&outside, b"{}\n").unwrap();
+        let root = fs::canonicalize(&root).unwrap();
+        let created = fs::canonicalize(&created).unwrap();
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&outside, created.join("linked.jsonl")).unwrap();
+
+        assert!(backfill_frames(&created, std::slice::from_ref(&root)).is_empty());
+
+        fs::remove_dir_all(container).unwrap();
+    }
 
     #[test]
     fn frames_only_canonical_jsonl_paths_inside_roots() {

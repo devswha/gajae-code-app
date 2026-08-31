@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { appendFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -156,6 +156,59 @@ test('native core recursively watches multiple roots and filters non-transcript 
         frame.event === 'add' || frame.event === 'change'
       )),
       true,
+    );
+  } finally {
+    child.kill('SIGKILL');
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('native core reports transcripts a directory already held when it appeared', async () => {
+  const temporaryRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), 'gajae-core-watch-')));
+  const root = path.join(temporaryRoot, 'root');
+  const staged = path.join(temporaryRoot, 'staged');
+  await mkdir(root, { recursive: true });
+  await mkdir(path.join(staged, 'nested'), { recursive: true });
+  await writeFile(path.join(staged, 'nested', 'session.jsonl'), '{"type":"session"}\n', 'utf8');
+  await writeFile(path.join(staged, 'nested', 'ignored.txt'), 'ignored', 'utf8');
+
+  const child = spawn(corePath, ['watch', '--root', root], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  const frames: Array<Record<string, unknown>> = [];
+  let buffered = '';
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (chunk: string) => {
+    buffered += chunk;
+    const lines = buffered.split('\n');
+    buffered = lines.pop() ?? '';
+    for (const line of lines) {
+      if (line) frames.push(JSON.parse(line) as Record<string, unknown>);
+    }
+  });
+  const waitForFrame = async (
+    predicate: (frame: Record<string, unknown>) => boolean,
+  ): Promise<void> => {
+    for (let attempt = 0; attempt < WATCHER_FRAME_TIMEOUT_MS / WATCHER_FRAME_POLL_INTERVAL_MS; attempt += 1) {
+      if (frames.some(predicate)) return;
+      await new Promise((resolve) => setTimeout(resolve, WATCHER_FRAME_POLL_INTERVAL_MS));
+    }
+    throw new Error('Timed out waiting for native watcher frame.');
+  };
+
+  try {
+    await waitForFrame((frame) => frame.kind === 'ready');
+    // The whole populated tree arrives as one rename: the transcript inside it
+    // is never observed by the watch, only the directory that now holds it.
+    await rename(staged, path.join(root, 'moved'));
+    const transcript = path.join(root, 'moved', 'nested', 'session.jsonl');
+    await waitForFrame((frame) => (
+      frame.kind === 'event' && frame.event === 'add' && frame.path === transcript
+    ));
+
+    assert.equal(
+      frames.some((frame) => typeof frame.path === 'string' && frame.path.endsWith('ignored.txt')),
+      false,
     );
   } finally {
     child.kill('SIGKILL');

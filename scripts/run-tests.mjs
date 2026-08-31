@@ -71,6 +71,17 @@ function resolveBunExecutable() {
   return null;
 }
 
+function isolatedTestEnvironment() {
+  const env = { ...process.env };
+  // Test-created SDK sessions must not inherit the operator terminal identity.
+  // Otherwise SessionManager publishes a temporary transcript as the active
+  // tmux pane breadcrumb (for example terminal-sessions/tmux-%0).
+  for (const name of ['TMUX', 'TMUX_PANE', 'KITTY_WINDOW_ID', 'TERM_SESSION_ID', 'WT_SESSION']) {
+    delete env[name];
+  }
+  return env;
+}
+
 function runBunTests(label, files) {
   if (files.length === 0) return;
   const bun = resolveBunExecutable();
@@ -86,7 +97,11 @@ function runBunTests(label, files) {
   // Keep each contract file isolated so leaked globals, timers, or worker state
   // cannot make the aggregate Bun phase order-dependent.
   for (const file of files) {
-    const result = spawnSync(bun.path, ['test', file], { cwd: process.cwd(), stdio: 'inherit' });
+    const result = spawnSync(bun.path, ['test', file], {
+      cwd: process.cwd(),
+      env: isolatedTestEnvironment(),
+      stdio: ['ignore', 'inherit', 'inherit'],
+    });
     if (result.error) throw result.error;
     if (result.status !== 0) process.exit(result.status ?? 1);
   }

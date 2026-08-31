@@ -264,11 +264,19 @@ export function forwardSdkEvent(
       return;
     }
     case 'tool_execution_end': {
+      const details = toolResultDetails(event.result);
       writer.send({
         kind: 'tool_result',
         toolId: str(event.toolCallId),
         content: stringifyToolOutput(event.result),
         isError: event.isError === true,
+        // The runtime returns `{ content, details }`, where `details` is the
+        // typed per-tool record (a read's resolvedPath and truncation, a
+        // bash run's exit status, and so on). Only `content` used to survive
+        // this boundary, so a tool card could do nothing but re-parse a string
+        // this file had just serialized. `toolUseResult` is the existing
+        // provider-agnostic slot the client already reads.
+        ...(details === undefined ? {} : { toolUseResult: details }),
       });
       return;
     }
@@ -330,6 +338,25 @@ export function forwardSdkEvent(
  * in `gjc-cli.js`: take the text parts, and represent anything else by a short
  * placeholder rather than its bytes.
  */
+/**
+ * Pulls the runtime's structured `details` off a tool result.
+ *
+ * The result is `unknown` here: a tool may return a bare string, an array of
+ * content parts, or the `{ content, details }` record the tool-result builder
+ * produces, and only the last of those carries details. Anything else yields
+ * undefined rather than a guess, so "this tool reported no structure" and
+ * "this result had a shape we did not expect" collapse to the same harmless
+ * outcome instead of putting junk on the wire.
+ */
+function toolResultDetails(value: unknown): Record<string, unknown> | undefined {
+  if (!object(value)) return undefined;
+  const details = value.details;
+  if (!object(details)) return undefined;
+  // The builder omits `details` when every field is undefined, but a tool can
+  // still hand back a bare `{}`. Sending that would claim structure exists.
+  return Object.keys(details).length > 0 ? details : undefined;
+}
+
 function stringifyToolOutput(value: unknown): string {
   if (typeof value === 'string') return value;
   if (value === undefined || value === null) return '';

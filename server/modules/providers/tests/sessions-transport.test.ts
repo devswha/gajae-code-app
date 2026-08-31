@@ -62,3 +62,125 @@ test('transport truncates the folded toolResult on tool_use messages too', () =>
   assert.equal(preview.startsWith('한글'), true);
   assert.equal(preview.endsWith('한글'), true);
 });
+
+/*
+ * Structured tool details.
+ *
+ * The runtime returns `{ content, details }` per tool call. Only `content` used
+ * to survive the adapter, so a card could do nothing but re-parse a string the
+ * server had just serialized. Details now ride `toolUseResult`, which means the
+ * transport has to bound them: a read's details embed the whole file under
+ * `truncation.content`, duplicating what the text side already caps.
+ */
+
+test('transport passes small tool details through untouched', () => {
+  const message = baseMessage({
+    id: 'msg-details',
+    kind: 'tool_result',
+    content: 'ok',
+    toolUseResult: { resolvedPath: '/repo/AGENTS.md', kind: 'file' },
+  });
+
+  const [prepared] = prepareHistoryMessagesForTransport([message]);
+
+  assert.deepEqual(prepared.toolUseResult, { resolvedPath: '/repo/AGENTS.md', kind: 'file' });
+  assert.equal(prepared.toolDetailsOmitted, undefined);
+});
+
+test('transport drops oversized tool details whole rather than trimming them', () => {
+  // A trimmed object is worse than none: a consumer cannot tell which fields
+  // went missing, so it would render confidently wrong.
+  const message = baseMessage({
+    id: 'msg-huge',
+    kind: 'tool_result',
+    content: 'ok',
+    toolUseResult: { truncation: { content: 'x'.repeat(64 * 1024) }, resolvedPath: '/repo/big' },
+  });
+
+  const [prepared] = prepareHistoryMessagesForTransport([message]);
+
+  assert.equal(prepared.toolUseResult, undefined);
+  assert.equal(prepared.toolDetailsOmitted, true);
+});
+
+test('a dropped detail is distinguishable from a tool that reported none', () => {
+  const none = baseMessage({ id: 'msg-none', kind: 'tool_result', content: 'ok' });
+
+  const [prepared] = prepareHistoryMessagesForTransport([none]);
+
+  assert.equal(prepared.toolUseResult, undefined);
+  // Absent, not omitted. A card must be able to tell these apart before it
+  // decides whether to show a "details unavailable" affordance.
+  assert.equal(prepared.toolDetailsOmitted, undefined);
+});
+
+test('unserializable tool details are dropped instead of crossing the transport', () => {
+  const cyclic: Record<string, unknown> = { resolvedPath: '/repo/x' };
+  cyclic.self = cyclic;
+  const message = baseMessage({
+    id: 'msg-cyclic',
+    kind: 'tool_result',
+    content: 'ok',
+    toolUseResult: cyclic,
+  });
+
+  assert.doesNotThrow(() => prepareHistoryMessagesForTransport([message]));
+  const [prepared] = prepareHistoryMessagesForTransport([message]);
+  assert.equal(prepared.toolUseResult, undefined);
+  assert.equal(prepared.toolDetailsOmitted, true);
+});
+
+test('bounding details leaves the text truncation flags alone', () => {
+  // The two budgets describe different fields and must not be conflated.
+  const message = baseMessage({
+    id: 'msg-both',
+    kind: 'tool_result',
+    content: 'ok',
+    toolUseResult: { truncation: { content: 'x'.repeat(64 * 1024) } },
+  });
+
+  const [prepared] = prepareHistoryMessagesForTransport([message]);
+
+  assert.equal(prepared.toolDetailsOmitted, true);
+  assert.equal(prepared.toolResultTruncated, undefined);
+  assert.equal(prepared.toolResultBytes, undefined);
+  assert.equal(prepared.content, 'ok');
+});
+
+test('transport bounds details folded into a tool_use as well as standalone ones', () => {
+  // History drops the standalone tool_result row and folds its details into the
+  // call, so bounding only the top-level field would leave the larger of the
+  // two shapes uncapped.
+  const message = baseMessage({
+    id: 'msg-folded',
+    kind: 'tool_use',
+    toolName: 'read',
+    toolResult: {
+      content: 'ok',
+      isError: false,
+      toolUseResult: { truncation: { content: 'x'.repeat(64 * 1024) } },
+    },
+  });
+
+  const [prepared] = prepareHistoryMessagesForTransport([message]);
+
+  assert.equal(prepared.toolResult?.toolUseResult, undefined);
+  assert.equal(prepared.toolDetailsOmitted, true);
+  // The text beside it is untouched; the two budgets are independent.
+  assert.equal(prepared.toolResult?.content, 'ok');
+  assert.equal(prepared.toolResultTruncated, undefined);
+});
+
+test('transport keeps small folded details', () => {
+  const message = baseMessage({
+    id: 'msg-folded-small',
+    kind: 'tool_use',
+    toolName: 'read',
+    toolResult: { content: 'ok', isError: false, toolUseResult: { resolvedPath: '/repo/x' } },
+  });
+
+  const [prepared] = prepareHistoryMessagesForTransport([message]);
+
+  assert.deepEqual(prepared.toolResult?.toolUseResult, { resolvedPath: '/repo/x' });
+  assert.equal(prepared.toolDetailsOmitted, undefined);
+});

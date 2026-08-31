@@ -217,6 +217,12 @@ async function streamGjcSessionMessages(
               return typeof text === 'string' ? text : '';
             })
             .join('');
+          // The runtime persists its typed per-tool `details` alongside the
+          // text parts. Carrying it here is what keeps a reloaded transcript
+          // identical to the live turn: a card that renders richly while the
+          // turn streams and then degrades on refresh is worse than one that
+          // is consistently plain.
+          const details = message.details;
           onMessage({
             uuid: `${entryId}:toolresult`,
             type: 'tool_result',
@@ -224,6 +230,10 @@ async function streamGjcSessionMessages(
             toolCallId: message.toolCallId ?? message.callId,
             output,
             isError: Boolean(message.isError),
+            ...(details && typeof details === 'object' && !Array.isArray(details)
+              && Object.keys(details as AnyRecord).length > 0
+              ? { details }
+              : {}),
           });
           continue;
         }
@@ -389,6 +399,8 @@ export class GjcSessionsProvider implements IProviderSessions {
         toolId: raw.toolCallId || '',
         content,
         isError: Boolean(raw.isError),
+        // Same slot the live path fills, so both produce one shape.
+        ...(raw.details === undefined ? {} : { toolUseResult: raw.details }),
       })];
     }
 
@@ -456,7 +468,17 @@ export class GjcSessionsProvider implements IProviderSessions {
       if (msg.kind === 'tool_use' && msg.toolId && toolResultMap.has(msg.toolId)) {
         const toolResult = toolResultMap.get(msg.toolId);
         if (toolResult) {
-          msg.toolResult = { content: toolResult.content, isError: toolResult.isError };
+          // The standalone tool_result row is dropped below, so anything the
+          // UI needs has to be copied here. `toolUseResult` carries the
+          // runtime's typed details; omitting it silently made a reloaded
+          // transcript poorer than the turn that produced it.
+          msg.toolResult = {
+            content: toolResult.content,
+            isError: toolResult.isError,
+            ...(toolResult.toolUseResult === undefined
+              ? {}
+              : { toolUseResult: toolResult.toolUseResult }),
+          };
         }
       }
     }

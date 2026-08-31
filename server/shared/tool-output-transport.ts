@@ -2,6 +2,33 @@ import type { NormalizedMessage } from '@/shared/types.js';
 
 const TOOL_OUTPUT_PREVIEW_BYTES = 64 * 1024;
 
+/**
+ * Ceiling for a tool result's structured details.
+ *
+ * Deliberately far below the text preview budget. Details exist to let a card
+ * read a field like `resolvedPath` or an exit status; anything approaching
+ * this size is a payload that has been duplicated out of the text, not
+ * something a card needs.
+ */
+const TOOL_DETAILS_MAX_BYTES = 16 * 1024;
+
+/**
+ * Whether a details record is small enough to send.
+ *
+ * A value that cannot be serialized at all - cyclic, or holding something
+ * JSON refuses - fails this too. That is the safe direction: it never crosses
+ * the transport, and the caller marks it omitted like any other oversize
+ * record.
+ */
+function withinDetailsBudget(value: unknown): boolean {
+  try {
+    const json = JSON.stringify(value);
+    return json !== undefined && Buffer.byteLength(json, 'utf8') <= TOOL_DETAILS_MAX_BYTES;
+  } catch {
+    return false;
+  }
+}
+
 function isUtf8ContinuationByte(value: number | undefined): boolean {
   return value !== undefined && (value & 0xc0) === 0x80;
 }
@@ -74,6 +101,27 @@ export function prepareMessageForTransport(message: NormalizedMessage): Normaliz
         toolResultBytes: preview.bytes,
       };
     }
+  }
+
+  // Structured details are unbounded by construction: a read's details carry
+  // a `truncation.content` holding the whole file, which is the same payload
+  // the text side already bounds. Measure the serialization and drop the whole
+  // record when it is too big, rather than shipping a trimmed object — a
+  // consumer cannot tell which fields a trimmed object lost, so half a record
+  // is worse than none. `toolDetailsOmitted` is what separates "this tool
+  // reported no structure" from "there was structure and it did not fit".
+  // Two shapes reach this. A live standalone tool_result carries details at
+  // the top level; a folded history result carries them inside `toolResult`,
+  // because the standalone row it came from is dropped before transport. Both
+  // have to be bounded or the cap is only half a cap.
+  if (prepared.toolUseResult !== undefined && !withinDetailsBudget(prepared.toolUseResult)) {
+    prepared = { ...prepared, toolUseResult: undefined, toolDetailsOmitted: true };
+  }
+
+  const folded = prepared.toolResult;
+  if (folded && folded.toolUseResult !== undefined && !withinDetailsBudget(folded.toolUseResult)) {
+    const { toolUseResult: _dropped, ...rest } = folded;
+    prepared = { ...prepared, toolResult: rest, toolDetailsOmitted: true };
   }
 
   if (message.toolResult && 'content' in message.toolResult) {

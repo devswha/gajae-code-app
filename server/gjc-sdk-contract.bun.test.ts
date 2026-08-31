@@ -288,10 +288,21 @@ async function fixture(
     sessions.push(session);
     return { session, setToolUIContext: session.setToolUIContext.bind(session) };
   }) as unknown as GjcAgentSessionFactory;
+  // The per-run clone is what the adapter applies its tool policy to, so the
+  // fake has to carry `override` like the real Settings does. Without it every
+  // session creation threw and the whole file failed on "Fake session was not
+  // created", which named the symptom and hid the cause.
+  const overrides = new Map<string, unknown>();
+  const settingsClone = () => ({
+    getModelRole: () => defaultModel || undefined,
+    override: (key: string, value: unknown) => { overrides.set(key, value); },
+    get: (key: string) => overrides.get(key),
+  });
   const settings = {
     getModelRole: () => defaultModel || undefined,
     get: (key: string) => key === 'modelProfile.default' ? modelProfile : undefined,
-    cloneForCwd: async () => ({ getModelRole: () => defaultModel || undefined }),
+    cloneForCwd: async () => settingsClone(),
+    toolPolicyOverrides: overrides,
   };
   const adapter = new GjcBunSdkAdapter(authStorage as never, modelRegistry as never, {
     createSessionFactory: factory,
@@ -312,7 +323,7 @@ async function fixture(
     spawns: 'deny',
     bashPolicy: { allowedPrefixes: [] },
   };
-  return { root, adapter, authStorage, modelRegistry, trace, factoryOptions, sessions, frames, host, options, close: () => rm(root, { recursive: true, force: true }) };
+  return { root, adapter, authStorage, modelRegistry, trace, factoryOptions, sessions, frames, host, options, toolPolicyOverrides: overrides, close: () => rm(root, { recursive: true, force: true }) };
 }
 
 function methods(frames: Array<Record<string, unknown>>): string[] { return frames.filter((frame) => frame.kind === 'event').map((frame) => frame.method as string); }
@@ -1118,7 +1129,11 @@ test('settings loader resolves the current default model role for each run', asy
   const settingsFor = (modelId: string) => ({
     getModelRole: () => `contract-provider/${modelId}`,
     get: () => undefined,
-    cloneForCwd: async () => ({ getModelRole: () => `contract-provider/${modelId}` }),
+    cloneForCwd: async () => ({
+      getModelRole: () => `contract-provider/${modelId}`,
+      override: () => undefined,
+      get: () => undefined,
+    }),
   });
   const f = await fixture(
     'first-model',
@@ -1746,4 +1761,32 @@ test('steering rejects a payload with nothing to say', async () => {
     session.complete();
     await run;
   } finally { await f.close(); }
+});
+
+/*
+ * The app's tool policy has to survive the real session-creation path, not just
+ * be correct in isolation.
+ *
+ * `server/gjc-agent-tools.ts` reads as a closed allowlist, but the runtime
+ * treats `toolNames` as a seed and appends to it from settings that default to
+ * true - which is how goal mode ran in every browser session while the file
+ * said it was withheld. The adapter now forces those settings on the per-run
+ * clone, and this pins that it actually happens where a session is built.
+ */
+test('starting a session forces the tool settings the app policy declares', async () => {
+  const f = await fixture();
+  try {
+    // Not awaited: `session.start` settles only when the turn completes, and
+    // the policy is applied while the session is being built.
+    const run = f.host.handle(request('session.start', 'tool-policy', { message: 'hello', options: f.options }));
+    const session = await firstSession(f.sessions);
+
+    assert.equal(f.toolPolicyOverrides.get('goal.enabled'), false);
+    assert.equal(f.toolPolicyOverrides.get('astEdit.enabled'), false);
+
+    session.complete();
+    await run;
+  } finally {
+    await f.close();
+  }
 });

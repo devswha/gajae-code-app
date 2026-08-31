@@ -320,3 +320,86 @@ test('the terminal failure text stays on the field the browser renders', () => {
   assert.ok(!JSON.stringify(messages).includes('super-secret'), 'raw runtime text is never forwarded');
   assert.equal(first(messages, 'complete')!.exitCode, 1);
 });
+
+/*
+ * Structured tool details.
+ *
+ * The runtime returns `{ content, details }`, where `details` is the typed
+ * per-tool record. Only `content` used to cross this boundary, so a tool card
+ * could do nothing but re-parse the string this module had just produced.
+ */
+
+test('tool_execution_end forwards the runtime details as toolUseResult', () => {
+  const { messages } = forward([
+    {
+      type: 'tool_execution_end',
+      toolCallId: 'call-1',
+      toolName: 'read',
+      result: {
+        content: [{ type: 'text', text: '# AGENTS.md' }],
+        details: { kind: 'file', resolvedPath: '/repo/AGENTS.md' },
+      },
+      isError: false,
+    },
+  ]);
+
+  const result = first(messages, 'tool_result');
+  assert.equal(result?.content, '# AGENTS.md');
+  // Same slot the history path fills, and the one the browser already reads.
+  assert.deepEqual(result?.toolUseResult, { kind: 'file', resolvedPath: '/repo/AGENTS.md' });
+});
+
+test('a result without details reports no structure rather than an empty object', () => {
+  // A card must be able to tell "this tool has no structure" from "there was
+  // structure"; an empty object claims the second.
+  const shapes: unknown[] = [
+    'plain string output',
+    [{ type: 'text', text: 'parts only' }],
+    { content: [{ type: 'text', text: 'no details key' }] },
+    { content: [], details: {} },
+    { content: [], details: 'not an object' },
+    { content: [], details: null },
+  ];
+
+  for (const result of shapes) {
+    const { messages } = forward([
+      { type: 'tool_execution_end', toolCallId: 'c', toolName: 'bash', result, isError: false },
+    ]);
+    assert.equal(first(messages, 'tool_result')?.toolUseResult, undefined);
+  }
+});
+
+test('a malformed tool result never takes the turn down', () => {
+  for (const result of [undefined, null, 42, () => undefined]) {
+    assert.doesNotThrow(() => forward([
+      { type: 'tool_execution_end', toolCallId: 'c', toolName: 'bash', result, isError: false },
+    ]));
+  }
+});
+
+test('the live path emits the same details shape the transcript persists', () => {
+  // Parity is the point. A card that renders richly during a turn and degrades
+  // after a refresh is worse than one that is consistently plain, so the live
+  // event and the persisted `role: "toolResult"` message must land the same
+  // value in the same field.
+  const details = { kind: 'file', resolvedPath: '/repo/AGENTS.md', spillEligible: true };
+
+  const { messages } = forward([
+    {
+      type: 'tool_execution_end',
+      toolCallId: 'call-1',
+      toolName: 'read',
+      result: { content: [{ type: 'text', text: 'body' }], details },
+      isError: false,
+    },
+  ]);
+  const live = first(messages, 'tool_result');
+
+  // What the history reader builds from the same call, per the persisted shape
+  // `{ role: 'toolResult', toolCallId, content: [...], details }`.
+  const history = { toolId: 'call-1', content: 'body', toolUseResult: details };
+
+  assert.equal(live?.toolId, history.toolId);
+  assert.equal(live?.content, history.content);
+  assert.deepEqual(live?.toolUseResult, history.toolUseResult);
+});

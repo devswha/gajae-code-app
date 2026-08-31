@@ -701,3 +701,85 @@ test('history transport truncates oversized gjc tool output and serves the full 
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+test('history carries the runtime tool details the transcript persisted', { concurrency: false }, async () => {
+  // The runtime writes its typed per-tool `details` at message level on the
+  // `role: "toolResult"` record. Dropping it here would make a reloaded
+  // transcript poorer than the live turn that produced it.
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'gjc-session-details-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreLiveSessionDir = patchLiveSessionDir(path.join(tempRoot, 'live-sessions'));
+
+  try {
+    const details = { kind: 'file', resolvedPath: '/repo/AGENTS.md', spillEligible: true };
+    const sessionsDir = path.join(tempRoot, '.gjc', 'agent', 'sessions', '-workspace');
+    await mkdir(sessionsDir, { recursive: true });
+    const lines = [
+      JSON.stringify({
+        type: 'session',
+        version: 3,
+        id: 'gjc-details',
+        timestamp: '2026-07-09T00:00:00.000Z',
+        cwd: workspacePath,
+      }),
+      JSON.stringify({
+        type: 'message',
+        id: 'msg-1',
+        parentId: null,
+        timestamp: '2026-07-09T00:00:01.000Z',
+        message: { role: 'user', content: [{ type: 'text', text: 'Read it' }] },
+      }),
+      JSON.stringify({
+        type: 'message',
+        id: 'msg-2',
+        parentId: 'msg-1',
+        timestamp: '2026-07-09T00:00:02.000Z',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'toolCall', toolName: 'read', toolInput: { path: 'AGENTS.md' }, toolCallId: 'call-read' },
+          ],
+        },
+      }),
+      JSON.stringify({
+        type: 'message',
+        id: 'msg-3',
+        parentId: 'msg-2',
+        timestamp: '2026-07-09T00:00:03.000Z',
+        message: {
+          role: 'toolResult',
+          toolCallId: 'call-read',
+          toolName: 'read',
+          content: [{ type: 'text', text: '# AGENTS.md' }],
+          details,
+          isError: false,
+        },
+      }),
+    ];
+    await writeFile(
+      path.join(sessionsDir, '2026-07-09T00-00-00_gjc-details.jsonl'),
+      `${lines.join('\n')}\n`,
+      'utf8',
+    );
+
+    await withIsolatedDatabase(async () => {
+      await new GjcSessionSynchronizer().synchronize();
+
+      const history = await sessionsService.fetchHistory('gjc-details', { includeImages: false });
+      const toolUse = history.messages.find((message) => message.kind === 'tool_use');
+
+      assert.equal(toolUse?.toolResult?.content, '# AGENTS.md');
+      // History folds the standalone result into its call before dropping the
+      // row, so the details ride the nested slot the client reads for a folded
+      // result. The live path sets the same name on its standalone row.
+      assert.deepEqual(toolUse?.toolResult?.toolUseResult, details);
+      assert.equal(toolUse?.toolDetailsOmitted, undefined);
+    });
+  } finally {
+    restoreLiveSessionDir();
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});

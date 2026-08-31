@@ -277,6 +277,15 @@ export type NormalizedMessage = {
   toolResultTruncated?: boolean;
   /** UTF-8 byte size of the complete persisted tool output. */
   toolResultBytes?: number;
+  /**
+   * The tool reported structured details, but they exceeded the transport
+   * budget and were dropped whole.
+   *
+   * Distinct from an absent `toolUseResult`, which means the tool reported no
+   * structure at all. These describe `toolUseResult`; `toolResultTruncated`
+   * and `toolResultBytes` describe the text and are unrelated.
+   */
+  toolDetailsOmitted?: boolean;
   isError?: boolean;
   /**
    * Severity of a `system_notice`. These rows carry agent-authored records the

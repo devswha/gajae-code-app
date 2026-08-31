@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 
 const rootDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const MAX_DMG_BYTES = 250 * 1024 * 1024;
+const signingIdentity = process.env.APPLE_SIGNING_IDENTITY?.trim() || '-';
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -74,6 +75,15 @@ try {
   rmSync(dmgPath, { force: true });
   run('hdiutil', ['create', '-volname', 'Gajae Code App', '-srcfolder', stage, '-ov', '-format', 'UDZO', dmgPath]);
   run('hdiutil', ['verify', dmgPath]);
+  // Notarization is submitted for the disk image, and an unsigned image cannot
+  // carry a stapled ticket. The identity matches the one the app was finalized
+  // with, so the checksum below is always taken from the image that ships.
+  run('codesign', [
+    '--force', '--sign', signingIdentity,
+    signingIdentity === '-' ? '--timestamp=none' : '--timestamp',
+    dmgPath,
+  ]);
+  run('codesign', ['--verify', '--strict', dmgPath]);
 } finally {
   rmSync(stage, { recursive: true, force: true });
 }
@@ -101,7 +111,7 @@ console.log(JSON.stringify({
   appVersion,
   releaseVersion,
   identifier,
-  signature: adhoc ? 'adhoc' : 'signed',
+  signature: adhoc ? 'adhoc' : signingIdentity,
   note: 'Plain hdiutil DMG (no Finder cosmetics). Notarization + cosmetic layout require Apple credentials + a GUI session.',
 }, null, 2));
 void signatureInfo;

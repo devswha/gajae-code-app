@@ -485,6 +485,35 @@ alongside the tool cards, do not replace them.
 final answer (`.../MessagesTimeline.tsx:673-918`). Reimplement over our loaded
 Query window and DOM scroll container - do not import LegendList to copy it.
 
+## What the details rail bought, and what it cost
+
+The first consumer (`3719848`) is a row that appears when a tool stopped at its
+match, result or head cap. The runtime reports that as `meta.limits`, and none
+of it reaches the text - so before this, a truncated search rendered as a
+complete one with nothing to contradict it. `meta` is common across tools, so a
+single generic reader covers every one of them rather than needing a per-tool
+case.
+
+`meta.diagnostics` (`{ summary, messages[] }`) is the obvious second consumer:
+a tool reporting a problem that is not a hard error, currently invisible.
+
+**The cost, recorded honestly.** The tool-boundary commit `6dcaa73` broke
+`server/gjc-sdk-contract.bun.test.ts` - 56 pass became 31 fail - and it went
+unnoticed until this step. The contract fake's per-run settings clone had no
+`override`, so `applyGjcToolSettingsPolicy` threw during session construction
+and every failure surfaced as `Fake session was not created`, naming the
+symptom and hiding the cause.
+
+The fake was repaired rather than the policy made defensive. A policy that
+skips silently when `override` is missing would stop enforcing the boundary the
+moment the API moved - the same class of bug step 0 existed to fix. The fake
+now models the real contract, and a new test asserts the policy is applied
+where a session is actually built.
+
+The lesson is about verification scope, not about the change: running only the
+tests named in the task, and not the adjacent contract suite, is how a green
+report covered a red repository.
+
 ## Found while fixing drafts, not yet addressed
 
 `safeLocalStorage`'s quota handler deletes every key starting with
@@ -535,10 +564,15 @@ in the provider contract before any of that chrome is worth building.
    its original shape so older drafts still load; the tools row wraps instead
    of clipping. Both guards were mutation-tested against the old behaviour.
 2. **WebSocket per-method authorization** - unrelated hole, still open.
-3. **Structured tool-result payloads in Worker Protocol v1** - the gate. Every
-   capability card below is blocked on it, so it comes before all of them.
-4. **`goal_updated` projection + goals UI** - cheapest real feature once 3
-   lands, because the runtime half already runs.
+3. ~~**Structured tool-result payloads.**~~ Done in `095774b`, with its first
+   consumer in `3719848`. No protocol change was needed: `run.writer.send`
+   passes the message through whole, and `toolUseResult` was already threaded
+   server-to-client. Live and history fill different slots - top-level on the
+   standalone row, nested on the folded one - because history drops the
+   standalone row before transport.
+4. **`goal_updated` projection + goals UI** - note the ordering changed: step 0
+   forced `goal` off, so this now means deciding to turn it back on *with* the
+   UI in the same change, not projecting a thing that already runs.
 5. **Turn metadata in the normalized envelope** - unlocks folding, the minimap,
    and the turn diff card.
 6. **Git-ref checkpoints + per-turn changed-files card + revert** - the

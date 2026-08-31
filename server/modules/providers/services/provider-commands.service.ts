@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import matter from 'gray-matter';
 
-import { GJC_APP_BUILTIN_COMMANDS } from '@/modules/providers/gjc-command-surface.generated.js';
+import { GJC_APP_BUILTIN_COMMANDS } from '@/gjc-command-surface.generated.js';
 import { projectsDb } from '@/modules/database/index.js';
 import { AppError } from '@/shared/utils.js';
 

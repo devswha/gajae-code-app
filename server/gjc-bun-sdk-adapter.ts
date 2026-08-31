@@ -11,7 +11,7 @@ import { initTheme, theme } from '@gajae-code/coding-agent/modes/theme/theme';
 import { getSupportedEfforts } from '@gajae-code/ai/model-thinking';
 
 import { GjcBunOAuthController, type GjcBunOAuthControllerOptions } from './gjc-bun-oauth-controller.js';
-import { GJC_APP_BUILTIN_COMMAND_NAMES } from './modules/providers/gjc-command-surface.generated.js';
+import { GJC_APP_BUILTIN_COMMAND_NAMES } from './gjc-command-surface.generated.js';
 import type { GjcWorkerOAuthRuntime, GjcWorkerRuntime, GjcWorkerWriter } from './gjc-worker.js';
 import { GjcBunAskController } from './gjc-bun-ask-controller.js';
 import { forwardPromptTerminal, forwardSdkEvent, normalizeBuiltinCommandStdout, type SdkRunState } from './gjc-bun-sdk-events.js';

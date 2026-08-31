@@ -99,6 +99,43 @@ The fix for both is a generated `THIRD-PARTY-NOTICES` produced at build time fro
 the shipped tree, so new dependencies are covered without anyone maintaining a
 list by hand.
 
+## The engine boundary
+
+A closed core is possible only if the part that would close depends on nothing
+it cannot take with it. That part exists and is measured:
+
+| Layer | Files sharing a path with the historical upstream | Original to this project |
+| --- | --- | --- |
+| `native/` (Rust core) | 0 | 5,368 lines |
+| `src-tauri/src` (desktop shell) | 0 | 784 lines |
+| `server/gjc-*` (worker, adapter, protocol) | 0 | 13,397 lines |
+
+The app may call into the engine. **The engine may not reach back**, and that is
+enforced rather than hoped for: `eslint.config.js` classifies the engine files as
+`gjc-engine` and fails any import from them into `server/modules/*`, barrel
+imports included. The rule sits last in the list because this plugin lets a later
+rule re-allow what an earlier one denied, and the barrel allowance above it would
+otherwise reopen the door.
+
+One file moved to make that true: `gjc-command-surface.generated.ts` is generated
+from the installed runtime and was living in `server/modules/providers/`, so the
+engine had to import the app to read it. It now sits beside the engine that
+generates it, and the app imports it from there - the allowed direction.
+
+### What is not separable yet
+
+`server/gjc-cli.js` and `server/gjc-worker-node-runtime.ts` are the pre-worker
+spawn path, still loaded as the Node-only production runtime. `gjc-cli.js`
+imports `providerAuthService` and the notification orchestrator from the app,
+**and only to supply default values its caller can already override**
+(`gjc-cli.js:232-234`). Injecting that pair at the wiring point instead is the
+whole remaining job; the two files then join `gjc-engine` and the boundary is
+complete.
+
+They are deliberately left out of the `gjc-engine` list rather than exempted
+inside it. A rule that skipped them quietly would describe a boundary that does
+not exist.
+
 ## Adding a dependency
 
 1. Check the license before adding it. MIT, BSD, ISC, Apache-2.0 and MPL-2.0 are

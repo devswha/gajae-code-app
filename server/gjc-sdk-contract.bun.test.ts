@@ -13,7 +13,7 @@ import {
   GJC_APP_BUILTIN_COMMANDS,
   GJC_APP_BUILTIN_COMMAND_ALIASES,
   GJC_APP_BUILTIN_COMMAND_NAMES,
-} from './modules/providers/gjc-command-surface.generated.js';
+} from './gjc-command-surface.generated.js';
 import {
   GjcBunSdkAdapter,
   createGjcBunSdkAdapter,
@@ -77,7 +77,7 @@ async function waitFor<T>(read: () => T | undefined): Promise<T> {
  * command it does not know is to forward the raw text to the model as a prompt.
  */
 const generatedSurface = await readFile(
-  join(process.cwd(), 'server/modules/providers/gjc-command-surface.generated.ts'),
+  join(process.cwd(), 'server/gjc-command-surface.generated.ts'),
   'utf8',
 );
 

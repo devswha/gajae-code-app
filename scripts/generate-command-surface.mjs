@@ -33,7 +33,7 @@ const execFile = promisify(execFileCallback);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const bunPath = path.join(rootDir, 'dist-native', process.platform === 'win32' ? 'bun.exe' : 'bun');
-const outputPath = path.join(rootDir, 'server', 'modules', 'providers', 'gjc-command-surface.generated.ts');
+const outputPath = path.join(rootDir, 'server', 'gjc-command-surface.generated.ts');
 const update = process.argv.slice(2).includes('--update');
 
 if (process.argv.slice(2).some((argument) => argument !== '--update')) {

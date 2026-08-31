@@ -11,7 +11,7 @@ import type {
   LLMProvider,
   NormalizedMessage,
 } from '@/shared/types.js';
-import { prepareMessagesForTransport } from '@/shared/tool-output-transport.js';
+import { boundToolResultDetails, prepareMessagesForTransport } from '@/shared/tool-output-transport.js';
 import { AppError } from '@/shared/utils.js';
 
 type CreateAppSessionResult = {
@@ -209,7 +209,11 @@ export const sessionsService = {
   async fetchToolResult(
     sessionId: string,
     toolId: string,
-  ): Promise<{ toolId: string; toolResult: NonNullable<NormalizedMessage['toolResult']> }> {
+  ): Promise<{
+    toolId: string;
+    toolResult: NonNullable<NormalizedMessage['toolResult']>;
+    toolDetailsOmitted?: boolean;
+  }> {
     const session = sessionsDb.getSessionById(sessionId);
     if (!session?.provider_session_id) {
       throw new AppError(`Session "${sessionId}" was not found.`, {
@@ -245,7 +249,16 @@ export const sessionsService = {
         statusCode: 404,
       });
     }
-    return { toolId, toolResult };
+    // The text is what this endpoint is for and stays whole. The details are
+    // capped exactly as the history path caps them, or a read of a large file
+    // ships that file twice - once as the content the user asked to see, once
+    // more inside `displayContent`.
+    const bounded = boundToolResultDetails(toolResult);
+    return {
+      toolId,
+      toolResult: bounded.toolResult,
+      ...(bounded.detailsOmitted ? { toolDetailsOmitted: true } : {}),
+    };
   },
 
   /**

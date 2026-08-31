@@ -1,5 +1,7 @@
 import type { NormalizedMessage } from '@/shared/types.js';
 
+type ToolResultPayload = NonNullable<NormalizedMessage['toolResult']>;
+
 const TOOL_OUTPUT_PREVIEW_BYTES = 64 * 1024;
 
 /**
@@ -12,8 +14,17 @@ const TOOL_OUTPUT_PREVIEW_BYTES = 64 * 1024;
  */
 const TOOL_DETAILS_MAX_BYTES = 16 * 1024;
 
+/** Thrown to abandon a `JSON.stringify` walk that is already over budget. */
+class ToolDetailsOverBudget extends Error {}
+
 /**
  * Whether a details record is small enough to send.
+ *
+ * Measured through a replacer that counts strings as it walks, and throws the
+ * moment the running total passes the ceiling. A plain `JSON.stringify` would
+ * have to materialize the whole record first - and the record it is here to
+ * reject is a second copy of a file, so the naive version allocates megabytes
+ * per message on every history fetch just to learn it should send none of it.
  *
  * A value that cannot be serialized at all - cyclic, or holding something
  * JSON refuses - fails this too. That is the safe direction: it never crosses
@@ -21,8 +32,17 @@ const TOOL_DETAILS_MAX_BYTES = 16 * 1024;
  * record.
  */
 function withinDetailsBudget(value: unknown): boolean {
+  let budget = TOOL_DETAILS_MAX_BYTES;
   try {
-    const json = JSON.stringify(value);
+    const json = JSON.stringify(value, (_key, entry: unknown) => {
+      // Only strings can carry real weight; keys and scalars are bounded by the
+      // structure around them, which JSON.stringify still walks in full.
+      if (typeof entry === 'string') {
+        budget -= Buffer.byteLength(entry, 'utf8');
+        if (budget < 0) throw new ToolDetailsOverBudget();
+      }
+      return entry;
+    });
     return json !== undefined && Buffer.byteLength(json, 'utf8') <= TOOL_DETAILS_MAX_BYTES;
   } catch {
     return false;
@@ -142,6 +162,26 @@ export function prepareMessageForTransport(message: NormalizedMessage): Normaliz
   }
 
   return prepared;
+}
+
+/**
+ * Bounds the details on a single tool result served outside the history path.
+ *
+ * The on-demand endpoint exists to hand back the *text* a preview had to cut,
+ * so its content is deliberately unbounded. Its details are not: `read`,
+ * `search` and `ast_grep` put a second rendering of that same output in
+ * `displayContent`, so shipping them whole doubles the very response the user
+ * asked to see in full. Same ceiling and same all-or-nothing rule as the
+ * history path, because a card cannot read half a record either way.
+ */
+export function boundToolResultDetails(
+  toolResult: ToolResultPayload,
+): { toolResult: ToolResultPayload; detailsOmitted: boolean } {
+  if (toolResult.toolUseResult === undefined || withinDetailsBudget(toolResult.toolUseResult)) {
+    return { toolResult, detailsOmitted: false };
+  }
+  const { toolUseResult: _dropped, ...rest } = toolResult;
+  return { toolResult: rest, detailsOmitted: true };
 }
 
 export function prepareMessagesForTransport(

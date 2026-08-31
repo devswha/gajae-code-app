@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { prepareHistoryMessagesForTransport } from '@/modules/providers/services/sessions.service.js';
+import { boundToolResultDetails } from '@/shared/tool-output-transport.js';
 import type { NormalizedMessage } from '@/shared/types.js';
 
 const baseMessage = (overrides: Partial<NormalizedMessage>): NormalizedMessage => ({
@@ -171,6 +172,61 @@ test('transport bounds details folded into a tool_use as well as standalone ones
   // The text beside it is untouched; the two budgets are independent.
   assert.equal(prepared.toolResult?.content, 'ok');
   assert.equal(prepared.toolResultTruncated, undefined);
+});
+
+/*
+ * The on-demand endpoint is the third shape, and it is the one that hurts:
+ * it exists to serve the full text a preview cut, so an uncapped details
+ * record ships that same text a second time.
+ */
+
+test('the on-demand result keeps its full text and drops oversized details', () => {
+  const { toolResult, detailsOmitted } = boundToolResultDetails({
+    content: 'x'.repeat(256 * 1024),
+    isError: false,
+    toolUseResult: { displayContent: { text: 'x'.repeat(256 * 1024) } },
+  });
+
+  assert.equal(toolResult.content?.length, 256 * 1024, 'the text this endpoint exists to serve is untouched');
+  assert.equal(toolResult.toolUseResult, undefined);
+  assert.equal(detailsOmitted, true);
+});
+
+test('the on-demand result keeps details a card can actually use', () => {
+  const details = { resolvedPath: '/repo/AGENTS.md', kind: 'file' };
+
+  const { toolResult, detailsOmitted } = boundToolResultDetails({
+    content: 'ok',
+    isError: false,
+    toolUseResult: details,
+  });
+
+  assert.deepEqual(toolResult.toolUseResult, details);
+  assert.equal(detailsOmitted, false);
+});
+
+test('a result that reported no details is not marked as omitting any', () => {
+  const { toolResult, detailsOmitted } = boundToolResultDetails({ content: 'ok', isError: false });
+
+  assert.equal(toolResult.toolUseResult, undefined);
+  assert.equal(detailsOmitted, false);
+});
+
+test('the budget check stops walking once the record is already too big', () => {
+  // The record it exists to reject is a second copy of a file, so measuring it
+  // by serializing it whole allocates megabytes per message to learn it should
+  // send none of them. The tail here is a getter: reading it proves the walk
+  // carried on after the answer was settled.
+  let readTail = false;
+  const details = {
+    displayContent: { text: 'x'.repeat(64 * 1024) },
+    get tail() { readTail = true; return 'anything'; },
+  };
+
+  const { detailsOmitted } = boundToolResultDetails({ content: 'ok', isError: false, toolUseResult: details });
+
+  assert.equal(detailsOmitted, true);
+  assert.equal(readTail, false, 'the walk kept going after it already knew the record was too big');
 });
 
 test('transport keeps small folded details', () => {

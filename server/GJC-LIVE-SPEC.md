@@ -1,31 +1,28 @@
 # GJC live provider specification
 
-Status: Checkpoints A and B complete; Checkpoint C native-host, watcher, durable jobs, and native PTY slices implemented (2026-07-17)
+Status: Production Bun SDK worker, native host/watcher, durable jobs, and native
+PTY slices implemented (updated 2026-09-01)
 
 GJC is the only provider routed through an isolated provider worker. Claude,
 Codex, Cursor, and OpenCode retain their existing execution paths.
 
 ## Headless GJC contract
 
-The worker invokes:
-
-```text
-gjc -p --mode json --session-dir <dir> [-r <providerSessionId>] [--model <model>] @<private-prompt-file>
-```
+Production starts the pinned Bun runtime and `server/gjc-bun-worker.ts` behind
+the native core. The worker creates `@gajae-code/coding-agent` sessions through
+`server/gjc-bun-sdk-adapter.ts`; it does not spawn the `gjc` CLI.
 
 - `cwd` is the selected project path.
-- The prompt is written to an owner-readable temporary file and passed by
-  `@file`; it is never placed verbatim in the process list.
-- `GJC_NOTIFICATIONS=0` disables notifications from the ephemeral CLI harness.
-  Gajae Code App remains the notification owner.
-- `--session-dir` isolates session writes. Authentication and configuration
-  still come from the user's normal GJC configuration.
-- Stdout is byte-bounded NDJSON. Stderr is diagnostic only and is not forwarded
-  to browser clients as raw provider output.
-- The optional loopback SDK v3 side channel supplies controlled questions,
-  replies, token usage, and `turn.abort`. If discovery or handshake fails, the
-  existing NDJSON stream and process-signal abort path remain available inside
-  the worker.
+- Prompts cross the private worker protocol on stdin and are passed to the SDK
+  in process. They are never placed on a process command line.
+- Authentication and configuration come from the user's normal GJC
+  configuration; the worker verifies the bundled runtime manifest before
+  creating a session.
+- Application/worker traffic is byte-bounded NDJSON. Worker stderr is
+  diagnostic only and is not forwarded to browser clients as raw provider
+  output.
+- Controlled questions, approvals, steering, usage, OAuth, and abort are owned
+  by the SDK adapter. Production has no CLI or loopback-side-channel fallback.
 
 ## Production boundary
 
@@ -117,11 +114,13 @@ terminal behavior remain unchanged.
 
 ### Worker process
 
-`server/gjc-worker.ts` is a private Node/TypeScript executable. It owns:
+`server/gjc-bun-worker.ts` is the private production executable.
+`server/gjc-worker.ts` supplies its protocol host. Together with
+`server/gjc-bun-sdk-adapter.ts`, they own:
 
-- GJC CLI process creation and NDJSON normalization through
-  `spawnGjcWithRuntime`;
-- GJC SDK discovery, authentication, controlled asks, usage, and abort;
+- bundled runtime verification and SDK session creation;
+- authentication, OAuth, controlled asks, approvals, steering, usage, and
+  abort;
 - start/resume completion ordering and provider-session discovery;
 - draining or aborting active runs when shutdown, stdin EOF, or protocol failure
   occurs.

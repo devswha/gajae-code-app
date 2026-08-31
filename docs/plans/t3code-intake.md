@@ -598,20 +598,20 @@ The lesson is about verification scope, not about the change: running only the
 tests named in the task, and not the adjacent contract suite, is how a green
 report covered a red repository.
 
-## Found while fixing drafts, not yet addressed
+## Found while fixing drafts, now addressed
 
-`safeLocalStorage`'s quota handler deletes every key starting with
+`safeLocalStorage`'s quota handler used to delete every key starting with
 `draft_input_` **or** `queued_message_` and then retries the write
 (`src/components/chat/utils/chatStorage.ts:5-23`). The queue reader in the same
 file documents that its storage "holds a message the user is still waiting on"
 and goes to some length to normalize three historical shapes rather than drop
-one. The sweeper throws those away first, silently, to make room for an
-unrelated write.
+one. The sweeper therefore threw those away first, silently, to make room for
+an unrelated write.
 
-Drafts are cheap to lose; a queued message the user is waiting on is not. The
-sweep should take drafts first, retry, and only consider queued messages if
-that was not enough - and say something when it does. Left alone here because
-it is a separate defect from the key scoping and deserves its own change.
+Resolved in `8380a39`: drafts are reaped first and the write is retried before
+the handler considers queued messages; it reports when it must take that last
+step. The same change removes session-scoped draft and queue entries when their
+conversation is deleted, rather than relying on a quota failure for cleanup.
 
 ## Blocked below the UI
 
@@ -680,8 +680,11 @@ in the provider contract before any of that chrome is worth building.
 4. **`goal_updated` projection + goals UI** - note the ordering changed: step 0
    forced `goal` off, so this now means deciding to turn it back on *with* the
    UI in the same change, not projecting a thing that already runs.
-5. **Turn metadata in the normalized envelope** - unlocks folding, the minimap,
-   and the turn diff card.
+5. ~~**Turn metadata in the normalized envelope**~~ — done in `bc1555f` and
+   `1c13f69`. Transcript lineage derives the user turn identity and terminal
+   status, and the session reader carries `turnId` and `turnStatus` in every
+   normalized message. This unlocks folding, the minimap, and the turn diff
+   card without a second message authority.
 6. **Git-ref checkpoints + per-turn changed-files card + revert** - the
    headline feature, on top of 5.
 7. **SDK `rewind` as "Condense investigation"** - separate action, separate

@@ -72,9 +72,9 @@ Evidence: `artifacts/g002/` (drive transcript, 17 validated screenshots,
 QA report, packaged smoke logs, Gatekeeper log, leader evidence log) and
 `artifacts/g001/` (API drill 13/13, e2e log).
 
-### Known non-blocking follow-ups (recorded advisories)
+### Closed app-owned advisories and open upstream issue
 
-All four 2026-07-20 advisories are closed as of 2026-07-25:
+The app-owned 2026-07-20 advisories are closed as of 2026-07-25:
 
 - ~~`/resume` HTTP route lacks the `resolveBinding` 409 ownership guard
   `/turns` has~~ — fixed; the guard and its test landed with the chat-parity
@@ -84,18 +84,25 @@ All four 2026-07-20 advisories are closed as of 2026-07-25:
   `MainContentJobRemoval.test.tsx`), so there is no badge to go stale.
 - ~~Unrouted `StandaloneShell`/`shell` components remain~~ — already deleted
   along with the xterm dependencies.
+
+The remaining item is upstream, not an outstanding app advisory:
+
 - gjc CLI `computer` tool: top-level `keys: string[]` is mangled by the tool
   bridge (batch-nested keypress works) and the key map has no modifier names,
   so Cmd-Q-style combos cannot be synthesized. Upstream gjc issue, still open;
   the quit contract was verified via the equivalent AppleEvent path.
 
-## Release state (2026-08-31)
+## Release state (2026-09-01)
 
-`v2.0.0-beta.5` is published and `main` is exactly the tag. `v2.0.0-beta.4`
+`v2.0.0-beta.6` is published at `205a226`; `main` has continued beyond that
+tag. `v2.0.0-beta.4`
 carried the 188 commits that had accumulated since beta.3 (React 19 + Compiler,
 Tailwind 4, TanStack Query/Zustand split, GJC SDK 0.15.0 on Bun 1.4.0, in-app
 OAuth login, the composer/model-picker overhaul, shared browser/CUA automation);
-beta.5 followed the same day with the native-watcher fix below.
+beta.5 followed the same day with the native-watcher fix below. Beta.6 followed
+with the cross-origin transport protection. Post-beta.6 `main` includes the GJC
+engine boundary and bundled-notice release work, the queued-message quota fix
+(`8380a39`), and transcript-derived turn metadata (`bc1555f`, `1c13f69`).
 
 Two things had quietly broken the release lane and were fixed as part of the
 cut:

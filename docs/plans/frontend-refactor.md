@@ -3,17 +3,18 @@
 Status: ALL PHASES SHIPPED. P0 c4b0975 (DOM lane); P1 a17f4dc/64399be/5c97c83/36305fd/a8ffa47 (3c deferred with rationale); P2 afee5d8/fa04327/37359fc (chat-local state stays local by audit); P3 4e1be31 (React 19 + Compiler); P4 e1b80da/7974eaa/94f13b1/1bb01e7. Open by choice: only the optional deletion of compiler-redundant manual memoization (P1-3c was re-evaluated on 2026-08-31 and closed as will-not-do).
 Saved: 2026-08-27 (P4 close-out — the plan is complete)
 
-## Current priority order
+## Historical delivery priority (all phases complete)
 
 1. **P0 — DONE (c4b0975): a test lane that can reach a hook.** Everything below
    rewrites hooks, and until this landed the client suite could only assert on
    HTML strings.
-2. **P1 — Server state through TanStack Query.** The single root cause of the
-   god hooks. Start with a one-domain spike, not a migration.
-3. **P2 — UI state in a real store (Zustand).** Only after P1, so what remains
-   in the store is actually UI state.
-4. **P3 — React 19 + React Compiler.** Last, because P1 and P2 delete half the
-   memoisation this is meant to remove.
+2. **P1 — DONE: Server state through TanStack Query.** It addressed the
+   identified root cause of the god hooks; the original priority was to start
+   with a one-domain spike, not a migration.
+3. **P2 — DONE: UI state in a real store (Zustand).** It followed P1 so what
+   remained in the store was actually UI state.
+4. **P3 — DONE: React 19 + React Compiler.** It followed P1 and P2, which
+   deleted much of the memoisation it was meant to remove.
 5. **P4 — Housekeeping. DONE.** All items shipped; the last two were file
    movement (`src/lib` merge, `view/subcomponents` flattening).
 
@@ -78,16 +79,19 @@ cache. The hard part is not volume, it is the interval during which the same
 data lives in both the Query cache and the old `useState`. That question is
 answered by one day of code, not by more planning.
 
-**Decided before the spike (2026-08-27), so the spike cannot answer the wrong
-question — the projects domain has no streaming, so it would never surface
-these on its own:**
+**Historical pre-3b contract (2026-08-27).** This was decided before the spike
+so the projects domain could not answer the wrong streaming question. Its
+next-open reconciliation conclusion was superseded by the shipped terminal-time
+bounded reconcile recorded below:
 
 - **Query owns lists and settled message history. The live turn does not live
   in the cache.** Streaming deltas are never written per-token into the Query
   cache (no per-token `setQueryData`); the in-flight tail stays WebSocket-owned
   as today. On the turn's terminal event the tail is **folded** into the
-  history cache with one `setQueryData` call; reconciliation against the disk
-  transcript (invalidate → refetch) is deferred to the next session open. The
+  history cache with one settled write; the final implementation reconciles the
+  loaded window at terminal time with `refreshFromServer`, rather than waiting
+  for the next session open. The original next-open deferral was a historical
+  proposal, not shipped behavior. The
   64 KiB tool-output transport budget makes the fold safe: a refetch returns
   the same previews the tail already carries, and full outputs remain the
   export service's job.

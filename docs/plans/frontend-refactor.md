@@ -14,8 +14,8 @@ Saved: 2026-08-27 (P4 close-out — the plan is complete)
    in the store is actually UI state.
 4. **P3 — React 19 + React Compiler.** Last, because P1 and P2 delete half the
    memoisation this is meant to remove.
-5. **P4 — Housekeeping.** Two of four items shipped; the rest is file movement
-   with no urgency.
+5. **P4 — Housekeeping. DONE.** All items shipped; the last two were file
+   movement (`src/lib` merge, `view/subcomponents` flattening).
 
 ## Objective
 
@@ -291,7 +291,7 @@ these on its own:**
   memoization for performance - the compiler owns it now (recorded in
   AGENTS.md).
 
-### 4. Housekeeping — 2 of 4 done
+### 4. Housekeeping — DONE
 
 - **i18n lazy loading — DONE (e1b80da).** `config.js` static-imported all fifty
   translation files. English stays bundled as the fallback; the other nine are

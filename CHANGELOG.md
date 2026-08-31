@@ -4,6 +4,77 @@ All notable changes to Gajae Code App are documented in this file. Current and
 future desktop and server artifacts are published only through
 [GitHub Releases](https://github.com/devswha/gajae-code-app/releases).
 
+## 2.0.0-beta.4 (2026-08-31)
+
+### Chat
+
+- Reworked the composer: per-session model selection, a provider → model →
+  reasoning cascade picker with grouping and search, and a toolbar that shows
+  the active model, reasoning effort, working directory and context usage.
+  The picker stays usable when the runtime catalog is unavailable, and a
+  session now shows the model it will actually run.
+- Follow-ups are queued instead of dropped: a message sent during a running
+  turn is queued unless steering is explicit, several follow-ups can stack, and
+  a steered message is never invisible while it is in flight.
+- Slash commands are owned by the app, not forwarded to the model. TUI-only
+  commands have app-native equivalents, `/model` opens the app picker,
+  destructive commands ask for confirmation first, and builtin command output
+  renders safely.
+- Tool calls and their output render as one block, keyed by the names the
+  runtime actually sends, with shell output reachable even when a call carries
+  no arguments and computer batches reporting what they did.
+- Transcript typography and layout: one typeface, a readable measure, 16px
+  message body, a user bubble sized to what was typed, failures rendered at the
+  size of a failure, and an agent question shown as a question instead of a
+  permission prompt.
+- Conversations export as Markdown from the sidebar; sessions can be pinned,
+  bulk-archived when idle, and their actions gathered into one menu.
+
+### Workspace and providers
+
+- The right-hand tools fold into one tabbed, resizable panel with a Status tab
+  that answers what the session is doing, and chat links open in the browser
+  panel.
+- Bundled GJC runtime moved to SDK 0.15.0 on Bun 1.4.0, with SDK automation
+  tools adopted, worker settings reloaded from disk on every run, session-root
+  and reasoning-effort plumbing fixed on resume, subscription models presented
+  and synced correctly, and the failure reason for a failed run no longer lost.
+- Added in-app OAuth provider login; a closed tab no longer cancels another
+  client's login attempt.
+- Shared browser and CUA automation with a hardened sidecar lifecycle: identity
+  resolution, benign abort races, preview fitted to the panel, and CUA output
+  that can no longer freeze the app.
+
+### Appearance
+
+- Interface-wide font size setting, with editor font sizing through a theme
+  extension.
+- Every app icon and the in-app mark now render from one artwork.
+- Fixed surfaces fit the dynamic viewport on mobile browsers.
+
+### Frontend platform
+
+- React 19 with the React Compiler enabled; server state moved onto TanStack
+  Query and shell UI state onto Zustand; migrated to Tailwind 4 (CSS-first,
+  no `tailwind.config.js`).
+- Bundle and startup work: one language ships instead of ten (main bundle
+  530KB → 271KB), markdown highlighting through PrismLight (vendor-syntax
+  620KB → 63KB), the dead Google Fonts load is gone, and release payloads ship
+  without source maps.
+- Dropped unused dependencies (`chokidar`, `dompurify`, `rehype-raw`), upgraded
+  react-router to 7, and closed the fixable audit advisories.
+
+### Fixes
+
+- A failed `/api/projects` fetch no longer blanks the whole app.
+- Session transcripts are no longer written to a directory the OS deletes, and
+  rows whose transcript the OS already deleted are pruned.
+- Chat no longer freezes on a second turn, and the message merge degrades
+  instead of throwing on a message without an id.
+- Sidebar and palette polish: the wordmark no longer truncates, an open session
+  menu stays above the following rows, and the palette says which session is
+  already open.
+
 ## 2.0.0-beta.3 (2026-07-22)
 
 ### Desktop identity and distribution

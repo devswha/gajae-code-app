@@ -74,7 +74,8 @@
     "prepare": "husky",
     "check:licenses": "node scripts/check-dependency-licenses.mjs",
     "generate:notices": "node scripts/generate-third-party-notices.mjs",
-    "check:notices": "node scripts/generate-third-party-notices.mjs --check"
+    "check:notices": "node scripts/generate-third-party-notices.mjs --check",
+    "measure:derivation": "node scripts/measure-upstream-derivation.mjs"
   },
   "build": {
     "appId": "app.gajae.desktop",

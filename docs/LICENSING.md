@@ -4,6 +4,10 @@ What this project is licensed under, what it may not ship, and what those
 decisions cost. Read this before adding a dependency or changing anything under
 `LICENSE`, `NOTICE`, or `scripts/release/`.
 
+Relicensing this project - closing the engine, then the application - is planned
+separately in [RELICENSING.md](./RELICENSING.md), which measures what stands in
+the way and orders the work.
+
 ## What the app is
 
 Gajae Code App is **AGPL-3.0-or-later**, and `package.json` declares the same.

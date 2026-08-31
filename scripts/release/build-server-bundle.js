@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { createReadStream } from 'node:fs';
+import { createReadStream, readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,10 +15,29 @@ const NATIVE_MODULES = ['better-sqlite3', 'node-pty'];
 const BUN_VERSION = '1.4.0';
 const GJC_SDK_PACKAGE = '@gajae-code/coding-agent';
 const GJC_NATIVES_PACKAGE = '@gajae-code/natives';
-const GJC_SDK_VERSION = '0.11.8';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..', '..');
+
+/**
+ * The runtime versions are pinned once, in the manifest `fill:runtime-manifest`
+ * generates from the installed runtime and the server verifies at boot. A
+ * literal here would silently go stale on the next SDK bump and break the
+ * release lane instead of catching real drift.
+ */
+const runtimeManifest = JSON.parse(
+  readFileSync(path.join(rootDir, 'server', 'gjc-runtime-manifest.json'), 'utf8'),
+);
+const GJC_RUNTIME_VERSIONS = {
+  [GJC_SDK_PACKAGE]: runtimeManifest.gjcSdk,
+  [GJC_NATIVES_PACKAGE]: runtimeManifest.natives,
+};
+for (const [packageName, version] of Object.entries(GJC_RUNTIME_VERSIONS)) {
+  if (!/^\d+\.\d+\.\d+/u.test(version || '')) {
+    throw new Error(`server/gjc-runtime-manifest.json does not pin an exact ${packageName} version.`);
+  }
+}
+const GJC_SDK_VERSION = GJC_RUNTIME_VERSIONS[GJC_SDK_PACKAGE];
 
 function parseVersion(value) {
   const match = /^(\d+)\.(\d+)(?:\.(\d+))?/u.exec(value || '');
@@ -186,7 +205,7 @@ function assertGjcSdkProductionDependency(packageJson) {
 }
 
 async function assertInstalledGjcSdkDependencies(stageDir) {
-  for (const packageName of [GJC_SDK_PACKAGE, GJC_NATIVES_PACKAGE]) {
+  for (const [packageName, expectedVersion] of Object.entries(GJC_RUNTIME_VERSIONS)) {
     let installedPackage;
     try {
       installedPackage = JSON.parse(await fs.readFile(
@@ -194,10 +213,10 @@ async function assertInstalledGjcSdkDependencies(stageDir) {
         'utf8',
       ));
     } catch {
-      throw new Error(`Production installation is missing ${packageName}@${GJC_SDK_VERSION}.`);
+      throw new Error(`Production installation is missing ${packageName}@${expectedVersion}.`);
     }
-    if (installedPackage.version !== GJC_SDK_VERSION) {
-      throw new Error(`Production installation must resolve ${packageName}@${GJC_SDK_VERSION}.`);
+    if (installedPackage.version !== expectedVersion) {
+      throw new Error(`Production installation must resolve ${packageName}@${expectedVersion}.`);
     }
   }
 }

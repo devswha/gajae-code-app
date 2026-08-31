@@ -502,14 +502,27 @@ terminal state to the normalized envelope first.
 > 1. **History and live agree by construction.** The id is in the transcript, so
 >    a reloaded turn keeps the identity it had live. No sidecar table, no
 >    mapping to lose.
-> 2. **The worker still knows more.** It sees `turn.start` versus `turn.steer`
->    and emits `turn.completed` / `turn.failed`, which is where the *terminal
->    state* comes from — the transcript records what happened, not how it ended.
->    Derive `turnId` from the chain; take terminal state from the protocol.
+> 2. **Terminal state is in the transcript too** — correcting the first version
+>    of this note, which claimed it was not. Assistant records carry
+>    `stopReason`: `toolUse` while the turn is still working, and `stop`,
+>    `error` or `aborted` once it is over (measured across every local session:
+>    6819 / 513 / 15 / 12). History needs nothing from the protocol.
 >
-> Open: whether an aborted turn leaves a distinguishable record, and whether a
-> compaction rewrites `parentId`. Both are answerable from a transcript of each
-> case and should be checked before the reader is written.
+> **Both open questions are answered.** An aborted turn is distinguishable —
+> `stopReason: 'aborted'`. Compaction does not rewrite `parentId`; it inserts a
+> record carrying `firstKeptEntryId` and links into the chain like any other.
+>
+> Implemented in `server/modules/providers/list/gjc/gjc-transcript-turns.ts`.
+> One thing only real transcripts revealed: **lineage runs through non-message
+> records**, so the assignment must be given every record and not only the
+> messages. Filtering first severed the chain and left 3,045 of 15,206 records
+> (20%) unable to reach a turn they plainly belonged to; passing the whole
+> lineage brings that to 81 (0.5%), and steers are absorbed into their running
+> turn instead of starting new ones.
+>
+> Still to do: wire it into `gjc-sessions.provider.ts` and add `turnId` to the
+> normalized envelope. The reader currently streams line by line, and turn
+> assignment needs the whole lineage first — that is the shape of the change.
 
 **4. Per-turn changed-files card.** The visible endpoint of the checkpoint work
 above: a file tree of what the turn changed, with revert anchored to the

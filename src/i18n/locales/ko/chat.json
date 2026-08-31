@@ -36,9 +36,7 @@
     "readFile": "파일 읽기",
     "updateTodo": "Todo 리스트 업데이트",
     "readTodo": "Todo 리스트 읽기",
-    "searchResults": "결과",
-    "limitReached": "{{reached}}개에서 멈췄습니다. 상한을 {{suggestion}}으로 올리면 더 나옵니다.",
-    "columnTruncated": "긴 줄이 {{maxColumn}}열에서 잘렸습니다."
+    "searchResults": "결과"
   },
   "search": {
     "found": "{{count}}개의 {{type}} 발견",

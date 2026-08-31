@@ -36,9 +36,7 @@
     "readFile": "Чтение файла",
     "updateTodo": "Обновить список задач",
     "readTodo": "Прочитать список задач",
-    "searchResults": "результаты",
-    "limitReached": "Остановлено на {{reached}} результатах; лимит {{suggestion}} вернёт больше.",
-    "columnTruncated": "Длинные строки обрезаны на столбце {{maxColumn}}."
+    "searchResults": "результаты"
   },
   "search": {
     "found": "Найдено {{count}} {{type}}",

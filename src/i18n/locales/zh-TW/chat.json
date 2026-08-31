@@ -36,9 +36,7 @@
     "readFile": "讀取檔案",
     "updateTodo": "更新待辦清單",
     "readTodo": "讀取待辦清單",
-    "searchResults": "結果",
-    "limitReached": "已在 {{reached}} 筆結果處停止；上限設為 {{suggestion}} 可取得更多。",
-    "columnTruncated": "長行已在第 {{maxColumn}} 欄截斷。"
+    "searchResults": "結果"
   },
   "search": {
     "found": "找到 {{count}} 個{{type}}",

@@ -37,9 +37,7 @@
     "readFile": "Lire le fichier",
     "updateTodo": "Mettre à jour la liste de tâches",
     "readTodo": "Lire la liste de tâches",
-    "searchResults": "résultats",
-    "limitReached": "Arrêté à {{reached}} résultats ; une limite de {{suggestion}} en renverrait plus.",
-    "columnTruncated": "Les lignes longues ont été coupées à la colonne {{maxColumn}}."
+    "searchResults": "résultats"
   },
   "search": {
     "found": "{{count}} {{type}} trouvé(s)",

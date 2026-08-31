@@ -487,15 +487,44 @@ Query window and DOM scroll container - do not import LegendList to copy it.
 
 ## What the details rail bought, and what it cost
 
-The first consumer (`3719848`) is a row that appears when a tool stopped at its
-match, result or head cap. The runtime reports that as `meta.limits`, and none
-of it reaches the text - so before this, a truncated search rendered as a
-complete one with nothing to contradict it. `meta` is common across tools, so a
-single generic reader covers every one of them rather than needing a per-tool
-case.
+The transport (`095774b`) stands: live and history now land the runtime's typed
+`details` in the same slot, bounded at 16 KiB. It currently has **no client
+consumer**, and that is the honest state until a real details rail exists.
 
-`meta.diagnostics` (`{ summary, messages[] }`) is the obvious second consumer:
-a tool reporting a problem that is not a hard error, currently invisible.
+**Its first consumer was wrong and has been reverted.** `3719848` added a row
+reporting that a tool stopped at its match, result or head cap, on the premise
+that "none of it reaches the text". That premise is false. Every builtin is
+wrapped by `wrapToolWithMetaNotice`
+(`@gajae-code/coding-agent/src/tools/index.ts:724-749`), and `appendOutputNotice`
+bakes the rendered notice **into `result.content` itself**
+(`.../tools/output-meta.ts:1128`). `search` and `find` have no `result` config,
+so that body is displayed verbatim: the row restated a sentence already on
+screen. The SDK ships `stripOutputNotice` precisely because a renderer drawing
+its own warning must first remove the baked one - a contract this app never
+implemented. The row shipped broken on top of that (`useTranslation()` resolves
+against `defaultNS: 'common'` while its copy went to the `chat` bundle, so ten
+languages rendered the literal key `tools.limitReached`), and was removed rather
+than repaired into a duplicate.
+
+**`meta.diagnostics` is not the obvious second consumer.** It has the same
+problem: `formatOutputNotice` appends `LSP Diagnostics (...)` to the same body
+(`.../tools/output-meta.ts:704-708`). So does the truncation notice. Anything
+read out of `meta` and drawn as a row duplicates the text unless the notice is
+stripped first.
+
+So the real work is one change, not a sequence of small readers:
+
+1. Strip the trailing notice from the **display** text server-side, where `meta`
+   is still in hand, leaving the model-facing copy inside the runtime untouched.
+2. Re-render *all* of what was stripped as structured rows - truncation,
+   artifact reference, limits, diagnostics. Stripping without rendering the
+   artifact reference (`Read artifact://N for full output`) loses information the
+   app has no other channel for, which is why a partial version was refused.
+3. Reconcile with the app's own truncation UI (`toolResultTruncated`, the
+   on-demand full-result fetch), which already covers part of the same ground.
+
+Until then the SDK's own English notice is the single statement, which is worse
+for a localized UI but is at least true and appears once.
 
 **The cost, recorded honestly.** The tool-boundary commit `6dcaa73` broke
 `server/gjc-sdk-contract.bun.test.ts` - 56 pass became 31 fail - and it went
@@ -563,13 +592,22 @@ in the provider contract before any of that chrome is worth building.
    `c295d09`. Drafts key by session with the pre-session project key kept at
    its original shape so older drafts still load; the tools row wraps instead
    of clipping. Both guards were mutation-tested against the old behaviour.
+   Follow-up in `acaa0e0`: the clear path was still removing *both* key shapes
+   on every send, so a send from an established session deleted the text typed
+   into the project's not-yet-started chat. `draftKeysToClear` now names only
+   the slots one send owns.
 2. **WebSocket per-method authorization** - unrelated hole, still open.
-3. ~~**Structured tool-result payloads.**~~ Done in `095774b`, with its first
-   consumer in `3719848`. No protocol change was needed: `run.writer.send`
-   passes the message through whole, and `toolUseResult` was already threaded
-   server-to-client. Live and history fill different slots - top-level on the
-   standalone row, nested on the folded one - because history drops the
-   standalone row before transport.
+3. ~~**Structured tool-result payloads.**~~ Done in `095774b`. No protocol
+   change was needed: `run.writer.send` passes the message through whole, and
+   `toolUseResult` was already threaded server-to-client. Live and history fill
+   different slots - top-level on the standalone row, nested on the folded one -
+   because history drops the standalone row before transport. Its first consumer
+   (`3719848`) was reverted; see "What the details rail bought". The payload has
+   no client reader until 3a lands.
+3a. **Notice strip + real details rail** - strip the SDK's baked notice from the
+   display text and render truncation, artifact reference, limits and
+   diagnostics as structured rows, reconciled with the app's existing
+   truncation UI. Any `meta` reader added before this duplicates the text.
 4. **`goal_updated` projection + goals UI** - note the ordering changed: step 0
    forced `goal` off, so this now means deciding to turn it back on *with* the
    UI in the same change, not projecting a thing that already runs.

@@ -36,9 +36,7 @@
     "readFile": "ファイルを読み取り",
     "updateTodo": "Todoリストを更新",
     "readTodo": "Todoリストを読み取り",
-    "searchResults": "件の結果",
-    "limitReached": "{{reached}} 件で打ち切られました。上限を {{suggestion}} にするとさらに取得できます。",
-    "columnTruncated": "長い行は {{maxColumn}} 桁で切り詰められました。"
+    "searchResults": "件の結果"
   },
   "search": {
     "found": "{{count}}件の{{type}}が見つかりました",

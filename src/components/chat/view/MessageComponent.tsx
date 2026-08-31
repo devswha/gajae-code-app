@@ -11,7 +11,7 @@ import type {
 import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
 import { formatUsageLimitText } from '../utils/chatFormatting';
 import type { Project } from '../../../types/app';
-import { ToolRenderer, ToolResultLimits, rendersResultInline, shouldHideToolResult } from '../tools';
+import { ToolRenderer, rendersResultInline, shouldHideToolResult } from '../tools';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../shared/view/ui';
 import { authenticatedFetch } from '../../../utils/api';
 
@@ -269,12 +269,6 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     subagentState={message.subagentState}
                   />
                 )}
-
-                {/* A tool that stopped at a cap returned less than it found.
-                    The runtime reports that as structured `meta.limits`, which
-                    never appears in the text, so without this row a truncated
-                    result reads as a complete one. */}
-                {effectiveToolResult && <ToolResultLimits toolResult={effectiveToolResult} />}
 
                 {/* Tool Result Section - merged tools render their output inside the call block above. */}
                 {effectiveToolResult && !(rendersResultInline(message.toolName || '') && message.toolInput) && !shouldHideToolResult(message.toolName || 'UnknownTool', effectiveToolResult) && (

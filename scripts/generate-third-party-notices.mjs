@@ -72,8 +72,22 @@ function authorOf(manifest) {
   return undefined;
 }
 
+function optionalDependencyParents(lock) {
+  const parents = new Map();
+  for (const [installPath, entry] of Object.entries(lock.packages ?? {})) {
+    if (!installPath.startsWith('node_modules/')) continue;
+    for (const name of Object.keys(entry.optionalDependencies ?? {})) {
+      // A package can occur at several depths; use the first lockfile parent so
+      // every platform reads the same license source.
+      if (!parents.has(name)) parents.set(name, installPath);
+    }
+  }
+  return parents;
+}
+
 function collect() {
   const lock = JSON.parse(readFileSync(join(REPOSITORY_ROOT, 'package-lock.json'), 'utf8'));
+  const optionalParents = optionalDependencyParents(lock);
   const packages = new Map();
   for (const [installPath, entry] of Object.entries(lock.packages ?? {})) {
     if (!installPath.startsWith('node_modules/')) continue;
@@ -82,14 +96,23 @@ function collect() {
     if (excluded.has(name)) continue;
     // A package installed at several depths is one obligation, not several.
     if (packages.has(name)) continue;
-    const manifest = manifestOf(installPath);
+    const canonicalPackagePath = entry.optional && (entry.os || entry.cpu)
+      ? optionalParents.get(name)
+      : undefined;
+    const manifest = manifestOf(canonicalPackagePath ?? installPath);
     packages.set(name, {
       name,
       version: entry.version ?? manifest.version ?? 'unknown',
       license: entry.license ?? manifest.license ?? 'UNKNOWN',
       author: authorOf(manifest),
       homepage: typeof manifest.homepage === 'string' ? manifest.homepage : undefined,
-      license_text: findLicenseText(installPath),
+      // Platform-specific optional packages are installed selectively. Their
+      // non-optional parent is present on every supported platform and supplies
+      // the package metadata and distributed license text without making notices
+      // host-dependent.
+      license_text: canonicalPackagePath
+        ? findLicenseText(canonicalPackagePath)
+        : findLicenseText(installPath),
     });
   }
   return [...packages.values()].sort((a, b) => a.name.localeCompare(b.name));

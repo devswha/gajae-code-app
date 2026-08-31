@@ -36,7 +36,9 @@
     "readFile": "Datei lesen",
     "updateTodo": "Aufgabenliste aktualisieren",
     "readTodo": "Aufgabenliste lesen",
-    "searchResults": "Ergebnisse"
+    "searchResults": "Ergebnisse",
+    "limitReached": "Bei {{reached}} Ergebnissen gestoppt; ein Limit von {{suggestion}} liefert mehr.",
+    "columnTruncated": "Lange Zeilen wurden bei Spalte {{maxColumn}} abgeschnitten."
   },
   "search": {
     "found": "{{count}} {{type}} gefunden",

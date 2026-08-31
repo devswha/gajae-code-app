@@ -36,7 +36,9 @@
     "readFile": "Dosyayı oku",
     "updateTodo": "Yapılacaklar listesini güncelle",
     "readTodo": "Yapılacaklar listesini oku",
-    "searchResults": "sonuç"
+    "searchResults": "sonuç",
+    "limitReached": "{{reached}} sonuçta durdu; {{suggestion}} sınırı daha fazlasını döndürür.",
+    "columnTruncated": "Uzun satırlar {{maxColumn}}. sütunda kesildi."
   },
   "search": {
     "found": "{{count}} {{type}} bulundu",

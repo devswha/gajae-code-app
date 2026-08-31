@@ -36,7 +36,9 @@
     "readFile": "Leggi file",
     "updateTodo": "Aggiorna lista attività",
     "readTodo": "Leggi lista attività",
-    "searchResults": "risultati"
+    "searchResults": "risultati",
+    "limitReached": "Fermato a {{reached}} risultati; un limite di {{suggestion}} ne restituirebbe altri.",
+    "columnTruncated": "Le righe lunghe sono state troncate alla colonna {{maxColumn}}."
   },
   "search": {
     "found": "Trovati {{count}} {{type}}",

@@ -37,7 +37,9 @@
     "readFile": "Read file",
     "updateTodo": "Update todo list",
     "readTodo": "Read todo list",
-    "searchResults": "results"
+    "searchResults": "results",
+    "limitReached": "Stopped at {{reached}} results; a limit of {{suggestion}} would return more.",
+    "columnTruncated": "Long lines were cut at column {{maxColumn}}."
   },
   "search": {
     "found": "Found {{count}} {{type}}",

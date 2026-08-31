@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 
+import { forgetSessionStorage } from '../../chat/utils/chatStorage';
 import { api } from '../../../utils/api';
 import { downloadBlob, filenameFromContentDisposition } from '../../../utils/download';
 import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
@@ -486,6 +487,10 @@ export function useSidebarController({
       const response = await api.deleteSession(sessionId, hardDelete);
 
       if (response.ok) {
+        // The composer keys its draft and its queue by session id, and nothing
+        // else ever reaps them; a deleted conversation would otherwise leave
+        // both in localStorage for good.
+        forgetSessionStorage(sessionId);
         onSessionDelete?.(sessionId);
         await fetchArchivedSessions();
       } else {

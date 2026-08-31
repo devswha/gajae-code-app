@@ -5,9 +5,11 @@ import {
   clearQueuedMessages,
   draftInputKey,
   draftKeysToClear,
+  forgetSessionStorage,
   queuedMessageKey,
   readQueuedMessages,
   reorderQueue,
+  safeLocalStorage,
   writeQueuedMessages,
 } from './chatStorage';
 
@@ -113,6 +115,141 @@ test('steering to another session retires that session too', () => {
     draftKeysToClear('proj-1', SESSION, 'session-2'),
     [draftInputKey('proj-1', SESSION), draftInputKey('proj-1', 'session-2')],
   );
+});
+
+/*
+ * Session-scoped keys need someone to reap them.
+ *
+ * Both shapes below outlive the conversation that created them, and the only
+ * thing that ever collected them was the quota handler - a failure path, not a
+ * lifecycle. Deleting a session is where they actually stop being needed.
+ */
+
+test('deleting a session forgets its draft and its queue', () => {
+  localStorage.setItem(draftInputKey('proj-1', SESSION), 'unsent');
+  writeQueuedMessages(SESSION, [{ content: 'waiting' }]);
+
+  forgetSessionStorage(SESSION);
+
+  assert.equal(localStorage.getItem(draftInputKey('proj-1', SESSION)), null);
+  assert.deepEqual(readQueuedMessages(SESSION), []);
+});
+
+test('forgetting one session leaves every other one alone', () => {
+  localStorage.setItem(draftInputKey('proj-1', 'session-a'), 'a');
+  localStorage.setItem(draftInputKey('proj-1', 'session-b'), 'b');
+  localStorage.setItem(draftInputKey('proj-1'), 'unstarted chat');
+  writeQueuedMessages('session-b', [{ content: 'still waiting' }]);
+
+  forgetSessionStorage('session-a');
+
+  assert.equal(localStorage.getItem(draftInputKey('proj-1', 'session-b')), 'b');
+  assert.equal(localStorage.getItem(draftInputKey('proj-1')), 'unstarted chat');
+  assert.deepEqual(readQueuedMessages('session-b'), [{ content: 'still waiting' }]);
+});
+
+/*
+ * What a full store gives up, and in what order.
+ *
+ * A draft is unsent text the user can see and retype. A queued message is one
+ * they already sent and are waiting on - the reader in this file normalizes
+ * three historical shapes rather than drop one. The sweep used to take both in
+ * a single pass, so an unrelated write could silently swallow a request.
+ */
+
+/**
+ * A Storage that can be made to refuse writes.
+ *
+ * The sweep reads `Object.keys(localStorage)`, which on a real Storage yields
+ * the stored keys - so the fake has to expose them as own enumerable
+ * properties rather than as a Map hidden behind methods, or the sweep finds
+ * nothing to drop and the test proves the opposite of what it claims.
+ */
+const refusingStorage = (isFull: (data: Map<string, string>) => boolean): Storage => {
+  const data = new Map<string, string>();
+  const quota = Object.assign(new Error('quota'), { name: 'QuotaExceededError' });
+  const methods = {
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      if (isFull(data)) throw quota;
+      data.set(key, value);
+    },
+    removeItem: (key: string) => { data.delete(key); },
+    clear: () => data.clear(),
+    key: (index: number) => [...data.keys()][index] ?? null,
+    get length() { return data.size; },
+  };
+  return new Proxy(methods, {
+    ownKeys: () => [...data.keys()],
+    getOwnPropertyDescriptor: (_target, prop) => (
+      typeof prop === 'string' && data.has(prop)
+        ? { value: data.get(prop), enumerable: true, configurable: true }
+        : undefined
+    ),
+  }) as unknown as Storage;
+};
+
+const withStorage = (storage: Storage, body: () => void) => {
+  const previous = (globalThis as { localStorage: Storage }).localStorage;
+  (globalThis as { localStorage: Storage }).localStorage = storage;
+  try { body(); } finally {
+    (globalThis as { localStorage: Storage }).localStorage = previous;
+  }
+};
+
+const captureWarnings = (body: () => void): string[] => {
+  const seen: string[] = [];
+  const real = console.warn;
+  console.warn = (message?: unknown) => { seen.push(String(message)); };
+  try { body(); } finally { console.warn = real; }
+  return seen;
+};
+
+test('a full store gives up drafts before anything a user is waiting on', () => {
+  const staleDraft = draftInputKey('proj-1', 'session-a');
+  let full = false;
+  // Room appears the moment the stale draft is gone - so a correct sweep never
+  // needs to reach the queue.
+  const storage = refusingStorage((data) => full && data.has(staleDraft));
+
+  const warnings = captureWarnings(() => withStorage(storage, () => {
+    localStorage.setItem(staleDraft, 'unsent text');
+    writeQueuedMessages('session-b', [{ content: 'still waiting' }]);
+    full = true;
+
+    safeLocalStorage.setItem('unrelated_key', 'value');
+
+    assert.equal(localStorage.getItem('unrelated_key'), 'value');
+    assert.equal(localStorage.getItem(staleDraft), null, 'the draft was the cheap thing to lose');
+    assert.deepEqual(
+      readQueuedMessages('session-b'),
+      [{ content: 'still waiting' }],
+      'a message the user is waiting on survives a sweep that drafts alone could satisfy',
+    );
+  }));
+
+  assert.deepEqual(warnings, [], 'dropping drafts is routine and needs no warning');
+});
+
+test('a store still full after the drafts go takes queued messages last, and says so', () => {
+  const queue = queuedMessageKey('session-b');
+  let full = false;
+  // Dropping every draft is not enough here; only the queue frees space.
+  const storage = refusingStorage((data) => full && data.has(queue));
+
+  const warnings = captureWarnings(() => withStorage(storage, () => {
+    localStorage.setItem(draftInputKey('proj-1', 'session-a'), 'unsent text');
+    writeQueuedMessages('session-b', [{ content: 'still waiting' }]);
+    full = true;
+
+    safeLocalStorage.setItem('unrelated_key', 'value');
+
+    assert.equal(localStorage.getItem('unrelated_key'), 'value');
+    assert.deepEqual(readQueuedMessages('session-b'), []);
+  }));
+
+  assert.equal(warnings.length, 1, 'losing a queued message is never silent');
+  assert.match(warnings[0], /discarded 1 queued message/);
 });
 
 test('a queue round-trips in send order', () => {

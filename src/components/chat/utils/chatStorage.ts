@@ -1,25 +1,57 @@
+export const DRAFT_KEY_PREFIX = 'draft_input_';
+export const QUEUE_KEY_PREFIX = 'queued_message_';
+
+/** Removes every key under a prefix except the one being written. */
+function dropKeysWithPrefix(prefix: string, except: string): number {
+  const doomed = Object.keys(localStorage).filter((key) => key.startsWith(prefix) && key !== except);
+  doomed.forEach((key) => localStorage.removeItem(key));
+  return doomed.length;
+}
+
 export const safeLocalStorage = {
+  /**
+   * Writes, and makes room in a defined order if the store is full.
+   *
+   * The two things stored here are not worth the same. A draft is unsent text
+   * the user can see and retype; a queued message is one they have already sent
+   * and are waiting on, which the reader below goes to some length to recover
+   * from three historical shapes rather than drop. Taking drafts first, and
+   * queued messages only if that was not enough, is the difference between
+   * losing a keystroke and losing a request.
+   */
   setItem: (key: string, value: string) => {
     try {
       localStorage.setItem(key, value);
+      return;
     } catch (error: any) {
-      if (error?.name === 'QuotaExceededError') {
-        console.warn('localStorage quota exceeded, clearing old data');
-
-        const keys = Object.keys(localStorage);
-        const draftKeys = keys.filter((k) => k.startsWith('draft_input_') || k.startsWith('queued_message_'));
-        draftKeys.forEach((k) => {
-          localStorage.removeItem(k);
-        });
-
-        try {
-          localStorage.setItem(key, value);
-        } catch (retryError) {
-          console.error('Failed to save to localStorage even after cleanup:', retryError);
-        }
-      } else {
+      if (error?.name !== 'QuotaExceededError') {
         console.error('localStorage error:', error);
+        return;
       }
+    }
+
+    if (dropKeysWithPrefix(DRAFT_KEY_PREFIX, key) > 0) {
+      try {
+        localStorage.setItem(key, value);
+        return;
+      } catch {
+        // Still full: the drafts were not what was holding the space.
+      }
+    }
+
+    const discarded = dropKeysWithPrefix(QUEUE_KEY_PREFIX, key);
+    if (discarded > 0) {
+      // Never silent. This is the case where the user loses something they were
+      // waiting on, and the console is the only channel this module has.
+      console.warn(
+        `localStorage was full: discarded ${discarded} queued message(s) that had not been sent yet.`,
+      );
+    }
+
+    try {
+      localStorage.setItem(key, value);
+    } catch (retryError) {
+      console.error('Failed to save to localStorage even after cleanup:', retryError);
     }
   },
   getItem: (key: string): string | null => {
@@ -52,7 +84,7 @@ export type StoredQueuedMessage = {
   options?: QueuedSendOptions;
 };
 
-export const queuedMessageKey = (sessionId: string) => `queued_message_${sessionId}`;
+export const queuedMessageKey = (sessionId: string) => `${QUEUE_KEY_PREFIX}${sessionId}`;
 
 /**
  * Where a composer's unsent text lives.
@@ -69,8 +101,10 @@ export const queuedMessageKey = (sessionId: string) => `queued_message_${session
  *
  * Both shapes share the `draft_input_` prefix the quota sweeper matches on.
  */
+const sessionDraftKey = (sessionId: string) => `${DRAFT_KEY_PREFIX}session_${sessionId}`;
+
 export const draftInputKey = (projectId: string, sessionId?: string | null) =>
-  (sessionId ? `draft_input_session_${sessionId}` : `draft_input_${projectId}`);
+  (sessionId ? sessionDraftKey(sessionId) : `${DRAFT_KEY_PREFIX}${projectId}`);
 
 /**
  * The draft slots a completed send retires.
@@ -144,6 +178,19 @@ export function writeQueuedMessages(sessionId: string, messages: StoredQueuedMes
 }
 
 export function clearQueuedMessages(sessionId: string): void {
+  safeLocalStorage.removeItem(queuedMessageKey(sessionId));
+}
+
+/**
+ * Drops everything this module stores for a session that no longer exists.
+ *
+ * Both keys are session-scoped and nothing else reaps them: a deleted
+ * conversation used to leave its draft and its queue behind forever, and the
+ * only thing that ever collected them was the quota handler above - which is a
+ * failure path, not a lifecycle.
+ */
+export function forgetSessionStorage(sessionId: string): void {
+  safeLocalStorage.removeItem(sessionDraftKey(sessionId));
   safeLocalStorage.removeItem(queuedMessageKey(sessionId));
 }
 

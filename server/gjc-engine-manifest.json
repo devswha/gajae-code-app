@@ -1,0 +1,64 @@
+{
+  "$comment": [
+    "Which files are the GJC engine, and which files merely share its name prefix.",
+    "",
+    "This is the manifest the extraction follows and the list eslint enforces, so",
+    "the boundary that is checked and the boundary that moves cannot drift apart.",
+    "A `server/gjc-*` file missing from both lists fails `npm test`: a new file in",
+    "the engine's namespace is a decision about what ships closed, and it should",
+    "not be possible to make it by accident.",
+    "",
+    "`native/` and `src-tauri/` move wholesale and need no per-file list."
+  ],
+  "engine": [
+    "server/gjc-agent-tools.ts",
+    "server/gjc-automation-tools.ts",
+    "server/gjc-bun-ask-controller.ts",
+    "server/gjc-bun-oauth-controller.ts",
+    "server/gjc-bun-sdk-adapter.ts",
+    "server/gjc-bun-sdk-events.ts",
+    "server/gjc-bun-worker.ts",
+    "server/gjc-cli.js",
+    "server/gjc-command-surface.generated.ts",
+    "server/gjc-export-path.ts",
+    "server/gjc-runtime-manifest.ts",
+    "server/gjc-sdk-bridge.ts",
+    "server/gjc-sdk-client.ts",
+    "server/gjc-session-state.ts",
+    "server/gjc-windows-job.ts",
+    "server/gjc-worker.ts",
+    "server/gjc-worker-node-runtime.ts",
+    "server/gjc-worker-protocol.ts"
+  ],
+  "engineTests": [
+    "server/gjc-agent-tools.bun.test.ts",
+    "server/gjc-ask-decision.bun.test.ts",
+    "server/gjc-automation-tools.test.ts",
+    "server/gjc-bun-sdk-events.contract.test.ts",
+    "server/gjc-bun-sdk-events.test.ts",
+    "server/gjc-cli.test.ts",
+    "server/gjc-core-host.test.ts",
+    "server/gjc-export-path.test.ts",
+    "server/gjc-sdk-bridge.test.ts",
+    "server/gjc-sdk-client.test.ts",
+    "server/gjc-sdk-contract.bun.test.ts",
+    "server/gjc-session-state.test.ts",
+    "server/gjc-windows-job.test.ts",
+    "server/gjc-worker-protocol.test.ts",
+    "server/gjc-worker.test.ts"
+  ],
+  "engineData": [
+    "server/gjc-runtime-manifest.json"
+  ],
+  "engineApi": [
+    "server/gjc-engine.ts"
+  ],
+  "application": {
+    "server/gjc-worker-client.ts": "The application's end of the worker protocol. It runs in the application's process, uses application services, and stays behind when the engine moves.",
+    "server/gjc-engine-manifest.json": "This file. It describes the split for both repositories and belongs to neither exclusively.",
+    "server/gjc-engine-manifest.test.ts": "Keeps this manifest honest against the tree. It describes the split rather than either side of it.",
+    "server/gjc-live-session-root.test.ts": "Asserts where the application looks for live session transcripts, not how the engine writes them.",
+    "server/gjc-worker-client.test.ts": "Covers the application-side client above.",
+    "server/gjc-worker-protocol-spec.test.ts": "Checks the published protocol specification against the codec. Travels with whichever repository publishes the specification; listed here so the choice is deliberate."
+  }
+}

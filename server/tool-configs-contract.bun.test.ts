@@ -6,7 +6,7 @@ import { TOOL_CATALOG } from '@gajae-code/coding-agent/tools/tool-catalog.genera
 
 import { TOOL_CONFIGS, rendersCommandRow } from '../src/components/chat/tools/configs/toolConfigs.js';
 
-import { GJC_AGENT_TOOL_NAMES } from './gjc-agent-tools.js';
+import { GJC_AGENT_TOOL_NAMES } from './gjc-engine.js';
 
 /*
  * Tool display configs are keyed by the name that arrives on
@@ -19,6 +19,12 @@ import { GJC_AGENT_TOOL_NAMES } from './gjc-agent-tools.js';
  * generic. This is the test that would have caught it.
  *
  * A bun test because the runtime cannot be imported from node.
+ *
+ * Lives outside the `server/gjc-*` namespace on purpose. It asserts an
+ * *application* claim - that the chat tool cards are keyed the way the runtime
+ * names its tools - so it belongs with the application when the engine moves to
+ * its own repository. Under the engine's name it would have travelled with the
+ * engine and taken an import of `src/` with it.
  */
 
 /** Keys that are not runtime tool names, each for a stated reason. */

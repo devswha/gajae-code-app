@@ -9,6 +9,16 @@ import boundaries from "eslint-plugin-boundaries";
 import tailwindcss from "eslint-plugin-tailwindcss";
 import unusedImports from "eslint-plugin-unused-imports";
 import globals from "globals";
+import { readFileSync } from "node:fs";
+
+// The engine's file set is declared once, in a manifest the extraction will also
+// read. Duplicating it here as a literal list would let the boundary that is
+// enforced and the boundary that moves drift apart, which is the drift nobody
+// notices until the move. `server/gjc-engine-manifest.test.ts` keeps the
+// manifest honest against the tree.
+const gjcEngineManifest = JSON.parse(
+  readFileSync(new URL("./server/gjc-engine-manifest.json", import.meta.url), "utf8"),
+);
 
 export default tseslint.config(
   {
@@ -176,29 +186,9 @@ export default tseslint.config(
         },
         {
           type: "gjc-engine",
-          pattern: [
-            "server/gjc-agent-tools.ts",
-            "server/gjc-automation-tools.ts",
-            "server/gjc-bun-ask-controller.ts",
-            "server/gjc-bun-oauth-controller.ts",
-            "server/gjc-bun-sdk-adapter.ts",
-            "server/gjc-bun-sdk-events.ts",
-            "server/gjc-bun-worker.ts",
-            "server/gjc-cli.js",
-            "server/gjc-command-surface.generated.ts",
-            "server/gjc-export-path.ts",
-            "server/gjc-runtime-manifest.ts",
-            "server/gjc-sdk-bridge.ts",
-            "server/gjc-sdk-client.ts",
-            "server/gjc-session-state.ts",
-            "server/gjc-windows-job.ts",
-            "server/gjc-worker.ts",
-            "server/gjc-worker-node-runtime.ts",
-            "server/gjc-worker-protocol.ts",
-          ],
+          pattern: gjcEngineManifest.engine,
           mode: "file",
         },
-
         {
           type: "backend-shared-type-contract", // shared backend type/interface contracts that modules may consume without creating runtime coupling
           pattern: [

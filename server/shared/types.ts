@@ -247,6 +247,23 @@ export type NormalizedMessage = {
    * the live events they missed across websocket reconnects.
    */
   seq?: number;
+  /**
+   * Which turn this message belongs to: the id of the user message that began
+   * it.
+   *
+   * A turn is not "everything since the last user message". Steering a running
+   * turn and answering a question it asked both add a user message without
+   * starting anything, so this is derived from the transcript's own lineage
+   * rather than from message order - see
+   * `server/modules/providers/list/gjc/gjc-transcript-turns.ts`.
+   *
+   * Absent when the record descends from no user message, which happens when a
+   * transcript is read from partway through. Consumers must treat that as
+   * "unknown", never as a turn of its own: this anchors per-turn revert.
+   */
+  turnId?: string;
+  /** How that turn ended, or `running` while it has not. */
+  turnStatus?: 'running' | 'completed' | 'failed' | 'aborted';
   role?: 'user' | 'assistant';
   content?: string;
   /**

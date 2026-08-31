@@ -520,9 +520,14 @@ terminal state to the normalized envelope first.
 > lineage brings that to 81 (0.5%), and steers are absorbed into their running
 > turn instead of starting new ones.
 >
-> Still to do: wire it into `gjc-sessions.provider.ts` and add `turnId` to the
-> normalized envelope. The reader currently streams line by line, and turn
-> assignment needs the whole lineage first — that is the shape of the change.
+> **Wired.** `gjc-sessions.provider.ts` reads the transcript twice: once for
+> lineage alone, keeping four small fields per record, then the existing stream
+> for content. `NormalizedMessage` carries `turnId` and `turnStatus`, stamped
+> once around the normalizer rather than at each of its five returns — one
+> omission there would leave a message out of its turn and a changed-files card
+> quietly short of what the turn changed.
+>
+> Step 5 is done. Step 6 can be built on it.
 
 **4. Per-turn changed-files card.** The visible endpoint of the checkpoint work
 above: a file tree of what the turn changed, with revert anchored to the

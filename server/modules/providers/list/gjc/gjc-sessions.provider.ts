@@ -3,6 +3,7 @@ import fsSync from 'node:fs';
 import { sessionsDb } from '@/modules/database/index.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
+import { assignTranscriptTurns, type TranscriptTurnRecord } from '@/modules/providers/list/gjc/gjc-transcript-turns.js';
 import { createNormalizedMessage, generateMessageId, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 
 const PROVIDER = 'gjc';
@@ -154,6 +155,39 @@ function extractGjcPartText(part: AnyRecord): string {
 }
 
 /**
+ * Reads the transcript once for lineage alone.
+ *
+ * Turn assignment needs the whole chain before any record can be placed, which
+ * the streaming pass below cannot provide. This pass keeps four small fields per
+ * record and nothing else, so the content still streams.
+ *
+ * **Every** record is collected, not only the messages: lineage runs through
+ * compaction and other control entries, and filtering them out severs it.
+ */
+async function readTranscriptLineage(sessionFilePath: string): Promise<TranscriptTurnRecord[]> {
+  const records: TranscriptTurnRecord[] = [];
+  for await (const line of readBoundedJsonlLines(sessionFilePath)) {
+    if (!line.trim()) continue;
+    let entry: AnyRecord;
+    try {
+      entry = JSON.parse(line) as AnyRecord;
+    } catch {
+      continue;
+    }
+    if (typeof entry.id !== 'string') continue;
+    const message = entry.type === 'message' ? readObjectRecord(entry.message) : undefined;
+    const role = typeof message?.role === 'string' ? message.role : undefined;
+    records.push({
+      id: entry.id,
+      parentId: typeof entry.parentId === 'string' ? entry.parentId : undefined,
+      role: role === 'user' || role === 'assistant' || role === 'toolResult' ? role : undefined,
+      stopReason: typeof message?.stopReason === 'string' ? message.stopReason : undefined,
+    });
+  }
+  return records;
+}
+
+/**
  * Streams a gjc JSONL transcript and flattens `type:"message"` lines into the
  * compact intermediate shape consumed by `normalizeHistoryEntry`.
  *
@@ -172,6 +206,10 @@ async function streamGjcSessionMessages(
       console.warn(`gjc session file not found for session ${sessionId}`);
       return;
     }
+
+    // Which turn each record belongs to, and how that turn ended. Both come from
+    // the transcript, so a reloaded conversation reports what it reported live.
+    const turns = assignTranscriptTurns(await readTranscriptLineage(sessionFilePath));
 
     for await (const line of readBoundedJsonlLines(sessionFilePath)) {
       if (!line.trim()) {
@@ -199,6 +237,15 @@ async function streamGjcSessionMessages(
           ? entry.id
           : (typeof entry.timestamp === 'string' ? entry.timestamp : generateMessageId(PROVIDER));
 
+        // One transcript record becomes several intermediate records - a text
+        // part, a tool call, a result - and every one of them belongs to the
+        // same turn. Stamping them here keeps that from being restated at each
+        // emit site, where one omission would silently drop a card's contents.
+        const turn = typeof entry.id === 'string' ? turns.get(entry.id) : undefined;
+        const emit = (record: AnyRecord): void => {
+          onMessage(turn ? { ...record, turnId: turn.turnId, turnStatus: turn.status } : record);
+        };
+
         const content = Array.isArray(message.content)
           ? message.content
           : (typeof message.content === 'string' ? [{ type: 'text', text: message.content }] : []);
@@ -223,7 +270,7 @@ async function streamGjcSessionMessages(
           // turn streams and then degrades on refresh is worse than one that
           // is consistently plain.
           const details = message.details;
-          onMessage({
+          emit({
             uuid: `${entryId}:toolresult`,
             type: 'tool_result',
             timestamp,
@@ -254,7 +301,7 @@ async function streamGjcSessionMessages(
               if (!text.trim()) {
                 break;
               }
-              onMessage({
+              emit({
                 uuid: `${partId}:text`,
                 timestamp,
                 message: {
@@ -269,7 +316,7 @@ async function streamGjcSessionMessages(
               if (!text.trim()) {
                 break;
               }
-              onMessage({
+              emit({
                 uuid: `${partId}:thinking`,
                 type: 'thinking',
                 timestamp,
@@ -281,7 +328,7 @@ async function streamGjcSessionMessages(
               break;
             }
             case 'toolCall': {
-              onMessage({
+              emit({
                 uuid: `${partId}:toolcall`,
                 type: 'tool_use',
                 timestamp,
@@ -292,7 +339,7 @@ async function streamGjcSessionMessages(
               break;
             }
             case 'toolResult': {
-              onMessage({
+              emit({
                 uuid: `${partId}:toolresult`,
                 type: 'tool_result',
                 timestamp,
@@ -319,7 +366,22 @@ export class GjcSessionsProvider implements IProviderSessions {
   /**
    * Normalizes one flattened gjc content-part record into the shared envelope.
    */
+  /**
+   * Stamps the turn onto everything one flattened record produced.
+   *
+   * Done once around the normalizer rather than at each of its five returns:
+   * one omission there would leave a message out of its turn, and a
+   * changed-files card silently short of what the turn actually changed.
+   */
   private normalizeHistoryEntry(raw: AnyRecord, sessionId: string | null): NormalizedMessage[] {
+    const messages = this.normalizeHistoryEntryContent(raw, sessionId);
+    const turnId = typeof raw.turnId === 'string' ? raw.turnId : undefined;
+    if (!turnId) return messages;
+    const turnStatus = raw.turnStatus as NormalizedMessage['turnStatus'];
+    return messages.map((message) => ({ ...message, turnId, turnStatus }));
+  }
+
+  private normalizeHistoryEntryContent(raw: AnyRecord, sessionId: string | null): NormalizedMessage[] {
     const ts = raw.timestamp || new Date().toISOString();
     const baseId = raw.uuid || generateMessageId(PROVIDER);
 

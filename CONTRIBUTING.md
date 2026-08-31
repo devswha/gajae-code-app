@@ -150,3 +150,16 @@ See the [self-hosting guide](docs/SELF-HOST.md) for installation, updates, rollb
 ## License
 
 By contributing, you agree that your contributions will be licensed under the [AGPL-3.0-or-later License](LICENSE), including the additional terms specified in Section 7 of the LICENSE file.
+
+### Contributor License Agreement
+
+First-time contributors must also sign the [Contributor License Agreement](CLA.md)
+before a pull request is merged. You keep the copyright in what you write; the
+agreement grants the project owner the right to license it, **including under
+terms other than AGPL-3.0-or-later**.
+
+Without it, every contributor holds a veto over any future licensing decision,
+and one unreachable contributor turns that decision from difficult into
+impossible. Read the agreement before you sign it — if you are not comfortable
+with your work being distributed under a proprietary license, do not sign, and
+do not contribute.

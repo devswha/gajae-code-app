@@ -9,15 +9,19 @@ decisions cost. Read this before adding a dependency or changing anything under
 Gajae Code App is **AGPL-3.0-or-later**, and `package.json` declares the same.
 
 The `LICENSE` file is the AGPL text plus **additional terms under Section 7**,
-authored by Siteboon AI B.V. as copyright holder of the upstream project this
-one derives from, `CloudCLI UI` (`https://github.com/siteboon/claudecodeui`).
-Those terms are not optional and not ours to waive:
+authored by Siteboon AI B.V. as copyright holder of the historical upstream this
+project derives from. Those terms are not optional and not ours to waive:
 
-- **7(b)** requires the attribution `"CloudCLI UI
-  (https://github.com/siteboon/claudecodeui)"` in documentation, README, or
-  Appropriate Legal Notices, reasonably prominent.
+- **7(b)** requires the upstream attribution notice, verbatim as `LICENSE` gives
+  it, in documentation, README, or Appropriate Legal Notices, reasonably
+  prominent.
 - **7(c)** requires modified versions to be clearly marked as modified and not
   presented as the original.
+
+The upstream identity itself is recorded once, in [UPSTREAM.md](./UPSTREAM.md),
+and in `LICENSE` and `NOTICE`. It is deliberately not repeated here: the identity
+scanner treats a legacy product reference outside those files as a defect,
+because that is how provenance quietly turns into an install instruction.
 
 `LICENSE` and `NOTICE` are hash-pinned by `npm run check:identity`, so neither
 changes without a deliberate update to that script. Provenance and the intake

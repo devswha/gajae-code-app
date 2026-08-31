@@ -103,10 +103,12 @@ export function prepareMessageForTransport(message: NormalizedMessage): Normaliz
     }
   }
 
-  // Structured details are unbounded by construction: a read's details carry
-  // a `truncation.content` holding the whole file, which is the same payload
-  // the text side already bounds. Measure the serialization and drop the whole
-  // record when it is too big, rather than shipping a trimmed object — a
+  // Structured details are unbounded by construction: `read`, `search` and
+  // `ast_grep` put a second rendering of their own output in
+  // `details.displayContent.text` (the SDK's TUI prefers it over the body),
+  // which is the same payload the text side already bounds. Measure the
+  // serialization and drop the whole record when it is too big, rather than
+  // shipping a trimmed object — a
   // consumer cannot tell which fields a trimmed object lost, so half a record
   // is worse than none. `toolDetailsOmitted` is what separates "this tool
   // reported no structure" from "there was structure and it did not fit".

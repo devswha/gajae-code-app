@@ -69,8 +69,10 @@ test('transport truncates the folded toolResult on tool_use messages too', () =>
  * The runtime returns `{ content, details }` per tool call. Only `content` used
  * to survive the adapter, so a card could do nothing but re-parse a string the
  * server had just serialized. Details now ride `toolUseResult`, which means the
- * transport has to bound them: a read's details embed the whole file under
- * `truncation.content`, duplicating what the text side already caps.
+ * transport has to bound them: `read`, `search` and `ast_grep` put a second
+ * rendering of their own output in `details.displayContent.text`, duplicating
+ * what the text side already caps. The fixtures below use that real field so
+ * they fail for the reason the cap exists.
  */
 
 test('transport passes small tool details through untouched', () => {
@@ -94,7 +96,7 @@ test('transport drops oversized tool details whole rather than trimming them', (
     id: 'msg-huge',
     kind: 'tool_result',
     content: 'ok',
-    toolUseResult: { truncation: { content: 'x'.repeat(64 * 1024) }, resolvedPath: '/repo/big' },
+    toolUseResult: { displayContent: { text: 'x'.repeat(64 * 1024) }, resolvedPath: '/repo/big' },
   });
 
   const [prepared] = prepareHistoryMessagesForTransport([message]);
@@ -136,7 +138,7 @@ test('bounding details leaves the text truncation flags alone', () => {
     id: 'msg-both',
     kind: 'tool_result',
     content: 'ok',
-    toolUseResult: { truncation: { content: 'x'.repeat(64 * 1024) } },
+    toolUseResult: { displayContent: { text: 'x'.repeat(64 * 1024) } },
   });
 
   const [prepared] = prepareHistoryMessagesForTransport([message]);
@@ -158,7 +160,7 @@ test('transport bounds details folded into a tool_use as well as standalone ones
     toolResult: {
       content: 'ok',
       isError: false,
-      toolUseResult: { truncation: { content: 'x'.repeat(64 * 1024) } },
+      toolUseResult: { displayContent: { text: 'x'.repeat(64 * 1024) } },
     },
   });
 

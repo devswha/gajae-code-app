@@ -393,6 +393,49 @@ over the existing transcript + Query pipeline, never a second message authority.
   Their Effect Atom projection is coherent in their system and would be a
   second authority in ours.
 
+## The real bottleneck: results are flattened at the adapter
+
+We do **not** stream the GJC terminal. The SDK's TUI layer is unused - the only
+`modes/` import is the theme (`server/gjc-bun-sdk-adapter.ts:10`), and the app's
+real pty terminal is a separate surface
+(`server/modules/websocket/services/shell-websocket.service.ts`). The chat is
+driven by structured protocol events: `message.delta`, `tool.started`,
+`tool.completed`, `usage.updated`, `turn.completed`
+(`server/gjc-worker-protocol.ts`).
+
+But tool calls and tool results are not treated equally.
+
+**Calls keep their structure.** `tool_execution_start` forwards
+`toolInput: event.args` as a real object
+(`server/gjc-bun-sdk-events.ts:243-252`), which is exactly why our tool cards
+can read `path`, `edits`, `command` and render semantically.
+
+**Results are flattened to a string.** `tool_execution_end` sends
+`content: stringifyToolOutput(event.result)`
+(`server/gjc-bun-sdk-events.ts:266-273`), and that helper falls back to
+`JSON.stringify(value, null, 2)` for anything structured
+(`server/gjc-bun-sdk-events.ts:334-343`). The SDK's `details` never reaches
+React.
+
+This corrects the "our tool cards are stronger" claim above: that holds for the
+**call** side only. On the **result** side we are as text-bound as t3code, and
+any card wanting to render a result has to re-parse a string we ourselves
+serialized.
+
+Everything else on the roadmap dead-ends here:
+
+| Wanted | Blocked by |
+| --- | --- |
+| Goal badge / pause / cancel | no `goal_updated` in the protocol at all |
+| Debug panel | stack and variables arrive as text |
+| GitHub PR card | the PR object is flattened to JSON-in-a-string |
+| Per-turn changed files | no turn identity in the envelope |
+
+**So the ordering is forced.** Extend Worker Protocol v1 with bounded, typed
+result payloads *before* building any of those cards. Keep the text field for
+the generic fallback card, and add namespaced structured payloads beside it.
+Building cards first means writing parsers for our own lossy serialization.
+
 ## Ranked ports
 
 | # | Change | Value/effort | Server change |
@@ -463,19 +506,21 @@ in the provider contract before any of that chrome is worth building.
 
 ## Revised sequencing
 
-0. **Fix the tool boundary.** Decide `goal`, force SDK settings to match the
-   declared policy, convert the drift test to a partition test. Everything
-   below assumes the capability boundary means something.
-1. **WebSocket per-method authorization** - unrelated hole, still open.
-2. **Thread-scoped drafts + composer overflow** - two small client wins that
-   need no protocol change.
-3. **`goal_updated` projection + goals UI** - cheapest real feature, because
-   the runtime half already runs.
-4. **Turn metadata in the normalized envelope** - unlocks folding, the minimap,
+0. ~~**Fix the tool boundary.**~~ Done in `6dcaa73`. Verified still complete
+   against SDK 0.15.6 after rebasing onto `origin/main`: the partition test
+   passes, so the bump introduced no undecided builtin.
+1. **Thread-scoped drafts + composer overflow** - two small client wins that
+   need no protocol change and no other work first.
+2. **WebSocket per-method authorization** - unrelated hole, still open.
+3. **Structured tool-result payloads in Worker Protocol v1** - the gate. Every
+   capability card below is blocked on it, so it comes before all of them.
+4. **`goal_updated` projection + goals UI** - cheapest real feature once 3
+   lands, because the runtime half already runs.
+5. **Turn metadata in the normalized envelope** - unlocks folding, the minimap,
    and the turn diff card.
-5. **Git-ref checkpoints + per-turn changed-files card + revert** - the
-   headline feature, on top of 4.
-6. **SDK `rewind` as "Condense investigation"** - separate action, separate
+6. **Git-ref checkpoints + per-turn changed-files card + revert** - the
+   headline feature, on top of 5.
+7. **SDK `rewind` as "Condense investigation"** - separate action, separate
    outcome, never sold as "restore".
 
 ## Intake rules that apply

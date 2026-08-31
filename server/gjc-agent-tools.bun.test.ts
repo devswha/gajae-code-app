@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { Settings } from '@gajae-code/coding-agent/config/settings';
+import { createTools } from '@gajae-code/coding-agent/tools';
 import { BUILTIN_TOOLS } from '@gajae-code/coding-agent/tools/descriptors';
 
 import { applyGjcToolSettingsPolicy } from './gjc-bun-sdk-adapter.js';
@@ -61,12 +62,72 @@ test('the SDK settings policy suppresses implicit tool additions', () => {
   const settings = Settings.isolated({
     'goal.enabled': true,
     'astEdit.enabled': true,
+    'mcp.discoveryMode': true,
+    'mcp.enableProjectConfig': true,
   });
 
   applyGjcToolSettingsPolicy(settings);
 
   assert.equal(settings.get('goal.enabled'), false);
   assert.equal(settings.get('astEdit.enabled'), false);
+  assert.equal(settings.get('mcp.discoveryMode'), false);
+  assert.equal(settings.get('mcp.enableProjectConfig'), false);
+});
+
+/*
+ * The decision has to survive the runtime that acts on it.
+ *
+ * The two lists above are a statement of intent; `toolNames` is a seed the
+ * runtime adds to. `createTools` appends `ast_grep`, `ast_edit` and `recipe`
+ * from settings whose siblings are requested, and `goal` from `goal.enabled` -
+ * which is how goal mode ran in every browser session while this file said it
+ * was withheld. Asserting on the lists alone cannot see any of that, so this
+ * builds the tools the way a session does and asks what actually came out.
+ *
+ * Deliberately hostile settings: everything a user could turn on is on, and
+ * the policy has to win anyway.
+ */
+test('nothing outside the allowlist survives real tool construction', async () => {
+  const settings = Settings.isolated({
+    'goal.enabled': true,
+    'astEdit.enabled': true,
+    'astGrep.enabled': true,
+    'recipe.enabled': true,
+    'mcp.discoveryMode': true,
+    'mcp.enableProjectConfig': true,
+  });
+  applyGjcToolSettingsPolicy(settings);
+
+  const tools = await createTools(
+    // The fields `createTools` reads. `skipPythonPreflight` keeps the eval
+    // backend probe from shelling out during a unit test.
+    { cwd: process.cwd(), hasUI: false, skipPythonPreflight: true, settings } as never,
+    [...GJC_AGENT_TOOL_NAMES],
+  );
+  const built = tools.map((tool) => tool.name);
+
+  for (const name of built) {
+    assert.equal(
+      name in GJC_AGENT_TOOLS_WITHHELD,
+      false,
+      `${name} is withheld but the runtime built it anyway: ${GJC_AGENT_TOOLS_WITHHELD[name]}`,
+    );
+  }
+
+  // `resolve` is a hidden companion rather than a builtin, so it is in neither
+  // list: `createTools` always appends it, and the SDK session then drops it
+  // unless some tool is deferrable. With ast_edit forced off nothing is, so it
+  // never reaches a browser session - but it is named here rather than left to
+  // look like an escape.
+  const allowed = new Set([...GJC_AGENT_TOOL_NAMES, 'resolve']);
+  for (const name of built) {
+    assert.ok(allowed.has(name), `${name} was built without an allowlist entry`);
+  }
+
+  // A tool that silently stops materializing is the other direction of drift.
+  for (const name of ['bash', 'read', 'edit', 'search', 'find', 'write']) {
+    assert.ok(built.includes(name), `${name} did not survive construction`);
+  }
 });
 
 test('the core coding loop is never accidentally dropped', () => {

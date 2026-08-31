@@ -86,6 +86,15 @@ export function applyGjcToolSettingsPolicy(settings: Settings): void {
   // `resolve` is not requestable through toolNames, so leaving this enabled
   // would advertise edits the browser session can never commit.
   settings.override('astEdit.enabled', false);
+
+  // Tool discovery is the other door into the session's tool set, and it does
+  // not consult `toolNames`: a server listed in the user's own settings, or an
+  // `.mcp.json` in whatever project they open, would put tools this app never
+  // decided on in front of a browser session. Both default to false, so this
+  // pins the default rather than changing behaviour - but a boundary that only
+  // holds while a user leaves their config alone is not a boundary.
+  settings.override('mcp.discoveryMode', false);
+  settings.override('mcp.enableProjectConfig', false);
 }
 
 function isAppOAuthCommand(message: string): boolean {

@@ -158,11 +158,15 @@ stdio NDJSON with a strict 64 MiB maximum frame size.
 }
 ```
 
-Global `worker.initialize` and `worker.shutdown` frames omit `sessionId`.
-Supported scoped requests are `session.start`, `session.resume`, `turn.start`,
-`turn.abort`, and `ask.reply`. Events are `session.created`, `message.delta`,
-`message.completed`, `tool.started`, `tool.completed`, `ask.presented`,
-`usage.updated`, `turn.completed`, `turn.failed`, and `worker.status`.
+The full method list, session scoping, error codes, lifecycle and conformance
+rules are specified in [docs/GJC-WORKER-PROTOCOL.md](../docs/GJC-WORKER-PROTOCOL.md),
+which is written so either side can be implemented from it alone.
+
+That document is checked against the code by
+`server/gjc-worker-protocol-spec.test.ts`. This section deliberately no longer
+repeats the method list: the copy that used to live here had gone stale, listing
+neither `turn.steer` nor any `oauth.*` method, which is what an unchecked second
+copy does.
 
 The codec rejects unknown fields, methods, unsafe identifiers, incompatible
 versions, invalid JSON values, mismatched responses, oversized or unterminated

@@ -146,11 +146,22 @@ is supposed to: it is the app's end of the protocol.
 
 ### What extraction still needs
 
-The code boundary is done. Moving the engine to its own repository additionally
-needs the protocol documented as an interface others could implement, a decision
-on whether `src-tauri` ships with the engine or the shell, and the third-party
-notices below - which the engine would carry, since it is the side that bundles
-the runtime.
+The code boundary is done, and so is the interface it runs over:
+[GJC-WORKER-PROTOCOL.md](./GJC-WORKER-PROTOCOL.md) specifies the worker protocol
+so either side can be implemented from it alone, and
+`server/gjc-worker-protocol-spec.test.ts` fails when the document and the codec
+disagree. That matters here for a reason beyond documentation: a proprietary
+engine behind a documented, independently implementable interface is a separate
+program, while one behind private glue invented to look like an interface is an
+argument.
+
+Its one gap is stated in the document itself - payload schemas are not part of
+the protocol layer, so a third party could implement the host side today but
+would need those schemas to implement the worker side.
+
+Still outstanding for extraction: a decision on whether `src-tauri` ships with
+the engine or the shell, and the third-party notices below - which the engine
+would carry, since it is the side that bundles the runtime.
 
 ## Adding a dependency
 

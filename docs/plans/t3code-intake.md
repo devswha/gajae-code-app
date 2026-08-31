@@ -273,9 +273,28 @@ key in `BUILTIN_TOOLS` must be exactly one of enabled or withheld-with-reason,
 and the assertion must run against the *created session's* active tool names,
 not against `GJC_AGENT_TOOL_NAMES` membership.
 
-**Open decision, and the only one blocking this:** do we force `goal` off to
-match the written policy, or keep it on and build the goals UI? The written
-reason is still true - there is no goals view - so the default answer is off.
+### Fixed in `e2ef73d`
+
+`applyGjcToolSettingsPolicy(settings)` now runs on the per-run cwd clone in
+`server/gjc-bun-sdk-adapter.ts` and forces `goal.enabled` and `astEdit.enabled`
+off. `recipe` was promoted into the explicit enabled list instead: it resolves a
+detected runner task, delegates to `BashTool`, and returns `BashToolDetails`,
+which the generic tool card already renders - so it is a real capability rather
+than an accident, and listing it stops `recipe.enabled` from being one.
+
+`ast_edit` is withheld because it dry-runs and then queues the hidden `resolve`
+tool to commit; `resolve` is not requestable through `toolNames`, so a browser
+session stages previews it can never apply.
+
+All 12 undecided names now carry a written decision, the header states the
+partition invariant instead of a count that rots, and
+`server/gjc-agent-tools.bun.test.ts` asserts that every `BUILTIN_TOOLS` key
+lands in exactly one list. Verified by removing `calc` from both lists: the
+test fails with `calc has no single tool-policy decision`.
+
+One briefing correction from the fix: the adapter was already calling
+`globalSettings.cloneForCwd(config.cwd)`, so per-session isolation existed and
+only the policy application was missing.
 
 ## Capability we are sitting on
 

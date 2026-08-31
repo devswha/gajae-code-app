@@ -1,10 +1,10 @@
 /**
  * Which of the runtime's builtin tools this app turns on.
  *
- * The tools are not built here — `@gajae-code/coding-agent` ships all 35 — so
- * the only decision the app makes is which ones a browser-hosted session
- * should have. It had been running on the SDK's six essentials plus `ask`,
- * which left capability the package already provides simply unreachable.
+ * The tools are not built here — `@gajae-code/coding-agent` owns the registry —
+ * so the only decision the app makes is which ones a browser-hosted session
+ * should have. Every current registry entry must appear in exactly one list
+ * below; the partition test makes an upstream addition a deliberate decision.
  *
  * An allowlist is right here, unlike the command catalog: a tool carries real
  * cost or reach (extra model calls, a spawned browser, an SSH connection, a
@@ -43,6 +43,11 @@ export const GJC_AGENT_TOOL_NAMES: readonly string[] = [
   // real refactors.
   'ast_grep',
 
+  // Executes a named project-runner task through the same BashTool result
+  // shape, which the generic tool card already renders. It is explicit rather
+  // than arriving incidentally from recipe.enabled when bash is present.
+  'recipe',
+
   // Definitions, references and types. Degrades to nothing when the project
   // has no language server, so the downside is an unused tool.
   'lsp',
@@ -73,6 +78,17 @@ export const GJC_AGENT_TOOLS_WITHHELD: Readonly<Record<string, string>> = {
   ssh: 'Opens connections to other machines from a UI with no session-scoped confirmation for them.',
   telegram_send: 'Sends messages off this machine.',
   irc: 'Network chat unrelated to coding in this app.',
+  ast_edit: 'Produces only a preview and requires hidden resolve to apply it; resolve is not requestable through toolNames, so browser edits would be permanently pending.',
+  render_mermaid: 'A future candidate, but its ASCII artifact needs a diagram/artifact card before it is useful as more than raw tool output.',
+  debug: 'A future candidate, but launch, attach, memory, and process control need a debugger panel and an explicit permission boundary first.',
+  bisect: 'Its cleanup uses git reset --hard on tracked predicate edits, which is too destructive for an agent-callable browser default.',
+  eval: 'Overlaps the persistent python kernel; exposing both competing code-execution concepts would be a product mistake.',
+  python: 'Overlaps the in-process eval backend; expose one deliberate code-execution surface rather than two competing persistent-kernel concepts.',
+  calc: 'Simple arithmetic does not justify another tool surface while the model can calculate or use a deliberate code-execution tool.',
+  github: 'A future candidate, but GitHub reads and PR creation/push need a dedicated card and repository/network permission boundary first.',
+  search_tool_bm25: 'Activates arbitrary hidden tools at runtime, defeating this allowlist until the app owns discoverableToolAllowedNames.',
+  skill_discovery: 'The app already advertises its supported skills; exposing raw discovery needs a UI for discovered metadata and activation decisions.',
+  move_session: 'Permanently repoints the SDK session cwd, contradicting the app’s stable project/session binding and its excluded /move command.',
   checkpoint: 'Manipulates session state the app also owns; needs the two models reconciled first.',
   rewind: 'Same session-state overlap as checkpoint.',
 };

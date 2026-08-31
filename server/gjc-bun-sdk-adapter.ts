@@ -75,6 +75,19 @@ const MODEL_ID_EFFORT = /-(off|minimal|low|medium|high|xhigh|max)(?:-fast)?$/;
 const RUNTIME_CREDENTIAL_ENV_VARS = new Set([
   'GJC_RUNTIME_API_KEY',
 ]);
+
+export function applyGjcToolSettingsPolicy(settings: Settings): void {
+  // Goal mode writes artifacts the app cannot display, then injects hidden
+  // continuation turns until completion. The app projects no goal state, so
+  // users have no badge, pause, or cancel control for that self-restarting loop.
+  settings.override('goal.enabled', false);
+
+  // ast_edit only previews rewrites and queues hidden `resolve` to apply them.
+  // `resolve` is not requestable through toolNames, so leaving this enabled
+  // would advertise edits the browser session can never commit.
+  settings.override('astEdit.enabled', false);
+}
+
 function isAppOAuthCommand(message: string): boolean {
   const commandName = /^\/([^\s]+)/.exec(message.trim())?.[1];
   return commandName === 'login' || commandName === 'logout';
@@ -420,7 +433,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           config.modelProfile,
         )
         : config.modelId;
+      // Settings.init is process-global, but each run receives a cwd-specific
+      // clone before session creation. A Bun worker can serve multiple project
+      // sessions, and the clone keeps their project settings and overrides isolated.
       const settings = await globalSettings.cloneForCwd(config.cwd);
+      applyGjcToolSettingsPolicy(settings);
       const askController = new GjcBunAskController(writer);
       const model = await modelForWithRefresh(this.modelRegistry, configuredModelId);
       const resolvedCredential = credentialFor(this.authStorage, config.credential, model);

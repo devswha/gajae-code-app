@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { Settings } from '@gajae-code/coding-agent/config/settings';
 import { BUILTIN_TOOLS } from '@gajae-code/coding-agent/tools/descriptors';
 
+import { applyGjcToolSettingsPolicy } from './gjc-bun-sdk-adapter.js';
 import { GJC_AGENT_TOOL_NAMES, GJC_AGENT_TOOLS_WITHHELD } from './gjc-agent-tools.js';
 
 /*
@@ -41,6 +43,30 @@ test('every withheld tool exists in the runtime and stays off', () => {
     );
     assert.ok(reason.length > 20, `${name} needs a real reason, not a placeholder`);
   }
+});
+
+test('every runtime builtin has exactly one recorded policy decision', () => {
+  for (const name of Object.keys(BUILTIN_TOOLS)) {
+    const occurrences = Number(GJC_AGENT_TOOL_NAMES.includes(name))
+      + Number(name in GJC_AGENT_TOOLS_WITHHELD);
+    assert.equal(
+      occurrences,
+      1,
+      `${name} has no single tool-policy decision; record it as enabled or withheld`,
+    );
+  }
+});
+
+test('the SDK settings policy suppresses implicit tool additions', () => {
+  const settings = Settings.isolated({
+    'goal.enabled': true,
+    'astEdit.enabled': true,
+  });
+
+  applyGjcToolSettingsPolicy(settings);
+
+  assert.equal(settings.get('goal.enabled'), false);
+  assert.equal(settings.get('astEdit.enabled'), false);
 });
 
 test('the core coding loop is never accidentally dropped', () => {

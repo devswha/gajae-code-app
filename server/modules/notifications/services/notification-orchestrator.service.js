@@ -1,252 +1,145 @@
 import { notificationPreferencesDb, sessionsDb } from '@/modules/database/index.js';
-import { sendDesktopNotification as sendDesktopNotificationToClients } from '@/modules/notifications/services/desktop-notification-clients.service.js';
+import { sendDesktopNotification } from '@/modules/notifications/services/desktop-notification-clients.service.js';
 
-const KIND_TO_PREF_KEY = {
-  action_required: 'actionRequired',
-  stop: 'stop',
-  error: 'error'
-};
-
-const PROVIDER_LABELS = {
-  claude: 'Claude',
-  cursor: 'Cursor',
-  codex: 'Codex',
-  gjc: 'GJC',
-  system: 'System'
-};
-
-const recentEventKeys = new Map();
-const DEDUPE_WINDOW_MS = 20000;
-
-const cleanupOldEventKeys = () => {
-  const now = Date.now();
-  for (const [key, timestamp] of recentEventKeys.entries()) {
-    if (now - timestamp > DEDUPE_WINDOW_MS) {
-      recentEventKeys.delete(key);
-    }
-  }
-};
-
-function isNotificationEventEnabled(preferences, event) {
-  const prefEventKey = KIND_TO_PREF_KEY[event.kind];
-  const eventEnabled = prefEventKey ? Boolean(preferences?.events?.[prefEventKey]) : true;
-
-  return eventEnabled;
-}
-
-function isDuplicate(event) {
-  cleanupOldEventKeys();
-  const key = event.dedupeKey || `${event.provider}:${event.kind || 'info'}:${event.code || 'generic'}:${event.sessionId || 'none'}`;
-  if (recentEventKeys.has(key)) {
-    return true;
-  }
-  recentEventKeys.set(key, Date.now());
-  return false;
-}
+const eventPreferences = new Map([
+  ['action_required', 'actionRequired'],
+  ['stop', 'stop'],
+  ['error', 'error'],
+]);
+const providerNames = { claude: 'Claude', cursor: 'Cursor', codex: 'Codex', gjc: 'GJC', system: 'System' };
+const deliveredRecently = new Map();
+const DEDUPE_WINDOW_MS = 20_000;
 
 function createNotificationEvent({
-  provider,
-  sessionId = null,
-  kind = 'info',
-  code = 'generic.info',
-  meta = {},
-  severity = 'info',
-  dedupeKey = null,
-  requiresUserAction = false
+  provider, kind = 'info', code = 'generic.info', severity = 'info',
+  sessionId = null, meta = {}, dedupeKey = null, requiresUserAction = false,
 }) {
-  return {
-    provider,
-    sessionId,
-    kind,
-    code,
-    meta,
-    severity,
-    requiresUserAction,
-    dedupeKey,
-    createdAt: new Date().toISOString()
-  };
+  return { provider, sessionId, kind, code, meta, severity, requiresUserAction, dedupeKey, createdAt: new Date().toISOString() };
 }
 
-function normalizeErrorMessage(error) {
-  if (typeof error === 'string') {
-    return error;
-  }
-
-  if (error && typeof error.message === 'string') {
-    return error.message;
-  }
-
-  if (error == null) {
-    return 'Unknown error';
-  }
-
-  return String(error);
+function appSessionFor(sessionId, provider) {
+  if (!sessionId) return null;
+  const direct = sessionsDb.getSessionById(sessionId);
+  if (direct && (!provider || direct.provider === provider)) return direct;
+  const byProviderId = provider ? sessionsDb.getSessionByProviderSessionId(provider, sessionId) : null;
+  return byProviderId && (!provider || byProviderId.provider === provider) ? byProviderId : null;
 }
 
-function normalizeSessionName(sessionName) {
-  if (typeof sessionName !== 'string') {
-    return null;
-  }
-
-  const normalized = sessionName.replace(/\s+/g, ' ').trim();
-  if (!normalized) {
-    return null;
-  }
-
-  return normalized.length > 80 ? `${normalized.slice(0, 77)}...` : normalized;
+function canonicalSession(event) {
+  if (!event?.sessionId || !event.provider || event.provider === 'system') return event;
+  const record = appSessionFor(event.sessionId, event.provider);
+  return !record || record.session_id === event.sessionId ? event : { ...event, sessionId: record.session_id };
 }
 
-function rowMatchesProvider(row, provider) {
-  return row && (!provider || row.provider === provider);
+function conciseSessionName(value) {
+  if (typeof value !== 'string') return null;
+  const name = value.replace(/\s+/g, ' ').trim();
+  if (!name) return null;
+  return name.length > 80 ? `${name.slice(0, 77)}...` : name;
 }
 
-function resolveSessionRow(sessionId, provider) {
-  if (!sessionId) {
-    return null;
-  }
-
-  const appSessionRow = sessionsDb.getSessionById(sessionId);
-  if (rowMatchesProvider(appSessionRow, provider)) {
-    return appSessionRow;
-  }
-
-  const providerSessionRow = provider
-    ? sessionsDb.getSessionByProviderSessionId(provider, sessionId)
-    : null;
-  if (rowMatchesProvider(providerSessionRow, provider)) {
-    return providerSessionRow;
-  }
-
-  return null;
+function sessionNameFor(event) {
+  const supplied = conciseSessionName(event.meta?.sessionName);
+  if (supplied) return supplied;
+  if (!event.sessionId || !event.provider) return null;
+  return conciseSessionName(sessionsDb.getSessionName(event.sessionId, event.provider));
 }
 
-function normalizeNotificationSession(event) {
-  if (!event?.sessionId || !event.provider || event.provider === 'system') {
-    return event;
+function textFor(event) {
+  const meta = event.meta;
+  switch (event.code) {
+    case 'permission.required':
+      return meta?.toolName
+        ? `Action Required: Tool "${meta.toolName}" needs approval`
+        : 'Action Required: A tool needs your approval';
+    case 'run.stopped':
+      return meta?.stopReason || 'Run Stopped: The run has stopped';
+    case 'run.failed':
+      return meta?.error ? `Run Failed: ${meta.error}` : 'Run Failed: The run encountered an error';
+    case 'agent.notification':
+      return meta?.message ? String(meta.message) : 'You have a new notification';
+    case 'push.enabled':
+      return 'Push notifications are now enabled!';
+    default:
+      return 'You have a new notification';
   }
-
-  const row = resolveSessionRow(event.sessionId, event.provider);
-  if (!row || row.session_id === event.sessionId) {
-    return event;
-  }
-
-  return {
-    ...event,
-    sessionId: row.session_id
-  };
-}
-
-function resolveSessionName(event) {
-  const explicitSessionName = normalizeSessionName(event.meta?.sessionName);
-  if (explicitSessionName) {
-    return explicitSessionName;
-  }
-
-  if (!event.sessionId || !event.provider) {
-    return null;
-  }
-
-  return normalizeSessionName(sessionsDb.getSessionName(event.sessionId, event.provider));
 }
 
 function buildNotificationPayload(event) {
-  const normalizedEvent = normalizeNotificationSession(event);
-  const CODE_MAP = {
-    'permission.required': normalizedEvent.meta?.toolName
-      ? `Action Required: Tool "${normalizedEvent.meta.toolName}" needs approval`
-      : 'Action Required: A tool needs your approval',
-    'run.stopped': normalizedEvent.meta?.stopReason || 'Run Stopped: The run has stopped',
-    'run.failed': normalizedEvent.meta?.error ? `Run Failed: ${normalizedEvent.meta.error}` : 'Run Failed: The run encountered an error',
-    'agent.notification': normalizedEvent.meta?.message ? String(normalizedEvent.meta.message) : 'You have a new notification',
-    'push.enabled': 'Push notifications are now enabled!'
-  };
-  const providerLabel = PROVIDER_LABELS[normalizedEvent.provider] || 'Assistant';
-  const sessionName = resolveSessionName(normalizedEvent);
-  const message = CODE_MAP[normalizedEvent.code] || 'You have a new notification';
-
+  const current = canonicalSession(event);
+  const sessionName = sessionNameFor(current);
+  const provider = current.provider || 'assistant';
+  const sessionId = current.sessionId || 'none';
   return {
     title: sessionName || 'Gajae Code App',
-    body: `${providerLabel}: ${message}`,
+    body: `${providerNames[current.provider] || 'Assistant'}: ${textFor(current)}`,
     data: {
-      sessionId: normalizedEvent.sessionId || null,
-      code: normalizedEvent.code,
-      provider: normalizedEvent.provider || null,
+      sessionId: current.sessionId || null,
+      code: current.code,
+      provider: current.provider || null,
       sessionName,
-      tag: `${normalizedEvent.provider || 'assistant'}:${normalizedEvent.sessionId || 'none'}:${normalizedEvent.code}`
-    }
+      tag: `${provider}:${sessionId}:${current.code}`,
+    },
   };
 }
 
-const notificationChannels = [
-  {
-    id: 'desktop',
-    isEnabled: (preferences) => Boolean(preferences?.channels?.desktop),
-    send: ({ userId, payload }) => sendDesktopNotificationToClients(userId, payload)
+function eventIsAllowed(preferences, event) {
+  const preference = eventPreferences.get(event.kind);
+  return preference === undefined || Boolean(preferences?.events?.[preference]);
+}
+
+function wasDelivered(event) {
+  const now = Date.now();
+  for (const [key, recordedAt] of deliveredRecently) {
+    if (now - recordedAt > DEDUPE_WINDOW_MS) deliveredRecently.delete(key);
   }
-];
+  const key = event.dedupeKey || `${event.provider}:${event.kind || 'info'}:${event.code || 'generic'}:${event.sessionId || 'none'}`;
+  if (deliveredRecently.has(key)) return true;
+  deliveredRecently.set(key, now);
+  return false;
+}
+
+function reportDesktopFailure(error) {
+  console.error('Notification channel "desktop" send error:', error);
+}
 
 function notifyUserIfEnabled({ userId, event }) {
-  if (!userId || !event) {
-    return;
-  }
+  if (!userId || !event) return;
 
-  const normalizedEvent = normalizeNotificationSession(event);
+  const current = canonicalSession(event);
   const preferences = notificationPreferencesDb.getPreferences(userId);
-  if (!isNotificationEventEnabled(preferences, normalizedEvent)) {
-    return;
-  }
-  if (isDuplicate(normalizedEvent)) {
-    return;
-  }
+  if (!eventIsAllowed(preferences, current) || wasDelivered(current)) return;
+  if (!preferences?.channels?.desktop) return;
 
-  const payload = buildNotificationPayload(normalizedEvent);
-  for (const channel of notificationChannels) {
-    if (!channel.isEnabled(preferences)) {
-      continue;
-    }
-    Promise.resolve(channel.send({ userId, event: normalizedEvent, payload })).catch((err) => {
-      console.error(`Notification channel "${channel.id}" send error:`, err);
-    });
-  }
+  const payload = buildNotificationPayload(current);
+  Promise.resolve(sendDesktopNotification(userId, payload)).catch(reportDesktopFailure);
+}
+
+function errorText(error) {
+  if (typeof error === 'string') return error;
+  if (error && typeof error.message === 'string') return error.message;
+  return error == null ? 'Unknown error' : String(error);
 }
 
 function notifyRunStopped({ userId, provider, sessionId = null, stopReason = 'completed', sessionName = null }) {
   notifyUserIfEnabled({
     userId,
     event: createNotificationEvent({
-      provider,
-      sessionId,
-      kind: 'stop',
-      code: 'run.stopped',
-      meta: { stopReason, sessionName },
-      severity: 'info',
-      dedupeKey: `${provider}:run:stop:${sessionId || 'none'}:${stopReason}`
-    })
+      provider, sessionId, kind: 'stop', code: 'run.stopped', meta: { stopReason, sessionName }, severity: 'info',
+      dedupeKey: `${provider}:run:stop:${sessionId || 'none'}:${stopReason}`,
+    }),
   });
 }
 
 function notifyRunFailed({ userId, provider, sessionId = null, error, sessionName = null }) {
-  const errorMessage = normalizeErrorMessage(error);
-
+  const message = errorText(error);
   notifyUserIfEnabled({
     userId,
     event: createNotificationEvent({
-      provider,
-      sessionId,
-      kind: 'error',
-      code: 'run.failed',
-      meta: { error: errorMessage, sessionName },
-      severity: 'error',
-      dedupeKey: `${provider}:run:error:${sessionId || 'none'}:${errorMessage}`
-    })
+      provider, sessionId, kind: 'error', code: 'run.failed', meta: { error: message, sessionName }, severity: 'error',
+      dedupeKey: `${provider}:run:error:${sessionId || 'none'}:${message}`,
+    }),
   });
 }
 
-
-export {
-  buildNotificationPayload,
-  createNotificationEvent,
-  notifyUserIfEnabled,
-  notifyRunStopped,
-notifyRunFailed
-};
+export { buildNotificationPayload, createNotificationEvent, notifyUserIfEnabled, notifyRunStopped, notifyRunFailed };

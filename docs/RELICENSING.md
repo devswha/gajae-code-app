@@ -65,10 +65,46 @@ and observable behavior, not protectable expression. Concretely:
   existing user databases.
 
 Changing any of these would change observable behavior, so no rewrite can
-remove them. When the measurement reaches its floor, the remaining flagged
-lines need a per-file determination that they are functional overlap - the
-kind of review the conversion step already requires - rather than further
-rewriting.
+remove them. That claim is now measured rather than asserted:
+`node scripts/classify-residual-overlap.mjs` reads every line this tree still
+shares with upstream and files it by the construct it belongs to, so the
+conversion review starts from an itemized list instead of a percentage.
+
+```
+Lines still shared with upstream: 3,455 across 199 files      2026-09-01
+
+  1980  57.3%  declaration   type, prop, parameter and return-shape names
+                             callers depend on
+   600  17.4%  import        imports of this repository's own modules
+   461  13.3%  markup        JSX and class strings pinned by the design and by
+                             tests that assert on rendered HTML
+   340   9.8%  literal       route paths, error codes, i18n keys, message kinds
+    64   1.9%  sql/ddl       schema pinned by existing user databases
+    10   0.3%  other         everything a human still has to read
+```
+
+The whole `other` bucket is ten lines, and they are what is left over when a
+classifier stops guessing: `}: MainContentProps) {`, `useEffect(() => {`,
+`export {};`, `declare global {`, `#!/usr/bin/env node`, `export default {`,
+and `export default PermissionContext;`.
+
+The declaration bucket is the largest and the most tempting to attack, because
+those names are pinned by *our own* callers - a repository-wide rename would
+move the number. It would also be churn for its own sake: identifiers are not
+protected expression, which is precisely why they are in this list rather than
+in the rewrite queue.
+
+What remains before the licence can change is therefore a determination, not
+more rewriting:
+
+1. counsel confirms the itemized residue above is functional overlap;
+2. `NOTICE` and `CLA.md` are reconciled - they currently name different parties
+   as the project owner, which is the one paperwork defect that would matter
+   when the grant changes;
+3. the flip lands as its own commit at a release boundary: `LICENSE`,
+   `package.json`, `Cargo.toml`, the README badge, with earlier tags left
+   AGPL-3.0-or-later, because relicensing is prospective and the public history
+   keeps the terms it shipped under.
 
 ## What "removing" it actually requires
 

@@ -9,506 +9,229 @@ import { sessionConversationsSearchService } from '@/modules/providers/services/
 import { exportSessionTranscript } from '@/modules/providers/services/session-export.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 import { getHomeDir, getHomeDirSuggestions } from '@/modules/providers/services/home-dirs.service.js';
-import type {
-  LLMProvider,
-  ProviderChangeActiveModelInput,
-} from '@/shared/types.js';
+import type { LLMProvider, ProviderChangeActiveModelInput } from '@/shared/types.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 
 const router = express.Router();
+const SESSION_ID = /^[a-zA-Z0-9._-]{1,120}$/;
 
-const readPathParam = (value: unknown, name: string): string => {
-  if (typeof value === 'string') {
-    return value;
-  }
-
-  if (Array.isArray(value) && typeof value[0] === 'string') {
-    return value[0];
-  }
-
-  throw new AppError(`${name} path parameter is invalid.`, {
-    code: 'INVALID_PATH_PARAMETER',
-    statusCode: 400,
-  });
+const invalid = (message: string, code: string): never => {
+  throw new AppError(message, { code, statusCode: 400 });
 };
 
-const normalizeProviderParam = (value: unknown): string =>
-  readPathParam(value, 'provider').trim().toLowerCase();
-
-const SESSION_ID_PATTERN = /^[a-zA-Z0-9._-]{1,120}$/;
-
-const parseSessionId = (value: unknown): string => {
-  const sessionId = readPathParam(value, 'sessionId').trim();
-  if (!SESSION_ID_PATTERN.test(sessionId)) {
-    throw new AppError('Invalid sessionId.', {
-      code: 'INVALID_SESSION_ID',
-      statusCode: 400,
-    });
-  }
-
-  return sessionId;
+const firstPathValue = (raw: unknown, label: string): string => {
+  if (typeof raw === 'string') return raw;
+  if (Array.isArray(raw) && typeof raw[0] === 'string') return raw[0];
+  return invalid(`${label} path parameter is invalid.`, 'INVALID_PATH_PARAMETER');
 };
 
-const readOptionalQueryString = (value: unknown): string | undefined => {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : undefined;
+const providerFrom = (raw: unknown): LLMProvider => {
+  const provider = firstPathValue(raw, 'provider').trim().toLowerCase();
+  return provider === 'gjc'
+    ? provider
+    : invalid(`Unsupported provider "${provider}".`, 'UNSUPPORTED_PROVIDER');
 };
 
-const parseOptionalBooleanQuery = (value: unknown, name: string): boolean | undefined => {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  const normalized = readOptionalQueryString(value);
-  if (!normalized) {
-    return undefined;
-  }
-
-  if (normalized === 'true') {
-    return true;
-  }
-  if (normalized === 'false') {
-    return false;
-  }
-
-  throw new AppError(`${name} must be "true" or "false".`, {
-    code: 'INVALID_QUERY_PARAMETER',
-    statusCode: 400,
-  });
+const sessionFrom = (raw: unknown): string => {
+  const sessionId = firstPathValue(raw, 'sessionId').trim();
+  return SESSION_ID.test(sessionId) ? sessionId : invalid('Invalid sessionId.', 'INVALID_SESSION_ID');
 };
 
-const parseProvider = (value: unknown): LLMProvider => {
-  const normalized = normalizeProviderParam(value);
-  if (normalized === 'gjc') {
-    return normalized;
-  }
-
-  throw new AppError(`Unsupported provider "${normalized}".`, {
-    code: 'UNSUPPORTED_PROVIDER',
-    statusCode: 400,
-  });
+const queryText = (raw: unknown): string | undefined => {
+  if (typeof raw !== 'string') return undefined;
+  const text = raw.trim();
+  return text || undefined;
 };
 
-const parseSessionRenameSummary = (payload: unknown): string => {
-  if (!payload || typeof payload !== 'object') {
-    throw new AppError('Request body must be an object.', {
-      code: 'INVALID_REQUEST_BODY',
-      statusCode: 400,
-    });
-  }
+const queryFlag = (raw: unknown, name: string): boolean | undefined => {
+  if (raw === undefined) return undefined;
+  const text = queryText(raw);
+  if (!text) return undefined;
+  if (text === 'true') return true;
+  if (text === 'false') return false;
+  return invalid(`${name} must be "true" or "false".`, 'INVALID_QUERY_PARAMETER');
+};
 
-  const body = payload as Record<string, unknown>;
+const objectBody = (raw: unknown): Record<string, unknown> => (
+  raw && typeof raw === 'object'
+    ? raw as Record<string, unknown>
+    : invalid('Request body must be an object.', 'INVALID_REQUEST_BODY')
+);
+
+const renamedSummary = (raw: unknown): string => {
+  const body = objectBody(raw);
   const summary = typeof body.summary === 'string' ? body.summary.trim() : '';
-  if (!summary) {
-    throw new AppError('Summary is required.', {
-      code: 'INVALID_SESSION_SUMMARY',
-      statusCode: 400,
-    });
-  }
-
-  if (summary.length > 500) {
-    throw new AppError('Summary must not exceed 500 characters.', {
-      code: 'INVALID_SESSION_SUMMARY',
-      statusCode: 400,
-    });
-  }
-
+  if (!summary) return invalid('Summary is required.', 'INVALID_SESSION_SUMMARY');
+  if (summary.length > 500) return invalid('Summary must not exceed 500 characters.', 'INVALID_SESSION_SUMMARY');
   return summary;
 };
 
-const parseSessionSearchQuery = (value: unknown): string => {
-  const query = readOptionalQueryString(value) ?? '';
-  if (query.length < 2) {
-    throw new AppError('Query must be at least 2 characters', {
-      code: 'INVALID_SEARCH_QUERY',
-      statusCode: 400,
-    });
-  }
-
-  return query;
+const chosenModel = (raw: unknown): ProviderChangeActiveModelInput => {
+  const model = queryText(objectBody(raw).model);
+  if (!model) return invalid('model is required.', 'MODEL_REQUIRED');
+  return { sessionId: '', model };
 };
 
-const parseSessionSearchLimit = (value: unknown): number => {
-  const raw = readOptionalQueryString(value);
-  if (!raw) {
-    return 50;
-  }
-
-  const parsed = Number.parseInt(raw, 10);
-  if (Number.isNaN(parsed)) {
-    throw new AppError('limit must be a valid integer.', {
-      code: 'INVALID_QUERY_PARAMETER',
-      statusCode: 400,
-    });
-  }
-
-  return Math.max(1, Math.min(parsed, 100));
+const searchQuery = (raw: unknown): string => {
+  const query = queryText(raw) ?? '';
+  return query.length >= 2 ? query : invalid('Query must be at least 2 characters', 'INVALID_SEARCH_QUERY');
 };
 
-const parseChangeActiveModelPayload = (payload: unknown): ProviderChangeActiveModelInput => {
-  if (!payload || typeof payload !== 'object') {
-    throw new AppError('Request body must be an object.', {
-      code: 'INVALID_REQUEST_BODY',
-      statusCode: 400,
-    });
-  }
-
-  const body = payload as Record<string, unknown>;
-  const model = readOptionalQueryString(body.model);
-  if (!model) {
-    throw new AppError('model is required.', {
-      code: 'MODEL_REQUIRED',
-      statusCode: 400,
-    });
-  }
-
-  return {
-    sessionId: '',
-    model,
-  };
+const searchLimit = (raw: unknown): number => {
+  const text = queryText(raw);
+  if (!text) return 50;
+  const value = Number.parseInt(text, 10);
+  if (Number.isNaN(value)) return invalid('limit must be a valid integer.', 'INVALID_QUERY_PARAMETER');
+  return Math.max(1, Math.min(value, 100));
 };
 
-router.get(
-  '/:provider/auth/status',
-  asyncHandler(async (req: Request, res: Response) => {
-    const provider = parseProvider(req.params.provider);
-    const status = await providerAuthService.getProviderAuthStatus(provider);
-    res.json(createApiSuccessResponse(status));
-  }),
-);
+const nonNegativeQueryNumber = (raw: unknown, fallback: number | null): number | null => {
+  const text = queryText(raw);
+  if (text === undefined) return fallback;
+  const value = Number.parseInt(text, 10);
+  if (Number.isNaN(value) || value < 0) return invalid('limit must be a non-negative integer.', 'INVALID_QUERY_PARAMETER');
+  return value;
+};
 
-router.get(
-  '/:provider/models',
-  asyncHandler(async (req: Request, res: Response) => {
-    const provider = parseProvider(req.params.provider);
-    const bypassCache = parseOptionalBooleanQuery(req.query.bypassCache, 'bypassCache') ?? false;
-    const result = await providerModelsService.getProviderModels(provider, { bypassCache });
-    res.json(createApiSuccessResponse({ provider, models: result.models, cache: result.cache }));
-  }),
-);
+router.get('/:provider/auth/status', asyncHandler(async (req: Request, res: Response) => {
+  res.json(createApiSuccessResponse(await providerAuthService.getProviderAuthStatus(providerFrom(req.params.provider))));
+}));
 
-router.get(
-  '/:provider/skills',
-  asyncHandler(async (req: Request, res: Response) => {
-    const provider = parseProvider(req.params.provider);
-    const projectId = readOptionalQueryString(req.query.projectId);
-    const skills = await providerSkillsService.listProviderSkills(provider, projectId);
-    res.json(createApiSuccessResponse({ provider, skills }));
-  }),
-);
+router.get('/:provider/models', asyncHandler(async (req: Request, res: Response) => {
+  const provider = providerFrom(req.params.provider);
+  const result = await providerModelsService.getProviderModels(provider, { bypassCache: queryFlag(req.query.bypassCache, 'bypassCache') ?? false });
+  res.json(createApiSuccessResponse({ provider, models: result.models, cache: result.cache }));
+}));
 
-router.get(
-  '/:provider/commands',
-  asyncHandler(async (req: Request, res: Response) => {
-    parseProvider(req.params.provider);
-    const projectId = readOptionalQueryString(req.query.projectId);
-    const commands = await providerCommandsService.listProviderCommands(projectId);
-    res.json(createApiSuccessResponse({ provider: 'gjc', commands }));
-  }),
-);
+router.get('/:provider/skills', asyncHandler(async (req: Request, res: Response) => {
+  const provider = providerFrom(req.params.provider);
+  res.json(createApiSuccessResponse({ provider, skills: await providerSkillsService.listProviderSkills(provider, queryText(req.query.projectId)) }));
+}));
 
-/**
- * Reads the model this session was pinned to.
- *
- * The POST below records the choice and `chat.send` prefers it over the
- * client's global default, but without this read the UI had no way to learn it:
- * reopening a session showed whichever model the picker happened to hold, which
- * is not the model the session would actually run.
- */
-router.get(
-  '/:provider/sessions/:sessionId/active-model',
-  asyncHandler(async (req: Request, res: Response) => {
-    const provider = parseProvider(req.params.provider);
-    const sessionId = parseSessionId(req.params.sessionId);
-    const result = await providerModelsService.getChangedActiveModel(provider, sessionId);
-    res.json(createApiSuccessResponse(result));
-  }),
-);
+router.get('/:provider/commands', asyncHandler(async (req: Request, res: Response) => {
+  providerFrom(req.params.provider);
+  res.json(createApiSuccessResponse({ provider: 'gjc', commands: await providerCommandsService.listProviderCommands(queryText(req.query.projectId)) }));
+}));
 
-router.post(
-  '/:provider/sessions/:sessionId/active-model',
-  asyncHandler(async (req: Request, res: Response) => {
-    const provider = parseProvider(req.params.provider);
-    const sessionId = parseSessionId(req.params.sessionId);
-    const payload = parseChangeActiveModelPayload(req.body);
-    const result = await providerModelsService.changeActiveModel(provider, {
-      ...payload,
-      sessionId,
-    });
-    res.json(createApiSuccessResponse(result));
-  }),
-);
+router.get('/:provider/sessions/:sessionId/active-model', asyncHandler(async (req: Request, res: Response) => {
+  res.json(createApiSuccessResponse(await providerModelsService.getChangedActiveModel(providerFrom(req.params.provider), sessionFrom(req.params.sessionId))));
+}));
 
-router.get(
-  '/capabilities',
-  asyncHandler(async (_req: Request, res: Response) => {
-    res.json(createApiSuccessResponse({
-      providers: providerCapabilitiesService.listAllProviderCapabilities(),
-    }));
-  }),
-);
+router.post('/:provider/sessions/:sessionId/active-model', asyncHandler(async (req: Request, res: Response) => {
+  const change = chosenModel(req.body);
+  res.json(createApiSuccessResponse(await providerModelsService.changeActiveModel(providerFrom(req.params.provider), { ...change, sessionId: sessionFrom(req.params.sessionId) })));
+}));
 
-router.get(
-  '/:provider/capabilities',
-  asyncHandler(async (req: Request, res: Response) => {
-    const provider = parseProvider(req.params.provider);
-    res.json(createApiSuccessResponse(
-      providerCapabilitiesService.getProviderCapabilities(provider),
-    ));
-  }),
-);
+router.get('/capabilities', asyncHandler(async (_req: Request, res: Response) => {
+  res.json(createApiSuccessResponse({ providers: providerCapabilitiesService.listAllProviderCapabilities() }));
+}));
 
-// ----------------- Session routes -----------------
-/**
- * Session gateway entry point: allocates the stable app-facing session id for
- * a brand-new chat. The frontend must call this before the first `chat.send`
- * so the session id in the URL, the store, and the websocket all agree from
- * the very first message — there is no client-visible session-id handoff.
- */
-router.post(
-  '/sessions',
-  asyncHandler(async (req: Request, res: Response) => {
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const provider = parseProvider(body.provider);
-    const projectPath = typeof body.projectPath === 'string' ? body.projectPath : '';
-    const result = sessionsService.createAppSession(provider, projectPath);
-    res.status(201).json(createApiSuccessResponse(result));
-  }),
-);
+router.get('/:provider/capabilities', asyncHandler(async (req: Request, res: Response) => {
+  res.json(createApiSuccessResponse(providerCapabilitiesService.getProviderCapabilities(providerFrom(req.params.provider))));
+}));
 
-router.get(
-  '/sessions/running',
-  asyncHandler(async (_req: Request, res: Response) => {
-    const sessions = sessionsService.listRunningSessions();
-    res.json(createApiSuccessResponse({ sessions }));
-  }),
-);
+router.post('/sessions', asyncHandler(async (req: Request, res: Response) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const projectPath = typeof body.projectPath === 'string' ? body.projectPath : '';
+  res.status(201).json(createApiSuccessResponse(sessionsService.createAppSession(providerFrom(body.provider), projectPath)));
+}));
 
-router.get(
-  '/sessions/archived',
-  asyncHandler(async (_req: Request, res: Response) => {
-    const sessions = sessionsService.listArchivedSessions();
-    res.json(createApiSuccessResponse({ sessions }));
-  }),
-);
+router.get('/sessions/running', asyncHandler(async (_req: Request, res: Response) => {
+  res.json(createApiSuccessResponse({ sessions: sessionsService.listRunningSessions() }));
+}));
 
-/**
- * Bulk-archives sessions idle past a retention window.
- *
- * POST rather than DELETE: nothing is removed, and the same call previews
- * itself through `dryRun` so the UI can state the count before committing.
- *
- * Sessions with a turn in flight are excluded here rather than inside the
- * service, because "running" is the worker supervisor's live view and not a
- * property of the stored row.
- */
-router.post(
-  '/sessions/archive-idle',
-  asyncHandler(async (req: Request, res: Response) => {
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const olderThanDays = typeof body.olderThanDays === 'number' ? body.olderThanDays : Number.NaN;
-    const dryRun = body.dryRun === true;
-    const running = sessionsService.listRunningSessions()
-      .map((session) => session.sessionId)
-      .filter((sessionId): sessionId is string => typeof sessionId === 'string' && sessionId.length > 0);
+router.get('/sessions/archived', asyncHandler(async (_req: Request, res: Response) => {
+  res.json(createApiSuccessResponse({ sessions: sessionsService.listArchivedSessions() }));
+}));
 
-    const result = sessionsService.archiveSessionsIdleFor(olderThanDays, {
-      dryRun,
-      excludeSessionIds: running,
-    });
-    res.json(createApiSuccessResponse(result));
-  }),
-);
+router.post('/sessions/archive-idle', asyncHandler(async (req: Request, res: Response) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const activeSessionIds = sessionsService.listRunningSessions()
+    .map((session) => session.sessionId)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const olderThanDays = typeof body.olderThanDays === 'number' ? body.olderThanDays : Number.NaN;
+  const result = sessionsService.archiveSessionsIdleFor(olderThanDays, { dryRun: body.dryRun === true, excludeSessionIds: activeSessionIds });
+  res.json(createApiSuccessResponse(result));
+}));
 
+router.get('/fs/dir-suggestions', asyncHandler(async (req: Request, res: Response) => {
+  const prefix = typeof req.query.prefix === 'string' ? req.query.prefix : '';
+  res.json(createApiSuccessResponse({ home: getHomeDir(), suggestions: await getHomeDirSuggestions(prefix) }));
+}));
 
+router.delete('/sessions/:sessionId', asyncHandler(async (req: Request, res: Response) => {
+  const force = queryFlag(req.query.force, 'force') ?? false;
+  const result = await sessionsService.deleteOrArchiveSessionById(sessionFrom(req.params.sessionId), {
+    force,
+    deletedFromDisk: queryFlag(req.query.deletedFromDisk, 'deletedFromDisk') ?? force,
+  });
+  res.json(createApiSuccessResponse(result));
+}));
 
+router.post('/sessions/:sessionId/restore', asyncHandler(async (req: Request, res: Response) => {
+  res.json(createApiSuccessResponse(sessionsService.restoreSessionById(sessionFrom(req.params.sessionId))));
+}));
 
-router.get(
-  '/fs/dir-suggestions',
-  asyncHandler(async (req: Request, res: Response) => {
-    // Home-relative directory autocomplete (spawn form cwd + files panel root).
-    // Read-only readdir under $HOME, traversal-guarded in the service.
-    const prefix = typeof req.query.prefix === 'string' ? req.query.prefix : '';
-    const suggestions = await getHomeDirSuggestions(prefix);
-    res.json(createApiSuccessResponse({ home: getHomeDir(), suggestions }));
-  }),
-);
+router.post('/sessions/:sessionId/toggle-star', asyncHandler(async (req: Request, res: Response) => {
+  res.json(createApiSuccessResponse(sessionsService.toggleSessionStarById(sessionFrom(req.params.sessionId))));
+}));
 
+router.put('/sessions/:sessionId', asyncHandler(async (req: Request, res: Response) => {
+  res.json(createApiSuccessResponse(sessionsService.renameSessionById(sessionFrom(req.params.sessionId), renamedSummary(req.body))));
+}));
 
-router.delete(
-  '/sessions/:sessionId',
-  asyncHandler(async (req: Request, res: Response) => {
-    const sessionId = parseSessionId(req.params.sessionId);
-    const force = parseOptionalBooleanQuery(req.query.force, 'force') ?? false;
-    const deletedFromDisk = parseOptionalBooleanQuery(req.query.deletedFromDisk, 'deletedFromDisk') ?? force;
-    const result = await sessionsService.deleteOrArchiveSessionById(sessionId, {
-      force,
-      deletedFromDisk,
-    });
-    res.json(createApiSuccessResponse(result));
-  }),
-);
+router.get('/sessions/:sessionId/export', asyncHandler(async (req: Request, res: Response) => {
+  const transcript = await exportSessionTranscript(sessionFrom(req.params.sessionId));
+  res.setHeader('Content-Type', transcript.contentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${transcript.asciiFilename}"; filename*=UTF-8''${encodeURIComponent(transcript.filename)}`);
+  res.send(transcript.body);
+}));
 
-router.post(
-  '/sessions/:sessionId/restore',
-  asyncHandler(async (req: Request, res: Response) => {
-    const sessionId = parseSessionId(req.params.sessionId);
-    const result = sessionsService.restoreSessionById(sessionId);
-    res.json(createApiSuccessResponse(result));
-  }),
-);
+router.get('/sessions/:sessionId/messages', asyncHandler(async (req: Request, res: Response) => {
+  const limit = nonNegativeQueryNumber(req.query.limit, null);
+  const offset = nonNegativeQueryNumber(req.query.offset, 0) as number;
+  const result = await sessionsService.fetchHistory(sessionFrom(req.params.sessionId), { limit, offset, includeImages: queryFlag(req.query.includeImages, 'includeImages') });
+  res.json(createApiSuccessResponse(result));
+}));
 
-router.post(
-  '/sessions/:sessionId/toggle-star',
-  asyncHandler(async (req: Request, res: Response) => {
-    const sessionId = parseSessionId(req.params.sessionId);
-    const result = sessionsService.toggleSessionStarById(sessionId);
-    res.json(createApiSuccessResponse(result));
-  }),
-);
-
-router.put(
-  '/sessions/:sessionId',
-  asyncHandler(async (req: Request, res: Response) => {
-    const sessionId = parseSessionId(req.params.sessionId);
-    const summary = parseSessionRenameSummary(req.body);
-    const result = sessionsService.renameSessionById(sessionId, summary);
-    res.json(createApiSuccessResponse(result));
-  }),
-);
-
-/*
- * Downloads one session as Markdown.
- *
- * Not wrapped in the standard success envelope: the response body is the file
- * itself, so the browser can save it directly.
- */
-router.get(
-  '/sessions/:sessionId/export',
-  asyncHandler(async (req: Request, res: Response) => {
-    const sessionId = parseSessionId(req.params.sessionId);
-    const transcript = await exportSessionTranscript(sessionId);
-
-    res.setHeader('Content-Type', transcript.contentType);
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="${transcript.asciiFilename}"; filename*=UTF-8''${encodeURIComponent(transcript.filename)}`,
-    );
-    res.send(transcript.body);
-  }),
-);
-
-router.get(
-  '/sessions/:sessionId/messages',
-  asyncHandler(async (req: Request, res: Response) => {
-    const sessionId = parseSessionId(req.params.sessionId);
-    const limitRaw = readOptionalQueryString(req.query.limit);
-    const offsetRaw = readOptionalQueryString(req.query.offset);
-    const includeImages = parseOptionalBooleanQuery(req.query.includeImages, 'includeImages');
-
-    let limit: number | null = null;
-    if (limitRaw !== undefined) {
-      const parsedLimit = Number.parseInt(limitRaw, 10);
-      if (Number.isNaN(parsedLimit) || parsedLimit < 0) {
-        throw new AppError('limit must be a non-negative integer.', {
-          code: 'INVALID_QUERY_PARAMETER',
-          statusCode: 400,
-        });
-      }
-      limit = parsedLimit;
-    }
-
-    let offset = 0;
-    if (offsetRaw !== undefined) {
-      const parsedOffset = Number.parseInt(offsetRaw, 10);
-      if (Number.isNaN(parsedOffset) || parsedOffset < 0) {
-        throw new AppError('offset must be a non-negative integer.', {
-          code: 'INVALID_QUERY_PARAMETER',
-          statusCode: 400,
-        });
-      }
-      offset = parsedOffset;
-    }
-
-    const result = await sessionsService.fetchHistory(sessionId, {
-      limit,
-      offset,
-      includeImages,
-    });
-    res.json(createApiSuccessResponse(result));
-  }),
-);
-
-router.get(
-  '/sessions/:sessionId/tool-result',
-  asyncHandler(async (req: Request, res: Response) => {
-    const sessionId = parseSessionId(req.params.sessionId);
-    const toolIdRaw = readOptionalQueryString(req.query.toolId);
-    const toolId = toolIdRaw?.trim();
-    if (!toolId) {
-      throw new AppError('toolId is required.', {
-        code: 'INVALID_QUERY_PARAMETER',
-        statusCode: 400,
-      });
-    }
-    const result = await sessionsService.fetchToolResult(sessionId, toolId);
-    res.json(createApiSuccessResponse(result));
-  }),
-);
+router.get('/sessions/:sessionId/tool-result', asyncHandler(async (req: Request, res: Response) => {
+  const toolIdParam = queryText(req.query.toolId);
+  const toolId = typeof toolIdParam === 'string' ? toolIdParam.trim() : '';
+  if (!toolId) invalid('toolId is required.', 'INVALID_QUERY_PARAMETER');
+  res.json(createApiSuccessResponse(await sessionsService.fetchToolResult(sessionFrom(req.params.sessionId), toolId)));
+}));
 
 router.get('/search/sessions', asyncHandler(async (req: Request, res: Response) => {
-  const query = parseSessionSearchQuery(req.query.q);
-  const limit = parseSessionSearchLimit(req.query.limit);
-
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
   });
-
-  let closed = false;
-  const abortController = new AbortController();
-  req.on('close', () => {
-    closed = true;
-    abortController.abort();
-  });
+  let disconnected = false;
+  const cancellation = new AbortController();
+  req.on('close', () => { disconnected = true; cancellation.abort(); });
 
   try {
     await sessionConversationsSearchService.search({
-      query,
-      limit,
-      signal: abortController.signal,
+      query: searchQuery(req.query.q),
+      limit: searchLimit(req.query.limit),
+      signal: cancellation.signal,
       onProgress: ({ projectResult, totalMatches, scannedProjects, totalProjects }) => {
-        if (closed) {
-          return;
-        }
-
-        if (projectResult) {
-          res.write(`event: result\ndata: ${JSON.stringify({ projectResult, totalMatches, scannedProjects, totalProjects })}\n\n`);
-          return;
-        }
-
-        res.write(`event: progress\ndata: ${JSON.stringify({ totalMatches, scannedProjects, totalProjects })}\n\n`);
+        if (disconnected) return;
+        const event = projectResult ? 'result' : 'progress';
+        const data = projectResult
+          ? { projectResult, totalMatches, scannedProjects, totalProjects }
+          : { totalMatches, scannedProjects, totalProjects };
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       },
     });
-
-    if (!closed) {
-      res.write('event: done\ndata: {}\n\n');
-    }
+    if (!disconnected) res.write('event: done\ndata: {}\n\n');
   } catch (error) {
     console.error('Error searching conversations:', error);
-    if (!closed) {
-      res.write(`event: error\ndata: ${JSON.stringify({ error: 'Search failed' })}\n\n`);
-    }
+    if (!disconnected) res.write(`event: error\ndata: ${JSON.stringify({ error: 'Search failed' })}\n\n`);
   } finally {
-    if (!closed) {
-      res.end();
-    }
+    if (!disconnected) res.end();
   }
 }));
 

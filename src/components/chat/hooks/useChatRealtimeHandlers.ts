@@ -9,13 +9,8 @@ import type { PendingPermissionRequest } from '../types/types';
 import type { ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
 
-const isActionablePermissionRequest = (request: { toolName?: unknown } | null | undefined): boolean => {
-  return request?.toolName !== 'ExitPlanMode' && request?.toolName !== 'exit_plan_mode';
-};
-
-const hasActionablePermissionRequests = (requests: Array<{ toolName?: unknown }> | null | undefined): boolean => {
-  return Array.isArray(requests) && requests.some((request) => isActionablePermissionRequest(request));
-};
+const requiresDecision = (request: { toolName?: unknown } | null | undefined) => request?.toolName !== 'ExitPlanMode' && request?.toolName !== 'exit_plan_mode';
+const hasDecision = (requests: Array<{ toolName?: unknown }> | null | undefined) => Array.isArray(requests) && requests.some(requiresDecision);
 
 interface UseChatRealtimeHandlersArgs {
   subscribe: (listener: (event: ServerEvent) => void) => () => void;
@@ -23,351 +18,179 @@ interface UseChatRealtimeHandlersArgs {
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
   setTokenBudget: (budget: Record<string, unknown> | null) => void;
-  setSessionState?: (
-    update: (previous: Record<string, unknown> | null) => Record<string, unknown>,
-  ) => void;
+  setSessionState?: (update: (previous: Record<string, unknown> | null) => Record<string, unknown>) => void;
   pendingPermissionRequests: PendingPermissionRequest[];
   setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
   streamTimerRef: MutableRefObject<number | null>;
   accumulatedStreamRef: MutableRefObject<string>;
-  /**
-   * Highest live `seq` observed per session. Essential for reconnect catch-up:
-   * `chat.subscribe` sends this value as `lastSeq` so the server replays only
-   * the events this client actually missed. Written here on every sequenced
-   * frame; read wherever a `chat.subscribe` is sent (session open, reconnect).
-   */
   lastSeqRef: MutableRefObject<Map<string, number>>;
-  /** When each session's `chat.subscribe` was last sent; guards stale idle acks. */
   statusCheckSentAtRef: MutableRefObject<Map<string, number>>;
   onSessionProcessing?: MarkSessionProcessing;
   onSessionIdle?: MarkSessionIdle;
   onWebSocketReconnect?: () => void;
-  /** Whether a message handed to a running turn was actually taken by it. */
   onSteerResult?: (content: string, steered: boolean) => void;
   sessionStore: SessionStore;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Hook                                                              */
-/* ------------------------------------------------------------------ */
+const skipsStore = new Set(['complete', 'status', 'permission_request', 'permission_cancelled']);
 
-/**
- * Routes server events into the session store and processing-state map.
- *
- * This is intentionally a thin reducer over the unified `kind`-based
- * protocol: every frame is keyed by the stable app session id, so there is
- * no session-id handoff, no provider branching, and no navigation here.
- * Sidebar events (`session_upserted`, `loading_progress`) are handled by
- * `useProjectsState`, not in this hook.
- */
 export function useChatRealtimeHandlers({
-  subscribe,
-  provider,
-  selectedSession,
-  currentSessionId,
-  setTokenBudget,
-  setSessionState,
-  pendingPermissionRequests,
-  setPendingPermissionRequests,
-  streamTimerRef,
-  accumulatedStreamRef,
-  lastSeqRef,
-  statusCheckSentAtRef,
-  onSessionProcessing,
-  onSessionIdle,
-  onWebSocketReconnect,
-  onSteerResult,
-  sessionStore,
+  subscribe, provider, selectedSession, currentSessionId, setTokenBudget, setSessionState,
+  pendingPermissionRequests, setPendingPermissionRequests, streamTimerRef, accumulatedStreamRef,
+  lastSeqRef, statusCheckSentAtRef, onSessionProcessing, onSessionIdle, onWebSocketReconnect,
+  onSteerResult, sessionStore,
 }: UseChatRealtimeHandlersArgs) {
-  // Session switches can send `chat.subscribe` before this effect has a chance
-  // to rebind the websocket listener. Read the visible session id from a ref
-  // so a fast `chat_subscribed` ack is matched against the current view, not
-  // the previous render's closed-over selection.
-  const activeViewSessionIdRef = useRef<string | null>(selectedSession?.id || currentSessionId || null);
-  activeViewSessionIdRef.current = selectedSession?.id || currentSessionId || null;
+  const displayedSession = useRef<string | null>(selectedSession?.id || currentSessionId || null);
+  displayedSession.current = selectedSession?.id || currentSessionId || null;
+  const pendingRequests = useRef(pendingPermissionRequests);
 
-  // Keep the latest pending-permission snapshot available to the websocket
-  // listener so back-to-back permission events can dedupe and re-arm the
-  // notification sound before React finishes a rerender.
-  const pendingPermissionRequestsRef = useRef(pendingPermissionRequests);
+  useEffect(() => { pendingRequests.current = pendingPermissionRequests; }, [pendingPermissionRequests]);
 
   useEffect(() => {
-    pendingPermissionRequestsRef.current = pendingPermissionRequests;
-  }, [pendingPermissionRequests]);
+    const stopStreamTimer = () => {
+      if (streamTimerRef.current) {
+        clearTimeout(streamTimerRef.current);
+        streamTimerRef.current = null;
+      }
+    };
+    const resolveSession = (event: ServerEvent) => {
+      const visible = displayedSession.current;
+      const sessionId = typeof event.sessionId === 'string' && event.sessionId ? event.sessionId : visible;
+      if (sessionId && typeof event.seq === 'number') {
+        const seen = lastSeqRef.current.get(sessionId) ?? 0;
+        if (event.seq > seen) lastSeqRef.current.set(sessionId, event.seq);
+      }
+      return { sessionId, visible };
+    };
+    const commitPermissions = (next: PendingPermissionRequest[]) => {
+      pendingRequests.current = next;
+      setPendingPermissionRequests(next);
+    };
+    const flushStreaming = (sessionId: string | null | undefined, finalizeEmpty: boolean) => {
+      stopStreamTimer();
+      if (sessionId && (accumulatedStreamRef.current || finalizeEmpty)) {
+        if (accumulatedStreamRef.current) {
+          sessionStore.updateStreaming(sessionId, accumulatedStreamRef.current, provider);
+        }
+        sessionStore.finalizeStreaming(sessionId);
+      }
+      accumulatedStreamRef.current = '';
+    };
 
-  useEffect(() => {
-    const handleEvent = (msg: ServerEvent) => {
-      if (!msg.kind) {
+    const receive = (event: ServerEvent) => {
+      if (!event.kind) return;
+      const { sessionId, visible } = resolveSession(event);
+
+      if (event.kind === 'websocket_reconnected') {
+        onWebSocketReconnect?.();
         return;
       }
-
-      const activeViewSessionId = activeViewSessionIdRef.current;
-      const sid = (typeof msg.sessionId === 'string' && msg.sessionId) || activeViewSessionId;
-
-      // Record replay progress for every sequenced live event.
-      if (sid && typeof msg.seq === 'number') {
-        const known = lastSeqRef.current.get(sid) ?? 0;
-        if (msg.seq > known) {
-          lastSeqRef.current.set(sid, msg.seq);
+      if (event.kind === 'chat_subscribed') {
+        if (!sessionId) return;
+        if (event.isProcessing) {
+          onSessionProcessing?.(sessionId);
+        } else {
+          onSessionIdle?.(sessionId, { ifStartedBefore: statusCheckSentAtRef.current.get(sessionId) });
         }
+        if (sessionId === visible && Array.isArray(event.pendingPermissions)) {
+          const next = event.pendingPermissions as PendingPermissionRequest[];
+          const notify = hasDecision(next) && !hasDecision(pendingRequests.current);
+          commitPermissions(next);
+          if (notify) void playNotificationSound();
+        }
+        return;
       }
-
-      switch (msg.kind) {
-        case 'websocket_reconnected':
-          onWebSocketReconnect?.();
-          return;
-
-        case 'chat_subscribed': {
-          // Ack for chat.subscribe: authoritative processing state plus any
-          // pending tool-permission prompts for the run.
-          if (!sid) return;
-
-          if (msg.isProcessing) {
-            onSessionProcessing?.(sid);
-          } else {
-            // Idle ack: ignore it if a newer request started after the
-            // subscribe was sent — the ack describes the older state.
-            onSessionIdle?.(sid, {
-              ifStartedBefore: statusCheckSentAtRef.current.get(sid),
-            });
-          }
-
-          const isViewedSession = sid === activeViewSessionId;
-          if (isViewedSession && Array.isArray(msg.pendingPermissions)) {
-            const nextPendingPermissionRequests = msg.pendingPermissions as PendingPermissionRequest[];
-            const hadActionablePermissionRequests = hasActionablePermissionRequests(pendingPermissionRequestsRef.current);
-            const hasPendingActionablePermissionRequests = hasActionablePermissionRequests(nextPendingPermissionRequests);
-
-            pendingPermissionRequestsRef.current = nextPendingPermissionRequests;
-            setPendingPermissionRequests(nextPendingPermissionRequests);
-
-            if (hasPendingActionablePermissionRequests && !hadActionablePermissionRequests) {
-              void playNotificationSound();
-            }
-          }
-          return;
-        }
-
-        case 'chat_steered': {
-          const content = typeof msg.content === 'string' ? msg.content : '';
-          if (content) onSteerResult?.(content, msg.steered === true);
-          return;
-        }
-        case 'protocol_error': {
-          console.error('[Chat] Protocol error:', msg.code, msg.error);
-          if (sid) {
-            // Surface the failure in the conversation and stop the spinner —
-            // the run never started (or was rejected), so no `complete` follows.
-            onSessionIdle?.(sid);
-            sessionStore.appendRealtime(sid, {
-              id: `protocol_error_${Date.now()}`,
-              sessionId: sid,
-              timestamp: new Date().toISOString(),
-              provider,
-              kind: 'error',
-              content: String(msg.error || 'Request failed'),
-            } as NormalizedMessage);
-          }
-          return;
-        }
-
-        // Sidebar/global events — owned by useProjectsState.
-        case 'session_upserted':
-        case 'loading_progress':
-          return;
-
-        default:
-          break;
+      if (event.kind === 'chat_steered') {
+        const content = typeof event.content === 'string' ? event.content : '';
+        if (content) onSteerResult?.(content, event.steered === true);
+        return;
       }
+      if (event.kind === 'protocol_error') {
+        console.error('[Chat] Protocol error:', event.code, event.error);
+        if (sessionId) {
+          onSessionIdle?.(sessionId);
+          sessionStore.appendRealtime(sessionId, {
+            id: `protocol_error_${Date.now()}`, sessionId, timestamp: new Date().toISOString(), provider,
+            kind: 'error', content: String(event.error || 'Request failed'),
+          } as NormalizedMessage);
+        }
+        return;
+      }
+      if (event.kind === 'session_upserted' || event.kind === 'loading_progress') return;
 
-      /* -------------------------------------------------------------- */
-      /*  Provider NormalizedMessage handling                            */
-      /* -------------------------------------------------------------- */
-
-      // --- Streaming: buffer for performance ---
-      if (msg.kind === 'stream_delta') {
-        const text = (msg.content as string) || '';
-        if (!text) return;
-        accumulatedStreamRef.current += text;
+      if (event.kind === 'stream_delta') {
+        const content = (event.content as string) || '';
+        if (!content) return;
+        accumulatedStreamRef.current += content;
         if (!streamTimerRef.current) {
           streamTimerRef.current = window.setTimeout(() => {
             streamTimerRef.current = null;
-            if (sid) {
-              sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
-            }
+            if (sessionId) sessionStore.updateStreaming(sessionId, accumulatedStreamRef.current, provider);
           }, 100);
         }
-        // Also route to store for non-active sessions
-        if (sid && sid !== activeViewSessionId) {
-          sessionStore.appendRealtime(sid, msg as unknown as NormalizedMessage);
-        }
+        if (sessionId && sessionId !== visible) sessionStore.appendRealtime(sessionId, event as unknown as NormalizedMessage);
+        return;
+      }
+      if (event.kind === 'stream_end') {
+        flushStreaming(sessionId, true);
         return;
       }
 
-      if (msg.kind === 'stream_end') {
-        if (streamTimerRef.current) {
-          clearTimeout(streamTimerRef.current);
-          streamTimerRef.current = null;
+      if (sessionId && !skipsStore.has(event.kind)) sessionStore.appendRealtime(sessionId, event as unknown as NormalizedMessage);
+
+      if (event.kind === 'complete') {
+        flushStreaming(sessionId, false);
+        onSessionIdle?.(sessionId);
+        if (sessionId === visible) commitPermissions([]);
+        if (event.aborted) return;
+        if (event.success !== false) {
+          showCompletionTitleIndicator();
+          void playChatCompletionSound();
         }
-        if (sid) {
-          if (accumulatedStreamRef.current) {
-            sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
-          }
-          sessionStore.finalizeStreaming(sid);
-        }
-        accumulatedStreamRef.current = '';
+        if (sessionId && sessionId === visible) void sessionStore.refreshFromServer(sessionId);
         return;
       }
-
-      // --- All other messages: route to store ---
-      const shouldPersist =
-        msg.kind !== 'complete'
-        && msg.kind !== 'status'
-        && msg.kind !== 'permission_request'
-        && msg.kind !== 'permission_cancelled';
-
-      if (sid && shouldPersist) {
-        sessionStore.appendRealtime(sid, msg as unknown as NormalizedMessage);
+      if (event.kind === 'permission_request') {
+        if (!event.requestId) return;
+        if (requiresDecision({ toolName: event.toolName })) void playNotificationSound();
+        if (sessionId === visible) {
+          const previous = pendingRequests.current;
+          if (!previous.some((request) => request.requestId === event.requestId)) {
+            commitPermissions([...previous, {
+              requestId: event.requestId as string,
+              toolName: (event.toolName as string) || 'UnknownTool',
+              input: event.input,
+              context: event.context,
+              sessionId: sessionId || null,
+              receivedAt: new Date(),
+            }]);
+          }
+        }
+        if (sessionId) onSessionProcessing?.(sessionId);
+        return;
       }
-
-      // --- UI side effects for specific kinds ---
-      switch (msg.kind) {
-        case 'complete': {
-          // Flush any remaining streaming state
-          if (streamTimerRef.current) {
-            clearTimeout(streamTimerRef.current);
-            streamTimerRef.current = null;
-          }
-          if (sid && accumulatedStreamRef.current) {
-            sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
-            sessionStore.finalizeStreaming(sid);
-          }
-          accumulatedStreamRef.current = '';
-
-          // `complete` is the unified terminal event — every provider run ends
-          // with exactly one, regardless of success, failure, or abort. The
-          // indicator derives from the processing map, so deleting the entry
-          // hides it immediately and atomically.
-          onSessionIdle?.(sid);
-          if (sid === activeViewSessionId) {
-            pendingPermissionRequestsRef.current = [];
-            setPendingPermissionRequests([]);
-          }
-
-          if (msg.aborted) {
-            // Abort was requested — the complete event confirms it. No
-            // further UI action is needed beyond clearing the entry above.
-            break;
-          }
-
-          // Celebrate only successful runs (failed runs end with success: false).
-          if (msg.success !== false) {
-            showCompletionTitleIndicator();
-            void playChatCompletionSound();
-          }
-
-          // The session id is stable for the whole conversation (allocated
-          // before the first send), so the only follow-up is syncing the
-          // viewed conversation with the now-persisted transcript.
-          if (sid && sid === activeViewSessionId) {
-            void sessionStore.refreshFromServer(sid);
-          }
-
-          break;
+      if (event.kind === 'permission_cancelled') {
+        if (event.requestId && sessionId === visible) {
+          commitPermissions(pendingRequests.current.filter((request) => request.requestId !== event.requestId));
         }
-
-        // 'error' is an informational message row, not a terminal event —
-        // providers emit it for mid-run stderr output too. Run teardown is
-        // always signalled by the unified 'complete' that follows.
-
-        case 'permission_request': {
-          if (!msg.requestId) break;
-          if (isActionablePermissionRequest({ toolName: msg.toolName })) {
-            void playNotificationSound();
-          }
-
-          if (sid === activeViewSessionId) {
-            const previousPendingPermissionRequests = pendingPermissionRequestsRef.current;
-            if (!previousPendingPermissionRequests.some((request) => request.requestId === msg.requestId)) {
-              const nextPendingPermissionRequests = [...previousPendingPermissionRequests, {
-                requestId: msg.requestId as string,
-                toolName: (msg.toolName as string) || 'UnknownTool',
-                input: msg.input,
-                context: msg.context,
-                sessionId: sid || null,
-                receivedAt: new Date(),
-              }];
-
-              pendingPermissionRequestsRef.current = nextPendingPermissionRequests;
-              setPendingPermissionRequests(nextPendingPermissionRequests);
-            }
-          }
-          if (sid) {
-            onSessionProcessing?.(sid);
-          }
-          break;
+        return;
+      }
+      if (event.kind === 'status') {
+        if (event.text === 'token_budget' && event.tokenBudget) {
+          setTokenBudget(event.tokenBudget as Record<string, unknown>);
+        } else if (event.text === 'session_state' && event.sessionState) {
+          setSessionState?.((previous) => ({ ...(previous ?? {}), ...(event.sessionState as Record<string, unknown>) }));
+        } else if (typeof event.text === 'string' && sessionId) {
+          onSessionProcessing?.(sessionId, { statusText: event.text || null, canInterrupt: event.canInterrupt !== false });
         }
-
-        case 'permission_cancelled': {
-          if (msg.requestId && sid === activeViewSessionId) {
-            const nextPendingPermissionRequests = pendingPermissionRequestsRef.current.filter(
-              (request: PendingPermissionRequest) => request.requestId !== msg.requestId,
-            );
-
-            pendingPermissionRequestsRef.current = nextPendingPermissionRequests;
-            setPendingPermissionRequests(nextPendingPermissionRequests);
-          }
-          break;
-        }
-
-        case 'status': {
-          if (msg.text === 'token_budget' && msg.tokenBudget) {
-            setTokenBudget(msg.tokenBudget as Record<string, unknown>);
-          } else if (msg.text === 'session_state' && msg.sessionState) {
-            // Model, reasoning level, cwd, and the context window the token
-            // count is a fraction of. Merged rather than replaced: a turn that
-            // could only read some fields must not blank the ones on screen.
-            setSessionState?.((previous) => ({
-              ...(previous ?? {}),
-              ...(msg.sessionState as Record<string, unknown>),
-            }));
-          } else if (typeof msg.text === 'string' && sid) {
-            // An empty string drops the phase label back to the default activity
-            // wording; a provider phase (compacting, retrying) must not keep
-            // claiming it is running after that phase ends.
-            onSessionProcessing?.(sid, {
-              statusText: msg.text || null,
-              canInterrupt: msg.canInterrupt !== false,
-            });
-          }
-          break;
-        }
-
-        // text, tool_use, tool_result, thinking, interactive_prompt, task_notification
-        // → already routed to store above, no UI side effects needed
-        default:
-          break;
       }
     };
 
-    return subscribe(handleEvent);
+    return subscribe(receive);
   }, [
-    subscribe,
-    provider,
-    selectedSession,
-    currentSessionId,
-    setTokenBudget,
-    setSessionState,
-    pendingPermissionRequests,
-    setPendingPermissionRequests,
-    streamTimerRef,
-    accumulatedStreamRef,
-    lastSeqRef,
-    statusCheckSentAtRef,
-    onSessionProcessing,
-    onSessionIdle,
-    onWebSocketReconnect,
-    onSteerResult,
-    sessionStore,
+    subscribe, provider, selectedSession, currentSessionId, setTokenBudget, setSessionState,
+    pendingPermissionRequests, setPendingPermissionRequests, streamTimerRef, accumulatedStreamRef,
+    lastSeqRef, statusCheckSentAtRef, onSessionProcessing, onSessionIdle, onWebSocketReconnect,
+    onSteerResult, sessionStore,
   ]);
 }

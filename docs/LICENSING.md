@@ -4,36 +4,41 @@ What this project is licensed under, what it may not ship, and what those
 decisions cost. Read this before adding a dependency or changing anything under
 `LICENSE`, `NOTICE`, or `scripts/release/`.
 
-Relicensing this project - closing the engine, then the application - is planned
-separately in [RELICENSING.md](./RELICENSING.md), which measures what stands in
-the way and orders the work.
+The licence changed on 2026-09-01. [RELICENSING.md](./RELICENSING.md) records
+how, and the measurement scripts it names let anyone re-derive the basis for it.
 
 ## What the app is
 
-Gajae Code App is **AGPL-3.0-or-later**, and `package.json` declares the same.
+Gajae Code App is **MIT**, and `package.json`, `src-tauri/Cargo.toml` and
+`native/gajae-core/Cargo.toml` declare the same.
 
-The `LICENSE` file is the AGPL text plus **additional terms under Section 7**,
-authored by Siteboon AI B.V. as copyright holder of the historical upstream this
-project derives from. Those terms are not optional and not ours to waive:
+`LICENSE` is the MIT text with this project's copyright line; `NOTICE` carries
+the copyright, the origin attribution and the pointers to the two scripts that
+substantiate it. Both files are hash-pinned by `npm run check:identity`, so
+neither changes without a deliberate update to that script.
 
-- **7(b)** requires the upstream attribution notice, verbatim as `LICENSE` gives
-  it, in documentation, README, or Appropriate Legal Notices, reasonably
-  prominent.
-- **7(c)** requires modified versions to be clearly marked as modified and not
-  presented as the original.
+Releases up to and including 2.0.0-beta.6 shipped under AGPL-3.0-or-later with
+the upstream project's Section 7 terms. Relicensing is prospective: those
+releases and their tags keep the terms they were published under, and nothing
+about the change reaches back into them.
 
-The upstream identity itself is recorded once, in [UPSTREAM.md](./UPSTREAM.md),
-and in `LICENSE` and `NOTICE`. It is deliberately not repeated here: the identity
+MIT does not require attribution to the project this one was forked from, and
+`NOTICE` carries it anyway. Do not remove it: it costs nothing, it is true, and
+erasure is what turns a provenance question into a dispute. The About tab keeps
+its licence link and repository URL for the same reason, even though AGPL
+Section 13 no longer compels them.
+
+The upstream identity is recorded in [UPSTREAM.md](./UPSTREAM.md), `LICENSE`'s
+history and `NOTICE`. It is deliberately not repeated elsewhere: the identity
 scanner treats a legacy product reference outside those files as a defect,
 because that is how provenance quietly turns into an install instruction.
 
-`LICENSE` and `NOTICE` are hash-pinned by `npm run check:identity`, so neither
-changes without a deliberate update to that script. Provenance and the intake
-rules live in [UPSTREAM.md](./UPSTREAM.md).
+## What a change of licence did not change
 
-AGPL Section 13 also requires offering source to anyone who uses the app over a
-network. The About tab carries the license link and the repository URL for that
-reason; do not remove them.
+The dependency rules below are stricter under MIT, not looser. A permissive
+product cannot absorb a copyleft dependency any more than an AGPL one could
+absorb a proprietary blob, so `npm run check:licenses` and the distribution
+exclusions stay exactly as they are.
 
 ## What must not ship
 
@@ -58,9 +63,10 @@ tree is a rule guarding nothing.
 
 ### Why PDF was given up
 
-`mupdf` is AGPL. Bundling it forecloses any non-AGPL licensing of this product,
-and it cannot be removed at the source because `markit-ai` is a hard dependency
-of a package this project does not own.
+`mupdf` is AGPL. Bundling it would impose that licence on the whole product,
+which an MIT project cannot carry, and it cannot be removed at the source
+because `markit-ai` is a hard dependency of a package this project does not
+own.
 
 Measured before deciding: removing `mupdf` alone leaves the runtime loading
 normally and the tool suites passing unchanged, because `markit-ai` loads it
@@ -86,7 +92,8 @@ The exclusion works because the `mupdf` load is lazy. If upstream ever makes it
 a module-scope import, deleting the package would break the runtime instead of
 degrading it. The payload builder's smoke step runs the packaged server, so that
 change fails the build rather than reaching users. If it happens, the choice is
-between forking `markit-ai`, dropping the feature another way, or staying AGPL.
+between forking `markit-ai` and dropping the feature another way; carrying the
+dependency is not an option a permissive product has.
 
 ## Third-party notices
 

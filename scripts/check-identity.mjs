@@ -34,8 +34,8 @@ const SKIPPED_DIRECTORIES = new Set([
 ]);
 const ARCHIVE_FILE_PATTERN = /\.(?:tar|tgz|gz|zip|bz2|xz|deb|appimage)$/i;
 const PROTECTED_FILE_HASHES = new Map([
-  ['LICENSE', '6d909143fd48a74595f4381a9118aa07b13690a6e3d0b85427c81fda67a3d7c4'],
-  ['NOTICE', '9f2b4a42d603737f0b7f2c9e21ee426cbb6fb88ce0e9d1c4b9c950b9d5499111'],
+  ['LICENSE', '58328d2c08c0a1ee02081e41c2edf9217bed84475de05b2d35aa7c8d66a37b96'],
+  ['NOTICE', '565d83ee84dcc05c3870696cd0f9f78a4597d6d97636f0e8c104628698208509'],
 ]);
 const LEGACY_TOKEN = ['cloud', 'cli'].join('');
 const LEGACY_COORDINATE = ['siteboon', 'claudecodeui'].join('/');

@@ -112,7 +112,7 @@ export default function AboutTab() {
           href={LICENSE_URL}
           className="text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
         >
-          Licensed under AGPL-3.0
+          Licensed under MIT
         </ExternalAnchor>
       </div>
     </div>

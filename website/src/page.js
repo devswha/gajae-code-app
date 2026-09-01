@@ -201,7 +201,7 @@ ${DOWNLOADS.macosArm64.verifyCommand}</code></pre>
           <div class="faq-list">
             ${faqItem(
               'Is it free?',
-              'Yes. Gajae Code App is open source under AGPL-3.0-or-later. It does not include a model or subscription.',
+              'Yes. Gajae Code App is open source under the MIT license. It does not include a model or subscription.',
             )}
             ${faqItem(
               'Where does it run?',

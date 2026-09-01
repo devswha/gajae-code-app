@@ -5,7 +5,7 @@ Guidance for coding agents working in this repository.
 ## What this is
 
 Gajae Code App (`gajae-app`, v2.0.0-beta.x) — a self-hosted web + desktop UI for the GJC
-coding agent. AGPL-3.0-or-later. Four runtime layers:
+coding agent. MIT. Four runtime layers:
 
 - `src/` — React 19 SPA (Vite 7, Tailwind 4, react-router, i18next).
 - `server/` — Express backend (`server/index.js` entry), SQLite via better-sqlite3,

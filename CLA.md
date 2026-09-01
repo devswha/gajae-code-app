@@ -1,6 +1,6 @@
 # Contributor License Agreement
 
-Gajae Code App is licensed under AGPL-3.0-or-later. This agreement does not
+Gajae Code App is licensed under the MIT license. This agreement does not
 change that. It settles a separate question that the license cannot answer:
 **who may decide the project's licensing later.**
 
@@ -29,8 +29,10 @@ project for inclusion in it, in any form and through any channel, including a
 pull request, patch, or issue comment containing code. It does not include
 anything you conspicuously mark as "Not a Contribution".
 
-**"Project owner"** means the copyright holder of Gajae Code App as identified in
-the repository's `NOTICE` file, and their successors and assigns.
+**"Project owner"** means Hako (devswha), the copyright holder of Gajae Code App
+as identified in the repository's `NOTICE` file, and their successors and
+assigns. The origin attribution `NOTICE` also carries names the project it was
+forked from; that attribution is not a grant of rights in this project.
 
 ### 2. Copyright license
 
@@ -40,7 +42,7 @@ display, publicly perform, sublicense, and distribute your contribution and such
 derivative works.
 
 **This grant includes the right to license your contribution under terms other
-than AGPL-3.0-or-later, including proprietary terms.** That is the point of this
+than MIT, including proprietary terms.** That is the point of this
 agreement, and it is stated plainly so nobody discovers it later. If you are not
 comfortable with your contribution being distributed under a proprietary license,
 do not sign this agreement and do not contribute.

@@ -151,7 +151,7 @@
     "mobile IDE"
   ],
   "author": "devswha and Gajae Code App contributors",
-  "license": "AGPL-3.0-or-later",
+  "license": "MIT",
   "engines": {
     "node": ">=22.22.2 <23 || >=24.15.0 <25"
   },

@@ -1,20 +1,23 @@
 # Relicensing
 
-The goal is a closed engine and a closed application. This is what stands in the
-way and in what order to remove it.
+The project moved from AGPL-3.0-or-later to MIT on 2026-09-01. This page records
+what that required, what it did not, and how to check the claim it rests on.
 
 ## Where it stands
 
-The **engine** — `native/`, `server/gjc-*`, `src-tauri/` — shares no file with
-the historical upstream. It can be closed today; nothing legal blocks it. What
-remains there is packaging, described in
-[LICENSING.md](./LICENSING.md#the-engine-boundary) and the engine repository's
-extraction plan.
+**Done.** `LICENSE` is MIT, `NOTICE` carries the copyright and the origin
+attribution, and `package.json`, `src-tauri/Cargo.toml` and
+`native/gajae-core/Cargo.toml` all declare MIT. Releases up to and including
+2.0.0-beta.6 stay AGPL-3.0-or-later: relicensing is prospective and the tags
+keep the terms they shipped under.
 
-The **application** cannot be closed while any upstream code remains in it. It is
-AGPL because it derives from the historical upstream recorded in
-[UPSTREAM.md](./UPSTREAM.md), and that is not a licence this project chose or can
-change unilaterally.
+The project started as a fork of the upstream recorded in
+[UPSTREAM.md](./UPSTREAM.md), so for as long as that project's code was in the
+tree the licence was not this project's to choose. Getting the choice back took
+two things: rewriting every file from its behavioral contract rather than
+editing it, one commit per file, and deleting the features whose value did not
+justify the rewrite - the file tree, git panel and code editor, which
+agent-first tools leave to the editor the user already has.
 
 Measured with `node scripts/measure-upstream-derivation.mjs`:
 
@@ -108,17 +111,19 @@ move the number. It would also be churn for its own sake: identifiers are not
 protected expression, which is precisely why they are in this list rather than
 in the rewrite queue.
 
-What remains before the licence can change is therefore a determination, not
-more rewriting:
+That determination was made on 2026-09-01 on the evidence above, without
+outside counsel, and it is stated here rather than implied: what the two trees
+still share is interface and file format, not expression. `NOTICE` and `CLA.md`
+now name the same party as the project owner, and the attribution to the
+upstream project is kept although MIT does not require it.
 
-1. counsel confirms the itemized residue above is functional overlap;
-2. `NOTICE` and `CLA.md` are reconciled - they currently name different parties
-   as the project owner, which is the one paperwork defect that would matter
-   when the grant changes;
-3. the flip lands as its own commit at a release boundary: `LICENSE`,
-   `package.json`, `Cargo.toml`, the README badge, with earlier tags left
-   AGPL-3.0-or-later, because relicensing is prospective and the public history
-   keeps the terms it shipped under.
+The residual risk that remains is not that the analysis is wrong but that
+someone disagrees with it. The mitigations are all in place and all free:
+attribution kept, evidence reproducible from two scripts, one commit per
+rewritten file with the contract it was written from, and earlier releases left
+on the terms they shipped under. If a complaint ever arrives, the answer is a
+line-by-line account rather than an argument, and the fallback - reverting a
+release to AGPL or rewriting a specific line - stays available.
 
 ## What "removing" it actually requires
 

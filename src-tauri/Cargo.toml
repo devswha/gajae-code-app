@@ -2,6 +2,7 @@
 name = "gajae-app-desktop"
 version = "0.2.2"
 description = "Gajae Code App desktop shell"
+license = "MIT"
 authors = ["Gajae Code App contributors"]
 edition = "2021"
 rust-version = "1.85"

@@ -1,13 +1,40 @@
-CloudCLI UI
-Copyright 2025-2026 Siteboon AI B.V. and contributors
+Gajae Code App
+Copyright (c) 2026 Hako (devswha)
 
-This software is licensed under the GNU Affero General Public License v3.0
-or later (AGPL-3.0-or-later). See the LICENSE file for the full license text,
-including additional terms under Section 7.
+Licensed under the MIT License. See LICENSE for the full text.
 
-Originally developed by Siteboon AI B.V. (https://github.com/siteboon/claudecodeui).
+Releases up to and including 2.0.0-beta.6 were published under
+AGPL-3.0-or-later. Relicensing is prospective: those releases and the tags
+that carry them keep the terms they shipped under.
 
-Contributions by Siteboon AI B.V. prior to commit 004135ef were originally
-published under GPL-3.0 and are hereby relicensed to AGPL-3.0-or-later.
-Contributions by other authors prior to that commit remain under GPL-3.0
-and are incorporated into this work as permitted by GPL-3.0 Section 13.
+ORIGIN
+
+This project began in 2026 as a fork of claudecodeui by Siteboon AI B.V.
+(https://github.com/siteboon/claudecodeui) and was distributed under
+AGPL-3.0-or-later with that project's attribution and Section 7 terms while
+any of its code remained.
+
+Every file was subsequently rewritten from its behavioral contract rather than
+edited, one commit per file, and the parts that could not be rewritten were
+deleted: the file tree, git panel and code editor were removed as features, and
+the screenshots, API documentation page, stylesheet, changelog and the user
+interface copy in ten languages were replaced with this project's own.
+
+What the two trees still share is interface rather than expression: type and
+parameter names this repository's own callers depend on, imports of its own
+modules, CSS declarations and route paths, the database schema that existing
+installations are pinned to, and file-format boilerplate. Two scripts in this
+repository measure and itemize that overlap so the claim can be checked rather
+than taken on trust:
+
+    node scripts/measure-upstream-derivation.mjs
+    node scripts/classify-residual-overlap.mjs
+
+MIT does not require the attribution above. It is kept because the project's
+history is worth stating plainly.
+
+THIRD-PARTY SOFTWARE
+
+Redistributed dependencies carry their own licenses and notices. See
+THIRD-PARTY-NOTICES.md, which is generated from the dependency tree and
+verified in CI.

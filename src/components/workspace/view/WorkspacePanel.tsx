@@ -1,10 +1,9 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useRef } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject } from 'react';
-import { Activity, FileCode2, FolderTree, Globe2, PanelRightClose, X, type LucideIcon } from 'lucide-react';
+import { Activity, Globe2, PanelRightClose, X, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { PillBar, Pill } from '../../../shared/view/ui';
-import type { CodeEditorFile } from '../../code-editor/types/types';
 import { useSessionStatus } from '../../../contexts/SessionStatusContext';
 import {
   MIN_WORKSPACE_PANEL_WIDTH,
@@ -13,15 +12,11 @@ import {
   type WorkspaceTab,
 } from '../workspacePanelState';
 
-const FilesPanel = lazy(() => import('./FilesPanel'));
 const WorkspaceStatusTab = lazy(() => import('./WorkspaceStatusTab'));
-const CodeEditor = lazy(() => import('../../code-editor/view/CodeEditor'));
 const BrowserPanel = lazy(() => import('./BrowserPanel'));
 
 const TAB_ICONS: Record<WorkspaceTab, LucideIcon> = {
   status: Activity,
-  files: FolderTree,
-  editor: FileCode2,
   browser: Globe2,
 };
 
@@ -30,7 +25,6 @@ export type WorkspacePanelProps = {
   width: number;
   expanded: boolean;
   isMobile: boolean;
-  editingFile: CodeEditorFile | null;
   projectName?: string;
   projectPath?: string;
   projectId?: string;
@@ -43,24 +37,21 @@ export type WorkspacePanelProps = {
   onResizeKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
   onToggleExpand: () => void;
   onClose: () => void;
-  onFileOpen: (filePath: string, projectId: string) => void;
-  onCloseEditor: () => void;
 };
 
 const tabId = (tab: WorkspaceTab) => `workspace-tab-${tab}`;
 const tabPanelId = (tab: WorkspaceTab) => `workspace-tabpanel-${tab}`;
 
 /**
- * The single right-hand surface: one column, one width, one close control, with
- * Files and Editor as tabs inside it. Chat keeps the rest of the row, so
- * switching tools never reflows the conversation.
+ * The single right-hand surface: one column, one width, one close control.
+ * Chat keeps the rest of the row, so switching tools never reflows the
+ * conversation.
  */
 export default function WorkspacePanel({
   tab,
   width,
   expanded,
   isMobile,
-  editingFile,
   projectName,
   projectPath,
   projectId,
@@ -73,19 +64,10 @@ export default function WorkspacePanel({
   onResizeKeyDown,
   onToggleExpand,
   onClose,
-  onFileOpen,
-  onCloseEditor,
 }: WorkspacePanelProps) {
   const { t } = useTranslation();
   const sessionStatus = useSessionStatus();
   const tabRefs = useRef<Partial<Record<WorkspaceTab, HTMLButtonElement | null>>>({});
-  const [poppedOut, setPoppedOut] = useState(false);
-
-  useEffect(() => {
-    if (!editingFile) {
-      setPoppedOut(false);
-    }
-  }, [editingFile]);
 
   const handleTabKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
     const next = workspaceTabForKey(tab, event.key);
@@ -168,27 +150,11 @@ export default function WorkspacePanel({
             active
           />
         )}
-        {tab === 'files' && <FilesPanel onFileOpen={onFileOpen} />}
         {tab === 'browser' && (
           <BrowserPanel
             sessionId={automationSessionId}
             navigationRequest={browserNavigation}
             onNavigationHandled={onBrowserNavigationHandled}
-          />
-        )}
-        {tab === 'editor' && (
-          <WorkspaceEditorTab
-            editingFile={editingFile}
-            projectPath={projectPath}
-            isMobile={isMobile}
-            expanded={expanded}
-            poppedOut={poppedOut}
-            emptyTitle={t('workspace.editorEmpty.title')}
-            emptyDescription={t('workspace.editorEmpty.description')}
-            onCloseEditor={onCloseEditor}
-            onToggleExpand={onToggleExpand}
-            onPopOut={() => setPoppedOut(true)}
-            onPopIn={() => setPoppedOut(false)}
           />
         )}
       </Suspense>
@@ -246,71 +212,5 @@ export default function WorkspacePanel({
         {body}
       </aside>
     </div>
-  );
-}
-
-type WorkspaceEditorTabProps = {
-  editingFile: CodeEditorFile | null;
-  projectPath?: string;
-  isMobile: boolean;
-  expanded: boolean;
-  poppedOut: boolean;
-  emptyTitle: string;
-  emptyDescription: string;
-  onCloseEditor: () => void;
-  onToggleExpand: () => void;
-  onPopOut: () => void;
-  onPopIn: () => void;
-};
-
-function WorkspaceEditorTab({
-  editingFile,
-  projectPath,
-  isMobile,
-  expanded,
-  poppedOut,
-  emptyTitle,
-  emptyDescription,
-  onCloseEditor,
-  onToggleExpand,
-  onPopOut,
-  onPopIn,
-}: WorkspaceEditorTabProps) {
-  if (!editingFile) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-1.5 px-6 text-center">
-        <FileCode2 className="h-6 w-6 text-muted-foreground/60" aria-hidden />
-        <p className="text-sm font-medium text-foreground">{emptyTitle}</p>
-        <p className="text-xs text-muted-foreground">{emptyDescription}</p>
-      </div>
-    );
-  }
-
-  // A phone has no room for a docked editor, and the pop-out button asks for
-  // the same modal on purpose; both take the full-screen editor.
-  if (isMobile || poppedOut) {
-    return (
-      <CodeEditor
-        file={editingFile}
-        onClose={() => {
-          onPopIn();
-          onCloseEditor();
-        }}
-        projectPath={projectPath}
-        isSidebar={false}
-      />
-    );
-  }
-
-  return (
-    <CodeEditor
-      file={editingFile}
-      onClose={onCloseEditor}
-      projectPath={projectPath}
-      isSidebar
-      isExpanded={expanded}
-      onToggleExpand={onToggleExpand}
-      onPopOut={onPopOut}
-    />
   );
 }

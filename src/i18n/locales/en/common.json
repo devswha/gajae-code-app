@@ -289,8 +289,6 @@
     "resize": "Drag to resize the workspace panel",
     "tabs": {
       "status": "Status",
-      "files": "Files",
-      "editor": "Editor",
       "browser": "Browser"
     },
     "browser": {
@@ -322,10 +320,6 @@
       "dialogDismissed": "The page opened a dialog and Gajae dismissed it: {{message}}",
       "cua": "Native apps · CUA Driver",
       "cuaMissing": "Not installed"
-    },
-    "editorEmpty": {
-      "title": "No file open",
-      "description": "Open a file from Files, or from a chat message, to edit it here."
     },
     "statusTab": {
       "session": "Session",

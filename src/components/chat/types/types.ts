@@ -1,6 +1,8 @@
 import type { MarkSessionIdle, MarkSessionProcessing, SessionActivityMap } from '../../../hooks/useSessionProtection';
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
-import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
+
+/** Old/new text a tool reported for a file edit, forwarded with file-open requests. */
+export type CodeEditorDiffInfo = { old_string?: string; new_string?: string; [key: string]: unknown };
 
 export type Provider = LLMProvider;
 export type PermissionMode = 'default' | 'acceptEdits' | 'auto' | 'bypassPermissions' | 'plan';

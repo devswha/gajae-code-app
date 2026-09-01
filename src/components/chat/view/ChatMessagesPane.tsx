@@ -2,8 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { memo, useCallback, useMemo } from 'react';
 import type { RefObject } from 'react';
 
-import type { ChatMessage } from '../types/types';
-import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
+import type { ChatMessage, CodeEditorDiffInfo  } from '../types/types';
 import type {
   Project,
   ProjectSession,

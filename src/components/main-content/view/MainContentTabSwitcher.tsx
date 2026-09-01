@@ -19,11 +19,11 @@ type BuiltInTab = {
 
 type TabDefinition = BuiltInTab;
 
-// Shell/Git/Files tabs were removed on purpose (2026-07-11, 하코 지시):
-// app-pty CLI spawning duplicated the 외부 CLI terminal lane (and tied CLIs to
-// the server lifecycle — one died on service restart), the manual Git panel
-// clashes with the agent-driven branch-flow discipline, and Files became the
-// fixed-root right-hand panel (FilesPanel) instead of a tab. Persisted
+// Shell/Git/Files tabs were removed on purpose: app-pty CLI spawning duplicated
+// the external CLI terminal lane (and tied CLIs to the server lifecycle — one
+// died on service restart), and a manual git UI clashes with the agent-driven
+// branch-flow discipline. File browsing, the git panel and the embedded editor
+// were retired with them; files now open in the user's own editor. Persisted
 // 'shell'/'git'/'files' tabs are reset to 'chat' in MainContent.
 const BASE_TABS: BuiltInTab[] = [
   { kind: 'builtin', id: 'chat', labelKey: 'tabs.chat', icon: MessageSquare },

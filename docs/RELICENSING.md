@@ -19,15 +19,12 @@ change unilaterally.
 Measured with `node scripts/measure-upstream-derivation.mjs`:
 
 ```
-Upstream-derived code: 10,355 of 82,975 lines (12.5%)      baseline 2026-09-01
+Upstream-derived code: 3,713 of 73,910 lines (5.0%)      baseline 2026-09-01
 
-  2736 lines   21 files  file tree
-  2731 lines   24 files  git panel
-  1138 lines   11 files  code editor
    813 lines   23 files  other components
    811 lines   39 files  server modules
    704 lines   27 files  chat UI
-   479 lines   15 files  settings
+   442 lines   15 files  settings
    407 lines   19 files  UI primitives
    242 lines   17 files  other client
    122 lines    6 files  other server
@@ -43,11 +40,12 @@ the 33.5% figure previously recorded here: the measurement now diffs only
 substantive lines (blank and punctuation-only lines no longer count as shared)
 and uses a symmetric denominator, on the grounds that neither blank lines nor
 file-length asymmetry are protected expression. Under the previous ruler the
-same tree measures 32.7%. Second, replacements are well under way: every area
-outside the step-1 product decision has been rewritten from behavioral
-contracts, each in its own commit carrying the contract it was written from.
-What remains is the file tree, git panel, and code editor (step 1 - a product
-decision, not an engineering one), plus files at their functional floor.
+same tree measures 32.7%. Second, the work is essentially done: every area was
+rewritten from behavioral contracts, each in its own commit carrying the
+contract it was written from, and step 1 was answered by deletion - the file
+tree, git panel and code editor are gone, along with their dependencies and
+settings. What remains is 3,713 lines spread thin across files that have
+already been rewritten once and now sit at their functional floor.
 
 ## Residual similarity that is not expression
 
@@ -103,7 +101,15 @@ clone is contaminating material: read it to measure, never to write from.
 
 ## Order of work
 
-**Deletion is the cheapest form of replacement, and it is first.**
+**Deletion is the cheapest form of replacement, and it is first.** Step 1 was
+taken on 2026-09-01: the file tree, git panel and code editor were deleted
+rather than rewritten. Agent-first products (Claude Code, Codex CLI, the IDE
+extensions) do not rebuild a file browser, a git GUI or an editor; they meet
+the user inside the tools that already do that. Deleting those three removed
+6,605 derived lines that no rewrite could have driven to zero, because their
+substantive content is rendered markup pinned by the product's own design.
+Files referenced in chat now open in the user's editor through
+`POST /api/system/open-file`.
 
 | Step | Area | Lines | Why here |
 | --- | --- | --- | --- |

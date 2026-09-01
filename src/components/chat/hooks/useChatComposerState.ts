@@ -4,13 +4,12 @@ import { useDropzone } from 'react-dropzone';
 
 import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
 import type { MarkSessionProcessing } from '../../../hooks/useSessionProtection';
-import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
+import type { CodeEditorDiffInfo, ChatMessage, PendingPermissionRequest, SessionEstablishedContext  } from '../types/types';
 import type { LLMProvider, Project, ProjectSession, ProviderModelsCacheInfo } from '../../../types/app';
 import { authenticatedFetch } from '../../../utils/api';
 import { classifyCommandInput, isAutoSendable } from '../commandDispatchPolicy';
 import { findAppUiCommand, getLocalCommandNotice, isAppUiCommand, resolveCommandAlias, runAppUiCommand, type AppUiCommand } from '../appUiCommands';
 import { gateForCommand, type CommandGate } from '../commandGatePolicy';
-import type { ChatMessage, PendingPermissionRequest, SessionEstablishedContext } from '../types/types';
 import { escapeRegExp } from '../utils/chatFormatting';
 import { clearQueuedMessages, draftInputKey, draftKeysToClear, readQueuedMessages, reorderQueue, safeLocalStorage, writeQueuedMessages, type QueuedSendOptions } from '../utils/chatStorage';
 import { decideQueueFlush } from '../utils/queueFlush';

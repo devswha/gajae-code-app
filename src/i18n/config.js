@@ -3,7 +3,6 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
 import enChat from './locales/en/chat.json';
-import enCodeEditor from './locales/en/codeEditor.json';
 import enCommon from './locales/en/common.json';
 import enSettings from './locales/en/settings.json';
 import enSidebar from './locales/en/sidebar.json';
@@ -28,7 +27,6 @@ const bundledEnglish = {
   settings: enSettings,
   sidebar: enSidebar,
   chat: enChat,
-  codeEditor: enCodeEditor,
 };
 
 const languageBackend = {
@@ -67,7 +65,7 @@ const options = {
   fallbackLng: 'en',
   load: 'currentOnly',
   debug: false,
-  ns: ['common', 'settings', 'sidebar', 'chat', 'codeEditor'],
+  ns: ['common', 'settings', 'sidebar', 'chat'],
   defaultNS: 'common',
   keySeparator: '.',
   nsSeparator: ':',

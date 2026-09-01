@@ -288,13 +288,7 @@
     "collapse": "Comprimi pannello area di lavoro",
     "resize": "Trascina per ridimensionare il pannello area di lavoro",
     "tabs": {
-      "status": "Stato",
-      "files": "File",
-      "editor": "Editor"
-    },
-    "editorEmpty": {
-      "title": "Nessun file aperto",
-      "description": "Apri un file da File o da un messaggio della chat per modificarlo qui."
+      "status": "Stato"
     },
     "statusTab": {
       "session": "Sessione",

@@ -258,13 +258,7 @@
     "collapse": "Arbeitsbereich-Panel reduzieren",
     "resize": "Ziehen, um das Arbeitsbereich-Panel zu vergrößern oder zu verkleinern",
     "tabs": {
-      "status": "Status",
-      "files": "Dateien",
-      "editor": "Editor"
-    },
-    "editorEmpty": {
-      "title": "Keine Datei geöffnet",
-      "description": "Öffne eine Datei über Dateien oder aus einer Chat-Nachricht, um sie hier zu bearbeiten."
+      "status": "Status"
     },
     "statusTab": {
       "session": "Sitzung",

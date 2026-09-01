@@ -4,25 +4,16 @@ import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import type { CodeEditorFile } from '../../code-editor/types/types';
 import { MIN_WORKSPACE_PANEL_WIDTH } from '../workspacePanelState';
 
 import WorkspacePanel, { type WorkspacePanelProps } from './WorkspacePanel';
 
-const editingFile: CodeEditorFile = {
-  name: 'server.ts',
-  path: '/work/alpha/server.ts',
-  projectId: 'project-alpha',
-  diffInfo: null,
-};
-
 function render(overrides: Partial<WorkspacePanelProps> = {}): string {
   const props: WorkspacePanelProps = {
-    tab: 'files',
+    tab: 'status',
     width: 420,
     expanded: false,
     isMobile: false,
-    editingFile: null,
     projectPath: '/work/alpha',
     automationSessionId: 'session-alpha',
     resizeHandleRef: { current: null },
@@ -31,8 +22,6 @@ function render(overrides: Partial<WorkspacePanelProps> = {}): string {
     onResizeKeyDown: () => undefined,
     onToggleExpand: () => undefined,
     onClose: () => undefined,
-    onFileOpen: () => undefined,
-    onCloseEditor: () => undefined,
     ...overrides,
   };
 
@@ -40,14 +29,12 @@ function render(overrides: Partial<WorkspacePanelProps> = {}): string {
 }
 
 test('the tab strip is a tablist whose selected tab owns the rendered panel', () => {
-  const html = render({ tab: 'editor' });
+  const html = render({ tab: 'browser' });
 
   assert.match(html, /role="tablist"/);
   assert.match(html, /id="workspace-tab-status"[^>]*role="tab"[^>]*aria-selected="false"/);
-  assert.match(html, /id="workspace-tab-files"[^>]*role="tab"[^>]*aria-selected="false"/);
-  assert.match(html, /id="workspace-tab-editor"[^>]*role="tab"[^>]*aria-selected="true"/);
-  assert.match(html, /id="workspace-tab-browser"[^>]*role="tab"[^>]*aria-selected="false"/);
-  assert.match(html, /role="tabpanel" id="workspace-tabpanel-editor" aria-labelledby="workspace-tab-editor"/);
+  assert.match(html, /id="workspace-tab-browser"[^>]*role="tab"[^>]*aria-selected="true"/);
+  assert.match(html, /role="tabpanel" id="workspace-tabpanel-browser" aria-labelledby="workspace-tab-browser"/);
 });
 
 test('the status tab owns its own panel region', () => {
@@ -57,12 +44,17 @@ test('the status tab owns its own panel region', () => {
   assert.match(html, /role="tabpanel" id="workspace-tabpanel-status" aria-labelledby="workspace-tab-status"/);
 });
 
-test('only the selected tab is reachable with Tab, the rest with arrow keys', () => {
-  const html = render({ tab: 'files' });
+test('the panel offers only the surfaces the app still owns', () => {
+  const html = render();
 
-  assert.match(html, /id="workspace-tab-files"[^>]*tabindex="0"/);
-  assert.match(html, /id="workspace-tab-status"[^>]*tabindex="-1"/);
-  assert.match(html, /id="workspace-tab-editor"[^>]*tabindex="-1"/);
+  assert.doesNotMatch(html, /workspace-tab-files/);
+  assert.doesNotMatch(html, /workspace-tab-editor/);
+});
+
+test('only the selected tab is reachable with Tab, the rest with arrow keys', () => {
+  const html = render({ tab: 'status' });
+
+  assert.match(html, /id="workspace-tab-status"[^>]*tabindex="0"/);
   assert.match(html, /id="workspace-tab-browser"[^>]*tabindex="-1"/);
 });
 
@@ -92,19 +84,6 @@ test('the mobile panel is an overlay with a dismiss backdrop and no resizing', (
   assert.match(html, /fixed inset-y-0 right-0 z-40/);
   assert.doesNotMatch(html, /role="separator"/);
   assert.doesNotMatch(html, /workspace\.expand|workspace\.collapse/);
-});
-
-test('the editor tab explains itself instead of rendering an empty frame', () => {
-  const html = render({ tab: 'editor', editingFile: null });
-
-  assert.match(html, /workspace\.editorEmpty\.title/);
-  assert.match(html, /workspace\.editorEmpty\.description/);
-});
-
-test('an open file replaces the editor empty state', () => {
-  const html = render({ tab: 'editor', editingFile });
-
-  assert.doesNotMatch(html, /workspace\.editorEmpty\.title/);
 });
 
 test('the panel keeps one close control, labelled for assistive technology', () => {

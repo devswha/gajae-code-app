@@ -1,8 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 
 import type { Project } from '../../../types/app';
-import type { SubagentChildTool } from '../types/types';
-import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
+import type { SubagentChildTool, CodeEditorDiffInfo  } from '../types/types';
 
 import { getToolConfig, getToolResultConfig, rendersCommandRow, rendersResultInline } from './configs/toolConfigs';
 import { OneLineDisplay, BashCommandDisplay, CollapsibleDisplay, ToolCallRow, ToolDiffViewer, MarkdownContent, FileListContent, TodoListContent, TaskListContent, TextContent, QuestionAnswerContent, SubagentContainer } from './components';

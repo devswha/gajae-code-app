@@ -7,7 +7,7 @@ Guidance for coding agents working in this repository.
 Gajae Code App (`gajae-app`, v2.0.0-beta.x) — a self-hosted web + desktop UI for the GJC
 coding agent. AGPL-3.0-or-later. Four runtime layers:
 
-- `src/` — React 19 SPA (Vite 7, Tailwind 4, react-router, i18next, CodeMirror).
+- `src/` — React 19 SPA (Vite 7, Tailwind 4, react-router, i18next).
 - `server/` — Express backend (`server/index.js` entry), SQLite via better-sqlite3,
   WebSocket, node-pty terminals. TypeScript + JS mixed, run through `tsx`.
 - `native/gajae-core/` — Rust core, built to `dist-native/` by `scripts/build-rust-core.mjs`.
@@ -91,12 +91,13 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   the sans stack and is also appended to the *serif* stack, because the Latin
   serif faces carry no Hangul and Korean would otherwise fall back to a system
   serif. Colors come from the semantic variables in `src/index.css`; see DESIGN.md.
-- **Editor and content**: CodeMirror 6 through `@uiw/react-codemirror`, with
-  `@codemirror/merge` for diffs and `@replit/codemirror-minimap`. Markdown is
-  react-markdown with remark-gfm/remark-math and rehype-katex (KaTeX's CSS is
-  imported in `src/main.jsx`), plus react-syntax-highlighter. **Raw HTML is not
-  rendered**: there is no `rehype-raw` in the pipeline, which is also why no
-  sanitizer is installed. Do not add one without the other.
+- **Content rendering**: markdown is react-markdown with remark-gfm/remark-math
+  and rehype-katex (KaTeX's CSS is imported in `src/main.jsx`), plus
+  react-syntax-highlighter. **Raw HTML is not rendered**: there is no
+  `rehype-raw` in the pipeline, which is also why no sanitizer is installed. Do
+  not add one without the other. There is no embedded editor: the app has no
+  file browser, git GUI or code editor, and file references open in the user's
+  own editor through `POST /api/system/open-file`.
 - **Testing**: client tests render with `renderToStaticMarkup` and assert on the
   HTML string, which cannot reach a hook, an event or an effect. Anything that
   needs one goes in a `*.dom.bun.test.tsx` file, which Bun runs with happy-dom
@@ -105,8 +106,8 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   suites must never get a `window`, or code branching on `typeof window` takes
   the browser path in a server test. Both API styles use `node:test`.
 - **Bundle**: `vite.config.js` pins `manualChunks` by hand - vendor-react,
-  vendor-codemirror, vendor-markdown, vendor-syntax, vendor-icons, vendor-i18n,
-  vendor-tools. A new heavy dependency belongs in one of those groups.
+  vendor-markdown, vendor-syntax, vendor-icons, vendor-i18n, vendor-tools. A new
+  heavy dependency belongs in one of those groups.
 - The `build` block in `package.json` is electron-builder-shaped and no electron
   tooling is installed, but it is **not** dead weight: `npm run check:identity`
   asserts its `appId`, product name, executable name, artifact name, protocols

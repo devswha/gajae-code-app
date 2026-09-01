@@ -18,7 +18,6 @@
   "appearance": {
     "title": "Apparence",
     "theme": "Thème",
-    "codeEditor": "Éditeur de code",
     "editorTheme": "Thème de l'éditeur",
     "wordWrap": "Retour à la ligne",
     "showMinimap": "Afficher la minimap",
@@ -99,29 +98,6 @@
       "description": "Ordre d'affichage des projets dans la barre latérale",
       "alphabetical": "Alphabétique",
       "recentActivity": "Activité récente"
-    },
-    "codeEditor": {
-      "title": "Éditeur de code",
-      "theme": {
-        "label": "Thème de l'éditeur",
-        "description": "Thème par défaut pour l'éditeur de code"
-      },
-      "wordWrap": {
-        "label": "Retour à la ligne",
-        "description": "Activer le retour à la ligne par défaut dans l'éditeur"
-      },
-      "showMinimap": {
-        "label": "Afficher la minimap",
-        "description": "Afficher une minimap pour une navigation plus facile en vue diff"
-      },
-      "lineNumbers": {
-        "label": "Afficher les numéros de ligne",
-        "description": "Afficher les numéros de ligne dans l'éditeur"
-      },
-      "fontSize": {
-        "label": "Taille de police",
-        "description": "Taille de police de l'éditeur en pixels"
-      }
     }
   },
   "saveStatus": {

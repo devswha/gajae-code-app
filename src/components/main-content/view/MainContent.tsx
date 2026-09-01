@@ -1,13 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import type { MainContentProps } from '../types/types';
-import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
 import { usePaletteOpsRegister } from '../../../stores/usePaletteOpsStore';
 import { SessionStatusProvider } from '../../../contexts/SessionStatusContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useFileOpenResolver } from '../../../hooks/useFileOpenResolver';
-import { useEditorFile } from '../../code-editor/hooks/useEditorFile';
 import { useWorkspacePanel } from '../../workspace/hooks/useWorkspacePanel';
+import { api } from '../../../utils/api';
 
 import MainContentHeader from './MainContentHeader';
 import MainContentStateView from './MainContentStateView';
@@ -38,14 +37,14 @@ function MainContent({
   const { showImagePreviews, showRawParameters, showThinking, sendByCtrlEnter } = useUiPreferences().preferences;
   const panel = useWorkspacePanel({ isMobile });
   const { closePanel, containerRef, expanded, handleResizeKeyDown, handleResizeStart, isOpen, resizeHandleRef, setTab, tab, toggleExpanded, togglePanel, width } = panel;
-  const { editingFile, handleCloseEditor, handleFileOpen } = useEditorFile({ selectedProject });
   const [pendingBrowserNavigation, setPendingBrowserNavigation] = useState<{ id: number; url: string } | null>(null);
   const navigationSequence = useRef(0);
 
-  const revealFile = useCallback((path: string, diff: CodeEditorDiffInfo | null = null, options: { projectId?: string } = {}) => {
-    handleFileOpen(path, diff, options);
-    setTab('editor');
-  }, [handleFileOpen, setTab]);
+  const revealFile = useCallback((path: string) => {
+    void api.system.openFile(path).catch((error) => {
+      console.error('Failed to open file in the system editor:', error);
+    });
+  }, []);
 
   const resolveFile = useFileOpenResolver(selectedProject, revealFile);
 
@@ -135,7 +134,6 @@ function MainContent({
               width={width}
               expanded={expanded}
               isMobile={isMobile}
-              editingFile={editingFile}
               projectName={selectedProject.displayName}
               projectPath={selectedProject.path}
               projectId={selectedProject.projectId}
@@ -148,8 +146,6 @@ function MainContent({
               onResizeKeyDown={handleResizeKeyDown}
               onToggleExpand={toggleExpanded}
               onClose={closePanel}
-              onFileOpen={(filePath, projectId) => revealFile(filePath, null, { projectId })}
-              onCloseEditor={handleCloseEditor}
             />
           </Suspense>
         )}

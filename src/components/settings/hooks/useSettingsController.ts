@@ -7,9 +7,7 @@ import {
   readInterfaceFontSize,
 } from '../../../utils/interfaceFontSize';
 import { setNotificationSoundEnabled } from '../../../utils/notificationSound';
-import { DEFAULT_CODE_EDITOR_SETTINGS } from '../constants/constants';
 import type {
-  CodeEditorSettingsState,
   NotificationPreferencesState,
   ProjectSortOrder,
   SettingsMainTab,
@@ -32,15 +30,6 @@ function decodeStoredValue<T>(value: string | null, fallback: T): T {
   } catch {
     return fallback;
   }
-}
-
-function initialEditorSettings(): CodeEditorSettingsState {
-  return {
-    wordWrap: localStorage.getItem('codeEditorWordWrap') === 'true',
-    showMinimap: localStorage.getItem('codeEditorShowMinimap') !== 'false',
-    lineNumbers: localStorage.getItem('codeEditorLineNumbers') !== 'false',
-    fontSize: localStorage.getItem('codeEditorFontSize') ?? DEFAULT_CODE_EDITOR_SETTINGS.fontSize,
-  };
 }
 
 function notificationDefaults(): NotificationPreferencesState {
@@ -71,7 +60,6 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   const [saveStatus, setSaveStatus] = useState<'success' | 'error' | null>(null);
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
   const [interfaceFontSize, setInterfaceFontSize] = useState(readInterfaceFontSize);
-  const [codeEditorSettings, setCodeEditorSettings] = useState<CodeEditorSettingsState>(initialEditorSettings);
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferencesState>(notificationDefaults);
   const saveTimer = useRef<number | null>(null);
   const hasJustOpened = useRef(true);
@@ -118,10 +106,6 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     }
   }, [notificationPreferences, projectSortOrder]);
 
-  const updateCodeEditorSetting = useCallback(<K extends keyof CodeEditorSettingsState>(key: K, value: CodeEditorSettingsState[K]) => {
-    setCodeEditorSettings((current) => ({ ...current, [key]: value }));
-  }, []);
-
   useEffect(() => {
     if (isOpen) {
       setActiveTab(chooseTab(initialTab));
@@ -137,15 +121,6 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     localStorage.setItem(INTERFACE_FONT_SIZE_STORAGE_KEY, interfaceFontSize);
     applyInterfaceFontSize(interfaceFontSize);
   }, [interfaceFontSize]);
-
-  useEffect(() => {
-    const settings = codeEditorSettings;
-    localStorage.setItem('codeEditorWordWrap', String(settings.wordWrap));
-    localStorage.setItem('codeEditorShowMinimap', String(settings.showMinimap));
-    localStorage.setItem('codeEditorLineNumbers', String(settings.lineNumbers));
-    localStorage.setItem('codeEditorFontSize', settings.fontSize);
-    window.dispatchEvent(new Event('codeEditorSettingsChanged'));
-  }, [codeEditorSettings]);
 
   useEffect(() => {
     if (hasJustOpened.current) {
@@ -184,8 +159,6 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     setProjectSortOrder,
     interfaceFontSize,
     setInterfaceFontSize,
-    codeEditorSettings,
-    updateCodeEditorSetting,
     notificationPreferences,
     setNotificationPreferences,
   };

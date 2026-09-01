@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useUiPreferences } from '../../../../hooks/useUiPreferences';
 import { DarkModeToggle } from '../../../../shared/view/ui';
 import LanguageSelector from '../../../../shared/view/ui/LanguageSelector';
-import type { CodeEditorSettingsState, InterfaceFontSize, ProjectSortOrder } from '../../types/types';
+import type { InterfaceFontSize, ProjectSortOrder } from '../../types/types';
 import SettingsCard from '../SettingsCard';
 import SettingsRow from '../SettingsRow';
 import SettingsSection from '../SettingsSection';
@@ -14,11 +14,6 @@ type AppearanceSettingsTabProps = {
   onProjectSortOrderChange: (value: ProjectSortOrder) => void;
   interfaceFontSize: InterfaceFontSize;
   onInterfaceFontSizeChange: (value: InterfaceFontSize) => void;
-  codeEditorSettings: CodeEditorSettingsState;
-  onCodeEditorWordWrapChange: (value: boolean) => void;
-  onCodeEditorShowMinimapChange: (value: boolean) => void;
-  onCodeEditorLineNumbersChange: (value: boolean) => void;
-  onCodeEditorFontSizeChange: (value: string) => void;
 };
 
 const selectClass = 'w-full touch-manipulation rounded-lg border border-input bg-card p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary';
@@ -36,7 +31,6 @@ function PreferenceToggle({ checked, label, change }: PreferenceToggleProps) {
 export default function AppearanceSettingsTab(input: AppearanceSettingsTabProps) {
   const { t } = useTranslation('settings');
   const { preferences, setPreference } = useUiPreferences();
-  const editor = input.codeEditorSettings;
 
   return (
     <div className="space-y-8">
@@ -104,26 +98,6 @@ export default function AppearanceSettingsTab(input: AppearanceSettingsTabProps)
         </SettingsCard>
       </SettingsSection>
 
-      <SettingsSection title={t('appearanceSettings.codeEditor.title')}>
-        <SettingsCard divided>
-          <SettingsRow label={t('appearanceSettings.codeEditor.wordWrap.label')} description={t('appearanceSettings.codeEditor.wordWrap.description')}>
-            <PreferenceToggle checked={editor.wordWrap} change={input.onCodeEditorWordWrapChange} label={t('appearanceSettings.codeEditor.wordWrap.label')} />
-          </SettingsRow>
-          <SettingsRow label={t('appearanceSettings.codeEditor.showMinimap.label')} description={t('appearanceSettings.codeEditor.showMinimap.description')}>
-            <PreferenceToggle checked={editor.showMinimap} change={input.onCodeEditorShowMinimapChange} label={t('appearanceSettings.codeEditor.showMinimap.label')} />
-          </SettingsRow>
-          <SettingsRow label={t('appearanceSettings.codeEditor.lineNumbers.label')} description={t('appearanceSettings.codeEditor.lineNumbers.description')}>
-            <PreferenceToggle checked={editor.lineNumbers} change={input.onCodeEditorLineNumbersChange} label={t('appearanceSettings.codeEditor.lineNumbers.label')} />
-          </SettingsRow>
-          <SettingsRow label={t('appearanceSettings.codeEditor.fontSize.label')} description={t('appearanceSettings.codeEditor.fontSize.description')}>
-            <select value={editor.fontSize} onChange={(event) => input.onCodeEditorFontSizeChange(event.target.value)} className={`${selectClass} sm:w-28`}>
-              <option value="10">10px</option><option value="11">11px</option><option value="12">12px</option>
-              <option value="13">13px</option><option value="14">14px</option><option value="15">15px</option>
-              <option value="16">16px</option><option value="18">18px</option><option value="20">20px</option>
-            </select>
-          </SettingsRow>
-        </SettingsCard>
-      </SettingsSection>
     </div>
   );
 }

@@ -18,7 +18,6 @@
   "appearance": {
     "title": "외관",
     "theme": "테마",
-    "codeEditor": "코드 에디터",
     "editorTheme": "에디터 테마",
     "wordWrap": "자동 줄바꿈",
     "showMinimap": "미니맵 표시",
@@ -120,29 +119,6 @@
       "description": "사이드바에서 프로젝트 정렬 방식",
       "alphabetical": "알파벳순",
       "recentActivity": "최근 활동순"
-    },
-    "codeEditor": {
-      "title": "코드 에디터",
-      "theme": {
-        "label": "에디터 테마",
-        "description": "코드 에디터의 기본 테마"
-      },
-      "wordWrap": {
-        "label": "자동 줄바꿈",
-        "description": "에디터에서 기본적으로 자동 줄바꿈 활성화"
-      },
-      "showMinimap": {
-        "label": "미니맵 표시",
-        "description": "Diff 보기에서 쉬운 탐색을 위한 미니맵 표시"
-      },
-      "lineNumbers": {
-        "label": "줄 번호 표시",
-        "description": "에디터에 줄 번호 표시"
-      },
-      "fontSize": {
-        "label": "글꼴 크기",
-        "description": "에디터 글꼴 크기 (픽셀)"
-      }
     }
   },
   "saveStatus": {

@@ -25,7 +25,7 @@ function readSummary(body: Record<string, unknown>): GitSummary {
     branch,
     hasCommits: body.hasCommits !== false,
     // Deleted files are changes too; the panel reports one working-tree number
-    // rather than repeating the git-panel breakdown it deliberately dropped.
+    // rather than the per-file breakdown a manual git UI would show.
     changed: count(body.modified) + count(body.added) + count(body.deleted),
     staged: count(body.staged),
     untracked: count(body.untracked),

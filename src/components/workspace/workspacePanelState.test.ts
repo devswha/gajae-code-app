@@ -46,19 +46,21 @@ test('a non-finite width falls back to the default rather than styling NaN', () 
 
 test('only the declared tabs are accepted', () => {
   assert.equal(normalizeWorkspaceTab('status'), 'status');
-  assert.equal(normalizeWorkspaceTab('editor'), 'editor');
   assert.equal(normalizeWorkspaceTab('browser'), 'browser');
   assert.equal(normalizeWorkspaceTab('shell'), null);
   assert.equal(normalizeWorkspaceTab(undefined), null);
 });
 
+test('a tab retired with its panel degrades to the default instead of sticking', () => {
+  assert.equal(normalizeWorkspaceTab('files'), null);
+  assert.equal(normalizeWorkspaceTab('editor'), null);
+});
+
 test('tablist keys move across tabs and wrap in both directions', () => {
-  assert.equal(workspaceTabForKey('status', 'ArrowRight'), 'files');
-  assert.equal(workspaceTabForKey('files', 'ArrowRight'), 'editor');
-  assert.equal(workspaceTabForKey('editor', 'ArrowRight'), 'browser');
+  assert.equal(workspaceTabForKey('status', 'ArrowRight'), 'browser');
   assert.equal(workspaceTabForKey('browser', 'ArrowRight'), 'status');
   assert.equal(workspaceTabForKey('status', 'ArrowLeft'), 'browser');
-  assert.equal(workspaceTabForKey('editor', 'Home'), 'status');
+  assert.equal(workspaceTabForKey('browser', 'Home'), 'status');
   assert.equal(workspaceTabForKey('status', 'End'), 'browser');
 });
 
@@ -73,13 +75,25 @@ test('no storage at all yields the closed default instead of throwing', () => {
 
 test('a persisted state is restored with its width clamped', () => {
   const storage = createStorage({
-    [WORKSPACE_PANEL_STORAGE_KEY]: JSON.stringify({ open: true, tab: 'editor', width: 12 }),
+    [WORKSPACE_PANEL_STORAGE_KEY]: JSON.stringify({ open: true, tab: 'browser', width: 12 }),
   });
 
   assert.deepEqual(readWorkspacePanelState(storage), {
     open: true,
-    tab: 'editor',
+    tab: 'browser',
     width: MIN_WORKSPACE_PANEL_WIDTH,
+  });
+});
+
+test('a state persisted against a retired tab reopens on the default tab', () => {
+  const storage = createStorage({
+    [WORKSPACE_PANEL_STORAGE_KEY]: JSON.stringify({ open: true, tab: 'editor', width: 420 }),
+  });
+
+  assert.deepEqual(readWorkspacePanelState(storage), {
+    open: true,
+    tab: DEFAULT_WORKSPACE_PANEL_STATE.tab,
+    width: 420,
   });
 });
 
@@ -108,12 +122,12 @@ test('an install that had the old files panel closed stays closed', () => {
 test('writing state persists the clamped value and retires the legacy key', () => {
   const storage = createStorage({ 'files-panel-open': 'true' });
 
-  writeWorkspacePanelState(storage, { open: true, tab: 'editor', width: 10_000 });
+  writeWorkspacePanelState(storage, { open: true, tab: 'browser', width: 10_000 });
 
   assert.equal(storage.entries.has('files-panel-open'), false);
   assert.deepEqual(JSON.parse(storage.entries.get(WORKSPACE_PANEL_STORAGE_KEY) ?? '{}'), {
     open: true,
-    tab: 'editor',
+    tab: 'browser',
     width: 1600,
   });
 });

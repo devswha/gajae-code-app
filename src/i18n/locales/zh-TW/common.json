@@ -288,13 +288,7 @@
     "collapse": "收合工作區面板",
     "resize": "拖曳以調整工作區面板大小",
     "tabs": {
-      "status": "狀態",
-      "files": "檔案",
-      "editor": "編輯器"
-    },
-    "editorEmpty": {
-      "title": "沒有開啟的檔案",
-      "description": "從檔案或聊天訊息中開啟檔案，在此編輯。"
+      "status": "狀態"
     },
     "statusTab": {
       "session": "工作階段",

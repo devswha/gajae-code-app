@@ -9,7 +9,7 @@ import { languages } from './languages.js';
 const LANGUAGE_BUNDLES: Record<string, (() => Promise<unknown>) | undefined> = bundles;
 
 const LOCALES_DIR = path.join(process.cwd(), 'src/i18n/locales');
-const NAMESPACES = ['chat', 'codeEditor', 'common', 'settings', 'sidebar'];
+const NAMESPACES = ['chat', 'common', 'settings', 'sidebar'];
 
 /*
  * French was listed in the language selector and never registered with i18next,
@@ -27,7 +27,7 @@ test('every language the selector offers can actually be loaded', () => {
   }
 });
 
-test('every registered language has all five namespaces on disk', () => {
+test('every registered language has all four namespaces on disk', () => {
   for (const value of Object.keys(LANGUAGE_BUNDLES)) {
     for (const namespace of NAMESPACES) {
       const file = path.join(LOCALES_DIR, value, `${namespace}.json`);

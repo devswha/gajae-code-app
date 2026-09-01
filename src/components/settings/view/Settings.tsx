@@ -47,8 +47,6 @@ function Settings({ isOpen, onClose, initialTab = 'appearance' }: SettingsProps)
     setProjectSortOrder,
     interfaceFontSize,
     setInterfaceFontSize,
-    codeEditorSettings,
-    updateCodeEditorSetting,
     notificationPreferences,
     setNotificationPreferences,
   } = controller;
@@ -110,11 +108,6 @@ function Settings({ isOpen, onClose, initialTab = 'appearance' }: SettingsProps)
                   onProjectSortOrderChange={setProjectSortOrder}
                   interfaceFontSize={interfaceFontSize}
                   onInterfaceFontSizeChange={setInterfaceFontSize}
-                  codeEditorSettings={codeEditorSettings}
-                  onCodeEditorWordWrapChange={(value) => updateCodeEditorSetting('wordWrap', value)}
-                  onCodeEditorShowMinimapChange={(value) => updateCodeEditorSetting('showMinimap', value)}
-                  onCodeEditorLineNumbersChange={(value) => updateCodeEditorSetting('lineNumbers', value)}
-                  onCodeEditorFontSizeChange={(value) => updateCodeEditorSetting('fontSize', value)}
                 />
               )}
               {activeTab === 'git' && <GitSettingsTab />}

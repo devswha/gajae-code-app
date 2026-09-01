@@ -18,7 +18,6 @@
   "appearance": {
     "title": "外觀",
     "theme": "佈景主題",
-    "codeEditor": "程式碼編輯器",
     "editorTheme": "編輯器佈景主題",
     "wordWrap": "自動換行",
     "showMinimap": "顯示縮圖",
@@ -100,29 +99,6 @@
       "description": "專案在側邊欄中的排列方式",
       "alphabetical": "依字母順序",
       "recentActivity": "最近活動"
-    },
-    "codeEditor": {
-      "title": "程式碼編輯器",
-      "theme": {
-        "label": "編輯器佈景主題",
-        "description": "程式碼編輯器的預設佈景主題"
-      },
-      "wordWrap": {
-        "label": "自動換行",
-        "description": "在編輯器中預設啟用自動換行"
-      },
-      "showMinimap": {
-        "label": "顯示縮圖",
-        "description": "在差異檢視中顯示縮圖以便於導覽"
-      },
-      "lineNumbers": {
-        "label": "顯示行號",
-        "description": "在編輯器中顯示行號"
-      },
-      "fontSize": {
-        "label": "字型大小",
-        "description": "編輯器字型大小（px）"
-      }
     }
   },
   "saveStatus": {

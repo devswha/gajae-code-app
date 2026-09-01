@@ -7,16 +7,6 @@ import { getConnectableHost, normalizeLoopbackHost, parseAllowedHosts } from './
 
 const chunkGroups = {
   'vendor-react': ['react', 'react-dom', 'react-dom/client', 'react-router-dom', '@tanstack/react-query', 'zustand'],
-  'vendor-codemirror': [
-    '@uiw/react-codemirror',
-    '@codemirror/lang-css',
-    '@codemirror/lang-html',
-    '@codemirror/lang-javascript',
-    '@codemirror/lang-json',
-    '@codemirror/lang-markdown',
-    '@codemirror/lang-python',
-    '@codemirror/theme-one-dark'
-  ],
   'vendor-markdown': ['react-markdown', 'remark-gfm', 'remark-math', 'rehype-katex', 'katex'],
   'vendor-syntax': ['react-syntax-highlighter'],
   'vendor-icons': ['lucide-react'],

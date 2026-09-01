@@ -6,9 +6,8 @@ import SessionProviderLogo from '../../llm-logo-provider/SessionProviderLogo';
 import type {
   ChatMessage,
   Provider,
-  ToolResult,
+  ToolResult, CodeEditorDiffInfo 
 } from '../types/types';
-import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
 import { formatUsageLimitText } from '../utils/chatFormatting';
 import type { Project } from '../../../types/app';
 import { ToolRenderer, rendersResultInline, shouldHideToolResult } from '../tools';

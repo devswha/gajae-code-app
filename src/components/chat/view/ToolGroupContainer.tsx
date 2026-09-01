@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 
-import type { ChatMessage, Provider } from '../types/types';
-import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
+import type { ChatMessage, Provider, CodeEditorDiffInfo  } from '../types/types';
 import type { Project } from '../../../types/app';
 import type { ToolGroupItem } from '../utils/toolGrouping';
 import { getToolConfig } from '../tools';

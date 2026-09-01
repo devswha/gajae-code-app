@@ -18,7 +18,6 @@
   "appearance": {
     "title": "Aspetto",
     "theme": "Tema",
-    "codeEditor": "Editor codice",
     "editorTheme": "Tema editor",
     "wordWrap": "A capo automatico",
     "showMinimap": "Mostra minimappa",
@@ -99,29 +98,6 @@
       "description": "Come vengono ordinati i progetti nella barra laterale",
       "alphabetical": "Alfabetico",
       "recentActivity": "Attività recente"
-    },
-    "codeEditor": {
-      "title": "Editor codice",
-      "theme": {
-        "label": "Tema editor",
-        "description": "Tema predefinito per l'editor di codice"
-      },
-      "wordWrap": {
-        "label": "A capo automatico",
-        "description": "Abilita il ritorno a capo automatico nell'editor"
-      },
-      "showMinimap": {
-        "label": "Mostra minimappa",
-        "description": "Visualizza una minimappa per facilitare la navigazione nella vista differenze"
-      },
-      "lineNumbers": {
-        "label": "Mostra numeri di riga",
-        "description": "Visualizza i numeri di riga nell'editor"
-      },
-      "fontSize": {
-        "label": "Dimensione carattere",
-        "description": "Dimensione del carattere dell'editor in pixel"
-      }
     }
   },
   "saveStatus": {

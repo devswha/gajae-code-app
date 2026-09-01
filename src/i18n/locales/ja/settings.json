@@ -18,7 +18,6 @@
   "appearance": {
     "title": "外観",
     "theme": "テーマ",
-    "codeEditor": "コードエディタ",
     "editorTheme": "エディタのテーマ",
     "wordWrap": "折り返し",
     "showMinimap": "ミニマップを表示",
@@ -99,29 +98,6 @@
       "description": "サイドバーでのプロジェクトの並び順を設定します",
       "alphabetical": "アルファベット順",
       "recentActivity": "最近のアクティビティ順"
-    },
-    "codeEditor": {
-      "title": "コードエディタ",
-      "theme": {
-        "label": "エディタのテーマ",
-        "description": "コードエディタのデフォルトテーマ"
-      },
-      "wordWrap": {
-        "label": "折り返し",
-        "description": "エディタでデフォルトで折り返しを有効にします"
-      },
-      "showMinimap": {
-        "label": "ミニマップを表示",
-        "description": "差分ビューでナビゲーション用のミニマップを表示します"
-      },
-      "lineNumbers": {
-        "label": "行番号を表示",
-        "description": "エディタに行番号を表示します"
-      },
-      "fontSize": {
-        "label": "フォントサイズ",
-        "description": "エディタのフォントサイズ（ピクセル）"
-      }
     }
   },
   "saveStatus": {

@@ -288,13 +288,7 @@
     "collapse": "Réduire le panneau de l'espace de travail",
     "resize": "Faites glisser pour redimensionner le panneau de l'espace de travail",
     "tabs": {
-      "status": "État",
-      "files": "Fichiers",
-      "editor": "Éditeur"
-    },
-    "editorEmpty": {
-      "title": "Aucun fichier ouvert",
-      "description": "Ouvrez un fichier depuis Fichiers ou depuis un message de chat pour le modifier ici."
+      "status": "État"
     },
     "statusTab": {
       "session": "Session",

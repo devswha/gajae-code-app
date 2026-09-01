@@ -288,13 +288,7 @@
     "collapse": "收起工作区面板",
     "resize": "拖动以调整工作区面板大小",
     "tabs": {
-      "status": "状态",
-      "files": "文件",
-      "editor": "编辑器"
-    },
-    "editorEmpty": {
-      "title": "没有打开的文件",
-      "description": "从文件或聊天消息中打开文件，在此编辑。"
+      "status": "状态"
     },
     "statusTab": {
       "session": "会话",

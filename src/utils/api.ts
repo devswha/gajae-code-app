@@ -196,43 +196,8 @@ export const api = {
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/toggle-star`, {
       method: 'POST',
     }),
-  readFile: (projectId: string, filePath: string) =>
-    authenticatedFetch(`/api/projects/${projectId}/file?filePath=${encodeURIComponent(filePath)}`),
-  readFileBlob: (projectId: string, filePath: string) =>
-    authenticatedFetch(`/api/projects/${projectId}/files/content?path=${encodeURIComponent(filePath)}`),
-  saveFile: (projectId: string, filePath: string, content: string) =>
-    authenticatedFetch(`/api/projects/${projectId}/file`, {
-      method: 'PUT',
-      body: JSON.stringify({ filePath, content }),
-    }),
   getFiles: (projectId: string, options: RequestInit = {}) =>
     authenticatedFetch(`/api/projects/${projectId}/files`, options),
-
-  // File operations
-  createFile: (projectId: string, { path, type, name }: { path: string; type: string; name: string }) =>
-    authenticatedFetch(`/api/projects/${projectId}/files/create`, {
-      method: 'POST',
-      body: JSON.stringify({ path, type, name }),
-    }),
-
-  renameFile: (projectId: string, { oldPath, newName }: { oldPath: string; newName: string }) =>
-    authenticatedFetch(`/api/projects/${projectId}/files/rename`, {
-      method: 'PUT',
-      body: JSON.stringify({ oldPath, newName }),
-    }),
-
-  deleteFile: (projectId: string, { path, type }: { path: string; type: string }) =>
-    authenticatedFetch(`/api/projects/${projectId}/files`, {
-      method: 'DELETE',
-      body: JSON.stringify({ path, type }),
-    }),
-
-  uploadFiles: (projectId: string, formData: FormData) =>
-    authenticatedFetch(`/api/projects/${projectId}/files/upload`, {
-      method: 'POST',
-      body: formData,
-      headers: {}, // Let browser set Content-Type for FormData
-    }),
 
 
   // Browse filesystem for project suggestions
@@ -256,6 +221,15 @@ export const api = {
       authenticatedFetch('/api/user/git-config', {
         method: 'POST',
         body: JSON.stringify({ gitName, gitEmail }),
+      }),
+  },
+
+  // Host integration: hand a file to the user's own editor.
+  system: {
+    openFile: (path: string) =>
+      authenticatedFetch('/api/system/open-file', {
+        method: 'POST',
+        body: JSON.stringify({ path }),
       }),
   },
 

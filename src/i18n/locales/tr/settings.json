@@ -18,7 +18,6 @@
   "appearance": {
     "title": "Görünüm",
     "theme": "Tema",
-    "codeEditor": "Kod Editörü",
     "editorTheme": "Editör Teması",
     "wordWrap": "Kelime Kaydırma",
     "showMinimap": "Minimap'i Göster",
@@ -100,29 +99,6 @@
       "description": "Projelerin kenar çubuğunda nasıl sıralanacağı",
       "alphabetical": "Alfabetik",
       "recentActivity": "Son Etkinlik"
-    },
-    "codeEditor": {
-      "title": "Kod Editörü",
-      "theme": {
-        "label": "Editör Teması",
-        "description": "Kod editörü için varsayılan tema"
-      },
-      "wordWrap": {
-        "label": "Kelime Kaydırma",
-        "description": "Editörde kelime kaydırmayı varsayılan olarak etkinleştir"
-      },
-      "showMinimap": {
-        "label": "Minimap'i Göster",
-        "description": "Diff görünümünde kolay gezinme için minimap göster"
-      },
-      "lineNumbers": {
-        "label": "Satır Numaralarını Göster",
-        "description": "Editörde satır numaralarını göster"
-      },
-      "fontSize": {
-        "label": "Yazı Tipi Boyutu",
-        "description": "Editör yazı tipi boyutu (piksel)"
-      }
     }
   },
   "saveStatus": {

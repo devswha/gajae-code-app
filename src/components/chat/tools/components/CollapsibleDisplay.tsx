@@ -1,6 +1,6 @@
-import React from 'react';
+import type { ReactNode } from 'react';
 
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../../../../shared/view/ui';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../../shared/view/ui';
 
 import { CollapsibleSection } from './CollapsibleSection';
 
@@ -9,16 +9,16 @@ interface CollapsibleDisplayProps {
   toolId?: string;
   title: string;
   defaultOpen?: boolean;
-  action?: React.ReactNode;
-  badge?: React.ReactNode;
+  action?: ReactNode;
+  badge?: ReactNode;
   onTitleClick?: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
   showRawParameters?: boolean;
   rawContent?: string;
   className?: string;
 }
 
-function RawParameters({ content }: { content: string }) {
+function ParameterDisclosure({ rawContent }: { rawContent: string }) {
   return (
     <Collapsible className="mt-2">
       <CollapsibleTrigger className="flex items-center gap-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground">
@@ -28,13 +28,13 @@ function RawParameters({ content }: { content: string }) {
         raw params
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <pre className="mt-1 overflow-hidden rounded border border-border/40 bg-muted p-2 font-mono text-[11px] wrap-break-word whitespace-pre-wrap text-muted-foreground">{content}</pre>
+        <pre className="mt-1 overflow-hidden rounded border border-border/40 bg-muted p-2 font-mono text-[11px] wrap-break-word whitespace-pre-wrap text-muted-foreground">{rawContent}</pre>
       </CollapsibleContent>
     </Collapsible>
   );
 }
 
-export const CollapsibleDisplay: React.FC<CollapsibleDisplayProps> = ({
+export function CollapsibleDisplay({
   toolName,
   title,
   defaultOpen = false,
@@ -45,15 +45,15 @@ export const CollapsibleDisplay: React.FC<CollapsibleDisplayProps> = ({
   showRawParameters = false,
   rawContent,
   className = '',
-}) => {
-  const rawParameters = showRawParameters && rawContent ? <RawParameters content={rawContent} /> : null;
+}: CollapsibleDisplayProps) {
+  const canShowParameters = showRawParameters && Boolean(rawContent);
 
   return (
     <div className={`py-0.5 pl-2 ${className}`}>
       <CollapsibleSection title={title} toolName={toolName} open={defaultOpen} action={action} badge={badge} onTitleClick={onTitleClick}>
         {children}
-        {rawParameters}
+        {canShowParameters ? <ParameterDisclosure rawContent={rawContent!} /> : null}
       </CollapsibleSection>
     </div>
   );
-};
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
 import { FolderOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -16,16 +16,43 @@ type WorkspacePathFieldProps = {
   onAdvanceToConfirm: () => void;
 };
 
-const matchingPaths = (input: string, folders: FolderSuggestion[]) => folders.reduce<FolderSuggestion[]>(
-  (matches, folder) => {
+function findSuggestions(path: string, folders: FolderSuggestion[]) {
+  const normalizedPath = path.toLowerCase();
+  const suggestions: FolderSuggestion[] = [];
+
+  for (const folder of folders) {
     const candidate = folder.path.toLowerCase();
-    if (candidate !== input.toLowerCase() && candidate.startsWith(input.toLowerCase()) && matches.length < 5) {
-      matches.push(folder);
+    if (candidate !== normalizedPath && candidate.startsWith(normalizedPath)) {
+      suggestions.push(folder);
     }
-    return matches;
-  },
-  [],
-);
+    if (suggestions.length === 5) break;
+  }
+
+  return suggestions;
+}
+
+type SuggestionListProps = {
+  suggestions: FolderSuggestion[];
+  onSelect: (suggestion: FolderSuggestion) => void;
+};
+
+function SuggestionList({ suggestions, onSelect }: SuggestionListProps) {
+  return (
+    <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-xl">
+      {suggestions.map((suggestion) => (
+        <button
+          key={suggestion.path}
+          type="button"
+          onClick={() => onSelect(suggestion)}
+          className="w-full rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent"
+        >
+          <div className="text-foreground">{suggestion.name}</div>
+          <div className="truncate text-[11px] text-muted-foreground">{suggestion.path}</div>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function WorkspacePathField({
   value,
@@ -34,45 +61,50 @@ export default function WorkspacePathField({
   onAdvanceToConfirm,
 }: WorkspacePathFieldProps) {
   const { t } = useTranslation();
-  const [pathSuggestions, setPathSuggestions] = useState<FolderSuggestion[]>([]);
-  const [showPathDropdown, setShowPathDropdown] = useState(false);
-  const [showFolderBrowser, setShowFolderBrowser] = useState(false);
+  const [suggestions, setSuggestions] = useState<FolderSuggestion[]>([]);
+  const [isSuggestionListOpen, setIsSuggestionListOpen] = useState(false);
+  const [isFolderBrowserOpen, setIsFolderBrowserOpen] = useState(false);
 
   useEffect(() => {
-    const canSuggest = value.trim().length > 2;
-    if (!canSuggest) {
-      setPathSuggestions([]);
-      setShowPathDropdown(false);
+    if (value.trim().length <= 2) {
+      setSuggestions([]);
+      setIsSuggestionListOpen(false);
       return undefined;
     }
 
-    const delay = window.setTimeout(() => {
-      const requestSuggestions = async () => {
+    const timer = window.setTimeout(() => {
+      const loadSuggestions = async () => {
         try {
           const response = await browseFilesystemFolders(getSuggestionRootPath(value));
-          const matches = matchingPaths(value, response.suggestions);
-          setPathSuggestions(matches);
-          setShowPathDropdown(matches.length > 0);
+          const matches = findSuggestions(value, response.suggestions);
+          setSuggestions(matches);
+          setIsSuggestionListOpen(matches.length !== 0);
         } catch (reason) {
           console.error('Failed to load path suggestions:', reason);
         }
       };
-      void requestSuggestions();
+
+      void loadSuggestions();
     }, 200);
 
-    return () => window.clearTimeout(delay);
+    return () => window.clearTimeout(timer);
   }, [value]);
 
-  const applySuggestion = useCallback(({ path }: FolderSuggestion) => {
-    onChange(path);
-    setShowPathDropdown(false);
+  const chooseSuggestion = useCallback((suggestion: FolderSuggestion) => {
+    onChange(suggestion.path);
+    setIsSuggestionListOpen(false);
   }, [onChange]);
 
-  const applyFolder = useCallback((selectedPath: string, shouldAdvance: boolean) => {
-    onChange(selectedPath);
-    setShowFolderBrowser(false);
-    if (shouldAdvance) onAdvanceToConfirm();
+  const chooseFolder = useCallback((path: string, advanceToConfirm: boolean) => {
+    onChange(path);
+    setIsFolderBrowserOpen(false);
+    if (!advanceToConfirm) return;
+    onAdvanceToConfirm();
   }, [onAdvanceToConfirm, onChange]);
+
+  const updatePath = useCallback(({ target }: ChangeEvent<HTMLInputElement>) => {
+    onChange(target.value);
+  }, [onChange]);
 
   return (
     <>
@@ -81,33 +113,19 @@ export default function WorkspacePathField({
           <Input
             type="text"
             value={value}
-            onChange={(event) => onChange(event.target.value)}
+            onChange={updatePath}
             placeholder={t('projectWizard.step2.existingPlaceholder')}
             className="w-full"
             disabled={disabled}
           />
-
-          {showPathDropdown && pathSuggestions.length > 0 && (
-            <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-xl">
-              {pathSuggestions.map((suggestion) => (
-                <button
-                  key={suggestion.path}
-                  type="button"
-                  onClick={() => applySuggestion(suggestion)}
-                  className="w-full rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent"
-                >
-                  <div className="text-foreground">{suggestion.name}</div>
-                  <div className="truncate text-[11px] text-muted-foreground">{suggestion.path}</div>
-                </button>
-              ))}
-            </div>
-          )}
+          {isSuggestionListOpen && suggestions.length > 0 ? (
+            <SuggestionList suggestions={suggestions} onSelect={chooseSuggestion} />
+          ) : null}
         </div>
-
         <Button
           type="button"
           variant="outline"
-          onClick={() => setShowFolderBrowser(true)}
+          onClick={() => setIsFolderBrowserOpen(true)}
           className="px-3"
           title={t('projectWizard.folderBrowser.browseFolders')}
           aria-label={t('projectWizard.folderBrowser.browseFolders')}
@@ -116,12 +134,11 @@ export default function WorkspacePathField({
           <FolderOpen className="h-4 w-4" />
         </Button>
       </div>
-
       <FolderBrowserModal
-        isOpen={showFolderBrowser}
+        isOpen={isFolderBrowserOpen}
         autoAdvanceOnSelect={false}
-        onClose={() => setShowFolderBrowser(false)}
-        onFolderSelected={applyFolder}
+        onClose={() => setIsFolderBrowserOpen(false)}
+        onFolderSelected={chooseFolder}
       />
     </>
   );

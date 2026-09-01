@@ -4,23 +4,27 @@ import { cn } from '../../../utils/cn';
 
 type ScrollAreaProps = React.HTMLAttributes<HTMLDivElement>;
 
-const ScrollArea = React.forwardRef<HTMLDivElement, ScrollAreaProps>(
-  ({ className, children, ...props }, ref) => (
-    <div className={cn(className, 'relative overflow-hidden')} {...props}>
-      {/* Inner container keeps border radius while allowing momentum scrolling on touch devices. */}
+const scrollViewportStyle = { WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' } as const;
+
+const ScrollArea = React.forwardRef<HTMLDivElement, ScrollAreaProps>(function ScrollArea(
+  attributes,
+  viewportRef,
+) {
+  const { children, className, ...containerAttributes } = attributes;
+
+  return (
+    <div className={cn(className, 'relative overflow-hidden')} {...containerAttributes}>
+      {/* The viewport owns scrolling so the shell can keep its inherited corners. */}
       <div
-        ref={ref}
+        ref={viewportRef}
         className="h-full w-full overflow-auto rounded-[inherit]"
-        style={{
-          WebkitOverflowScrolling: 'touch',
-          touchAction: 'pan-y',
-        }}
+        style={scrollViewportStyle}
       >
         {children}
       </div>
     </div>
-  )
-);
+  );
+});
 
 ScrollArea.displayName = 'ScrollArea';
 

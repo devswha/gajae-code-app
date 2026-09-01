@@ -6,14 +6,16 @@ export type BranchResult = { name: string };
 type BranchesResponse = { localBranches?: string[] };
 
 export function useBranchesSource(projectId: string | undefined, enabled: boolean) {
-  const shouldRequest = Boolean(projectId) && enabled;
+  const fetchBranches = (signal: AbortSignal) => {
+    const parameters = new URLSearchParams();
+    parameters.set('project', projectId!);
+    return authenticatedFetch(`/api/git/branches?${parameters.toString()}`, { signal });
+  };
+
   return useApiSource<BranchResult, BranchesResponse>({
-    enabled: shouldRequest,
+    enabled: enabled && projectId !== undefined,
     deps: [projectId],
-    fetcher: (signal) => {
-      const search = new URLSearchParams([['project', projectId!]]);
-      return authenticatedFetch(`/api/git/branches?${search}`, { signal });
-    },
-    parse: (response) => (response.localBranches ?? []).map((branchName) => ({ name: branchName })),
+    fetcher: fetchBranches,
+    parse: ({ localBranches = [] }) => localBranches.map((name) => ({ name })),
   });
 }

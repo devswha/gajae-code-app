@@ -5,7 +5,7 @@ import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
 
 import { parseAllowedHosts } from '../../../../shared/networkHosts.js';
 
-type WebSocketAuthDependencies = {
+type WebSocketAuthDependencies = Readonly<{
   authenticateWebSocket: () => {
     id?: string | number;
     userId?: string | number;
@@ -17,43 +17,39 @@ type WebSocketAuthDependencies = {
   };
   /** Raw `ALLOWED_HOSTS`; defaults to the process environment. */
   allowedHosts?: string | undefined;
-};
+}>;
 
+function acceptsOrigin(request: AuthenticatedWebSocketRequest, allowedHosts?: string): boolean {
+  return isAllowedRequestOrigin(request.headers.origin, {
+    hostHeader: request.headers.host,
+    allowedHosts: parseAllowedHosts(allowedHosts ?? process.env.ALLOWED_HOSTS),
+  });
+}
 
-/**
- * Authenticates websocket upgrade requests before the `connection` handler runs.
- */
 export function verifyWebSocketClient(
   info: Parameters<VerifyClientCallbackSync<AuthenticatedWebSocketRequest>>[0],
   dependencies: WebSocketAuthDependencies
 ): boolean {
   const request = info.req as AuthenticatedWebSocketRequest;
-  const upgradeUrl = new URL(request.url ?? '/', 'http://localhost');
-  console.log('WebSocket connection attempt to:', upgradeUrl.pathname);
+  console.log('WebSocket connection attempt to:', new URL(request.url ?? '/', 'http://localhost').pathname);
 
-  // A WebSocket handshake is not subject to the same-origin policy, and the
-  // owner below is implicit - so without this, any page the owner visits gets a
-  // fully authorized socket onto a server that runs shell commands. Loopback
-  // binding does not help: the hostile page runs in the owner's own browser.
-  const origin = request.headers.origin;
-  if (!isAllowedRequestOrigin(origin, {
-    hostHeader: request.headers.host,
-    allowedHosts: parseAllowedHosts(dependencies.allowedHosts ?? process.env.ALLOWED_HOSTS),
-  })) {
-    console.log('[WARN] WebSocket upgrade rejected for origin:', origin);
+  if (!acceptsOrigin(request, dependencies.allowedHosts)) {
+    console.log('[WARN] WebSocket upgrade rejected for origin:', request.headers.origin);
     return false;
   }
 
-  if (dependencies.desktopAuth && !dependencies.desktopAuth.authenticateWebSocket(request)) {
+  const desktopAuth = dependencies.desktopAuth;
+  if (desktopAuth && !desktopAuth.authenticateWebSocket(request)) {
     return false;
   }
-  const user = dependencies.authenticateWebSocket();
-  if (!user) {
+
+  const owner = dependencies.authenticateWebSocket();
+  if (!owner) {
     console.log('[WARN] WebSocket authentication failed');
     return false;
   }
 
-  request.user = user;
-  console.log('[OK] WebSocket authenticated for user:', user.username);
+  request.user = owner;
+  console.log('[OK] WebSocket authenticated for user:', owner.username);
   return true;
 }

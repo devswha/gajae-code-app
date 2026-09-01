@@ -4,15 +4,34 @@ import {
   type FallbackProps,
 } from 'react-error-boundary';
 
-type ErrorFallbackProps = FallbackProps & { showDetails: boolean; componentStack: string | null };
 type ErrorBoundaryProps = { children: ReactNode; showDetails?: boolean; onRetry?: () => void; resetKeys?: unknown[] };
+type ErrorFallbackProps = FallbackProps & { showDetails: boolean; componentStack: string | null };
 
-function errorText(value: unknown): string {
-  if (!(value instanceof Error)) return String(value);
-  return [value.name, value.message].join(': ');
+function formatError(value: unknown) {
+  if (value instanceof Error) {
+    return `${value.name}: ${value.message}`;
+  }
+  return String(value);
 }
 
-function ErrorFallback({ componentStack, error, resetErrorBoundary, showDetails }: ErrorFallbackProps) {
+function ErrorDetails({ error, componentStack }: Pick<ErrorFallbackProps, 'error' | 'componentStack'>) {
+  return (
+    <details className="mt-4">
+      <summary className="cursor-pointer font-mono text-xs">Error Details</summary>
+      <pre className="mt-2 max-h-40 overflow-auto rounded bg-destructive/10 p-2 text-xs">
+        {formatError(error)}
+        {componentStack}
+      </pre>
+    </details>
+  );
+}
+
+function ErrorFallback({
+  error,
+  resetErrorBoundary,
+  showDetails,
+  componentStack,
+}: ErrorFallbackProps) {
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center">
       <div className="max-w-md rounded-lg border border-destructive/30 bg-destructive/10 p-6">
@@ -30,15 +49,7 @@ function ErrorFallback({ componentStack, error, resetErrorBoundary, showDetails 
         </div>
         <div className="text-sm text-destructive">
           <p className="mb-2">An error occurred while loading the chat interface.</p>
-          {showDetails && (
-            <details className="mt-4">
-              <summary className="cursor-pointer font-mono text-xs">Error Details</summary>
-              <pre className="mt-2 max-h-40 overflow-auto rounded bg-destructive/10 p-2 text-xs">
-                {errorText(error)}
-                {componentStack}
-              </pre>
-            </details>
-          )}
+          {showDetails ? <ErrorDetails error={error} componentStack={componentStack} /> : null}
         </div>
         <div className="mt-4">
           <button
@@ -59,34 +70,32 @@ function ErrorBoundary({
   onRetry,
   resetKeys,
 }: ErrorBoundaryProps) {
-  const [componentStack, setComponentStack] = useState<string | null>(null);
+  const [errorContext, setErrorContext] = useState<{ componentStack: string | null }>({ componentStack: null });
 
-  const reportError = useCallback((error: Error, metadata: ErrorInfo) => {
-    console.error('ErrorBoundary caught an error:', error, metadata);
-    setComponentStack(metadata.componentStack ?? null);
+  const captureError = useCallback((error: Error, info: ErrorInfo) => {
+    console.error('ErrorBoundary caught an error:', error, info);
+    setErrorContext({ componentStack: info.componentStack ?? null });
   }, []);
 
-  const clearError = useCallback(() => {
-    setComponentStack(null);
+  const resetBoundary = useCallback(() => {
+    setErrorContext({ componentStack: null });
     onRetry?.();
   }, [onRetry]);
 
-  const renderFallback = useCallback(
-    (boundaryProps: FallbackProps) => (
-      <ErrorFallback
-        {...boundaryProps}
-        showDetails={showDetails}
-        componentStack={componentStack}
-      />
-    ),
-    [componentStack, showDetails],
-  );
+  const fallback = useCallback((props: FallbackProps) => (
+    <ErrorFallback
+      error={props.error}
+      resetErrorBoundary={props.resetErrorBoundary}
+      showDetails={showDetails}
+      componentStack={errorContext.componentStack}
+    />
+  ), [errorContext.componentStack, showDetails]);
 
   return (
     <ReactErrorBoundary
-      fallbackRender={renderFallback}
-      onError={reportError}
-      onReset={clearError}
+      fallbackRender={fallback}
+      onError={captureError}
+      onReset={resetBoundary}
       resetKeys={resetKeys}
     >
       {children}

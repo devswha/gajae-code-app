@@ -5,18 +5,20 @@ import { cn } from '../../../utils/cn';
 
 type DarkModeToggleProps = { checked?: boolean; onToggle?: (nextValue: boolean) => void; ariaLabel?: string };
 
-function DarkModeToggle({
-  checked,
-  onToggle,
-  ariaLabel = 'Toggle dark mode',
-}: DarkModeToggleProps) {
-  const { isDarkMode, toggleDarkMode } = useTheme();
-  const managesItsOwnState = checked === undefined || onToggle === undefined;
-  const enabled = managesItsOwnState ? isDarkMode : checked;
+function DarkModeToggle(props: DarkModeToggleProps) {
+  const theme = useTheme();
+  const { ariaLabel = 'Toggle dark mode', checked, onToggle } = props;
+  const isControlled = checked !== undefined && onToggle !== undefined;
+  const enabled = isControlled ? checked : theme.isDarkMode;
 
-  const flip = managesItsOwnState
-    ? toggleDarkMode
-    : () => onToggle(!enabled);
+  function flip() {
+    if (checked !== undefined && onToggle !== undefined) {
+      onToggle(!enabled);
+      return;
+    }
+
+    theme.toggleDarkMode();
+  }
 
   return (
     <button

@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Settings,
   SunMoon,
+  type LucideIcon,
   X,
 } from 'lucide-react';
 
@@ -42,6 +43,22 @@ type Page = 'actions' | 'files' | 'sessions' | 'commits' | 'branches';
 type CommandPaletteProps = { selectedProject: Project | null; currentSessionId?: string; onStartNewChat: (project: Project) => void; onOpenSettings: (tab?: string) => void; onShowTab?: (tab: AppTab) => void };
 type SessionRow = { id: string; label: string; provider?: string; snippet?: string };
 type PaletteState = { open: boolean; query: string; history: Page[] };
+type ActionItemProps = {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  onSelect: () => void;
+  disabled?: boolean;
+  disabledHint?: string;
+};
+type PaletteAction =
+  | { type: 'change-visibility'; open: boolean }
+  | { type: 'open-sessions' }
+  | { type: 'toggle-visibility' }
+  | { type: 'push-page'; page: Page }
+  | { type: 'pop-page' }
+  | { type: 'clear-closed' }
+  | { type: 'set-query'; query: string };
 
 const PAGE_LABELS: Record<Page, string> = {
   actions: 'Actions',
@@ -55,41 +72,72 @@ const NAV_TABS: Array<{ id: AppTab; label: string; keywords: string }> = [
 ];
 const BROWSE_LIMIT = 5;
 
-function sectionIsActive(section: Page, selected: Page | undefined): boolean {
-  if (selected === undefined || selected === section) return true;
-  return selected === 'actions' && section === 'branches';
+function paletteReducer(previous: PaletteState, action: PaletteAction): PaletteState {
+  switch (action.type) {
+    case 'change-visibility':
+      return { ...previous, open: action.open };
+    case 'open-sessions':
+      return { open: true, query: '', history: ['sessions'] };
+    case 'toggle-visibility':
+      return { ...previous, open: !previous.open };
+    case 'push-page':
+      return { ...previous, query: '', history: [...previous.history, action.page] };
+    case 'pop-page':
+      return { ...previous, query: '', history: previous.history.slice(0, -1) };
+    case 'set-query':
+      return { ...previous, query: action.query };
+    case 'clear-closed':
+      return !previous.open && (previous.query || previous.history.length > 0)
+        ? { ...previous, query: '', history: [] }
+        : previous;
+  }
 }
 
-function combineSessions(
+function shouldRenderGroup(page: Page, activePage: Page | undefined): boolean {
+  return activePage === undefined || activePage === page || (activePage === 'actions' && page === 'branches');
+}
+
+function mergeSessionResults(
   sessions: Array<{ id: string; label: string; provider?: string }>,
   messages: Array<{ sessionId: string; label: string; provider: string; snippet: string }>,
-  include: boolean,
+  enabled: boolean,
 ): SessionRow[] {
-  if (!include) return [];
-  const byId = sessions.reduce(
-    (rows, session) => rows.set(session.id, { ...session }),
-    new Map<string, SessionRow>(),
+  if (!enabled) return [];
+
+  const rows = new Map<string, SessionRow>(sessions.map((session) => [session.id, { ...session }]));
+  for (const match of messages) {
+    const saved = rows.get(match.sessionId);
+    rows.set(match.sessionId, saved
+      ? { ...saved, snippet: match.snippet }
+      : { id: match.sessionId, label: match.label, provider: match.provider, snippet: match.snippet });
+  }
+  return [...rows.values()];
+}
+
+function browseItems<T>(entries: T[], page: Page | undefined, target: Page): T[] {
+  return page === target ? entries : entries.slice(0, BROWSE_LIMIT);
+}
+
+function opensPalette(event: KeyboardEvent) {
+  const modifierPressed = event.metaKey || event.ctrlKey;
+  return modifierPressed && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k';
+}
+
+function PaletteActionItem({
+  icon: Icon,
+  label,
+  value,
+  onSelect,
+  disabled,
+  disabledHint,
+}: ActionItemProps) {
+  return (
+    <CommandItem value={value} disabled={disabled} onSelect={onSelect}>
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+      <span className="flex-1">{label}</span>
+      {disabledHint && <span className="text-xs text-muted-foreground">{disabledHint}</span>}
+    </CommandItem>
   );
-  messages.forEach(({ label, provider, sessionId, snippet }) => {
-    const row = byId.get(sessionId);
-    if (row) {
-      row.snippet = snippet;
-    } else {
-      byId.set(sessionId, { id: sessionId, label, provider, snippet });
-    }
-  });
-  return Array.from(byId.values());
-}
-
-function visibleItems<T>(items: T[], page: Page | undefined, section: Page): T[] {
-  return section === page ? items : items.slice(0, BROWSE_LIMIT);
-}
-
-function isPaletteShortcut(event: KeyboardEvent) {
-  return (event.metaKey || event.ctrlKey)
-    && !event.shiftKey
-    && !event.altKey
-    && event.key.toLowerCase() === 'k';
 }
 
 export default function CommandPalette({
@@ -99,31 +147,31 @@ export default function CommandPalette({
   onOpenSettings,
   onShowTab,
 }: CommandPaletteProps) {
-  const [palette, setPalette] = React.useState<PaletteState>({ open: false, query: '', history: [] });
+  const [palette, dispatchPalette] = React.useReducer(paletteReducer, { open: false, query: '', history: [] });
   const { toggleDarkMode } = useTheme();
   const { openFile } = usePaletteOps();
   const navigate = useNavigate();
   const projectId = selectedProject?.projectId;
   const currentPage = palette.history[palette.history.length - 1];
-  const actionsVisible = sectionIsActive('actions', currentPage);
-  const sessionsVisible = sectionIsActive('sessions', currentPage);
-  const filesVisible = sectionIsActive('files', currentPage);
-  const commitsVisible = sectionIsActive('commits', currentPage);
-  const branchesVisible = sectionIsActive('branches', currentPage);
+  const actionsVisible = shouldRenderGroup('actions', currentPage);
+  const sessionsVisible = shouldRenderGroup('sessions', currentPage);
+  const filesVisible = shouldRenderGroup('files', currentPage);
+  const commitsVisible = shouldRenderGroup('commits', currentPage);
+  const branchesVisible = shouldRenderGroup('branches', currentPage);
 
   const openCommandPalette = React.useCallback(() => {
-    setPalette((paletteState) => ({ ...paletteState, open: true }));
+    dispatchPalette({ type: 'change-visibility', open: true });
   }, []);
   const openSessionPicker = React.useCallback(() => {
-    setPalette(() => ({ open: true, query: '', history: ['sessions'] }));
+    dispatchPalette({ type: 'open-sessions' });
   }, []);
   usePaletteOpsRegister({ openCommandPalette, openSessionPicker });
 
   React.useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
-      if (!isPaletteShortcut(event)) return;
+      if (!opensPalette(event)) return;
       event.preventDefault();
-      setPalette((paletteState) => ({ ...paletteState, open: !paletteState.open }));
+      dispatchPalette({ type: 'toggle-visibility' });
     };
     document.addEventListener('keydown', handleShortcut);
     return () => document.removeEventListener('keydown', handleShortcut);
@@ -131,10 +179,7 @@ export default function CommandPalette({
 
   React.useEffect(() => {
     if (palette.open) return;
-    setPalette((paletteState) => {
-      const isClean = !paletteState.query && paletteState.history.length === 0;
-      return isClean ? paletteState : { ...paletteState, query: '', history: [] };
-    });
+    dispatchPalette({ type: 'clear-closed' });
   }, [palette.open]);
 
   const sessions = useSessionsSource(projectId, palette.open && sessionsVisible);
@@ -143,25 +188,17 @@ export default function CommandPalette({
   const commits = useCommitsSource(projectId, palette.open && commitsVisible);
   const branches = useBranchesSource(projectId, palette.open && branchesVisible);
   const { fetch: fetchGit, pull: pullGit, push: pushGit, checkout: checkoutBranch } = useGitActions(projectId);
-  const sessionRows = combineSessions(sessions, messageMatches, sessionsVisible);
+  const sessionRows = mergeSessionResults(sessions, messageMatches, sessionsVisible);
 
   const runAfterDismissal = React.useCallback((action: () => void) => {
-    setPalette((paletteState) => ({ ...paletteState, open: false }));
+    dispatchPalette({ type: 'change-visibility', open: false });
     action();
   }, []);
   const enterPage = React.useCallback((page: Page) => {
-    setPalette((paletteState) => ({
-      ...paletteState,
-      query: '',
-      history: [...paletteState.history, page],
-    }));
+    dispatchPalette({ type: 'push-page', page });
   }, []);
   const leavePage = React.useCallback(() => {
-    setPalette((paletteState) => ({
-      ...paletteState,
-      query: '',
-      history: paletteState.history.slice(0, -1),
-    }));
+    dispatchPalette({ type: 'pop-page' });
   }, []);
   const handleKeyDown = React.useCallback((event: React.KeyboardEvent) => {
     if (event.key !== 'Backspace' || palette.query || palette.history.length === 0) return;
@@ -170,13 +207,58 @@ export default function CommandPalette({
   }, [leavePage, palette.history.length, palette.query]);
 
   const startNewChatDisabled = selectedProject === null;
-  const filesShown = visibleItems(files, currentPage, 'files');
-  const commitsShown = visibleItems(commits, currentPage, 'commits');
-  const sessionsShown = visibleItems(sessionRows, currentPage, 'sessions');
-  const branchesShown = visibleItems(branches, currentPage, 'branches');
+  const filesShown = browseItems(files, currentPage, 'files');
+  const commitsShown = browseItems(commits, currentPage, 'commits');
+  const sessionsShown = browseItems(sessionRows, currentPage, 'sessions');
+  const branchesShown = browseItems(branches, currentPage, 'branches');
+  const primaryActions: ActionItemProps[] = [
+    {
+      icon: MessageSquarePlus,
+      label: 'Start new chat',
+      value: 'Start new chat',
+      disabled: startNewChatDisabled,
+      disabledHint: startNewChatDisabled ? 'Select a project first' : undefined,
+      onSelect: () => {
+        if (!selectedProject) return;
+        runAfterDismissal(() => onStartNewChat(selectedProject));
+      },
+    },
+    {
+      icon: Settings,
+      label: 'Open settings',
+      value: 'Open settings',
+      onSelect: () => runAfterDismissal(() => onOpenSettings()),
+    },
+    {
+      icon: SunMoon,
+      label: 'Toggle theme',
+      value: 'Toggle theme dark light mode',
+      onSelect: () => runAfterDismissal(toggleDarkMode),
+    },
+  ];
+  const gitActions: ActionItemProps[] = [
+    {
+      icon: RefreshCw,
+      label: 'Git: Fetch',
+      value: 'Git Fetch remote',
+      onSelect: () => runAfterDismissal(() => { void fetchGit(); }),
+    },
+    {
+      icon: ArrowDownToLine,
+      label: 'Git: Pull',
+      value: 'Git Pull merge upstream',
+      onSelect: () => runAfterDismissal(() => { void pullGit(); }),
+    },
+    {
+      icon: ArrowUpFromLine,
+      label: 'Git: Push',
+      value: 'Git Push origin remote',
+      onSelect: () => runAfterDismissal(() => { void pushGit(); }),
+    },
+  ];
 
   return (
-    <Dialog open={palette.open} onOpenChange={(open) => setPalette((state) => ({ ...state, open }))}>
+    <Dialog open={palette.open} onOpenChange={(open) => dispatchPalette({ type: 'change-visibility', open })}>
       <DialogContent className="max-w-xl overflow-hidden p-0">
         <DialogTitle>Command palette</DialogTitle>
         <Command label="Command palette" onKeyDown={handleKeyDown}>
@@ -199,35 +281,14 @@ export default function CommandPalette({
           <CommandInput
             placeholder={currentPage ? `Search ${PAGE_LABELS[currentPage].toLowerCase()}…` : 'Type to search anything…'}
             value={palette.query}
-            onValueChange={(query) => setPalette((state) => ({ ...state, query }))}
+            onValueChange={(query) => dispatchPalette({ type: 'set-query', query })}
           />
           <CommandList>
             <CommandEmpty>No results.</CommandEmpty>
 
             {actionsVisible && (
               <CommandGroup heading="Actions">
-                <CommandItem
-                  value="Start new chat"
-                  disabled={startNewChatDisabled}
-                  onSelect={() => {
-                    if (!selectedProject) return;
-                    runAfterDismissal(() => onStartNewChat(selectedProject));
-                  }}
-                >
-                  <MessageSquarePlus className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="flex-1">Start new chat</span>
-                  {startNewChatDisabled && (
-                    <span className="text-xs text-muted-foreground">Select a project first</span>
-                  )}
-                </CommandItem>
-                <CommandItem value="Open settings" onSelect={() => runAfterDismissal(() => onOpenSettings())}>
-                  <Settings className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="flex-1">Open settings</span>
-                </CommandItem>
-                <CommandItem value="Toggle theme dark light mode" onSelect={() => runAfterDismissal(toggleDarkMode)}>
-                  <SunMoon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="flex-1">Toggle theme</span>
-                </CommandItem>
+                {primaryActions.map((action) => <PaletteActionItem key={action.value} {...action} />)}
               </CommandGroup>
             )}
 
@@ -247,18 +308,7 @@ export default function CommandPalette({
 
             {actionsVisible && projectId && (
               <CommandGroup heading="Git">
-                <CommandItem value="Git Fetch remote" onSelect={() => runAfterDismissal(() => { void fetchGit(); })}>
-                  <RefreshCw className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="flex-1">Git: Fetch</span>
-                </CommandItem>
-                <CommandItem value="Git Pull merge upstream" onSelect={() => runAfterDismissal(() => { void pullGit(); })}>
-                  <ArrowDownToLine className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="flex-1">Git: Pull</span>
-                </CommandItem>
-                <CommandItem value="Git Push origin remote" onSelect={() => runAfterDismissal(() => { void pushGit(); })}>
-                  <ArrowUpFromLine className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="flex-1">Git: Push</span>
-                </CommandItem>
+                {gitActions.map((action) => <PaletteActionItem key={action.value} {...action} />)}
               </CommandGroup>
             )}
 

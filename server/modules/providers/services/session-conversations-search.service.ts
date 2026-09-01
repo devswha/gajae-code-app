@@ -1,4 +1,4 @@
-import fsSync from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 
@@ -7,1220 +7,242 @@ import { rgPath } from '@vscode/ripgrep';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 
-type AnyRecord = Record<string, any>;
-type SearchableProvider = 'claude' | 'codex';
+type RecordValue = Record<string, any>;
+type Provider = 'claude' | 'codex';
+type Highlight = { start: number; end: number };
+type ConversationMatch = { role: string; snippet: string; highlights: Highlight[]; timestamp: string | null; provider: Provider; messageUuid?: string | null };
+type SessionResult = { sessionId: string; provider: Provider; sessionSummary: string; matches: ConversationMatch[] };
+type ProjectResult = { projectId: string | null; projectName: string; projectDisplayName: string; sessions: SessionResult[] };
 
-type SearchSnippetHighlight = {
-  start: number;
-  end: number;
-};
+export type SessionConversationSearchProgressUpdate = { projectResult: ProjectResult | null; totalMatches: number; scannedProjects: number; totalProjects: number };
+type SearchSessionConversationsInput = { query: string; limit: number; signal?: AbortSignal; onProgress?: (update: SessionConversationSearchProgressUpdate) => void };
+type SessionRow = ReturnType<typeof sessionsDb.getAllSessions>[number];
+type Candidate = SessionRow & { provider: Provider; jsonl_path: string };
+type ProjectGroup = { projectId: string | null; projectName: string; projectDisplayName: string; sessions: Candidate[] };
+type ClaudeState = { matches: ConversationMatch[]; delayedSummaries: Map<string, string>; fallbackUser: string | null; fallbackAssistant: string | null; summary: string | null };
 
-type SessionConversationMatch = {
-  role: string;
-  snippet: string;
-  highlights: SearchSnippetHighlight[];
-  timestamp: string | null;
-  provider: SearchableProvider;
-  messageUuid?: string | null;
-};
+const PROVIDERS = new Set<Provider>(['claude', 'codex']);
+const MAX_PER_SESSION = 2;
+const RG_BATCH = 40;
+const RG_WORKERS = 6;
+const UNKNOWN = '__unknown_project__';
+const HIDDEN = ['<system-reminder>', 'Caveat:', 'Invalid API key', '[Request interrupted'];
+const CODEX_HIDDEN = ['<environment_context>', '<cwd>'];
 
-type SessionConversationResult = {
-  sessionId: string;
-  provider: SearchableProvider;
-  sessionSummary: string;
-  matches: SessionConversationMatch[];
-};
+function comparablePath(value: string): string {
+  if (!value || typeof value !== 'string') return '';
+  const input = value.startsWith('\\\\?\\') ? value.slice(4) : value;
+  const normalized = path.normalize(input.trim());
+  if (!normalized) return '';
+  const absolute = path.resolve(normalized);
+  return process.platform === 'win32' ? absolute.toLowerCase() : absolute;
+}
 
-type ProjectConversationResult = {
-  projectId: string | null;
-  projectName: string;
-  projectDisplayName: string;
-  sessions: SessionConversationResult[];
-};
+function batches<T>(values: T[], length: number): T[][] {
+  if (length <= 0) return [values];
+  const output: T[][] = [];
+  for (let start = 0; start < values.length; start += length) output.push(values.slice(start, start + length));
+  return output;
+}
 
-export type SessionConversationSearchProgressUpdate = {
-  projectResult: ProjectConversationResult | null;
-  totalMatches: number;
-  scannedProjects: number;
-  totalProjects: number;
-};
+function sessionKey(row: Pick<SessionRow, 'provider' | 'session_id'>): string { return `${row.provider}:${row.session_id}`; }
+function projectKey(value: string | null): string { const trimmed = typeof value === 'string' ? value.trim() : ''; return trimmed || UNKNOWN; }
+function summary(customName: string | null, fallback: string | null | undefined, empty: string): string {
+  const chosen = typeof customName === 'string' ? customName.trim() : '';
+  if (chosen) return chosen;
+  const text = typeof fallback === 'string' ? fallback.trim() : '';
+  if (!text) return empty;
+  return text.length > 50 ? `${text.slice(0, 50)}...` : text;
+}
+function containsPrefix(text: string, prefixes: readonly string[]): boolean { return prefixes.some((prefix) => text.startsWith(prefix)); }
+function escapePattern(value: string): string { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function tagValue(text: string, tag: string): string | null { const found = new RegExp(`<${escapePattern(tag)}>([\\s\\S]*?)<\\/${escapePattern(tag)}>`).exec(text); return found ? found[1] : null; }
+function withoutAnsi(text: string): string { return text.replace(/\u001B\[[0-9;?]*[ -/]*[@-~]/g, ''); }
 
-type SearchSessionConversationsInput = {
-  query: string;
-  limit: number;
-  signal?: AbortSignal;
-  onProgress?: (update: SessionConversationSearchProgressUpdate) => void;
-};
+class QueryMatcher {
+  private readonly phrase: RegExp;
+  private readonly wholeWords: RegExp[];
+  private readonly phraseRequired: boolean;
 
-type SessionRepositoryRow = ReturnType<typeof sessionsDb.getAllSessions>[number];
-type SearchableSessionRow = SessionRepositoryRow & {
-  provider: SearchableProvider;
-  jsonl_path: string;
-};
-
-type SearchRuntime = {
-  matchesQuery: (text: string) => boolean;
-  buildSnippet: (text: string) => { snippet: string; highlights: SearchSnippetHighlight[] };
-  limit: number;
-  totalMatches: number;
-  isAborted: () => boolean;
-  matchedSessionKeys: Set<string>;
-  claudeSessionsByFileKey: Map<string, SearchableSessionRow[]>;
-  claudeFileResultsCache: Map<string, Map<string, SessionConversationResult>>;
-};
-
-type SearchablePathEntry = {
-  normalizedPath: string;
-  absolutePath: string;
-};
-
-type ProjectBucket = {
-  key: string;
-  projectId: string | null;
-  projectName: string;
-  projectDisplayName: string;
-  sessions: SearchableSessionRow[];
-};
-
-const SUPPORTED_PROVIDERS = new Set<SearchableProvider>(['claude', 'codex']);
-const MAX_MATCHES_PER_SESSION = 2;
-const RIPGREP_FILE_CHUNK_SIZE = 40;
-const RIPGREP_CHUNK_CONCURRENCY = 6;
-const UNKNOWN_PROJECT_KEY = '__unknown_project__';
-
-const INTERNAL_CONTENT_PREFIXES = [
-  '<system-reminder>',
-  'Caveat:',
-  'Invalid API key',
-  '[Request interrupted',
-] as const;
-
-/**
- * Codex includes extra internal metadata tags that should not surface as
- * user-facing searchable conversation content.
- */
-const CODEX_INTERNAL_CONTENT_PREFIXES = [
-  '<environment_context>',
-  '<cwd>',
-] as const;
-
-function normalizeComparablePath(inputPath: string): string {
-  if (!inputPath || typeof inputPath !== 'string') {
-    return '';
+  constructor(raw: string, readonly words: string[]) {
+    const normalized = raw.trim().replace(/\s+/g, ' ');
+    this.phraseRequired = words.length > 1 && normalized.length > 0;
+    this.phrase = new RegExp(words.map(escapePattern).join('\\s+'), 'iu');
+    this.wholeWords = words.map((word) => new RegExp(`(?<!\\p{L})${escapePattern(word)}(?!\\p{L})`, 'u'));
   }
 
-  const withoutLongPathPrefix = inputPath.startsWith('\\\\?\\')
-    ? inputPath.slice(4)
-    : inputPath;
-  const normalized = path.normalize(withoutLongPathPrefix.trim());
-  if (!normalized) {
-    return '';
+  accepts(text: string): boolean {
+    if (typeof text !== 'string' || !text.length) return false;
+    if (this.phraseRequired) return this.phrase.test(text);
+    if (this.phrase.test(text)) return true;
+    const lower = text.toLowerCase();
+    return this.wholeWords.every((pattern) => pattern.test(lower));
   }
 
-  const resolved = path.resolve(normalized);
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
-}
-
-function chunkArray<TItem>(items: TItem[], size: number): TItem[][] {
-  if (size <= 0) {
-    return [items];
-  }
-
-  const chunks: TItem[][] = [];
-  for (let idx = 0; idx < items.length; idx += size) {
-    chunks.push(items.slice(idx, idx + size));
-  }
-  return chunks;
-}
-
-function getSessionKey(session: Pick<SessionRepositoryRow, 'provider' | 'session_id'>): string {
-  return `${session.provider}:${session.session_id}`;
-}
-
-function makeProjectKey(projectPath: string | null): string {
-  const normalized = typeof projectPath === 'string' ? projectPath.trim() : '';
-  return normalized.length > 0 ? normalized : UNKNOWN_PROJECT_KEY;
-}
-
-function toSummaryText(customName: string | null, fallback: string | null | undefined, emptyLabel: string): string {
-  const trimmedCustomName = typeof customName === 'string' ? customName.trim() : '';
-  if (trimmedCustomName) {
-    return trimmedCustomName;
-  }
-
-  const trimmedFallback = typeof fallback === 'string' ? fallback.trim() : '';
-  if (!trimmedFallback) {
-    return emptyLabel;
-  }
-
-  return trimmedFallback.length > 50 ? `${trimmedFallback.slice(0, 50)}...` : trimmedFallback;
-}
-
-function isInternalContent(content: string): boolean {
-  return INTERNAL_CONTENT_PREFIXES.some((prefix) => content.startsWith(prefix));
-}
-
-function isInternalCodexContent(content: string): boolean {
-  const normalized = content.trimStart();
-  return CODEX_INTERNAL_CONTENT_PREFIXES.some((prefix) => normalized.startsWith(prefix));
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function createWordMatcher(
-  rawQuery: string,
-  words: string[],
-): Pick<SearchRuntime, 'matchesQuery' | 'buildSnippet'> {
-  const normalizedQuery = rawQuery.trim().replace(/\s+/g, ' ');
-  const requireExactPhrase = words.length > 1 && normalizedQuery.length > 0;
-  const wordPatterns = words.map((word) => new RegExp(`(?<!\\p{L})${escapeRegex(word)}(?!\\p{L})`, 'u'));
-  const phrasePattern = words.map((word) => escapeRegex(word)).join('\\s+');
-  const phraseRegex = new RegExp(phrasePattern, 'iu');
-
-  const allWordsMatch = (textLower: string): boolean =>
-    wordPatterns.every((pattern) => pattern.test(textLower));
-
-  const matchesQuery = (text: string): boolean => {
-    if (typeof text !== 'string' || text.length === 0) {
-      return false;
-    }
-
-    if (requireExactPhrase) {
-      return phraseRegex.test(text);
-    }
-
-    if (phraseRegex.test(text)) {
-      return true;
-    }
-
-    if (words.length === 1) {
-      return allWordsMatch(text.toLowerCase());
-    }
-
-    return allWordsMatch(text.toLowerCase());
-  };
-
-  const buildSnippet = (
-    text: string,
-    snippetLen = 150,
-  ): { snippet: string; highlights: SearchSnippetHighlight[] } => {
-    const textLower = text.toLowerCase();
-    let firstIndex = -1;
-    let firstWordLen = 0;
-    let phraseStart = -1;
-    let phraseLength = 0;
-
-    const phraseMatch = phraseRegex.exec(text);
-    if (phraseMatch) {
-      phraseStart = phraseMatch.index;
-      phraseLength = phraseMatch[0].length;
-      firstIndex = phraseStart;
-      firstWordLen = phraseLength;
-    }
-
-    if (firstIndex === -1) {
-      for (const word of words) {
-        const regex = new RegExp(`(?<!\\p{L})${escapeRegex(word)}(?!\\p{L})`, 'u');
-        const match = regex.exec(textLower);
-        if (match && (firstIndex === -1 || match.index < firstIndex)) {
-          firstIndex = match.index;
-          firstWordLen = word.length;
-        }
+  excerpt(text: string): { snippet: string; highlights: Highlight[] } {
+    const phraseMatch = this.phrase.exec(text);
+    let hit = phraseMatch?.index ?? -1;
+    let hitLength = phraseMatch?.[0].length ?? 0;
+    if (hit < 0) {
+      const lower = text.toLowerCase();
+      for (const word of this.words) {
+        const match = new RegExp(`(?<!\\p{L})${escapePattern(word)}(?!\\p{L})`, 'u').exec(lower);
+        if (match && (hit < 0 || match.index < hit)) { hit = match.index; hitLength = word.length; }
       }
     }
-
-    if (firstIndex === -1) {
-      firstIndex = 0;
-    }
-
-    const halfLen = Math.floor(snippetLen / 2);
-    const start = Math.max(0, firstIndex - halfLen);
-    const end = Math.min(text.length, firstIndex + halfLen + firstWordLen);
-    const prefix = start > 0 ? '...' : '';
-    const suffix = end < text.length ? '...' : '';
-    const snippetBody = text.slice(start, end).replace(/\n/g, ' ');
-    const snippet = `${prefix}${snippetBody}${suffix}`;
-
-    const snippetLower = snippet.toLowerCase();
-    const highlights: SearchSnippetHighlight[] = [];
-
-    if (phraseStart >= start && phraseStart + phraseLength <= end) {
-      const phraseOffset = prefix.length + (phraseStart - start);
-      highlights.push({
-        start: phraseOffset,
-        end: phraseOffset + phraseLength,
-      });
-    }
-
-    if (!requireExactPhrase) {
-      for (const word of words) {
-        const regex = new RegExp(`(?<!\\p{L})${escapeRegex(word)}(?!\\p{L})`, 'gu');
-        let match = regex.exec(snippetLower);
-        while (match) {
-          highlights.push({ start: match.index, end: match.index + word.length });
-          match = regex.exec(snippetLower);
-        }
+    if (hit < 0) hit = 0;
+    const start = Math.max(0, hit - 75);
+    const end = Math.min(text.length, hit + 75 + hitLength);
+    const lead = start ? '...' : '';
+    const snippet = `${lead}${text.slice(start, end).replace(/\n/g, ' ')}${end < text.length ? '...' : ''}`;
+    const spans: Highlight[] = [];
+    if (phraseMatch && phraseMatch.index >= start && phraseMatch.index + phraseMatch[0].length <= end) spans.push({ start: lead.length + phraseMatch.index - start, end: lead.length + phraseMatch.index - start + phraseMatch[0].length });
+    if (!this.phraseRequired) {
+      const lower = snippet.toLowerCase();
+      for (const word of this.words) {
+        const expression = new RegExp(`(?<!\\p{L})${escapePattern(word)}(?!\\p{L})`, 'gu');
+        for (let match = expression.exec(lower); match; match = expression.exec(lower)) spans.push({ start: match.index, end: match.index + word.length });
       }
     }
-
-    highlights.sort((left, right) => left.start - right.start);
-    const merged: SearchSnippetHighlight[] = [];
-    for (const highlight of highlights) {
-      const previous = merged[merged.length - 1];
-      if (previous && highlight.start <= previous.end) {
-        previous.end = Math.max(previous.end, highlight.end);
-      } else {
-        merged.push({ ...highlight });
-      }
+    spans.sort((a, b) => a.start - b.start);
+    const highlights: Highlight[] = [];
+    for (const span of spans) {
+      const previous = highlights[highlights.length - 1];
+      if (previous && span.start <= previous.end) previous.end = Math.max(previous.end, span.end);
+      else highlights.push({ ...span });
     }
-
-    return { snippet, highlights: merged };
-  };
-
-  return { matchesQuery, buildSnippet };
+    return { snippet, highlights };
+  }
 }
 
-function extractClaudeText(content: unknown): string {
-  if (typeof content === 'string') {
-    return content;
+function claudeContent(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (!Array.isArray(value)) return '';
+  return value.filter((part: RecordValue) => part?.type === 'text' && typeof part?.text === 'string').map((part: RecordValue) => String(part.text)).join(' ');
+}
+function codexContent(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (!Array.isArray(value)) return '';
+  return value.map((item) => { const row = item as RecordValue; return row && typeof row === 'object' && (row.type === 'input_text' || row.type === 'output_text' || row.type === 'text') && typeof row.text === 'string' ? row.text : ''; }).filter(Boolean).join(' ');
+}
+function claudeMessage(entry: RecordValue): { text: string; role: 'user' | 'assistant' } | null {
+  if (!entry.message?.content || entry.isApiErrorMessage) return null;
+  const role = entry.message.role;
+  if (role !== 'user' && role !== 'assistant') return null;
+  if (typeof entry.message.content !== 'string') {
+    const text = claudeContent(entry.message.content);
+    if (!text || containsPrefix(text, HIDDEN)) return null;
+    return { text, role: entry.isCompactSummary === true ? 'assistant' : role };
   }
-
-  if (!Array.isArray(content)) {
-    return '';
+  const text = String(entry.message.content);
+  if (entry.isCompactSummary === true && text.trim()) return { text, role: 'assistant' };
+  const commandName = tagValue(text, 'command-name');
+  const commandMessage = tagValue(text, 'command-message');
+  const commandArgs = tagValue(text, 'command-args');
+  if (commandName !== null || commandMessage !== null || commandArgs !== null) {
+    const command = (commandName ?? '').trim() || (commandMessage ?? '').trim();
+    const args = (commandArgs ?? '').trim();
+    return command ? { text: args ? `${command} ${args}` : command, role: 'user' } : null;
   }
-
-  return content
-    .filter((part: AnyRecord) => part?.type === 'text' && typeof part?.text === 'string')
-    .map((part: AnyRecord) => String(part.text))
-    .join(' ');
+  const stdout = tagValue(text, 'local-command-stdout');
+  if (stdout !== null) { const cleaned = withoutAnsi(stdout).trim(); return cleaned ? { text: cleaned, role: 'assistant' } : null; }
+  if (!text || containsPrefix(text, HIDDEN)) return null;
+  return { text, role };
+}
+function codexMessage(entry: RecordValue): { text: string; role: 'user' | 'assistant' } | null {
+  let text: string | null = null; let role: 'user' | 'assistant' | null = null;
+  const payload = entry.payload as RecordValue;
+  if (entry.type === 'event_msg' && payload?.type === 'user_message' && (!payload.kind || payload.kind === 'plain') && typeof payload.message === 'string' && payload.message.trim()) { text = payload.message; role = 'user'; }
+  else if (entry.type === 'event_msg' && payload?.type === 'agent_reasoning' && typeof payload.text === 'string') { text = payload.text; role = 'assistant'; }
+  else if (entry.type === 'response_item' && payload?.type === 'message' && (payload.role === 'user' || payload.role === 'assistant')) { text = codexContent(payload.content); role = payload.role; }
+  else if (entry.type === 'response_item' && payload?.type === 'reasoning') { const value = Array.isArray(payload.summary) ? payload.summary.map((item: RecordValue) => typeof item?.text === 'string' ? item.text : '').filter(Boolean).join('\n') : ''; if (value.trim()) { text = value; role = 'assistant'; } }
+  return text && role && !containsPrefix(text.trimStart(), CODEX_HIDDEN) ? { text, role } : null;
 }
 
-function extractTaggedContent(content: string, tagName: string): string | null {
-  const escapedTagName = tagName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = new RegExp(`<${escapedTagName}>([\\s\\S]*?)<\\/${escapedTagName}>`).exec(content);
-  return match ? match[1] : null;
-}
-
-type ClaudeLocalCommandPayload = {
-  commandName: string;
-  commandMessage: string;
-  commandArgs: string;
-};
-
-function parseClaudeLocalCommandPayload(content: string): ClaudeLocalCommandPayload | null {
-  const commandName = extractTaggedContent(content, 'command-name');
-  const commandMessage = extractTaggedContent(content, 'command-message');
-  const commandArgs = extractTaggedContent(content, 'command-args');
-
-  if (commandName === null && commandMessage === null && commandArgs === null) {
-    return null;
-  }
-
-  return {
-    commandName: commandName ?? '',
-    commandMessage: commandMessage ?? '',
-    commandArgs: commandArgs ?? '',
-  };
-}
-
-function buildClaudeLocalCommandDisplayText(payload: ClaudeLocalCommandPayload): string {
-  const commandName = payload.commandName.trim();
-  const commandMessage = payload.commandMessage.trim();
-  const commandArgs = payload.commandArgs.trim();
-  const baseCommand = commandName || commandMessage;
-
-  if (!baseCommand) {
-    return '';
-  }
-
-  return commandArgs ? `${baseCommand} ${commandArgs}` : baseCommand;
-}
-
-function stripAnsiFormatting(text: string): string {
-  return text.replace(/\u001B\[[0-9;?]*[ -/]*[@-~]/g, '');
-}
-
-type ClaudeSearchableMessage = {
-  text: string;
-  role: 'user' | 'assistant';
-};
-
-/**
- * Claude mixes visible chat, compact summaries, and local command wrappers into
- * the same transcript stream. Search should operate on the user-visible meaning
- * of those rows rather than the raw wrapper syntax.
- */
-function extractClaudeSearchableMessage(entry: AnyRecord): ClaudeSearchableMessage | null {
-  if (!entry.message?.content || entry.isApiErrorMessage) {
-    return null;
-  }
-
-  const rawRole = entry.message.role;
-  if (rawRole !== 'user' && rawRole !== 'assistant') {
-    return null;
-  }
-
-  if (typeof entry.message.content === 'string') {
-    const content = String(entry.message.content);
-
-    if (entry.isCompactSummary === true && content.trim()) {
-      return {
-        text: content,
-        role: 'assistant',
-      };
-    }
-
-    const localCommand = parseClaudeLocalCommandPayload(content);
-    if (localCommand) {
-      const displayText = buildClaudeLocalCommandDisplayText(localCommand);
-      return displayText
-        ? {
-            text: displayText,
-            role: 'user',
-          }
-        : null;
-    }
-
-    const localCommandStdout = extractTaggedContent(content, 'local-command-stdout');
-    if (localCommandStdout !== null) {
-      const stdoutText = stripAnsiFormatting(localCommandStdout).trim();
-      return stdoutText
-        ? {
-            text: stdoutText,
-            role: 'assistant',
-          }
-        : null;
-    }
-
-    if (!content || isInternalContent(content)) {
-      return null;
-    }
-
-    return {
-      text: content,
-      role: rawRole,
-    };
-  }
-
-  const text = extractClaudeText(entry.message.content);
-  if (!text) {
-    return null;
-  }
-
-  if (entry.isCompactSummary === true) {
-    return {
-      text,
-      role: 'assistant',
-    };
-  }
-
-  if (isInternalContent(text)) {
-    return null;
-  }
-
-  return {
-    text,
-    role: rawRole,
-  };
-}
-
-function extractCodexText(content: unknown): string {
-  if (typeof content === 'string') {
-    return content;
-  }
-
-  if (!Array.isArray(content)) {
-    return '';
-  }
-
-  return content
-    .map((item) => {
-      if (!item || typeof item !== 'object') {
-        return '';
-      }
-
-      const record = item as AnyRecord;
-      if (
-        (record.type === 'input_text' || record.type === 'output_text' || record.type === 'text')
-        && typeof record.text === 'string'
-      ) {
-        return record.text;
-      }
-
-      return '';
-    })
-    .filter(Boolean)
-    .join(' ');
-}
-
-function normalizeSearchableSessions(rows: SessionRepositoryRow[]): SearchableSessionRow[] {
-  const normalizedRows: SearchableSessionRow[] = [];
-  const projectArchiveStateByPath = new Map<string, boolean>();
-
-  for (const row of rows) {
-    const provider = row.provider as SearchableProvider;
-    if (!SUPPORTED_PROVIDERS.has(provider)) {
-      continue;
-    }
-
-    const rawJsonlPath = typeof row.jsonl_path === 'string' ? row.jsonl_path.trim() : '';
-    if (!rawJsonlPath) {
-      continue;
-    }
-
-    const absoluteJsonlPath = path.resolve(rawJsonlPath);
-    if (!fsSync.existsSync(absoluteJsonlPath)) {
-      continue;
-    }
-
-    /**
-     * Active session rows can still belong to an archived project because
-     * project archiving intentionally preserves the underlying session data.
-     * Global conversation search should follow the visible workspace model,
-     * which means excluding any session whose owning project is archived.
-     *
-     * Cache the archive lookup per normalized project path so one search pass
-     * does not re-query the same project row for every session in that folder.
-     */
-    const normalizedProjectPath = typeof row.project_path === 'string' ? row.project_path.trim() : '';
-    if (normalizedProjectPath) {
-      if (!projectArchiveStateByPath.has(normalizedProjectPath)) {
-        const projectRow = projectsDb.getProjectPath(normalizedProjectPath);
-        projectArchiveStateByPath.set(normalizedProjectPath, Boolean(projectRow?.isArchived));
-      }
-
-      if (projectArchiveStateByPath.get(normalizedProjectPath) === true) {
-        continue;
-      }
-    }
-
-    normalizedRows.push({
-      ...row,
-      provider,
-      jsonl_path: absoluteJsonlPath,
+class FileProbe {
+  constructor(private readonly signal?: AbortSignal) {}
+  private run(term: string, files: string[]): Promise<Set<string>> {
+    if (!term || !files.length || this.signal?.aborted) return Promise.resolve(new Set());
+    return new Promise((resolve, reject) => {
+      const child = spawn(rgPath, ['--files-with-matches', '--no-messages', '--ignore-case', '--fixed-strings', '--', term, ...files], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+      const out: Buffer[] = []; const errors: Buffer[] = []; let killed = false;
+      const abort = () => { killed = true; child.kill(); };
+      this.signal?.addEventListener('abort', abort, { once: true });
+      child.stdout.on('data', (chunk: Buffer) => out.push(chunk)); child.stderr.on('data', (chunk: Buffer) => errors.push(chunk));
+      child.on('error', (error) => { this.signal?.removeEventListener('abort', abort); if (killed || this.signal?.aborted) resolve(new Set()); else reject(error); });
+      child.on('close', (code) => { this.signal?.removeEventListener('abort', abort); if (killed || this.signal?.aborted) return resolve(new Set()); if (code !== 0 && code !== 1) return reject(new Error(`ripgrep failed with code ${String(code)}: ${Buffer.concat(errors).toString('utf8').trim()}`)); resolve(new Set(Buffer.concat(out).toString('utf8').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map(comparablePath))); });
     });
   }
-
-  return normalizedRows;
+  async matching(entries: Array<{ normalized: string; absolute: string }>, terms: string[]): Promise<Set<string>> {
+    if (!entries.length || !terms.length || this.signal?.aborted) return new Set();
+    let survivors = entries.slice();
+    for (const term of terms) {
+      if (this.signal?.aborted) return new Set();
+      const found = new Set<string>(); const chunks = batches(survivors.map((entry) => entry.absolute), RG_BATCH); let cursor = 0;
+      await Promise.all(Array.from({ length: Math.min(RG_WORKERS, chunks.length) }, async () => { while (cursor < chunks.length && !this.signal?.aborted) { const index = cursor++; for (const value of await this.run(term, chunks[index])) found.add(value); } }));
+      if (this.signal?.aborted) return new Set();
+      survivors = survivors.filter((entry) => found.has(entry.normalized));
+      if (!survivors.length) break;
+    }
+    return new Set(survivors.map((entry) => entry.normalized));
+  }
 }
 
-function buildProjectBuckets(searchableSessions: SearchableSessionRow[]): ProjectBucket[] {
-  const projectBuckets = new Map<string, ProjectBucket>();
-  const projectMetadataCache = new Map<string, { projectId: string | null; projectDisplayName: string }>();
-
-  for (const session of searchableSessions) {
-    const key = makeProjectKey(session.project_path);
-    if (!projectBuckets.has(key)) {
-      if (!projectMetadataCache.has(key)) {
-        if (key === UNKNOWN_PROJECT_KEY) {
-          projectMetadataCache.set(key, {
-            projectId: null,
-            projectDisplayName: 'Unknown Project',
-          });
-        } else {
-          const projectRow = projectsDb.getProjectPath(key);
-          const customProjectName = typeof projectRow?.custom_project_name === 'string'
-            ? projectRow.custom_project_name.trim()
-            : '';
-          const displayName = customProjectName || path.basename(key) || key;
-
-          projectMetadataCache.set(key, {
-            projectId: projectRow?.project_id ?? null,
-            projectDisplayName: displayName,
-          });
-        }
-      }
-
-      const metadata = projectMetadataCache.get(key) as { projectId: string | null; projectDisplayName: string };
-      projectBuckets.set(key, {
-        key,
-        projectId: metadata.projectId,
-        projectName: key,
-        projectDisplayName: metadata.projectDisplayName,
-        sessions: [],
-      });
-    }
-
-    const bucket = projectBuckets.get(key) as ProjectBucket;
-    bucket.sessions.push(session);
+function candidates(): Candidate[] {
+  const archived = new Map<string, boolean>(); const output: Candidate[] = [];
+  for (const row of sessionsDb.getAllSessions()) {
+    const provider = row.provider as Provider; const raw = typeof row.jsonl_path === 'string' ? row.jsonl_path.trim() : '';
+    if (!PROVIDERS.has(provider) || !raw) continue;
+    const jsonl_path = path.resolve(raw); if (!fs.existsSync(jsonl_path)) continue;
+    const projectPath = typeof row.project_path === 'string' ? row.project_path.trim() : '';
+    if (projectPath) { if (!archived.has(projectPath)) archived.set(projectPath, Boolean(projectsDb.getProjectPath(projectPath)?.isArchived)); if (archived.get(projectPath)) continue; }
+    output.push({ ...row, provider, jsonl_path });
   }
-
-  const buckets = Array.from(projectBuckets.values());
-  for (const bucket of buckets) {
-    bucket.sessions.sort((left, right) => {
-      const leftTs = new Date(left.updated_at || left.created_at || 0).getTime();
-      const rightTs = new Date(right.updated_at || right.created_at || 0).getTime();
-      return rightTs - leftTs;
-    });
-  }
-
-  return buckets;
+  return output;
+}
+function groups(rows: Candidate[]): ProjectGroup[] {
+  const output = new Map<string, ProjectGroup>();
+  for (const row of rows) { const name = projectKey(row.project_path); let group = output.get(name); if (!group) { const project = name === UNKNOWN ? null : projectsDb.getProjectPath(name); const custom = typeof project?.custom_project_name === 'string' ? project.custom_project_name.trim() : ''; group = { projectId: project?.project_id ?? null, projectName: name, projectDisplayName: name === UNKNOWN ? 'Unknown Project' : custom || path.basename(name) || name, sessions: [] }; output.set(name, group); } group.sessions.push(row); }
+  for (const group of output.values()) group.sessions.sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
+  return [...output.values()];
 }
 
-/**
- * Executes ripgrep with the file list explicitly provided from sessionsDb jsonl paths.
- *
- * This avoids recursive directory walks and uses a fixed known candidate list.
- */
-async function runRipgrepFilesWithMatches(
-  pattern: string,
-  filePaths: string[],
-  signal?: AbortSignal,
-): Promise<Set<string>> {
-  if (!pattern || filePaths.length === 0 || signal?.aborted) {
-    return new Set();
-  }
-
-  return new Promise((resolve, reject) => {
-    const args = [
-      '--files-with-matches',
-      '--no-messages',
-      '--ignore-case',
-      '--fixed-strings',
-      '--',
-      pattern,
-      ...filePaths,
-    ];
-    const rg = spawn(rgPath, args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-    });
-
-    const stdoutChunks: Buffer[] = [];
-    const stderrChunks: Buffer[] = [];
-    let aborted = false;
-
-    const abortListener = () => {
-      aborted = true;
-      rg.kill();
-    };
-
-    if (signal) {
-      signal.addEventListener('abort', abortListener, { once: true });
+class TranscriptSearch {
+  private total = 0;
+  private readonly claudeCache = new Map<string, Map<string, SessionResult>>();
+  constructor(private readonly matcher: QueryMatcher, private readonly max: number, private readonly aborted: () => boolean, private readonly selected: Set<string>, private readonly claudeByFile: Map<string, Candidate[]>) {}
+  get count(): number { return this.total; }
+  private record(matches: ConversationMatch[], match: ConversationMatch): void { if (this.total < this.max && matches.length < MAX_PER_SESSION) { matches.push(match); this.total++; } }
+  private async lines(file: string, consume: (row: RecordValue) => void): Promise<boolean> { try { const reader = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity }); for await (const line of reader) { if (this.total >= this.max || this.aborted()) break; if (!line.trim()) continue; try { consume(JSON.parse(line) as RecordValue); } catch { /* skip malformed lines */ } } return true; } catch { return false; } }
+  async search(row: Candidate): Promise<SessionResult | null> { return row.provider === 'claude' ? this.claude(row) : this.codex(row); }
+  private async claude(row: Candidate): Promise<SessionResult | null> {
+    const file = comparablePath(row.jsonl_path); if (!file) return null;
+    if (!this.claudeCache.has(file)) {
+      const related = (this.claudeByFile.get(file) ?? []).filter((candidate) => this.selected.has(sessionKey(candidate))); const targets = related.length ? related : [row]; const ids = new Set(targets.map((candidate) => candidate.session_id)); const names = new Map(targets.map((candidate) => [candidate.session_id, candidate.custom_name ?? null])); const states = new Map<string, ClaudeState>(); let current: string | null = null;
+      const state = (id: string): ClaudeState => { let result = states.get(id); if (!result) { result = { matches: [], delayedSummaries: new Map(), fallbackUser: null, fallbackAssistant: null, summary: null }; states.set(id, result); } return result; };
+      const readable = await this.lines(row.jsonl_path, (entry) => { if (entry.sessionId) current = String(entry.sessionId); const id = entry.sessionId ? String(entry.sessionId) : current; if (!id || !ids.has(id)) return; const target = state(id); if (entry.type === 'summary' && entry.summary) { const value = String(entry.summary); if (entry.sessionId) target.summary = value; else if (entry.leafUuid) target.delayedSummaries.set(String(entry.leafUuid), value); } if (!target.summary && entry.parentUuid) { const delayed = target.delayedSummaries.get(String(entry.parentUuid)); if (delayed) target.summary = delayed; } const message = claudeMessage(entry); if (!message) return; if (entry.isCompactSummary === true) target.summary = message.text; if (message.role === 'user') target.fallbackUser = message.text; else target.fallbackAssistant = message.text; if (!this.matcher.accepts(message.text)) return; const excerpt = this.matcher.excerpt(message.text); this.record(target.matches, { role: message.role, ...excerpt, timestamp: entry.timestamp ? String(entry.timestamp) : null, provider: 'claude', messageUuid: entry.uuid ? String(entry.uuid) : null }); });
+      const results = new Map<string, SessionResult>(); if (readable) for (const [id, value] of states) if (value.matches.length) results.set(id, { sessionId: id, provider: 'claude', sessionSummary: summary(names.get(id) ?? null, value.summary || value.fallbackUser || value.fallbackAssistant, 'New Session'), matches: value.matches }); this.claudeCache.set(file, results);
     }
-
-    rg.stdout.on('data', (chunk: Buffer) => {
-      stdoutChunks.push(chunk);
-    });
-
-    rg.stderr.on('data', (chunk: Buffer) => {
-      stderrChunks.push(chunk);
-    });
-
-    rg.on('error', (error) => {
-      if (signal) {
-        signal.removeEventListener('abort', abortListener);
-      }
-
-      if (aborted || signal?.aborted) {
-        resolve(new Set());
-        return;
-      }
-
-      reject(error);
-    });
-
-    rg.on('close', (code) => {
-      if (signal) {
-        signal.removeEventListener('abort', abortListener);
-      }
-
-      if (aborted || signal?.aborted) {
-        resolve(new Set());
-        return;
-      }
-
-      if (code !== 0 && code !== 1) {
-        const stderr = Buffer.concat(stderrChunks).toString('utf8').trim();
-        reject(new Error(`ripgrep failed with code ${String(code)}: ${stderr}`));
-        return;
-      }
-
-      const stdout = Buffer.concat(stdoutChunks).toString('utf8');
-      const matchedPaths = new Set<string>();
-
-      for (const line of stdout.split(/\r?\n/)) {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          continue;
-        }
-
-        matchedPaths.add(normalizeComparablePath(trimmed));
-      }
-
-      resolve(matchedPaths);
-    });
-  });
+    return this.claudeCache.get(file)?.get(row.session_id) ?? null;
+  }
+  private async codex(row: Candidate): Promise<SessionResult | null> {
+    const matches: ConversationMatch[] = []; let latest: string | null = null; const seen = new Set<string>(); const readable = await this.lines(row.jsonl_path, (entry) => { const message = codexMessage(entry); if (!message) return; if (message.role === 'user') latest = message.text; const fingerprint = `${message.role}:${message.text.trim().toLowerCase()}`; if (seen.has(fingerprint)) return; seen.add(fingerprint); if (!this.matcher.accepts(message.text)) return; const excerpt = this.matcher.excerpt(message.text); this.record(matches, { role: message.role, ...excerpt, timestamp: entry.timestamp ? String(entry.timestamp) : null, provider: 'codex' }); });
+    return readable && matches.length ? { sessionId: row.session_id, provider: 'codex', sessionSummary: summary(row.custom_name, latest, 'Codex Session'), matches } : null;
+  }
 }
 
-async function findMatchedFileKeys(
-  searchablePathEntries: SearchablePathEntry[],
-  rawQuery: string,
-  words: string[],
-  signal?: AbortSignal,
-): Promise<Set<string>> {
-  if (searchablePathEntries.length === 0 || words.length === 0 || signal?.aborted) {
-    return new Set();
-  }
-
-  const normalizedQuery = rawQuery.trim().replace(/\s+/g, ' ');
-  const requireExactPhrase = words.length > 1 && normalizedQuery.length > 0;
-
-  if (requireExactPhrase) {
-    let matchedForPhrase = searchablePathEntries.slice();
-
-    // Keep ripgrep as an over-approximation for exact phrase mode by requiring
-    // each word to appear somewhere in the file, then defer strict phrase
-    // validation to the in-memory matcher.
-    for (const word of words) {
-      if (signal?.aborted) {
-        return new Set();
-      }
-
-      const matchedForWord = new Set<string>();
-      const fileChunks = chunkArray(
-        matchedForPhrase.map((entry) => entry.absolutePath),
-        RIPGREP_FILE_CHUNK_SIZE,
-      );
-
-      let nextChunkIndex = 0;
-      const workerCount = Math.min(RIPGREP_CHUNK_CONCURRENCY, fileChunks.length);
-      const workers = Array.from({ length: workerCount }, async () => {
-        while (nextChunkIndex < fileChunks.length && !signal?.aborted) {
-          const currentIndex = nextChunkIndex;
-          nextChunkIndex += 1;
-          const chunkMatches = await runRipgrepFilesWithMatches(word, fileChunks[currentIndex], signal);
-          for (const matchedPath of chunkMatches) {
-            matchedForWord.add(matchedPath);
-          }
-        }
-      });
-
-      await Promise.all(workers);
-      if (signal?.aborted) {
-        return new Set();
-      }
-
-      matchedForPhrase = matchedForPhrase.filter((entry) => matchedForWord.has(entry.normalizedPath));
-      if (matchedForPhrase.length === 0) {
-        break;
-      }
-    }
-
-    return new Set(matchedForPhrase.map((entry) => entry.normalizedPath));
-  }
-
-  let remainingEntries = searchablePathEntries.slice();
-
-  // Run one ripgrep pass per term and intersect by keeping only files that
-  // matched every query word.
-  for (const word of words) {
-    if (signal?.aborted) {
-      return new Set();
-    }
-
-    const matchedForWord = new Set<string>();
-    const fileChunks = chunkArray(
-      remainingEntries.map((entry) => entry.absolutePath),
-      RIPGREP_FILE_CHUNK_SIZE,
-    );
-
-    let nextChunkIndex = 0;
-    const workerCount = Math.min(RIPGREP_CHUNK_CONCURRENCY, fileChunks.length);
-
-    const workers = Array.from({ length: workerCount }, async () => {
-      while (nextChunkIndex < fileChunks.length && !signal?.aborted) {
-        const currentIndex = nextChunkIndex;
-        nextChunkIndex += 1;
-        const chunkMatches = await runRipgrepFilesWithMatches(word, fileChunks[currentIndex], signal);
-        for (const matchedPath of chunkMatches) {
-          matchedForWord.add(matchedPath);
-        }
-      }
-    });
-
-    await Promise.all(workers);
-    if (signal?.aborted) {
-      return new Set();
-    }
-
-    remainingEntries = remainingEntries.filter((entry) => matchedForWord.has(entry.normalizedPath));
-    if (remainingEntries.length === 0) {
-      break;
-    }
-  }
-
-  return new Set(remainingEntries.map((entry) => entry.normalizedPath));
+export async function searchConversations(query: string, limit = 50, onProjectResult: ((update: SessionConversationSearchProgressUpdate) => void) | null = null, signal: AbortSignal | null = null): Promise<{ results: ProjectResult[]; totalMatches: number; query: string }> {
+  const clean = typeof query === 'string' ? query.trim() : ''; const cap = Math.max(1, Math.min(Number.isFinite(limit) ? limit : 50, 200)); const words = clean.toLowerCase().split(/\s+/).filter(Boolean); const stopped = () => signal?.aborted === true;
+  if (!words.length || stopped()) return { results: [], totalMatches: 0, query: clean };
+  const rows = candidates(); if (!rows.length) return { results: [], totalMatches: 0, query: clean };
+  const byFile = new Map<string, Candidate[]>(); const paths: Array<{ normalized: string; absolute: string }> = [];
+  for (const row of rows) { const key = comparablePath(row.jsonl_path); if (!key) continue; if (!byFile.has(key)) { byFile.set(key, []); paths.push({ normalized: key, absolute: row.jsonl_path }); } byFile.get(key)?.push(row); }
+  const files = await new FileProbe(signal ?? undefined).matching(paths, words); if (stopped() || !files.size) return { results: [], totalMatches: 0, query: clean };
+  const selected = new Set<string>(); for (const file of files) for (const row of byFile.get(file) ?? []) selected.add(sessionKey(row));
+  const claudeByFile = new Map<string, Candidate[]>(); for (const [file, entries] of byFile) { const claude = entries.filter((entry) => entry.provider === 'claude'); if (claude.length) claudeByFile.set(file, claude); }
+  const scanner = new TranscriptSearch(new QueryMatcher(clean, words), cap, stopped, selected, claudeByFile); const results: ProjectResult[] = []; const projectGroups = groups(rows); let scanned = 0;
+  for (const group of projectGroups) { if (scanner.count >= cap || stopped()) break; const projectResult: ProjectResult = { projectId: group.projectId, projectName: group.projectName, projectDisplayName: group.projectDisplayName, sessions: [] }; for (const row of group.sessions) { if (scanner.count >= cap || stopped()) break; if (!selected.has(sessionKey(row))) continue; const found = await scanner.search(row); if (found) projectResult.sessions.push(found); } scanned++; if (projectResult.sessions.length) { results.push(projectResult); onProjectResult?.({ projectResult, totalMatches: scanner.count, scannedProjects: scanned, totalProjects: projectGroups.length }); } else if (onProjectResult && scanned % 10 === 0) onProjectResult({ projectResult: null, totalMatches: scanner.count, scannedProjects: scanned, totalProjects: projectGroups.length }); }
+  return { results, totalMatches: scanner.count, query: clean };
 }
 
-function addSessionMatch(
-  runtime: SearchRuntime,
-  matches: SessionConversationMatch[],
-  match: SessionConversationMatch,
-): void {
-  if (runtime.totalMatches >= runtime.limit || matches.length >= MAX_MATCHES_PER_SESSION) {
-    return;
-  }
-
-  matches.push(match);
-  runtime.totalMatches += 1;
-}
-
-async function parseClaudeSessionMatches(
-  session: SearchableSessionRow,
-  runtime: SearchRuntime,
-): Promise<SessionConversationResult | null> {
-  const fileKey = normalizeComparablePath(session.jsonl_path);
-  if (!fileKey) {
-    return null;
-  }
-
-  if (!runtime.claudeFileResultsCache.has(fileKey)) {
-    const sessionsForFile = runtime.claudeSessionsByFileKey.get(fileKey) || [];
-    const matchedSessionsForFile = sessionsForFile.filter((candidate) =>
-      runtime.matchedSessionKeys.has(getSessionKey(candidate)),
-    );
-
-    const targetSessions = matchedSessionsForFile.length > 0
-      ? matchedSessionsForFile
-      : [session];
-
-    const targetSessionIds = new Set(targetSessions.map((candidate) => candidate.session_id));
-    const customNameBySessionId = new Map<string, string | null>();
-    for (const candidate of targetSessions) {
-      customNameBySessionId.set(candidate.session_id, candidate.custom_name ?? null);
-    }
-
-    type ClaudeSessionSearchState = {
-      matches: SessionConversationMatch[];
-      pendingSummaries: Map<string, string>;
-      fallbackUserText: string | null;
-      fallbackAssistantText: string | null;
-      resolvedSummary: string | null;
-    };
-
-    const sessionStateById = new Map<string, ClaudeSessionSearchState>();
-    const getSessionState = (sessionId: string): ClaudeSessionSearchState => {
-      if (!sessionStateById.has(sessionId)) {
-        sessionStateById.set(sessionId, {
-          matches: [],
-          pendingSummaries: new Map<string, string>(),
-          fallbackUserText: null,
-          fallbackAssistantText: null,
-          resolvedSummary: null,
-        });
-      }
-      return sessionStateById.get(sessionId) as ClaudeSessionSearchState;
-    };
-
-    let currentSessionId: string | null = null;
-
-    try {
-      const fileStream = fsSync.createReadStream(session.jsonl_path);
-      const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-
-      for await (const line of rl) {
-        if (runtime.totalMatches >= runtime.limit || runtime.isAborted()) {
-          break;
-        }
-        if (!line.trim()) {
-          continue;
-        }
-
-        let entry: AnyRecord;
-        try {
-          entry = JSON.parse(line) as AnyRecord;
-        } catch {
-          continue;
-        }
-
-        if (entry.sessionId) {
-          currentSessionId = String(entry.sessionId);
-        }
-        const entrySessionId = entry.sessionId
-          ? String(entry.sessionId)
-          : currentSessionId;
-        if (!entrySessionId || !targetSessionIds.has(entrySessionId)) {
-          continue;
-        }
-
-        const state = getSessionState(entrySessionId);
-
-        if (entry.type === 'summary' && entry.summary) {
-          const summaryValue = String(entry.summary);
-          if (entry.sessionId) {
-            state.resolvedSummary = summaryValue;
-          } else if (entry.leafUuid) {
-            state.pendingSummaries.set(String(entry.leafUuid), summaryValue);
-          }
-        }
-
-        if (!state.resolvedSummary && entry.parentUuid) {
-          const pendingSummary = state.pendingSummaries.get(String(entry.parentUuid));
-          if (pendingSummary) {
-            state.resolvedSummary = pendingSummary;
-          }
-        }
-
-        const searchableMessage = extractClaudeSearchableMessage(entry);
-        if (!searchableMessage) {
-          continue;
-        }
-
-        const { text, role } = searchableMessage;
-
-        /**
-         * Claude compact summaries are the most faithful session-summary source
-         * after a `/compact` because they describe the post-compaction state that
-         * the resumed session actually continues from. Prefer them over generic
-         * fallback user text when present.
-         */
-        if (entry.isCompactSummary === true) {
-          state.resolvedSummary = text;
-        }
-
-        if (role === 'user') {
-          state.fallbackUserText = text;
-        } else {
-          state.fallbackAssistantText = text;
-        }
-
-        if (!runtime.matchesQuery(text)) {
-          continue;
-        }
-
-        const { snippet, highlights } = runtime.buildSnippet(text);
-        addSessionMatch(runtime, state.matches, {
-          role,
-          snippet,
-          highlights,
-          timestamp: entry.timestamp ? String(entry.timestamp) : null,
-          provider: 'claude',
-          messageUuid: entry.uuid ? String(entry.uuid) : null,
-        });
-      }
-    } catch {
-      runtime.claudeFileResultsCache.set(fileKey, new Map());
-      return null;
-    }
-
-    const fileResults = new Map<string, SessionConversationResult>();
-    for (const [sessionId, state] of sessionStateById.entries()) {
-      if (state.matches.length === 0) {
-        continue;
-      }
-
-      fileResults.set(sessionId, {
-        sessionId,
-        provider: 'claude',
-        sessionSummary: toSummaryText(
-          customNameBySessionId.get(sessionId) ?? null,
-          state.resolvedSummary || state.fallbackUserText || state.fallbackAssistantText,
-          'New Session',
-        ),
-        matches: state.matches,
-      });
-    }
-
-    runtime.claudeFileResultsCache.set(fileKey, fileResults);
-  }
-
-  return runtime.claudeFileResultsCache.get(fileKey)?.get(session.session_id) ?? null;
-}
-
-function isVisibleCodexUserMessage(payload: AnyRecord | null | undefined): boolean {
-  if (!payload || payload.type !== 'user_message') {
-    return false;
-  }
-
-  if (payload.kind && payload.kind !== 'plain') {
-    return false;
-  }
-
-  return typeof payload.message === 'string' && payload.message.trim().length > 0;
-}
-
-async function parseCodexSessionMatches(
-  session: SearchableSessionRow,
-  runtime: SearchRuntime,
-): Promise<SessionConversationResult | null> {
-  const matches: SessionConversationMatch[] = [];
-  let latestUserMessageText: string | null = null;
-  const seenMessageFingerprints = new Set<string>();
-
-  try {
-    const fileStream = fsSync.createReadStream(session.jsonl_path);
-    const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-
-    for await (const line of rl) {
-      if (runtime.totalMatches >= runtime.limit || runtime.isAborted()) {
-        break;
-      }
-      if (!line.trim()) {
-        continue;
-      }
-
-      let entry: AnyRecord;
-      try {
-        entry = JSON.parse(line) as AnyRecord;
-      } catch {
-        continue;
-      }
-
-      let text: string | null = null;
-      let role: 'user' | 'assistant' | null = null;
-
-      if (entry.type === 'event_msg' && isVisibleCodexUserMessage(entry.payload as AnyRecord)) {
-        text = String(entry.payload.message);
-        role = 'user';
-      } else if (
-        entry.type === 'event_msg'
-        && entry.payload?.type === 'agent_reasoning'
-        && typeof entry.payload?.text === 'string'
-      ) {
-        text = String(entry.payload.text);
-        role = 'assistant';
-      } else if (entry.type === 'response_item' && entry.payload?.type === 'message') {
-        const payload = entry.payload as AnyRecord;
-        if (payload.role === 'user') {
-          text = extractCodexText(payload.content);
-          role = 'user';
-        } else if (payload.role === 'assistant') {
-          text = extractCodexText(payload.content);
-          role = 'assistant';
-        }
-      } else if (entry.type === 'response_item' && entry.payload?.type === 'reasoning') {
-        const summaryText = Array.isArray(entry.payload.summary)
-          ? entry.payload.summary
-            .map((item: AnyRecord) => (typeof item?.text === 'string' ? item.text : ''))
-            .filter(Boolean)
-            .join('\n')
-          : '';
-
-        if (summaryText.trim()) {
-          text = summaryText;
-          role = 'assistant';
-        }
-      }
-
-      if (!text || !role) {
-        continue;
-      }
-      if (isInternalCodexContent(text)) {
-        continue;
-      }
-      if (role === 'user') {
-        latestUserMessageText = text;
-      }
-
-      const fingerprint = `${role}:${text.trim().toLowerCase()}`;
-      if (seenMessageFingerprints.has(fingerprint)) {
-        continue;
-      }
-      seenMessageFingerprints.add(fingerprint);
-
-      if (!runtime.matchesQuery(text)) {
-        continue;
-      }
-
-      const { snippet, highlights } = runtime.buildSnippet(text);
-      addSessionMatch(runtime, matches, {
-        role,
-        snippet,
-        highlights,
-        timestamp: entry.timestamp ? String(entry.timestamp) : null,
-        provider: 'codex',
-      });
-    }
-  } catch {
-    return null;
-  }
-
-  if (matches.length === 0) {
-    return null;
-  }
-
-  return {
-    sessionId: session.session_id,
-    provider: 'codex',
-    sessionSummary: toSummaryText(session.custom_name, latestUserMessageText, 'Codex Session'),
-    matches,
-  };
-}
-
-async function parseSessionMatches(
-  session: SearchableSessionRow,
-  runtime: SearchRuntime,
-): Promise<SessionConversationResult | null> {
-  if (session.provider === 'claude') {
-    return parseClaudeSessionMatches(session, runtime);
-  }
-  if (session.provider === 'codex') {
-    return parseCodexSessionMatches(session, runtime);
-  }
-  return null;
-}
-
-export async function searchConversations(
-  query: string,
-  limit = 50,
-  onProjectResult: ((update: SessionConversationSearchProgressUpdate) => void) | null = null,
-  signal: AbortSignal | null = null,
-): Promise<{ results: ProjectConversationResult[]; totalMatches: number; query: string }> {
-  const safeQuery = typeof query === 'string' ? query.trim() : '';
-  const safeLimit = Math.max(1, Math.min(Number.isFinite(limit) ? limit : 50, 200));
-  const words = safeQuery.toLowerCase().split(/\s+/).filter((word) => word.length > 0);
-
-  if (words.length === 0) {
-    return { results: [], totalMatches: 0, query: safeQuery };
-  }
-
-  const isAborted = () => signal?.aborted === true;
-  if (isAborted()) {
-    return { results: [], totalMatches: 0, query: safeQuery };
-  }
-
-  const searchableSessions = normalizeSearchableSessions(sessionsDb.getAllSessions());
-  if (searchableSessions.length === 0) {
-    return { results: [], totalMatches: 0, query: safeQuery };
-  }
-
-  const sessionsByPathKey = new Map<string, SearchableSessionRow[]>();
-  const searchablePathEntries: SearchablePathEntry[] = [];
-
-  for (const session of searchableSessions) {
-    const normalizedPath = normalizeComparablePath(session.jsonl_path);
-    if (!normalizedPath) {
-      continue;
-    }
-
-    if (!sessionsByPathKey.has(normalizedPath)) {
-      sessionsByPathKey.set(normalizedPath, []);
-      searchablePathEntries.push({
-        normalizedPath,
-        absolutePath: session.jsonl_path,
-      });
-    }
-
-    const pathSessions = sessionsByPathKey.get(normalizedPath) as SearchableSessionRow[];
-    pathSessions.push(session);
-  }
-
-  const matchedFileKeys = await findMatchedFileKeys(
-    searchablePathEntries,
-    safeQuery,
-    words,
-    signal ?? undefined,
-  );
-  if (isAborted() || matchedFileKeys.size === 0) {
-    return { results: [], totalMatches: 0, query: safeQuery };
-  }
-
-  const matchedSessionKeys = new Set<string>();
-  for (const fileKey of matchedFileKeys) {
-    const sessions = sessionsByPathKey.get(fileKey);
-    if (!sessions) {
-      continue;
-    }
-
-    for (const session of sessions) {
-      matchedSessionKeys.add(getSessionKey(session));
-    }
-  }
-
-  const projectBuckets = buildProjectBuckets(searchableSessions);
-  const totalProjects = projectBuckets.length;
-  const results: ProjectConversationResult[] = [];
-  let scannedProjects = 0;
-
-  const runtime: SearchRuntime = {
-    ...createWordMatcher(safeQuery, words),
-    limit: safeLimit,
-    totalMatches: 0,
-    isAborted,
-    matchedSessionKeys,
-    claudeSessionsByFileKey: new Map<string, SearchableSessionRow[]>(),
-    claudeFileResultsCache: new Map<string, Map<string, SessionConversationResult>>(),
-  };
-
-  for (const [fileKey, sessions] of sessionsByPathKey.entries()) {
-    const claudeSessions = sessions.filter((session) => session.provider === 'claude');
-    if (claudeSessions.length > 0) {
-      runtime.claudeSessionsByFileKey.set(fileKey, claudeSessions);
-    }
-  }
-
-  for (const bucket of projectBuckets) {
-    if (runtime.totalMatches >= runtime.limit || runtime.isAborted()) {
-      break;
-    }
-
-    const projectResult: ProjectConversationResult = {
-      projectId: bucket.projectId,
-      projectName: bucket.projectName,
-      projectDisplayName: bucket.projectDisplayName,
-      sessions: [],
-    };
-
-    for (const session of bucket.sessions) {
-      if (runtime.totalMatches >= runtime.limit || runtime.isAborted()) {
-        break;
-      }
-      if (!matchedSessionKeys.has(getSessionKey(session))) {
-        continue;
-      }
-
-      const sessionResult = await parseSessionMatches(session, runtime);
-      if (sessionResult) {
-        projectResult.sessions.push(sessionResult);
-      }
-    }
-
-    scannedProjects += 1;
-    if (projectResult.sessions.length > 0) {
-      results.push(projectResult);
-      onProjectResult?.({
-        projectResult,
-        totalMatches: runtime.totalMatches,
-        scannedProjects,
-        totalProjects,
-      });
-    } else if (onProjectResult && scannedProjects % 10 === 0) {
-      onProjectResult({
-        projectResult: null,
-        totalMatches: runtime.totalMatches,
-        scannedProjects,
-        totalProjects,
-      });
-    }
-  }
-
-  return {
-    results,
-    totalMatches: runtime.totalMatches,
-    query: safeQuery,
-  };
-}
-
-/**
- * Application service for session-conversation search.
- *
- * Provider routes call this service so route handlers stay focused on
- * request parsing/response formatting, while search execution remains
- * centralized in one place.
- */
-export const sessionConversationsSearchService = {
-  /**
-   * Streams progress updates while the search scans provider session logs.
-   */
-  async search(input: SearchSessionConversationsInput): Promise<void> {
-    await searchConversations(
-      input.query,
-      input.limit,
-      input.onProgress ?? null,
-      input.signal ?? null,
-    );
-  },
-};
+export const sessionConversationsSearchService = { async search(input: SearchSessionConversationsInput): Promise<void> { await searchConversations(input.query, input.limit, input.onProgress ?? null, input.signal ?? null); } };

@@ -1,78 +1,49 @@
 import { projectsDb } from '@/modules/database/index.js';
 import { AppError } from '@/shared/utils.js';
 
-type ToggleProjectStarResult = {
-  isStarred: boolean;
-};
+type ToggleProjectStarResult = { isStarred: boolean };
+type ApplyLegacyStarredProjectIdsResult = { updated: number };
 
-type ApplyLegacyStarredProjectIdsResult = {
-  updated: number;
-};
+function requireProjectId(value: string): string {
+  const projectId = value.trim();
+  if (projectId) return projectId;
 
-function normalizeProjectId(projectId: string): string {
-  return projectId.trim();
+  throw new AppError('projectId is required', {
+    code: 'PROJECT_ID_REQUIRED',
+    statusCode: 400,
+  });
 }
 
-function uniqueProjectIds(projectIds: string[]): string[] {
-  const uniqueIds = new Set<string>();
-  for (const projectId of projectIds) {
-    const normalizedProjectId = normalizeProjectId(projectId);
-    if (!normalizedProjectId) {
-      continue;
-    }
-    uniqueIds.add(normalizedProjectId);
-  }
-  return [...uniqueIds];
+function starCandidates(ids: string[]): Iterable<string> {
+  return new Set(ids.map((id) => id.trim()).filter(Boolean));
 }
 
-/**
- * Applies legacy `localStorage` stars keyed by DB `projectId` onto `projects.isStarred`.
- *
- * The operation is idempotent: already-starred projects are ignored, unknown ids are skipped.
- */
 export function applyLegacyStarredProjectIds(projectIds: string[]): ApplyLegacyStarredProjectIdsResult {
-  const normalizedProjectIds = uniqueProjectIds(projectIds);
-  let updated = 0;
+  let changes = 0;
 
-  for (const projectId of normalizedProjectIds) {
-    const project = projectsDb.getProjectById(projectId);
-    if (!project) {
-      continue;
-    }
-
-    if (project.isStarred) {
-      continue;
-    }
+  for (const projectId of starCandidates(projectIds)) {
+    const storedProject = projectsDb.getProjectById(projectId);
+    if (storedProject?.isStarred) continue;
+    if (!storedProject) continue;
 
     projectsDb.updateProjectIsStarredById(projectId, true);
-    updated += 1;
+    changes += 1;
   }
 
-  return { updated };
+  return { updated: changes };
 }
 
-/**
- * Flips `projects.isStarred` for one project and returns the new state.
- */
 export function toggleProjectStar(projectId: string): ToggleProjectStarResult {
-  const normalizedProjectId = normalizeProjectId(projectId);
-  if (!normalizedProjectId) {
-    throw new AppError('projectId is required', {
-      code: 'PROJECT_ID_REQUIRED',
-      statusCode: 400,
-    });
-  }
-
-  const project = projectsDb.getProjectById(normalizedProjectId);
-  if (!project) {
+  const id = requireProjectId(projectId);
+  const storedProject = projectsDb.getProjectById(id);
+  if (!storedProject) {
     throw new AppError('Project not found', {
       code: 'PROJECT_NOT_FOUND',
       statusCode: 404,
     });
   }
 
-  const nextStarredState = !project.isStarred;
-  projectsDb.updateProjectIsStarredById(normalizedProjectId, nextStarredState);
-
-  return { isStarred: nextStarredState };
+  const isStarred = !storedProject.isStarred;
+  projectsDb.updateProjectIsStarredById(id, isStarred);
+  return { isStarred };
 }

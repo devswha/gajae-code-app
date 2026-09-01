@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { FolderPlus, Loader2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -13,11 +13,6 @@ type ProjectCreationWizardProps = {
   onProjectCreated?: (project?: Record<string, unknown>) => void;
 };
 
-/**
- * Codex-style project entry: one small folder-oriented dialog instead of a
- * multi-step project wizard. Repository cloning remains available from the Git
- * tooling after the workspace has been added.
- */
 export default function ProjectCreationWizard({
   onClose,
   onProjectCreated,
@@ -27,9 +22,9 @@ export default function ProjectCreationWizard({
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleCreate = useCallback(async () => {
+  const createProject = async () => {
     const path = workspacePath.trim();
-    if (!path) {
+    if (path === '') {
       setError(t('projectWizard.errors.providePath'));
       return;
     }
@@ -40,14 +35,14 @@ export default function ProjectCreationWizard({
       const project = await createProjectRequest({ path });
       onProjectCreated?.(project);
       onClose();
-    } catch (createError) {
-      setError(createError instanceof Error
-        ? createError.message
-        : t('projectWizard.errors.failedToCreate'));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : t('projectWizard.errors.failedToCreate'));
     } finally {
       setIsCreating(false);
     }
-  }, [onClose, onProjectCreated, t, workspacePath]);
+  };
+
+  const pathIsEmpty = !workspacePath.trim();
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center bg-background/80 p-4 backdrop-blur-xs">
@@ -99,7 +94,7 @@ export default function ProjectCreationWizard({
           <Button type="button" variant="ghost" onClick={onClose} disabled={isCreating}>
             {t('projectWizard.buttons.cancel')}
           </Button>
-          <Button type="button" onClick={handleCreate} disabled={!workspacePath.trim() || isCreating}>
+          <Button type="button" onClick={createProject} disabled={pathIsEmpty || isCreating}>
             {isCreating && <Loader2 className="mr-2 size-4 animate-spin" />}
             {isCreating
               ? t('projectWizard.buttons.creating')

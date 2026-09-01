@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { fetchGithubTokenCredentials } from '../data/workspaceApi';
 import type { GithubTokenCredential } from '../types';
@@ -17,58 +17,46 @@ export const useGithubTokens = ({
   const [tokens, setTokens] = useState<GithubTokenCredential[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const hasLoadedRef = useRef(false);
+  const loaded = useRef(false);
 
   useEffect(() => {
-    if (!shouldLoad || hasLoadedRef.current) {
-      return;
+    if (!shouldLoad || loaded.current) {
+      return undefined;
     }
 
-    let isDisposed = false;
-
-    const loadTokens = async () => {
+    let active = true;
+    const requestTokens = async () => {
       setLoading(true);
       setLoadError(null);
 
       try {
-        const activeTokens = await fetchGithubTokenCredentials();
-        if (isDisposed) {
+        const availableTokens = await fetchGithubTokenCredentials();
+        if (!active) {
           return;
         }
 
-        setTokens(activeTokens);
-        hasLoadedRef.current = true;
-
-        if (activeTokens.length > 0 && !selectedTokenId) {
-          onAutoSelectToken(String(activeTokens[0].id));
+        loaded.current = true;
+        setTokens(availableTokens);
+        if (availableTokens.length && !selectedTokenId) {
+          onAutoSelectToken(String(availableTokens[0].id));
         }
-      } catch (error) {
-        if (!isDisposed) {
-          setLoadError(error instanceof Error ? error.message : 'Failed to load GitHub tokens');
+      } catch (reason) {
+        if (active) {
+          setLoadError(reason instanceof Error ? reason.message : 'Failed to load GitHub tokens');
         }
       } finally {
-        if (!isDisposed) {
+        if (active) {
           setLoading(false);
         }
       }
     };
 
-    loadTokens();
-
+    void requestTokens();
     return () => {
-      isDisposed = true;
+      active = false;
     };
   }, [onAutoSelectToken, selectedTokenId, shouldLoad]);
 
-  const selectedTokenName = useMemo(
-    () => tokens.find((token) => String(token.id) === selectedTokenId)?.credential_name || null,
-    [selectedTokenId, tokens],
-  );
-
-  return {
-    tokens,
-    loading,
-    loadError,
-    selectedTokenName,
-  };
+  const selectedTokenName = tokens.find(({ id }) => String(id) === selectedTokenId)?.credential_name || null;
+  return { tokens, loading, loadError, selectedTokenName };
 };

@@ -1,48 +1,50 @@
-const SSH_PREFIXES = ['git@', 'ssh://'];
-const WINDOWS_DRIVE_PATTERN = /^[A-Za-z]:\\?$/;
+const driveRoot = /^[A-Za-z]:\\?$/;
+
+const lastPathSeparator = (path: string) => Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+const isDrivePath = (path: string) => /^[A-Za-z]:/.test(path);
 
 export const isSshGitUrl = (url: string): boolean => {
-  const trimmedUrl = url.trim();
-  return SSH_PREFIXES.some((prefix) => trimmedUrl.startsWith(prefix));
+  const candidate = url.trim();
+  return candidate.startsWith('git@') || candidate.startsWith('ssh://');
 };
 
-export const shouldShowGithubAuthentication = (githubUrl: string): boolean =>
-  githubUrl.trim().length > 0 && !isSshGitUrl(githubUrl);
+export const shouldShowGithubAuthentication = (githubUrl: string): boolean => {
+  const repositoryUrl = githubUrl.trim();
+  return repositoryUrl.length !== 0 && !isSshGitUrl(repositoryUrl);
+};
 
-export const isCloneWorkflow = (githubUrl: string): boolean =>
-  githubUrl.trim().length > 0;
+export const isCloneWorkflow = (githubUrl: string): boolean => githubUrl.trim() !== '';
 
 export const getSuggestionRootPath = (inputPath: string): string => {
-  const trimmedPath = inputPath.trim();
-  const lastSeparatorIndex = Math.max(trimmedPath.lastIndexOf('/'), trimmedPath.lastIndexOf('\\'));
-  if (lastSeparatorIndex === 2 && /^[A-Za-z]:/.test(trimmedPath)) {
-    return `${trimmedPath.slice(0, 2)}\\`;
+  const path = inputPath.trim();
+  const separator = lastPathSeparator(path);
+
+  if (separator === 2 && isDrivePath(path)) {
+    return `${path.slice(0, 2)}\\`;
   }
 
-  return lastSeparatorIndex > 0 ? trimmedPath.slice(0, lastSeparatorIndex) : '~';
+  return separator > 0 ? path.slice(0, separator) : '~';
 };
 
-// Handles root edge cases for Unix-like and Windows paths.
 export const getParentPath = (currentPath: string): string | null => {
-  if (currentPath === '~' || currentPath === '/' || WINDOWS_DRIVE_PATTERN.test(currentPath)) {
+  if (currentPath === '~' || currentPath === '/' || driveRoot.test(currentPath)) {
     return null;
   }
 
-  const lastSeparatorIndex = Math.max(currentPath.lastIndexOf('/'), currentPath.lastIndexOf('\\'));
-  if (lastSeparatorIndex <= 0) {
+  const separator = lastPathSeparator(currentPath);
+  if (separator <= 0) {
     return '/';
   }
 
-  if (lastSeparatorIndex === 2 && /^[A-Za-z]:/.test(currentPath)) {
+  if (separator === 2 && isDrivePath(currentPath)) {
     return `${currentPath.slice(0, 2)}\\`;
   }
 
-  return currentPath.slice(0, lastSeparatorIndex);
+  return currentPath.slice(0, separator);
 };
 
 export const joinFolderPath = (basePath: string, folderName: string): string => {
-  const normalizedBasePath = basePath.trim().replace(/[\\/]+$/, '');
-  const separator =
-    normalizedBasePath.includes('\\') && !normalizedBasePath.includes('/') ? '\\' : '/';
-  return `${normalizedBasePath}${separator}${folderName.trim()}`;
+  const folder = basePath.trim().replace(/[\\/]+$/, '');
+  const usesWindowsSeparator = folder.includes('\\') && !folder.includes('/');
+  return `${folder}${usesWindowsSeparator ? '\\' : '/'}${folderName.trim()}`;
 };

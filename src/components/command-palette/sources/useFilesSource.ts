@@ -2,41 +2,34 @@ import { api } from '../../../utils/api';
 
 import { useApiSource } from './useApiSource';
 
-export type FileResult = {
-  path: string;
-  name: string;
-};
+export type FileResult = { path: string; name: string };
+type FileNode = { type: 'file' | 'directory'; name: string; path: string; children?: FileNode[] };
 
-interface FileNode {
-  type: 'file' | 'directory';
-  name: string;
-  path: string;
-  children?: FileNode[];
-}
+const FILE_CAP = 500;
 
-const MAX_FILES = 500;
+function collectFiles(roots: FileNode[]): FileResult[] {
+  const found: FileResult[] = [];
+  const pending = [...roots].reverse();
 
-function flatten(nodes: FileNode[], out: FileResult[]): void {
-  for (const node of nodes) {
-    if (out.length >= MAX_FILES) return;
+  while (pending.length > 0 && found.length < FILE_CAP) {
+    const node = pending.pop();
+    if (!node) continue;
     if (node.type === 'file') {
-      out.push({ path: node.path, name: node.name });
-    } else if (node.children && node.children.length > 0) {
-      flatten(node.children, out);
+      found.push({ path: node.path, name: node.name });
+      continue;
     }
+    if (node.children) pending.push(...[...node.children].reverse());
   }
+
+  return found;
 }
 
 export function useFilesSource(projectId: string | undefined, enabled: boolean) {
-  return useApiSource<FileResult, unknown>({
-    enabled: enabled && !!projectId,
+  const canLoad = Boolean(projectId) && enabled;
+  return useApiSource<FileResult>({
+    enabled: canLoad,
     deps: [projectId],
     fetcher: (signal) => api.getFiles(projectId!, { signal }),
-    parse: (data) => {
-      const tree: FileNode[] = Array.isArray(data) ? (data as FileNode[]) : [];
-      const flat: FileResult[] = [];
-      flatten(tree, flat);
-      return flat;
-    },
+    parse: (payload) => collectFiles(Array.isArray(payload) ? payload as FileNode[] : []),
   });
 }

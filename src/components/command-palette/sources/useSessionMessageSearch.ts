@@ -1,101 +1,84 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { api } from '../../../utils/api';
 import type { LLMProvider } from '../../../types/app';
+import { api } from '../../../utils/api';
 
-export type SessionMessageMatch = {
-  sessionId: string;
-  label: string;
-  snippet: string;
-  provider: LLMProvider;
-};
-
+export type SessionMessageMatch = { sessionId: string; label: string; snippet: string; provider: LLMProvider };
 type ProjectResult = {
   projectId: string | null;
   projectName: string;
-  sessions: Array<{
-    sessionId: string;
-    provider: LLMProvider;
-    sessionSummary: string;
-    matches: Array<{ snippet: string }>;
-  }>;
+  sessions: Array<{ sessionId: string; provider: LLMProvider; sessionSummary: string; matches: Array<{ snippet: string }> }>;
 };
 
-const MIN_QUERY = 2;
-const DEBOUNCE_MS = 250;
+const QUERY_THRESHOLD = 2;
+const SEARCH_DELAY = 250;
 
-export function useSessionMessageSearch(
-  projectId: string | undefined,
-  query: string,
-  enabled: boolean,
-) {
-  const [items, setItems] = useState<SessionMessageMatch[]>([]);
-  const seqRef = useRef(0);
-  const esRef = useRef<EventSource | null>(null);
+function resultsFrom(event: Event, projectId: string): SessionMessageMatch[] | undefined {
+  const payload = JSON.parse((event as MessageEvent).data) as { projectResult: ProjectResult };
+  const result = payload.projectResult;
+  if (result.projectId !== projectId) return undefined;
+  return result.sessions.map((session) => ({
+    sessionId: session.sessionId,
+    label: session.sessionSummary || session.sessionId,
+    snippet: session.matches.at(0)?.snippet ?? '',
+    provider: session.provider,
+  }));
+}
+
+export function useSessionMessageSearch(projectId: string | undefined, query: string, enabled: boolean) {
+  const [matches, setMatches] = useState<SessionMessageMatch[]>([]);
+  const generation = useRef(0);
+  const connection = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    const trimmed = query.trim();
-    if (!enabled || !projectId || trimmed.length < MIN_QUERY) {
-      setItems([]);
-      esRef.current?.close();
-      esRef.current = null;
+    const phrase = query.trim();
+    const canSearch = enabled && Boolean(projectId) && phrase.length >= QUERY_THRESHOLD;
+    if (!canSearch) {
+      setMatches([]);
+      connection.current?.close();
+      connection.current = null;
       return;
     }
 
-    esRef.current?.close();
-    esRef.current = null;
-    seqRef.current++;
-
-    const handle = setTimeout(() => {
-      const seq = ++seqRef.current;
-      const url = api.searchConversationsUrl(trimmed);
-      const es = new EventSource(url, { withCredentials: true });
-      esRef.current = es;
+    connection.current?.close();
+    connection.current = null;
+    generation.current += 1;
+    const timer = window.setTimeout(() => {
+      const requestId = ++generation.current;
+      const stream = new EventSource(api.searchConversationsUrl(phrase), { withCredentials: true });
+      connection.current = stream;
       const accumulated: SessionMessageMatch[] = [];
 
-      es.addEventListener('result', (evt) => {
-        if (seq !== seqRef.current) {
-          es.close();
+      const finish = () => {
+        if (requestId !== generation.current) return;
+        stream.close();
+        connection.current = null;
+      };
+      stream.addEventListener('result', (event) => {
+        if (requestId !== generation.current) {
+          stream.close();
           return;
         }
         try {
-          const data = JSON.parse((evt as MessageEvent).data) as { projectResult: ProjectResult };
-          const pr = data.projectResult;
-          if (pr.projectId !== projectId) return;
-          for (const s of pr.sessions) {
-            accumulated.push({
-              sessionId: s.sessionId,
-              label: s.sessionSummary || s.sessionId,
-              snippet: s.matches[0]?.snippet ?? '',
-              provider: s.provider,
-            });
-          }
-          setItems([...accumulated]);
+          const received = resultsFrom(event, projectId!);
+          if (!received) return;
+          accumulated.push(...received);
+          setMatches([...accumulated]);
         } catch {
-          // ignore malformed
+          // Ignore a malformed server-sent event and continue the stream.
         }
       });
+      stream.addEventListener('done', finish);
+      stream.addEventListener('error', finish);
+    }, SEARCH_DELAY);
 
-      const finish = () => {
-        if (seq !== seqRef.current) return;
-        es.close();
-        esRef.current = null;
-      };
-      es.addEventListener('done', finish);
-      es.addEventListener('error', finish);
-    }, DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [enabled, projectId, query]);
 
-    return () => {
-      clearTimeout(handle);
-    };
-  }, [projectId, query, enabled]);
-
-  useEffect(() => {
-    return () => {
-      esRef.current?.close();
-      esRef.current = null;
-    };
+  useEffect(() => () => {
+    connection.current?.close();
+    connection.current = null;
   }, []);
 
-  return items;
+  return matches;
 }

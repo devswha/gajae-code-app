@@ -2,34 +2,26 @@ import { authenticatedFetch } from '../../../utils/api';
 
 import { useApiSource } from './useApiSource';
 
-export type CommitResult = {
-  hash: string;
-  shortHash: string;
-  message: string;
-  author: string;
-};
+export type CommitResult = { hash: string; shortHash: string; message: string; author: string };
+type CommitsResponse = { commits?: Array<{ hash: string; message: string; author: string }>; error?: string };
 
-interface CommitsResponse {
-  commits?: Array<{ hash: string; message: string; author: string }>;
-  error?: string;
+function commitsUrl(projectId: string): string {
+  const query = new URLSearchParams();
+  query.set('project', projectId);
+  query.set('limit', '50');
+  return `/api/git/commits?${query}`;
 }
 
 export function useCommitsSource(projectId: string | undefined, enabled: boolean) {
   return useApiSource<CommitResult, CommitsResponse>({
-    enabled: enabled && !!projectId,
+    enabled: Boolean(projectId) && enabled,
     deps: [projectId],
-    fetcher: (signal) => {
-      const params = new URLSearchParams({ project: projectId!, limit: '50' });
-      return authenticatedFetch(`/api/git/commits?${params.toString()}`, { signal });
-    },
-    parse: (data) => {
-      if (!data.commits) return [];
-      return data.commits.map<CommitResult>((c) => ({
-        hash: c.hash,
-        shortHash: c.hash.slice(0, 7),
-        message: c.message,
-        author: c.author,
-      }));
-    },
+    fetcher: (signal) => authenticatedFetch(commitsUrl(projectId!), { signal }),
+    parse: ({ commits = [] }) => commits.map(({ hash, message, author }) => ({
+      hash,
+      shortHash: hash.substring(0, 7),
+      message,
+      author,
+    })),
   });
 }

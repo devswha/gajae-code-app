@@ -3,33 +3,27 @@ import type { LLMProvider, ProjectSession } from '../../../types/app';
 
 import { useApiSource } from './useApiSource';
 
-export type SessionResult = {
-  id: string;
-  label: string;
-  provider?: LLMProvider;
-};
+export type SessionResult = { id: string; label: string; provider?: LLMProvider };
+type SessionsResponse = { sessions?: ProjectSession[] };
 
-interface SessionsResponse {
-  sessions?: ProjectSession[];
+function sessionLabel(session: ProjectSession): string {
+  return (session.title || session.summary || session.name || session.id) as string;
 }
 
 export function useSessionsSource(projectId: string | undefined, enabled: boolean) {
+  const active = enabled && Boolean(projectId);
   return useApiSource<SessionResult, SessionsResponse>({
-    enabled: enabled && !!projectId,
+    enabled: active,
     deps: [projectId],
     fetcher: (signal) => {
-      const params = new URLSearchParams({ limit: '50', offset: '0' });
-      return authenticatedFetch(
-        `/api/projects/${encodeURIComponent(projectId!)}/sessions?${params.toString()}`,
-        { signal },
-      );
+      const query = new URLSearchParams([['limit', '50'], ['offset', '0']]);
+      const route = `/api/projects/${encodeURIComponent(projectId!)}/sessions?${query}`;
+      return authenticatedFetch(route, { signal });
     },
-    parse: (data) => {
-      return (data.sessions ?? []).map<SessionResult>((s) => ({
-        id: s.id,
-        label: (s.title || s.summary || s.name || s.id) as string,
-        provider: (s.__provider || s.provider) as LLMProvider | undefined,
-      }));
-    },
+    parse: (response) => (response.sessions ?? []).map((session) => ({
+      id: session.id,
+      label: sessionLabel(session),
+      provider: (session.__provider || session.provider) as LLMProvider | undefined,
+    })),
   });
 }

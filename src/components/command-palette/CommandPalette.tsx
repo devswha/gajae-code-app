@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 
+import { useTheme } from '../../contexts/ThemeContext';
 import {
   Command,
   CommandEmpty,
@@ -26,19 +27,27 @@ import {
   DialogContent,
   DialogTitle,
 } from '../../shared/view/ui';
-import { useTheme } from '../../contexts/ThemeContext';
 import { usePaletteOps, usePaletteOpsRegister } from '../../stores/usePaletteOpsStore';
-import { SETTINGS_MAIN_TABS } from '../settings/constants/constants';
 import type { AppTab, Project } from '../../types/app';
+import { SETTINGS_MAIN_TABS } from '../settings/constants/constants';
 
-import { useSessionsSource } from './sources/useSessionsSource';
-import { useFilesSource } from './sources/useFilesSource';
-import { useCommitsSource } from './sources/useCommitsSource';
-import { useSessionMessageSearch } from './sources/useSessionMessageSearch';
 import { useBranchesSource } from './sources/useBranchesSource';
+import { useCommitsSource } from './sources/useCommitsSource';
+import { useFilesSource } from './sources/useFilesSource';
 import { useGitActions } from './sources/useGitActions';
+import { useSessionMessageSearch } from './sources/useSessionMessageSearch';
+import { useSessionsSource } from './sources/useSessionsSource';
 
 type Page = 'actions' | 'files' | 'sessions' | 'commits' | 'branches';
+type CommandPaletteProps = {
+  selectedProject: Project | null;
+  currentSessionId?: string;
+  onStartNewChat: (project: Project) => void;
+  onOpenSettings: (tab?: string) => void;
+  onShowTab?: (tab: AppTab) => void;
+};
+type SessionRow = { id: string; label: string; provider?: string; snippet?: string };
+type PaletteState = { open: boolean; query: string; history: Page[] };
 
 const PAGE_LABELS: Record<Page, string> = {
   actions: 'Actions',
@@ -47,26 +56,38 @@ const PAGE_LABELS: Record<Page, string> = {
   commits: 'Commits',
   branches: 'Branches',
 };
-
-type CommandPaletteProps = {
-  selectedProject: Project | null;
-  /**
-   * Session currently open. Opening a session is already the resume, so
-   * picking the open one has nothing left to do; the picker says so instead of
-   * closing on a silent no-op that reads as a broken command.
-   */
-  currentSessionId?: string;
-  onStartNewChat: (project: Project) => void;
-  onOpenSettings: (tab?: string) => void;
-  onShowTab?: (tab: AppTab) => void;
-};
-
-// 'files'/'shell'/'git' tabs no longer exist (Files is a side panel; the git
-// panel and app-pty shell were removed) — git actions below run without a
-// destination tab.
 const NAV_TABS: Array<{ id: AppTab; label: string; keywords: string }> = [
   { id: 'chat', label: 'Go to Chat', keywords: 'chat messages conversation' },
 ];
+const BROWSE_LIMIT = 5;
+
+function sectionIsActive(section: Page, selected: Page | undefined): boolean {
+  return !selected || selected === section || (section === 'branches' && selected === 'actions');
+}
+
+function combineSessions(
+  sessions: Array<{ id: string; label: string; provider?: string }>,
+  messages: Array<{ sessionId: string; label: string; provider: string; snippet: string }>,
+  include: boolean,
+): SessionRow[] {
+  if (!include) return [];
+  const rows = new Map<string, SessionRow>(sessions.map((session) => [session.id, { ...session }]));
+  for (const message of messages) {
+    const known = rows.get(message.sessionId);
+    if (known) known.snippet = message.snippet;
+    else rows.set(message.sessionId, {
+      id: message.sessionId,
+      label: message.label,
+      provider: message.provider,
+      snippet: message.snippet,
+    });
+  }
+  return [...rows.values()];
+}
+
+function visibleItems<T>(items: T[], page: Page | undefined, section: Page): T[] {
+  return page === section ? items : items.slice(0, BROWSE_LIMIT);
+}
 
 export default function CommandPalette({
   selectedProject,
@@ -75,124 +96,86 @@ export default function CommandPalette({
   onOpenSettings,
   onShowTab,
 }: CommandPaletteProps) {
-  const [open, setOpen] = React.useState(false);
-  const [search, setSearch] = React.useState('');
-  const [pages, setPages] = React.useState<Page[]>([]);
+  const [palette, setPalette] = React.useState<PaletteState>({ open: false, query: '', history: [] });
   const { toggleDarkMode } = useTheme();
+  const { openFile } = usePaletteOps();
   const navigate = useNavigate();
-  const ops = usePaletteOps();
+  const projectId = selectedProject?.projectId;
+  const currentPage = palette.history.at(-1);
+  const actionsVisible = sectionIsActive('actions', currentPage);
+  const sessionsVisible = sectionIsActive('sessions', currentPage);
+  const filesVisible = sectionIsActive('files', currentPage);
+  const commitsVisible = sectionIsActive('commits', currentPage);
+  const branchesVisible = sectionIsActive('branches', currentPage);
 
   const openCommandPalette = React.useCallback(() => {
-    setOpen(true);
+    setPalette((state) => ({ ...state, open: true }));
   }, []);
-
   const openSessionPicker = React.useCallback(() => {
-    setSearch('');
-    setPages(['sessions']);
-    setOpen(true);
+    setPalette((state) => ({ ...state, open: true, query: '', history: ['sessions'] }));
   }, []);
-
   usePaletteOpsRegister({ openCommandPalette, openSessionPicker });
 
-  const page = pages.at(-1);
-
   React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isCmdK = (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k';
-      if (!isCmdK) return;
-      e.preventDefault();
-      setOpen((prev) => !prev);
+    const toggleWithShortcut = (event: KeyboardEvent) => {
+      const shortcut = (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k';
+      if (!shortcut) return;
+      event.preventDefault();
+      setPalette((state) => ({ ...state, open: !state.open }));
     };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', toggleWithShortcut);
+    return () => document.removeEventListener('keydown', toggleWithShortcut);
   }, []);
 
   React.useEffect(() => {
-    if (!open) {
-      setSearch('');
-      setPages([]);
-    }
-  }, [open]);
+    if (palette.open) return;
+    setPalette((state) => state.query || state.history.length > 0
+      ? { ...state, query: '', history: [] }
+      : state);
+  }, [palette.open]);
 
-  const projectId = selectedProject?.projectId;
+  const sessions = useSessionsSource(projectId, palette.open && sessionsVisible);
+  const messageMatches = useSessionMessageSearch(projectId, palette.query, palette.open && sessionsVisible);
+  const files = useFilesSource(projectId, palette.open && filesVisible);
+  const commits = useCommitsSource(projectId, palette.open && commitsVisible);
+  const branches = useBranchesSource(projectId, palette.open && branchesVisible);
+  const { fetch: fetchGit, pull: pullGit, push: pushGit, checkout: checkoutBranch } = useGitActions(projectId);
+  const sessionRows = combineSessions(sessions, messageMatches, sessionsVisible);
 
-  const showActions = !page || page === 'actions';
-  const showSessions = !page || page === 'sessions';
-  const showFiles = !page || page === 'files';
-  const showCommits = !page || page === 'commits';
-  const showBranches = !page || page === 'branches' || page === 'actions';
-
-  const sessions = useSessionsSource(projectId, open && showSessions);
-  const messageMatches = useSessionMessageSearch(projectId, search, open && showSessions);
-  const files = useFilesSource(projectId, open && showFiles);
-  const commits = useCommitsSource(projectId, open && showCommits);
-  const branches = useBranchesSource(projectId, open && showBranches);
-  const git = useGitActions(projectId);
-
-  const sessionRows = React.useMemo(() => {
-    if (!showSessions) return [];
-    type Row = { id: string; label: string; provider?: string; snippet?: string };
-    const byId = new Map<string, Row>();
-    for (const s of sessions) {
-      byId.set(s.id, { id: s.id, label: s.label, provider: s.provider });
-    }
-    for (const m of messageMatches) {
-      const existing = byId.get(m.sessionId);
-      if (existing) {
-        existing.snippet = m.snippet;
-      } else {
-        byId.set(m.sessionId, {
-          id: m.sessionId,
-          label: m.label,
-          provider: m.provider,
-          snippet: m.snippet,
-        });
-      }
-    }
-    return Array.from(byId.values());
-  }, [sessions, messageMatches, showSessions]);
-
-  const run = React.useCallback((fn: () => void) => {
-    setOpen(false);
-    fn();
+  const dismissThen = React.useCallback((operation: () => void) => {
+    setPalette((state) => ({ ...state, open: false }));
+    operation();
   }, []);
-
-  const pushPage = React.useCallback((next: Page) => {
-    setSearch('');
-    setPages((prev) => [...prev, next]);
+  const enterPage = React.useCallback((nextPage: Page) => {
+    setPalette((state) => ({ ...state, query: '', history: [...state.history, nextPage] }));
   }, []);
-
-  const popPage = React.useCallback(() => {
-    setSearch('');
-    setPages((prev) => prev.slice(0, -1));
+  const leavePage = React.useCallback(() => {
+    setPalette((state) => ({ ...state, query: '', history: state.history.slice(0, -1) }));
   }, []);
-
-  const handleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !search && pages.length > 0) {
-      e.preventDefault();
-      popPage();
-    }
-  }, [search, pages.length, popPage]);
+  const handleKeyDown = React.useCallback((event: React.KeyboardEvent) => {
+    if (event.key !== 'Backspace' || palette.query || palette.history.length === 0) return;
+    event.preventDefault();
+    leavePage();
+  }, [leavePage, palette.history.length, palette.query]);
 
   const startNewChatDisabled = !selectedProject;
-  const browseLimit = 5;
-  const filesShown = page === 'files' ? files : files.slice(0, browseLimit);
-  const commitsShown = page === 'commits' ? commits : commits.slice(0, browseLimit);
-  const sessionsShown = page === 'sessions' ? sessionRows : sessionRows.slice(0, browseLimit);
-  const branchesShown = page === 'branches' ? branches : branches.slice(0, browseLimit);
+  const filesShown = visibleItems(files, currentPage, 'files');
+  const commitsShown = visibleItems(commits, currentPage, 'commits');
+  const sessionsShown = visibleItems(sessionRows, currentPage, 'sessions');
+  const branchesShown = visibleItems(branches, currentPage, 'branches');
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={palette.open} onOpenChange={(open) => setPalette((state) => ({ ...state, open }))}>
       <DialogContent className="max-w-xl overflow-hidden p-0">
         <DialogTitle>Command palette</DialogTitle>
         <Command label="Command palette" onKeyDown={handleKeyDown}>
-          {page && (
+          {currentPage && (
             <div className="flex items-center gap-2 border-b px-3 py-2">
               <span className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
-                {PAGE_LABELS[page]}
+                {PAGE_LABELS[currentPage]}
                 <button
                   type="button"
-                  onClick={popPage}
+                  onClick={leavePage}
                   aria-label="Back to all"
                   className="ml-0.5 rounded-sm opacity-70 hover:opacity-100"
                 >
@@ -203,21 +186,21 @@ export default function CommandPalette({
             </div>
           )}
           <CommandInput
-            placeholder={page ? `Search ${PAGE_LABELS[page].toLowerCase()}…` : 'Type to search anything…'}
-            value={search}
-            onValueChange={setSearch}
+            placeholder={currentPage ? `Search ${PAGE_LABELS[currentPage].toLowerCase()}…` : 'Type to search anything…'}
+            value={palette.query}
+            onValueChange={(query) => setPalette((state) => ({ ...state, query }))}
           />
           <CommandList>
             <CommandEmpty>No results.</CommandEmpty>
 
-            {showActions && (
+            {actionsVisible && (
               <CommandGroup heading="Actions">
                 <CommandItem
                   value="Start new chat"
                   disabled={startNewChatDisabled}
                   onSelect={() => {
                     if (!selectedProject) return;
-                    run(() => onStartNewChat(selectedProject));
+                    dismissThen(() => onStartNewChat(selectedProject));
                   }}
                 >
                   <MessageSquarePlus className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -226,24 +209,24 @@ export default function CommandPalette({
                     <span className="text-xs text-muted-foreground">Select a project first</span>
                   )}
                 </CommandItem>
-                <CommandItem value="Open settings" onSelect={() => run(() => onOpenSettings())}>
+                <CommandItem value="Open settings" onSelect={() => dismissThen(() => onOpenSettings())}>
                   <Settings className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="flex-1">Open settings</span>
                 </CommandItem>
-                <CommandItem value="Toggle theme dark light mode" onSelect={() => run(toggleDarkMode)}>
+                <CommandItem value="Toggle theme dark light mode" onSelect={() => dismissThen(toggleDarkMode)}>
                   <SunMoon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="flex-1">Toggle theme</span>
                 </CommandItem>
               </CommandGroup>
             )}
 
-            {showActions && (
+            {actionsVisible && (
               <CommandGroup heading="Navigate">
                 {NAV_TABS.map((tab) => (
                   <CommandItem
                     key={tab.id as string}
                     value={`${tab.label} ${tab.keywords}`}
-                    onSelect={() => run(() => onShowTab?.(tab.id))}
+                    onSelect={() => dismissThen(() => onShowTab?.(tab.id))}
                   >
                     <span className="flex-1">{tab.label}</span>
                   </CommandItem>
@@ -251,39 +234,30 @@ export default function CommandPalette({
               </CommandGroup>
             )}
 
-            {showActions && projectId && (
+            {actionsVisible && projectId && (
               <CommandGroup heading="Git">
-                <CommandItem
-                  value="Git Fetch remote"
-                  onSelect={() => run(() => { void git.fetch(); })}
-                >
+                <CommandItem value="Git Fetch remote" onSelect={() => dismissThen(() => { void fetchGit(); })}>
                   <RefreshCw className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="flex-1">Git: Fetch</span>
                 </CommandItem>
-                <CommandItem
-                  value="Git Pull merge upstream"
-                  onSelect={() => run(() => { void git.pull(); })}
-                >
+                <CommandItem value="Git Pull merge upstream" onSelect={() => dismissThen(() => { void pullGit(); })}>
                   <ArrowDownToLine className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="flex-1">Git: Pull</span>
                 </CommandItem>
-                <CommandItem
-                  value="Git Push origin remote"
-                  onSelect={() => run(() => { void git.push(); })}
-                >
+                <CommandItem value="Git Push origin remote" onSelect={() => dismissThen(() => { void pushGit(); })}>
                   <ArrowUpFromLine className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="flex-1">Git: Push</span>
                 </CommandItem>
               </CommandGroup>
             )}
 
-            {showActions && (
+            {actionsVisible && (
               <CommandGroup heading="Settings">
                 {SETTINGS_MAIN_TABS.map(({ id, label, keywords, icon: Icon }) => (
                   <CommandItem
                     key={id}
                     value={`Settings ${label} ${keywords}`}
-                    onSelect={() => run(() => onOpenSettings(id))}
+                    onSelect={() => dismissThen(() => onOpenSettings(id))}
                   >
                     <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="flex-1">Settings: {label}</span>
@@ -292,90 +266,86 @@ export default function CommandPalette({
               </CommandGroup>
             )}
 
-            {showSessions && projectId && sessionsShown.length > 0 && (
+            {sessionsVisible && projectId && sessionsShown.length > 0 && (
               <CommandGroup heading="Sessions">
-                {sessionsShown.map((s) => (
+                {sessionsShown.map((session) => (
                   <CommandItem
-                    key={s.id}
-                    value={`${s.label} ${s.snippet ?? ''} ${s.id}`.trim()}
-                    onSelect={() => run(() => navigate(`/session/${s.id}`))}
+                    key={session.id}
+                    value={`${session.label} ${session.snippet ?? ''} ${session.id}`.trim()}
+                    onSelect={() => dismissThen(() => navigate(`/session/${session.id}`))}
                   >
                     <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                     <div className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate">{s.label}</span>
-                      {s.snippet && (
-                        <span className="truncate text-xs text-muted-foreground">{s.snippet}</span>
+                      <span className="truncate">{session.label}</span>
+                      {session.snippet && (
+                        <span className="truncate text-xs text-muted-foreground">{session.snippet}</span>
                       )}
                     </div>
-                    {s.id === currentSessionId && (
+                    {session.id === currentSessionId && (
                       <span className="shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
                         Current
                       </span>
                     )}
-                    {s.provider && (
-                      <span className="text-xs text-muted-foreground">{s.provider}</span>
+                    {session.provider && (
+                      <span className="text-xs text-muted-foreground">{session.provider}</span>
                     )}
                   </CommandItem>
                 ))}
-                {!page && sessionRows.length > browseLimit && (
-                  <BrowseAllItem label={`Browse all sessions (${sessionRows.length})`} onSelect={() => pushPage('sessions')} />
+                {!currentPage && sessionRows.length > BROWSE_LIMIT && (
+                  <BrowseAllItem label={`Browse all sessions (${sessionRows.length})`} onSelect={() => enterPage('sessions')} />
                 )}
               </CommandGroup>
             )}
 
-            {showFiles && projectId && filesShown.length > 0 && (
+            {filesVisible && projectId && filesShown.length > 0 && (
               <CommandGroup heading="Files">
-                {filesShown.map((f) => (
-                  <CommandItem
-                    key={f.path}
-                    value={f.path}
-                    onSelect={() => run(() => ops.openFile(f.path))}
-                  >
+                {filesShown.map((file) => (
+                  <CommandItem key={file.path} value={file.path} onSelect={() => dismissThen(() => openFile(file.path))}>
                     <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <span className="flex-1 truncate">{f.name}</span>
-                    <span className="truncate text-xs text-muted-foreground">{f.path}</span>
+                    <span className="flex-1 truncate">{file.name}</span>
+                    <span className="truncate text-xs text-muted-foreground">{file.path}</span>
                   </CommandItem>
                 ))}
-                {!page && files.length > browseLimit && (
-                  <BrowseAllItem label={`Browse all files (${files.length})`} onSelect={() => pushPage('files')} />
+                {!currentPage && files.length > BROWSE_LIMIT && (
+                  <BrowseAllItem label={`Browse all files (${files.length})`} onSelect={() => enterPage('files')} />
                 )}
               </CommandGroup>
             )}
 
-            {showCommits && projectId && commitsShown.length > 0 && (
+            {commitsVisible && projectId && commitsShown.length > 0 && (
               <CommandGroup heading="Commits">
-                {commitsShown.map((c) => (
+                {commitsShown.map((commit) => (
                   <CommandItem
-                    key={c.hash}
-                    value={`${c.message} ${c.author} ${c.shortHash}`}
-                    onSelect={() => run(() => {})}
+                    key={commit.hash}
+                    value={`${commit.message} ${commit.author} ${commit.shortHash}`}
+                    onSelect={() => dismissThen(() => {})}
                   >
                     <GitCommit className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <span className="font-mono text-xs text-muted-foreground">{c.shortHash}</span>
-                    <span className="flex-1 truncate">{c.message}</span>
-                    <span className="truncate text-xs text-muted-foreground">{c.author}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{commit.shortHash}</span>
+                    <span className="flex-1 truncate">{commit.message}</span>
+                    <span className="truncate text-xs text-muted-foreground">{commit.author}</span>
                   </CommandItem>
                 ))}
-                {!page && commits.length > browseLimit && (
-                  <BrowseAllItem label={`Browse all commits (${commits.length})`} onSelect={() => pushPage('commits')} />
+                {!currentPage && commits.length > BROWSE_LIMIT && (
+                  <BrowseAllItem label={`Browse all commits (${commits.length})`} onSelect={() => enterPage('commits')} />
                 )}
               </CommandGroup>
             )}
 
-            {showBranches && projectId && branchesShown.length > 0 && (
+            {branchesVisible && projectId && branchesShown.length > 0 && (
               <CommandGroup heading="Branches">
-                {branchesShown.map((b) => (
+                {branchesShown.map((branch) => (
                   <CommandItem
-                    key={`branch-${b.name}`}
-                    value={b.name}
-                    onSelect={() => run(() => { void git.checkout(b.name); })}
+                    key={`branch-${branch.name}`}
+                    value={branch.name}
+                    onSelect={() => dismissThen(() => { void checkoutBranch(branch.name); })}
                   >
                     <GitMerge className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <span className="flex-1 truncate">Switch to: {b.name}</span>
+                    <span className="flex-1 truncate">Switch to: {branch.name}</span>
                   </CommandItem>
                 ))}
-                {!page && branches.length > browseLimit && (
-                  <BrowseAllItem label={`Browse all branches (${branches.length})`} onSelect={() => pushPage('branches')} />
+                {!currentPage && branches.length > BROWSE_LIMIT && (
+                  <BrowseAllItem label={`Browse all branches (${branches.length})`} onSelect={() => enterPage('branches')} />
                 )}
               </CommandGroup>
             )}

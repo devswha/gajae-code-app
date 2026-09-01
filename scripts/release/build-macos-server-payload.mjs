@@ -211,11 +211,11 @@ await fs.rm(payloadDir, { recursive: true, force: true });
 await fs.mkdir(payloadDir, { recursive: true });
 try {
   // LICENSE and NOTICE ship with the payload for the same reason the server
-  // tarball carries them: this is a conveyed copy of an AGPL work, and the
-  // license text plus the upstream attribution the LICENSE's Section 7 terms
-  // require are part of what has to travel with it. The desktop bundle used to
-  // omit both while the tarball included them, so compliance depended on which
-  // artifact a user happened to install.
+  // tarball carries them: MIT requires the licence text and copyright notice to
+  // travel with every copy, and NOTICE carries the origin attribution this
+  // project keeps voluntarily. The desktop bundle used to omit both while the
+  // tarball included them, so compliance depended on which artifact a user
+  // happened to install.
   for (const input of ['dist', 'dist-server', 'shared', 'public', 'server/gjc-runtime-manifest.json', 'scripts/fix-node-pty.js', 'scripts/gajae-app-runtime.mjs', 'package.json', 'package-lock.json', 'dist-native', 'LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md']) await copy(input);
   await downloadPinnedNode();
   const payloadNode = path.join(payloadDir, 'node', 'bin', 'node');

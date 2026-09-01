@@ -1,12 +1,12 @@
 /**
  * How much of this tree still traces to the historical upstream.
  *
- * The application is AGPL because it derives from the historical upstream named
- * in docs/UPSTREAM.md, and no relicensing is possible while any of that code
- * remains. Replacing it is
- * therefore a number that has to reach zero - and a number nobody can see is a
- * number nobody drives. This makes it visible, by area, so the work can be
- * ordered by what removes the most for the least.
+ * The project began as a fork of the upstream named in docs/UPSTREAM.md and
+ * carried that project's licence for as long as its code was here. It is MIT
+ * now, and this script is what that claim rests on: it stays in the repository
+ * so the overlap can be re-measured by anyone, at any commit, rather than taken
+ * on trust. Run it before touching the licence, and after any change that
+ * copies something in.
  *
  * The comparison is structural, not textual similarity: a file that shares a
  * path with upstream is compared line by line, and its lines are counted as

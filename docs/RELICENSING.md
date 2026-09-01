@@ -186,17 +186,18 @@ Two things are worth settling first, because they change the size of the job:
   and immediately. Doing that first makes the valuable part private while this
   longer work proceeds, rather than after it.
 
-## What this does not achieve
+## What this did not achieve
 
-Worth stating plainly, so the effort is spent with open eyes:
+Worth stating plainly, so nobody reads more into the change than it carries:
 
 - **What is already public stays public.** The repository has been public since
-  2026-07-22 and has forks. Removing the code from `HEAD` does not remove it from
-  anyone's clone.
-- **Shipped builds are readable.** `dist-server` is unminified compiled
-  TypeScript, so every release discloses the engine's logic as clearly as the
-  source would. Closing the repository without addressing that protects nothing.
-- **AGPL is already doing the work most people want from it.** It does not
-  prevent copying, and it was never going to; it prevents a *proprietary* fork.
-  Relicensing is worth doing when this project wants to be proprietary, not as a
-  defence against being copied.
+  2026-07-22 and has forks. Rewriting `HEAD` does not rewrite anyone's clone,
+  and the AGPL releases stay AGPL wherever they were downloaded.
+- **MIT is a grant, not a shield.** It lets anyone use, modify and ship this
+  code, including in a closed product, without asking. That is the point of
+  choosing it; it is not a change that protects the project from being copied,
+  because nothing ever did.
+- **The residue is argued, not certified.** The itemization above is evidence,
+  not a legal opinion. It was reviewed by the project owner rather than by
+  counsel, and that decision is recorded here so it is visible rather than
+  implied.

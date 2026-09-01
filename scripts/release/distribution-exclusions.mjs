@@ -26,7 +26,7 @@ export const EXCLUDED_FROM_DISTRIBUTION = [
       + 'PowerPoint, Excel, EPUB, iWork, notebooks, audio, images, HTML, RSS - are '
       + 'untouched, because mupdf is confined to markit-ai\'s pdf converter.',
     reason:
-      'AGPL in a bundled dependency forecloses any non-AGPL licensing of this '
+      'A copyleft dependency would impose its terms on this MIT '
       + 'product, and the app cannot drop it upstream: markit-ai is a hard '
       + 'dependency of a package this project does not control. markit-ai itself '
       + 'is MIT, so restoring PDF later means forking it and swapping mupdf for a '

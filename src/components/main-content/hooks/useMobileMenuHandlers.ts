@@ -3,48 +3,35 @@ import type { MouseEvent, TouchEvent } from 'react';
 
 type MenuEvent = MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>;
 
+function stopMenuEvent(event: MenuEvent): void {
+  event.preventDefault();
+  event.stopPropagation();
+}
+
 export function useMobileMenuHandlers(onMenuClick: () => void) {
-  const suppressNextMenuClickRef = useRef(false);
+  const ignoreClick = useRef(false);
 
-  const openMobileMenu = useCallback(
-    (event?: MenuEvent) => {
-      if (event) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
+  const triggerMenu = useCallback((event: MenuEvent) => {
+    stopMenuEvent(event);
+    onMenuClick();
+  }, [onMenuClick]);
 
-      onMenuClick();
-    },
-    [onMenuClick],
-  );
+  const handleMobileMenuTouchEnd = useCallback((event: TouchEvent<HTMLButtonElement>) => {
+    ignoreClick.current = true;
+    triggerMenu(event);
+    window.setTimeout(() => {
+      ignoreClick.current = false;
+    }, 350);
+  }, [triggerMenu]);
 
-  const handleMobileMenuTouchEnd = useCallback(
-    (event: TouchEvent<HTMLButtonElement>) => {
-      suppressNextMenuClickRef.current = true;
-      openMobileMenu(event);
+  const handleMobileMenuClick = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+    if (ignoreClick.current) {
+      stopMenuEvent(event);
+      return;
+    }
 
-      window.setTimeout(() => {
-        suppressNextMenuClickRef.current = false;
-      }, 350);
-    },
-    [openMobileMenu],
-  );
+    triggerMenu(event);
+  }, [triggerMenu]);
 
-  const handleMobileMenuClick = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => {
-      if (suppressNextMenuClickRef.current) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
-
-      openMobileMenu(event);
-    },
-    [openMobileMenu],
-  );
-
-  return {
-    handleMobileMenuClick,
-    handleMobileMenuTouchEnd,
-  };
+  return { handleMobileMenuClick, handleMobileMenuTouchEnd };
 }

@@ -10,57 +10,79 @@ export type VoiceConfig = {
 };
 
 const STORAGE_KEY = 'voiceConfig';
+const EMPTY_CONFIG: VoiceConfig = { baseUrl: '', apiKey: '', sttModel: '', ttsModel: '', ttsVoice: '', ttsFormat: '' };
+const configFields = Object.keys(EMPTY_CONFIG) as (keyof VoiceConfig)[];
 export const VOICE_CONFIG_SYNC_EVENT = 'voice-config:sync';
-const DEFAULTS: VoiceConfig = { baseUrl: '', apiKey: '', sttModel: '', ttsModel: '', ttsVoice: '', ttsFormat: '' };
+
+function blankConfig(): VoiceConfig {
+  return { ...EMPTY_CONFIG };
+}
+
+function validStoredConfig(value: unknown): VoiceConfig {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return blankConfig();
+
+  const restored = blankConfig();
+  for (const field of configFields) {
+    const entry = (value as Record<string, unknown>)[field];
+    if (typeof entry === 'string') restored[field] = entry;
+  }
+  return restored;
+}
 
 export function readVoiceConfig(): VoiceConfig {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULTS };
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { ...DEFAULTS };
-    const config = { ...DEFAULTS };
-    for (const key of Object.keys(DEFAULTS) as (keyof VoiceConfig)[]) {
-      if (typeof parsed[key] === 'string') config[key] = parsed[key];
-    }
-    return config;
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? validStoredConfig(JSON.parse(saved)) : blankConfig();
   } catch {
-    return { ...DEFAULTS };
+    // Invalid or inaccessible browser storage uses the empty configuration.
+    return blankConfig();
   }
 }
 
-// Headers the voice proxy reads to target a per-user OpenAI-compatible backend.
-// Empty fields are omitted so the server's env defaults apply.
 export function voiceConfigHeaders(): Record<string, string> {
   if (typeof window === 'undefined') return {};
-  const c = readVoiceConfig();
-  const h: Record<string, string> = {};
-  if (c.apiKey) h['x-voice-api-key'] = c.apiKey;
-  if (c.sttModel) h['x-voice-stt-model'] = c.sttModel;
-  if (c.ttsModel) h['x-voice-tts-model'] = c.ttsModel;
-  if (c.ttsVoice) h['x-voice-tts-voice'] = c.ttsVoice;
-  if (c.ttsFormat.trim()) h['x-voice-tts-format'] = c.ttsFormat.trim();
-  return h;
+
+  const config = readVoiceConfig();
+  const headers: Record<string, string> = {};
+  const fields: Array<[keyof VoiceConfig, string]> = [
+    ['apiKey', 'x-voice-api-key'],
+    ['sttModel', 'x-voice-stt-model'],
+    ['ttsModel', 'x-voice-tts-model'],
+    ['ttsVoice', 'x-voice-tts-voice'],
+  ];
+
+  for (const [field, header] of fields) {
+    if (config[field]) headers[header] = config[field];
+  }
+
+  const format = config.ttsFormat.trim();
+  if (format) headers['x-voice-tts-format'] = format;
+  return headers;
+}
+
+function persistConfig(config: VoiceConfig): void {
+  const stored: Partial<VoiceConfig> = { ...config };
+  const format = config.ttsFormat.trim();
+  if (format) stored.ttsFormat = format;
+  else delete stored.ttsFormat;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+  window.dispatchEvent(new Event(VOICE_CONFIG_SYNC_EVENT));
 }
 
 export function useVoiceConfig() {
-  const [config, setConfig] = useState<VoiceConfig>(() =>
-    typeof window === 'undefined' ? { ...DEFAULTS } : readVoiceConfig(),
-  );
+  const [config, setConfig] = useState<VoiceConfig>(() => (
+    typeof window === 'undefined' ? blankConfig() : readVoiceConfig()
+  ));
 
   const update = (patch: Partial<VoiceConfig>) => {
-    setConfig((prev) => {
-      const next = { ...prev, ...patch };
+    setConfig((current) => {
+      const replacement = { ...current, ...patch };
       try {
-        const stored: Partial<VoiceConfig> = { ...next };
-        if (next.ttsFormat.trim()) stored.ttsFormat = next.ttsFormat.trim();
-        else delete stored.ttsFormat;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-        window.dispatchEvent(new Event(VOICE_CONFIG_SYNC_EVENT));
+        persistConfig(replacement);
       } catch {
-        /* ignore persistence errors */
+        // Browser storage may be unavailable or full.
       }
-      return next;
+      return replacement;
     });
   };
 

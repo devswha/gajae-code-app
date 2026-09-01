@@ -4,123 +4,120 @@ import { notificationChannelEndpointsDb, notificationPreferencesDb } from '@/mod
 
 const router = express.Router();
 
-function readText(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
+const trimmed = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+
+function userIdFrom(request: express.Request): number {
+  const id = Number((request as { user?: { id?: unknown } }).user?.id);
+  if (Number.isInteger(id) && id > 0) return id;
+  throw new Error('Authenticated user is missing');
 }
 
-function sanitizeEndpoint(endpoint: any) {
+function publicEndpoint(row: any) {
+  const { id, channel, endpoint_id: endpointId, label, metadata_json, enabled, last_seen_at, created_at, updated_at } = row;
   return {
-    id: endpoint.id,
-    channel: endpoint.channel,
-    endpointId: endpoint.endpoint_id,
-    label: endpoint.label,
-    metadata: notificationChannelEndpointsDb.parseMetadata(endpoint.metadata_json),
-    enabled: Boolean(endpoint.enabled),
-    lastSeenAt: endpoint.last_seen_at,
-    createdAt: endpoint.created_at,
-    updatedAt: endpoint.updated_at,
+    id,
+    channel,
+    endpointId,
+    label,
+    metadata: notificationChannelEndpointsDb.parseMetadata(metadata_json),
+    enabled: Boolean(enabled),
+    lastSeenAt: last_seen_at,
+    createdAt: created_at,
+    updatedAt: updated_at,
   };
 }
 
-function readUserId(req: express.Request): number {
-  const userId = Number((req as any).user?.id);
-  if (!Number.isInteger(userId) || userId <= 0) {
-    throw new Error('Authenticated user is missing');
-  }
-  return userId;
-}
-
-function updateChannelPreference(userId: number, channel: string): unknown {
-  const currentPrefs = notificationPreferencesDb.getPreferences(userId);
-  const hasEnabledEndpoint = notificationChannelEndpointsDb.getEnabledEndpoints(userId, channel).length > 0;
+function synchronizeChannelPreference(userId: number, channel: string): unknown {
+  const preferences = notificationPreferencesDb.getPreferences(userId);
+  const active = notificationChannelEndpointsDb.getEnabledEndpoints(userId, channel);
   return notificationPreferencesDb.updatePreferences(userId, {
-    ...currentPrefs,
-    channels: { ...currentPrefs.channels, [channel]: hasEnabledEndpoint },
+    ...preferences,
+    channels: { ...preferences.channels, [channel]: active.length !== 0 },
   });
 }
 
-router.get('/endpoints', (req, res) => {
-  try {
-    const channel = readText(req.query.channel);
-    if (!channel) {
-      return res.status(400).json({ error: 'channel is required' });
-    }
+function endpointFailure(
+  response: express.Response,
+  error: unknown,
+  message: string,
+  action: string,
+): express.Response {
+  console.error(message, error);
+  return response.status(500).json({ error: action });
+}
 
-    const userId = readUserId(req);
-    const endpoints = notificationChannelEndpointsDb
-      .getEndpoints(userId, channel)
-      .map(sanitizeEndpoint);
-    return res.json({ success: true, endpoints });
+router.get('/endpoints', (request, response) => {
+  const channel = trimmed(request.query.channel);
+  if (!channel) return response.status(400).json({ error: 'channel is required' });
+
+  try {
+    const endpoints = notificationChannelEndpointsDb.getEndpoints(userIdFrom(request), channel).map(publicEndpoint);
+    return response.json({ success: true, endpoints });
   } catch (error) {
-    console.error('Error fetching notification endpoints:', error);
-    return res.status(500).json({ error: 'Failed to fetch notification endpoints' });
+    return endpointFailure(response, error, 'Error fetching notification endpoints:', 'Failed to fetch notification endpoints');
   }
 });
 
-router.post('/endpoints/current', (req, res) => {
-  try {
-    const { channel, endpointId, label, metadata = {}, enabled = true } = req.body || {};
-    const normalizedChannel = readText(channel);
-    const normalizedEndpointId = readText(endpointId);
-    if (!normalizedChannel || !normalizedEndpointId) {
-      return res.status(400).json({ error: 'channel and endpointId are required' });
-    }
+router.post('/endpoints/current', (request, response) => {
+  const body = request.body || {};
+  const channel = trimmed(body.channel);
+  const endpointId = trimmed(body.endpointId);
+  if (!channel || !endpointId) {
+    return response.status(400).json({ error: 'channel and endpointId are required' });
+  }
 
-    const userId = readUserId(req);
+  try {
+    const userId = userIdFrom(request);
     const endpoint = notificationChannelEndpointsDb.upsertEndpoint({
       userId,
-      channel: normalizedChannel,
-      endpointId: normalizedEndpointId,
-      label,
-      metadata: metadata && typeof metadata === 'object' ? metadata : {},
-      enabled: enabled !== false,
+      channel,
+      endpointId,
+      label: body.label,
+      metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : {},
+      enabled: body.enabled !== false,
     });
-
-    const preferences = updateChannelPreference(userId, normalizedChannel);
-    return res.json({ success: true, endpoint: sanitizeEndpoint(endpoint), preferences });
+    return response.json({
+      success: true,
+      endpoint: publicEndpoint(endpoint),
+      preferences: synchronizeChannelPreference(userId, channel),
+    });
   } catch (error) {
-    console.error('Error registering notification endpoint:', error);
-    return res.status(500).json({ error: 'Failed to register notification endpoint' });
+    return endpointFailure(response, error, 'Error registering notification endpoint:', 'Failed to register notification endpoint');
   }
 });
 
-router.patch('/endpoints/:channel/:endpointId', (req, res) => {
+router.patch('/endpoints/:channel/:endpointId', (request, response) => {
+  if (typeof request.body?.enabled !== 'boolean') {
+    return response.status(400).json({ error: 'enabled must be a boolean' });
+  }
+
   try {
-    const { channel, endpointId } = req.params;
-    const { enabled } = req.body || {};
-    if (typeof enabled !== 'boolean') {
-      return res.status(400).json({ error: 'enabled must be a boolean' });
+    const userId = userIdFrom(request);
+    const { channel, endpointId } = request.params;
+    if (!notificationChannelEndpointsDb.setEndpointEnabled(userId, channel, endpointId, request.body.enabled)) {
+      return response.status(404).json({ error: 'Notification endpoint not found' });
     }
-
-    const userId = readUserId(req);
-    const updated = notificationChannelEndpointsDb.setEndpointEnabled(userId, channel, endpointId, enabled);
-    if (!updated) {
-      return res.status(404).json({ error: 'Notification endpoint not found' });
-    }
-
     const endpoint = notificationChannelEndpointsDb.getEndpoint(userId, channel, endpointId);
-    const preferences = updateChannelPreference(userId, channel);
-    return res.json({ success: true, endpoint: endpoint ? sanitizeEndpoint(endpoint) : null, preferences });
+    return response.json({
+      success: true,
+      endpoint: endpoint ? publicEndpoint(endpoint) : null,
+      preferences: synchronizeChannelPreference(userId, channel),
+    });
   } catch (error) {
-    console.error('Error updating notification endpoint:', error);
-    return res.status(500).json({ error: 'Failed to update notification endpoint' });
+    return endpointFailure(response, error, 'Error updating notification endpoint:', 'Failed to update notification endpoint');
   }
 });
 
-router.delete('/endpoints/:channel/:endpointId', (req, res) => {
+router.delete('/endpoints/:channel/:endpointId', (request, response) => {
   try {
-    const { channel, endpointId } = req.params;
-    const userId = readUserId(req);
-    const removed = notificationChannelEndpointsDb.removeEndpoint(userId, channel, endpointId);
-    if (!removed) {
-      return res.status(404).json({ error: 'Notification endpoint not found' });
+    const userId = userIdFrom(request);
+    const { channel, endpointId } = request.params;
+    if (!notificationChannelEndpointsDb.removeEndpoint(userId, channel, endpointId)) {
+      return response.status(404).json({ error: 'Notification endpoint not found' });
     }
-
-    const preferences = updateChannelPreference(userId, channel);
-    return res.json({ success: true, preferences });
+    return response.json({ success: true, preferences: synchronizeChannelPreference(userId, channel) });
   } catch (error) {
-    console.error('Error removing notification endpoint:', error);
-    return res.status(500).json({ error: 'Failed to remove notification endpoint' });
+    return endpointFailure(response, error, 'Error removing notification endpoint:', 'Failed to remove notification endpoint');
   }
 });
 

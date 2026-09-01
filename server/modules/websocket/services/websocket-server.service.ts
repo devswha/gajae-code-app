@@ -2,10 +2,10 @@ import type { Server as HttpServer } from 'node:http';
 
 import { WebSocketServer, type VerifyClientCallbackSync } from 'ws';
 
-import { handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
-import { verifyWebSocketClient } from '@/modules/websocket/services/websocket-auth.service.js';
-import { handleShellConnection } from '@/modules/websocket/services/shell-websocket.service.js';
 import { handleDesktopNotificationsConnection } from '@/modules/notifications/index.js';
+import { handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
+import { handleShellConnection } from '@/modules/websocket/services/shell-websocket.service.js';
+import { verifyWebSocketClient } from '@/modules/websocket/services/websocket-auth.service.js';
 import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
 
 type WebSocketServerDependencies = {
@@ -15,67 +15,64 @@ type WebSocketServerDependencies = {
   browser?: (ws: Parameters<typeof handleChatConnection>[0], request: AuthenticatedWebSocketRequest) => void;
 };
 
-/**
- * Creates and wires the server-wide websocket gateway used for chat, shell,
- * desktop notification routes.
- */
+function startHeartbeat(socket: Parameters<typeof handleChatConnection>[0]): void {
+  const timer = setInterval(() => {
+    if (socket.readyState !== socket.OPEN) return;
+    try {
+      socket.ping();
+    } catch {
+      // Closing a socket can race with the periodic probe.
+    }
+  }, 30_000);
+
+  const cancel = () => clearInterval(timer);
+  socket.on('close', cancel);
+  socket.on('error', cancel);
+}
+
+function connectionPath(request: AuthenticatedWebSocketRequest): string {
+  return new URL(request.url ?? '/', 'http://localhost').pathname;
+}
+
 export function createWebSocketServer(
   server: HttpServer,
   dependencies: WebSocketServerDependencies
 ): WebSocketServer {
-  const wss = new WebSocketServer({
+  const gateway = new WebSocketServer({
     server,
-    verifyClient: ((
-      info: Parameters<VerifyClientCallbackSync<AuthenticatedWebSocketRequest>>[0]
-    ) => verifyWebSocketClient(info, dependencies.verifyClient)),
+    verifyClient: (
+      request: Parameters<VerifyClientCallbackSync<AuthenticatedWebSocketRequest>>[0]
+    ) => verifyWebSocketClient(request, dependencies.verifyClient),
   });
 
-  wss.on('connection', (ws, request) => {
-    // Keep WebSocket alive across reverse-proxy idle timeouts (Cloudflare ~100s,
-    // AWS ALB 60s, nginx 60s, etc.). Without app-level pings these connections
-    // are silently torn down even when the UI is active, causing repeated
-    // reconnect cycles. ws library heartbeat is opt-in.
-    const HEARTBEAT_INTERVAL_MS = 30_000;
-    const heartbeat = setInterval(() => {
-      if (ws.readyState === ws.OPEN) {
-        try {
-          ws.ping();
-        } catch {
-          // socket may have been closed concurrently — interval will be cleared below
+  gateway.on('connection', (socket, rawRequest) => {
+    startHeartbeat(socket);
+    const request = rawRequest as AuthenticatedWebSocketRequest;
+    const pathname = connectionPath(request);
+
+    switch (pathname) {
+      case '/shell':
+        handleShellConnection(socket, dependencies.shell);
+        return;
+      case '/ws':
+        handleChatConnection(socket, request, dependencies.chat);
+        return;
+      case '/desktop-notifications':
+        handleDesktopNotificationsConnection(socket, request);
+        return;
+      case '/ws/browser':
+        if (dependencies.browser) {
+          dependencies.browser(socket, request);
+          return;
         }
-      }
-    }, HEARTBEAT_INTERVAL_MS);
-    const stopHeartbeat = () => clearInterval(heartbeat);
-    ws.on('close', stopHeartbeat);
-    ws.on('error', stopHeartbeat);
-
-    const incomingRequest = request as AuthenticatedWebSocketRequest;
-    const url = incomingRequest.url ?? '/';
-    const pathname = new URL(url, 'http://localhost').pathname;
-
-    if (pathname === '/shell') {
-      handleShellConnection(ws, dependencies.shell);
-      return;
-    }
-
-    if (pathname === '/ws') {
-      handleChatConnection(ws, incomingRequest, dependencies.chat);
-      return;
-    }
-
-    if (pathname === '/desktop-notifications') {
-      handleDesktopNotificationsConnection(ws, incomingRequest);
-      return;
-    }
-
-    if (pathname === '/ws/browser' && dependencies.browser) {
-      dependencies.browser(ws, incomingRequest);
-      return;
+        break;
+      default:
+        break;
     }
 
     console.log('[WARN] Unknown WebSocket path:', pathname);
-    ws.close();
+    socket.close();
   });
 
-  return wss;
+  return gateway;
 }

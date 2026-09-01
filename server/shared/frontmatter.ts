@@ -1,18 +1,14 @@
 import matter from 'gray-matter';
 
-const disabledFrontmatterEngine = () => ({});
+const inertEngine = (): Record<string, never> => ({});
 
-const frontmatterOptions = {
+const parserConfiguration = {
   language: 'yaml',
-  // Disable JS/JSON frontmatter parsing to avoid executable project content.
-  // Mirrors Gatsby's mitigation for gray-matter.
-  engines: {
-    js: disabledFrontmatterEngine,
-    javascript: disabledFrontmatterEngine,
-    json: disabledFrontmatterEngine,
-  },
+  engines: Object.fromEntries(
+    ['js', 'javascript', 'json'].map((name) => [name, inertEngine]),
+  ),
 };
 
 export function parseFrontMatter(content: string) {
-  return matter(content, frontmatterOptions);
+  return matter(content, parserConfiguration);
 }

@@ -1,5 +1,5 @@
-import fs from 'node:fs';
 import { createHash } from 'node:crypto';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -8,512 +8,210 @@ import { WebSocket, type RawData } from 'ws';
 
 import { parseIncomingJsonObject } from '@/shared/utils.js';
 
-type ShellIncomingMessage = {
-  type?: string;
-  data?: string;
-  cols?: number;
-  rows?: number;
-  projectPath?: string;
-  sessionId?: string;
-  hasSession?: boolean;
-  provider?: string;
-  initialCommand?: string;
-  isPlainShell?: boolean;
-  forceRestart?: boolean;
-};
-
-type PtySessionEntry = {
-  pty: IPty;
-  ws: WebSocket | null;
-  buffer: string[];
-  timeoutId: NodeJS.Timeout | null;
-  projectPath: string;
-  sessionId: string | null;
-};
-
-const ptySessionsMap = new Map<string, PtySessionEntry>();
-const PTY_SESSION_TIMEOUT = 30 * 60 * 1000;
-const SHELL_URL_PARSE_BUFFER_LIMIT = 32768;
-
+type ShellIncomingMessage = { type?: string; data?: string; cols?: number; rows?: number; projectPath?: string; sessionId?: string; hasSession?: boolean; provider?: string; initialCommand?: string; isPlainShell?: boolean; forceRestart?: boolean; };
+type PtySessionEntry = { pty: IPty; ws: WebSocket | null; buffer: string[]; timeoutId: NodeJS.Timeout | null; projectPath: string; sessionId: string | null; };
 type ShellWebSocketDependencies = {
-  resolveProviderSessionId: (
-    sessionId: string,
-    provider: string,
-  ) => string | null | undefined;
+  resolveProviderSessionId: (sessionId: string, provider: string) => string | null | undefined;
   stripAnsiSequences: (content: string) => string;
   normalizeDetectedUrl: (url: string) => string | null;
   extractUrlsFromText: (content: string) => string[];
   shouldAutoOpenUrlFromOutput: (content: string) => boolean;
 };
 
-/**
- * Reads a string field from untyped payloads and falls back when absent.
- */
-function readString(value: unknown, fallback = ''): string {
-  return typeof value === 'string' ? value : fallback;
-}
+const sessions = new Map<string, PtySessionEntry>();
+const SESSION_GRACE_PERIOD = 30 * 60 * 1000;
+const URL_WINDOW_LENGTH = 32768;
+const SAFE_ID = /^[a-zA-Z0-9_.\-:]+$/;
 
-/**
- * Reads a boolean field from untyped payloads and falls back when absent.
- */
-function readBoolean(value: unknown, fallback = false): boolean {
-  return typeof value === 'boolean' ? value : fallback;
-}
+const text = (value: unknown, otherwise = ''): string => typeof value === 'string' ? value : otherwise;
+const flag = (value: unknown): boolean => typeof value === 'boolean' && value;
+const dimension = (value: unknown, otherwise: number): number => typeof value === 'number' && Number.isFinite(value) ? value : otherwise;
+const decode = (raw: RawData): ShellIncomingMessage | null => parseIncomingJsonObject(raw) as ShellIncomingMessage | null;
 
-/**
- * Reads a finite number field from untyped payloads and falls back when absent.
- */
-function readNumber(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
-/**
- * Parses incoming websocket shell messages and keeps processing safe when
- * malformed payloads are received.
- */
-function parseShellMessage(rawMessage: RawData): ShellIncomingMessage | null {
-  const payload = parseIncomingJsonObject(rawMessage);
-  if (!payload) {
-    return null;
-  }
-
-  return payload as ShellIncomingMessage;
-}
-
-const SAFE_SESSION_ID_PATTERN = /^[a-zA-Z0-9_.\-:]+$/;
-
-function resolveResumeSessionId(
-  message: ShellIncomingMessage,
-  dependencies: ShellWebSocketDependencies
-): string {
-  const hasSession = readBoolean(message.hasSession);
-  const sessionId = readString(message.sessionId);
-  const provider = readString(message.provider, 'gjc');
-
-  if (!hasSession || !sessionId) {
-    return '';
-  }
-
-  let resumeSessionId: string | null | undefined;
+function nativeSession(message: ShellIncomingMessage, dependencies: ShellWebSocketDependencies): string {
+  if (!flag(message.hasSession) || !text(message.sessionId)) return '';
+  const sessionId = text(message.sessionId);
+  let mapped: string | null | undefined;
   try {
-    resumeSessionId = dependencies.resolveProviderSessionId(sessionId, provider);
+    mapped = dependencies.resolveProviderSessionId(sessionId, text(message.provider, 'gjc'));
   } catch (error) {
     console.error('Failed to resolve provider session ID:', error);
-    resumeSessionId = undefined;
   }
-
-  const resolvedSessionId = resumeSessionId === undefined ? sessionId : resumeSessionId;
-  if (!resolvedSessionId || !SAFE_SESSION_ID_PATTERN.test(resolvedSessionId)) {
-    return '';
-  }
-
-  return resolvedSessionId;
+  const result = mapped === undefined ? sessionId : mapped;
+  return result && SAFE_ID.test(result) ? result : '';
 }
 
-/**
- * Resolves provider command line for plain shell and agent-backed shell modes.
- */
-function buildShellCommand(
-  message: ShellIncomingMessage,
-  dependencies: ShellWebSocketDependencies
-): string {
-  const hasSession = readBoolean(message.hasSession);
-  const initialCommand = readString(message.initialCommand);
-  const provider = readString(message.provider, 'gjc');
-  const resumeSessionId = resolveResumeSessionId(message, dependencies);
-  const isPlainShell =
-    readBoolean(message.isPlainShell) ||
-    (!!initialCommand && !hasSession) ||
-    provider === 'plain-shell';
-
-  if (isPlainShell) {
-    return initialCommand;
-  }
-
-  // GJC is the only runnable provider; historical non-GJC sessions are
-  // read-only in the UI and never reach this code.
-  if (provider === 'gjc') {
-    if (resumeSessionId) {
-      if (os.platform() === 'win32') {
-        return `gjc --resume "${resumeSessionId}"; if ($LASTEXITCODE -ne 0) { gjc }`;
-      }
-      return `gjc --resume "${resumeSessionId}" || gjc`;
-    }
-    return initialCommand || 'gjc';
-  }
-  return initialCommand;
+function shellCommand(message: ShellIncomingMessage, dependencies: ShellWebSocketDependencies): string {
+  const command = text(message.initialCommand);
+  const provider = text(message.provider, 'gjc');
+  if (flag(message.isPlainShell) || (!!command && !flag(message.hasSession)) || provider === 'plain-shell') return command;
+  if (provider !== 'gjc') return command;
+  const resumeId = nativeSession(message, dependencies);
+  if (!resumeId) return command || 'gjc';
+  return os.platform() === 'win32'
+    ? `gjc --resume "${resumeId}"; if ($LASTEXITCODE -ne 0) { gjc }`
+    : `gjc --resume "${resumeId}" || gjc`;
 }
 
-function readEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
-  const resolvedKey = Object.keys(env).find((envKey) => envKey.toLowerCase() === key.toLowerCase());
-  return resolvedKey ? env[resolvedKey] : undefined;
+function environmentValue(env: NodeJS.ProcessEnv, requested: string): string | undefined {
+  const actualKey = Object.keys(env).find((key) => key.toLowerCase() === requested.toLowerCase());
+  return actualKey ? env[actualKey] : undefined;
 }
 
-function getPathEnvKey(env: NodeJS.ProcessEnv): string {
-  return Object.keys(env).find((key) => key.toLowerCase() === 'path') || 'PATH';
-}
-
-function prioritizeUserNpmGlobalBin(env: NodeJS.ProcessEnv): { key: string; value: string | undefined } {
-  const pathKey = getPathEnvKey(env);
-  const currentPath = env[pathKey];
-  if (!currentPath) {
-    return { key: pathKey, value: currentPath };
-  }
-
-  const delimiter = path.delimiter;
-  const pathEntries = currentPath.split(delimiter).filter(Boolean);
-  const npmPrefix = readEnvValue(env, 'npm_config_prefix');
-  const appData = readEnvValue(env, 'APPDATA');
+function preferredPath(env: NodeJS.ProcessEnv): { key: string; value: string | undefined } {
+  const key = Object.keys(env).find((entry) => entry.toLowerCase() === 'path') ?? 'PATH';
+  const original = env[key];
+  if (!original) return { key, value: original };
+  const lowerCaseOnWindows = (entry: string): string => os.platform() === 'win32' ? entry.toLowerCase() : entry;
+  const entries = original.split(path.delimiter).filter(Boolean);
+  const npmPrefix = environmentValue(env, 'npm_config_prefix');
+  const appData = environmentValue(env, 'APPDATA');
   const candidates = [
-    npmPrefix || '',
+    npmPrefix ?? '',
     npmPrefix ? path.join(npmPrefix, 'bin') : '',
     appData ? path.join(appData, 'npm') : '',
     path.join(os.homedir(), 'AppData', 'Roaming', 'npm'),
     path.join(os.homedir(), '.npm-global', 'bin'),
   ].filter(Boolean);
-
-  const normalizedPathEntries = pathEntries.map((entry) => os.platform() === 'win32' ? entry.toLowerCase() : entry);
-  const preferredEntries = candidates.filter((candidate, index) => {
-    const normalizedCandidate = os.platform() === 'win32' ? candidate.toLowerCase() : candidate;
-    return (
-      candidates.indexOf(candidate) === index &&
-      normalizedPathEntries.includes(normalizedCandidate)
-    );
-  });
-
-  if (preferredEntries.length === 0) {
-    return { key: pathKey, value: currentPath };
-  }
-
-  const normalizedPreferredEntries = preferredEntries.map((entry) =>
-    os.platform() === 'win32' ? entry.toLowerCase() : entry
-  );
-
-  const value = [
-    ...preferredEntries,
-    ...pathEntries.filter((entry) => {
-      const normalizedEntry = os.platform() === 'win32' ? entry.toLowerCase() : entry;
-      return !normalizedPreferredEntries.includes(normalizedEntry);
-    }),
-  ].join(delimiter);
-
-  return { key: pathKey, value };
+  const existing = new Set(entries.map(lowerCaseOnWindows));
+  const promoted = candidates.filter((candidate, index) => candidates.indexOf(candidate) === index && existing.has(lowerCaseOnWindows(candidate)));
+  if (!promoted.length) return { key, value: original };
+  const promotedKeys = new Set(promoted.map(lowerCaseOnWindows));
+  return { key, value: [...promoted, ...entries.filter((entry) => !promotedKeys.has(lowerCaseOnWindows(entry)))].join(path.delimiter) };
 }
 
-/**
- * Handles websocket connections used by the standalone shell terminal UI.
- */
-export function handleShellConnection(
-  ws: WebSocket,
-  dependencies: ShellWebSocketDependencies
-): void {
+function sessionKey(projectPath: string, sessionId: string | null, plain: boolean, command: string): string {
+  const suffix = plain && command ? `_cmd_${createHash('sha256').update(command).digest('hex').slice(0, 16)}` : '';
+  return `${projectPath}_${sessionId ?? 'default'}${suffix}`;
+}
+
+export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocketDependencies): void {
   console.log('[INFO] Shell websocket connected');
+  let activePty: IPty | null = null;
+  let key: string | null = null;
+  let urlText = '';
+  const reportedUrls = new Set<string>();
 
-  let shellProcess: IPty | null = null;
-  let ptySessionKey: string | null = null;
-  let urlDetectionBuffer = '';
-  const announcedAuthUrls = new Set<string>();
+  const write = (payload: unknown) => ws.send(JSON.stringify(payload));
+  const clearSavedSession = (id: string) => {
+    const old = sessions.get(id);
+    if (!old) return;
+    if (old.timeoutId) clearTimeout(old.timeoutId);
+    old.pty.kill();
+    sessions.delete(id);
+  };
+  const relayOutput = (chunk: string) => {
+    if (!key) return;
+    const current = sessions.get(key);
+    if (!current) return;
+    if (current.buffer.length === 5000) current.buffer.shift();
+    current.buffer.push(chunk);
+    if (!current.ws || current.ws.readyState !== WebSocket.OPEN) return;
 
-  ws.on('message', async (rawMessage) => {
+    const stripped = dependencies.stripAnsiSequences(chunk);
+    urlText = `${urlText}${stripped}`.slice(-URL_WINDOW_LENGTH);
+    const output = chunk.replace(/OPEN_URL:\s*(https?:\/\/[^\s\x1b\x07]+)/g, '[INFO] Opening in browser: $1');
+    const urls = Array.from(new Set(dependencies.extractUrlsFromText(urlText)
+      .map((url) => dependencies.normalizeDetectedUrl(url))
+      .filter((url): url is string => Boolean(url))))
+      .filter((url, _, all) => !all.some((other) => other !== url && other.startsWith(url)));
+    const announce = (url: string, autoOpen: boolean) => {
+      if (reportedUrls.has(url)) return;
+      reportedUrls.add(url);
+      current.ws?.send(JSON.stringify({ type: 'auth_url', url, autoOpen }));
+    };
+    urls.forEach((url) => announce(url, false));
+    if (dependencies.shouldAutoOpenUrlFromOutput(stripped) && urls.length) {
+      announce(urls.reduce((longest, url) => url.length > longest.length ? url : longest), true);
+    }
+    current.ws.send(JSON.stringify({ type: 'output', data: output }));
+  };
+  const start = (data: ShellIncomingMessage): void => {
+    const projectPath = text(data.projectPath, process.cwd());
+    const sessionId = text(data.sessionId) || null;
+    const hasSession = flag(data.hasSession);
+    const provider = text(data.provider, 'gjc');
+    const command = text(data.initialCommand);
+    const plain = flag(data.isPlainShell) || (!!command && !hasSession) || provider === 'plain-shell';
+    urlText = '';
+    reportedUrls.clear();
+    const login = !!command && (command.includes('setup-token') || command.includes('cursor-agent login') || command.includes('auth login'));
+    key = sessionKey(projectPath, sessionId, plain, command);
+    if (login || flag(data.forceRestart)) clearSavedSession(key);
+    const previous = login || flag(data.forceRestart) ? undefined : sessions.get(key);
+    if (previous) {
+      activePty = previous.pty;
+      if (previous.timeoutId) clearTimeout(previous.timeoutId);
+      write({ type: 'output', data: '\x1b[36m[Reconnected to existing session]\x1b[0m\r\n' });
+      previous.buffer.forEach((data) => write({ type: 'output', data }));
+      previous.ws = ws;
+      return;
+    }
+    const cwd = path.resolve(projectPath);
     try {
-      const data = parseShellMessage(rawMessage);
-      if (!data?.type) {
-        throw new Error('Invalid websocket payload');
-      }
+      if (!fs.statSync(cwd).isDirectory()) throw new Error('Not a directory');
+    } catch {
+      write({ type: 'error', message: 'Invalid project path' });
+      return;
+    }
+    if (sessionId && !SAFE_ID.test(sessionId)) {
+      write({ type: 'error', message: 'Invalid session ID' });
+      return;
+    }
+    const executable = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
+    const commandLine = shellCommand(data, dependencies);
+    const resumeId = nativeSession(data, dependencies);
+    const npmPath = preferredPath(process.env);
+    activePty = pty.spawn(executable, os.platform() === 'win32' ? ['-Command', commandLine] : ['-c', commandLine], {
+      name: 'xterm-256color', cols: dimension(data.cols, 80), rows: dimension(data.rows, 24), cwd,
+      env: { ...process.env, [npmPath.key]: npmPath.value, TERM: 'xterm-256color', COLORTERM: 'truecolor', FORCE_COLOR: '3' },
+    });
+    const child = activePty;
+    sessions.set(key, { pty: child, ws, buffer: [], timeoutId: null, projectPath, sessionId });
+    child.onData(relayOutput);
+    child.onExit((status) => {
+      if (!key) return;
+      const current = sessions.get(key);
+      if (current && current.pty !== child) return;
+      if (current?.ws?.readyState === WebSocket.OPEN) current.ws.send(JSON.stringify({ type: 'output', data: `\r\n\x1b[33mProcess exited with code ${status.exitCode}${status.signal != null ? ` (${status.signal})` : ''}\x1b[0m\r\n` }));
+      if (current?.timeoutId) clearTimeout(current.timeoutId);
+      sessions.delete(key);
+      activePty = null;
+    });
+    const welcome = plain
+      ? `\x1b[36mStarting terminal in: ${projectPath}\x1b[0m\r\n`
+      : hasSession && resumeId
+        ? `\x1b[36mResuming Gajae Code session ${resumeId} in: ${projectPath}\x1b[0m\r\n`
+        : `\x1b[36mStarting new Gajae Code session in: ${projectPath}\x1b[0m\r\n`;
+    write({ type: 'output', data: welcome });
+  };
+  const handlers: Record<string, (data: ShellIncomingMessage) => void> = {
+    init: start,
+    input: (data) => { if (activePty) activePty.write(text(data.data)); },
+    resize: (data) => { if (activePty) activePty.resize(dimension(data.cols, 80), dimension(data.rows, 24)); },
+  };
 
-      if (data.type === 'init') {
-        const projectPath = readString(data.projectPath, process.cwd());
-        const sessionId = readString(data.sessionId) || null;
-        const hasSession = readBoolean(data.hasSession);
-        const provider = readString(data.provider, 'gjc');
-        const initialCommand = readString(data.initialCommand);
-        const forceRestart = readBoolean(data.forceRestart);
-        const isPlainShell =
-          readBoolean(data.isPlainShell) ||
-          (!!initialCommand && !hasSession) ||
-          provider === 'plain-shell';
-
-        urlDetectionBuffer = '';
-        announcedAuthUrls.clear();
-
-        const isLoginCommand =
-          !!initialCommand &&
-          (initialCommand.includes('setup-token') ||
-            initialCommand.includes('cursor-agent login') ||
-            initialCommand.includes('auth login'));
-
-        // Key by a hash of the WHOLE command: a base64 prefix only covers the
-        // first 12 bytes, so distinct commands sharing a prefix (e.g. two
-        // `tmux attach-session -t =<name>` targets) would collide and
-        // reconnect to the wrong PTY.
-        const commandSuffix =
-          isPlainShell && initialCommand
-            ? `_cmd_${createHash('sha256').update(initialCommand).digest('hex').slice(0, 16)}`
-            : '';
-        ptySessionKey = `${projectPath}_${sessionId ?? 'default'}${commandSuffix}`;
-
-        if (isLoginCommand || forceRestart) {
-          const oldSession = ptySessionsMap.get(ptySessionKey);
-          if (oldSession) {
-            if (oldSession.timeoutId) {
-              clearTimeout(oldSession.timeoutId);
-            }
-            oldSession.pty.kill();
-            ptySessionsMap.delete(ptySessionKey);
-          }
-        }
-
-        const existingSession =
-          isLoginCommand || forceRestart ? null : ptySessionsMap.get(ptySessionKey);
-        if (existingSession) {
-          shellProcess = existingSession.pty;
-          if (existingSession.timeoutId) {
-            clearTimeout(existingSession.timeoutId);
-          }
-
-          ws.send(
-            JSON.stringify({
-              type: 'output',
-              data: '\x1b[36m[Reconnected to existing session]\x1b[0m\r\n',
-            })
-          );
-
-          if (existingSession.buffer.length > 0) {
-            existingSession.buffer.forEach((bufferedData) => {
-              ws.send(
-                JSON.stringify({
-                  type: 'output',
-                  data: bufferedData,
-                })
-              );
-            });
-          }
-
-          existingSession.ws = ws;
-          return;
-        }
-
-        const resolvedProjectPath = path.resolve(projectPath);
-        try {
-          const stats = fs.statSync(resolvedProjectPath);
-          if (!stats.isDirectory()) {
-            throw new Error('Not a directory');
-          }
-        } catch {
-          ws.send(JSON.stringify({ type: 'error', message: 'Invalid project path' }));
-          return;
-        }
-
-        const safeSessionIdPattern = /^[a-zA-Z0-9_.\-:]+$/;
-        if (sessionId && !safeSessionIdPattern.test(sessionId)) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Invalid session ID' }));
-          return;
-        }
-
-        const shellCommand = buildShellCommand(data, dependencies);
-        const resumeSessionId = resolveResumeSessionId(data, dependencies);
-        const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
-        const shellArgs =
-          os.platform() === 'win32' ? ['-Command', shellCommand] : ['-c', shellCommand];
-        const termCols = readNumber(data.cols, 80);
-        const termRows = readNumber(data.rows, 24);
-        const prioritizedPath = prioritizeUserNpmGlobalBin(process.env);
-
-        shellProcess = pty.spawn(shell, shellArgs, {
-          name: 'xterm-256color',
-          cols: termCols,
-          rows: termRows,
-          cwd: resolvedProjectPath,
-          env: {
-            ...process.env,
-            [prioritizedPath.key]: prioritizedPath.value,
-            TERM: 'xterm-256color',
-            COLORTERM: 'truecolor',
-            FORCE_COLOR: '3',
-          },
-        });
-
-        ptySessionsMap.set(ptySessionKey, {
-          pty: shellProcess,
-          ws,
-          buffer: [],
-          timeoutId: null,
-          projectPath,
-          sessionId,
-        });
-
-        shellProcess.onData((chunk) => {
-          if (!ptySessionKey) {
-            return;
-          }
-
-          const session = ptySessionsMap.get(ptySessionKey);
-          if (!session) {
-            return;
-          }
-
-          if (session.buffer.length < 5000) {
-            session.buffer.push(chunk);
-          } else {
-            session.buffer.shift();
-            session.buffer.push(chunk);
-          }
-
-          if (session.ws && session.ws.readyState === WebSocket.OPEN) {
-            let outputData = chunk;
-            const cleanChunk = dependencies.stripAnsiSequences(chunk);
-            urlDetectionBuffer = `${urlDetectionBuffer}${cleanChunk}`.slice(-SHELL_URL_PARSE_BUFFER_LIMIT);
-
-            outputData = outputData.replace(
-              /OPEN_URL:\s*(https?:\/\/[^\s\x1b\x07]+)/g,
-              '[INFO] Opening in browser: $1'
-            );
-
-            const emitAuthUrl = (detectedUrl: string, autoOpen = false) => {
-              const normalizedUrl = dependencies.normalizeDetectedUrl(detectedUrl);
-              if (!normalizedUrl) {
-                return;
-              }
-
-              const isNewUrl = !announcedAuthUrls.has(normalizedUrl);
-              if (isNewUrl) {
-                announcedAuthUrls.add(normalizedUrl);
-                session.ws?.send(
-                  JSON.stringify({
-                    type: 'auth_url',
-                    url: normalizedUrl,
-                    autoOpen,
-                  })
-                );
-              }
-            };
-
-            const normalizedDetectedUrls = dependencies.extractUrlsFromText(urlDetectionBuffer)
-              .map((url) => dependencies.normalizeDetectedUrl(url))
-              .filter((url): url is string => Boolean(url));
-
-            const dedupedDetectedUrls = Array.from(new Set(normalizedDetectedUrls)).filter(
-              (url, _, urls) =>
-                !urls.some((otherUrl) => otherUrl !== url && otherUrl.startsWith(url))
-            );
-
-            dedupedDetectedUrls.forEach((url) => emitAuthUrl(url, false));
-
-            if (
-              dependencies.shouldAutoOpenUrlFromOutput(cleanChunk) &&
-              dedupedDetectedUrls.length > 0
-            ) {
-              const bestUrl = dedupedDetectedUrls.reduce((longest, current) =>
-                current.length > longest.length ? current : longest
-              );
-              emitAuthUrl(bestUrl, true);
-            }
-
-            session.ws.send(
-              JSON.stringify({
-                type: 'output',
-                data: outputData,
-              })
-            );
-          }
-        });
-
-        shellProcess.onExit((exitCode) => {
-          if (!ptySessionKey) {
-            return;
-          }
-
-          const session = ptySessionsMap.get(ptySessionKey);
-          if (session && session.pty !== shellProcess) {
-            return;
-          }
-
-          if (session && session.ws && session.ws.readyState === WebSocket.OPEN) {
-            session.ws.send(
-              JSON.stringify({
-                type: 'output',
-                data: `\r\n\x1b[33mProcess exited with code ${exitCode.exitCode}${
-                  exitCode.signal != null ? ` (${exitCode.signal})` : ''
-                }\x1b[0m\r\n`,
-              })
-            );
-          }
-
-          if (session?.timeoutId) {
-            clearTimeout(session.timeoutId);
-          }
-
-          ptySessionsMap.delete(ptySessionKey);
-          shellProcess = null;
-        });
-
-        let welcomeMsg = `\x1b[36mStarting terminal in: ${projectPath}\x1b[0m\r\n`;
-        if (!isPlainShell) {
-          // Only 'gjc' can start a live session; anything else is a historical
-          // id that the read-only UI never sends here.
-          const providerName = 'Gajae Code';
-          welcomeMsg = hasSession && resumeSessionId
-            ? `\x1b[36mResuming ${providerName} session ${resumeSessionId} in: ${projectPath}\x1b[0m\r\n`
-            : `\x1b[36mStarting new ${providerName} session in: ${projectPath}\x1b[0m\r\n`;
-        }
-
-        ws.send(
-          JSON.stringify({
-            type: 'output',
-            data: welcomeMsg,
-          })
-        );
-        return;
-      }
-
-      if (data.type === 'input') {
-        if (shellProcess) {
-          shellProcess.write(readString(data.data));
-        }
-        return;
-      }
-
-      if (data.type === 'resize') {
-        if (shellProcess) {
-          shellProcess.resize(readNumber(data.cols, 80), readNumber(data.rows, 24));
-        }
-      }
+  ws.on('message', async (raw) => {
+    try {
+      const data = decode(raw);
+      if (!data?.type) throw new Error('Invalid websocket payload');
+      handlers[data.type]?.(data);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('[ERROR] Shell WebSocket error:', message);
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: 'output',
-            data: `\r\n\x1b[31mError: ${message}\x1b[0m\r\n`,
-          })
-        );
-      }
+      if (ws.readyState === WebSocket.OPEN) write({ type: 'output', data: `\r\n\x1b[31mError: ${message}\x1b[0m\r\n` });
     }
   });
-
   ws.on('close', () => {
-    if (!ptySessionKey) {
-      return;
-    }
-
-    const session = ptySessionsMap.get(ptySessionKey);
-    if (!session) {
-      return;
-    }
-
-    session.ws = null;
-    session.timeoutId = setTimeout(() => {
-      if (ptySessionsMap.get(ptySessionKey as string) !== session) {
-        return;
-      }
-
-      session.pty.kill();
-      ptySessionsMap.delete(ptySessionKey as string);
-    }, PTY_SESSION_TIMEOUT);
+    if (!key) return;
+    const current = sessions.get(key);
+    if (!current) return;
+    current.ws = null;
+    current.timeoutId = setTimeout(() => {
+      if (sessions.get(key as string) !== current) return;
+      current.pty.kill();
+      sessions.delete(key as string);
+    }, SESSION_GRACE_PERIOD);
   });
-
-  ws.on('error', (error) => {
-    console.error('[ERROR] Shell WebSocket error:', error);
-  });
+  ws.on('error', (error) => console.error('[ERROR] Shell WebSocket error:', error));
 }

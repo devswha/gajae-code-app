@@ -5,28 +5,9 @@ import { generateDisplayName } from '@/modules/projects/index.js';
 import { ChatSessionWriter } from '@/modules/websocket/services/chat-session-writer.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import { generateMessageId } from '@/shared/utils.js';
-import type {
-  LLMProvider,
-  NormalizedMessage,
-  RealtimeClientConnection,
-} from '@/shared/types.js';
+import type { LLMProvider, NormalizedMessage, RealtimeClientConnection } from '@/shared/types.js';
 
 type ChatRunStatus = 'running' | 'completed';
-
-/**
- * One live (or recently finished) provider run for a single app session.
- *
- * State notes — why each mutable field is essential:
- * - `providerSessionId`: the provider-native id captured mid-run. The abort
- *   handler needs it to address the provider runtime, and the DB mapping is
- *   written from it so history/resume work after the run.
- * - `status`: drives `chat_subscribed.isProcessing`, prevents double sends
- *   into the same session, and guards the synthetic-complete fallback in the
- *   chat handler (only emitted when a runtime died without completing).
- * - `lastSeq` / `events`: the per-run event log. Every live event gets a
- *   monotonically increasing `seq` and is buffered so a reconnecting client
- *   can replay exactly the events it missed via `chat.subscribe`.
- */
 type ChatRun = {
   appSessionId: string;
   provider: LLMProvider;
@@ -39,154 +20,94 @@ type ChatRun = {
   completedAt: number | null;
 };
 
-/**
- * How long a completed run stays available for replay. Covers the window
- * between a run finishing and the client refreshing history over REST (for
- * example when the browser tab was asleep while the run completed).
- */
-const COMPLETED_RUN_RETENTION_MS = 5 * 60 * 1000;
+type StartRunInput = {
+  appSessionId: string;
+  provider: LLMProvider;
+  providerSessionId: string | null;
+  connection: RealtimeClientConnection;
+  userId: string | number | null;
+};
 
-/**
- * Upper bound on buffered events per run so a very long tool-heavy run cannot
- * grow memory unbounded. When exceeded, the oldest events are dropped —
- * a reconnecting client whose `lastSeq` predates the buffer falls back to a
- * REST history refresh, which is always the authoritative source.
- */
-const MAX_BUFFERED_EVENTS_PER_RUN = 5000;
+const completedRunLifetime = 5 * 60 * 1000;
+const eventBufferLimit = 5000;
+const runBySession = new Map<string, ChatRun>();
 
-/**
- * Active and recently-completed runs keyed by app session id.
- *
- * This map is the single in-memory source of truth for "is something running
- * for this session" — the chat websocket handler, abort path, and subscribe
- * path all consult it instead of asking each provider runtime individually.
- */
-const runs = new Map<string, ChatRun>();
+async function announceSession(sessionId: string): Promise<void> {
+  const stored = sessionsDb.getSessionById(sessionId);
+  if (!stored || stored.isArchived) return;
 
-async function broadcastCanonicalSessionUpsert(appSessionId: string): Promise<void> {
-  const row = sessionsDb.getSessionById(appSessionId);
-  if (!row || row.isArchived) {
-    return;
-  }
-
-  const projectPath = row.project_path;
+  const projectPath = stored.project_path;
   const project = projectPath ? projectsDb.getProjectPath(projectPath) : null;
+  const fallbackName = path.basename(projectPath ?? '') || (projectPath ?? '');
   const displayName = project?.custom_project_name?.trim()
     ? project.custom_project_name
-    : await generateDisplayName(path.basename(projectPath ?? '') || (projectPath ?? ''), projectPath);
-
-  const payload = JSON.stringify({
+    : await generateDisplayName(fallbackName, projectPath);
+  const frame = JSON.stringify({
     kind: 'session_upserted',
-    sessionId: row.session_id,
-    providerSessionId: row.provider_session_id,
-    provider: row.provider,
+    sessionId: stored.session_id,
+    providerSessionId: stored.provider_session_id,
+    provider: stored.provider,
     session: {
-      id: row.session_id,
-      summary: row.custom_name || '',
+      id: stored.session_id,
+      summary: stored.custom_name || '',
       messageCount: 0,
-      lastActivity: row.updated_at ?? row.created_at ?? new Date().toISOString(),
+      lastActivity: stored.updated_at ?? stored.created_at ?? new Date().toISOString(),
     },
-    project: project
-      ? {
-        projectId: project.project_id,
-        path: project.project_path,
-        fullPath: project.project_path,
-        displayName,
-        isStarred: Boolean(project.isStarred),
-      }
-      : null,
+    project: project && {
+      projectId: project.project_id,
+      path: project.project_path,
+      fullPath: project.project_path,
+      displayName,
+      isStarred: Boolean(project.isStarred),
+    },
     timestamp: new Date().toISOString(),
   });
 
-  connectedClients.forEach((client) => {
-    if (client.readyState === WS_OPEN_STATE) {
-      client.send(payload);
-    }
-  });
-}
-
-function evictRunLater(appSessionId: string): void {
-  const timer = setTimeout(() => {
-    const run = runs.get(appSessionId);
-    if (run && run.status === 'completed') {
-      runs.delete(appSessionId);
-    }
-  }, COMPLETED_RUN_RETENTION_MS);
-
-  // Never keep the process alive just to evict a buffered run.
-  timer.unref?.();
-}
-
-/**
- * Decorates one outbound live event for a run and records it in the event log.
- *
- * Responsibilities:
- * 1. Remap `sessionId` (and `actualSessionId` on `complete`) to the stable
- *    app session id — provider-native ids never leave the backend.
- * 2. Assign the next `seq` so clients can detect/replay gaps.
- * 3. Buffer the event for `chat.subscribe` replay.
- * 4. Flip the run to `completed` when the terminal `complete` event passes by.
- */
-function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): NormalizedMessage | null {
-  // Exactly-one-complete contract: when a run is aborted the chat handler
-  // emits the terminal `complete` immediately, but the killed runtime may
-  // still emit its own `complete` from its exit handler moments later.
-  // Whichever arrives first wins; the duplicate is dropped here.
-  if (message.kind === 'complete' && run.status === 'completed') {
-    return null;
+  for (const client of connectedClients) {
+    if (client.readyState === WS_OPEN_STATE) client.send(frame);
   }
+}
 
-  run.lastSeq += 1;
+function removeCompletedRunEventually(sessionId: string): void {
+  const cleanup = setTimeout(() => {
+    if (runBySession.get(sessionId)?.status === 'completed') runBySession.delete(sessionId);
+  }, completedRunLifetime);
+  cleanup.unref?.();
+}
 
+function rememberEvent(run: ChatRun, event: NormalizedMessage): NormalizedMessage | null {
+  if (event.kind === 'complete' && run.status === 'completed') return null;
+
+  const sequence = run.lastSeq + 1;
+  run.lastSeq = sequence;
   const outbound: NormalizedMessage = {
-    ...message,
-    // `id` and `timestamp` are required by the contract, and the browser store
-    // dereferences `id` while merging realtime rows against server history.
-    // Runtimes that build events through `createNormalizedMessage` already
-    // carry both; the GJC SDK worker writes plain `{ kind, ... }` objects, so
-    // fill them here rather than letting an id-less row reach the client.
-    id: message.id || generateMessageId(message.kind),
-    timestamp: message.timestamp || new Date().toISOString(),
+    ...event,
+    id: event.id || generateMessageId(event.kind),
+    timestamp: event.timestamp || new Date().toISOString(),
     sessionId: run.appSessionId,
-    seq: run.lastSeq,
+    seq: sequence,
   };
 
-  if (message.kind === 'complete') {
-    // The provider may report its own id here; the frontend only ever knows
-    // the app id, so the "actual" id is by definition the app id as well.
+  if (event.kind === 'complete') {
     outbound.actualSessionId = run.appSessionId;
     run.status = 'completed';
     run.completedAt = Date.now();
-    evictRunLater(run.appSessionId);
+    removeCompletedRunEventually(run.appSessionId);
   }
 
   run.events.push(outbound);
-  if (run.events.length > MAX_BUFFERED_EVENTS_PER_RUN) {
-    run.events.splice(0, run.events.length - MAX_BUFFERED_EVENTS_PER_RUN);
-  }
-
+  const excess = run.events.length - eventBufferLimit;
+  if (excess > 0) run.events.splice(0, excess);
   return outbound;
 }
 
-/**
- * Records the provider-native session id for a run and persists the
- * app-id-to-provider-id mapping so history fetches and future resumes can
- * address the provider transcript.
- *
- * Called from the gateway writer when the runtime either calls
- * `setSessionId(...)` or emits its `session_created` event — whichever
- * happens first wins; later calls with the same id are no-ops.
- */
-function recordProviderSessionId(run: ChatRun, providerSessionId: string): void {
-  if (!providerSessionId || run.providerSessionId === providerSessionId) {
-    return;
-  }
-
+function saveProviderSessionId(run: ChatRun, providerSessionId: string): void {
+  if (!providerSessionId || providerSessionId === run.providerSessionId) return;
   run.providerSessionId = providerSessionId;
 
   try {
     sessionsDb.assignProviderSessionId(run.appSessionId, run.provider, providerSessionId);
-    void broadcastCanonicalSessionUpsert(run.appSessionId).catch((error) => {
+    void announceSession(run.appSessionId).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       console.error('[ChatRunRegistry] Failed to broadcast canonical session mapping', {
         appSessionId: run.appSessionId,
@@ -204,149 +125,80 @@ function recordProviderSessionId(run: ChatRun, providerSessionId: string): void 
   }
 }
 
-/**
- * Registry of live provider runs keyed by the stable app session id.
- *
- * The registry is what makes the websocket protocol provider-independent:
- * every run gets a `ChatSessionWriter` that remaps provider-native session
- * ids to the app id, assigns `seq` numbers, and buffers events for replay —
- * regardless of which provider runtime produced them.
- */
+function makeRun(input: StartRunInput): ChatRun {
+  const run: ChatRun = {
+    appSessionId: input.appSessionId,
+    provider: input.provider,
+    providerSessionId: input.providerSessionId,
+    status: 'running',
+    lastSeq: 0,
+    events: [],
+    writer: null as unknown as ChatSessionWriter,
+    startedAt: Date.now(),
+    completedAt: null,
+  };
+  run.writer = new ChatSessionWriter({
+    appSessionId: input.appSessionId,
+    connection: input.connection,
+    userId: input.userId,
+    provider: input.provider,
+    providerSessionId: input.providerSessionId,
+    onProviderSessionId: (id) => saveProviderSessionId(run, id),
+    decorateOutboundEvent: (event) => rememberEvent(run, event),
+  });
+  return run;
+}
+
+function isCurrentRunningRun(run: ChatRun): boolean {
+  return runBySession.get(run.appSessionId) === run && run.status === 'running';
+}
+
 export const chatRunRegistry = {
-  /**
-   * Starts tracking a run and returns it, or `null` when a run is already in
-   * progress for the session (callers must reject the duplicate send).
-   */
-  startRun(input: {
-    appSessionId: string;
-    provider: LLMProvider;
-    providerSessionId: string | null;
-    connection: RealtimeClientConnection;
-    userId: string | number | null;
-  }): ChatRun | null {
-    const existing = runs.get(input.appSessionId);
-    if (existing && existing.status === 'running') {
-      return null;
-    }
-
-    const run: ChatRun = {
-      appSessionId: input.appSessionId,
-      provider: input.provider,
-      providerSessionId: input.providerSessionId,
-      status: 'running',
-      lastSeq: 0,
-      events: [],
-      writer: null as unknown as ChatSessionWriter,
-      startedAt: Date.now(),
-      completedAt: null,
-    };
-
-    run.writer = new ChatSessionWriter({
-      appSessionId: input.appSessionId,
-      connection: input.connection,
-      userId: input.userId,
-      provider: input.provider,
-      providerSessionId: input.providerSessionId,
-      onProviderSessionId: (providerSessionId) => {
-        recordProviderSessionId(run, providerSessionId);
-      },
-      decorateOutboundEvent: (message) => decorateAndRecordEvent(run, message),
-    });
-
-    runs.set(input.appSessionId, run);
+  startRun(input: StartRunInput): ChatRun | null {
+    if (runBySession.get(input.appSessionId)?.status === 'running') return null;
+    const run = makeRun(input);
+    runBySession.set(input.appSessionId, run);
     return run;
   },
 
   getRun(appSessionId: string): ChatRun | undefined {
-    return runs.get(appSessionId);
+    return runBySession.get(appSessionId);
   },
 
   isProcessing(appSessionId: string): boolean {
-    return runs.get(appSessionId)?.status === 'running';
+    return runBySession.get(appSessionId)?.status === 'running';
   },
 
-  listRunningRuns(): Array<{
-    sessionId: string;
-    provider: LLMProvider;
-    startedAt: number;
-    lastSeq: number;
-  }> {
-    return Array.from(runs.values())
-      .filter((run) => run.status === 'running')
-      .map((run) => ({
-        sessionId: run.appSessionId,
-        provider: run.provider,
-        startedAt: run.startedAt,
-        lastSeq: run.lastSeq,
-      }));
-  },
-
-  /**
-   * Re-attaches a run's outbound stream to a (new) websocket connection.
-   *
-   * This is the generic replacement for the Claude-only writer reconnect:
-   * after a page refresh the new socket subscribes and immediately starts
-   * receiving the still-running stream, for every provider.
-   */
-  attachConnection(appSessionId: string, connection: RealtimeClientConnection): boolean {
-    const run = runs.get(appSessionId);
-    if (!run) {
-      return false;
+  listRunningRuns(): Array<{ sessionId: string; provider: LLMProvider; startedAt: number; lastSeq: number }> {
+    const active: Array<{ sessionId: string; provider: LLMProvider; startedAt: number; lastSeq: number }> = [];
+    for (const run of runBySession.values()) {
+      if (run.status === 'running') active.push({ sessionId: run.appSessionId, provider: run.provider, startedAt: run.startedAt, lastSeq: run.lastSeq });
     }
+    return active;
+  },
 
+  attachConnection(appSessionId: string, connection: RealtimeClientConnection): boolean {
+    const run = runBySession.get(appSessionId);
+    if (!run) return false;
     run.writer.updateWebSocket(connection);
     return true;
   },
 
-  /**
-   * Returns buffered events with `seq` greater than `afterSeq` for replay.
-   *
-   * An empty array with `run.lastSeq > afterSeq` not covered by the buffer
-   * means the buffer was truncated; the client should refresh over REST.
-   */
   replayEvents(appSessionId: string, afterSeq: number): NormalizedMessage[] {
-    const run = runs.get(appSessionId);
-    if (!run) {
-      return [];
-    }
-
-    return run.events.filter((event) => typeof event.seq === 'number' && event.seq > afterSeq);
+    const run = runBySession.get(appSessionId);
+    return run ? run.events.filter((event) => typeof event.seq === 'number' && event.seq > afterSeq) : [];
   },
 
-  /**
-   * Emits a synthetic terminal `complete` if (and only if) the run is still
-   * marked running. Used when a provider runtime throws or resolves without
-   * having produced its own terminal event, and by the abort path.
-   */
   completeRun(appSessionId: string, opts: { exitCode: number; aborted?: boolean }): void {
-    const run = runs.get(appSessionId);
-    if (!run || run.status !== 'running') {
-      return;
-    }
-
-    run.writer.sendComplete(opts);
+    const run = runBySession.get(appSessionId);
+    if (run?.status === 'running') run.writer.sendComplete(opts);
   },
 
-  /**
-   * Safety-net variant of `completeRun` scoped to one specific run: a no-op
-   * unless `run` is still the session's current, running run. A runtime
-   * promise can resolve after its own `complete` already streamed AND a new
-   * run has replaced it in the registry (a queued message sends within
-   * milliseconds of the previous turn ending) — the session-keyed
-   * `completeRun` would terminate that newer run.
-   */
   completeRunIfCurrent(run: ChatRun, opts: { exitCode: number; aborted?: boolean }): void {
-    if (runs.get(run.appSessionId) !== run || run.status !== 'running') {
-      return;
-    }
-
-    run.writer.sendComplete(opts);
+    if (isCurrentRunningRun(run)) run.writer.sendComplete(opts);
   },
 
-  /**
-   * Test-only escape hatch: clears every tracked run.
-   */
   clearAll(): void {
-    runs.clear();
+    runBySession.clear();
   },
 };

@@ -10,71 +10,56 @@ import { closeConnection, getConnection, getDatabasePath } from '@/modules/datab
 import { initializeDatabase } from '@/modules/database/init-db.js';
 import { projectsDb } from '@/modules/database/repositories/projects.db.js';
 
-async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
-  const previousDatabasePath = process.env.DATABASE_PATH;
-  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'projects-db-'));
-  const databasePath = path.join(tempDirectory, 'auth.db');
+async function withIsolatedDatabase(action: () => void | Promise<void>): Promise<void> {
+  const inheritedPath = process.env.DATABASE_PATH;
+  const workspace = await mkdtemp(path.join(tmpdir(), 'projects-db-'));
 
   closeConnection();
-  process.env.DATABASE_PATH = databasePath;
-  await initializeDatabase();
-
+  process.env.DATABASE_PATH = path.join(workspace, 'auth.db');
   try {
-    await runTest();
+    await initializeDatabase();
+    await action();
   } finally {
     closeConnection();
-    if (previousDatabasePath === undefined) {
-      delete process.env.DATABASE_PATH;
-    } else {
-      process.env.DATABASE_PATH = previousDatabasePath;
-    }
-    await rm(tempDirectory, { recursive: true, force: true });
+    if (inheritedPath === undefined) delete process.env.DATABASE_PATH;
+    else process.env.DATABASE_PATH = inheritedPath;
+    await rm(workspace, { recursive: true, force: true });
   }
 }
 
-test('projectsDb.createProjectPath returns created for fresh paths', async () => {
+function insertLegacyProject(projectId: string, projectPath: string): void {
+  getConnection().prepare(`
+    INSERT INTO projects (project_id, project_path, custom_project_name, isArchived)
+    VALUES (?, ?, ?, 0)
+  `).run(projectId, projectPath, 'Legacy Project');
+}
+
+test('explicit project creation distinguishes new, archived, and active paths', async () => {
   await withIsolatedDatabase(() => {
-    const created = projectsDb.createProjectPath('/workspace/new-project');
+    const fresh = projectsDb.createProjectPath('/workspace/new-project');
+    assert.equal(fresh.outcome, 'created');
+    assert.equal(fresh.project?.project_path, '/workspace/new-project');
+    assert.equal(fresh.project?.isArchived, 0);
+    assert.equal(fresh.project?.origin, 'explicit');
 
-    assert.equal(created.outcome, 'created');
-    assert.ok(created.project);
-    assert.equal(created.project?.project_path, '/workspace/new-project');
-    assert.equal(created.project?.isArchived, 0);
-    assert.equal(created.project?.origin, 'explicit');
-  });
-});
-
-test('projectsDb.createProjectPath returns reactivated_archived for archived duplicates', async () => {
-  await withIsolatedDatabase(() => {
-    const initial = projectsDb.createProjectPath('/workspace/archived-project', 'Archived Project');
-    assert.equal(initial.outcome, 'created');
-    assert.ok(initial.project);
-
+    const archived = projectsDb.createProjectPath('/workspace/archived-project', 'Archived Project');
+    assert.equal(archived.outcome, 'created');
+    assert.ok(archived.project);
     projectsDb.updateProjectIsArchived('/workspace/archived-project', true);
+    const restored = projectsDb.createProjectPath('/workspace/archived-project', 'Renamed Project');
+    assert.equal(restored.outcome, 'reactivated_archived');
+    assert.equal(restored.project?.project_id, archived.project.project_id);
+    assert.equal(restored.project?.isArchived, 0);
 
-    const reused = projectsDb.createProjectPath('/workspace/archived-project', 'Renamed Project');
-    assert.equal(reused.outcome, 'reactivated_archived');
-    assert.ok(reused.project);
-    assert.equal(reused.project?.project_id, initial.project?.project_id);
-    assert.equal(reused.project?.isArchived, 0);
-  });
-});
-
-test('projectsDb.createProjectPath returns active_conflict for active duplicates', async () => {
-  await withIsolatedDatabase(() => {
-    const initial = projectsDb.createProjectPath('/workspace/active-project');
-    assert.equal(initial.outcome, 'created');
-    assert.ok(initial.project);
-
-    const conflict = projectsDb.createProjectPath('/workspace/active-project');
+    const conflict = projectsDb.createProjectPath('/workspace/new-project');
     assert.equal(conflict.outcome, 'active_conflict');
-    assert.ok(conflict.project);
-    assert.equal(conflict.project?.project_id, initial.project?.project_id);
+    assert.equal(conflict.project?.project_id, fresh.project?.project_id);
     assert.equal(conflict.project?.isArchived, 0);
     assert.equal(conflict.project?.origin, 'explicit');
   });
 });
-test('projectsDb.ensureProjectPathForSession creates auto rows and preserves existing origins', async () => {
+
+test('session-created projects are automatic without overwriting established origins', async () => {
   await withIsolatedDatabase(() => {
     projectsDb.ensureProjectPathForSession('/workspace/auto-project');
     assert.equal(projectsDb.getProjectPath('/workspace/auto-project')?.origin, 'auto');
@@ -84,94 +69,73 @@ test('projectsDb.ensureProjectPathForSession creates auto rows and preserves exi
     projectsDb.ensureProjectPathForSession('/workspace/explicit-project');
     assert.equal(projectsDb.getProjectPath('/workspace/explicit-project')?.origin, 'explicit');
 
-    getConnection().prepare(`
-      INSERT INTO projects (project_id, project_path, custom_project_name, isArchived)
-      VALUES (?, ?, ?, 0)
-    `).run('legacy-project-id', '/workspace/legacy-project', 'Legacy Project');
+    insertLegacyProject('legacy-project-id', '/workspace/legacy-project');
     projectsDb.ensureProjectPathForSession('/workspace/legacy-project');
     assert.equal(projectsDb.getProjectPath('/workspace/legacy-project')?.origin, 'legacy');
-    const legacyConflict = projectsDb.createProjectPath('/workspace/legacy-project');
-    assert.equal(legacyConflict.outcome, 'active_conflict');
-    assert.equal(legacyConflict.project?.origin, 'legacy');
+    const conflict = projectsDb.createProjectPath('/workspace/legacy-project');
+    assert.equal(conflict.outcome, 'active_conflict');
+    assert.equal(conflict.project?.origin, 'legacy');
   });
 });
 
-test('projectsDb.createProjectPath reactivates archived auto rows as explicit', async () => {
+test('explicit actions revive automatic projects and promote old origins without changing archival flags', async () => {
   await withIsolatedDatabase(() => {
     projectsDb.ensureProjectPathForSession('/workspace/archived-auto-project');
     projectsDb.updateProjectIsArchived('/workspace/archived-auto-project', true);
+    const restored = projectsDb.createProjectPath('/workspace/archived-auto-project');
+    assert.equal(restored.outcome, 'reactivated_archived');
+    assert.equal(restored.project?.isArchived, 0);
+    assert.equal(restored.project?.origin, 'explicit');
 
-    const reactivated = projectsDb.createProjectPath('/workspace/archived-auto-project');
-
-    assert.equal(reactivated.outcome, 'reactivated_archived');
-    assert.equal(reactivated.project?.isArchived, 0);
-    assert.equal(reactivated.project?.origin, 'explicit');
-  });
-});
-
-test('projectsDb.promoteProjectOriginById promotes auto and legacy rows without changing archive state', async () => {
-  await withIsolatedDatabase(() => {
     projectsDb.ensureProjectPathForSession('/workspace/auto-project');
-    const autoProject = projectsDb.getProjectPath('/workspace/auto-project');
-    assert.ok(autoProject);
-    projectsDb.updateProjectIsArchivedById(autoProject.project_id, true);
-
-    const promotedAuto = projectsDb.promoteProjectOriginById(autoProject.project_id);
+    const automatic = projectsDb.getProjectPath('/workspace/auto-project');
+    assert.ok(automatic);
+    projectsDb.updateProjectIsArchivedById(automatic.project_id, true);
+    const promotedAuto = projectsDb.promoteProjectOriginById(automatic.project_id);
     assert.equal(promotedAuto?.origin, 'explicit');
     assert.equal(promotedAuto?.isArchived, 1);
 
-    getConnection().prepare(`
-      INSERT INTO projects (project_id, project_path, custom_project_name, isArchived)
-      VALUES (?, ?, ?, 0)
-    `).run('legacy-project-id', '/workspace/legacy-project', 'Legacy Project');
+    insertLegacyProject('legacy-project-id', '/workspace/legacy-project');
     const promotedLegacy = projectsDb.promoteProjectOriginById('legacy-project-id');
     assert.equal(promotedLegacy?.origin, 'explicit');
     assert.equal(promotedLegacy?.isArchived, 0);
   });
 });
-test('uses the gajae-app root and leaves the populated old root untouched without DATABASE_PATH', async () => {
-  const previousDatabasePath = process.env.DATABASE_PATH;
-  const previousHome = process.env.HOME;
-  const temporaryHome = await mkdtemp(path.join(tmpdir(), 'projects-db-home-'));
-  const oldDatabasePath = path.join(temporaryHome, `.${['cloud', 'cli'].join('')}`, 'auth.db');
-  const databasePath = path.join(temporaryHome, '.gajae-app', 'auth.db');
 
-  await mkdir(path.dirname(oldDatabasePath), { recursive: true });
-  const oldDatabase = new Database(oldDatabasePath);
+test('the default database location uses the gajae-app home without touching the prior root', async () => {
+  const inheritedPath = process.env.DATABASE_PATH;
+  const inheritedHome = process.env.HOME;
+  const home = await mkdtemp(path.join(tmpdir(), 'projects-db-home-'));
+  const oldPath = path.join(home, `.${['cloud', 'cli'].join('')}`, 'auth.db');
+  const expectedPath = path.join(home, '.gajae-app', 'auth.db');
+
+  await mkdir(path.dirname(oldPath), { recursive: true });
+  const oldDatabase = new Database(oldPath);
   oldDatabase.exec(`
     CREATE TABLE preserved_data (value TEXT NOT NULL);
     INSERT INTO preserved_data (value) VALUES ('old-root-data');
   `);
   oldDatabase.close();
+  const oldBytes = await readFile(oldPath);
 
-  const oldDatabaseContents = await readFile(oldDatabasePath);
   closeConnection();
-  process.env.HOME = temporaryHome;
+  process.env.HOME = home;
   delete process.env.DATABASE_PATH;
-
   try {
-    assert.equal(getDatabasePath(), databasePath);
+    assert.equal(getDatabasePath(), expectedPath);
     await initializeDatabase();
+    assert.equal((await stat(expectedPath)).isFile(), true);
+    assert.deepEqual(await readFile(oldPath), oldBytes);
 
-    assert.ok((await stat(databasePath)).isFile());
-    assert.deepEqual(await readFile(oldDatabasePath), oldDatabaseContents);
-
-    const preservedDatabase = new Database(oldDatabasePath, { readonly: true });
-    const preservedRow = preservedDatabase.prepare('SELECT value FROM preserved_data').get() as { value: string };
-    assert.equal(preservedRow.value, 'old-root-data');
-    preservedDatabase.close();
+    const preserved = new Database(oldPath, { readonly: true });
+    assert.equal((preserved.prepare('SELECT value FROM preserved_data').get() as { value: string }).value, 'old-root-data');
+    preserved.close();
   } finally {
     closeConnection();
-    if (previousDatabasePath === undefined) {
-      delete process.env.DATABASE_PATH;
-    } else {
-      process.env.DATABASE_PATH = previousDatabasePath;
-    }
-    if (previousHome === undefined) {
-      delete process.env.HOME;
-    } else {
-      process.env.HOME = previousHome;
-    }
-    await rm(temporaryHome, { recursive: true, force: true });
+    if (inheritedPath === undefined) delete process.env.DATABASE_PATH;
+    else process.env.DATABASE_PATH = inheritedPath;
+    if (inheritedHome === undefined) delete process.env.HOME;
+    else process.env.HOME = inheritedHome;
+    await rm(home, { recursive: true, force: true });
   }
 });

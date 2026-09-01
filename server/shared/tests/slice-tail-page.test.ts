@@ -3,40 +3,32 @@ import test from 'node:test';
 
 import { sliceTailPage } from '@/shared/utils.js';
 
-const ITEMS = ['a', 'b', 'c', 'd', 'e'];
+const chronology = ['a', 'b', 'c', 'd', 'e'];
 
-test('offset 0 returns the most recent page', () => {
-  const { page, hasMore } = sliceTailPage(ITEMS, 2, 0);
-  assert.deepEqual(page, ['d', 'e']);
-  assert.equal(hasMore, true);
+test('tail paging begins with the newest entries and moves toward the start', () => {
+  const newest = sliceTailPage(chronology, 2, 0);
+  const previous = sliceTailPage(chronology, 2, 2);
+  const first = sliceTailPage(chronology, 2, 4);
+
+  assert.deepEqual(newest, { page: ['d', 'e'], hasMore: true });
+  assert.deepEqual(previous, { page: ['b', 'c'], hasMore: true });
+  assert.deepEqual(first, { page: ['a'], hasMore: false });
 });
 
-test('increasing offsets walk backwards in time', () => {
-  const { page, hasMore } = sliceTailPage(ITEMS, 2, 2);
-  assert.deepEqual(page, ['b', 'c']);
-  assert.equal(hasMore, true);
+test('tail paging supports an unbounded request and exhausted offsets', () => {
+  assert.deepEqual(sliceTailPage(chronology, null, 0), {
+    page: chronology,
+    hasMore: false,
+  });
+  assert.deepEqual(sliceTailPage(chronology, 3, 10), {
+    page: [],
+    hasMore: false,
+  });
 });
 
-test('the oldest page reports hasMore false', () => {
-  const { page, hasMore } = sliceTailPage(ITEMS, 2, 4);
-  assert.deepEqual(page, ['a']);
-  assert.equal(hasMore, false);
-});
-
-test('null limit returns everything', () => {
-  const { page, hasMore } = sliceTailPage(ITEMS, null, 0);
-  assert.deepEqual(page, ITEMS);
-  assert.equal(hasMore, false);
-});
-
-test('offsets past the start return an empty page', () => {
-  const { page, hasMore } = sliceTailPage(ITEMS, 3, 10);
-  assert.deepEqual(page, []);
-  assert.equal(hasMore, false);
-});
-
-test('zero limit returns an empty page but keeps hasMore accurate', () => {
-  const { page, hasMore } = sliceTailPage(ITEMS, 0, 0);
-  assert.deepEqual(page, []);
-  assert.equal(hasMore, true);
+test('an empty page size retains whether older data exists', () => {
+  assert.deepEqual(sliceTailPage(chronology, 0, 0), {
+    page: [],
+    hasMore: true,
+  });
 });

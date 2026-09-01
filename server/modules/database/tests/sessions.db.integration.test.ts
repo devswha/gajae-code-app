@@ -11,112 +11,95 @@ import { initializeDatabase } from '@/modules/database/init-db.js';
 import { runMigrations } from '@/modules/database/migrations.js';
 import { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
 
-async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
-  const previousDatabasePath = process.env.DATABASE_PATH;
-  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'sessions-db-'));
-  const databasePath = path.join(tempDirectory, 'auth.db');
+async function withIsolatedDatabase(action: () => void | Promise<void>): Promise<void> {
+  const inheritedPath = process.env.DATABASE_PATH;
+  const directory = await mkdtemp(path.join(tmpdir(), 'sessions-db-'));
 
   closeConnection();
-  process.env.DATABASE_PATH = databasePath;
-  await initializeDatabase();
-
+  process.env.DATABASE_PATH = path.join(directory, 'auth.db');
   try {
-    await runTest();
+    await initializeDatabase();
+    await action();
   } finally {
     closeConnection();
-    if (previousDatabasePath === undefined) {
-      delete process.env.DATABASE_PATH;
-    } else {
-      process.env.DATABASE_PATH = previousDatabasePath;
-    }
-    await rm(tempDirectory, { recursive: true, force: true });
+    if (inheritedPath === undefined) delete process.env.DATABASE_PATH;
+    else process.env.DATABASE_PATH = inheritedPath;
+    await rm(directory, { recursive: true, force: true });
   }
 }
 
-test('session archive queries hide archived rows from active project views', async () => {
+test('archived sessions are excluded from active collection and project readers', async () => {
   await withIsolatedDatabase(() => {
-    sessionsDb.createSession('session-active', 'claude', '/workspace/demo-project', 'Active Session');
-    sessionsDb.createSession('session-archived', 'claude', '/workspace/demo-project', 'Archived Session');
+    const projectPath = '/workspace/demo-project';
+    sessionsDb.createSession('session-active', 'claude', projectPath, 'Active Session');
+    sessionsDb.createSession('session-archived', 'claude', projectPath, 'Archived Session');
     sessionsDb.updateSessionIsArchived('session-archived', true);
 
-    const activeSessions = sessionsDb.getAllSessions();
-    const archivedSessions = sessionsDb.getArchivedSessions();
-    const activeProjectSessions = sessionsDb.getSessionsByProjectPath('/workspace/demo-project');
-    const allProjectSessions = sessionsDb.getSessionsByProjectPathIncludingArchived('/workspace/demo-project');
-
-    assert.deepEqual(activeSessions.map((session) => session.session_id), ['session-active']);
-    assert.deepEqual(archivedSessions.map((session) => session.session_id), ['session-archived']);
-    assert.deepEqual(activeProjectSessions.map((session) => session.session_id), ['session-active']);
+    assert.deepEqual(sessionsDb.getAllSessions().map(({ session_id: id }) => id), ['session-active']);
+    assert.deepEqual(sessionsDb.getArchivedSessions().map(({ session_id: id }) => id), ['session-archived']);
+    assert.deepEqual(sessionsDb.getSessionsByProjectPath(projectPath).map(({ session_id: id }) => id), ['session-active']);
     assert.deepEqual(
-      allProjectSessions.map((session) => session.session_id).sort(),
+      sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath).map(({ session_id: id }) => id).sort(),
       ['session-active', 'session-archived'],
     );
-    assert.equal(sessionsDb.countSessionsByProjectPath('/workspace/demo-project'), 1);
+    assert.equal(sessionsDb.countSessionsByProjectPath(projectPath), 1);
   });
 });
 
-test('createSession preserves archive state when refreshing existing sessions', async () => {
+test('refreshing a stored session changes metadata but retains its archived state', async () => {
   await withIsolatedDatabase(() => {
-    sessionsDb.createSession('session-reused', 'claude', '/workspace/demo-project', 'First Name');
+    const projectPath = '/workspace/demo-project';
+    sessionsDb.createSession('session-reused', 'claude', projectPath, 'First Name');
     sessionsDb.updateSessionIsArchived('session-reused', true);
+    sessionsDb.createSession('session-reused', 'claude', projectPath, 'Updated Name');
 
-    sessionsDb.createSession('session-reused', 'claude', '/workspace/demo-project', 'Updated Name');
+    assert.equal(sessionsDb.getAllSessions().length, 0);
+    assert.equal(sessionsDb.getArchivedSessions().length, 1);
+    assert.equal(sessionsDb.getArchivedSessions()[0]?.session_id, 'session-reused');
+    assert.equal(sessionsDb.getSessionById('session-reused')?.custom_name, 'Updated Name');
+    assert.equal(sessionsDb.getSessionById('session-reused')?.isArchived, 1);
 
-    const activeSessions = sessionsDb.getAllSessions();
-    const archivedSessions = sessionsDb.getArchivedSessions();
-    const refreshedSession = sessionsDb.getSessionById('session-reused');
-
-    assert.equal(activeSessions.length, 0);
-    assert.equal(archivedSessions.length, 1);
-    assert.equal(archivedSessions[0]?.session_id, 'session-reused');
-    assert.equal(refreshedSession?.custom_name, 'Updated Name');
-    assert.equal(refreshedSession?.isArchived, 1);
-
-    sessionsDb.createSession('session-conflict', 'claude', '/workspace/demo-project', 'First Conflict Name');
+    sessionsDb.createSession('session-conflict', 'claude', projectPath, 'First Conflict Name');
     sessionsDb.updateSessionIsArchived('session-conflict', true);
-
-    sessionsDb.createSession('session-conflict', 'codex', '/workspace/demo-project', 'Updated Conflict Name');
-
-    const conflictedSession = sessionsDb.getSessionById('session-conflict');
-    assert.equal(conflictedSession?.provider, 'codex');
-    assert.equal(conflictedSession?.custom_name, 'Updated Conflict Name');
-    assert.equal(conflictedSession?.isArchived, 1);
+    sessionsDb.createSession('session-conflict', 'codex', projectPath, 'Updated Conflict Name');
+    const replacedProvider = sessionsDb.getSessionById('session-conflict');
+    assert.equal(replacedProvider?.provider, 'codex');
+    assert.equal(replacedProvider?.custom_name, 'Updated Conflict Name');
+    assert.equal(replacedProvider?.isArchived, 1);
   });
 });
 
-test('repository reads normalize SQLite UTC timestamps to ISO strings', async () => {
+test('repository session rows expose UTC timestamps as ISO strings', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createAppSession('session-timezone', 'claude', '/workspace/demo-project');
+    const result = sessionsDb.getSessionById('session-timezone');
 
-    const row = sessionsDb.getSessionById('session-timezone');
-    assert.ok(row?.created_at.endsWith('Z'));
-    assert.ok(row?.updated_at.endsWith('Z'));
-    assert.match(row?.created_at ?? '', /^\d{4}-\d{2}-\d{2}T/);
-    assert.match(row?.updated_at ?? '', /^\d{4}-\d{2}-\d{2}T/);
+    for (const timestamp of [result?.created_at, result?.updated_at]) {
+      assert.match(timestamp ?? '', /^\d{4}-\d{2}-\d{2}T/);
+      assert.equal(timestamp?.endsWith('Z'), true);
+    }
   });
 });
 
-test('session stars default off, persist, and reach every session reader', async () => {
+test('star state starts disabled and is returned from identifier and project queries', async () => {
   await withIsolatedDatabase(() => {
-    sessionsDb.createSession('session-starred', 'claude', '/workspace/demo-project', 'Starred Session');
+    const projectPath = '/workspace/demo-project';
+    sessionsDb.createSession('session-starred', 'claude', projectPath, 'Starred Session');
     assert.equal(sessionsDb.getSessionById('session-starred')?.isStarred, 0);
 
     sessionsDb.updateSessionIsStarred('session-starred', true);
-
-    // The sidebar reads sessions through the project listing, so a flag that
-    // only the by-id reader returns would render as unpinned after a reload.
     assert.equal(sessionsDb.getSessionById('session-starred')?.isStarred, 1);
-    assert.equal(sessionsDb.getSessionsByProjectPath('/workspace/demo-project')[0]?.isStarred, 1);
+    assert.equal(sessionsDb.getSessionsByProjectPath(projectPath)[0]?.isStarred, 1);
 
     sessionsDb.updateSessionIsStarred('session-starred', false);
     assert.equal(sessionsDb.getSessionById('session-starred')?.isStarred, 0);
   });
 });
 
-test('session-star migration is idempotent and preserves existing values', () => {
-  const db = new Database(':memory:');
+test('the star migration can run repeatedly without losing existing star data', () => {
+  const database = new Database(':memory:');
   try {
-    db.exec(`
+    database.exec(`
       CREATE TABLE users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -140,32 +123,28 @@ test('session-star migration is idempotent and preserves existing values', () =>
       VALUES ('existing-session', 'claude', '/workspace/demo-project');
     `);
 
-    runMigrations(db);
-    db.prepare('UPDATE sessions SET isStarred = 1 WHERE session_id = ?').run('existing-session');
-    runMigrations(db);
+    runMigrations(database);
+    database.prepare('UPDATE sessions SET isStarred = 1 WHERE session_id = ?').run('existing-session');
+    runMigrations(database);
 
-    const columns = db.prepare('PRAGMA table_info(sessions)').all() as Array<{
-      name: string;
-      dflt_value: string | null;
-    }>;
-    const starredColumns = columns.filter((column) => column.name === 'isStarred');
-    assert.equal(starredColumns.length, 1);
-    assert.equal(starredColumns[0]?.dflt_value, '0');
+    const fields = database.prepare('PRAGMA table_info(sessions)').all() as Array<{ name: string; dflt_value: string | null }>;
     assert.deepEqual(
-      db.prepare('SELECT isStarred FROM sessions WHERE session_id = ?').get('existing-session') as { isStarred: number },
+      fields.filter(({ name }) => name === 'isStarred').map(({ name, dflt_value: defaultValue }) => ({ name, defaultValue })),
+      [{ name: 'isStarred', defaultValue: '0' }],
+    );
+    assert.deepEqual(
+      database.prepare('SELECT isStarred FROM sessions WHERE session_id = ?').get('existing-session'),
       { isStarred: 1 },
     );
   } finally {
-    db.close();
+    database.close();
   }
 });
 
-test('sessionsDb uses the explicit DATABASE_PATH override', async () => {
+test('an isolated repository uses its DATABASE_PATH override', async () => {
   await withIsolatedDatabase(() => {
     assert.equal(getDatabasePath(), process.env.DATABASE_PATH);
-
     sessionsDb.createSession('explicit-path', 'claude', '/workspace/demo-project', 'Explicit Path');
-
     assert.equal(sessionsDb.getSessionById('explicit-path')?.custom_name, 'Explicit Path');
   });
 });

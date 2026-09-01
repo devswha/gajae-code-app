@@ -1,40 +1,23 @@
 {
-  "git": {
-    "commitMessage": "chore(release): v${version}",
-    "tagName": "v${version}",
-    "requireBranch": "main",
-    "requireCleanWorkingDir": true
-  },
-  "npm": {
-    "publish": false
-  },
-  "github": {
-    "release": true,
-    "releaseName": "Gajae Code App v${version}"
-  },
-  "hooks": {
-    "before:init": ["npm run build"]
-  },
-  "plugins": {
-    "@release-it/conventional-changelog": {
-      "infile": "CHANGELOG.md",
-      "header": "# Changelog\n\nAll notable changes to Gajae Code App will be documented in this file.\n",
-      "preset": {
-        "name": "conventionalcommits",
-        "types": [
-          { "type": "feat", "section": "New Features" },
-          { "type": "feature", "section": "New Features" },
-          { "type": "fix", "section": "Bug Fixes" },
-          { "type": "perf", "section": "Performance" },
-          { "type": "refactor", "section": "Refactoring" },
-          { "type": "docs", "section": "Documentation" },
-          { "type": "style", "section": "Styling" },
-          { "type": "chore", "section": "Maintenance" },
-          { "type": "ci", "section": "CI/CD" },
-          { "type": "test", "section": "Tests" },
-          { "type": "build", "section": "Build" }
-        ]
-      }
-    }
-  }
+  "hooks": { "before:init": ["npm run build"] },
+  "npm": { "publish": false },
+  "git": { "tagName": "v${version}", "commitMessage": "release: Gajae Code App v${version}", "requireCleanWorkingDir": true, "requireBranch": "main" },
+  "github": { "releaseName": "Gajae Code App v${version}", "release": true },
+  "plugins": { "@release-it/conventional-changelog": {
+    "preset": { "types": [
+      { "section": "Capabilities", "type": "feat" },
+      { "section": "Capabilities", "type": "feature" },
+      { "section": "Corrections", "type": "fix" },
+      { "section": "Efficiency", "type": "perf" },
+      { "section": "Internal changes", "type": "refactor" },
+      { "section": "Guides", "type": "docs" },
+      { "section": "Presentation", "type": "style" },
+      { "section": "Upkeep", "type": "chore" },
+      { "section": "Automation", "type": "ci" },
+      { "section": "Coverage", "type": "test" },
+      { "section": "Distribution", "type": "build" }
+    ], "name": "conventionalcommits" },
+    "header": "# Changelog\n\nAll notable changes to Gajae Code App will be documented in this file.\n",
+    "infile": "CHANGELOG.md"
+  } }
 }

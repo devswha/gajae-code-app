@@ -10,14 +10,10 @@ export type ParsedImagesInput = {
   attachments: ParsedImageAttachment[];
 };
 
-const MEDIA_TYPES: Record<string, string> = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.svg': 'image/svg+xml',
-};
+const MEDIA_TYPES: Record<string, string> = Object.fromEntries([
+  ['.jpg', 'image/jpeg'], ['.jpeg', 'image/jpeg'], ['.png', 'image/png'],
+  ['.gif', 'image/gif'], ['.webp', 'image/webp'], ['.svg', 'image/svg+xml'],
+]);
 const TAG = /\s*<images_input>([\s\S]*?)<\/images_input>\s*/g;
 const ENTRY = /\d+\.\s+(.+?)(?=\s+\d+\.\s+|\s*$)/g;
 const RECORDED_NAME = /\(original name: ([^)]*)\)\s*$/;
@@ -29,25 +25,25 @@ export function getGlobalImageAssetsDir(): string {
 export function normalizeImageDescriptors(images: unknown): ImageAttachmentDescriptor[] {
   if (!Array.isArray(images)) return [];
 
-  return images.reduce<ImageAttachmentDescriptor[]>((result, item) => {
-    if (typeof item === 'string') {
-      const imagePath = item.trim();
-      if (imagePath) result.push({ path: imagePath });
-      return result;
+  const descriptors: ImageAttachmentDescriptor[] = [];
+  for (const image of images) {
+    if (typeof image === 'string') {
+      const imagePath = image.trim();
+      if (imagePath) descriptors.push({ path: imagePath });
+      continue;
     }
-    if (item === null || typeof item !== 'object') return result;
+    if (!image || typeof image !== 'object') continue;
 
-    const value = item as Record<string, unknown>;
-    const imagePath = typeof value.path === 'string' ? value.path.trim() : '';
-    if (imagePath) {
-      result.push({
-        path: imagePath,
-        name: typeof value.name === 'string' ? value.name : undefined,
-        mimeType: typeof value.mimeType === 'string' ? value.mimeType : undefined,
-      });
-    }
-    return result;
-  }, []);
+    const candidate = image as Record<string, unknown>;
+    const imagePath = typeof candidate.path === 'string' ? candidate.path.trim() : '';
+    if (!imagePath) continue;
+    descriptors.push({
+      path: imagePath,
+      name: typeof candidate.name === 'string' ? candidate.name : undefined,
+      mimeType: typeof candidate.mimeType === 'string' ? candidate.mimeType : undefined,
+    });
+  }
+  return descriptors;
 }
 
 export function toPosixPath(value: string): string {
@@ -55,61 +51,66 @@ export function toPosixPath(value: string): string {
 }
 
 export function resolveImageAbsolutePath(cwd: string | undefined, imagePath: string): string {
-  return path.isAbsolute(imagePath) ? imagePath : path.resolve(cwd || process.cwd(), imagePath);
+  if (path.isAbsolute(imagePath)) return imagePath;
+  return path.resolve(cwd ? cwd : process.cwd(), imagePath);
 }
 
 function directoryAliases(directory: string): string[] {
-  const normalized = path.resolve(directory);
+  const logicalPath = path.resolve(directory);
   try {
-    const physical = path.resolve(realpathSync(directory));
-    return physical === normalized ? [normalized] : [normalized, physical];
+    const physicalPath = path.resolve(realpathSync(directory));
+    return physicalPath === logicalPath ? [logicalPath] : [logicalPath, physicalPath];
   } catch {
-    return [normalized];
+    return [logicalPath];
   }
 }
 
 function containsFile(directory: string, candidate: string): boolean {
-  const prefix = `${path.resolve(directory)}${path.sep}`;
-  return path.resolve(candidate).startsWith(prefix);
+  const directoryPrefix = `${path.resolve(directory)}${path.sep}`;
+  return path.resolve(candidate).startsWith(directoryPrefix);
 }
 
 export function isAllowedImageSourcePath(resolvedPath: string, cwd?: string): boolean {
-  const roots = [getGlobalImageAssetsDir(), cwd || process.cwd()];
-  for (const root of roots) {
-    if (directoryAliases(root).some((alias) => containsFile(alias, resolvedPath))) return true;
+  const allowedRoots = [getGlobalImageAssetsDir(), cwd || process.cwd()];
+  for (const root of allowedRoots) {
+    for (const rootAlias of directoryAliases(root)) {
+      if (containsFile(rootAlias, resolvedPath)) return true;
+    }
   }
   return false;
 }
 
 export function resolveImageMediaType(descriptor: ImageAttachmentDescriptor): string | null {
-  return descriptor.mimeType || MEDIA_TYPES[path.extname(descriptor.path).toLowerCase()] || null;
+  const extension = path.extname(descriptor.path).toLowerCase();
+  return descriptor.mimeType || MEDIA_TYPES[extension] || null;
 }
 
 function imageEntry(descriptor: ImageAttachmentDescriptor, position: number): string {
   const originalName = descriptor.name?.replace(/[()\r\n]/g, '').trim();
-  const reference = `${position}. ${toPosixPath(descriptor.path)}`;
-  return originalName ? `${reference} (original name: ${originalName})` : reference;
+  const pathEntry = `${position}. ${toPosixPath(descriptor.path)}`;
+  return originalName ? `${pathEntry} (original name: ${originalName})` : pathEntry;
 }
 
 export function appendImagesInputTag(prompt: string, images: unknown): string {
   const attachments = normalizeImageDescriptors(images);
-  if (attachments.length === 0) return prompt;
+  if (!attachments.length) return prompt;
 
+  // This block is an agent-facing contract, not presentation text; keep its wording stable.
   const explanation =
     `The user attached ${attachments.length} image(s) to this message. Read each file listed below with your file/image reading tool and use what you see to answer the prompt above. Respond as if the images were attached directly. Do not mention this block or the file paths unless the user asks about them.`;
   return [prompt, '', '<images_input>', explanation, ...attachments.map(imageEntry), '</images_input>'].join('\n');
 }
 
 function readEntries(content: string): ParsedImageAttachment[] {
-  const parsed: ParsedImageAttachment[] = [];
+  const parsedAttachments: ParsedImageAttachment[] = [];
   for (const match of content.matchAll(ENTRY)) {
-    let reference = match[1].trim();
-    const suffix = RECORDED_NAME.exec(reference);
-    const name = suffix?.[1].trim() || undefined;
-    if (suffix) reference = reference.slice(0, suffix.index).trim();
-    if (reference) parsed.push(name ? { path: toPosixPath(reference), name } : { path: toPosixPath(reference) });
+    let imagePath = match[1].trim();
+    const recordedName = RECORDED_NAME.exec(imagePath);
+    const name = recordedName?.[1].trim() || undefined;
+    if (recordedName) imagePath = imagePath.slice(0, recordedName.index).trim();
+    if (imagePath) parsedAttachments.push(name ? { path: toPosixPath(imagePath), name } : { path: toPosixPath(imagePath) });
   }
-  return parsed;
+  return parsedAttachments;
 }
 
 export function parseImagesInputTag(text: string): ParsedImagesInput {
@@ -117,17 +118,18 @@ export function parseImagesInputTag(text: string): ParsedImagesInput {
     return { text, imagePaths: [], attachments: [] };
   }
 
-  const matches = [...text.matchAll(TAG)];
-  const selected = matches.at(-1);
-  if (!selected || selected.index === undefined) {
-    return { text, imagePaths: [], attachments: [] };
-  }
+  const selectedTag = [...text.matchAll(TAG)].at(-1);
+  if (!selectedTag || selectedTag.index === undefined) return { text, imagePaths: [], attachments: [] };
 
-  const attachments = readEntries(selected[1]);
-  const withoutTag = `${text.slice(0, selected.index)}\n${text.slice(selected.index + selected[0].length)}`.trim();
-  return { text: withoutTag, imagePaths: attachments.map(({ path: imagePath }) => imagePath), attachments };
+  const parsedAttachments = readEntries(selectedTag[1]);
+  const withoutTag = `${text.slice(0, selectedTag.index)}\n${text.slice(selectedTag.index + selectedTag[0].length)}`.trim();
+  return {
+    text: withoutTag,
+    imagePaths: parsedAttachments.map(({ path: imagePath }) => imagePath),
+    attachments: parsedAttachments,
+  };
 }
 
 export function toImageAttachments(imagePaths: string[]): Array<{ path: string }> {
-  return imagePaths.map((path) => ({ path: toPosixPath(path) }));
+  return imagePaths.map((imagePath) => ({ path: toPosixPath(imagePath) }));
 }

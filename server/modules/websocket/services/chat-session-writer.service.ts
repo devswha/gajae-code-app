@@ -3,19 +3,22 @@ import type { LLMProvider, NormalizedMessage, RealtimeClientConnection } from '@
 import { prepareMessageForTransport } from '@/shared/tool-output-transport.js';
 import { createCompleteMessage, readObjectRecord } from '@/shared/utils.js';
 
+type SessionOwner = string | number | null;
+type ProviderSessionId = string | null;
 type ChatSessionWriterOptions = {
-  connection: RealtimeClientConnection; appSessionId: string; userId: string | number | null; provider: LLMProvider; providerSessionId: string | null;
-  onProviderSessionId: (providerSessionId: string) => void;
-  decorateOutboundEvent: (message: NormalizedMessage) => NormalizedMessage | null;
+  connection: RealtimeClientConnection; appSessionId: string; userId: SessionOwner;
+  provider: LLMProvider; providerSessionId: ProviderSessionId;
+  onProviderSessionId: (id: string) => void;
+  decorateOutboundEvent: (event: NormalizedMessage) => NormalizedMessage | null;
 };
 
-// Adapts provider messages to the app-owned session stream.
+// Providers speak in native session identifiers; the browser always receives the app session stream.
 export class ChatSessionWriter {
   ws: RealtimeClientConnection;
-  userId: string | number | null;
+  userId: SessionOwner;
   isWebSocketWriter = true;
-  private providerSessionId: string | null;
-  private abortHandle: string | null = null;
+  private providerSessionId: ProviderSessionId;
+  private abortHandle: ProviderSessionId = null;
 
   constructor(private readonly config: ChatSessionWriterOptions) {
     this.ws = config.connection;
@@ -24,40 +27,61 @@ export class ChatSessionWriter {
   }
 
   send(value: unknown): void {
-    const record = readObjectRecord(value);
-    if (!record || typeof record.kind !== 'string') {
+    const message = readObjectRecord(value);
+    if (!message || typeof message.kind !== 'string') {
       console.error('[ChatSessionWriter] Dropping non-normalized outbound payload', value);
       return;
     }
-    const event = record as NormalizedMessage;
-    if (event.kind === 'session_created') {
-      const nativeId = typeof event.newSessionId === 'string' && event.newSessionId ? event.newSessionId : event.sessionId;
-      if (nativeId) this.rememberNativeId(nativeId);
+
+    const event = message as NormalizedMessage;
+    if (event.kind !== 'session_created') {
+      this.publish(this.config.decorateOutboundEvent(prepareMessageForTransport(event)));
       return;
     }
-    this.deliver(this.config.decorateOutboundEvent(prepareMessageForTransport(event)));
+    const providerSessionId = typeof event.newSessionId === 'string' && event.newSessionId ? event.newSessionId : event.sessionId;
+    if (providerSessionId) this.setProviderSessionId(providerSessionId);
+    return;
   }
 
   sendComplete(options: { exitCode: number; aborted?: boolean }): void {
-    this.deliver(this.config.decorateOutboundEvent(createCompleteMessage({
-      provider: this.config.provider, sessionId: this.providerSessionId, exitCode: options.exitCode, aborted: options.aborted,
-    })));
+    const event = createCompleteMessage({
+      provider: this.config.provider, sessionId: this.providerSessionId,
+      exitCode: options.exitCode, aborted: options.aborted,
+    });
+    this.publish(this.config.decorateOutboundEvent(event));
   }
 
-  updateWebSocket(connection: RealtimeClientConnection): void { this.ws = connection; }
-  setSessionId(sessionId: string): void { this.rememberNativeId(sessionId); }
-  getSessionId(): string | null { return this.providerSessionId; }
-  getAppSessionId(): string { return this.config.appSessionId; }
-  setAbortHandle(handle: string): void { this.abortHandle = handle; }
-  getAbortHandle(): string | null { return this.abortHandle; }
-
-  private rememberNativeId(id: string): void {
-    if (!id || id === this.providerSessionId) return;
-    this.providerSessionId = id;
-    this.config.onProviderSessionId(id);
+  updateWebSocket(connection: RealtimeClientConnection): void {
+    this.ws = connection;
   }
 
-  private deliver(event: NormalizedMessage | null): void {
+  setSessionId(sessionId: NonNullable<ProviderSessionId>): void {
+    this.setProviderSessionId(sessionId);
+  }
+
+  getSessionId(): ProviderSessionId {
+    return this.providerSessionId;
+  }
+
+  getAppSessionId(): string {
+    return this.config.appSessionId;
+  }
+
+  setAbortHandle(handle: string): void {
+    this.abortHandle = handle;
+  }
+
+  getAbortHandle(): string | null {
+    return this.abortHandle;
+  }
+
+  private setProviderSessionId(sessionId: string): void {
+    if (!sessionId || sessionId === this.providerSessionId) return;
+    this.providerSessionId = sessionId;
+    this.config.onProviderSessionId(sessionId);
+  }
+
+  private publish(event: NormalizedMessage | null): void {
     if (event && this.ws.readyState === WS_OPEN_STATE) this.ws.send(JSON.stringify(event));
   }
 }

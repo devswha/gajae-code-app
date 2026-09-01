@@ -5,13 +5,16 @@ import mime from 'mime-types';
 import multer from 'multer';
 
 import {
-  buildStoredImageRecords,
-  ensureImageAssetsDir,
-  isAllowedImageMimeType,
-  resolveImageAssetFile,
+  buildStoredImageRecords, ensureImageAssetsDir,
+  isAllowedImageMimeType, resolveImageAssetFile,
 } from '@/modules/assets/services/image-assets.service.js';
 
-const router = express.Router();
+const assetsRouter = express.Router();
+
+function generatedFilename(originalName: string): string {
+  const uniquePart = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+  return `${uniquePart}-${originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+}
 
 const imageUpload = multer({
   storage: multer.diskStorage({
@@ -21,67 +24,59 @@ const imageUpload = multer({
         (reason: Error) => done(reason, ''),
       );
     },
-    filename: (_request, file, done) => {
-      const identifier = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-      done(null, `${identifier}-${file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`);
-    },
+    filename: (_request, file, done) => done(null, generatedFilename(file.originalname)),
   }),
   fileFilter: (_request, file, done) => {
     if (!isAllowedImageMimeType(file.mimetype)) {
-      done(new Error('Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG are allowed.'));
-      return;
+      return done(new Error('Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG are allowed.'));
     }
     done(null, true);
   },
-  limits: { fileSize: 5 * 1024 * 1024, files: 5 },
+  limits: { files: 5, fileSize: 5 * 1024 * 1024 },
 });
 
-router.post('/images', (request, response) => {
+assetsRouter.post('/images', (request, response) => {
   imageUpload.array('images', 5)(request, response, (failure: unknown) => {
     if (failure) {
-      response.status(400).json({ error: failure instanceof Error ? failure.message : 'Upload failed' });
+      const error = failure instanceof Error ? failure.message : 'Upload failed';
+      response.status(400).json({ error });
       return;
     }
 
-    const uploaded = Array.isArray(request.files) ? request.files : [];
-    if (uploaded.length === 0) {
+    const files = Array.isArray(request.files) ? request.files : [];
+    if (!files.length) {
       response.status(400).json({ error: 'No image files provided' });
       return;
     }
-
-    response.json({ images: buildStoredImageRecords(uploaded) });
+    response.json({ images: buildStoredImageRecords(files) });
   });
 });
 
-router.get('/images/:filename', async (request, response) => {
-  const asset = resolveImageAssetFile(request.params.filename);
-  if (asset === null) {
+assetsRouter.get('/images/:filename', async (request, response) => {
+  const filename = resolveImageAssetFile(request.params.filename);
+  if (filename === null) {
     response.status(400).json({ error: 'Invalid asset filename' });
     return;
   }
 
   try {
-    await fsPromises.access(asset);
+    await fsPromises.access(filename);
   } catch {
     response.status(404).json({ error: 'Asset not found' });
     return;
   }
 
-  const mediaType = mime.lookup(asset) || 'application/octet-stream';
-  response.setHeader('Content-Type', mediaType);
+  const contentType = mime.lookup(filename) || 'application/octet-stream';
+  response.setHeader('Content-Type', contentType);
   response.setHeader('X-Content-Type-Options', 'nosniff');
-  if (mediaType === 'image/svg+xml') {
-    response.setHeader('Content-Disposition', 'attachment');
-  }
+  if (contentType === 'image/svg+xml') response.setHeader('Content-Disposition', 'attachment');
 
-  const source = fs.createReadStream(asset);
-  source.pipe(response);
-  source.on('error', (failure) => {
+  const assetStream = fs.createReadStream(filename);
+  assetStream.pipe(response);
+  assetStream.on('error', (failure) => {
     console.error('Error streaming image asset:', failure);
-    if (!response.headersSent) {
-      response.status(500).json({ error: 'Error reading asset' });
-    }
+    if (!response.headersSent) response.status(500).json({ error: 'Error reading asset' });
   });
 });
 
-export default router;
+export default assetsRouter;

@@ -43,7 +43,7 @@ const pathPrefixFromHint = ({ kind, value }: AssetHint) => {
   return prefix ? stripAssetDirectories(prefix) : '';
 };
 
-function detectRouterBasename() {
+function deriveRouterBasename() {
   const configured = typeof window === 'undefined' ? '' : window.__ROUTER_BASENAME__ || '';
   if (configured) return configured.replace(/\/+$/, '');
   if (typeof window === 'undefined' || typeof document === 'undefined') return '';
@@ -67,9 +67,25 @@ function detectRouterBasename() {
   }, '');
 }
 
-export default function App() {
-  const routerBasename = detectRouterBasename();
+type ApplicationLayoutProps = {
+  routerBasename: string;
+};
 
+function ApplicationRoutes({ routerBasename }: ApplicationLayoutProps) {
+  return <Router basename={routerBasename}>
+    <DesktopDeepLinkBridge />
+    <Routes>
+      {appShellRoutePaths.map((path) => (
+        <Route key={path} path={path} element={<AppContent />} />
+      ))}
+      <Route path={rootFallbackRoutePath} element={<Navigate to="/" replace />} />
+    </Routes>
+  </Router>;
+}
+
+function ApplicationLayout({ routerBasename }: ApplicationLayoutProps) {
+  // Providers are intentionally ordered from environment-wide concerns toward
+  // the authenticated live connection. Route components may rely on each.
   return (
     <I18nextProvider i18n={i18n}>
       <ThemeProvider>
@@ -77,13 +93,7 @@ export default function App() {
           <AuthProvider>
             <WebSocketProvider>
               <ProtectedRoute>
-                <Router basename={routerBasename}>
-                  <DesktopDeepLinkBridge />
-                  <Routes>
-                    {appShellRoutePaths.map((path) => <Route key={path} path={path} element={<AppContent />} />)}
-                    <Route path={rootFallbackRoutePath} element={<Navigate to="/" replace />} />
-                  </Routes>
-                </Router>
+                <ApplicationRoutes routerBasename={routerBasename} />
               </ProtectedRoute>
             </WebSocketProvider>
           </AuthProvider>
@@ -91,4 +101,8 @@ export default function App() {
       </ThemeProvider>
     </I18nextProvider>
   );
+}
+
+export default function App() {
+  return <ApplicationLayout routerBasename={deriveRouterBasename()} />;
 }

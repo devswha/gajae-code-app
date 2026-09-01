@@ -1,36 +1,28 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
-    // baseUrl is the project root (one level above this config file) so that tsc-alias
-    // resolves @/ imports relative to the compiled output structure in dist-server/server/.
-    // With rootDir ".." tsc emits server files under dist-server/server/, so paths must
-    // include the "server/" prefix to match that layout.
-    "baseUrl": "..",
-    "paths": {
-      "@/*": ["server/*"]
-    },
-    // The backend is still mostly JavaScript today, so allowJs lets us add a real
-    // TypeScript build without forcing a large rename before the tooling is usable.
-    "allowJs": true,
-    // Keep the migration incremental: existing JS keeps building, while any new TS files
-    // still go through the normal TypeScript pipeline and strict checks.
-    "checkJs": false,
-    "strict": true,
-    "noEmitOnError": true,
-    // The backend build emits both /server and /shared into dist-server, so rootDir must
-    // stay one level above this file even though the config itself now lives in /server.
+  "compilerOptions": { // Node build and post-emit alias replacement share this boundary.
+    "target": "ES2022", // Keep emitted syntax aligned with the supported Node runtime.
+    "module": "NodeNext", // Runtime module selection follows Node's ESM rules.
+    "moduleResolution": "NodeNext", // Must track module mode for Node package resolution.
+    "lib": ["ES2022"], // Deliberately omit browser declarations from server code.
+
     "rootDir": "..",
     "outDir": "../dist-server",
     "sourceMap": true,
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "skipLibCheck": true,
-    "types": ["node"]
+    "noEmitOnError": true,
+
+    "baseUrl": "..", // tsc-alias resolves this from the repository root.
+    "paths": { // Emitted server/ files retain this prefix below dist-server.
+      "@/*": ["server/*"] // Backend-local @ imports must not point at the browser tree.
+    },
+
+    "allowJs": true, // Existing backend JavaScript remains part of the real build.
+    "strict": true, // New TypeScript has no weaker migration path.
+    "resolveJsonModule": true, // JSON runtime imports are type-checked too.
+    "esModuleInterop": true, // Preserve the established CommonJS import boundary.
+    "types": ["node"],
+
+    "skipLibCheck": true
   },
-  "include": ["./**/*.js", "./**/*.ts", "../shared/**/*.js", "../shared/**/*.ts"],
+  "include": ["./**/*.js", "./**/*.ts", "../shared/**/*.js", "../shared/**/*.ts"], // Emit server plus shared runtime code.
   "exclude": ["../dist", "../dist-server", "../node_modules", "../src"]
 }

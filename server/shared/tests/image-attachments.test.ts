@@ -12,84 +12,92 @@ import {
   toImageAttachments,
 } from '@/shared/image-attachments.js';
 
-test('descriptor normalization retains usable path inputs only', () => {
-  const accepted = normalizeImageDescriptors([
-    { path: ' .gajae-app/assets/a.png ', name: 'a.png', mimeType: 'image/png' },
-    ' scripts/pic.jpg ',
-    { name: 'missing.png' },
+const gajaeAssetRoot = path.join(os.homedir(), '.gajae-app', 'assets');
+
+test('attachment descriptors retain trimmed paths and discard unusable inputs', () => {
+  const suppliedAttachments = [
+    { path: ' .gajae-app/assets/gajae-board.png ', name: 'gajae-board.png', mimeType: 'image/png' },
+    ' workspaces/gajae/reference.jpg ',
+    { name: 'pathless.png' },
     42,
     null,
     '',
-  ]);
+  ];
 
-  assert.deepEqual(accepted, [
-    { path: '.gajae-app/assets/a.png', name: 'a.png', mimeType: 'image/png' },
-    { path: 'scripts/pic.jpg' },
+  assert.deepEqual(normalizeImageDescriptors(suppliedAttachments), [
+    { path: '.gajae-app/assets/gajae-board.png', name: 'gajae-board.png', mimeType: 'image/png' },
+    { path: 'workspaces/gajae/reference.jpg' },
   ]);
-  for (const invalidValue of [undefined, 'not-an-array']) {
-    assert.deepEqual(normalizeImageDescriptors(invalidValue), []);
+  for (const malformedInput of [undefined, 'not-an-array']) {
+    assert.deepEqual(normalizeImageDescriptors(malformedInput), []);
   }
 });
 
-test('tag creation preserves prompts and yields portable parsed references', () => {
-  const prompt = 'Describe these screenshots.\n\nFocus on the header.';
-  const tagged = appendImagesInputTag(prompt, [
-    { path: '.gajae-app/assets/1-a.png' },
-    { path: '.gajae-app\\assets\\2-b.jpg' },
+test('image tags preserve the authored prompt and normalize portable attachment paths', () => {
+  const prompt = 'Review the Gajae project dashboard.\n\nCall out the migration status.';
+  const taggedPrompt = appendImagesInputTag(prompt, [
+    { path: '.gajae-app/assets/dashboard.png' },
+    { path: '.gajae-app\\assets\\release-notes.jpg' },
   ]);
 
-  assert.ok(tagged.startsWith(prompt));
-  assert.match(tagged, /<images_input>[\s\S]*<\/images_input>/);
-  assert.match(tagged, /The user attached 2 image\(s\)/);
-  assert.deepEqual(parseImagesInputTag(tagged), {
+  assert.ok(taggedPrompt.startsWith(prompt));
+  assert.match(taggedPrompt, /<images_input>[\s\S]*<\/images_input>/);
+  assert.match(taggedPrompt, /The user attached 2 image\(s\)/);
+  assert.deepEqual(parseImagesInputTag(taggedPrompt), {
     text: prompt,
-    imagePaths: ['.gajae-app/assets/1-a.png', '.gajae-app/assets/2-b.jpg'],
+    imagePaths: ['.gajae-app/assets/dashboard.png', '.gajae-app/assets/release-notes.jpg'],
     attachments: [
-      { path: '.gajae-app/assets/1-a.png' },
-      { path: '.gajae-app/assets/2-b.jpg' },
+      { path: '.gajae-app/assets/dashboard.png' },
+      { path: '.gajae-app/assets/release-notes.jpg' },
     ],
   });
 });
 
-test('tag parser carries sanitized original names and selects its final block', () => {
-  const named = parseImagesInputTag(appendImagesInputTag('compare these', [
-    { path: 'C:/Users/x/.gajae-app/assets/1-a.png', name: 'screenshot (final).png' },
-    { path: 'C:/Users/x/.gajae-app/assets/2-b.jpg' },
+test('parsing keeps safe original names and consumes the application-generated final tag', () => {
+  const namedAttachment = parseImagesInputTag(appendImagesInputTag('Compare the two releases', [
+    { path: 'C:/Users/gajae/.gajae-app/assets/release-a.png', name: 'release (approved).png' },
+    { path: 'C:/Users/gajae/.gajae-app/assets/release-b.jpg' },
   ]));
+  assert.deepEqual(namedAttachment, {
+    text: 'Compare the two releases',
+    imagePaths: ['C:/Users/gajae/.gajae-app/assets/release-a.png', 'C:/Users/gajae/.gajae-app/assets/release-b.jpg'],
+    attachments: [
+      { path: 'C:/Users/gajae/.gajae-app/assets/release-a.png', name: 'release approved.png' },
+      { path: 'C:/Users/gajae/.gajae-app/assets/release-b.jpg' },
+    ],
+  });
 
-  assert.equal(named.text, 'compare these');
-  assert.deepEqual(named.attachments, [
-    { path: 'C:/Users/x/.gajae-app/assets/1-a.png', name: 'screenshot final.png' },
-    { path: 'C:/Users/x/.gajae-app/assets/2-b.jpg' },
-  ]);
-
-  const prompt = 'What does <images_input> mean in this codebase?\n\n<images_input>\nfake user block\n</images_input>\n\nAlso check this.';
-  const parsed = parseImagesInputTag(appendImagesInputTag(prompt, [{ path: 'C:/Users/x/.gajae-app/assets/real.png' }]));
-  assert.match(parsed.text, /fake user block/);
-  assert.match(parsed.text, /Also check this\./);
-  assert.deepEqual(parsed.imagePaths, ['C:/Users/x/.gajae-app/assets/real.png']);
+  const authoredTag = 'What does <images_input> mean here?\n\n<images_input>\nuser prose, not attachment data\n</images_input>\n\nCheck the implementation.';
+  const parsed = parseImagesInputTag(appendImagesInputTag(authoredTag, [
+    { path: 'C:/Users/gajae/.gajae-app/assets/actual.png' },
+  ]));
+  assert.match(parsed.text, /user prose, not attachment data/);
+  assert.match(parsed.text, /Check the implementation\./);
+  assert.deepEqual(parsed.imagePaths, ['C:/Users/gajae/.gajae-app/assets/actual.png']);
 });
 
-test('tag helpers leave no-attachment and non-tag input unchanged', () => {
-  assert.equal(appendImagesInputTag('hello', []), 'hello');
-  assert.equal(appendImagesInputTag('hello', undefined), 'hello');
+test('no attachment input leaves ordinary prompts untouched', () => {
+  for (const attachments of [[], undefined]) {
+    assert.equal(appendImagesInputTag('inspect the workspace', attachments), 'inspect the workspace');
+  }
 
-  const ordinaryText = 'Just a normal prompt with [brackets] and JSON ["like"] content.';
-  assert.deepEqual(parseImagesInputTag(ordinaryText), {
-    text: ordinaryText,
+  const ordinaryPrompt = 'Plain project notes with [brackets] and JSON ["like this"].';
+  assert.deepEqual(parseImagesInputTag(ordinaryPrompt), {
+    text: ordinaryPrompt,
     imagePaths: [],
     attachments: [],
   });
 });
 
-test('tag parsing tolerates flattened input and discards malformed carriers', () => {
-  const flattened = appendImagesInputTag('now?', [{ path: 'C:/Users/x/.gajae-app/assets/a.jpg' }])
-    .replace(/\s*\r?\n\s*/g, ' ')
-    .trim();
-  assert.equal(flattened.includes('\n'), false);
-  assert.deepEqual(parseImagesInputTag(flattened).imagePaths, ['C:/Users/x/.gajae-app/assets/a.jpg']);
-  assert.equal(parseImagesInputTag(flattened).text, 'now?');
+test('the carrier survives flattened transport and ignores malformed attachment data', () => {
+  const flattenedCarrier = appendImagesInputTag('Ready for review?', [
+    { path: 'C:/Users/gajae/.gajae-app/assets/review.jpg' },
+  ]).replace(/\s*\r?\n\s*/g, ' ').trim();
 
+  assert.equal(flattenedCarrier.includes('\n'), false);
+  const flattened = parseImagesInputTag(flattenedCarrier);
+  assert.equal(flattened.text, 'Ready for review?');
+  assert.deepEqual(flattened.imagePaths, ['C:/Users/gajae/.gajae-app/assets/review.jpg']);
   assert.deepEqual(parseImagesInputTag('prompt\n\n<images_input>\nnot json here\n</images_input>'), {
     text: 'prompt',
     imagePaths: [],
@@ -97,21 +105,31 @@ test('tag parsing tolerates flattened input and discards malformed carriers', ()
   });
 });
 
-test('attachment records, media types, and source roots are constrained', () => {
-  assert.deepEqual(toImageAttachments(['a\\b\\c.png', 'd/e.jpg']), [
-    { path: 'a/b/c.png' },
-    { path: 'd/e.jpg' },
+test('attachment records infer supported media types and only expose approved source roots', () => {
+  assert.deepEqual(toImageAttachments(['workspace\\gajae\\diagram.png', 'docs/release.jpg']), [
+    { path: 'workspace/gajae/diagram.png' },
+    { path: 'docs/release.jpg' },
   ]);
-  assert.equal(resolveImageMediaType({ path: 'x.bin', mimeType: 'image/webp' }), 'image/webp');
-  assert.equal(resolveImageMediaType({ path: 'x.JPG' }), 'image/jpeg');
-  assert.equal(resolveImageMediaType({ path: 'x.png' }), 'image/png');
-  assert.equal(resolveImageMediaType({ path: 'x.unknown' }), null);
 
-  const cwd = path.join(os.tmpdir(), 'some-project');
-  const uploads = path.join(os.homedir(), '.gajae-app', 'assets');
-  assert.equal(isAllowedImageSourcePath(path.join(uploads, 'shot.png'), cwd), true);
-  assert.equal(isAllowedImageSourcePath(path.join(cwd, 'docs', 'diagram.png'), cwd), true);
-  assert.equal(isAllowedImageSourcePath(path.join(os.homedir(), '.ssh', 'id_rsa'), cwd), false);
-  assert.equal(isAllowedImageSourcePath(path.join(cwd, '..', 'other-project', 'x.png'), cwd), false);
-  assert.equal(isAllowedImageSourcePath(cwd, cwd), false);
+  const mediaTypes = [
+    [{ path: 'preview.bin', mimeType: 'image/webp' }, 'image/webp'],
+    [{ path: 'preview.JPG' }, 'image/jpeg'],
+    [{ path: 'preview.png' }, 'image/png'],
+    [{ path: 'preview.unknown' }, null],
+  ] as const;
+  for (const [descriptor, mediaType] of mediaTypes) {
+    assert.equal(resolveImageMediaType(descriptor), mediaType);
+  }
+
+  const projectRoot = path.join(os.tmpdir(), 'gajae-image-review');
+  const pathPolicy = [
+    [path.join(gajaeAssetRoot, 'uploaded-preview.png'), true],
+    [path.join(projectRoot, 'docs', 'architecture.png'), true],
+    [path.join(os.homedir(), '.ssh', 'id_rsa'), false],
+    [path.join(projectRoot, '..', 'other-workspace', 'outside.png'), false],
+    [projectRoot, false],
+  ] as const;
+  for (const [candidate, permitted] of pathPolicy) {
+    assert.equal(isAllowedImageSourcePath(candidate, projectRoot), permitted, candidate);
+  }
 });

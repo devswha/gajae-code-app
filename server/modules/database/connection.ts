@@ -1,47 +1,49 @@
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
+import nodeFs from 'fs';
+import nodeOs from 'os';
+import nodePath from 'path';
 
-import Database from 'better-sqlite3';
+import SqliteDatabase from 'better-sqlite3';
 
 import { APP_CONFIG_TABLE_SCHEMA_SQL } from '@/modules/database/schema.js';
 
-const connectionState: { database: Database.Database | null } = { database: null };
+// Keep the process-wide handle private so callers always share SQLite's lock state.
+const connectionCache: { database: SqliteDatabase.Database | null } = { database: null };
 
-const databasePath = (): string =>
-  process.env.DATABASE_PATH || path.join(os.homedir(), '.gajae-app', 'auth.db');
+function configuredDatabasePath(): string {
+  return process.env.DATABASE_PATH || nodePath.join(nodeOs.homedir(), '.gajae-app', 'auth.db');
+}
 
-const createParentDirectory = (filename: string): void => {
-  const parent = path.dirname(filename);
-  if (fs.existsSync(parent)) return;
+function ensureDatabaseParent(filename: string): void {
+  const directory = nodePath.dirname(filename);
+  if (nodeFs.existsSync(directory)) return;
 
-  fs.mkdirSync(parent, { recursive: true });
-  console.log('Created database directory:', parent);
-};
+  nodeFs.mkdirSync(directory, { recursive: true });
+  console.log('Created database directory:', directory);
+}
 
-const openDatabase = (): Database.Database => {
-  const filename = databasePath();
-  createParentDirectory(filename);
+function connect(): SqliteDatabase.Database {
+  const filename = configuredDatabasePath();
+  ensureDatabaseParent(filename);
 
-  const database = new Database(filename);
-  database.exec(APP_CONFIG_TABLE_SCHEMA_SQL);
-  return database;
-};
+  const db = new SqliteDatabase(filename);
+  db.exec(APP_CONFIG_TABLE_SCHEMA_SQL);
+  return db;
+}
 
-export function getConnection(): Database.Database {
-  connectionState.database ??= openDatabase();
-  return connectionState.database;
+export function getConnection(): SqliteDatabase.Database {
+  if (connectionCache.database === null) connectionCache.database = connect();
+  return connectionCache.database;
 }
 
 export function getDatabasePath(): string {
-  return databasePath();
+  return configuredDatabasePath();
 }
 
 export function closeConnection(): void {
-  const database = connectionState.database;
-  if (!database) return;
+  const activeConnection = connectionCache.database;
+  if (activeConnection === null) return;
 
-  database.close();
-  connectionState.database = null;
+  activeConnection.close();
+  connectionCache.database = null;
   console.log('Database connection closed');
 }

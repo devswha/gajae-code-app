@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import crypto from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { createReadStream, readFileSync } from 'node:fs';
+import { createReadStream as makeReadStream, readFileSync as readUtf8File } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,7 +28,7 @@ const rootDir = path.resolve(__dirname, '..', '..');
  * release lane instead of catching real drift.
  */
 const runtimeManifest = JSON.parse(
-  readFileSync(path.join(rootDir, 'server', 'gjc-runtime-manifest.json'), 'utf8'),
+  readUtf8File(path.join(rootDir, 'server', 'gjc-runtime-manifest.json'), 'utf8'),
 );
 const GJC_RUNTIME_VERSIONS = {
   [GJC_SDK_PACKAGE]: runtimeManifest.gjcSdk,
@@ -95,25 +95,25 @@ function sourceDateEpoch() {
   return value;
 }
 
-function execute(command, args, { collectOutput = false, ...options } = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+function execute(command, args, { collectOutput = false, ...launchOptions } = {}) {
+  return new Promise((complete, fail) => {
+    const subprocess = spawn(command, args, {
       stdio: collectOutput ? ['ignore', 'pipe', 'inherit'] : 'inherit',
-      ...options,
+      ...launchOptions
     });
     let output;
     if (collectOutput) {
       output = '';
-      child.stdout.setEncoding('utf8');
-      child.stdout.on('data', (chunk) => { output += chunk; });
+      subprocess.stdout.setEncoding('utf8');
+      subprocess.stdout.on('data', (chunk) => { output += chunk; });
     }
-    child.once('error', reject);
-    child.once('exit', (code) => {
-      if (code !== 0) {
-        reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
+    subprocess.once('error', fail);
+    subprocess.once('exit', (code) => {
+      if (code === 0) {
+        complete(output);
         return;
       }
-      resolve(output);
+      fail(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
     });
   });
 }
@@ -183,13 +183,11 @@ async function auditGlibcRequirements(stageDir) {
   console.log(`Audited glibc symbol requirements for ${elfFiles.length} produced native files.`);
 }
 
-async function pathExists(filePath) {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
+async function canAccess(filePath) {
+  return fs.access(filePath).then(
+    () => true,
+    () => false,
+  );
 }
 function assertGjcSdkProductionDependency(packageJson) {
   if (packageJson.dependencies?.[GJC_SDK_PACKAGE] !== GJC_SDK_VERSION) {
@@ -230,7 +228,7 @@ async function assertBundledBun(directory) {
 async function validateRequiredInputs(relativePaths) {
   const missing = [];
   for (const relativePath of relativePaths) {
-    if (!(await pathExists(path.join(rootDir, relativePath)))) {
+    if (!(await canAccess(path.join(rootDir, relativePath)))) {
       missing.push(relativePath);
     }
   }
@@ -239,7 +237,7 @@ async function validateRequiredInputs(relativePaths) {
   }
 }
 
-async function copyRequired(stageDir, relativePath) {
+async function stageRequiredInput(stageDir, relativePath) {
   await fs.cp(
     path.join(rootDir, relativePath),
     path.join(stageDir, relativePath),
@@ -267,13 +265,14 @@ async function pruneSourceMaps(directory) {
 }
 
 async function writeInstallPackageJson(stageDir, packageJson) {
-  const stagedPackageJson = {
+  const installManifest = {
     ...packageJson,
     scripts: {},
   };
+  const manifestPath = path.join(stageDir, 'package.json');
   await fs.writeFile(
-    path.join(stageDir, 'package.json'),
-    `${JSON.stringify(stagedPackageJson, null, 2)}\n`,
+    manifestPath,
+    `${JSON.stringify(installManifest, null, 2)}\n`,
     'utf8',
   );
 }
@@ -306,13 +305,13 @@ async function writeRuntimePackageJson(stageDir, packageJson) {
 }
 
 
-function sha256(filePath) {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha256');
-    const stream = createReadStream(filePath);
-    stream.on('data', (chunk) => hash.update(chunk));
-    stream.on('end', () => resolve(hash.digest('hex')));
-    stream.on('error', reject);
+function calculateSha256(filePath) {
+  return new Promise((complete, fail) => {
+    const digest = createHash('sha256');
+    const input = makeReadStream(filePath);
+    input.on('data', (chunk) => digest.update(chunk));
+    input.on('end', () => complete(digest.digest('hex')));
+    input.on('error', fail);
   });
 }
 
@@ -465,20 +464,7 @@ async function createDeterministicArchive(stageDir, archivePath, epoch) {
   await execute('gzip', ['--no-name', '--force', tarPath]);
 }
 
-async function buildServerBundle() {
-  assertTargetEnvironment();
-  const packageJson = JSON.parse(
-    await fs.readFile(path.join(rootDir, 'package.json'), 'utf8'),
-  );
-  const version = packageJson.version;
-  assertGjcSdkProductionDependency(packageJson);
-  await assertBundledBun(rootDir);
-  const bundleName = `gajae-app-server-${version}-linux-x64-node22.tar.gz`;
-  const bundleRoot = path.join(rootDir, 'release', 'server');
-  const stageDir = path.join(bundleRoot, `.stage-${version}`);
-  const archivePath = path.join(bundleRoot, bundleName);
-  const checksumPath = `${archivePath}.sha256`;
-  const buildInputs = [
+const SERVER_BUNDLE_INPUTS = [
   'dist',
   'dist-server',
   'dist-native',
@@ -495,84 +481,146 @@ async function buildServerBundle() {
   'docker/shared/start-gajae-app.sh',
   'LICENSE',
   'NOTICE',
-  // Most of the packages installed below require their license text to travel
-  // with them. Generated from the dependency tree by
-  // scripts/generate-third-party-notices.mjs; `npm run verify` fails when it is
-  // stale, so shipping it cannot silently describe an older tree.
+  // License notices come from the locked production tree, rather than an
+  // approximation of it. Keeping the generated record beside the shipped
+  // modules makes the bundle independently auditable.
   'THIRD-PARTY-NOTICES.md',
-  ];
+];
 
-  await validateRequiredInputs(buildInputs);
-  await fs.mkdir(bundleRoot, { recursive: true });
-  await fs.rm(stageDir, { recursive: true, force: true });
-  await fs.rm(archivePath, { force: true });
-  await fs.rm(checksumPath, { force: true });
-  await fs.mkdir(stageDir, { recursive: true });
+function bundleLocations(version) {
+  const bundleName = `gajae-app-server-${version}-linux-x64-node22.tar.gz`;
+  const bundleRoot = path.join(rootDir, 'release', 'server');
+  const archivePath = path.join(bundleRoot, bundleName);
+  return {
+    bundleName,
+    bundleRoot,
+    archivePath,
+    checksumPath: `${archivePath}.sha256`,
+    stageDir: path.join(bundleRoot, `.stage-${version}`),
+  };
+}
 
-  try {
-  for (const relativePath of buildInputs) {
-    await copyRequired(stageDir, relativePath);
+function npmEnvironment(additions = {}) {
+  return {
+    ...process.env,
+    npm_config_audit: 'false',
+    npm_config_fund: 'false',
+    npm_config_update_notifier: 'false',
+    ...additions,
+  };
+}
+
+async function prepareBundleStage(locations) {
+  await validateRequiredInputs(SERVER_BUNDLE_INPUTS);
+  await fs.mkdir(locations.bundleRoot, { recursive: true });
+  await fs.rm(locations.stageDir, { recursive: true, force: true });
+  await fs.rm(locations.archivePath, { force: true });
+  await fs.rm(locations.checksumPath, { force: true });
+  await fs.mkdir(locations.stageDir, { recursive: true });
+}
+
+async function stageBundleFiles(stageDir, packageJson) {
+  for (const relativePath of SERVER_BUNDLE_INPUTS) {
+    await stageRequiredInput(stageDir, relativePath);
   }
   const prunedSourceMaps = await pruneSourceMaps(path.join(stageDir, 'dist-server'));
   console.log(`Pruned ${prunedSourceMaps} source map files from dist-server.`);
   await writeInstallPackageJson(stageDir, packageJson);
+}
 
-
+async function installStageDependencies(stageDir) {
   console.log('Installing production server dependencies into bundle stage...');
   await execute('npm', ['ci', '--omit=dev'], {
     cwd: stageDir,
-    env: {
-      ...process.env,
-      npm_config_audit: 'false',
-      npm_config_fund: 'false',
-      npm_config_update_notifier: 'false',
-    },
+    env: npmEnvironment(),
   });
   await assertInstalledGjcSdkDependencies(stageDir);
+}
 
-  // Same decision as the desktop payload, applied to the same tree: the
-  // packages install normally and are deleted from what ships. Both
-  // distributions have to agree, or the license posture depends on which
-  // artifact a user happened to install.
-  const excluded = await removeExcludedDistributionPackages(fs, path, path.join(stageDir, 'node_modules'));
+async function excludeDistributionPackages(stageDir) {
+  // This applies the shared distribution policy after npm has resolved the
+  // complete production tree. The desktop payload follows the same policy.
+  const excluded = await removeExcludedDistributionPackages(
+    fs,
+    path,
+    path.join(stageDir, 'node_modules'),
+  );
   console.log(`Excluded ${excluded.join(', ')} from the bundle (see scripts/release/distribution-exclusions.mjs).`);
+}
 
+async function rebuildStageNatives(stageDir) {
   console.log(`Rebuilding ${NATIVE_MODULES.join(', ')} from source for Node.js ${TARGET_NODE_MAJOR}...`);
   await execute('npm', ['rebuild', '--omit=dev', '--build-from-source', ...NATIVE_MODULES], {
     cwd: stageDir,
-    env: {
-      ...process.env,
-      npm_config_audit: 'false',
-      npm_config_fund: 'false',
-      npm_config_update_notifier: 'false',
-      npm_config_build_from_source: 'true',
-    },
+    env: npmEnvironment({ npm_config_build_from_source: 'true' }),
   });
-
   await execute(process.execPath, ['scripts/fix-node-pty.js'], { cwd: stageDir });
   await auditGlibcRequirements(stageDir);
   await smokeNativeRuntime(stageDir);
+}
 
+async function finalizeStageMetadata(stageDir, packageJson) {
+  // The staging manifest only exists to drive npm; the archive exposes the
+  // constrained runtime entrypoint instead.
   await fs.rm(path.join(stageDir, 'package-lock.json'), { force: true });
   await fs.rm(path.join(stageDir, 'scripts', 'fix-node-pty.js'), { force: true });
   await fs.chmod(path.join(stageDir, 'scripts', 'gajae-app-runtime.mjs'), 0o755);
   await fs.chmod(path.join(stageDir, 'dist-native', 'bun'), 0o755);
   await writeRuntimePackageJson(stageDir, packageJson);
+}
 
-  await createDeterministicArchive(stageDir, archivePath, sourceDateEpoch());
-  const digest = await sha256(archivePath);
-  await fs.writeFile(checksumPath, `${digest}  ${bundleName}\n`, 'utf8');
+async function writeBundleArchive(locations) {
+  await createDeterministicArchive(locations.stageDir, locations.archivePath, sourceDateEpoch());
+  const digest = await calculateSha256(locations.archivePath);
+  await fs.writeFile(locations.checksumPath, `${digest}  ${locations.bundleName}\n`, 'utf8');
+}
+
+async function reportBundleOutput(locations) {
+  const size = (await fs.stat(locations.archivePath)).size / 1024 / 1024;
+  console.log(`Wrote ${path.relative(rootDir, locations.archivePath)} (${size.toFixed(1)} MB)`);
+  console.log(`Wrote ${path.relative(rootDir, locations.checksumPath)}`);
+}
+
+async function removePartialBundle(locations) {
+  await fs.rm(locations.archivePath, { force: true });
+  await fs.rm(locations.checksumPath, { force: true });
+}
+
+async function loadBundlePackageJson() {
+  const packageJson = JSON.parse(
+    await fs.readFile(path.join(rootDir, 'package.json'), 'utf8'),
+  );
+  assertGjcSdkProductionDependency(packageJson);
+  await assertBundledBun(rootDir);
+  return packageJson;
+}
+
+async function assembleBundle(stageDir, packageJson, locations) {
+  await stageBundleFiles(stageDir, packageJson);
+  await installStageDependencies(stageDir);
+  await excludeDistributionPackages(stageDir);
+  await rebuildStageNatives(stageDir);
+  await finalizeStageMetadata(stageDir, packageJson);
+  await writeBundleArchive(locations);
+}
+
+
+async function buildServerBundle() {
+  assertTargetEnvironment();
+  const packageJson = await loadBundlePackageJson();
+  const locations = bundleLocations(packageJson.version);
+  await prepareBundleStage(locations);
+
+  try {
+    await assembleBundle(locations.stageDir, packageJson, locations);
   } catch (error) {
-    await fs.rm(archivePath, { force: true });
-    await fs.rm(checksumPath, { force: true });
+    await removePartialBundle(locations);
     throw error;
   } finally {
-    await fs.rm(stageDir, { recursive: true, force: true });
+    await fs.rm(locations.stageDir, { recursive: true, force: true });
   }
 
-  const size = (await fs.stat(archivePath)).size / 1024 / 1024;
-  console.log(`Wrote ${path.relative(rootDir, archivePath)} (${size.toFixed(1)} MB)`);
-  console.log(`Wrote ${path.relative(rootDir, checksumPath)}`);
+  await reportBundleOutput(locations);
 }
 
 await buildServerBundle();

@@ -5,26 +5,26 @@ import { projectsDb } from '@/modules/database/index.js';
 import { createProject, promoteProjectOrigin } from '@/modules/projects/services/project-management.service.js';
 import { AppError } from '@/shared/utils.js';
 
-const storedProject = {
-  project_id: 'project-1',
-  project_path: '/workspace/my-project',
-  custom_project_name: 'my-project',
+const projectFixture = {
+  project_id: 'gajae-dashboard',
+  project_path: '/workspaces/gajae/dashboard',
+  custom_project_name: 'Gajae dashboard',
   isStarred: 0,
   isArchived: 0,
   origin: 'legacy' as const,
 };
 
-function projectDependencies(overrides: Partial<NonNullable<Parameters<typeof createProject>[1]>> = {}) {
+function createDependencies(overrides: Partial<NonNullable<Parameters<typeof createProject>[1]>> = {}) {
   return {
-    validatePath: async () => ({ valid: true, resolvedPath: '/workspace/my-project' }),
+    validatePath: async () => ({ valid: true, resolvedPath: projectFixture.project_path }),
     ensureWorkspaceDirectory: async () => undefined,
-    persistProjectPath: () => ({ outcome: 'created' as const, project: storedProject }),
-    getProjectByPath: () => storedProject,
+    persistProjectPath: () => ({ outcome: 'created' as const, project: projectFixture }),
+    getProjectByPath: () => projectFixture,
     ...overrides,
   };
 }
 
-function assertServiceError(error: unknown, code: string, statusCode: number): asserts error is AppError {
+function assertProjectServiceError(error: unknown, code: string, statusCode: number): asserts error is AppError {
   assert.ok(error instanceof AppError);
   assert.equal(error.code, code);
   assert.equal(error.statusCode, statusCode);
@@ -32,58 +32,63 @@ function assertServiceError(error: unknown, code: string, statusCode: number): a
 
 function withProjectRepository(
   replacements: Pick<typeof projectsDb, 'promoteProjectOriginById' | 'getProjectById'>,
-  check: () => void,
-) {
-  const previousPromotion = projectsDb.promoteProjectOriginById;
-  const previousLookup = projectsDb.getProjectById;
-  projectsDb.promoteProjectOriginById = replacements.promoteProjectOriginById;
-  projectsDb.getProjectById = replacements.getProjectById;
+  action: () => void,
+): void {
+  const originalRepository = {
+    promoteProjectOriginById: projectsDb.promoteProjectOriginById,
+    getProjectById: projectsDb.getProjectById,
+  };
+  Object.assign(projectsDb, replacements);
   try {
-    check();
+    action();
   } finally {
-    projectsDb.promoteProjectOriginById = previousPromotion;
-    projectsDb.getProjectById = previousLookup;
+    Object.assign(projectsDb, originalRepository);
   }
 }
 
-test('project creation rejects absent and invalid paths with validation details', async () => {
-  await assert.rejects(
-    () => createProject({ projectPath: '' }),
-    (error: unknown) => {
-      assertServiceError(error, 'PROJECT_PATH_REQUIRED', 400);
-      return true;
+test('project registration reports required and invalid paths with their API validation details', async () => {
+  const invalidRequests = [
+    {
+      request: { projectPath: '' },
+      dependencies: undefined,
+      code: 'PROJECT_PATH_REQUIRED',
+      details: undefined,
     },
-  );
-  await assert.rejects(
-    () =>
-      createProject(
-        { projectPath: '/invalid/path' },
-        projectDependencies({ validatePath: async () => ({ valid: false, error: 'blocked path' }) }),
-      ),
-    (error: unknown) => {
-      assertServiceError(error, 'INVALID_PROJECT_PATH', 400);
-      assert.equal(error.details, 'blocked path');
-      return true;
+    {
+      request: { projectPath: '/restricted/gajae-dashboard' },
+      dependencies: createDependencies({ validatePath: async () => ({ valid: false, error: 'workspace access denied' }) }),
+      code: 'INVALID_PROJECT_PATH',
+      details: 'workspace access denied',
     },
-  );
+  ] as const;
+
+  for (const { request, dependencies, code, details } of invalidRequests) {
+    await assert.rejects(
+      () => createProject(request, dependencies),
+      (error: unknown) => {
+        assertProjectServiceError(error, code, 400);
+        assert.equal(error.details, details);
+        return true;
+      },
+    );
+  }
 });
 
-test('project creation exposes an active duplicate as its API project view', async () => {
+test('an already active project is returned as the API-facing conflict detail', async () => {
   await assert.rejects(
-    () =>
-      createProject(
-        { projectPath: storedProject.project_path },
-        projectDependencies({ persistProjectPath: () => ({ outcome: 'active_conflict', project: storedProject }) }),
-      ),
+    () => createProject(
+      { projectPath: projectFixture.project_path },
+      createDependencies({ persistProjectPath: () => ({ outcome: 'active_conflict', project: projectFixture }) }),
+    ),
     (error: unknown) => {
-      assertServiceError(error, 'PROJECT_ALREADY_EXISTS', 409);
+      assertProjectServiceError(error, 'PROJECT_ALREADY_EXISTS', 409);
       assert.deepEqual(error.details, {
         project: {
-          projectId: 'project-1',
-          path: '/workspace/my-project',
-          fullPath: '/workspace/my-project',
-          displayName: 'my-project',
-          customName: 'my-project',
+          projectId: 'gajae-dashboard',
+          path: '/workspaces/gajae/dashboard',
+          fullPath: '/workspaces/gajae/dashboard',
+          displayName: 'Gajae dashboard',
+          customName: 'Gajae dashboard',
           origin: 'legacy',
           isArchived: false,
           isStarred: false,
@@ -96,99 +101,151 @@ test('project creation exposes an active duplicate as its API project view', asy
   );
 });
 
-test('project creation names unnamed directories and returns archived reactivations', async () => {
-  let savedName: string | null = null;
+test('registration derives a directory name and identifies reactivated archived projects', async () => {
+  let persistedName: string | null = null;
   const created = await createProject(
-    { projectPath: storedProject.project_path, customName: '' },
-    projectDependencies({
+    { projectPath: projectFixture.project_path, customName: '' },
+    createDependencies({
       persistProjectPath: (_projectPath, name) => {
-        savedName = name;
-        return { outcome: 'created', project: { ...storedProject, custom_project_name: name } };
+        persistedName = name;
+        return { outcome: 'created', project: { ...projectFixture, custom_project_name: name } };
       },
-    }),
-  );
-  assert.equal(savedName, 'my-project');
-  assert.deepEqual({ outcome: created.outcome, displayName: created.project.displayName }, {
-    outcome: 'created',
-    displayName: 'my-project',
-  });
-
-  const reactivated = await createProject(
-    { projectPath: storedProject.project_path },
-    projectDependencies({
-      persistProjectPath: () => ({ outcome: 'reactivated_archived', project: { ...storedProject, isArchived: 1 } }),
     }),
   );
   assert.deepEqual(
-    { outcome: reactivated.outcome, isArchived: reactivated.project.isArchived },
-    { outcome: 'reactivated_archived', isArchived: true },
+    { persistedName, outcome: created.outcome, displayName: created.project.displayName },
+    { persistedName: 'dashboard', outcome: 'created', displayName: 'dashboard' },
+  );
+
+  const reactivated = await createProject(
+    { projectPath: projectFixture.project_path },
+    createDependencies({
+      persistProjectPath: () => ({ outcome: 'reactivated_archived', project: { ...projectFixture, isArchived: 1 } }),
+    }),
+  );
+  assert.deepEqual(
+    { outcome: reactivated.outcome, archived: reactivated.project.isArchived },
+    { outcome: 'reactivated_archived', archived: true },
   );
 });
 
-test('origin promotion maps auto and legacy repository rows without a second lookup', () => {
-  const rows = [
-    { ...storedProject, project_id: 'auto-project', project_path: '/workspace/auto-project', custom_project_name: 'Auto project', isStarred: 1, origin: 'auto' as const },
-    { ...storedProject, project_id: 'legacy-project', project_path: '/workspace/legacy-project', custom_project_name: null, isArchived: 1 },
+test('promotion maps auto and legacy rows directly from repository promotion results', () => {
+  const candidates = [
+    {
+      ...projectFixture,
+      project_id: 'gajae-watcher-project',
+      project_path: '/workspaces/gajae/watcher',
+      custom_project_name: 'Watcher import',
+      isStarred: 1,
+      origin: 'auto' as const,
+    },
+    {
+      ...projectFixture,
+      project_id: 'gajae-migrated-project',
+      project_path: '/workspaces/gajae/migrated',
+      custom_project_name: null,
+      isArchived: 1,
+    },
   ];
-  const promoted: string[] = [];
+  const promotedIds: string[] = [];
+
   withProjectRepository(
     {
-      promoteProjectOriginById: (id) => {
-        const row = rows.find((candidate) => candidate.project_id === id);
-        if (!row) return null;
-        promoted.push(id);
-        return { ...row, origin: 'explicit' };
+      promoteProjectOriginById: (projectId) => {
+        const candidate = candidates.find((project) => project.project_id === projectId);
+        if (!candidate) return null;
+        promotedIds.push(projectId);
+        return { ...candidate, origin: 'explicit' };
       },
       getProjectById: () => {
-        throw new Error('Promoted rows must be used directly');
+        throw new Error('A repository promotion result must be converted directly');
       },
     },
     () => {
-      const views = rows.map((row) => promoteProjectOrigin(row.project_id));
-      assert.deepEqual(promoted, ['auto-project', 'legacy-project']);
-      assert.deepEqual(views, [
-        { projectId: 'auto-project', path: '/workspace/auto-project', fullPath: '/workspace/auto-project', displayName: 'Auto project', customName: 'Auto project', origin: 'explicit', isArchived: false, isStarred: true, sessions: [], sessionMeta: { hasMore: false, total: 0 } },
-        { projectId: 'legacy-project', path: '/workspace/legacy-project', fullPath: '/workspace/legacy-project', displayName: 'legacy-project', customName: null, origin: 'explicit', isArchived: true, isStarred: false, sessions: [], sessionMeta: { hasMore: false, total: 0 } },
+      const promotedViews = candidates.map(({ project_id: projectId }) => promoteProjectOrigin(projectId));
+      assert.deepEqual(promotedIds, ['gajae-watcher-project', 'gajae-migrated-project']);
+      assert.deepEqual(promotedViews, [
+        {
+          projectId: 'gajae-watcher-project',
+          path: '/workspaces/gajae/watcher',
+          fullPath: '/workspaces/gajae/watcher',
+          displayName: 'Watcher import',
+          customName: 'Watcher import',
+          origin: 'explicit',
+          isArchived: false,
+          isStarred: true,
+          sessions: [],
+          sessionMeta: { hasMore: false, total: 0 },
+        },
+        {
+          projectId: 'gajae-migrated-project',
+          path: '/workspaces/gajae/migrated',
+          fullPath: '/workspaces/gajae/migrated',
+          displayName: 'migrated',
+          customName: null,
+          origin: 'explicit',
+          isArchived: true,
+          isStarred: false,
+          sessions: [],
+          sessionMeta: { hasMore: false, total: 0 },
+        },
       ]);
     },
   );
 });
 
-test('origin promotion returns explicit rows and rejects unknown or blank IDs', () => {
-  const explicit = { ...storedProject, project_id: 'explicit-project', custom_project_name: 'Explicit project', isStarred: 1, isArchived: 1, origin: 'explicit' as const };
+test('promotion returns an explicit row and rejects absent or blank identifiers without fallback queries', () => {
+  const explicit = {
+    ...projectFixture,
+    project_id: 'gajae-explicit-project',
+    custom_project_name: 'Explicit Gajae project',
+    isStarred: 1,
+    isArchived: 1,
+    origin: 'explicit' as const,
+  };
   withProjectRepository(
     {
-      promoteProjectOriginById: (id) => (id === explicit.project_id ? explicit : null),
-      getProjectById: (id) => {
-        if (id === explicit.project_id) {
-          throw new Error('Explicit promotion must not perform a fallback lookup');
+      promoteProjectOriginById: (projectId) => (projectId === explicit.project_id ? explicit : null),
+      getProjectById: (projectId) => {
+        if (projectId === explicit.project_id) {
+          throw new Error('An explicit promotion must not perform a fallback lookup');
         }
         return null;
       },
     },
     () => {
       assert.deepEqual(promoteProjectOrigin(explicit.project_id), {
-        projectId: 'explicit-project', path: '/workspace/my-project', fullPath: '/workspace/my-project', displayName: 'Explicit project', customName: 'Explicit project', origin: 'explicit', isArchived: true, isStarred: true, sessions: [], sessionMeta: { hasMore: false, total: 0 },
+        projectId: 'gajae-explicit-project',
+        path: '/workspaces/gajae/dashboard',
+        fullPath: '/workspaces/gajae/dashboard',
+        displayName: 'Explicit Gajae project',
+        customName: 'Explicit Gajae project',
+        origin: 'explicit',
+        isArchived: true,
+        isStarred: true,
+        sessions: [],
+        sessionMeta: { hasMore: false, total: 0 },
       });
-      assert.throws(() => promoteProjectOrigin('missing-project'), (error: unknown) => {
-        assertServiceError(error, 'PROJECT_NOT_FOUND', 404);
+      assert.throws(() => promoteProjectOrigin('gajae-unknown-project'), (error: unknown) => {
+        assertProjectServiceError(error, 'PROJECT_NOT_FOUND', 404);
         return true;
       });
     },
   );
+
   withProjectRepository(
     {
       promoteProjectOriginById: () => {
-        throw new Error('Blank IDs cannot query the repository');
+        throw new Error('Blank identifiers must not query the repository');
       },
       getProjectById: () => {
-        throw new Error('Blank IDs cannot query the repository');
+        throw new Error('Blank identifiers must not query the repository');
       },
     },
     () => {
-      for (const value of ['', '   ']) {
-        assert.throws(() => promoteProjectOrigin(value), (error: unknown) => {
-          assertServiceError(error, 'PROJECT_ID_REQUIRED', 400);
+      for (const projectId of ['', '   ']) {
+        assert.throws(() => promoteProjectOrigin(projectId), (error: unknown) => {
+          assertProjectServiceError(error, 'PROJECT_ID_REQUIRED', 400);
           return true;
         });
       }

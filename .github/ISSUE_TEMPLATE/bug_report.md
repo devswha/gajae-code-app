@@ -1,43 +1,40 @@
 ---
-name: Bug report
-about: Report behavior that does not work as intended
-title: ''
-labels: ''
-assignees: ''
-type: Bug
+name: Gajae Code App bug report
+about: Tell us when Gajae Code App behaves unexpectedly
+title: '[Bug] '
 ---
 
-## What happened?
+## Describe the breakage
 
-Describe the observed result and why it appears incorrect.
+Tell us what you were trying to accomplish, what the app did, and why that
+result is unexpected. A short before-and-after description is especially useful.
 
-## Steps to trigger it
+## Smallest reproduction
 
-Give the smallest repeatable sequence. Include the project, command, or setting
-that matters.
+List the fewest steps that let another contributor see the same behavior. Include
+any project state, command, setting, or prompt that changes the result.
 
 1.
 2.
 3.
 
-## What should have happened instead?
+## Expected result
 
-State the expected result.
+What should Gajae Code App have done instead?
 
-## Evidence
+## Diagnostic material
 
-Paste relevant errors, logs, or request details. Attach a screenshot or short
-recording when it makes the problem clearer. Remove secrets, tokens, and private
-project content before posting.
+Share the relevant error, log excerpt, request detail, screenshot, or recording.
+Please remove tokens, credentials, and private repository content before posting.
 
-## Environment
+## Your setup
 
 - Gajae Code App version:
-- Installation type (source, server bundle, or desktop app):
+- Install method (source, server bundle, or desktop app):
 - Operating system and version:
-- Browser and version (web app only):
-- GJC/runtime version, when relevant:
+- Browser and version (for the web app):
+- GJC/runtime version, if relevant:
 
-## Other details
+## Anything else
 
-Add workarounds, frequency, or anything else that may help reproduce the issue.
+Note frequency, a workaround, or details that make this report easier to verify.

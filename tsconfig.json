@@ -1,28 +1,28 @@
 {
-  "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "baseUrl": ".",
-    "paths": {
-      // The frontend keeps "@" mapped to /src.
-      // The backend gets its own "@" mapping in server/tsconfig.json so both sides can use
-      // the same alias name without sharing one compiler configuration.
-      "@/*": ["src/*"]
-    },
-    "skipLibCheck": true,
-    "moduleResolution": "Bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
+  "compilerOptions": { // Browser checking policy; Vite owns output generation.
     "noEmit": true,
-    "jsx": "react-jsx",
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "allowJs": true,
-    // "checkJs": true, 
-    "types": ["vite/client"],
-    "ignoreDeprecations": "5.0"
+    "target": "ES2020", // Match the supported browser syntax baseline.
+    "module": "ESNext", // Preserve ESM for Vite's dependency graph.
+    "moduleResolution": "Bundler", // Vite, not Node, chooses the browser import model.
+    "jsx": "react-jsx", // Use React's automatic JSX runtime.
+
+    "baseUrl": ".", // The frontend alias is rooted at this repository.
+    "paths": { // Keep browser and backend meanings of @ independent.
+      "@/*": ["src/*"] // Vite resolves the matching source directory.
+    },
+
+    "allowJs": true, // Let the checker cover JavaScript during the gradual migration.
+    "isolatedModules": true, // Every file must transpile alone; esbuild has no cross-file view.
+    "useDefineForClassFields": true, // Standard class-field semantics, matching the ES2020 target.
+
+    "resolveJsonModule": true, // JSON imports follow Vite's runtime capability.
+    "types": ["vite/client"], // Supply Vite's client-side environment declarations.
+    "lib": ["ES2020", "DOM", "DOM.Iterable"], // Browser globals plus iterable DOM collections.
+
+    "strict": true, // New TypeScript follows the same safety boundary everywhere.
+    "forceConsistentCasingInFileNames": true, // Case-insensitive disks must not hide import mistakes.
+    "skipLibCheck": true, // Third-party declaration conflicts are not this project's gate.
+    "ignoreDeprecations": "5.0" // Keep the current TypeScript migration noise-free.
   },
-  "include": ["src", "shared", "vite.config.js"]
+  "include": ["src", "shared", "vite.config.js"] // Validate the Vite-facing source graph.
 }

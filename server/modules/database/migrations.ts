@@ -234,59 +234,76 @@ function addProjectsForSessions(database: Database): void {
   `);
 }
 
-const migrations: Migration[] = [
-  (database) => {
-    const users = new Set(columnsOf(database, 'users').map(({ name }) => name));
-    addMissingColumn(database, 'users', users, 'git_name', 'TEXT');
-    addMissingColumn(database, 'users', users, 'git_email', 'TEXT');
-  },
-  (database) => {
-    for (const statement of [
-      APP_CONFIG_TABLE_SCHEMA_SQL,
-      USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
-      NOTIFICATION_CHANNEL_ENDPOINTS_TABLE_SCHEMA_SQL,
-      'CREATE INDEX IF NOT EXISTS idx_notification_channel_endpoints_user_channel ON notification_channel_endpoints(user_id, channel)',
-      'CREATE INDEX IF NOT EXISTS idx_notification_channel_endpoints_enabled ON notification_channel_endpoints(enabled)',
-      GJC_TERMINAL_NOTIFICATION_DISPATCHES_TABLE_SCHEMA_SQL,
-      'CREATE INDEX IF NOT EXISTS idx_gjc_terminal_notification_dispatches_status_claimed_at ON gjc_terminal_notification_dispatches(status, claimed_at)',
-      GJC_TERMINAL_NOTIFICATION_SCAN_CURSORS_TABLE_SCHEMA_SQL,
-      GJC_TERMINAL_NOTIFICATION_META_TABLE_SCHEMA_SQL,
-    ]) database.exec(statement);
-  },
-  (database) => { database.exec(PROJECTS_TABLE_SCHEMA_SQL); upgradeProjectTable(database); },
+// Each entry is deliberately idempotent: migration history predates a version table.
+function addGitIdentityColumns(database: Database): void {
+  const users = new Set(columnsOf(database, 'users').map(({ name }) => name));
+  addMissingColumn(database, 'users', users, 'git_name', 'TEXT');
+  addMissingColumn(database, 'users', users, 'git_email', 'TEXT');
+}
+
+function createNotificationStorage(database: Database): void {
+  const statements = [
+    APP_CONFIG_TABLE_SCHEMA_SQL,
+    USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
+    NOTIFICATION_CHANNEL_ENDPOINTS_TABLE_SCHEMA_SQL,
+    'CREATE INDEX IF NOT EXISTS idx_notification_channel_endpoints_user_channel ON notification_channel_endpoints(user_id, channel)',
+    'CREATE INDEX IF NOT EXISTS idx_notification_channel_endpoints_enabled ON notification_channel_endpoints(enabled)',
+    GJC_TERMINAL_NOTIFICATION_DISPATCHES_TABLE_SCHEMA_SQL,
+    'CREATE INDEX IF NOT EXISTS idx_gjc_terminal_notification_dispatches_status_claimed_at ON gjc_terminal_notification_dispatches(status, claimed_at)',
+    GJC_TERMINAL_NOTIFICATION_SCAN_CURSORS_TABLE_SCHEMA_SQL,
+    GJC_TERMINAL_NOTIFICATION_META_TABLE_SCHEMA_SQL,
+  ];
+  for (const statement of statements) database.exec(statement);
+}
+
+function prepareProjects(database: Database): void {
+  database.exec(PROJECTS_TABLE_SCHEMA_SQL);
+  upgradeProjectTable(database);
+}
+
+function removeLegacyIndexes(database: Database): void {
+  const statements = [
+    'CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sessions_provider_session_id ON sessions(provider_session_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sessions_provider_provider_session_id ON sessions(provider, provider_session_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sessions_project_path ON sessions(project_path)',
+    'CREATE INDEX IF NOT EXISTS idx_sessions_is_archived ON sessions(isArchived)',
+    'CREATE INDEX IF NOT EXISTS idx_projects_is_starred ON projects(isStarred)',
+    'CREATE INDEX IF NOT EXISTS idx_projects_is_archived ON projects(isArchived)',
+    'DROP INDEX IF EXISTS idx_session_names_lookup',
+    'DROP INDEX IF EXISTS idx_sessions_workspace_path',
+    'DROP INDEX IF EXISTS idx_workspace_original_paths_is_starred',
+    'DROP INDEX IF EXISTS idx_workspace_original_paths_workspace_id',
+  ];
+  for (const statement of statements) database.exec(statement);
+  if (hasTable(database, 'workspace_original_paths')) {
+    console.log('Running migration: Dropping legacy workspace_original_paths table');
+    database.exec('DROP TABLE workspace_original_paths');
+  }
+  database.exec(LAST_SCANNED_AT_SQL);
+}
+
+const migrationPlan: readonly Migration[] = [
+  addGitIdentityColumns,
+  createNotificationStorage,
+  prepareProjects,
   importLegacyProjects,
   upgradeSessionTable,
   mergeLegacySessionNames,
   addProviderMapping,
   addProjectsForSessions,
-  (database) => {
-    for (const statement of [
-      'CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id)',
-      'CREATE INDEX IF NOT EXISTS idx_sessions_provider_session_id ON sessions(provider_session_id)',
-      'CREATE INDEX IF NOT EXISTS idx_sessions_provider_provider_session_id ON sessions(provider, provider_session_id)',
-      'CREATE INDEX IF NOT EXISTS idx_sessions_project_path ON sessions(project_path)',
-      'CREATE INDEX IF NOT EXISTS idx_sessions_is_archived ON sessions(isArchived)',
-      'CREATE INDEX IF NOT EXISTS idx_projects_is_starred ON projects(isStarred)',
-      'CREATE INDEX IF NOT EXISTS idx_projects_is_archived ON projects(isArchived)',
-      'DROP INDEX IF EXISTS idx_session_names_lookup',
-      'DROP INDEX IF EXISTS idx_sessions_workspace_path',
-      'DROP INDEX IF EXISTS idx_workspace_original_paths_is_starred',
-      'DROP INDEX IF EXISTS idx_workspace_original_paths_workspace_id',
-    ]) database.exec(statement);
-    if (hasTable(database, 'workspace_original_paths')) {
-      console.log('Running migration: Dropping legacy workspace_original_paths table');
-      database.exec('DROP TABLE workspace_original_paths');
-    }
-    database.exec(LAST_SCANNED_AT_SQL);
-  },
+  removeLegacyIndexes,
 ];
 
 export const runMigrations = (db: Database): void => {
   try {
-    for (const migration of migrations) migration(db);
+    migrationPlan.forEach((step) => step(db));
     console.log('Database migrations completed successfully');
-  } catch (error: any) {
-    console.error('Error running migrations:', error.message);
+  } catch (error) {
+    const message = error && typeof error === 'object' && 'message' in error
+      ? error.message
+      : undefined;
+    console.error('Error running migrations:', message);
     throw error;
   }
 };

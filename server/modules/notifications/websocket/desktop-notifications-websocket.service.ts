@@ -6,82 +6,65 @@ import { parseIncomingJsonObject } from '@/shared/utils.js';
 
 type DesktopNotificationRegisterMessage = { appVersion?: unknown; deviceId?: unknown; kind?: unknown; label?: unknown; platform?: unknown; type?: unknown };
 
-const nullableText = (value: unknown): string | null => {
-  const text = typeof value === 'string' ? value.trim() : '';
-  return text || null;
-};
-
-function authenticatedUserId(request: AuthenticatedWebSocketRequest): number | null {
-  const identity = request.user;
-  const source = typeof identity?.id === 'string' || typeof identity?.id === 'number'
-    ? identity.id
-    : typeof identity?.userId === 'string' || typeof identity?.userId === 'number'
-      ? identity.userId
-      : null;
-  const id = (typeof source === 'string' || typeof source === 'number') ? Number(source) : NaN;
-  return Number.isInteger(id) && id > 0 ? id : null;
+function nonEmptyText(value: unknown): string | null {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  return normalized === '' ? null : normalized;
 }
 
-function send(ws: WebSocket, value: unknown): void {
-  if (ws.readyState !== ws.OPEN) return;
-  ws.send(JSON.stringify(value));
+function requestUserId(request: AuthenticatedWebSocketRequest): number | null {
+  const account = request.user;
+  let rawId: unknown = null;
+  if (typeof account?.id === 'string' || typeof account?.id === 'number') rawId = account.id;
+  else if (typeof account?.userId === 'string' || typeof account?.userId === 'number') rawId = account.userId;
+  if (rawId === null) return null;
+  const numericId = Number(rawId);
+  return Number.isInteger(numericId) && numericId > 0 ? numericId : null;
 }
 
-export function handleDesktopNotificationsConnection(
-  ws: WebSocket,
-  request: AuthenticatedWebSocketRequest
-): void {
-  const userId = authenticatedUserId(request);
-  if (!userId) {
-    ws.close(1008, 'Missing authenticated user');
-    return;
-  }
+function sendWhenOpen(ws: WebSocket, message: unknown): void {
+  if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message));
+}
 
-  let hasRegistered = false;
+function registerCommand(message: DesktopNotificationRegisterMessage): string {
+  return typeof message.type === 'string'
+    ? message.type
+    : typeof message.kind === 'string' ? message.kind : '';
+}
 
-  ws.on('message', (rawMessage) => {
-    const message = parseIncomingJsonObject(rawMessage) as DesktopNotificationRegisterMessage | null;
+export function handleDesktopNotificationsConnection(ws: WebSocket, request: AuthenticatedWebSocketRequest): void {
+  const userId = requestUserId(request);
+  if (userId === null) return ws.close(1008, 'Missing authenticated user');
+
+  let boundToClient = false;
+  ws.on('message', (incoming) => {
+    const message = parseIncomingJsonObject(incoming) as DesktopNotificationRegisterMessage | null;
     if (!message) return;
 
-    const command = typeof message.type === 'string'
-      ? message.type
-      : typeof message.kind === 'string' ? message.kind : '';
-    if (command === 'notification_ack' || command !== 'register' || hasRegistered) return;
+    const command = registerCommand(message);
+    if (boundToClient || command === 'notification_ack' || command !== 'register') return;
 
-    const deviceId = nullableText(message.deviceId);
-    if (!deviceId) {
-      send(ws, {
-        type: 'error',
-        code: 'DEVICE_ID_REQUIRED',
-        message: 'Desktop notification registration requires deviceId.',
-      });
-      ws.close(1008, 'Missing deviceId');
-      return;
+    const deviceId = nonEmptyText(message.deviceId);
+    if (deviceId === null) {
+      const rejection = { type: 'error', code: 'DEVICE_ID_REQUIRED', message: 'Desktop notification registration requires deviceId.' };
+      sendWhenOpen(ws, rejection);
+      return ws.close(1008, 'Missing deviceId');
     }
 
-    const device = registerDesktopNotificationClient({
-      userId,
-      deviceId,
-      label: nullableText(message.label),
-      platform: nullableText(message.platform),
-      appVersion: nullableText(message.appVersion),
-      ws,
-    });
+    const registration = {
+      userId, deviceId, ws,
+      label: nonEmptyText(message.label),
+      platform: nonEmptyText(message.platform),
+      appVersion: nonEmptyText(message.appVersion),
+    };
+    const endpoint = registerDesktopNotificationClient(registration);
+    if (!endpoint) return ws.close(1011, 'Registration failed');
 
-    if (!device) {
-      ws.close(1011, 'Registration failed');
-      return;
-    }
-
-    hasRegistered = true;
-    send(ws, {
-      type: 'registered',
-      deviceId: device.endpoint_id,
-      enabled: Boolean(device.enabled),
-    });
+    boundToClient = true;
+    const confirmation = { type: 'registered', deviceId: endpoint.endpoint_id, enabled: Boolean(endpoint.enabled) };
+    sendWhenOpen(ws, confirmation);
   });
 
-  const detach = () => unregisterDesktopNotificationClient(ws);
-  ws.on('close', detach);
-  ws.on('error', detach);
+  const unregister = (): void => unregisterDesktopNotificationClient(ws);
+  ws.on('close', unregister);
+  ws.on('error', unregister);
 }

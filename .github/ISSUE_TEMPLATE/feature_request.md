@@ -1,26 +1,30 @@
 ---
-name: Feature request
-about: Propose an improvement to Gajae Code App
+name: Gajae Code App feature proposal
+about: Suggest a better Gajae Code App workflow
 title: '[Feature] '
-labels: ''
-assignees: ''
-type: Feature
 ---
 
-## Problem or opportunity
+## Workflow to improve
 
-Explain the workflow that is difficult today and who it affects. A concrete
-example is more useful than a proposed implementation alone.
+Describe the task that is awkward today and who benefits if it becomes smoother.
+A real example helps us understand the problem before choosing an implementation.
 
-## Desired outcome
+## Outcome you want
 
-Describe what a successful change would let someone do.
+Explain what you would be able to do after this improvement exists. Focus on the
+observable result rather than a particular technical solution.
 
-## Alternatives considered
+## Signal of success
 
-List workarounds, related tools, or other approaches you evaluated.
+Name a visible result, saved state, or workflow step that would show the change
+solves the problem. This gives contributors a concrete way to review it.
 
-## Supporting context
+## Options already tried
 
-Add mockups, screenshots, links, or technical constraints that would help scope
-the request. Do not include credentials or private project material.
+Share workarounds, related tools, or alternate approaches you considered and why
+they do not fully solve the problem.
+
+## Context for planning
+
+Attach mockups, screenshots, links, compatibility needs, or constraints that
+would help scope the request. Do not include credentials or private project data.

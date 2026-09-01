@@ -1,18 +1,19 @@
-import { providerRegistry } from '@/modules/providers/provider.registry.js';
-import type { LLMProvider, ProviderAuthStatus } from '@/shared/types.js';
+import { providerRegistry as registry } from '@/modules/providers/provider.registry.js';
+import type { LLMProvider as ProviderName, ProviderAuthStatus as AuthStatus } from '@/shared/types.js';
 
-async function lookupStatus(providerName: string): Promise<ProviderAuthStatus> {
-  return providerRegistry.resolveProvider(providerName).auth.getStatus();
+async function statusFor(providerName: string): Promise<AuthStatus> {
+  const provider = registry.resolveProvider(providerName);
+  return provider.auth.getStatus();
 }
 
 export const providerAuthService = {
-  async getProviderAuthStatus(providerName: string): Promise<ProviderAuthStatus> {
-    return lookupStatus(providerName);
+  getProviderAuthStatus(providerName: string): Promise<AuthStatus> {
+    return statusFor(providerName);
   },
 
-  async isProviderInstalled(providerName: LLMProvider): Promise<boolean> {
-    return this.getProviderAuthStatus(providerName)
-      .then((status) => status.installed)
-      .catch(() => true);
+  async isProviderInstalled(providerName: ProviderName): Promise<boolean> {
+    // An unavailable provider remains installable from the caller's perspective.
+    const status = await this.getProviderAuthStatus(providerName).catch(() => null);
+    return status === null ? true : status.installed;
   },
 };

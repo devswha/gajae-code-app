@@ -44,7 +44,10 @@ export function createApiSuccessResponse<TData>(data: TData): ApiSuccessShape<TD
 
 export function asyncHandler(handler: (req: Request, res: Response, next: NextFunction) => Promise<unknown>): RequestHandler {
   return (req, res, next) => {
-    void Promise.resolve(handler(req, res, next)).catch(next);
+    // Promise.resolve tolerates handlers that return a plain value; a rejection
+    // is routed into Express error handling instead of an unhandled rejection.
+    const outcome = Promise.resolve(handler(req, res, next));
+    void outcome.catch(next);
   };
 }
 
@@ -54,11 +57,12 @@ export class AppError extends Error {
   readonly details?: unknown;
 
   constructor(message: string, options: AppErrorOptions = {}) {
+    const { code = 'INTERNAL_ERROR', statusCode = 500, details } = options;
     super(message);
     this.name = 'AppError';
-    this.code = options.code ?? 'INTERNAL_ERROR';
-    this.statusCode = options.statusCode ?? 500;
-    this.details = options.details;
+    this.code = code;
+    this.statusCode = statusCode;
+    this.details = details;
   }
 }
 
@@ -140,37 +144,44 @@ async function symlinkLeavesWorkspace(absolutePath: string, workspaceRoot: strin
   }
 }
 
-export async function validateWorkspacePath(requestedPath: string): Promise<WorkspacePathValidationResult> {
-  try {
-    const requested = normalizeProjectPath(requestedPath);
-    if (!requested) return { valid: false, error: 'Workspace path is required' };
-    const absolute = path.resolve(requested);
-    const canonical = normalizeProjectPath(absolute);
-    const protectedError = protectedWorkspacePath(canonical);
-    if (protectedError) return { valid: false, error: protectedError };
-    const resolvedPath = await resolveCandidatePath(absolute);
-    const root = normalizeProjectPath(await realpath(WORKSPACES_ROOT));
-    if (outsideRoot(resolvedPath, root)) {
-      return { valid: false, error: `Workspace path must be within the allowed workspace root: ${WORKSPACES_ROOT}` };
-    }
-    if (await symlinkLeavesWorkspace(absolute, root)) {
-      return { valid: false, error: 'Symlink target is outside the allowed workspace root' };
-    }
-    return { valid: true, resolvedPath };
-  } catch (error) {
-    return { valid: false, error: `Path validation failed: ${(error as Error).message}` };
+async function evaluateWorkspacePath(requestedPath: string): Promise<WorkspacePathValidationResult> {
+  const requested = normalizeProjectPath(requestedPath);
+  if (!requested) return { valid: false, error: 'Workspace path is required' };
+  const absolute = path.resolve(requested);
+  const protectedError = protectedWorkspacePath(normalizeProjectPath(absolute));
+  if (protectedError) return { valid: false, error: protectedError };
+  const resolvedPath = await resolveCandidatePath(absolute);
+  const root = normalizeProjectPath(await realpath(WORKSPACES_ROOT));
+  if (outsideRoot(resolvedPath, root)) {
+    return { valid: false, error: `Workspace path must be within the allowed workspace root: ${WORKSPACES_ROOT}` };
   }
+  if (await symlinkLeavesWorkspace(absolute, root)) {
+    return { valid: false, error: 'Symlink target is outside the allowed workspace root' };
+  }
+  return { valid: true, resolvedPath };
+}
+
+export async function validateWorkspacePath(requestedPath: string): Promise<WorkspacePathValidationResult> {
+  // Any filesystem surprise is a rejection, never a crash: the caller treats
+  // this as a yes/no gate on user-supplied input.
+  return evaluateWorkspacePath(requestedPath).catch((error: unknown) => (
+    { valid: false, error: `Path validation failed: ${(error as Error).message}` }
+  ));
 }
 
 export function generateMessageId(prefix = 'msg'): string {
-  return `${prefix}_${randomUUID()}`;
+  const unique = randomUUID();
+  return [prefix, unique].join('_');
 }
 
 export function createNormalizedMessage(fields: NormalizedMessageInput): NormalizedMessage {
-  const identifier = fields.id || generateMessageId(fields.kind);
-  const session = fields.sessionId || '';
-  const occurredAt = fields.timestamp || new Date().toISOString();
-  return { ...fields, id: identifier, sessionId: session, timestamp: occurredAt, provider: fields.provider };
+  return {
+    ...fields,
+    id: fields.id || generateMessageId(fields.kind),
+    sessionId: fields.sessionId || '',
+    timestamp: fields.timestamp || new Date().toISOString(),
+    provider: fields.provider,
+  };
 }
 
 export function createCompleteMessage(opts: { provider: NormalizedMessage['provider']; sessionId?: string | null; actualSessionId?: string | null; exitCode?: number | null; aborted?: boolean }): NormalizedMessage {
@@ -194,22 +205,25 @@ export const readObjectRecord = (value: any): AnyRecord | null => (
   value && typeof value === 'object' && !Array.isArray(value) ? value as AnyRecord : null
 );
 
-export const readOptionalString = (value: unknown): string | undefined => {
+export function readOptionalString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
-  const result = value.trim();
-  return result.length ? result : undefined;
-};
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : undefined;
+}
 
 export const readStringArray = (value: unknown): string[] | undefined => (
   Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : undefined
 );
 
-export const readStringRecord = (value: unknown): Record<string, string> | undefined => {
+export function readStringRecord(value: unknown): Record<string, string> | undefined {
   const source = readObjectRecord(value);
   if (!source) return undefined;
-  const strings = Object.fromEntries(Object.entries(source).filter(([, entry]) => typeof entry === 'string')) as Record<string, string>;
+  const strings: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(source)) {
+    if (typeof entry === 'string') strings[key] = entry;
+  }
   return Object.keys(strings).length ? strings : undefined;
-};
+}
 
 export function buildDefaultProviderCurrentActiveModel(models: ProviderModelsDefinition): ProviderCurrentActiveModel {
   return { model: models.DEFAULT };
@@ -248,8 +262,9 @@ async function loadModelChangeCache(filePath: string): Promise<ProviderSessionAc
 }
 
 async function saveModelChangeCache(filePath: string, document: ProviderSessionActiveModelChangeCacheFile): Promise<void> {
+  const serialized = JSON.stringify(document, null, 2);
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
+  await writeFile(filePath, `${serialized}\n`, 'utf8');
 }
 
 function unsupportedModelChange(provider: LLMProvider, sessionId: string): ProviderSessionActiveModelChange {
@@ -289,37 +304,35 @@ function payloadText(payload: unknown): string | null {
   return chunks.length ? Buffer.concat(chunks).toString('utf8') : null;
 }
 
-export const parseIncomingJsonObject = (payload: unknown): AnyRecord | null => {
+export function parseIncomingJsonObject(payload: unknown): AnyRecord | null {
   const text = payloadText(payload);
   if (typeof text !== 'string' || !text.trim().length) return null;
-  try {
-    return readObjectRecord(JSON.parse(text));
-  } catch {
-    return null;
-  }
-};
+  try { return readObjectRecord(JSON.parse(text)); } catch { return null; }
+}
 
-export const readJsonConfig = async (filePath: string): Promise<Record<string, unknown>> => {
+export async function readJsonConfig(filePath: string): Promise<Record<string, unknown>> {
+  let raw: string;
   try {
-    return readObjectRecord(JSON.parse(await readFile(filePath, 'utf8'))) ?? {};
+    raw = await readFile(filePath, 'utf8');
   } catch (error) {
+    // A config that was never written is an empty config, not a failure.
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};
     throw error;
   }
-};
+  return readObjectRecord(JSON.parse(raw)) ?? {};
+}
 
-export const writeJsonConfig = async (filePath: string, data: Record<string, unknown>): Promise<void> => {
+export async function writeJsonConfig(filePath: string, data: Record<string, unknown>): Promise<void> {
+  const serialized = JSON.stringify(data, null, 2);
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
-};
+  await writeFile(filePath, `${serialized}\n`, 'utf8');
+}
 
 async function containsGitMarker(directory: string): Promise<boolean> {
-  try {
-    const marker = await stat(path.join(directory, '.git'));
-    return marker.isDirectory() || marker.isFile();
-  } catch {
-    return false;
-  }
+  // `.git` may be a directory (a checkout) or a file (a worktree or submodule
+  // pointer); either one marks a repository boundary.
+  const marker = await stat(path.join(directory, '.git')).catch(() => null);
+  return marker !== null && (marker.isDirectory() || marker.isFile());
 }
 
 export async function findTopmostGitRoot(startPath: string): Promise<string | null> {
@@ -340,24 +353,21 @@ export function normalizeSessionName(rawValue: string | undefined, fallback: str
 
 export function normalizeProviderTimestamp(value: unknown): string {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-    return new Date(value < 1_000_000_000_000 ? value * 1000 : value).toISOString();
+    const epochMs = value < 1_000_000_000_000 ? value * 1000 : value;
+    return new Date(epochMs).toISOString();
   }
   if (typeof value === 'string' && value.trim()) {
     const numeric = Number(value);
     if (Number.isFinite(numeric)) return normalizeProviderTimestamp(numeric);
-    const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) return date.toISOString();
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
   }
   return new Date().toISOString();
 }
 
 export function readJsonRecord(value: unknown): AnyRecord | null {
   if (typeof value !== 'string') return readObjectRecord(value);
-  try {
-    return readObjectRecord(JSON.parse(value));
-  } catch {
-    return null;
-  }
+  try { return readObjectRecord(JSON.parse(value)); } catch { return null; }
 }
 
 export function getOpenCodeDatabasePath(): string {
@@ -366,9 +376,10 @@ export function getOpenCodeDatabasePath(): string {
 
 export function unwrapJsonStringLiteral(value: string): string {
   const candidate = value.trim();
-  if (!candidate.startsWith('"') || !candidate.endsWith('"')) return value;
+  const looksQuoted = candidate.startsWith('"') && candidate.endsWith('"');
+  if (!looksQuoted) return value;
   try {
-    const decoded = JSON.parse(candidate);
+    const decoded: unknown = JSON.parse(candidate);
     return typeof decoded === 'string' ? decoded : value;
   } catch {
     return value;
@@ -378,49 +389,53 @@ export function unwrapJsonStringLiteral(value: string): string {
 export function sanitizeLeafDirectoryName(inputName: string, label = 'directory name'): string {
   const name = inputName.trim();
   if (!name) throw new Error(`${label} is required.`);
-  if (name.includes('..') || name.includes(path.posix.sep) || name.includes(path.win32.sep) || name !== path.basename(name)) {
-    throw new Error(`Invalid ${label} "${inputName}".`);
-  }
+  const escapesLeaf = name.includes('..')
+    || name.includes(path.posix.sep)
+    || name.includes(path.win32.sep)
+    || name !== path.basename(name);
+  if (escapesLeaf) throw new Error(`Invalid ${label} "${inputName}".`);
   return name;
 }
 
 export async function findFilesRecursivelyCreatedAfter(rootDir: string, extension: string, lastScanAt: Date | null, fileList: string[] = []): Promise<string[]> {
+  let entries: fs.Dirent[];
   try {
-    for (const entry of await readdir(rootDir, { withFileTypes: true })) {
-      const candidate = path.join(rootDir, entry.name);
-      if (entry.isDirectory()) {
-        await findFilesRecursivelyCreatedAfter(candidate, extension, lastScanAt, fileList);
-      } else if (entry.isFile() && entry.name.endsWith(extension)) {
-        if (!lastScanAt || (await stat(candidate)).birthtime > lastScanAt) fileList.push(candidate);
-      }
-    }
+    entries = await readdir(rootDir, { withFileTypes: true });
   } catch {
     // Discovery treats inaccessible provider storage as empty.
+    return fileList;
+  }
+  for (const entry of entries) {
+    const candidate = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      await findFilesRecursivelyCreatedAfter(candidate, extension, lastScanAt, fileList);
+      continue;
+    }
+    if (!entry.isFile() || !entry.name.endsWith(extension)) continue;
+    const created = lastScanAt ? await stat(candidate).catch(() => null) : null;
+    if (!lastScanAt || (created && created.birthtime > lastScanAt)) fileList.push(candidate);
   }
   return fileList;
 }
 
 export async function readFileTimestamps(filePath: string): Promise<{ createdAt?: string; updatedAt?: string }> {
-  try {
-    const metadata = await stat(filePath);
-    return { createdAt: metadata.birthtime.toISOString(), updatedAt: metadata.mtime.toISOString() };
-  } catch {
-    return {};
-  }
+  const metadata = await stat(filePath).catch(() => null);
+  if (!metadata) return {};
+  return { createdAt: metadata.birthtime.toISOString(), updatedAt: metadata.mtime.toISOString() };
 }
 
 export async function buildLookupMap(filePath: string, keyField: string, valueField: string): Promise<Map<string, string>> {
   const output = new Map<string, string>();
   try {
-    const stream = fs.createReadStream(filePath);
-    const rows = readline.createInterface({ input: stream, crlfDelay: Infinity });
+    const rows = readline.createInterface({ input: fs.createReadStream(filePath), crlfDelay: Infinity });
     for await (const row of rows) {
       const source = row.trim();
       if (!source) continue;
       const document = JSON.parse(source) as Record<string, unknown>;
       const key = document[keyField];
       const value = document[valueField];
-      if (typeof key === 'string' && typeof value === 'string' && !output.has(key)) output.set(key, value);
+      if (typeof key !== 'string' || typeof value !== 'string') continue;
+      if (!output.has(key)) output.set(key, value);
     }
   } catch {
     // Lookup files are optional during synchronization.
@@ -436,12 +451,11 @@ export async function extractFirstValidJsonlData<T>(filePath: string, extractor:
       signal?.throwIfAborted();
       const source = row.trim();
       if (!source) continue;
-      const result = extractor(JSON.parse(source));
-      if (result) {
-        rows.close();
-        stream.close();
-        return result;
-      }
+      const extracted = extractor(JSON.parse(source));
+      if (!extracted) continue;
+      rows.close();
+      stream.close();
+      return extracted;
     }
   } catch (error) {
     if (signal?.aborted) throw error;
@@ -450,7 +464,6 @@ export async function extractFirstValidJsonlData<T>(filePath: string, extractor:
 }
 
 export function flattenPromptForWindowsShell(prompt: string): string {
-  return process.platform === 'win32' && typeof prompt === 'string'
-    ? prompt.replace(/\s*\r?\n\s*/g, ' ').trim()
-    : prompt;
+  if (process.platform !== 'win32' || typeof prompt !== 'string') return prompt;
+  return prompt.replace(/\s*\r?\n\s*/g, ' ').trim();
 }

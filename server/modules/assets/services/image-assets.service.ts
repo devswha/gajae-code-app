@@ -1,54 +1,45 @@
-import { promises as filesystem } from 'node:fs';
-import path from 'node:path';
+import { promises as fileSystem } from 'node:fs';
+import nodePath from 'node:path';
 
-import { getGlobalImageAssetsDir, toPosixPath } from '@/shared/image-attachments.js';
+import { getGlobalImageAssetsDir as assetsDirectory, toPosixPath as posixPath } from '@/shared/image-attachments.js';
 
 type StoredImageAsset = { name: string; path: string; size: number; mimeType: string };
 type UploadedImageFile = { originalname: string; filename: string; size: number; mimetype: string };
 
+const IMAGE_MIME_TYPES: Record<string, true> = {
+  'image/jpeg': true,
+  'image/png': true,
+  'image/gif': true,
+  'image/webp': true,
+  'image/svg+xml': true,
+};
+
 export function isAllowedImageMimeType(mimeType: string): boolean {
-  switch (mimeType) {
-    case 'image/jpeg':
-    case 'image/png':
-    case 'image/gif':
-    case 'image/webp':
-    case 'image/svg+xml':
-      return true;
-    default:
-      return false;
-  }
+  return IMAGE_MIME_TYPES[mimeType] === true;
 }
 
 export async function ensureImageAssetsDir(): Promise<string> {
-  const directory = getGlobalImageAssetsDir();
-  await filesystem.mkdir(directory, { recursive: true });
+  const directory = assetsDirectory();
+  await fileSystem.mkdir(directory, { recursive: true });
   return directory;
 }
 
 export function buildStoredImageRecords(files: UploadedImageFile[]): StoredImageAsset[] {
-  const directory = getGlobalImageAssetsDir();
-  const records: StoredImageAsset[] = [];
-  for (const upload of files) {
-    records.push({
-      name: upload.originalname,
-      path: toPosixPath(path.join(directory, upload.filename)),
-      size: upload.size,
-      mimeType: upload.mimetype,
-    });
-  }
-  return records;
+  const directory = assetsDirectory();
+  return files.map(({ originalname, filename, size, mimetype }) => ({
+    name: originalname,
+    path: posixPath(nodePath.join(directory, filename)),
+    size,
+    mimeType: mimetype,
+  }));
 }
 
 export function resolveImageAssetFile(filename: string): string | null {
-  const basename = typeof filename === 'string' ? filename.trim() : '';
-  if (basename === '' || basename.includes('..')) {
-    return null;
-  }
-  if (/[\\/]/.test(basename)) {
-    return null;
-  }
+  const name = typeof filename === 'string' ? filename.trim() : '';
+  // Route parameters identify a file, never a path below the asset root.
+  if (!name || name.includes('..') || /[\\/]/.test(name)) return null;
 
-  const directory = path.resolve(getGlobalImageAssetsDir());
-  const asset = path.resolve(directory, basename);
-  return path.dirname(asset) === directory ? asset : null;
+  const directory = nodePath.resolve(assetsDirectory());
+  const assetPath = nodePath.resolve(directory, name);
+  return nodePath.dirname(assetPath) === directory ? assetPath : null;
 }

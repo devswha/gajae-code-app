@@ -9,16 +9,12 @@ import type { LLMProvider, NormalizedMessage, RealtimeClientConnection } from '@
 
 type ChatRunStatus = 'running' | 'completed';
 type ChatRun = {
-  appSessionId: string;
-  provider: LLMProvider;
-  providerSessionId: string | null;
-  status: ChatRunStatus;
-  lastSeq: number;
-  events: NormalizedMessage[];
-  writer: ChatSessionWriter;
-  startedAt: number;
-  completedAt: number | null;
+  appSessionId: string; provider: LLMProvider; providerSessionId: string | null;
+  status: ChatRunStatus; lastSeq: number; events: NormalizedMessage[];
+  writer: ChatSessionWriter; startedAt: number; completedAt: number | null;
 };
+type AppSessionId = string;
+type RunCompletion = { exitCode: number; aborted?: boolean };
 
 type StartRunInput = {
   appSessionId: string;
@@ -30,28 +26,59 @@ type StartRunInput = {
 
 const completedRunLifetime = 5 * 60 * 1000;
 const eventBufferLimit = 5000;
-const runBySession = new Map<string, ChatRun>();
+const runsByAppSession = new Map<string, ChatRun>();
 
-async function announceSession(sessionId: string): Promise<void> {
-  const stored = sessionsDb.getSessionById(sessionId);
-  if (!stored || stored.isArchived) return;
+function scheduleCompletedRunRemoval(sessionId: string): void {
+  const timer = setTimeout(() => {
+    const completedRun = runsByAppSession.get(sessionId);
+    if (completedRun?.status === 'completed') runsByAppSession.delete(sessionId);
+  }, completedRunLifetime);
+  void timer.unref?.();
+}
 
-  const projectPath = stored.project_path;
+function decorateRunEvent(run: ChatRun, event: NormalizedMessage): NormalizedMessage | null {
+  if (run.status === 'completed' && event.kind === 'complete') return null;
+
+  const sequence = ++run.lastSeq;
+  const publishedEvent: NormalizedMessage = {
+    ...event,
+    id: event.id || generateMessageId(event.kind),
+    timestamp: event.timestamp || new Date().toISOString(),
+    sessionId: run.appSessionId,
+    seq: sequence,
+  };
+
+  if (event.kind === 'complete') {
+    publishedEvent.actualSessionId = run.appSessionId;
+    Object.assign(run, { status: 'completed' as ChatRunStatus, completedAt: Date.now() });
+    scheduleCompletedRunRemoval(run.appSessionId);
+  }
+
+  run.events.push(publishedEvent);
+  if (run.events.length > eventBufferLimit) run.events.splice(0, run.events.length - eventBufferLimit);
+  return publishedEvent;
+}
+
+async function broadcastSessionUpsert(sessionId: string): Promise<void> {
+  const session = sessionsDb.getSessionById(sessionId);
+  if (!session || session.isArchived) return;
+
+  const projectPath = session.project_path;
   const project = projectPath ? projectsDb.getProjectPath(projectPath) : null;
   const fallbackName = path.basename(projectPath ?? '') || (projectPath ?? '');
   const displayName = project?.custom_project_name?.trim()
     ? project.custom_project_name
     : await generateDisplayName(fallbackName, projectPath);
-  const frame = JSON.stringify({
+  const payload = JSON.stringify({
     kind: 'session_upserted',
-    sessionId: stored.session_id,
-    providerSessionId: stored.provider_session_id,
-    provider: stored.provider,
+    sessionId: session.session_id,
+    providerSessionId: session.provider_session_id,
+    provider: session.provider,
     session: {
-      id: stored.session_id,
-      summary: stored.custom_name || '',
+      id: session.session_id,
+      summary: session.custom_name || '',
       messageCount: 0,
-      lastActivity: stored.updated_at ?? stored.created_at ?? new Date().toISOString(),
+      lastActivity: session.updated_at ?? session.created_at ?? new Date().toISOString(),
     },
     project: project && {
       projectId: project.project_id,
@@ -64,141 +91,108 @@ async function announceSession(sessionId: string): Promise<void> {
   });
 
   for (const client of connectedClients) {
-    if (client.readyState === WS_OPEN_STATE) client.send(frame);
+    if (client.readyState === WS_OPEN_STATE) client.send(payload);
   }
 }
 
-function removeCompletedRunEventually(sessionId: string): void {
-  const cleanup = setTimeout(() => {
-    if (runBySession.get(sessionId)?.status === 'completed') runBySession.delete(sessionId);
-  }, completedRunLifetime);
-  cleanup.unref?.();
-}
-
-function rememberEvent(run: ChatRun, event: NormalizedMessage): NormalizedMessage | null {
-  if (event.kind === 'complete' && run.status === 'completed') return null;
-
-  const sequence = run.lastSeq + 1;
-  run.lastSeq = sequence;
-  const outbound: NormalizedMessage = {
-    ...event,
-    id: event.id || generateMessageId(event.kind),
-    timestamp: event.timestamp || new Date().toISOString(),
-    sessionId: run.appSessionId,
-    seq: sequence,
-  };
-
-  if (event.kind === 'complete') {
-    outbound.actualSessionId = run.appSessionId;
-    run.status = 'completed';
-    run.completedAt = Date.now();
-    removeCompletedRunEventually(run.appSessionId);
-  }
-
-  run.events.push(outbound);
-  const excess = run.events.length - eventBufferLimit;
-  if (excess > 0) run.events.splice(0, excess);
-  return outbound;
-}
-
-function saveProviderSessionId(run: ChatRun, providerSessionId: string): void {
+function persistProviderSessionId(run: ChatRun, providerSessionId: string): void {
   if (!providerSessionId || providerSessionId === run.providerSessionId) return;
   run.providerSessionId = providerSessionId;
+  const context = { appSessionId: run.appSessionId, providerSessionId };
+  const report = (label: string, error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(label, { ...context, error: message });
+  };
 
   try {
     sessionsDb.assignProviderSessionId(run.appSessionId, run.provider, providerSessionId);
-    void announceSession(run.appSessionId).catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error('[ChatRunRegistry] Failed to broadcast canonical session mapping', {
-        appSessionId: run.appSessionId,
-        providerSessionId,
-        error: message,
-      });
+    void broadcastSessionUpsert(run.appSessionId).catch((error) => {
+      report('[ChatRunRegistry] Failed to broadcast canonical session mapping', error);
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error('[ChatRunRegistry] Failed to persist provider session id mapping', {
-      appSessionId: run.appSessionId,
-      providerSessionId,
-      error: message,
-    });
+    report('[ChatRunRegistry] Failed to persist provider session id mapping', error);
   }
 }
 
-function makeRun(input: StartRunInput): ChatRun {
-  const run: ChatRun = {
+function createRun(input: StartRunInput): ChatRun {
+  const run = {
     appSessionId: input.appSessionId,
     provider: input.provider,
     providerSessionId: input.providerSessionId,
-    status: 'running',
+    status: 'running' as ChatRunStatus,
     lastSeq: 0,
     events: [],
     writer: null as unknown as ChatSessionWriter,
     startedAt: Date.now(),
     completedAt: null,
-  };
+  } satisfies ChatRun;
+
   run.writer = new ChatSessionWriter({
     appSessionId: input.appSessionId,
     connection: input.connection,
     userId: input.userId,
     provider: input.provider,
     providerSessionId: input.providerSessionId,
-    onProviderSessionId: (id) => saveProviderSessionId(run, id),
-    decorateOutboundEvent: (event) => rememberEvent(run, event),
+    onProviderSessionId: (providerSessionId) => persistProviderSessionId(run, providerSessionId),
+    decorateOutboundEvent: (event) => decorateRunEvent(run, event),
   });
   return run;
 }
 
 function isCurrentRunningRun(run: ChatRun): boolean {
-  return runBySession.get(run.appSessionId) === run && run.status === 'running';
+  return run.status === 'running' && runsByAppSession.get(run.appSessionId) === run;
 }
 
 export const chatRunRegistry = {
   startRun(input: StartRunInput): ChatRun | null {
-    if (runBySession.get(input.appSessionId)?.status === 'running') return null;
-    const run = makeRun(input);
-    runBySession.set(input.appSessionId, run);
+    const currentRun = runsByAppSession.get(input.appSessionId);
+    if (currentRun?.status === 'running') return null;
+
+    const run = createRun(input);
+    runsByAppSession.set(input.appSessionId, run);
     return run;
   },
 
-  getRun(appSessionId: string): ChatRun | undefined {
-    return runBySession.get(appSessionId);
+  getRun(appSessionId: AppSessionId): ChatRun | undefined {
+    return runsByAppSession.get(appSessionId);
   },
 
-  isProcessing(appSessionId: string): boolean {
-    return runBySession.get(appSessionId)?.status === 'running';
+  isProcessing(appSessionId: AppSessionId): boolean {
+    return runsByAppSession.get(appSessionId)?.status === 'running';
   },
 
   listRunningRuns(): Array<{ sessionId: string; provider: LLMProvider; startedAt: number; lastSeq: number }> {
-    const active: Array<{ sessionId: string; provider: LLMProvider; startedAt: number; lastSeq: number }> = [];
-    for (const run of runBySession.values()) {
-      if (run.status === 'running') active.push({ sessionId: run.appSessionId, provider: run.provider, startedAt: run.startedAt, lastSeq: run.lastSeq });
+    const activeRuns: Array<{ sessionId: string; provider: LLMProvider; startedAt: number; lastSeq: number }> = [];
+    for (const run of runsByAppSession.values()) {
+      if (run.status !== 'running') continue;
+      activeRuns.push({ sessionId: run.appSessionId, provider: run.provider, startedAt: run.startedAt, lastSeq: run.lastSeq });
     }
-    return active;
+    return activeRuns;
   },
 
-  attachConnection(appSessionId: string, connection: RealtimeClientConnection): boolean {
-    const run = runBySession.get(appSessionId);
+  attachConnection(appSessionId: AppSessionId, connection: RealtimeClientConnection): boolean {
+    const run = runsByAppSession.get(appSessionId);
     if (!run) return false;
     run.writer.updateWebSocket(connection);
     return true;
   },
 
-  replayEvents(appSessionId: string, afterSeq: number): NormalizedMessage[] {
-    const run = runBySession.get(appSessionId);
-    return run ? run.events.filter((event) => typeof event.seq === 'number' && event.seq > afterSeq) : [];
+  replayEvents(appSessionId: AppSessionId, afterSeq: number): NormalizedMessage[] {
+    const run = runsByAppSession.get(appSessionId);
+    if (!run) return [];
+    return run.events.filter((event) => typeof event.seq === 'number' && event.seq > afterSeq);
   },
 
-  completeRun(appSessionId: string, opts: { exitCode: number; aborted?: boolean }): void {
-    const run = runBySession.get(appSessionId);
+  completeRun(appSessionId: AppSessionId, opts: RunCompletion): void {
+    const run = runsByAppSession.get(appSessionId);
     if (run?.status === 'running') run.writer.sendComplete(opts);
   },
 
-  completeRunIfCurrent(run: ChatRun, opts: { exitCode: number; aborted?: boolean }): void {
+  completeRunIfCurrent(run: ChatRun, opts: RunCompletion): void {
     if (isCurrentRunningRun(run)) run.writer.sendComplete(opts);
   },
 
   clearAll(): void {
-    runBySession.clear();
+    runsByAppSession.clear();
   },
 };

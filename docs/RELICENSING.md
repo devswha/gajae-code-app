@@ -38,8 +38,24 @@ Upstream-derived code: 6,554 of 99,019 lines (6.6%)      baseline 2026-09-01
     55 lines    1 files  served assets
 ```
 
+A same-day rewrite pass then took the reducible remainder apart file by file -
+translations reworded, components and server modules restructured, the
+stylesheet reorganized - and the tree now measures:
+
+```
+Upstream-derived code: 206 of 99,040 lines (0.2%)        after rewrite 2026-09-01
+
+    88 lines  package.json                        dependency declarations and
+                                                  deep-link identity fields
+    56 lines  docs/nginx-subpath-template.conf    nginx directive syntax
+    50 lines  server/modules/database/schema.ts   SQL DDL pinned by user databases
+    12 lines  6 other files                       shebangs, frontmatter fences,
+                                                  single re-export lines
+```
+
 Re-run it to see the number move. Zero is the point at which this project can be
-licensed as it chooses.
+licensed as it chooses; what still scores above zero is itemized below, and it
+is interface and file format rather than expression.
 
 Two accounting notes on the 2026-09-01 baseline. First, it is not comparable to
 the 33.5% figure previously recorded here: the measurement now diffs only
@@ -85,20 +101,20 @@ shares with upstream and files it by the construct it belongs to, so the
 conversion review starts from an itemized list instead of a percentage.
 
 ```
-Lines still shared with upstream: 6,116 across 254 files      2026-09-01
+Lines still shared with upstream: 872 across 78 files    after rewrite 2026-09-01
 
-  4149  67.8%  declaration   type, prop and parameter names callers depend on,
+   381  43.7%  declaration   type, prop and parameter names callers depend on,
                              and the i18n keys the components read
-   694  11.3%  literal       CSS declarations, route paths, error codes
-   600   9.8%  import        imports of this repository's own modules
-   493   8.1%  markup        JSX and class strings pinned by the design and by
+   182  20.9%  import        imports of this repository's own modules
+   124  14.2%  literal       CSS declarations, route paths, error codes
+    84   9.6%  other         everything a human still has to read
+    62   7.1%  sql/ddl       schema pinned by existing user databases
+    22   2.5%  i18n key      key lines in locale files
+    17   1.9%  markup        JSX and class strings pinned by the design and by
                              tests that assert on rendered HTML
-    88   1.4%  other         everything a human still has to read
-    64   1.0%  sql/ddl       schema pinned by existing user databases
-    28   0.5%  i18n key      key lines in locale files
 ```
 
-The `other` bucket is 88 lines and it is entirely file format: nginx directives
+The `other` bucket is 84 lines and it is entirely file format: nginx directives
 and comment markers in the subpath template, YAML keys in a workflow, the `---`
 fences of issue-template frontmatter, `#!/usr/bin/env node`, `export {};`,
 `@layer base {`, and the `}: Props) {` that closes a destructured parameter

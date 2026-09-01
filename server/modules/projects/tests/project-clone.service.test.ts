@@ -1,117 +1,123 @@
-import assert from 'node:assert/strict';
-import { EventEmitter } from 'node:events';
-import path from 'node:path';
-import { PassThrough } from 'node:stream';
-import test from 'node:test';
+import { strict as assert } from 'node:assert';
+import { EventEmitter as CloneProcessEmitter } from 'node:events';
+import { basename as directoryName } from 'node:path';
+import { PassThrough as CloneOutputStream } from 'node:stream';
+import { test } from 'node:test';
 
-import { startCloneProject } from '@/modules/projects/services/project-clone.service.js';
-import { AppError } from '@/shared/utils.js';
+import { startCloneProject as beginProjectClone } from '@/modules/projects/services/project-clone.service.js';
+import { AppError as ProjectCloneError } from '@/shared/utils.js';
 
-type CloneDependencies = NonNullable<Parameters<typeof startCloneProject>[2]>;
+type CloneDependencies = NonNullable<Parameters<typeof beginProjectClone>[2]>;
 
-function cloneRequest(overrides: Partial<Parameters<typeof startCloneProject>[0]> = {}) {
+function cloneInput(overrides: Partial<Parameters<typeof beginProjectClone>[0]> = {}) {
   return {
-    workspacePath: '/workspace/root',
-    githubUrl: 'https://github.com/example/repo',
-    userId: 1,
+    workspacePath: '/workspaces/gajae/imports',
+    githubUrl: 'https://github.com/gajae-app/example-project',
+    userId: 42,
     ...overrides,
   };
 }
 
-function eventSink() {
-  const progress: string[] = [];
-  let completed: { project: Record<string, unknown>; message: string } | undefined;
+function cloneDependencies(overrides: Partial<CloneDependencies> = {}): CloneDependencies {
   return {
-    handlers: {
-      onProgress: (message: string) => progress.push(message),
-      onComplete: (payload: { project: Record<string, unknown>; message: string }) => {
-        completed = payload;
-      },
-    },
-    progress,
-    completed: () => completed,
-  };
-}
-
-function dependencies(overrides: Partial<CloneDependencies> = {}): CloneDependencies {
-  return {
-    validatePath: async () => ({ valid: true, resolvedPath: '/workspace/root' }),
+    validatePath: async () => ({ valid: true, resolvedPath: '/workspaces/gajae/imports' }),
     ensureDirectory: async () => undefined,
     pathExists: async () => false,
     removePath: async () => undefined,
-    getGithubTokenById: async () => ({ github_token: 'token-value' }),
+    getGithubTokenById: async () => ({ github_token: 'gajae-token' }),
     spawnGitClone: () => {
-      throw new Error('A clone process is required for this scenario');
+      throw new Error('This scenario must provide a clone process');
     },
-    registerProject: async () => ({ project: { projectId: 'project-1' } }),
+    registerProject: async () => ({ project: { projectId: 'gajae-imported-project' } }),
     logError: () => undefined,
     ...overrides,
   };
 }
 
-function childProcess() {
-  const child = new EventEmitter() as EventEmitter & {
-    stdout: PassThrough;
-    stderr: PassThrough;
+function createCloneProcess() {
+  const process = new CloneProcessEmitter() as CloneProcessEmitter & {
+    stdout: CloneOutputStream;
+    stderr: CloneOutputStream;
     kill: () => void;
   };
-  child.stdout = new PassThrough();
-  child.stderr = new PassThrough();
-  child.kill = () => child.emit('close', null);
-  return child;
+  process.stdout = new CloneOutputStream();
+  process.stderr = new CloneOutputStream();
+  process.kill = () => process.emit('close', null);
+  return process;
 }
 
-async function expectCloneInputError(input: Partial<Parameters<typeof startCloneProject>[0]>, code: string) {
-  const sink = eventSink();
-  await assert.rejects(
-    () => startCloneProject(cloneRequest(input), sink.handlers, dependencies()),
-    (error: unknown) => error instanceof AppError && error.code === code,
-  );
-}
-
-test('clone startup requires a workspace and repository URL that are not git options', async () => {
-  await expectCloneInputError({ workspacePath: '' }, 'WORKSPACE_PATH_REQUIRED');
-  await expectCloneInputError({ githubUrl: '' }, 'GITHUB_URL_REQUIRED');
-  await expectCloneInputError({ githubUrl: '--upload-pack=malicious' }, 'INVALID_GITHUB_URL');
-});
-
-test('clone startup refuses a selected token that no longer belongs to the user', async () => {
-  const sink = eventSink();
-  await assert.rejects(
-    () =>
-      startCloneProject(
-        cloneRequest({ githubTokenId: 12 }),
-        sink.handlers,
-        dependencies({ getGithubTokenById: async () => null }),
-      ),
-    (error: unknown) => error instanceof AppError && error.code === 'GITHUB_TOKEN_NOT_FOUND',
-  );
-});
-
-test('a successful clone reports its repository name and registers its destination', async () => {
-  const child = childProcess();
-  const sink = eventSink();
-  const registered: Array<{ destination: string; name: string }> = [];
-  const operation = await startCloneProject(
-    cloneRequest({ githubUrl: 'https://github.com/example/repo.git' }),
-    sink.handlers,
-    dependencies({
-      spawnGitClone: () => child,
-      registerProject: async (destination, name) => {
-        registered.push({ destination, name });
-        return { project: { projectId: 'project-1', path: destination } };
+function createCloneEvents() {
+  const progressMessages: string[] = [];
+  let completion: { project: Record<string, unknown>; message: string } | undefined;
+  return {
+    handlers: {
+      onProgress: (message: string) => progressMessages.push(message),
+      onComplete: (payload: { project: Record<string, unknown>; message: string }) => {
+        completion = payload;
       },
-    }),
+    },
+    progressMessages,
+    getCompletion: () => completion,
+  };
+}
+
+async function assertCloneRejection(
+  input: Partial<Parameters<typeof beginProjectClone>[0]>,
+  code: string,
+): Promise<void> {
+  const events = createCloneEvents();
+  await assert.rejects(
+    () => beginProjectClone(cloneInput(input), events.handlers, cloneDependencies()),
+    (error: unknown) => error instanceof ProjectCloneError && error.code === code,
   );
+}
 
-  child.emit('close', 0);
-  await operation.waitForCompletion;
+test('clone requests require a workspace and a repository URL that cannot be interpreted as git flags', async () => {
+  const invalidRequests = [
+    [{ workspacePath: '' }, 'WORKSPACE_PATH_REQUIRED'],
+    [{ githubUrl: '' }, 'GITHUB_URL_REQUIRED'],
+    [{ githubUrl: '--upload-pack=malicious' }, 'INVALID_GITHUB_URL'],
+  ] as const;
 
-  assert.deepEqual(registered.map(({ name }) => name), ['repo']);
-  assert.deepEqual(registered.map(({ destination }) => path.basename(destination)), ['repo']);
-  assert.ok(sink.progress.includes("Cloning into 'repo'..."));
-  assert.deepEqual(sink.completed(), {
-    project: { projectId: 'project-1', path: registered[0].destination },
+  for (const [input, code] of invalidRequests) {
+    await assertCloneRejection(input, code);
+  }
+});
+
+test('a user-selected token must still belong to that user when cloning starts', async () => {
+  const events = createCloneEvents();
+  await assert.rejects(
+    () => beginProjectClone(cloneInput({ githubTokenId: 42 }),
+    events.handlers,
+    cloneDependencies({ getGithubTokenById: async () => null }),),
+    (error: unknown) => error instanceof ProjectCloneError && error.code === 'GITHUB_TOKEN_NOT_FOUND',
+  );
+});
+
+test('a completed clone registers its derived destination and reports the completion contract', async () => {
+  const cloneProcess = createCloneProcess();
+  const events = createCloneEvents();
+  const registeredDestinations: Array<{ destination: string; name: string }> = [];
+  const clone = await beginProjectClone(cloneInput({ githubUrl: 'https://github.com/gajae-app/dashboard.git' }),
+  events.handlers,
+  cloneDependencies({
+    spawnGitClone: () => cloneProcess,
+    registerProject: async (destination, name) => {
+      registeredDestinations.push({ destination, name });
+      return { project: { projectId: 'gajae-dashboard', path: destination } };
+    },
+  }),);
+
+  cloneProcess.emit('close', 0);
+  await clone.waitForCompletion;
+
+  assert.deepEqual(
+    registeredDestinations.map(({ name, destination }) => ({ name, destination: directoryName(destination) })),
+    [{ name: 'dashboard', destination: 'dashboard' }],
+  );
+  assert.ok(events.progressMessages.includes("Cloning into 'dashboard'..."));
+  assert.deepEqual(events.getCompletion(), {
+    project: { projectId: 'gajae-dashboard', path: registeredDestinations[0].destination },
     message: 'Repository cloned successfully',
   });
 });

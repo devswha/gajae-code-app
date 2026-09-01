@@ -1,7 +1,7 @@
 import type { RealtimeClientConnection } from '@/shared/types.js';
 
-// WebSocket.OPEN as a dependency-free transport boundary.
-export const WS_OPEN_STATE = 1;
+// Keep the numeric transport boundary independent from the ws package for shared publishers.
+export const WS_OPEN_STATE = 1; // matches WebSocket.OPEN
 
-// Live chat recipients shared by services that publish browser updates.
-export const connectedClients: Set<RealtimeClientConnection> = new Set();
+// Services retain actual connections here so lifecycle ownership remains with each handler.
+export const connectedClients = new Set<RealtimeClientConnection>(); // every live UI socket

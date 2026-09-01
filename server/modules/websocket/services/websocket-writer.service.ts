@@ -1,20 +1,24 @@
 import { WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import type { RealtimeClientConnection } from '@/shared/types.js';
+type ConnectionOwner = string | number | null;
 
+// Outbound half of a chat connection. The wrapped socket may be replaced in
+// place when a client reconnects, so holders keep the writer - never the raw
+// socket - and the session id travels with the writer across reconnects.
 export class WebSocketWriter {
-  ws: RealtimeClientConnection;
+  ws: RealtimeClientConnection; // swapped in place on reconnect via updateWebSocket
   sessionId: string | null = null;
-  userId: string | number | null;
+  userId: ConnectionOwner;
   isWebSocketWriter = true;
 
-  constructor(connection: RealtimeClientConnection, userId: string | number | null = null) {
+  constructor(connection: RealtimeClientConnection, owner: ConnectionOwner = null) {
     this.ws = connection;
-    this.userId = userId;
+    this.userId = owner;
   }
 
   send(payload: unknown): void {
-    if (this.ws.readyState !== WS_OPEN_STATE) return;
-    this.ws.send(JSON.stringify(payload));
+    const connection = this.ws;
+    if (connection.readyState === WS_OPEN_STATE) connection.send(JSON.stringify(payload));
   }
 
   updateWebSocket(connection: RealtimeClientConnection): void {
@@ -25,7 +29,5 @@ export class WebSocketWriter {
     this.sessionId = id;
   }
 
-  getSessionId(): string | null {
-    return this.sessionId;
-  }
+  getSessionId(): string | null { return this.sessionId ?? null; }
 }

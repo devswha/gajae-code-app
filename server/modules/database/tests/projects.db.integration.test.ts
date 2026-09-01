@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+import { strict as assert } from 'node:assert';
 import { mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -10,20 +10,20 @@ import { closeConnection, getConnection, getDatabasePath } from '@/modules/datab
 import { initializeDatabase } from '@/modules/database/init-db.js';
 import { projectsDb } from '@/modules/database/repositories/projects.db.js';
 
-async function withIsolatedDatabase(action: () => void | Promise<void>): Promise<void> {
-  const inheritedPath = process.env.DATABASE_PATH;
-  const workspace = await mkdtemp(path.join(tmpdir(), 'projects-db-'));
+async function inProjectRepository(action: () => void | Promise<void>): Promise<void> {
+  const originalDatabasePath = process.env.DATABASE_PATH;
+  const repositoryDirectory = await mkdtemp(path.join(tmpdir(), 'gajae-project-repository-'));
 
   closeConnection();
-  process.env.DATABASE_PATH = path.join(workspace, 'auth.db');
+  process.env.DATABASE_PATH = path.join(repositoryDirectory, 'projects.sqlite');
   try {
     await initializeDatabase();
     await action();
   } finally {
     closeConnection();
-    if (inheritedPath === undefined) delete process.env.DATABASE_PATH;
-    else process.env.DATABASE_PATH = inheritedPath;
-    await rm(workspace, { recursive: true, force: true });
+    if (originalDatabasePath === undefined) delete process.env.DATABASE_PATH;
+    else process.env.DATABASE_PATH = originalDatabasePath;
+    await rm(repositoryDirectory, { recursive: true, force: true });
   }
 }
 
@@ -31,83 +31,121 @@ function insertLegacyProject(projectId: string, projectPath: string): void {
   getConnection().prepare(`
     INSERT INTO projects (project_id, project_path, custom_project_name, isArchived)
     VALUES (?, ?, ?, 0)
-  `).run(projectId, projectPath, 'Legacy Project');
+  `).run(projectId, projectPath, 'Migrated Gajae project');
 }
 
-test('explicit project creation distinguishes new, archived, and active paths', async () => {
-  await withIsolatedDatabase(() => {
-    const fresh = projectsDb.createProjectPath('/workspace/new-project');
-    assert.equal(fresh.outcome, 'created');
-    assert.equal(fresh.project?.project_path, '/workspace/new-project');
-    assert.equal(fresh.project?.isArchived, 0);
-    assert.equal(fresh.project?.origin, 'explicit');
+test('explicit project registration distinguishes a new path, an archived path, and an active duplicate', async () => {
+  await inProjectRepository(() => {
+    const newPath = '/workspaces/gajae/desktop';
+    const archivedPath = '/workspaces/gajae/archive';
+    const created = projectsDb.createProjectPath(newPath);
 
-    const archived = projectsDb.createProjectPath('/workspace/archived-project', 'Archived Project');
+    assert.deepEqual(
+      created.project && {
+        outcome: created.outcome,
+        path: created.project.project_path,
+        archived: created.project.isArchived,
+        origin: created.project.origin,
+      },
+      { outcome: 'created', path: newPath, archived: 0, origin: 'explicit' },
+    );
+
+    const archived = projectsDb.createProjectPath(archivedPath, 'Gajae archive');
     assert.equal(archived.outcome, 'created');
     assert.ok(archived.project);
-    projectsDb.updateProjectIsArchived('/workspace/archived-project', true);
-    const restored = projectsDb.createProjectPath('/workspace/archived-project', 'Renamed Project');
-    assert.equal(restored.outcome, 'reactivated_archived');
-    assert.equal(restored.project?.project_id, archived.project.project_id);
-    assert.equal(restored.project?.isArchived, 0);
+    projectsDb.updateProjectIsArchived(archivedPath, true);
+    const reactivated = projectsDb.createProjectPath(archivedPath, 'Gajae archive restored');
+    assert.deepEqual(
+      reactivated.project && {
+        outcome: reactivated.outcome,
+        projectId: reactivated.project.project_id,
+        archived: reactivated.project.isArchived,
+      },
+      { outcome: 'reactivated_archived', projectId: archived.project.project_id, archived: 0 },
+    );
 
-    const conflict = projectsDb.createProjectPath('/workspace/new-project');
-    assert.equal(conflict.outcome, 'active_conflict');
-    assert.equal(conflict.project?.project_id, fresh.project?.project_id);
-    assert.equal(conflict.project?.isArchived, 0);
-    assert.equal(conflict.project?.origin, 'explicit');
+    const duplicate = projectsDb.createProjectPath(newPath);
+    assert.deepEqual(
+      duplicate.project && {
+        outcome: duplicate.outcome,
+        projectId: duplicate.project.project_id,
+        archived: duplicate.project.isArchived,
+        origin: duplicate.project.origin,
+      },
+      { outcome: 'active_conflict', projectId: created.project?.project_id, archived: 0, origin: 'explicit' },
+    );
   });
 });
 
-test('session-created projects are automatic without overwriting established origins', async () => {
-  await withIsolatedDatabase(() => {
-    projectsDb.ensureProjectPathForSession('/workspace/auto-project');
-    assert.equal(projectsDb.getProjectPath('/workspace/auto-project')?.origin, 'auto');
+test('session discovery creates auto origins without overwriting explicit or legacy ownership', async () => {
+  await inProjectRepository(() => {
+    const paths = {
+      automatic: '/workspaces/gajae/watcher-created',
+      explicit: '/workspaces/gajae/user-created',
+      legacy: '/workspaces/gajae/migrated',
+    };
 
-    const explicit = projectsDb.createProjectPath('/workspace/explicit-project');
+    projectsDb.ensureProjectPathForSession(paths.automatic);
+    const explicit = projectsDb.createProjectPath(paths.explicit);
+    projectsDb.ensureProjectPathForSession(paths.explicit);
+    insertLegacyProject('legacy-gajae-migrated', paths.legacy);
+    projectsDb.ensureProjectPathForSession(paths.legacy);
+
+    assert.equal(projectsDb.getProjectPath(paths.automatic)?.origin, 'auto');
     assert.equal(explicit.outcome, 'created');
-    projectsDb.ensureProjectPathForSession('/workspace/explicit-project');
-    assert.equal(projectsDb.getProjectPath('/workspace/explicit-project')?.origin, 'explicit');
+    assert.equal(projectsDb.getProjectPath(paths.explicit)?.origin, 'explicit');
+    assert.equal(projectsDb.getProjectPath(paths.legacy)?.origin, 'legacy');
 
-    insertLegacyProject('legacy-project-id', '/workspace/legacy-project');
-    projectsDb.ensureProjectPathForSession('/workspace/legacy-project');
-    assert.equal(projectsDb.getProjectPath('/workspace/legacy-project')?.origin, 'legacy');
-    const conflict = projectsDb.createProjectPath('/workspace/legacy-project');
-    assert.equal(conflict.outcome, 'active_conflict');
-    assert.equal(conflict.project?.origin, 'legacy');
+    const legacyDuplicate = projectsDb.createProjectPath(paths.legacy);
+    assert.deepEqual(
+      legacyDuplicate.project && { outcome: legacyDuplicate.outcome, origin: legacyDuplicate.project.origin },
+      { outcome: 'active_conflict', origin: 'legacy' },
+    );
   });
 });
 
-test('explicit actions revive automatic projects and promote old origins without changing archival flags', async () => {
-  await withIsolatedDatabase(() => {
-    projectsDb.ensureProjectPathForSession('/workspace/archived-auto-project');
-    projectsDb.updateProjectIsArchived('/workspace/archived-auto-project', true);
-    const restored = projectsDb.createProjectPath('/workspace/archived-auto-project');
-    assert.equal(restored.outcome, 'reactivated_archived');
-    assert.equal(restored.project?.isArchived, 0);
-    assert.equal(restored.project?.origin, 'explicit');
+test('explicit actions reactivate automatic projects and promote origins without changing promotion archival state', async () => {
+  await inProjectRepository(() => {
+    const archivedAutoPath = '/workspaces/gajae/archived-watcher-project';
+    projectsDb.ensureProjectPathForSession(archivedAutoPath);
+    projectsDb.updateProjectIsArchived(archivedAutoPath, true);
+    const reactivated = projectsDb.createProjectPath(archivedAutoPath);
+    assert.deepEqual(
+      reactivated.project && {
+        outcome: reactivated.outcome,
+        archived: reactivated.project.isArchived,
+        origin: reactivated.project.origin,
+      },
+      { outcome: 'reactivated_archived', archived: 0, origin: 'explicit' },
+    );
 
-    projectsDb.ensureProjectPathForSession('/workspace/auto-project');
-    const automatic = projectsDb.getProjectPath('/workspace/auto-project');
+    const activeAutoPath = '/workspaces/gajae/active-watcher-project';
+    projectsDb.ensureProjectPathForSession(activeAutoPath);
+    const automatic = projectsDb.getProjectPath(activeAutoPath);
     assert.ok(automatic);
     projectsDb.updateProjectIsArchivedById(automatic.project_id, true);
-    const promotedAuto = projectsDb.promoteProjectOriginById(automatic.project_id);
-    assert.equal(promotedAuto?.origin, 'explicit');
-    assert.equal(promotedAuto?.isArchived, 1);
 
-    insertLegacyProject('legacy-project-id', '/workspace/legacy-project');
-    const promotedLegacy = projectsDb.promoteProjectOriginById('legacy-project-id');
-    assert.equal(promotedLegacy?.origin, 'explicit');
-    assert.equal(promotedLegacy?.isArchived, 0);
+    insertLegacyProject('legacy-gajae-promote', '/workspaces/gajae/legacy-promote');
+    const promotions = [
+      projectsDb.promoteProjectOriginById(automatic.project_id),
+      projectsDb.promoteProjectOriginById('legacy-gajae-promote'),
+    ];
+    assert.deepEqual(
+      promotions.map((project) => project && { origin: project.origin, archived: project.isArchived }),
+      [
+        { origin: 'explicit', archived: 1 },
+        { origin: 'explicit', archived: 0 },
+      ],
+    );
   });
 });
 
-test('the default database location uses the gajae-app home without touching the prior root', async () => {
-  const inheritedPath = process.env.DATABASE_PATH;
-  const inheritedHome = process.env.HOME;
-  const home = await mkdtemp(path.join(tmpdir(), 'projects-db-home-'));
-  const oldPath = path.join(home, `.${['cloud', 'cli'].join('')}`, 'auth.db');
-  const expectedPath = path.join(home, '.gajae-app', 'auth.db');
+test('the default application database path leaves the former cloud-cli location untouched', async () => {
+  const originalDatabasePath = process.env.DATABASE_PATH;
+  const originalHome = process.env.HOME;
+  const temporaryHome = await mkdtemp(path.join(tmpdir(), 'gajae-project-home-'));
+  const oldPath = path.join(temporaryHome, `.${['cloud', 'cli'].join('')}`, 'auth.db');
+  const expectedPath = path.join(temporaryHome, '.gajae-app', 'auth.db');
 
   await mkdir(path.dirname(oldPath), { recursive: true });
   const oldDatabase = new Database(oldPath);
@@ -119,7 +157,7 @@ test('the default database location uses the gajae-app home without touching the
   const oldBytes = await readFile(oldPath);
 
   closeConnection();
-  process.env.HOME = home;
+  process.env.HOME = temporaryHome;
   delete process.env.DATABASE_PATH;
   try {
     assert.equal(getDatabasePath(), expectedPath);
@@ -128,14 +166,16 @@ test('the default database location uses the gajae-app home without touching the
     assert.deepEqual(await readFile(oldPath), oldBytes);
 
     const preserved = new Database(oldPath, { readonly: true });
-    assert.equal((preserved.prepare('SELECT value FROM preserved_data').get() as { value: string }).value, 'old-root-data');
+    // This is a controlled fixture query with a single declared column.
+    const preservedRow = preserved.prepare('SELECT value FROM preserved_data').get() as { value: string };
+    assert.equal(preservedRow.value, 'old-root-data');
     preserved.close();
   } finally {
     closeConnection();
-    if (inheritedPath === undefined) delete process.env.DATABASE_PATH;
-    else process.env.DATABASE_PATH = inheritedPath;
-    if (inheritedHome === undefined) delete process.env.HOME;
-    else process.env.HOME = inheritedHome;
-    await rm(home, { recursive: true, force: true });
+    if (originalDatabasePath === undefined) delete process.env.DATABASE_PATH;
+    else process.env.DATABASE_PATH = originalDatabasePath;
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+    await rm(temporaryHome, { recursive: true, force: true });
   }
 });

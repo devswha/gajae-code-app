@@ -1,117 +1,145 @@
-import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import test from 'node:test';
+import { strict as assert } from 'node:assert';
+import { mkdtemp as createEphemeralDirectory, rm as discardEphemeralDirectory } from 'node:fs/promises';
+import { tmpdir as temporaryDirectoryRoot } from 'node:os';
+import { join as composePath } from 'node:path';
+import { test } from 'node:test';
 
-import { closeConnection } from '@/modules/database/connection.js';
-import { initializeDatabase } from '@/modules/database/init-db.js';
-import { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
+import { closeConnection as releaseDatabaseConnection } from '@/modules/database/connection.js';
+import { initializeDatabase as initializeSessionSchema } from '@/modules/database/init-db.js';
+import { sessionsDb as sessionRepository } from '@/modules/database/repositories/sessions.db.js';
 
-async function withIsolatedDatabase(action: () => void | Promise<void>): Promise<void> {
-  const originalPath = process.env.DATABASE_PATH;
-  const directory = await mkdtemp(path.join(tmpdir(), 'sessions-mapping-'));
+async function inSessionStore(action: () => void | Promise<void>): Promise<void> {
+  const inheritedDatabasePath = process.env.DATABASE_PATH;
+  const ephemeralStore = await createEphemeralDirectory(composePath(temporaryDirectoryRoot(), 'gajae-provider-session-'));
+  const databasePath = composePath(ephemeralStore, 'sessions.sqlite');
 
-  closeConnection();
-  process.env.DATABASE_PATH = path.join(directory, 'auth.db');
+  releaseDatabaseConnection();
+  process.env.DATABASE_PATH = databasePath;
   try {
-    await initializeDatabase();
+    await initializeSessionSchema();
     await action();
   } finally {
-    closeConnection();
-    if (originalPath === undefined) delete process.env.DATABASE_PATH;
-    else process.env.DATABASE_PATH = originalPath;
-    await rm(directory, { recursive: true, force: true });
+    releaseDatabaseConnection();
+    if (inheritedDatabasePath === undefined) delete process.env.DATABASE_PATH;
+    else process.env.DATABASE_PATH = inheritedDatabasePath;
+    await discardEphemeralDirectory(ephemeralStore, { recursive: true, force: true });
   }
 }
 
-test('a disk session uses its provider identifier as both session keys', async () => {
-  await withIsolatedDatabase(() => {
-    const id = sessionsDb.createSession('provider-abc', 'claude', '/workspace/demo', 'From Disk');
-    const direct = sessionsDb.getSessionById(id);
-    const mapped = sessionsDb.getSessionByProviderSessionId('claude', 'provider-abc');
+test('a discovered disk session is addressable through both provider and application keys', async () => {
+  await inSessionStore(() => {
+    const providerSessionId = 'claude-gajae-disk-01';
+    const createdId = sessionRepository.createSession(providerSessionId,
+    'claude',
+    '/workspaces/gajae/client',
+    'Gajae client review',);
 
-    assert.equal(id, 'provider-abc');
-    assert.equal(direct?.session_id, 'provider-abc');
-    assert.equal(direct?.provider_session_id, 'provider-abc');
-    assert.equal(mapped?.session_id, 'provider-abc');
+    const records = [
+      sessionRepository.getSessionById(createdId),
+      sessionRepository.getSessionByProviderSessionId('claude', providerSessionId),
+    ];
+    assert.deepEqual(records.map((record) => record?.session_id), [providerSessionId, providerSessionId]);
+    assert.deepEqual(records.map((record) => record?.provider_session_id), [providerSessionId, providerSessionId]);
   });
 });
 
-test('provider discovery refreshes an announced app session instead of adding a row', async () => {
-  await withIsolatedDatabase(() => {
-    sessionsDb.createAppSession('app-id-1', 'claude', '/workspace/demo');
-    sessionsDb.assignProviderSessionId('app-id-1', 'claude', 'provider-xyz');
+test('provider refresh updates an announced application session rather than creating a duplicate', async () => {
+  await inSessionStore(() => {
+    const appSessionId = 'app-gajae-announce-01';
+    const providerSessionId = 'claude-gajae-discovery-01';
+    sessionRepository.createAppSession(appSessionId, 'claude', '/workspaces/gajae/client');
+    sessionRepository.assignProviderSessionId(appSessionId, 'claude', providerSessionId);
 
-    const returnedId = sessionsDb.createSession(
-      'provider-xyz',
-      'claude',
-      '/workspace/demo',
-      'Synced Name',
-      undefined,
-      undefined,
-      '/fake/path/provider-xyz.jsonl',
+    const discoveredId = sessionRepository.createSession(providerSessionId,
+    'claude',
+    '/workspaces/gajae/client',
+    'Client discovery refresh',
+    undefined,
+    undefined,
+    '/var/lib/gajae/sessions/claude-gajae-discovery-01.jsonl',);
+    const refreshed = sessionRepository.getSessionById(appSessionId);
+
+    assert.equal(discoveredId, appSessionId);
+    assert.equal(sessionRepository.getAllSessions().length, 1);
+    assert.deepEqual(
+      { providerSessionId: refreshed?.provider_session_id, transcriptPath: refreshed?.jsonl_path },
+      {
+        providerSessionId,
+        transcriptPath: '/var/lib/gajae/sessions/claude-gajae-discovery-01.jsonl',
+      },
     );
-    const stored = sessionsDb.getSessionById('app-id-1');
-
-    assert.equal(returnedId, 'app-id-1');
-    assert.equal(sessionsDb.getAllSessions().length, 1);
-    assert.equal(stored?.provider_session_id, 'provider-xyz');
-    assert.equal(stored?.jsonl_path, '/fake/path/provider-xyz.jsonl');
   });
 });
 
-test('announcing an id folds an existing watcher record into its app record', async () => {
-  await withIsolatedDatabase(() => {
-    sessionsDb.createAppSession('app-id-2', 'codex', '/workspace/demo');
-    sessionsDb.createSession(
-      'provider-race',
-      'codex',
-      '/workspace/demo',
-      'Watcher Name',
-      undefined,
-      undefined,
-      '/fake/provider-race.jsonl',
+test('announcing a provider id retains watcher metadata on the surviving application session', async () => {
+  await inSessionStore(() => {
+    const appSessionId = 'app-gajae-race-01';
+    const providerSessionId = 'codex-gajae-watcher-01';
+    sessionRepository.createAppSession(appSessionId, 'codex', '/workspaces/gajae/server');
+    sessionRepository.createSession(providerSessionId,
+    'codex',
+    '/workspaces/gajae/server',
+    'Watcher collected name',
+    undefined,
+    undefined,
+    '/var/lib/gajae/sessions/codex-gajae-watcher-01.jsonl',);
+    assert.equal(sessionRepository.getAllSessions().length, 2);
+
+    sessionRepository.assignProviderSessionId(appSessionId, 'codex', providerSessionId);
+    const remaining = sessionRepository.getAllSessions();
+
+    // The application id is authoritative while watcher-created display metadata remains useful.
+    assert.equal(remaining.length, 1);
+    assert.deepEqual(
+      remaining[0] && {
+        sessionId: remaining[0].session_id,
+        providerSessionId: remaining[0].provider_session_id,
+        transcriptPath: remaining[0].jsonl_path,
+        displayName: remaining[0].custom_name,
+      },
+      {
+        sessionId: appSessionId,
+        providerSessionId,
+        transcriptPath: '/var/lib/gajae/sessions/codex-gajae-watcher-01.jsonl',
+        displayName: 'Watcher collected name',
+      },
     );
-    assert.equal(sessionsDb.getAllSessions().length, 2);
-
-    sessionsDb.assignProviderSessionId('app-id-2', 'codex', 'provider-race');
-    const [survivor] = sessionsDb.getAllSessions();
-
-    assert.equal(sessionsDb.getAllSessions().length, 1);
-    assert.equal(survivor?.session_id, 'app-id-2');
-    assert.equal(survivor?.provider_session_id, 'provider-race');
-    assert.equal(survivor?.jsonl_path, '/fake/provider-race.jsonl');
-    assert.equal(survivor?.custom_name, 'Watcher Name');
   });
 });
 
-test('provider mappings remain provider-scoped, including legacy rows', async () => {
-  await withIsolatedDatabase(() => {
-    sessionsDb.createSession('legacy-1', 'opencode', '/workspace/demo');
-    assert.equal(sessionsDb.getSessionById('legacy-1')?.provider, 'opencode');
-    assert.equal(sessionsDb.getSessionByProviderSessionId('opencode', 'legacy-1')?.session_id, 'legacy-1');
+test('the same provider identifier remains isolated by provider, including legacy-shaped records', async () => {
+  await inSessionStore(() => {
+    sessionRepository.createSession('opencode-gajae-history-01', 'opencode', '/workspaces/gajae/history');
+    sessionRepository.createSession('shared-gajae-provider-01', 'claude', '/workspaces/gajae/client', 'Claude review');
+    sessionRepository.createAppSession('app-gajae-codex-01', 'codex', '/workspaces/gajae/server');
+    sessionRepository.assignProviderSessionId('app-gajae-codex-01', 'codex', 'shared-gajae-provider-01');
 
-    sessionsDb.createSession('shared-provider-id', 'claude', '/workspace/claude', 'Claude Session');
-    sessionsDb.createAppSession('codex-app-id', 'codex', '/workspace/codex');
-    sessionsDb.assignProviderSessionId('codex-app-id', 'codex', 'shared-provider-id');
-
-    assert.equal(sessionsDb.getSessionByProviderSessionId('claude', 'shared-provider-id')?.session_id, 'shared-provider-id');
-    assert.equal(sessionsDb.getSessionByProviderSessionId('codex', 'shared-provider-id')?.session_id, 'codex-app-id');
-    assert.equal(sessionsDb.getAllSessions().length, 3);
+    assert.equal(sessionRepository.getSessionById('opencode-gajae-history-01')?.provider, 'opencode');
+    const providerViews = [
+      ['opencode', 'opencode-gajae-history-01'],
+      ['claude', 'shared-gajae-provider-01'],
+      ['codex', 'shared-gajae-provider-01'],
+    ] as const;
+    assert.deepEqual(
+      providerViews.map(([provider, sessionId]) => sessionRepository.getSessionByProviderSessionId(provider, sessionId)?.session_id),
+      ['opencode-gajae-history-01', 'shared-gajae-provider-01', 'app-gajae-codex-01'],
+    );
+    assert.equal(sessionRepository.getAllSessions().length, 3);
   });
 });
 
-test('an absent target raises without removing its watcher session', async () => {
-  await withIsolatedDatabase(() => {
-    sessionsDb.createAppSession('deleted-app-id', 'claude', '/workspace/demo');
-    sessionsDb.deleteSessionById('deleted-app-id');
-    sessionsDb.createSession('watcher-session-id', 'claude', '/workspace/demo', 'Watcher Session');
+test('an unknown application target fails without deleting its watcher-created session', async () => {
+  await inSessionStore(() => {
+    const removedAppId = 'app-gajae-deleted-01';
+    const watcherSessionId = 'claude-gajae-watcher-survives-01';
+    sessionRepository.createAppSession(removedAppId, 'claude', '/workspaces/gajae/client');
+    sessionRepository.deleteSessionById(removedAppId);
+    sessionRepository.createSession(watcherSessionId, 'claude', '/workspaces/gajae/client', 'Watcher session retained');
 
     assert.throws(
-      () => sessionsDb.assignProviderSessionId('deleted-app-id', 'claude', 'watcher-session-id'),
-      /target session "deleted-app-id" for provider "claude" was not found/,
+      () => sessionRepository.assignProviderSessionId(removedAppId, 'claude', watcherSessionId),
+      /target session "app-gajae-deleted-01" for provider "claude" was not found/,
     );
-    assert.equal(sessionsDb.getSessionById('watcher-session-id')?.session_id, 'watcher-session-id');
+    assert.equal(sessionRepository.getSessionById(watcherSessionId)?.session_id, watcherSessionId);
   });
 });

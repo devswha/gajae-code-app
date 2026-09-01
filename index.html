@@ -1,23 +1,30 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#f04e23" />
-    <meta name="msapplication-TileColor" content="#f04e23" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Gajae Code App" />
-    <meta name="format-detection" content="telephone=no" />
+<!DOCTYPE html>
+<html lang="en"><!-- The application text is authored in English by default. -->
+  <head><!-- Browser and installed-app metadata live together at the document boundary. -->
+    <meta charset="utf-8">
     <title>Gajae Code App</title>
 
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
+    <!-- The workspace uses the full mobile viewport and manages its own scale. -->
+    <meta
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
+      name="viewport"
+    >
+    <meta content="telephone=no" name="format-detection">
+    <meta content="#f04e23" name="theme-color">
+    <meta content="#f04e23" name="msapplication-TileColor">
+
+    <!-- Installed instances retain their product name and native-looking chrome. -->
+    <meta content="yes" name="mobile-web-app-capable">
+    <meta content="Gajae Code App" name="apple-mobile-web-app-title">
+    <meta content="black-translucent" name="apple-mobile-web-app-status-bar-style">
+
+    <link crossorigin="use-credentials" href="/manifest.json" rel="manifest">
+    <link href="/favicon.png" rel="icon" type="image/png">
+    <link href="/icons/icon-152x152.png" rel="apple-touch-icon" sizes="152x152">
+    <link href="/icons/icon-192x192.png" rel="apple-touch-icon" sizes="180x180">
+  </head><!-- Vite injects no alternate document shell. -->
+  <body><!-- React mounts the complete interactive workspace below. -->
+    <div id="root"></div><!-- Deliberately the only static application container. -->
+    <script src="/src/main.jsx" type="module"></script>
+  </body><!-- The module script owns subsequent DOM contents. -->
+</html><!-- End of the standalone web-app shell. -->

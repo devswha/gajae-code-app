@@ -1,33 +1,35 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import { strict as check } from 'node:assert';
+import { test as specification } from 'node:test';
 
-import { sliceTailPage } from '@/shared/utils.js';
+import { sliceTailPage as pageFromNewest } from '@/shared/utils.js';
 
-const chronology = ['a', 'b', 'c', 'd', 'e'];
+const sessionTimeline = ['session-bootstrap', 'session-import', 'session-review', 'session-fix', 'session-release'];
 
-test('tail paging begins with the newest entries and moves toward the start', () => {
-  const newest = sliceTailPage(chronology, 2, 0);
-  const previous = sliceTailPage(chronology, 2, 2);
-  const first = sliceTailPage(chronology, 2, 4);
+specification('tail pages return the requested newest window and indicate earlier records', () => {
+  const pageRequests = [
+    { offset: 0, expected: { page: ['session-fix', 'session-release'], hasMore: true } },
+    { offset: 2, expected: { page: ['session-import', 'session-review'], hasMore: true } },
+    { offset: 4, expected: { page: ['session-bootstrap'], hasMore: false } },
+  ];
 
-  assert.deepEqual(newest, { page: ['d', 'e'], hasMore: true });
-  assert.deepEqual(previous, { page: ['b', 'c'], hasMore: true });
-  assert.deepEqual(first, { page: ['a'], hasMore: false });
+  for (const { offset, expected } of pageRequests) {
+    check.deepEqual(pageFromNewest(sessionTimeline, 2, offset), expected);
+  }
 });
 
-test('tail paging supports an unbounded request and exhausted offsets', () => {
-  assert.deepEqual(sliceTailPage(chronology, null, 0), {
-    page: chronology,
+specification('unbounded and exhausted requests produce their complete available result', () => {
+  check.deepEqual(pageFromNewest(sessionTimeline, null, 0), {
+    page: sessionTimeline,
     hasMore: false,
   });
-  assert.deepEqual(sliceTailPage(chronology, 3, 10), {
+  check.deepEqual(pageFromNewest(sessionTimeline, 3, 10), {
     page: [],
     hasMore: false,
   });
 });
 
-test('an empty page size retains whether older data exists', () => {
-  assert.deepEqual(sliceTailPage(chronology, 0, 0), {
+specification('a zero-sized window still reports whether historical records remain', () => {
+  check.deepEqual(pageFromNewest(sessionTimeline, 0, 0), {
     page: [],
     hasMore: true,
   });

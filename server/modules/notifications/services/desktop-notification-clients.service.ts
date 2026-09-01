@@ -4,53 +4,60 @@ import { notificationChannelEndpointsDb } from '@/modules/database/index.js';
 
 const DESKTOP_CHANNEL = 'desktop';
 
-const clientsByUserId = new Map<number, Map<string, WebSocket>>();
-const clientBySocket = new WeakMap<WebSocket, { userId: number; endpointId: string }>();
+type ClientRegistration = { endpointId: string; userId: number };
 
-function normalizeUserId(userId: unknown): number | null {
-  const numeric = Number(userId);
-  return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
-}
+const registrations = new WeakMap<WebSocket, ClientRegistration>();
+const socketsForUser = new Map<number, Map<string, WebSocket>>();
 
-function normalizeEndpointId(endpointId: unknown): string {
-  if (typeof endpointId !== 'string') return '';
-  return endpointId.trim();
-}
+const validUserId = (value: unknown): number | null => {
+  const candidate = Number(value);
+  return Number.isInteger(candidate) && candidate > 0 ? candidate : null;
+};
 
-function getUserClients(userId: unknown, create = false): Map<string, WebSocket> | null {
-  const normalizedUserId = normalizeUserId(userId);
-  if (!normalizedUserId) return null;
-  let clients = clientsByUserId.get(normalizedUserId);
-  if (!clients && create) {
-    clients = new Map();
-    clientsByUserId.set(normalizedUserId, clients);
+const deviceKey = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+
+function registrationMap(userId: number): Map<string, WebSocket> {
+  let entries = socketsForUser.get(userId);
+  if (!entries) {
+    entries = new Map();
+    socketsForUser.set(userId, entries);
   }
-  return clients || null;
+  return entries;
+}
+
+function removeSocket(ws: WebSocket): void {
+  const registration = registrations.get(ws);
+  if (!registration) return;
+
+  const entries = socketsForUser.get(registration.userId);
+  if (entries?.get(registration.endpointId) === ws) {
+    entries.delete(registration.endpointId);
+    if (entries.size === 0) socketsForUser.delete(registration.userId);
+  }
+  registrations.delete(ws);
+}
+
+function notificationMessage(payload: unknown): string {
+  const tag = (payload as { data?: { tag?: unknown } } | null)?.data?.tag;
+  return JSON.stringify({
+    type: 'notification',
+    id: typeof tag === 'string' ? tag : `${Date.now()}`,
+    payload,
+  });
 }
 
 export function registerDesktopNotificationClient({
-  userId,
-  deviceId,
-  label = null,
-  platform = null,
-  appVersion = null,
-  ws,
+  ws, userId, deviceId, label = null, platform = null, appVersion = null,
 }: {
-  userId: number;
-  deviceId: string;
-  label?: string | null;
-  platform?: string | null;
-  appVersion?: string | null;
-  ws: WebSocket;
+  ws: WebSocket; userId: number; deviceId: string;
+  label?: string | null; platform?: string | null; appVersion?: string | null;
 }) {
-  const normalizedUserId = normalizeUserId(userId);
-  const endpointId = normalizeEndpointId(deviceId);
-  if (!normalizedUserId || !endpointId) {
-    return false;
-  }
+  const owner = validUserId(userId);
+  const endpointId = deviceKey(deviceId);
+  if (!owner || !endpointId) return false;
 
   const endpoint = notificationChannelEndpointsDb.upsertEndpoint({
-    userId: normalizedUserId,
+    userId: owner,
     channel: DESKTOP_CHANNEL,
     endpointId,
     label,
@@ -58,67 +65,47 @@ export function registerDesktopNotificationClient({
     enabled: true,
   });
 
-  const clients = getUserClients(normalizedUserId, true)!;
+  const clients = registrationMap(owner);
   const previous = clients.get(endpointId);
   if (previous && previous !== ws && previous.readyState === previous.OPEN) {
     previous.close(4000, 'Device reconnected');
   }
 
   clients.set(endpointId, ws);
-  clientBySocket.set(ws, { userId: normalizedUserId, endpointId });
+  registrations.set(ws, { userId: owner, endpointId });
   return endpoint;
 }
 
 export function unregisterDesktopNotificationClient(ws: WebSocket): void {
-  const registration = clientBySocket.get(ws);
-  if (!registration) return;
-
-  const clients = getUserClients(registration.userId);
-  if (clients?.get(registration.endpointId) === ws) {
-    clients.delete(registration.endpointId);
-    if (clients.size === 0) {
-      clientsByUserId.delete(registration.userId);
-    }
-  }
-  clientBySocket.delete(ws);
+  removeSocket(ws);
 }
 
 export function sendDesktopNotification(userId: unknown, payload: unknown): { attempted: number; sent: number } {
-  const normalizedUserId = normalizeUserId(userId);
-  if (!normalizedUserId) return { attempted: 0, sent: 0 };
+  const owner = validUserId(userId);
+  const clients = owner === null ? undefined : socketsForUser.get(owner);
+  if (!owner || !clients?.size) return { attempted: 0, sent: 0 };
 
-  const clients = getUserClients(normalizedUserId);
-  if (!clients?.size) return { attempted: 0, sent: 0 };
-
-  const enabledEndpointIds = new Set(
-    notificationChannelEndpointsDb
-      .getEnabledEndpoints(normalizedUserId, DESKTOP_CHANNEL)
-      .map((endpoint) => endpoint.endpoint_id)
+  const deliverable = new Set(
+    notificationChannelEndpointsDb.getEnabledEndpoints(owner, DESKTOP_CHANNEL).map(({ endpoint_id }) => endpoint_id),
   );
-
-  const message = JSON.stringify({
-    type: 'notification',
-    id: typeof (payload as any)?.data?.tag === 'string' ? (payload as any).data.tag : `${Date.now()}`,
-    payload,
-  });
-
+  const message = notificationMessage(payload);
   let attempted = 0;
   let sent = 0;
-  for (const [endpointId, ws] of clients.entries()) {
-    if (!enabledEndpointIds.has(endpointId)) continue;
+
+  for (const [endpointId, socket] of clients) {
+    if (!deliverable.has(endpointId)) continue;
     attempted += 1;
-    if (ws.readyState !== ws.OPEN) {
-      unregisterDesktopNotificationClient(ws);
+    if (socket.readyState !== socket.OPEN) {
+      removeSocket(socket);
       continue;
     }
     try {
-      ws.send(message);
-      notificationChannelEndpointsDb.touchEndpoint(normalizedUserId, DESKTOP_CHANNEL, endpointId);
+      socket.send(message);
+      notificationChannelEndpointsDb.touchEndpoint(owner, DESKTOP_CHANNEL, endpointId);
       sent += 1;
     } catch {
-      unregisterDesktopNotificationClient(ws);
+      removeSocket(socket);
     }
   }
-
   return { attempted, sent };
 }

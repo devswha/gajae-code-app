@@ -1,203 +1,142 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
-import type { PendingPermissionRequest, PermissionMode } from '../types/types';
 import type {
+  LLMProvider,
   Project,
   ProjectSession,
-  LLMProvider,
   ProviderModelsCacheInfo,
   ProviderModelsDefinition,
 } from '../../../types/app';
+import type { PendingPermissionRequest, PermissionMode } from '../types/types';
 
 const GJC_PROVIDER: LLMProvider = 'gjc';
 const DEFAULT_GJC_MODEL = 'default';
 const DEFAULT_PERMISSION_MODE: PermissionMode = 'default';
 
-interface UseChatProviderStateArgs {
-  selectedSession: ProjectSession | null;
-  selectedProject: Project | null;
+interface UseChatProviderStateArgs { selectedSession: ProjectSession | null; selectedProject: Project | null; }
+type ProviderModelsApiResponse = { success?: boolean; data?: { models?: ProviderModelsDefinition; cache?: ProviderModelsCacheInfo; }; };
+type ChangeActiveModelApiResponse = { success?: boolean; data?: { supported?: boolean; changed?: boolean; model?: string | null; }; };
+
+const savedModel = () => localStorage.getItem('gjc-model') || DEFAULT_GJC_MODEL;
+
+function activeModelPath(sessionId: string) {
+  return `/api/providers/gjc/sessions/${encodeURIComponent(sessionId)}/active-model`;
 }
 
-type ProviderModelsApiResponse = {
-  success?: boolean;
-  data?: {
-    models?: ProviderModelsDefinition;
-    cache?: ProviderModelsCacheInfo;
-  };
-};
-
-type ChangeActiveModelApiResponse = {
-  success?: boolean;
-  data?: {
-    supported?: boolean;
-    changed?: boolean;
-    model?: string | null;
-  };
-};
-
-export function useChatProviderState({
-  selectedSession,
-  selectedProject: _selectedProject,
-}: UseChatProviderStateArgs) {
-  const [gjcModel, setGjcModelState] = useState<string>(() => (
-    localStorage.getItem('gjc-model') || DEFAULT_GJC_MODEL
-  ));
-  // The model this session was pinned to, as opposed to the one it last ran
-  // with. The next turn uses the pin, so the UI has to prefer it.
+export function useChatProviderState({ selectedSession, selectedProject: _selectedProject }: UseChatProviderStateArgs) {
+  const [gjcModel, setGjcModelState] = useState(savedModel);
   const [sessionPinnedModel, setSessionPinnedModel] = useState<string | null>(null);
   const [pendingPermissionRequests, setPendingPermissionRequests] = useState<PendingPermissionRequest[]>([]);
-  const [providerModelCatalog, setProviderModelCatalog] = useState<
-    Partial<Record<LLMProvider, ProviderModelsDefinition>>
-  >({});
-  const [providerModelCacheCatalog, setProviderModelCacheCatalog] = useState<
-    Partial<Record<LLMProvider, ProviderModelsCacheInfo>>
-  >({});
+  const [providerModelCatalog, setProviderModelCatalog] = useState<Partial<Record<LLMProvider, ProviderModelsDefinition>>>({});
+  const [providerModelCacheCatalog, setProviderModelCacheCatalog] = useState<Partial<Record<LLMProvider, ProviderModelsCacheInfo>>>({});
   const [providerModelsLoading, setProviderModelsLoading] = useState(true);
   const [providerModelsRefreshing, setProviderModelsRefreshing] = useState(false);
-  const providerModelsRequestIdRef = useRef(0);
+  const latestModelsRequest = useRef(0);
 
-  const setGjcModel = useCallback((model: string) => {
-    setGjcModelState(model);
-    localStorage.setItem('gjc-model', model);
+  const setGjcModel = useCallback((nextModel: string) => {
+    localStorage.setItem('gjc-model', nextModel);
+    setGjcModelState(nextModel);
   }, []);
 
-  // Opening a session must show the model that session will actually run.
-  // The backend already prefers a session's pinned model over the client's
-  // global default when dispatching, so leaving the picker on whatever it last
-  // held reported a model the turn would not use.
   useEffect(() => {
     const sessionId = selectedSession?.id?.trim();
-    const provider = selectedSession?.__provider ?? selectedSession?.provider;
-    if (!sessionId || (provider && provider !== GJC_PROVIDER)) {
-      return undefined;
-    }
+    const sessionProvider = selectedSession?.__provider ?? selectedSession?.provider;
+    if (!sessionId || (sessionProvider && sessionProvider !== GJC_PROVIDER)) return undefined;
 
-    let cancelled = false;
+    let disposed = false;
     setSessionPinnedModel(null);
-    void (async () => {
+
+    const loadSessionChoice = async () => {
       try {
-        const response = await authenticatedFetch(
-          `/api/providers/gjc/sessions/${encodeURIComponent(sessionId)}/active-model`,
-        );
-        if (cancelled || !response.ok) return;
-        const body = (await response.json()) as ChangeActiveModelApiResponse;
-        if (cancelled || !body.success) return;
+        const response = await authenticatedFetch(activeModelPath(sessionId));
+        if (disposed || !response.ok) return;
 
-        const pinned = body.data?.supported && body.data.changed ? body.data.model?.trim() : '';
-        // State only, never localStorage: the stored value is the default for
-        // the next new session, which a pinned session must not rewrite. A
-        // session that pinned nothing falls back to that same default rather
-        // than inheriting the previous session's pin.
-        setSessionPinnedModel(pinned || null);
-        setGjcModelState(pinned || localStorage.getItem('gjc-model') || DEFAULT_GJC_MODEL);
+        const result = (await response.json()) as ChangeActiveModelApiResponse;
+        if (disposed || !result.success) return;
+
+        const pin = result.data?.supported && result.data.changed
+          ? result.data.model?.trim() || ''
+          : '';
+        setSessionPinnedModel(pin || null);
+        setGjcModelState(pin || savedModel());
       } catch {
-        // The picker keeps what it has; the next turn still resolves correctly
-        // server-side.
+        // The server remains authoritative when this display-only request fails.
       }
-    })();
+    };
 
-    return () => { cancelled = true; };
+    void loadSessionChoice();
+    return () => { disposed = true; };
   }, [selectedSession?.id, selectedSession?.__provider, selectedSession?.provider]);
 
-  const loadProviderModels = useCallback(async (options: { bypassCache?: boolean } = {}) => {
-    const requestId = providerModelsRequestIdRef.current + 1;
-    providerModelsRequestIdRef.current = requestId;
-
-    if (options.bypassCache) {
-      setProviderModelsRefreshing(true);
-    } else {
-      setProviderModelsLoading(true);
-    }
+  const loadProviderModels = useCallback(async (bypassCache = false) => {
+    const requestNumber = latestModelsRequest.current + 1;
+    latestModelsRequest.current = requestNumber;
+    if (bypassCache) setProviderModelsRefreshing(true);
+    else setProviderModelsLoading(true);
 
     try {
-      const params = new URLSearchParams();
-      if (options.bypassCache) {
-        params.set('bypassCache', 'true');
-      }
-      const queryString = params.toString();
-      const response = await authenticatedFetch(
-        `/api/providers/gjc/models${queryString ? `?${queryString}` : ''}`,
-      );
-      const body = (await response.json()) as ProviderModelsApiResponse;
-      if (providerModelsRequestIdRef.current !== requestId || !body.success || !body.data?.models || !body.data.cache) {
-        return;
-      }
+      const url = bypassCache
+        ? '/api/providers/gjc/models?bypassCache=true'
+        : '/api/providers/gjc/models';
+      const response = await authenticatedFetch(url);
+      const result = (await response.json()) as ProviderModelsApiResponse;
+      const definition = result.data?.models;
+      const cache = result.data?.cache;
+      if (latestModelsRequest.current !== requestNumber || !result.success || !definition || !cache) return;
 
-      const models = body.data.models;
-      setProviderModelCatalog({ gjc: models });
-      setProviderModelCacheCatalog({ gjc: body.data.cache });
-
-      setGjcModelState((currentModel) => {
-        const storedModel = localStorage.getItem('gjc-model');
-        const model = models.OPTIONS.some((option) => option.value === storedModel)
-          ? storedModel!
-          : models.OPTIONS.some((option) => option.value === currentModel)
-            ? currentModel
-            : models.DEFAULT;
-        if (localStorage.getItem('gjc-model') !== model) {
-          localStorage.setItem('gjc-model', model);
-        }
-        return model;
+      setProviderModelCatalog({ gjc: definition });
+      setProviderModelCacheCatalog({ gjc: cache });
+      setGjcModelState((current) => {
+        const stored = localStorage.getItem('gjc-model');
+        const options = definition.OPTIONS;
+        const selected = options.some(({ value }) => value === stored)
+          ? stored!
+          : options.some(({ value }) => value === current)
+            ? current
+            : definition.DEFAULT;
+        if (stored !== selected) localStorage.setItem('gjc-model', selected);
+        return selected;
       });
     } catch (error) {
       console.error('Error loading GJC models:', error);
     } finally {
-      if (providerModelsRequestIdRef.current === requestId) {
+      if (latestModelsRequest.current === requestNumber) {
         setProviderModelsLoading(false);
         setProviderModelsRefreshing(false);
       }
     }
   }, []);
-  const hardRefreshProviderModels = useCallback(
-    () => loadProviderModels({ bypassCache: true }),
-    [loadProviderModels],
-  );
-
 
   useEffect(() => {
     void loadProviderModels();
   }, [loadProviderModels]);
 
-  const selectProviderModel = useCallback(async (
-    targetProvider: LLMProvider,
-    model: string,
-    sessionId?: string | null,
-  ) => {
-    if (targetProvider !== GJC_PROVIDER) {
-      throw new Error('Only GJC models can be selected.');
-    }
+  const hardRefreshProviderModels = useCallback(() => loadProviderModels(true), [loadProviderModels]);
+  const selectProviderModel = useCallback(async (targetProvider: LLMProvider, model: string, sessionId?: string | null) => {
+    if (targetProvider !== GJC_PROVIDER) throw new Error('Only GJC models can be selected.');
 
-    const normalizedSessionId = typeof sessionId === 'string' ? sessionId.trim() : '';
-    if (!normalizedSessionId || (selectedSession?.id === normalizedSessionId && selectedSession.__provider !== GJC_PROVIDER)) {
+    const targetSession = typeof sessionId === 'string' ? sessionId.trim() : '';
+    const mustChangeDefault = !targetSession
+      || (selectedSession?.id === targetSession && selectedSession.__provider !== GJC_PROVIDER);
+    if (mustChangeDefault) {
       setGjcModel(model);
-      return {
-        scope: 'default' as const,
-        changed: false,
-        model,
-      };
+      return { scope: 'default' as const, changed: false, model };
     }
 
-    const response = await authenticatedFetch(
-      `/api/providers/gjc/sessions/${encodeURIComponent(normalizedSessionId)}/active-model`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ model }),
-      },
-    );
-    const body = (await response.json()) as ChangeActiveModelApiResponse;
-    if (!response.ok || !body.success || !body.data?.supported) {
+    const response = await authenticatedFetch(activeModelPath(targetSession), {
+      method: 'POST',
+      body: JSON.stringify({ model }),
+    });
+    const result = (await response.json()) as ChangeActiveModelApiResponse;
+    if (!response.ok || !result.success || !result.data?.supported) {
       throw new Error('Unable to change the active GJC model for this session.');
     }
 
+    const activeModel = result.data.model || model;
     setGjcModel(model);
-    setSessionPinnedModel(body.data.model || model);
-
-    return {
-      scope: 'session' as const,
-      changed: body.data.changed === true,
-      model: body.data.model || model,
-    };
+    setSessionPinnedModel(activeModel);
+    return { scope: 'session' as const, changed: result.data.changed === true, model: activeModel };
   }, [selectedSession, setGjcModel]);
 
   return {

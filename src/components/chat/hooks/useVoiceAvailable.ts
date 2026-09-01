@@ -1,85 +1,87 @@
 import { useEffect, useState } from 'react';
 
-import { authenticatedFetch } from '../../../utils/api';
 import { readVoiceConfig, VOICE_CONFIG_SYNC_EVENT } from '../../../hooks/useVoiceConfig';
+import { authenticatedFetch } from '../../../utils/api';
 
-// Voice UI is gated on the `voiceEnabled` UI preference (toggled in Settings →
-// Voice) and a configured voice backend.
-const STORAGE_KEY = 'uiPreferences';
-const SYNC_EVENT = 'ui-preferences:sync';
-let healthRequest: Promise<boolean> | null = null;
+const PREFERENCES_KEY = 'uiPreferences';
+const PREFERENCES_CHANGED = 'ui-preferences:sync';
+let pendingHealthCheck: Promise<boolean> | null = null;
 
-function checkVoiceHealth(): Promise<boolean> {
-  if (healthRequest) return healthRequest;
-  const request = authenticatedFetch('/api/voice/health')
-    .then(async (response) => {
-      if (!response.ok) throw new Error(`Voice health check failed (${response.status})`);
-      const data = await response.json();
-      return data?.configured === true;
-    })
-    .finally(() => {
-      healthRequest = null;
-    });
-  healthRequest = request;
-  return request;
-}
-
-function readVoiceEnabled(): boolean {
+function preferenceEnablesVoice(): boolean {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return false;
-    const parsed = JSON.parse(raw);
-    return parsed?.voiceEnabled === true || parsed?.voiceEnabled === 'true';
+    const saved = localStorage.getItem(PREFERENCES_KEY);
+    if (!saved) return false;
+    const preferences = JSON.parse(saved);
+    return preferences?.voiceEnabled === true || preferences?.voiceEnabled === 'true';
   } catch {
     return false;
   }
 }
 
+function configuredOnServer(): Promise<boolean> {
+  if (pendingHealthCheck) return pendingHealthCheck;
+
+  pendingHealthCheck = authenticatedFetch('/api/voice/health')
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`Voice health check failed (${response.status})`);
+      const body = await response.json();
+      return body?.configured === true;
+    })
+    .finally(() => {
+      pendingHealthCheck = null;
+    });
+
+  return pendingHealthCheck;
+}
+
 export function useVoiceAvailable(): boolean {
-  const [enabled, setEnabled] = useState<boolean>(() =>
-    typeof window === 'undefined' ? false : readVoiceEnabled(),
+  const [preferenceEnabled, setPreferenceEnabled] = useState(() =>
+    typeof window !== 'undefined' && preferenceEnablesVoice(),
   );
-  const [available, setAvailable] = useState(false);
+  const [backendAvailable, setBackendAvailable] = useState(false);
 
   useEffect(() => {
-    const update = () => setEnabled(readVoiceEnabled());
-    window.addEventListener('storage', update);
-    window.addEventListener(SYNC_EVENT, update as EventListener);
+    const refreshPreference = () => setPreferenceEnabled(preferenceEnablesVoice());
+    window.addEventListener('storage', refreshPreference);
+    window.addEventListener(PREFERENCES_CHANGED, refreshPreference as EventListener);
+
     return () => {
-      window.removeEventListener('storage', update);
-      window.removeEventListener(SYNC_EVENT, update as EventListener);
+      window.removeEventListener('storage', refreshPreference);
+      window.removeEventListener(PREFERENCES_CHANGED, refreshPreference as EventListener);
     };
   }, []);
 
   useEffect(() => {
-    let active = true;
-    let requestId = 0;
+    let mounted = true;
+    let latestServerCheck = 0;
 
-    const check = async () => {
-      if (!enabled) {
-        setAvailable(false);
+    const refreshBackend = async () => {
+      if (!preferenceEnabled) {
+        setBackendAvailable(false);
         return;
       }
+
       if (readVoiceConfig().baseUrl.trim()) {
-        setAvailable(true);
+        setBackendAvailable(true);
         return;
       }
-      const id = ++requestId;
+
+      const checkNumber = ++latestServerCheck;
       try {
-        const result = await checkVoiceHealth();
-        if (active && id === requestId) setAvailable(result);
+        const isConfigured = await configuredOnServer();
+        if (mounted && checkNumber === latestServerCheck) setBackendAvailable(isConfigured);
       } catch {
-        if (active && id === requestId) setAvailable(false);
+        if (mounted && checkNumber === latestServerCheck) setBackendAvailable(false);
       }
     };
 
-    void check();
-    window.addEventListener(VOICE_CONFIG_SYNC_EVENT, check);
+    void refreshBackend();
+    window.addEventListener(VOICE_CONFIG_SYNC_EVENT, refreshBackend);
     return () => {
-      active = false;
-      window.removeEventListener(VOICE_CONFIG_SYNC_EVENT, check);
+      mounted = false;
+      window.removeEventListener(VOICE_CONFIG_SYNC_EVENT, refreshBackend);
     };
-  }, [enabled]);
+  }, [preferenceEnabled]);
 
-  return enabled && available;
+  return preferenceEnabled && backendAvailable;
 }

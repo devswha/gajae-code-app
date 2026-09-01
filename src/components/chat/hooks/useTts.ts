@@ -1,34 +1,32 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { voicePlayer, voiceId, type VoiceSnapshot } from '../../../utils/voicePlayer';
+import { voiceId, voicePlayer, type VoiceSnapshot } from '../../../utils/voicePlayer';
 
 export type TtsState = VoiceSnapshot['state'];
 
-/**
- * Thin adapter over the app-level voicePlayer. Playback lives outside React (see
- * utils/voicePlayer), so switching chats or re-rendering a message no longer cuts the
- * audio off. This hook just reflects the player's state for one message and forwards taps.
- */
-export function useTts(getText: () => string) {
-  const content = getText();
-  const id = voiceId(content);
+function sameSnapshot(left: VoiceSnapshot, right: VoiceSnapshot): boolean {
+  return left.state === right.state && left.error === right.error;
+}
 
-  const [snap, setSnap] = useState<VoiceSnapshot>(() => voicePlayer.getSnapshot(id));
+export function useTts(getText: () => string) {
+  const text = getText();
+  const messageId = voiceId(text);
+  const [snapshot, setSnapshot] = useState(() => voicePlayer.getSnapshot(messageId));
 
   useEffect(() => {
-    const update = () =>
-      setSnap((prev) => {
-        const next = voicePlayer.getSnapshot(id);
-        return prev.state === next.state && prev.error === next.error ? prev : next;
-      });
-    update();
-    return voicePlayer.subscribe(update);
-  }, [id]);
+    const syncSnapshot = () => {
+      const current = voicePlayer.getSnapshot(messageId);
+      setSnapshot((previous) => (sameSnapshot(previous, current) ? previous : current));
+    };
+
+    syncSnapshot();
+    return voicePlayer.subscribe(syncSnapshot);
+  }, [messageId]);
 
   const toggle = useCallback(() => {
-    voicePlayer.unlock(); // synchronous, within the click gesture (iOS)
-    voicePlayer.toggle(content);
-  }, [content]);
+    voicePlayer.unlock();
+    voicePlayer.toggle(text);
+  }, [text]);
 
-  return { state: snap.state, toggle, error: snap.error };
+  return { state: snapshot.state, toggle, error: snapshot.error };
 }

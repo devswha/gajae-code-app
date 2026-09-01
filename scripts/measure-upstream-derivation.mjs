@@ -26,7 +26,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -77,22 +77,49 @@ function lineCount(path) {
 /**
  * Fraction of a file that still looks like upstream's.
  *
- * Counts changed lines against twice the file's length, because a diff reports
- * a replaced line twice - once removed, once added. A file nobody touched
- * scores 1; a file rewritten scores near 0.
+ * Counts changed substantive lines against the two files' combined substantive
+ * length, because a diff reports a replaced line twice - once removed, once
+ * added. Lines that carry no expression - blank lines and lines of only
+ * braces, brackets and semicolons - are excluded before diffing: they match
+ * between any two same-shaped files and say nothing about derivation. The
+ * denominator is the sum of both sides rather than twice our length so that a
+ * rewrite whose length differs from the original still scores near 0; with
+ * equal lengths the two forms coincide. A file nobody touched scores 1; a file
+ * rewritten scores near 0.
  */
+const NOISE_LINE = /^[\s{}()[\];,]*$/u;
+
+function substantiveLines(path) {
+  return readFileSync(path, 'utf8')
+    .split('\n')
+    .filter((line) => !NOISE_LINE.test(line));
+}
+
 function retainedFraction(mine, theirs) {
-  const own = lineCount(mine);
+  const own = substantiveLines(mine).length;
+  const other = substantiveLines(theirs).length;
   if (own === 0) return 0;
-  let changed = 0;
+  if (other === 0) return 0;
+
+  const scratch = mkdtempSync(join(tmpdir(), 'derivation-diff-'));
   try {
-    execFileSync('diff', [mine, theirs], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-    return 1;
-  } catch (error) {
-    const output = typeof error.stdout === 'string' ? error.stdout : '';
-    changed = output.split('\n').filter((line) => /^[<>]/u.test(line)).length;
+    const mineFiltered = join(scratch, 'mine');
+    const theirsFiltered = join(scratch, 'theirs');
+    writeFileSync(mineFiltered, `${substantiveLines(mine).join('\n')}\n`);
+    writeFileSync(theirsFiltered, `${substantiveLines(theirs).join('\n')}\n`);
+
+    let changed = 0;
+    try {
+      execFileSync('diff', [mineFiltered, theirsFiltered], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+      return 1;
+    } catch (error) {
+      const output = typeof error.stdout === 'string' ? error.stdout : '';
+      changed = output.split('\n').filter((line) => /^[<>]/u.test(line)).length;
+    }
+    return Math.max(0, 1 - changed / (own + other));
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
   }
-  return Math.max(0, 1 - changed / (own * 2));
 }
 
 const args = process.argv.slice(2);

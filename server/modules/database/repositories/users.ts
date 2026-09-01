@@ -1,86 +1,55 @@
-/**
- * User repository.
- *
- * Provides typed CRUD operations for the `users` table.
- * This is a single-user system, but the schema supports multiple
- * users for forward compatibility.
- */
-
 import { getConnection } from '@/modules/database/connection.js';
 
-type UserPublicRow = {
-  id: number;
-  username: string;
-  created_at: string;
-  last_login: string | null;
+type PublicUser = { created_at: string; id: number; last_login: string | null; username: string };
+
+type GitIdentity = { git_email: string | null; git_name: string | null };
+
+type NewUser = { id: number | bigint; username: string };
+
+const insertUser = (username: string, passwordHash: string): NewUser => {
+  const insertion = getConnection()
+    .prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)')
+    .run(username, passwordHash);
+
+  return { id: insertion.lastInsertRowid, username };
 };
 
-type UserGitConfig = {
-  git_name: string | null;
-  git_email: string | null;
+const findActiveUser = (userId: number): PublicUser | undefined => {
+  const sql = [
+    'SELECT id, username, created_at, last_login',
+    'FROM users',
+    'WHERE is_active = 1 AND id = ?',
+  ].join(' ');
+
+  return getConnection().prepare(sql).get(userId) as PublicUser | undefined;
 };
 
-type CreateUserResult = {
-  id: number | bigint;
-  username: string;
+const findFirstActiveUser = (): PublicUser | undefined => {
+  const sql = `
+    SELECT id, username, created_at, last_login
+    FROM users
+    WHERE is_active = 1
+    LIMIT 1
+  `;
+
+  return getConnection().prepare(sql).get() as PublicUser | undefined;
 };
 
-// ---------------------------------------------------------------------------
-// Queries
-// ---------------------------------------------------------------------------
+const saveGitIdentity = (userId: number, gitName: string, gitEmail: string): void => {
+  const sql = 'UPDATE users SET git_name = ?, git_email = ? WHERE id = ?';
+  getConnection().prepare(sql).run(gitName, gitEmail, userId);
+};
+
+const loadGitIdentity = (userId: number): GitIdentity | undefined => {
+  return getConnection()
+    .prepare('SELECT git_name, git_email FROM users WHERE id = ?')
+    .get(userId) as GitIdentity | undefined;
+};
 
 export const userDb = {
-
-  /** Inserts a new user and returns the created ID + username. */
-  createUser(username: string, passwordHash: string): CreateUserResult {
-    const db = getConnection();
-    const result = db
-      .prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)')
-      .run(username, passwordHash);
-    return { id: result.lastInsertRowid, username };
-  },
-
-
-  /** Returns public user fields by ID (no password hash). */
-  getUserById(userId: number): UserPublicRow | undefined {
-    const db = getConnection();
-    return db
-      .prepare(
-        'SELECT id, username, created_at, last_login FROM users WHERE id = ? AND is_active = 1'
-      )
-      .get(userId) as UserPublicRow | undefined;
-  },
-
-  /** Returns the first active user. Used for single-user mode lookups. */
-  getFirstUser(): UserPublicRow | undefined {
-    const db = getConnection();
-    return db
-      .prepare(
-        'SELECT id, username, created_at, last_login FROM users WHERE is_active = 1 LIMIT 1'
-      )
-      .get() as UserPublicRow | undefined;
-  },
-
-  /** Stores the user's preferred git name and email. */
-  updateGitConfig(
-    userId: number,
-    gitName: string,
-    gitEmail: string
-  ): void {
-    const db = getConnection();
-    db.prepare('UPDATE users SET git_name = ?, git_email = ? WHERE id = ?').run(
-      gitName,
-      gitEmail,
-      userId
-    );
-  },
-
-  /** Retrieves the user's git identity (name + email). */
-  getGitConfig(userId: number): UserGitConfig | undefined {
-    const db = getConnection();
-    return db
-      .prepare('SELECT git_name, git_email FROM users WHERE id = ?')
-      .get(userId) as UserGitConfig | undefined;
-  },
-
+  createUser: insertUser,
+  getUserById: findActiveUser,
+  getFirstUser: findFirstActiveUser,
+  updateGitConfig: saveGitIdentity,
+  getGitConfig: loadGitIdentity,
 };

@@ -5,51 +5,32 @@ import { api } from '../../../utils/api';
 import { escapeRegExp } from '../utils/chatFormatting';
 import type { Project } from '../../../types/app';
 
-interface ProjectFileNode {
-  name: string;
-  type: 'file' | 'directory';
-  path?: string;
-  children?: ProjectFileNode[];
-}
+interface ProjectFileNode { name: string; type: 'file' | 'directory'; path?: string; children?: ProjectFileNode[]; }
+export interface MentionableFile { name: string; path: string; relativePath?: string; }
+interface UseFileMentionsOptions { selectedProject: Project | null; input: string; setInput: Dispatch<SetStateAction<string>>; textareaRef: RefObject<HTMLTextAreaElement | null>; }
 
-export interface MentionableFile {
-  name: string;
-  path: string;
-  relativePath?: string;
-}
+const collectFiles = (nodes: ProjectFileNode[], parent = ''): MentionableFile[] => nodes.flatMap((node) => {
+  const path = parent ? `${parent}/${node.name}` : node.name;
+  if (node.type === 'directory') return node.children ? collectFiles(node.children, path) : [];
+  return node.type === 'file' ? [{ name: node.name, path, relativePath: node.path }] : [];
+});
 
-interface UseFileMentionsOptions {
-  selectedProject: Project | null;
-  input: string;
-  setInput: Dispatch<SetStateAction<string>>;
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
-}
+const findMention = (text: string, position: number) => {
+  const beforeCaret = text.slice(0, position);
+  const marker = beforeCaret.lastIndexOf('@');
+  if (marker < 0) return null;
+  const query = beforeCaret.slice(marker + 1);
+  return query.includes(' ') ? null : { marker, query };
+};
 
-const flattenFileTree = (files: ProjectFileNode[], basePath = ''): MentionableFile[] => {
-  let flattened: MentionableFile[] = [];
-
-  files.forEach((file) => {
-    const fullPath = basePath ? `${basePath}/${file.name}` : file.name;
-    if (file.type === 'directory' && file.children) {
-      flattened = flattened.concat(flattenFileTree(file.children, fullPath));
-      return;
-    }
-
-    if (file.type === 'file') {
-      flattened.push({
-        name: file.name,
-        path: fullPath,
-        relativePath: file.path,
-      });
-    }
-  });
-
-  return flattened;
+const rankFiles = (files: MentionableFile[], query: string) => {
+  const needle = query.toLowerCase();
+  return files.filter((file) => file.name.toLowerCase().includes(needle) || file.path.toLowerCase().includes(needle)).slice(0, 10);
 };
 
 export function useFileMentions({ selectedProject, input, setInput, textareaRef }: UseFileMentionsOptions) {
-  const [fileList, setFileList] = useState<MentionableFile[]>([]);
-  const [fileMentions, setFileMentions] = useState<string[]>([]);
+  const [files, setFiles] = useState<MentionableFile[]>([]);
+  const [mentions, setMentions] = useState<string[]>([]);
   const [filteredFiles, setFilteredFiles] = useState<MentionableFile[]>([]);
   const [showFileDropdown, setShowFileDropdown] = useState(false);
   const [selectedFileIndex, setSelectedFileIndex] = useState(-1);
@@ -57,215 +38,100 @@ export function useFileMentions({ selectedProject, input, setInput, textareaRef 
   const [atSymbolPosition, setAtSymbolPosition] = useState(-1);
 
   useEffect(() => {
-    const abortController = new AbortController();
+    const request = new AbortController();
+    const projectId = selectedProject?.projectId;
+    setFiles([]);
+    setFilteredFiles([]);
+    if (!projectId) return () => request.abort();
 
-    const fetchProjectFiles = async () => {
-      // File list is keyed by DB projectId now; the backend resolves it to
-      // the project's path before reading.
-      const projectId = selectedProject?.projectId;
-      setFileList([]);
-      setFilteredFiles([]);
-      if (!projectId) {
-        return;
-      }
-
-
+    const load = async () => {
       try {
-        const response = await api.getFiles(projectId, { signal: abortController.signal });
-        if (!response.ok) {
-          return;
-        }
-
-        const files = (await response.json()) as ProjectFileNode[];
-        setFileList(flattenFileTree(files));
+        const response = await api.getFiles(projectId, { signal: request.signal });
+        if (response.ok) setFiles(collectFiles((await response.json()) as ProjectFileNode[]));
       } catch (error) {
-        // Ignore aborts from rapid project switches; we only care about the latest request.
-        if ((error as { name?: string })?.name === 'AbortError') {
-          return;
-        }
-        console.error('Error fetching files:', error);
+        if ((error as { name?: string })?.name !== 'AbortError') console.error('Error fetching files:', error);
       }
     };
 
-    fetchProjectFiles();
-    return () => {
-      abortController.abort();
-    };
+    void load();
+    return () => request.abort();
   }, [selectedProject?.projectId]);
 
   useEffect(() => {
-    const textBeforeCursor = input.slice(0, cursorPosition);
-    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
-
-    if (lastAtIndex === -1) {
+    const mention = findMention(input, cursorPosition);
+    if (!mention) {
       setShowFileDropdown(false);
       setAtSymbolPosition(-1);
       return;
     }
 
-    const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
-    if (textAfterAt.includes(' ')) {
-      setShowFileDropdown(false);
-      setAtSymbolPosition(-1);
-      return;
-    }
-
-    setAtSymbolPosition(lastAtIndex);
+    setAtSymbolPosition(mention.marker);
     setShowFileDropdown(true);
     setSelectedFileIndex(-1);
+    setFilteredFiles(rankFiles(files, mention.query));
+  }, [files, input, cursorPosition]);
 
-    const matchingFiles = fileList
-      .filter(
-        (file) =>
-          file.name.toLowerCase().includes(textAfterAt.toLowerCase()) ||
-          file.path.toLowerCase().includes(textAfterAt.toLowerCase()),
-      )
-      .slice(0, 10);
+  const activePaths = useMemo(() => mentions.filter((path) => input.includes(path)), [mentions, input]);
+  const mentionPaths = useMemo(() => Array.from(new Set(activePaths)).sort((a, b) => b.length - a.length), [activePaths]);
+  const mentionExpression = useMemo(() => mentionPaths.length ? new RegExp(`(${mentionPaths.map(escapeRegExp).join('|')})`, 'g') : null, [mentionPaths]);
+  const mentionPathSet = useMemo(() => new Set(mentionPaths), [mentionPaths]);
 
-    setFilteredFiles(matchingFiles);
-  }, [input, cursorPosition, fileList]);
+  const renderInputWithMentions = useCallback((text: string) => {
+    if (!text || !mentionExpression) return text;
+    return text.split(mentionExpression).map((part, index) => mentionPathSet.has(part)
+      ? <span key={`mention-${index}`} className="-ml-0.5 rounded-md bg-primary/20 box-decoration-clone px-0.5 text-transparent">{part}</span>
+      : <span key={`text-${index}`}>{part}</span>);
+  }, [mentionExpression, mentionPathSet]);
 
-  const activeFileMentions = useMemo(() => {
-    if (!input || fileMentions.length === 0) {
-      return [];
+  const selectFile = useCallback((file: MentionableFile) => {
+    const prefix = input.slice(0, atSymbolPosition);
+    const fromMarker = input.slice(atSymbolPosition);
+    const firstSpace = fromMarker.indexOf(' ');
+    const suffix = firstSpace < 0 ? '' : fromMarker.slice(firstSpace);
+    const nextInput = `${prefix}${file.path} ${suffix}`;
+    const nextPosition = prefix.length + file.path.length + 1;
+    const textarea = textareaRef.current;
+
+    if (textarea && !textarea.matches(':focus')) textarea.focus();
+    setInput(nextInput);
+    setCursorPosition(nextPosition);
+    setMentions((previous) => previous.includes(file.path) ? previous : [...previous, file.path]);
+    setShowFileDropdown(false);
+    setAtSymbolPosition(-1);
+
+    if (!textarea) return;
+    requestAnimationFrame(() => {
+      const current = textareaRef.current;
+      if (!current) return;
+      current.setSelectionRange(nextPosition, nextPosition);
+      if (!current.matches(':focus')) current.focus();
+    });
+  }, [atSymbolPosition, input, setInput, textareaRef]);
+
+  const handleFileMentionsKeyDown = useCallback((event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    if (!showFileDropdown || !filteredFiles.length) return false;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setSelectedFileIndex((index) => index < filteredFiles.length - 1 ? index + 1 : 0);
+      return true;
     }
-    return fileMentions.filter((path) => input.includes(path));
-  }, [fileMentions, input]);
-
-  const sortedFileMentions = useMemo(() => {
-    if (activeFileMentions.length === 0) {
-      return [];
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setSelectedFileIndex((index) => index > 0 ? index - 1 : filteredFiles.length - 1);
+      return true;
     }
-    const uniqueMentions = Array.from(new Set(activeFileMentions));
-    return uniqueMentions.sort((mentionA, mentionB) => mentionB.length - mentionA.length);
-  }, [activeFileMentions]);
-
-  const fileMentionRegex = useMemo(() => {
-    if (sortedFileMentions.length === 0) {
-      return null;
+    if (event.key === 'Tab' || event.key === 'Enter') {
+      event.preventDefault();
+      selectFile(filteredFiles[selectedFileIndex >= 0 ? selectedFileIndex : 0]);
+      return true;
     }
-    const pattern = sortedFileMentions.map(escapeRegExp).join('|');
-    return new RegExp(`(${pattern})`, 'g');
-  }, [sortedFileMentions]);
-
-  const fileMentionSet = useMemo(() => new Set(sortedFileMentions), [sortedFileMentions]);
-
-  const renderInputWithMentions = useCallback(
-    (text: string) => {
-      if (!text) {
-        return '';
-      }
-      if (!fileMentionRegex) {
-        return text;
-      }
-
-      const parts = text.split(fileMentionRegex);
-      return parts.map((part, index) =>
-        fileMentionSet.has(part) ? (
-          <span
-            key={`mention-${index}`}
-            className="-ml-0.5 rounded-md bg-primary/20 box-decoration-clone px-0.5 text-transparent"
-          >
-            {part}
-          </span>
-        ) : (
-          <span key={`text-${index}`}>{part}</span>
-        ),
-      );
-    },
-    [fileMentionRegex, fileMentionSet],
-  );
-
-  const selectFile = useCallback(
-    (file: MentionableFile) => {
-      const textBeforeAt = input.slice(0, atSymbolPosition);
-      const textAfterAtQuery = input.slice(atSymbolPosition);
-      const spaceIndex = textAfterAtQuery.indexOf(' ');
-      const textAfterQuery = spaceIndex !== -1 ? textAfterAtQuery.slice(spaceIndex) : '';
-
-      const newInput = `${textBeforeAt}${file.path} ${textAfterQuery}`;
-      const newCursorPosition = textBeforeAt.length + file.path.length + 1;
-
-      if (textareaRef.current && !textareaRef.current.matches(':focus')) {
-        textareaRef.current.focus();
-      }
-
-      setInput(newInput);
-      setCursorPosition(newCursorPosition);
-      setFileMentions((previousMentions) =>
-        previousMentions.includes(file.path) ? previousMentions : [...previousMentions, file.path],
-      );
-
+    if (event.key === 'Escape') {
+      event.preventDefault();
       setShowFileDropdown(false);
-      setAtSymbolPosition(-1);
+      return true;
+    }
+    return false;
+  }, [filteredFiles, selectedFileIndex, selectFile, showFileDropdown]);
 
-      if (!textareaRef.current) {
-        return;
-      }
-
-      requestAnimationFrame(() => {
-        if (!textareaRef.current) {
-          return;
-        }
-        textareaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
-        if (!textareaRef.current.matches(':focus')) {
-          textareaRef.current.focus();
-        }
-      });
-    },
-    [input, atSymbolPosition, textareaRef, setInput],
-  );
-
-  const handleFileMentionsKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
-      if (!showFileDropdown || filteredFiles.length === 0) {
-        return false;
-      }
-
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        setSelectedFileIndex((previousIndex) =>
-          previousIndex < filteredFiles.length - 1 ? previousIndex + 1 : 0,
-        );
-        return true;
-      }
-
-      if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        setSelectedFileIndex((previousIndex) =>
-          previousIndex > 0 ? previousIndex - 1 : filteredFiles.length - 1,
-        );
-        return true;
-      }
-
-      if (event.key === 'Tab' || event.key === 'Enter') {
-        event.preventDefault();
-        if (selectedFileIndex >= 0) {
-          selectFile(filteredFiles[selectedFileIndex]);
-        } else if (filteredFiles.length > 0) {
-          selectFile(filteredFiles[0]);
-        }
-        return true;
-      }
-
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setShowFileDropdown(false);
-        return true;
-      }
-
-      return false;
-    },
-    [showFileDropdown, filteredFiles, selectedFileIndex, selectFile],
-  );
-
-  return {
-    showFileDropdown,
-    filteredFiles,
-    selectedFileIndex,
-    renderInputWithMentions,
-    selectFile,
-    setCursorPosition,
-    handleFileMentionsKeyDown,
-  };
+  return { showFileDropdown, filteredFiles, selectedFileIndex, renderInputWithMentions, selectFile, setCursorPosition, handleFileMentionsKeyDown };
 }

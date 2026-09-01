@@ -1,8 +1,16 @@
 import { BRAND_NAME, GAJAE_APP_WORDMARK_FONT_FAMILY } from '../../../constants/branding';
 
-const loadingDotAnimationDelays = ['0s', '0.15s', '0.3s'];
+const dotDelays = ['0s', '0.15s', '0.3s'];
 
 export default function AuthLoadingScreen() {
+  const dots = dotDelays.map((animationDelay) => (
+    <div
+      key={animationDelay}
+      className="h-2 w-2 animate-bounce rounded-full bg-primary"
+      style={{ animationDelay }}
+    />
+  ));
+
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
       <div aria-hidden className="pointer-events-none absolute inset-0">
@@ -24,13 +32,7 @@ export default function AuthLoadingScreen() {
         </h1>
         <p className="sr-only">Loading authentication state…</p>
         <div aria-hidden className="flex items-center justify-center gap-2">
-          {loadingDotAnimationDelays.map((delay) => (
-            <div
-              key={delay}
-              className="h-2 w-2 animate-bounce rounded-full bg-primary"
-              style={{ animationDelay: delay }}
-            />
-          ))}
+          {dots}
         </div>
       </div>
     </div>

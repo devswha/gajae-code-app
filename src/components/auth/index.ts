@@ -1,2 +1,4 @@
-export { AuthProvider, useAuth } from './context/AuthContext';
-export { default as ProtectedRoute } from './view/ProtectedRoute';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import ProtectedRoute from './view/ProtectedRoute';
+
+export { AuthProvider, ProtectedRoute, useAuth };

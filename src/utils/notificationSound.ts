@@ -1,83 +1,52 @@
-const NOTIFICATION_SOUND_ENABLED_STORAGE_KEY = 'notificationSoundEnabled';
-const AudioContextConstructor =
-  typeof window !== 'undefined'
-    ? window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    : undefined;
+const SOUND_PREFERENCE = 'notificationSoundEnabled';
+const audioApi = typeof window === 'undefined'
+  ? undefined
+  : window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
 
-let audioContext: AudioContext | null = null;
+let sharedContext: AudioContext | null = null;
 
-export const isNotificationSoundEnabled = (): boolean => {
-  if (typeof localStorage === 'undefined') {
-    return true;
-  }
+const preferenceAllowsSound = (): boolean => typeof localStorage === 'undefined'
+  || localStorage.getItem(SOUND_PREFERENCE) !== 'false';
 
-  return localStorage.getItem(NOTIFICATION_SOUND_ENABLED_STORAGE_KEY) !== 'false';
-};
+export const isNotificationSoundEnabled = (): boolean => preferenceAllowsSound();
 
 export const setNotificationSoundEnabled = (enabled: boolean): void => {
-  if (typeof localStorage === 'undefined') {
-    return;
-  }
-
-  localStorage.setItem(NOTIFICATION_SOUND_ENABLED_STORAGE_KEY, String(enabled));
+  if (typeof localStorage !== 'undefined') localStorage.setItem(SOUND_PREFERENCE, `${enabled}`);
 };
 
-const getAudioContext = (): AudioContext | null => {
-  if (!AudioContextConstructor) {
-    return null;
-  }
-
-  if (!audioContext) {
-    audioContext = new AudioContextConstructor();
-  }
-
-  return audioContext;
+const contextForPlayback = (): AudioContext | null => {
+  if (!audioApi) return null;
+  sharedContext ??= new audioApi();
+  return sharedContext;
 };
 
-const playTone = (
-  context: AudioContext,
-  frequency: number,
-  startsAt: number,
-  duration: number,
-  peakVolume: number,
-): void => {
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-
-  oscillator.type = 'sine';
-  oscillator.frequency.setValueAtTime(frequency, startsAt);
-
-  // Shape the volume so the synthesized tone starts and stops cleanly.
-  gain.gain.setValueAtTime(0.0001, startsAt);
-  gain.gain.exponentialRampToValueAtTime(peakVolume, startsAt + 0.015);
-  gain.gain.exponentialRampToValueAtTime(0.0001, startsAt + duration);
-
-  oscillator.connect(gain);
-  gain.connect(context.destination);
-  oscillator.start(startsAt);
-  oscillator.stop(startsAt + duration + 0.02);
+const addNote = (context: AudioContext, frequency: number, time: number, length: number, volume: number): void => {
+  const source = context.createOscillator();
+  const envelope = context.createGain();
+  source.type = 'sine';
+  source.frequency.setValueAtTime(frequency, time);
+  envelope.gain.setValueAtTime(0.0001, time);
+  envelope.gain.exponentialRampToValueAtTime(volume, time + 0.015);
+  envelope.gain.exponentialRampToValueAtTime(0.0001, time + length);
+  source.connect(envelope);
+  envelope.connect(context.destination);
+  source.start(time);
+  source.stop(time + length + 0.02);
 };
 
 export const playNotificationSound = async ({ force = false } = {}): Promise<void> => {
-  if (!force && !isNotificationSoundEnabled()) {
-    return;
-  }
+  if (!force && !preferenceAllowsSound()) return;
 
-  const context = getAudioContext();
-  if (!context) {
-    return;
-  }
+  const context = contextForPlayback();
+  if (!context) return;
 
   try {
-    if (context.state === 'suspended') {
-      await context.resume();
-    }
-
-    const now = context.currentTime;
-    playTone(context, 740, now, 0.12, 0.075);
-    playTone(context, 988, now + 0.11, 0.16, 0.06);
+    if (context.state === 'suspended') await context.resume();
+    const firstNoteAt = context.currentTime;
+    addNote(context, 740, firstNoteAt, 0.12, 0.075);
+    addNote(context, 988, firstNoteAt + 0.11, 0.16, 0.06);
   } catch (error) {
-    // Browsers may block audio until the page receives a user gesture.
+    // Autoplay policy can reject playback before an interaction occurs.
     console.warn('Unable to play notification sound:', error);
   }
 };

@@ -1,50 +1,35 @@
-function fallbackCopyToClipboard(text: string): boolean {
-  if (!text || typeof document === 'undefined') {
-    return false;
-  }
+const copyWithSelection = (value: string): boolean => {
+  if (!value || typeof document === 'undefined') return false;
 
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
-  textarea.setAttribute('readonly', '');
-  textarea.style.position = 'fixed';
-  textarea.style.opacity = '0';
-  textarea.style.pointerEvents = 'none';
+  const field = document.createElement('textarea');
+  field.value = value;
+  field.setAttribute('readonly', '');
+  Object.assign(field.style, { position: 'fixed', opacity: '0', pointerEvents: 'none' });
+  document.body.appendChild(field);
+  field.focus();
+  field.select();
 
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-
-  let copied = false;
   try {
-    copied = document.execCommand('copy');
+    return document.execCommand('copy');
   } catch {
-    copied = false;
+    // Older document implementations can reject the legacy command.
+    return false;
   } finally {
-    document.body.removeChild(textarea);
+    document.body.removeChild(field);
   }
-
-  return copied;
-}
+};
 
 export async function copyTextToClipboard(text: string): Promise<boolean> {
-  if (!text) {
-    return false;
-  }
-
-  let copied = false;
+  if (!text) return false;
 
   try {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
-      copied = true;
+      return true;
     }
   } catch {
-    copied = false;
+    // A denied asynchronous clipboard request falls through to selection copy.
   }
 
-  if (!copied) {
-    copied = fallbackCopyToClipboard(text);
-  }
-
-  return copied;
+  return copyWithSelection(text);
 }

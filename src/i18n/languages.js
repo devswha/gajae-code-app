@@ -1,88 +1,20 @@
-/**
- * Supported Languages Configuration
- *
- * This file contains the list of supported languages for the application.
- * Each language includes:
- * - value: Language code (e.g., 'en', 'zh-CN')
- * - label: Display name in English
- * - nativeName: Native language name for display
- */
-
-export const languages = [
-  {
-    value: 'en',
-    label: 'English',
-    nativeName: 'English',
-  },
-  {
-    value: 'fr',
-    label: 'French',
-    nativeName: 'Français',
-  },
-  {
-    value: 'ko',
-    label: 'Korean',
-    nativeName: '한국어',
-  },
-  {
-    value: 'zh-CN',
-    label: 'Simplified Chinese',
-    nativeName: '简体中文',
-  },
-  {
-    value: 'zh-TW',
-    label: 'Traditional Chinese',
-    nativeName: '繁體中文',
-  },
-  {
-    value: 'ja',
-    label: 'Japanese',
-    nativeName: '日本語',
-  },
-  {
-    value: 'ru',
-    label: 'Russian',
-    nativeName: 'Русский',
-  },
-  {
-    value: 'de',
-    label: 'German',
-    nativeName: 'Deutsch',
-  },
-  {
-    value: 'tr',
-    label: 'Turkish',
-    nativeName: 'Türkçe',
-  },
-  {
-    value: 'it',
-    label: 'Italian',
-    nativeName: 'Italiano',
-  },
+const languageDetails = [
+  ['en', 'English', 'English'],
+  ['fr', 'French', 'Français'],
+  ['ko', 'Korean', '한국어'],
+  ['zh-CN', 'Simplified Chinese', '简体中文'],
+  ['zh-TW', 'Traditional Chinese', '繁體中文'],
+  ['ja', 'Japanese', '日本語'],
+  ['ru', 'Russian', 'Русский'],
+  ['de', 'German', 'Deutsch'],
+  ['tr', 'Turkish', 'Türkçe'],
+  ['it', 'Italian', 'Italiano'],
 ];
 
-/**
- * Get language object by value
- * @param {string} value - Language code
- * @returns {Object|undefined} Language object or undefined if not found
- */
-export const getLanguage = (value) => {
-  return languages.find(lang => lang.value === value);
-};
+export const languages = languageDetails.map(([value, label, nativeName]) => ({ value, label, nativeName }));
 
-/**
- * Get all language values
- * @returns {string[]} Array of language codes
- */
-export const getLanguageValues = () => {
-  return languages.map(lang => lang.value);
-};
+export const getLanguage = (value) => languages.find(({ value: code }) => code === value);
 
-/**
- * Check if a language is supported
- * @param {string} value - Language code to check
- * @returns {boolean} True if language is supported
- */
-export const isLanguageSupported = (value) => {
-  return languages.some(lang => lang.value === value);
-};
+export const getLanguageValues = () => languages.map(({ value }) => value);
+
+export const isLanguageSupported = (value) => getLanguage(value) !== undefined;

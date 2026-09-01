@@ -1,112 +1,69 @@
-const COMPLETION_TITLE_INDICATOR = '[Done]';
-const TITLE_INDICATOR_CLEAR_DELAY_MS = 2000;
+const DONE_PREFIX = '[Done] ';
+const RESET_AFTER_MS = 2000;
 
-let clearTimer: number | null = null;
-let returnListenersAttached = false;
+let resetId: number | null = null;
+let waitsForReturn = false;
 
-const getIndicatorPrefix = () => `${COMPLETION_TITLE_INDICATOR} `;
+const titleWithoutNotice = (title: string): string => title.startsWith(DONE_PREFIX)
+  ? title.slice(DONE_PREFIX.length)
+  : title;
 
-const stripIndicator = (title: string): string => {
-  const prefix = getIndicatorPrefix();
-  return title.startsWith(prefix) ? title.slice(prefix.length) : title;
+const isForeground = (): boolean => document.visibilityState === 'visible' && document.hasFocus();
+
+const stopReset = (): void => {
+  if (resetId === null) return;
+  window.clearTimeout(resetId);
+  resetId = null;
 };
 
-const pageIsActive = (): boolean => (
-  document.visibilityState === 'visible' && document.hasFocus()
-);
-
-const removeReturnListeners = (): void => {
-  if (!returnListenersAttached || typeof window === 'undefined') {
-    return;
-  }
-
-  document.removeEventListener('visibilitychange', handleUserReturn);
-  window.removeEventListener('focus', handleUserReturn, true);
-  window.removeEventListener('click', handleUserReturn, true);
-  returnListenersAttached = false;
+const detachReturnWatchers = (): void => {
+  if (!waitsForReturn || typeof window === 'undefined') return;
+  document.removeEventListener('visibilitychange', resetAfterReturn);
+  window.removeEventListener('focus', resetAfterReturn, true);
+  window.removeEventListener('click', resetAfterReturn, true);
+  waitsForReturn = false;
 };
 
-const clearTitleIndicator = (): void => {
-  if (clearTimer !== null) {
-    window.clearTimeout(clearTimer);
-    clearTimer = null;
-  }
-
-  removeReturnListeners();
-  removePageInactiveListener();
-
-  if (document.title.startsWith(getIndicatorPrefix())) {
-    document.title = stripIndicator(document.title);
-  }
+const resetTitle = (): void => {
+  stopReset();
+  detachReturnWatchers();
+  document.removeEventListener('visibilitychange', pauseReset);
+  if (document.title.startsWith(DONE_PREFIX)) document.title = titleWithoutNotice(document.title);
 };
 
-const removePageInactiveListener = (): void => {
-  document.removeEventListener('visibilitychange', handlePageInactive);
+const waitForReturn = (): void => {
+  if (waitsForReturn) return;
+  document.addEventListener('visibilitychange', resetAfterReturn);
+  window.addEventListener('focus', resetAfterReturn, true);
+  window.addEventListener('click', resetAfterReturn, true);
+  waitsForReturn = true;
 };
 
-const scheduleClear = (): void => {
-  if (clearTimer !== null) {
-    window.clearTimeout(clearTimer);
-  }
-
-  clearTimer = window.setTimeout(() => {
-    clearTitleIndicator();
-  }, TITLE_INDICATOR_CLEAR_DELAY_MS);
-
-  removePageInactiveListener();
-  document.addEventListener('visibilitychange', handlePageInactive, { once: true });
+const armReset = (): void => {
+  stopReset();
+  resetId = window.setTimeout(resetTitle, RESET_AFTER_MS);
+  document.removeEventListener('visibilitychange', pauseReset);
+  document.addEventListener('visibilitychange', pauseReset, { once: true });
 };
 
-function handleUserReturn(): void {
-  if (!pageIsActive()) {
-    return;
-  }
-
-  // Background completions keep the marker indefinitely. A tab click normally
-  // surfaces as visibility/focus, while an in-page click is a useful fallback.
-  scheduleClear();
+function resetAfterReturn(): void {
+  if (isForeground()) armReset();
 }
 
-function handlePageInactive(): void {
-  if (document.visibilityState !== 'hidden') {
-    return;
-  }
-
-  if (clearTimer !== null) {
-    window.clearTimeout(clearTimer);
-    clearTimer = null;
-  }
-
-  if (!returnListenersAttached) {
-    document.addEventListener('visibilitychange', handleUserReturn);
-    window.addEventListener('focus', handleUserReturn, true);
-    window.addEventListener('click', handleUserReturn, true);
-    returnListenersAttached = true;
-  }
+function pauseReset(): void {
+  if (document.visibilityState !== 'hidden') return;
+  stopReset();
+  waitForReturn();
 }
 
 export const showCompletionTitleIndicator = (): void => {
-  if (typeof document === 'undefined' || typeof window === 'undefined') {
-    return;
-  }
+  if (typeof document === 'undefined' || typeof window === 'undefined') return;
 
-  const baseTitle = stripIndicator(document.title || 'Gajae Code App');
-  document.title = `${getIndicatorPrefix()}${baseTitle}`;
-
-  if (pageIsActive()) {
-    scheduleClear();
-    return;
-  }
-
-  if (clearTimer !== null) {
-    window.clearTimeout(clearTimer);
-    clearTimer = null;
-  }
-
-  if (!returnListenersAttached) {
-    document.addEventListener('visibilitychange', handleUserReturn);
-    window.addEventListener('focus', handleUserReturn, true);
-    window.addEventListener('click', handleUserReturn, true);
-    returnListenersAttached = true;
+  document.title = `${DONE_PREFIX}${titleWithoutNotice(document.title || 'Gajae Code App')}`;
+  if (isForeground()) {
+    armReset();
+  } else {
+    stopReset();
+    waitForReturn();
   }
 };

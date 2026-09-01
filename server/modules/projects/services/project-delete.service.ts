@@ -4,87 +4,54 @@ import path from 'node:path';
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { AppError } from '@/shared/utils.js';
 
-function uniqueJsonlPathsFromSessions(
-  sessions: Array<{ jsonl_path: string | null }>,
-): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-
-  for (const row of sessions) {
-    const raw = row.jsonl_path?.trim();
-    if (!raw) {
-      continue;
-    }
-    const absolute = path.isAbsolute(raw) ? path.normalize(raw) : path.resolve(raw);
-    if (seen.has(absolute)) {
-      continue;
-    }
-    seen.add(absolute);
-    result.push(absolute);
-  }
-
-  return result;
+function projectNotFound(projectId: string): AppError {
+  return new AppError(`Unknown projectId: ${projectId}`, {
+    code: 'PROJECT_NOT_FOUND',
+    statusCode: 404,
+  });
 }
 
-async function unlinkJsonlIfExists(filePath: string): Promise<void> {
+function sessionFiles(rows: Array<{ jsonl_path: string | null }>): string[] {
+  const files = new Set<string>();
+
+  for (const { jsonl_path: candidate } of rows) {
+    const trimmed = candidate?.trim();
+    if (trimmed) files.add(path.isAbsolute(trimmed) ? path.normalize(trimmed) : path.resolve(trimmed));
+  }
+
+  return [...files];
+}
+
+async function removeSessionFile(filePath: string): Promise<void> {
   try {
     await fs.unlink(filePath);
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT') {
-      return;
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.warn(`[project-delete] Failed to remove ${filePath}:`, (error as Error).message);
     }
-    console.warn(`[project-delete] Failed to remove ${filePath}:`, (error as Error).message);
   }
 }
 
-/**
- * Loads all session rows for the project path and removes each distinct `jsonl_path` file on disk.
- */
 export async function deleteSessionJsonlFilesForProjectPath(projectPath: string): Promise<void> {
-  const sessions = sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath);
-  const paths = uniqueJsonlPathsFromSessions(sessions);
-
-  for (const filePath of paths) {
-    await unlinkJsonlIfExists(filePath);
-  }
+  const sessionRows = sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath);
+  for (const filePath of sessionFiles(sessionRows)) await removeSessionFile(filePath);
 }
 
-/**
- * - **Soft delete** (`force` false): set `isArchived` on the `projects` row (hide from the active list; DB only).
- * - **Force** (`force` true): for each session row for that `project_path`, delete the file at `jsonl_path`
- *   (when set), then remove session rows and the `projects` row.
- */
 export async function deleteOrArchiveProject(projectId: string, force: boolean): Promise<void> {
-  const row = projectsDb.getProjectById(projectId);
-  if (!row) {
-    throw new AppError(`Unknown projectId: ${projectId}`, {
-      code: 'PROJECT_NOT_FOUND',
-      statusCode: 404,
-    });
-  }
+  const project = projectsDb.getProjectById(projectId);
+  if (!project) throw projectNotFound(projectId);
 
-  if (!force) {
-    projectsDb.updateProjectIsArchivedById(projectId, true);
+  if (force) {
+    await deleteSessionJsonlFilesForProjectPath(project.project_path);
+    sessionsDb.deleteSessionsByProjectPath(project.project_path);
+    projectsDb.deleteProjectById(projectId);
     return;
   }
 
-  await deleteSessionJsonlFilesForProjectPath(row.project_path);
-  sessionsDb.deleteSessionsByProjectPath(row.project_path);
-  projectsDb.deleteProjectById(projectId);
+  projectsDb.updateProjectIsArchivedById(projectId, true);
 }
 
-/**
- * Restores one archived project row back into the active project list.
- */
 export function restoreArchivedProject(projectId: string): void {
-  const row = projectsDb.getProjectById(projectId);
-  if (!row) {
-    throw new AppError(`Unknown projectId: ${projectId}`, {
-      code: 'PROJECT_NOT_FOUND',
-      statusCode: 404,
-    });
-  }
-
+  if (!projectsDb.getProjectById(projectId)) throw projectNotFound(projectId);
   projectsDb.updateProjectIsArchivedById(projectId, false);
 }

@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import type { MainContentProps } from '../types/types';
 import type { CodeEditorDiffInfo } from '../../code-editor/types/types';
@@ -35,49 +35,33 @@ function MainContent({
   onShowSettings,
   newSessionTrigger,
 }: MainContentProps) {
-  const { preferences } = useUiPreferences();
-  const { showRawParameters, showThinking, showImagePreviews, sendByCtrlEnter } = preferences;
+  const { showImagePreviews, showRawParameters, showThinking, sendByCtrlEnter } = useUiPreferences().preferences;
+  const panel = useWorkspacePanel({ isMobile });
+  const { closePanel, containerRef, expanded, handleResizeKeyDown, handleResizeStart, isOpen, resizeHandleRef, setTab, tab, toggleExpanded, togglePanel, width } = panel;
+  const { editingFile, handleCloseEditor, handleFileOpen } = useEditorFile({ selectedProject });
+  const [pendingBrowserNavigation, setPendingBrowserNavigation] = useState<{ id: number; url: string } | null>(null);
+  const navigationSequence = useRef(0);
 
-  const workspace = useWorkspacePanel({ isMobile });
-  const [browserNavigation, setBrowserNavigation] = useState<{ id: number; url: string } | null>(null);
-  const browserNavigationIdRef = useRef(0);
+  const revealFile = useCallback((path: string, diff: CodeEditorDiffInfo | null = null, options: { projectId?: string } = {}) => {
+    handleFileOpen(path, diff, options);
+    setTab('editor');
+  }, [handleFileOpen, setTab]);
 
-  const { editingFile, handleFileOpen, handleCloseEditor } = useEditorFile({ selectedProject });
-
-  // Opening a file is a request to see it, so the panel comes along with it.
-  const openFileInWorkspace = useCallback(
-    (filePath: string, diffInfo: CodeEditorDiffInfo | null = null, options: { projectId?: string } = {}) => {
-      handleFileOpen(filePath, diffInfo, options);
-      workspace.setTab('editor');
-    },
-    [handleFileOpen, workspace],
-  );
-
-  // Resolves bare/partial file references (e.g. links inside chat messages) to
-  // real project files before opening them in the in-app editor.
-  const resolvedFileOpen = useFileOpenResolver(selectedProject, openFileInWorkspace);
+  const resolveFile = useFileOpenResolver(selectedProject, revealFile);
 
   useEffect(() => {
-    // Shell/Git/Files tabs were removed; a persisted selection would render a
-    // blank main area, so bounce it back to chat (Files lives in the Workspace
-    // panel).
     if (activeTab === 'shell' || activeTab === 'git' || activeTab === 'files') {
       setActiveTab('chat');
     }
   }, [activeTab, setActiveTab]);
 
   usePaletteOpsRegister({
-    openFile: (filePath: string) => {
-      openFileInWorkspace(filePath);
-    },
-    // Opens the file in the Workspace editor tab, keeping the chat in place.
-    openFileInEditor: (filePath: string) => {
-      resolvedFileOpen(filePath);
-    },
-    openBrowser: (url: string) => {
-      browserNavigationIdRef.current += 1;
-      setBrowserNavigation({ id: browserNavigationIdRef.current, url });
-      workspace.setTab('browser');
+    openFile: revealFile,
+    openFileInEditor: resolveFile,
+    openBrowser: (address: string) => {
+      navigationSequence.current += 1;
+      setPendingBrowserNavigation({ id: navigationSequence.current, url: address });
+      setTab('browser');
     },
   });
 
@@ -110,13 +94,13 @@ function MainContent({
         selectedSession={selectedSession}
         isMobile={isMobile}
         onMenuClick={onMenuClick}
-        workspaceOpen={workspace.isOpen}
-        onToggleWorkspace={workspace.togglePanel}
+        workspaceOpen={isOpen}
+        onToggleWorkspace={togglePanel}
       />
 
       <SessionStatusProvider>
-      <div ref={workspace.containerRef} className="flex min-h-0 flex-1 overflow-hidden">
-        <div className={`flex min-h-0 min-w-50 flex-1 flex-col overflow-hidden ${workspace.expanded ? 'hidden' : ''}`}>
+      <div ref={containerRef} className="flex min-h-0 flex-1 overflow-hidden">
+        <div className={`flex min-h-0 min-w-50 flex-1 flex-col overflow-hidden ${expanded ? 'hidden' : ''}`}>
           <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
             <ErrorBoundary showDetails>
               <Suspense fallback={null}>
@@ -125,7 +109,7 @@ function MainContent({
                   selectedSession={selectedSession}
                   ws={ws}
                   sendMessage={sendMessage}
-                  onFileOpen={openFileInWorkspace}
+                  onFileOpen={revealFile}
                   onInputFocusChange={onInputFocusChange}
                   onSessionProcessing={onSessionProcessing}
                   onSessionIdle={onSessionIdle}
@@ -144,27 +128,27 @@ function MainContent({
           </div>
         </div>
 
-        {workspace.isOpen && (
+        {isOpen && (
           <Suspense fallback={null}>
             <WorkspacePanel
-              tab={workspace.tab}
-              width={workspace.width}
-              expanded={workspace.expanded}
+              tab={tab}
+              width={width}
+              expanded={expanded}
               isMobile={isMobile}
               editingFile={editingFile}
               projectName={selectedProject.displayName}
               projectPath={selectedProject.path}
               projectId={selectedProject.projectId}
               automationSessionId={selectedSession?.id ?? `project-${selectedProject.projectId}`}
-              browserNavigation={browserNavigation}
-              onBrowserNavigationHandled={() => setBrowserNavigation(null)}
-              resizeHandleRef={workspace.resizeHandleRef}
-              onTabChange={workspace.setTab}
-              onResizeStart={workspace.handleResizeStart}
-              onResizeKeyDown={workspace.handleResizeKeyDown}
-              onToggleExpand={workspace.toggleExpanded}
-              onClose={workspace.closePanel}
-              onFileOpen={(filePath, projectId) => openFileInWorkspace(filePath, null, { projectId })}
+              browserNavigation={pendingBrowserNavigation}
+              onBrowserNavigationHandled={() => setPendingBrowserNavigation(null)}
+              resizeHandleRef={resizeHandleRef}
+              onTabChange={setTab}
+              onResizeStart={handleResizeStart}
+              onResizeKeyDown={handleResizeKeyDown}
+              onToggleExpand={toggleExpanded}
+              onClose={closePanel}
+              onFileOpen={(filePath, projectId) => revealFile(filePath, null, { projectId })}
               onCloseEditor={handleCloseEditor}
             />
           </Suspense>
@@ -175,4 +159,4 @@ function MainContent({
   );
 }
 
-export default React.memo(MainContent);
+export default MainContent;

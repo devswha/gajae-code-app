@@ -16,15 +16,15 @@ import { hiddenKeyboardHeight } from './appContentUtils';
 import { useRunningSessionsSync } from './useRunningSessionsSync';
 
 export default function AppContent() {
-  const navigate = useNavigate();
+  const go = useNavigate();
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { t } = useTranslation('common');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
   const { ws, sendMessage, subscribe } = useWebSocket();
   const {
     processingSessions,
-    markSessionProcessing,
-    markSessionIdle,
+    markSessionProcessing: markProcessing,
+    markSessionIdle: markIdle,
     syncProcessingSessions,
   } = useSessionProtection();
 
@@ -45,31 +45,29 @@ export default function AppContent() {
     handleNewSession,
   } = useProjectsState({
     sessionId,
-    navigate,
+    navigate: go,
     subscribe,
     isMobile,
     activeSessions: processingSessions,
   });
 
-  const sidebarProps = sidebarSharedProps;
-  // Queued messages for sessions that finish while another session (or none)
-  // is being viewed are sent from here; the viewed session's composer handles
-  // its own queue.
+  const activeSessionId = selectedSession?.id ?? sessionId ?? null;
   useQueuedMessageAutoSend({
     processingSessions,
-    activeSessionId: selectedSession?.id ?? sessionId ?? null,
+    activeSessionId,
     ws,
     sendMessage,
-    markSessionProcessing,
+    markSessionProcessing: markProcessing,
   });
 
   useRunningSessionsSync(syncProcessingSessions);
 
-  const startNewChat = useCallback(() => {
-    if (selectedProject) {
-      handleNewSession(selectedProject);
-    }
-  }, [handleNewSession, selectedProject]);
+  const startNewChat = useCallback(
+    () => {
+      if (selectedProject) handleNewSession(selectedProject);
+    },
+    [handleNewSession, selectedProject],
+  );
 
   usePaletteOpsRegister({
     openSettings,
@@ -77,34 +75,16 @@ export default function AppContent() {
     startNewChat,
   });
 
-  // Pending tool permissions are recovered through the `chat.subscribe` flow:
-  // the `chat_subscribed` ack carries them on session open and on reconnect,
-  // so no separate permission-recovery message is needed here.
-
-  // Keep the app shell above the on-screen keyboard. The shell's height
-  // already tracks the dynamic viewport (the .fixed.inset-0 rule in
-  // index.css), which covers collapsible browser chrome on mobile. iOS
-  // overlays the keyboard without resizing that viewport, so the Visual
-  // Viewport API measures the covered height and index.css subtracts it
-  // through --keyboard-height. Chrome for Android (interactive-widget=
-  // resizes-content in index.html) resizes the layout viewport itself, the
-  // gap stays near zero there, and the variable settles at 0.
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const update = () => {
-      // Only resize matters — keyboard open/close changes vv.height.
-      // Do NOT listen to scroll: on iOS Safari, scrolling content changes
-      // vv.offsetTop which would make --keyboard-height fluctuate during
-      // normal scrolling, causing the container to bounce up and down.
-      const kb = hiddenKeyboardHeight(document.documentElement.clientHeight, vv.height);
-      document.documentElement.style.setProperty('--keyboard-height', `${kb}px`);
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const updateKeyboardInset = () => {
+      const inset = hiddenKeyboardHeight(document.documentElement.clientHeight, viewport.height);
+      document.documentElement.style.setProperty('--keyboard-height', `${inset}px`);
     };
-    // Sync once on mount: a session restored with the keyboard already up
-    // would otherwise keep --keyboard-height at 0 until the first resize.
-    update();
-    vv.addEventListener('resize', update);
-    return () => vv.removeEventListener('resize', update);
+    updateKeyboardInset();
+    viewport.addEventListener('resize', updateKeyboardInset);
+    return () => viewport.removeEventListener('resize', updateKeyboardInset);
   }, []);
 
 
@@ -112,7 +92,7 @@ export default function AppContent() {
     <div className="fixed inset-0 flex bg-background">
       {!isMobile ? (
         <div className="h-full shrink-0 border-r border-border/50">
-          <Sidebar {...sidebarProps} />
+          <Sidebar {...sidebarSharedProps} />
         </div>
       ) : (
         <div
@@ -138,7 +118,7 @@ export default function AppContent() {
             onClick={(event) => event.stopPropagation()}
             onTouchStart={(event) => event.stopPropagation()}
           >
-            <Sidebar {...sidebarProps} />
+            <Sidebar {...sidebarSharedProps} />
           </div>
         </div>
       )}
@@ -155,11 +135,11 @@ export default function AppContent() {
           onMenuClick={() => setSidebarOpen(true)}
           isLoading={isLoadingProjects}
           onInputFocusChange={setIsInputFocused}
-          onSessionProcessing={markSessionProcessing}
-          onSessionIdle={markSessionIdle}
+          onSessionProcessing={markProcessing}
+          onSessionIdle={markIdle}
           processingSessions={processingSessions}
           onNavigateToSession={(targetSessionId: string, options) =>
-            navigate(`/session/${targetSessionId}`, { replace: Boolean(options?.replace) })
+            go(`/session/${targetSessionId}`, { replace: Boolean(options?.replace) })
           }
           onSessionEstablished={(targetSessionId, context) =>
             registerOptimisticSession({ sessionId: targetSessionId, ...context })

@@ -4,32 +4,15 @@ import {
   type FallbackProps,
 } from 'react-error-boundary';
 
-type ErrorFallbackProps = FallbackProps & {
-  showDetails: boolean;
-  componentStack: string | null;
-};
+type ErrorFallbackProps = FallbackProps & { showDetails: boolean; componentStack: string | null };
+type ErrorBoundaryProps = { children: ReactNode; showDetails?: boolean; onRetry?: () => void; resetKeys?: unknown[] };
 
-type ErrorBoundaryProps = {
-  children: ReactNode;
-  showDetails?: boolean;
-  onRetry?: () => void;
-  resetKeys?: unknown[];
-};
+const describeError = (failure: unknown) => failure instanceof Error
+  ? `${failure.name}: ${failure.message}`
+  : String(failure);
 
-function formatError(error: unknown): string {
-  if (error instanceof Error) {
-    return `${error.name}: ${error.message}`;
-  }
-
-  return String(error);
-}
-
-function ErrorFallback({
-  error,
-  resetErrorBoundary,
-  showDetails,
-  componentStack,
-}: ErrorFallbackProps) {
+function ErrorFallback(props: ErrorFallbackProps) {
+  const { componentStack, error, resetErrorBoundary, showDetails } = props;
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center">
       <div className="max-w-md rounded-lg border border-destructive/30 bg-destructive/10 p-6">
@@ -51,7 +34,7 @@ function ErrorFallback({
             <details className="mt-4">
               <summary className="cursor-pointer font-mono text-xs">Error Details</summary>
               <pre className="mt-2 max-h-40 overflow-auto rounded bg-destructive/10 p-2 text-xs">
-                {formatError(error)}
+                {describeError(error)}
                 {componentStack}
               </pre>
             </details>
@@ -73,39 +56,37 @@ function ErrorFallback({
 function ErrorBoundary({
   children,
   showDetails = false,
-  onRetry = undefined,
-  resetKeys = undefined,
+  onRetry,
+  resetKeys,
 }: ErrorBoundaryProps) {
-  const [componentStack, setComponentStack] = useState<string | null>(null);
+  const [stack, setStack] = useState<string | null>(null);
 
-  const handleError = useCallback((error: Error, errorInfo: ErrorInfo) => {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
-    // Keep component stack for optional debug rendering in fallback UI.
-    setComponentStack(errorInfo?.componentStack ?? null);
+  const captureFailure = useCallback((failure: Error, details: ErrorInfo) => {
+    console.error('ErrorBoundary caught an error:', failure, details);
+    setStack(details.componentStack ?? null);
   }, []);
 
-  const handleReset = useCallback(() => {
-    setComponentStack(null);
+  const resetFailure = useCallback(() => {
+    setStack(null);
     onRetry?.();
   }, [onRetry]);
 
-  const renderFallback = useCallback(
-    ({ error, resetErrorBoundary }: FallbackProps) => (
+  const fallback = useCallback(
+    (fallbackProps: FallbackProps) => (
       <ErrorFallback
-        error={error}
-        resetErrorBoundary={resetErrorBoundary}
+        {...fallbackProps}
         showDetails={showDetails}
-        componentStack={componentStack}
+        componentStack={stack}
       />
     ),
-    [showDetails, componentStack]
+    [showDetails, stack]
   );
 
   return (
     <ReactErrorBoundary
-      fallbackRender={renderFallback}
-      onError={handleError}
-      onReset={handleReset}
+      fallbackRender={fallback}
+      onError={captureFailure}
+      onReset={resetFailure}
       resetKeys={resetKeys}
     >
       {children}

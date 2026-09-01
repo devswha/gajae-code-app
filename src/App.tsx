@@ -21,92 +21,50 @@ const queryClient = new QueryClient({
   },
 });
 
-/**
- * Detect the router basename from explicit runtime config or deployment hints.
- *
- * Gajae Code App can be served from a path prefix by a reverse proxy, for example:
- *   /ai/manifest.json
- *   /ai/assets/index-abc123.js
- *   /ai/icons/icon-192x192.png
- *
- * React Router needs that prefix as its basename, but the packaged app should
- * also keep working when served directly from the domain root. The direct-root
- * case is easy to misread because asset URLs such as /icons/icon-192x192.png
- * contain a directory even though there is no application basename.
- */
+type AssetHint = { kind: 'manifest' | 'script' | 'icon'; value: string };
+
+const stripAssetDirectories = (prefix: string) => {
+  const parts = prefix.split('/').filter(Boolean);
+  while (DEPLOYMENT_ASSET_DIRECTORIES.has(parts[parts.length - 1] ?? '')) parts.pop();
+  return parts.length ? `/${parts.join('/')}` : '';
+};
+
+const pathPrefixFromHint = ({ kind, value }: AssetHint) => {
+  const url = new URL(value, document.baseURI || window.location.href);
+  if (url.origin !== window.location.origin) return '';
+
+  const pathname = url.pathname.replace(/\/+$/, '');
+  if (kind === 'script') return pathname.match(/^(.*)\/assets\//)?.[1]?.replace(/\/+$/, '') ?? '';
+
+  const filenamePattern = kind === 'manifest'
+    ? /^(.*)\/(?:manifest\.json|site\.webmanifest)$/
+    : /^(.*)\/(?:favicon(?:\.[^/]+)?|apple-touch-icon(?:-[^/]+)?(?:\.[^/]+)?|mask-icon(?:\.[^/]+)?|[^/]*icon[^/]*)$/;
+  const prefix = pathname.match(filenamePattern)?.[1];
+  return prefix ? stripAssetDirectories(prefix) : '';
+};
+
 function detectRouterBasename() {
-  const explicitBasename = typeof window !== 'undefined' ? window.__ROUTER_BASENAME__ || '' : '';
-  if (explicitBasename) {
-    // Keep the deployment escape hatch authoritative. A trailing slash is
-    // harmless for humans but React Router expects a normalized basename.
-    return explicitBasename.replace(/\/+$/, '');
-  }
+  const configured = typeof window === 'undefined' ? '' : window.__ROUTER_BASENAME__ || '';
+  if (configured) return configured.replace(/\/+$/, '');
+  if (typeof window === 'undefined' || typeof document === 'undefined') return '';
 
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return '';
-  }
+  const singleHints: Array<{ kind: AssetHint['kind']; value: string | null | undefined }> = [
+    { kind: 'manifest', value: document.querySelector('link[rel="manifest"]')?.getAttribute('href') },
+    { kind: 'script', value: document.querySelector('script[type="module"][src]')?.getAttribute('src') },
+  ];
+  const iconHints = Array.from(document.querySelectorAll(
+    'link[rel~="icon"][href], link[rel="apple-touch-icon"][href], link[rel="apple-touch-icon-precomposed"][href], link[rel="mask-icon"][href]'
+  )).map((element) => ({ kind: 'icon' as const, value: element.getAttribute('href') }));
+  const hints = [...singleHints, ...iconHints].filter((hint): hint is AssetHint => Boolean(hint.value));
 
-  const candidatePaths = [
-    { kind: 'manifest' as const, value: document.querySelector('link[rel="manifest"]')?.getAttribute('href') },
-    { kind: 'script' as const, value: document.querySelector('script[type="module"][src]')?.getAttribute('src') },
-    ...Array.from(
-      document.querySelectorAll(
-        'link[rel~="icon"][href], link[rel="apple-touch-icon"][href], link[rel="apple-touch-icon-precomposed"][href], link[rel="mask-icon"][href]'
-      )
-    ).map((node) => ({
-      kind: 'icon' as const,
-      value: node.getAttribute('href'),
-    })),
-  ].filter((candidate): candidate is { kind: 'manifest' | 'script' | 'icon'; value: string } => Boolean(candidate.value));
-
-  let detectedBasename = '';
-  for (const candidate of candidatePaths) {
+  return hints.reduce((longest, hint) => {
     try {
-      const candidateUrl = new URL(candidate.value, document.baseURI || window.location.href);
-      if (candidateUrl.origin !== window.location.origin) {
-        continue;
-      }
-
-      const pathname = candidateUrl.pathname;
-      const normalizedPathname = pathname.replace(/\/+$/, '');
-
-      let normalized = '';
-      if (candidate.kind === 'script') {
-        const match = normalizedPathname.match(/^(.*)\/assets\//);
-        normalized = match?.[1] ? match[1].replace(/\/+$/, '') : '';
-      } else {
-        const manifestMatch = normalizedPathname.match(/^(.*)\/(?:manifest\.json|site\.webmanifest)$/);
-        const iconMatch = normalizedPathname.match(
-          /^(.*)\/(?:favicon(?:\.[^/]+)?|apple-touch-icon(?:-[^/]+)?(?:\.[^/]+)?|mask-icon(?:\.[^/]+)?|[^/]*icon[^/]*)$/
-        );
-        const match = candidate.kind === 'manifest' ? manifestMatch : iconMatch;
-        if (match?.[1]) {
-          const segments = match[1].split('/').filter(Boolean);
-
-          // Strip directories that describe where static files live, not where
-          // the app is mounted. This must also run for a single segment:
-          //   /icons/icon-192x192.png       -> ''
-          //   /ai/icons/icon-192x192.png    -> '/ai'
-          // The previous implementation only stripped while more than one
-          // segment remained, which incorrectly turned root deployments into a
-          // Router basename of /icons and caused a blank page after login.
-          while (segments.length > 0 && DEPLOYMENT_ASSET_DIRECTORIES.has(segments[segments.length - 1])) {
-            segments.pop();
-          }
-
-          normalized = segments.length > 0 ? `/${segments.join('/')}` : '';
-        }
-      }
-
-      if (normalized.length > detectedBasename.length) {
-        detectedBasename = normalized;
-      }
+      const candidate = pathPrefixFromHint(hint);
+      return candidate.length > longest.length ? candidate : longest;
     } catch {
-      // Ignore invalid candidate URLs and continue checking other hints.
+      return longest;
     }
-  }
-
-  return detectedBasename;
+  }, '');
 }
 
 export default function App() {

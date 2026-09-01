@@ -1,322 +1,167 @@
 import { useEffect, useReducer, useRef } from 'react';
 
-type UiPreferences = {
-  showRawParameters: boolean;
-  showThinking: boolean;
-  showImagePreviews: boolean;
-  sendByCtrlEnter: boolean;
-  sidebarVisible: boolean;
-  voiceEnabled: boolean;
-};
-
+type UiPreferences = { showRawParameters: boolean; showThinking: boolean; showImagePreviews: boolean; sendByCtrlEnter: boolean; sidebarVisible: boolean; voiceEnabled: boolean };
 type UiPreferenceKey = keyof UiPreferences;
-
-type SetPreferenceAction = {
-  type: 'set';
-  key: UiPreferenceKey;
-  value: unknown;
-};
-
-type SetManyPreferencesAction = {
-  type: 'set_many';
-  value?: Partial<Record<UiPreferenceKey, unknown>>;
-};
-
-type ResetPreferencesAction = {
-  type: 'reset';
-  value?: Partial<UiPreferences>;
-};
-
 type UiPreferencesAction =
-  | SetPreferenceAction
-  | SetManyPreferencesAction
-  | ResetPreferencesAction;
+  | { type: 'set'; key: UiPreferenceKey; value: unknown }
+  | { type: 'set_many'; value?: Partial<Record<UiPreferenceKey, unknown>> }
+  | { type: 'reset'; value?: Partial<UiPreferences> };
 
-const DEFAULTS: UiPreferences = {
+const initialValues: UiPreferences = {
   showRawParameters: false,
-  // Off by default: a replayed transcript carries no thinking duration, so the
-  // collapsed row reads "Thought for a few seconds" on every entry regardless
-  // of what happened, and the reasoning itself is already behind a click.
-  // Settings → Appearance turns it back on for anyone who wants it.
   showThinking: false,
   showImagePreviews: true,
   sendByCtrlEnter: false,
   sidebarVisible: true,
   voiceEnabled: false,
 };
+const preferenceNames = Object.keys(initialValues) as UiPreferenceKey[];
+const preferenceEvent = 'ui-preferences:sync';
 
-const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];
-const VALID_KEYS = new Set<UiPreferenceKey>(PREFERENCE_KEYS); // prevents unknown keys from being written
-const SYNC_EVENT = 'ui-preferences:sync';
-
-type SyncEventDetail = {
-  storageKey: string;
-  sourceId: string;
-  value: Partial<Record<UiPreferenceKey, unknown>>;
-};
-
-const parseBoolean = (value: unknown, fallback: boolean): boolean => {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    if (value === 'true') return true;
-    if (value === 'false') return false;
-  }
-
-  return fallback;
-};
-
-const readLegacyPreference = (key: UiPreferenceKey, fallback: boolean): boolean => {
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw === null) return fallback;
-
-    // Supports values written by both JSON.stringify and plain strings.
-    const parsed = JSON.parse(raw);
-    return parseBoolean(parsed, fallback);
-  } catch {
-    return fallback;
-  }
-};
-
-/**
- * Bumped when a default changes in a way that should reach profiles that never
- * chose the old value.
- *
- * Preferences are written to storage in full on first mount, so every profile
- * carries an explicit copy of whatever the defaults were at the time - a stored
- * value says nothing about whether anyone picked it. Without a marker, a
- * changed default would only ever reach new installs. Each migration runs once
- * and stamps this version, so a choice made afterwards is never overwritten.
- */
 export const UI_PREFERENCES_VERSION = 2;
 
-const versionKey = (storageKey: string): string => `${storageKey}.version`;
+type SyncEventDetail = { storageKey: string; sourceId: string; value: Partial<Record<UiPreferenceKey, unknown>> };
 
-/**
- * Applies default changes that shipped after a profile was first written.
- *
- * v1: `showThinking` off. A replayed transcript carries no thinking duration,
- * so the collapsed row reads "Thought for a few seconds" on every entry
- * whatever actually happened, and the reasoning is already behind a click.
- */
-const migratePreferences = (
-  preferences: UiPreferences,
-  storedVersion: number,
-): UiPreferences => {
-  if (storedVersion >= UI_PREFERENCES_VERSION) {
-    return preferences;
-  }
-  return { ...preferences, showThinking: DEFAULTS.showThinking };
+const asBoolean = (candidate: unknown, otherwise: boolean): boolean => {
+  if (typeof candidate === 'boolean') return candidate;
+  if (candidate === 'true') return true;
+  if (candidate === 'false') return false;
+  return otherwise;
 };
 
-const readStoredVersion = (storageKey: string): number => {
+const preferencesVersionKey = (storageKey: string) => `${storageKey}.version`;
+
+const storageValue = (key: string): string | null => {
   try {
-    const raw = localStorage.getItem(versionKey(storageKey));
-    if (raw === null) return 0;
-    const parsed = Number.parseInt(raw, 10);
-    return Number.isFinite(parsed) ? parsed : 0;
+    return localStorage.getItem(key);
   } catch {
-    return 0;
+    return null;
   }
 };
 
-/**
- * Stamps the version at load, next to the state the migration just produced.
- *
- * It deliberately does not ride along with the ordinary save effect. That
- * effect runs for state a component is already holding, and a hot module
- * replacement swaps this file underneath mounted hooks without re-running
- * their initializer - so the new stamp landed beside a value that had never
- * been migrated, and every later load then skipped the migration it was owed.
- */
-const stampVersion = (storageKey: string, preferences: UiPreferences): void => {
+const deserializeRecord = (raw: string | null): Record<string, unknown> | null => {
+  if (!raw) return null;
   try {
-    // State and stamp go down together. The hook has several instances and they
-    // do not all mount in the same commit, so a stamp written on its own let a
-    // later instance read the still-unmigrated state, skip the migration it was
-    // owed, and then persist that stale value over the migrated one.
+    const decoded: unknown = JSON.parse(raw);
+    return decoded && typeof decoded === 'object' && !Array.isArray(decoded)
+      ? decoded as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const legacyBoolean = (key: UiPreferenceKey): unknown => {
+  const raw = storageValue(key);
+  if (raw === null) return undefined;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+};
+
+const collectPreferences = (source: Record<string, unknown> | null): UiPreferences => {
+  const result = { ...initialValues };
+  if (!source) return result;
+  for (const preference of preferenceNames) {
+    result[preference] = asBoolean(source[preference], result[preference]);
+  }
+  return result;
+};
+
+const storedVersion = (storageKey: string): number => {
+  const parsed = Number.parseInt(storageValue(preferencesVersionKey(storageKey)) ?? '', 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const applyMigrations = (preferences: UiPreferences, version: number): UiPreferences => (
+  version < UI_PREFERENCES_VERSION
+    ? { ...preferences, showThinking: initialValues.showThinking }
+    : preferences
+);
+
+const saveLoadedPreferences = (storageKey: string, preferences: UiPreferences) => {
+  try {
     localStorage.setItem(storageKey, JSON.stringify(preferences));
-    localStorage.setItem(versionKey(storageKey), String(UI_PREFERENCES_VERSION));
+    localStorage.setItem(preferencesVersionKey(storageKey), String(UI_PREFERENCES_VERSION));
   } catch {
-    // Storage is best-effort; a failed write only means the migration is
-    // evaluated again next load, which is harmless because it is idempotent.
+    // Persistence is optional in restricted browsing contexts.
   }
 };
-
-/**
- * Exposed for tests: the migration only observably matters at load, and a
- * hook-level test would have to stand up React to reach it.
- */
-export const readInitialPreferencesForTest = (storageKey: string): UiPreferences =>
-  readInitialPreferences(storageKey);
 
 function readInitialPreferences(storageKey: string): UiPreferences {
-  if (typeof window === 'undefined') {
-    return DEFAULTS;
-  }
+  if (typeof window === 'undefined') return initialValues;
 
-  try {
-    const raw = localStorage.getItem(storageKey);
-
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        const parsedRecord = parsed as Record<string, unknown>;
-
-        const stored = PREFERENCE_KEYS.reduce((acc, key) => {
-          acc[key] = parseBoolean(parsedRecord[key], DEFAULTS[key]);
-          return acc;
-        }, { ...DEFAULTS });
-
-        const migrated = migratePreferences(stored, readStoredVersion(storageKey));
-        stampVersion(storageKey, migrated);
-        return migrated;
-      }
-    }
-  } catch {
-    // Fall back to legacy keys when unified key is missing or invalid.
-  }
-
-  const legacy = PREFERENCE_KEYS.reduce((acc, key) => {
-    acc[key] = readLegacyPreference(key, DEFAULTS[key]);
-    return acc;
-  }, { ...DEFAULTS });
-
-  const migratedLegacy = migratePreferences(legacy, readStoredVersion(storageKey));
-  stampVersion(storageKey, migratedLegacy);
-  return migratedLegacy;
+  const unified = deserializeRecord(storageValue(storageKey));
+  const legacy = unified ?? Object.fromEntries(preferenceNames.map((key) => [key, legacyBoolean(key)]));
+  const migrated = applyMigrations(collectPreferences(legacy), storedVersion(storageKey));
+  saveLoadedPreferences(storageKey, migrated);
+  return migrated;
 }
 
-function reducer(state: UiPreferences, action: UiPreferencesAction): UiPreferences {
-  switch (action.type) {
-    case 'set': {
-      const { key, value } = action;
-      if (!VALID_KEYS.has(key)) {
-        return state;
-      }
+export const readInitialPreferencesForTest = (storageKey: string): UiPreferences => readInitialPreferences(storageKey);
 
-      const nextValue = parseBoolean(value, state[key]);
-      if (state[key] === nextValue) {
-        return state;
-      }
-
-      return { ...state, [key]: nextValue };
+const updateState = (current: UiPreferences, changes: Partial<Record<UiPreferenceKey, unknown>>): UiPreferences => {
+  let updated: UiPreferences | null = null;
+  for (const name of preferenceNames) {
+    if (!(name in changes)) continue;
+    const value = asBoolean(changes[name], current[name]);
+    if (value !== current[name]) {
+      updated ??= { ...current };
+      updated[name] = value;
     }
-    case 'set_many': {
-      const updates = action.value || {};
-      let changed = false;
-      const nextState = { ...state };
-
-      for (const key of PREFERENCE_KEYS) {
-        if (!(key in updates)) continue;
-
-        const value = updates[key];
-        const nextValue = parseBoolean(value, state[key]);
-        if (nextState[key] !== nextValue) {
-          nextState[key] = nextValue;
-          changed = true;
-        }
-      }
-
-      return changed ? nextState : state;
-    }
-    case 'reset':
-      return { ...DEFAULTS, ...(action.value || {}) };
-    default:
-      return state;
   }
-}
+  return updated ?? current;
+};
+
+const reducer = (current: UiPreferences, action: UiPreferencesAction): UiPreferences => {
+  if (action.type === 'set') return updateState(current, { [action.key]: action.value });
+  if (action.type === 'set_many') return updateState(current, action.value ?? {});
+  if (action.type === 'reset') return { ...initialValues, ...(action.value ?? {}) };
+  return current;
+};
 
 export function useUiPreferences(storageKey = 'uiPreferences') {
-  const instanceIdRef = useRef(`ui-preferences-${Math.random().toString(36).slice(2)}`);
-  const [state, dispatch] = useReducer(
-    reducer,
-    storageKey,
-    readInitialPreferences
-  );
+  const source = useRef(`ui-preferences-${Math.random().toString(36).slice(2)}`);
+  const [preferences, dispatch] = useReducer(reducer, storageKey, readInitialPreferences);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    localStorage.setItem(storageKey, JSON.stringify(state));
-
-    window.dispatchEvent(
-      new CustomEvent<SyncEventDetail>(SYNC_EVENT, {
-        detail: {
-          storageKey,
-          sourceId: instanceIdRef.current,
-          value: state,
-        },
-      })
-    );
-  }, [state, storageKey]);
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(storageKey, JSON.stringify(preferences));
+    window.dispatchEvent(new CustomEvent<SyncEventDetail>(preferenceEvent, {
+      detail: { storageKey, sourceId: source.current, value: preferences },
+    }));
+  }, [preferences, storageKey]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const applyExternalUpdate = (value: unknown) => {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        return;
-      }
-      dispatch({ type: 'set_many', value: value as Partial<Record<UiPreferenceKey, unknown>> });
+    if (typeof window === 'undefined') return;
+    const accept = (candidate: unknown) => {
+      const record = candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+        ? candidate as Partial<Record<UiPreferenceKey, unknown>>
+        : null;
+      if (record) dispatch({ type: 'set_many', value: record });
     };
-
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key !== storageKey || event.newValue === null) {
-        return;
-      }
-
-      try {
-        const parsed = JSON.parse(event.newValue);
-        applyExternalUpdate(parsed);
-      } catch {
-        // Ignore malformed storage updates.
-      }
+    const receiveStorage = (event: StorageEvent) => {
+      if (event.key === storageKey && event.newValue !== null) accept(deserializeRecord(event.newValue));
     };
-
-    const handleSyncEvent = (event: Event) => {
-      const syncEvent = event as CustomEvent<SyncEventDetail>;
-      const detail = syncEvent.detail;
-      if (!detail || detail.storageKey !== storageKey || detail.sourceId === instanceIdRef.current) {
-        return;
-      }
-
-      applyExternalUpdate(detail.value);
+    const receiveLocal = (event: Event) => {
+      const detail = (event as CustomEvent<SyncEventDetail>).detail;
+      if (detail && detail.storageKey === storageKey && detail.sourceId !== source.current) accept(detail.value);
     };
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
-
+    window.addEventListener('storage', receiveStorage);
+    window.addEventListener(preferenceEvent, receiveLocal as EventListener);
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
+      window.removeEventListener('storage', receiveStorage);
+      window.removeEventListener(preferenceEvent, receiveLocal as EventListener);
     };
   }, [storageKey]);
 
-  const setPreference = (key: UiPreferenceKey, value: unknown) => {
-    dispatch({ type: 'set', key, value });
-  };
-
-  const setPreferences = (value: Partial<Record<UiPreferenceKey, unknown>>) => {
-    dispatch({ type: 'set_many', value });
-  };
-
-  const resetPreferences = (value?: Partial<UiPreferences>) => {
-    dispatch({ type: 'reset', value });
-  };
-
   return {
-    preferences: state,
-    setPreference,
-    setPreferences,
-    resetPreferences,
+    preferences,
+    setPreference: (key: UiPreferenceKey, value: unknown) => dispatch({ type: 'set', key, value }),
+    setPreferences: (value: Partial<Record<UiPreferenceKey, unknown>>) => dispatch({ type: 'set_many', value }),
+    resetPreferences: (value?: Partial<UiPreferences>) => dispatch({ type: 'reset', value }),
     dispatch,
   };
 }

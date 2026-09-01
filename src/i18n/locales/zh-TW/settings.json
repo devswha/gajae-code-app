@@ -1,34 +1,9 @@
 {
   "title": "設定",
-  "tabs": {
-    "account": "帳號",
-    "permissions": "權限",
-    "skills": "技能",
-    "appearance": "外觀"
-  },
   "account": {
-    "title": "帳號",
     "language": "語言",
     "languageLabel": "介面語言",
-    "languageDescription": "選擇介面使用的語言",
-    "username": "使用者名稱",
-    "email": "電子郵件",
-    "profile": "個人資料",
-    "changePassword": "更新密碼"
-  },
-  "appearance": {
-    "title": "外觀",
-    "theme": "主題",
-    "editorTheme": "程式編輯器主題",
-    "wordWrap": "包裝長行",
-    "showMinimap": "顯示縮圖",
-    "lineNumbers": "顯示列號碼",
-    "fontSize": "程式文字大小"
-  },
-  "actions": {
-    "saveChanges": "應用變更",
-    "resetToDefaults": "恢復預設值",
-    "cancelChanges": "捨棄變更"
+    "languageDescription": "選擇介面使用的語言"
   },
   "voiceSettings": {
     "title": "語音",
@@ -55,23 +30,7 @@
     "sendByCtrlEnter": "使用 Ctrl+Enter 送出",
     "sendByCtrlEnterDescription": "當啟用時，Ctrl+Enter 將取代 Enter 以發送訊息。這有助於IME使用者防止意外送出."
   },
-  "terminalShortcuts": {
-    "title": "終端機捷徑鍵",
-    "sectionKeys": "按鍵",
-    "sectionNavigation": "導航",
-    "escape": "Esc",
-    "tab": "Tab",
-    "shiftTab": "Shift+Tab",
-    "arrowUp": "上箭頭",
-    "arrowDown": "下箭頭",
-    "scrollDown": "向下捲動",
-    "handle": {
-      "closePanel": "隱藏快捷鍵",
-      "openPanel": "顯示快捷鍵"
-    }
-  },
   "mainTabs": {
-    "label": "設定",
     "appearance": "外觀",
     "git": "Git",
     "voice": "語音",
@@ -146,13 +105,7 @@
     }
   },
   "saveStatus": {
-    "success": "設定已儲存。",
-    "error": "無法儲存設定",
-    "saving": "正在儲存…"
-  },
-  "footerActions": {
-    "save": "儲存設定",
-    "cancel": "取消"
+    "success": "設定已儲存。"
   },
   "git": {
     "title": "Git 設定",
@@ -171,82 +124,6 @@
     },
     "status": {
       "success": "儲存完成"
-    }
-  },
-  "permissions": {
-    "title": "權限控制",
-    "skipPermissions": {
-      "label": "繞過權限提示（謹慎使用）",
-      "claudeDescription": "等同於 --dangerously-skip-permissions 旗標",
-      "cursorDescription": "等同於 Cursor CLI 的 -f 旗標"
-    },
-    "allowedTools": {
-      "title": "允許的工具",
-      "description": "不需要請求批准即可執行的工具",
-      "placeholder": "例如：\"Bash(git log:*)\" 或 \"編寫\"",
-      "quickAdd": "新增常用工具:",
-      "empty": "尚未設定任何允許的工具"
-    },
-    "blockedTools": {
-      "title": "拒絕的工具",
-      "description": "不需要請求批准即被拒絕的工具",
-      "placeholder": "例如：\"Bash(rm:*)\"",
-      "empty": "尚未設定任何拒絕的工具"
-    },
-    "allowedCommands": {
-      "title": "允許的 shell 指令",
-      "description": "不需要請求批准即可執行的 shell 指令",
-      "placeholder": "例如：\"Shell(ls)\" 或 \"Shell(git status)\"",
-      "quickAdd": "新增常用指令:",
-      "empty": "尚未設定任何允許的指令"
-    },
-    "blockedCommands": {
-      "title": "拒絕的 shell 指令",
-      "description": "自動被拒絕的 shell 指令",
-      "placeholder": "例如，\"Shell(rm -rf)\" 或 \"Shell(sudo)\"",
-      "empty": "未設定拒絕命令"
-    },
-    "toolExamples": {
-      "title": "工具模式範例：",
-      "bashGitLog": "- 許可任何 git log 命令",
-      "bashGitDiff": "- 許可任何 git diff 命令",
-      "write": "- 許可所有 Write 工具呼叫",
-      "bashRm": "- 拒絕任何 rm 命令（危險）"
-    },
-    "shellExamples": {
-      "title": "Shell 命令範例：",
-      "ls": "- 許可 ls",
-      "gitStatus": "- 許可 git status",
-      "npmInstall": "- 許可 npm install",
-      "rmRf": "- 禁用遞迴刪除"
-    },
-    "codex": {
-      "permissionMode": "權限處理",
-      "description": "設定 Gajae Code App 如何處理檔案編輯和命令執行",
-      "modes": {
-        "default": {
-          "title": "預設",
-          "description": "受信任的命令如 ls、cat、grep 和 git status 會自動運行；其他命令則跳過。工作區寫入允許。"
-        },
-        "acceptEdits": {
-          "title": "允許編輯",
-          "description": "每一個命令都會在工作區沙盒內自動運行。"
-        },
-        "bypassPermissions": {
-          "title": "繞過核准",
-          "description": "命令執行不受限制，並具有完整的磁碟機和網路存取權限。僅於受信任時使用。"
-        }
-      },
-      "technicalDetails": "實作細節",
-      "technicalInfo": {
-        "default": "工作區寫入沙盒並需未受信任的核准。可執行的命令包括 cat, cd, grep, head, ls, pwd, tail, Git status/log/diff/show，以及不含 -exec 的 find 命令。",
-        "acceptEdits": "工作區寫入沙盒無任何核准。命令會自動在專案目錄中執行。",
-        "bypassPermissions": "危險全權 SANDBox 无任何核准。仅在受信任的環境中使用全系統存取權。",
-        "overrideNote": "使用對話模式按鈕以在一會話中覆寫此設定。"
-      }
-    },
-    "actions": {
-      "add": "新增"
     }
   }
 }

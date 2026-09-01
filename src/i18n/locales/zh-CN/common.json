@@ -1,87 +1,13 @@
 {
   "buttons": {
-    "save": "保存",
-    "cancel": "取消",
-    "delete": "删除",
-    "create": "创建",
-    "edit": "编辑",
-    "close": "关闭",
-    "confirm": "确认",
-    "submit": "提交",
-    "retry": "重试",
-    "refresh": "刷新",
-    "search": "搜索",
-    "clear": "清除",
-    "copy": "复制",
-    "download": "下载",
-    "upload": "上传",
-    "browse": "浏览"
+    "cancel": "取消"
   },
   "tabs": {
     "chat": "交流",
-    "shell": "命令行",
-    "files": "文档",
-    "git": "版本控制",
-    "computer": "电脑"
+    "git": "版本控制"
   },
   "status": {
-    "loading": "加载ing...",
-    "success": "完成",
-    "error": "异常",
-    "failed": "失败",
-    "pending": "等待处理",
-    "completed": "结束",
-    "inProgress": "正在运行"
-  },
-  "messages": {
-    "savedSuccessfully": "保存完成",
-    "deletedSuccessfully": "删除完毕",
-    "updatedSuccessfully": "更新完成",
-    "operationFailed": "操作未完成",
-    "networkError": "网络错误。检查您的连接。",
-    "unauthorized": "需要登录。",
-    "notFound": "未找到该项",
-    "invalidInput": "输入有误",
-    "requiredField": "请输入一个值",
-    "unknownError": "发生意外错误"
-  },
-  "navigation": {
-    "settings": "配置",
-    "home": "主页",
-    "back": "返回",
-    "next": "按钮下一项",
-    "previous": "上一选项",
-    "logout": "注销"
-  },
-  "common": {
-    "language": "语系",
-    "theme": "风格",
-    "darkMode": "深色主题",
-    "lightMode": "浅色主题",
-    "name": "命名",
-    "description": "简介",
-    "enabled": "启用",
-    "disabled": "禁用",
-    "optional": "额外",
-    "version": "版本号",
-    "select": "挑选",
-    "selectAll": "全部选取",
-    "deselectAll": "清除所有选择"
-  },
-  "time": {
-    "justNow": "即刻之前",
-    "minutesAgo": "{{count}}分钟前",
-    "hoursAgo": "{{count}}小时前",
-    "daysAgo": "{{count}}天前",
-    "yesterday": "昨日"
-  },
-  "fileOperations": {
-    "newFile": "创建文件",
-    "newFolder": "创建文件夹",
-    "rename": "更改名称",
-    "move": "调整位置",
-    "copyPath": "复制位置",
-    "openInEditor": "编辑文件"
+    "success": "完成"
   },
   "mainContent": {
     "loading": "启动gajae-app",
@@ -92,117 +18,20 @@
     "createProjectMobile": "使用上方菜单访问您的项目",
     "createProjectDesktop": "使用侧边栏文件夹按钮添加项目",
     "newSession": "发起对话",
-    "untitledSession": "未命名的对话",
     "projectFiles": "项目中的文件"
   },
-  "fileTree": {
-    "loading": "正在检索文件……",
-    "files": "文档",
-    "simpleView": "基本布局",
-    "compactView": "紧凑布局",
-    "detailedView": "扩展布局",
-    "searchPlaceholder": "查找文件或文件夹…",
-    "clearSearch": "重置搜索",
-    "name": "文件名",
-    "size": "文件大小",
-    "modified": "最后修改时间",
-    "permissions": "访问权限",
-    "noFilesFound": "当前文件夹没有文件",
-    "checkProjectPath": "确保项目路径可访问",
-    "noMatchesFound": "未匹配到内容",
-    "tryDifferentSearch": "使用其他查询，或清空当前查询",
-    "justNow": "现在",
-    "minAgo": "{{count}}分钟前",
-    "hoursAgo": "{{count}}小时前",
-    "daysAgo": "{{count}}天前",
-    "newFile": "新建文档 (Cmd+N)",
-    "newFolder": "新建目录 (Cmd+Shift+N)",
-    "refresh": "更新",
-    "collapseAll": "关闭所有",
-    "context": {
-      "rename": "修改名称",
-      "delete": "移除",
-      "copyPath": "复制地址",
-      "download": "获取",
-      "newFile": "创建文件",
-      "newFolder": "创建文件夹",
-      "refresh": "重新加载",
-      "menuLabel": "文件操作菜单",
-      "loading": "正在加载..."
-    }
-  },
   "projectWizard": {
-    "title": "添加项目",
-    "steps": {
-      "type": "输入信息",
-      "configure": "设置选项",
-      "confirm": "确定"
-    },
-    "step1": {
-      "question": "是使用现有工作区还是新建一个？",
-      "existing": {
-        "title": "使用现有工作区",
-        "description": "将已存在于服务器上的工作区添加到项目列表中"
-      },
-      "new": {
-        "title": "创建工作区",
-        "description": "创建一个新的工作区，可选择克隆GitHub仓库"
-      }
-    },
     "step2": {
       "existingPath": "工作区位置",
-      "newPath": "工作区位置",
-      "existingPlaceholder": "/path/to/existing/workspace",
-      "newPlaceholder": "/path/to/new/workspace",
-      "existingHelp": "您已有的工作区的绝对路径",
-      "newHelp": "为该工作区输入一个绝对路径",
-      "githubUrl": "GitHub 仓库 URL（可选）",
-      "githubPlaceholder": "https://github.com/用户名/repository",
-      "githubHelp": "当需要克隆时，请粘贴一个 GitHub 仓库 URL",
-      "githubAuth": "GitHub 登录（可选）",
-      "githubAuthHelp": "私有仓库需要认证；公有仓库不需要",
-      "loadingTokens": "正在检索保存的令牌…",
-      "storedToken": "已保存的凭证",
-      "newToken": "输入一个令牌",
-      "nonePublic": "无令牌（公共仓库）",
-      "selectToken": "选择一个令牌",
-      "selectTokenPlaceholder": "-- 请选择一个令牌 --",
-      "tokenPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "tokenHelp": "此令牌仅用于本次操作",
-      "publicRepoInfo": "克隆公共仓库时无需使用令牌。",
-      "noTokensHelp": "没有保存的令牌。在设置 → API密钥中添加一个以重复使用.",
-      "optionalTokenPublic": "GitHub 令牌（可选，公共仓库无需填写）",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx（公共仓库留空）"
-    },
-    "step3": {
-      "reviewConfig": "检查配置",
-      "existingWorkspace": "使用现有工作区",
-      "newWorkspace": "创建工作区",
-      "path": "路径：",
-      "cloneFrom": "仓库源：",
-      "authentication": "认证方式：",
-      "usingStoredToken": "使用保存的令牌：",
-      "usingProvidedToken": "使用输入的令牌",
-      "noAuthentication": "未使用身份验证",
-      "sshKey": "SSH认证密钥",
-      "existingInfo": "工作区将在Gajae Code会话的项目列表中出现。",
-      "newWithClone": "仓库将被克隆到此文件夹中。",
-      "newEmpty": "工作区将在Gajae Code会话的项目列表中出现。",
-      "cloningRepository": "正在克隆仓库…"
+      "existingPlaceholder": "/path/to/existing/workspace"
     },
     "buttons": {
       "cancel": "退出",
-      "back": "返回上一级",
-      "next": "下一步骤",
-      "createProject": "添加项目",
-      "creating": "创建中…",
-      "cloning": "克隆中…"
+      "creating": "创建中…"
     },
     "errors": {
-      "selectType": "请选择是添加现有工作区还是新建一个",
       "providePath": "请输入工作区路径",
-      "failedToCreate": "无法创建工作区",
-      "failedToCreateFolder": "无法创建文件夹"
+      "failedToCreate": "无法创建工作区"
     },
     "folderBrowser": {
       "title": "选择文件夹",
@@ -221,62 +50,9 @@
       "browseFolders": "浏览文件夹"
     }
   },
-  "notifications": {
-    "genericTool": "请求的工具",
-    "codes": {
-      "generic": {
-        "info": {
-          "title": "通知"
-        }
-      },
-      "permission": {
-        "required": {
-          "title": "需要您的输入",
-          "body": "{{toolName}} 需要您的选择。"
-        }
-      },
-      "run": {
-        "stopped": {
-          "title": "运行结束",
-          "body": "停止原因: {{reason}}"
-        },
-        "failed": {
-          "title": "运行未完成"
-        }
-      },
-      "agent": {
-        "notification": {
-          "title": "代理消息"
-        }
-      }
-    }
-  },
   "versionUpdate": {
-    "title": "有新更新可用",
-    "newVersionReady": "存在较新的版本",
-    "currentVersion": "已安装版本",
-    "latestVersion": "最新版本",
-    "whatsNew": "发布说明：",
-    "viewFullRelease": "查看完整更新日志",
-    "updateProgress": "更新状态：",
-    "manualUpgrade": "更新：",
-    "npmUpgradeCommand": "scripts/gajae-app.sh update",
-    "manualUpgradeHint": "从 GitHub 发行版获取最新版本，或使用此命令。",
-    "updateCompleted": "更新完成！",
-    "restartServer": "重启服务器以应用更新.",
-    "updateFailed": "无法更新",
-    "buttons": {
-      "close": "关闭",
-      "later": "稍后",
-      "copyCommand": "复制更新命令",
-      "updateNow": "安装更新",
-      "updating": "正在安装更新……"
-    },
     "ariaLabels": {
-      "closeModal": "忽略更新对话框",
       "showSidebar": "显示侧边栏",
-      "settings": "设置",
-      "updateAvailable": "有新版本可用",
       "closeSidebar": "隐藏侧边栏"
     }
   },
@@ -351,14 +127,6 @@
       "unreported": "暂无报告",
       "empty": "当前无会话打开",
       "emptyHint": "开始或打开一个会话以查看其当前活动。"
-    },
-    "filesTab": {
-      "changeRoot": "设置根文件夹",
-      "rootPlaceholder": "相对于Home的路径（例如，工作区）",
-      "apply": "实施",
-      "opening": "访问文件夹……",
-      "homeUnavailable": "无法识别的主目录",
-      "openFailed": "无法打开该文件夹；请检查其路径"
     }
   }
 }

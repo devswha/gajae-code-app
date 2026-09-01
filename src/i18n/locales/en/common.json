@@ -1,87 +1,13 @@
 {
   "buttons": {
-    "save": "Save",
-    "cancel": "Cancel",
-    "delete": "Delete",
-    "create": "Create",
-    "edit": "Edit",
-    "close": "Close",
-    "confirm": "Confirm",
-    "submit": "Submit",
-    "retry": "Retry",
-    "refresh": "Refresh",
-    "search": "Search",
-    "clear": "Clear",
-    "copy": "Copy",
-    "download": "Download",
-    "upload": "Upload",
-    "browse": "Browse"
+    "cancel": "Cancel"
   },
   "tabs": {
     "chat": "Chat",
-    "shell": "Shell",
-    "files": "Files",
-    "git": "Version control",
-    "computer": "Computer"
+    "git": "Version control"
   },
   "status": {
-    "loading": "Loading...",
-    "success": "Success",
-    "error": "Error",
-    "failed": "Failed",
-    "pending": "Pending",
-    "completed": "Completed",
-    "inProgress": "Running now"
-  },
-  "messages": {
-    "savedSuccessfully": "Save complete",
-    "deletedSuccessfully": "Deletion complete",
-    "updatedSuccessfully": "Update complete",
-    "operationFailed": "Operation did not complete",
-    "networkError": "Network error. Check your connection.",
-    "unauthorized": "Sign in is required.",
-    "notFound": "Item not found",
-    "invalidInput": "Input is not valid",
-    "requiredField": "Enter a value here",
-    "unknownError": "Something unexpected went wrong"
-  },
-  "navigation": {
-    "settings": "Settings",
-    "home": "Home",
-    "back": "Back",
-    "next": "Next",
-    "previous": "Previous",
-    "logout": "Logout"
-  },
-  "common": {
-    "language": "Language",
-    "theme": "Theme",
-    "darkMode": "Dark theme",
-    "lightMode": "Light theme",
-    "name": "Name",
-    "description": "Description",
-    "enabled": "Enabled",
-    "disabled": "Disabled",
-    "optional": "Optional",
-    "version": "Version",
-    "select": "Select",
-    "selectAll": "Choose all",
-    "deselectAll": "Clear all selections"
-  },
-  "time": {
-    "justNow": "Moments ago",
-    "minutesAgo": "{{count}} minutes ago",
-    "hoursAgo": "{{count}} hours earlier",
-    "daysAgo": "{{count}} days earlier",
-    "yesterday": "Yesterday"
-  },
-  "fileOperations": {
-    "newFile": "Create file",
-    "newFolder": "Create folder",
-    "rename": "Rename",
-    "move": "Move",
-    "copyPath": "Copy location",
-    "openInEditor": "Edit file"
+    "success": "Success"
   },
   "mainContent": {
     "loading": "Starting gajae-app",
@@ -92,117 +18,20 @@
     "createProjectMobile": "Use the menu above to reach your projects",
     "createProjectDesktop": "Use the sidebar folder button to add a project",
     "newSession": "Start conversation",
-    "untitledSession": "Unnamed conversation",
     "projectFiles": "Files in project"
   },
-  "fileTree": {
-    "loading": "Retrieving files…",
-    "files": "Files",
-    "simpleView": "Basic layout",
-    "compactView": "Condensed layout",
-    "detailedView": "Expanded layout",
-    "searchPlaceholder": "Find files or folders…",
-    "clearSearch": "Reset search",
-    "name": "Name",
-    "size": "Size",
-    "modified": "Modified",
-    "permissions": "Permissions",
-    "noFilesFound": "This folder has no files",
-    "checkProjectPath": "Make sure the project path can be reached",
-    "noMatchesFound": "Nothing matched",
-    "tryDifferentSearch": "Use another query, or clear the current one",
-    "justNow": "moments ago",
-    "minAgo": "{{count}} minutes ago",
-    "hoursAgo": "{{count}} hours earlier",
-    "daysAgo": "{{count}} days earlier",
-    "newFile": "Create file (Cmd+N)",
-    "newFolder": "Create folder (Cmd+Shift+N)",
-    "refresh": "Refresh",
-    "collapseAll": "Close all",
-    "context": {
-      "rename": "Rename",
-      "delete": "Delete",
-      "copyPath": "Copy location",
-      "download": "Download",
-      "newFile": "Create file",
-      "newFolder": "Create folder",
-      "refresh": "Refresh",
-      "menuLabel": "File actions menu",
-      "loading": "Loading..."
-    }
-  },
   "projectWizard": {
-    "title": "Add a project",
-    "steps": {
-      "type": "Type",
-      "configure": "Configure",
-      "confirm": "Confirm"
-    },
-    "step1": {
-      "question": "Add an existing workspace or make a fresh one?",
-      "existing": {
-        "title": "Use existing workspace",
-        "description": "Add a workspace that already exists on this server to the project list"
-      },
-      "new": {
-        "title": "Create workspace",
-        "description": "Make a workspace, with the option to clone a GitHub repository"
-      }
-    },
     "step2": {
       "existingPath": "Workspace location",
-      "newPath": "Workspace location",
-      "existingPlaceholder": "/path/to/existing/workspace",
-      "newPlaceholder": "/path/to/new/workspace",
-      "existingHelp": "Absolute path of the workspace you already have",
-      "newHelp": "Enter an absolute path for this workspace",
-      "githubUrl": "GitHub repository URL (optional)",
-      "githubPlaceholder": "https://github.com/username/repository",
-      "githubHelp": "Paste a GitHub repository URL when it should be cloned",
-      "githubAuth": "GitHub sign-in (optional)",
-      "githubAuthHelp": "Private repositories need authentication; public ones do not.",
-      "loadingTokens": "Retrieving saved tokens…",
-      "storedToken": "Saved token",
-      "newToken": "Enter a token",
-      "nonePublic": "No token (public repository)",
-      "selectToken": "Choose a token",
-      "selectTokenPlaceholder": "-- Choose a token --",
-      "tokenPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "tokenHelp": "This token is used for this operation only",
-      "publicRepoInfo": "No token is needed when cloning a public repository.",
-      "noTokensHelp": "There are no saved tokens. Add one under Settings → API Keys to reuse it.",
-      "optionalTokenPublic": "GitHub token (optional for public repositories)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (leave empty for public repos)"
-    },
-    "step3": {
-      "reviewConfig": "Check the configuration",
-      "existingWorkspace": "Use existing workspace",
-      "newWorkspace": "Create workspace",
-      "path": "Path:",
-      "cloneFrom": "Repository source:",
-      "authentication": "Authentication:",
-      "usingStoredToken": "Using saved token:",
-      "usingProvidedToken": "Using entered token",
-      "noAuthentication": "Authentication not used",
-      "sshKey": "SSH authentication key",
-      "existingInfo": "The workspace will appear in your project list for Gajae Code sessions.",
-      "newWithClone": "The repository will be cloned into this folder.",
-      "newEmpty": "The workspace will appear in your project list for Gajae Code sessions.",
-      "cloningRepository": "Cloning repository…"
+      "existingPlaceholder": "/path/to/existing/workspace"
     },
     "buttons": {
       "cancel": "Cancel",
-      "back": "Back",
-      "next": "Next",
-      "createProject": "Add project",
-      "creating": "Creating…",
-      "cloning": "Cloning…"
+      "creating": "Creating…"
     },
     "errors": {
-      "selectType": "Choose whether to add an existing workspace or create one",
       "providePath": "Enter a workspace path",
-      "failedToCreate": "Could not create workspace",
-      "failedToCreateFolder": "Could not create folder"
+      "failedToCreate": "Could not create workspace"
     },
     "folderBrowser": {
       "title": "Choose folder",
@@ -221,62 +50,9 @@
       "browseFolders": "Browse for folders"
     }
   },
-  "notifications": {
-    "genericTool": "a requested tool",
-    "codes": {
-      "generic": {
-        "info": {
-          "title": "Notification"
-        }
-      },
-      "permission": {
-        "required": {
-          "title": "Your input is needed",
-          "body": "Your choice is required by {{toolName}}."
-        }
-      },
-      "run": {
-        "stopped": {
-          "title": "Run ended",
-          "body": "Stopped because: {{reason}}"
-        },
-        "failed": {
-          "title": "Run did not finish"
-        }
-      },
-      "agent": {
-        "notification": {
-          "title": "Agent message"
-        }
-      }
-    }
-  },
   "versionUpdate": {
-    "title": "New update available",
-    "newVersionReady": "A newer version is available",
-    "currentVersion": "Installed version",
-    "latestVersion": "Newest version",
-    "whatsNew": "Release notes:",
-    "viewFullRelease": "Read full release",
-    "updateProgress": "Update status:",
-    "manualUpgrade": "Update:",
-    "npmUpgradeCommand": "scripts/gajae-app.sh update",
-    "manualUpgradeHint": "Get the newest version from GitHub Releases, or use this command.",
-    "updateCompleted": "Update complete!",
-    "restartServer": "Restart the server to use the update.",
-    "updateFailed": "Could not update",
-    "buttons": {
-      "close": "Close",
-      "later": "Later",
-      "copyCommand": "Copy update command",
-      "updateNow": "Install update",
-      "updating": "Installing update…"
-    },
     "ariaLabels": {
-      "closeModal": "Dismiss update dialog",
       "showSidebar": "Reveal sidebar",
-      "settings": "Settings",
-      "updateAvailable": "New update available",
       "closeSidebar": "Hide sidebar"
     }
   },
@@ -351,14 +127,6 @@
       "unreported": "No report yet",
       "empty": "No open session",
       "emptyHint": "Start or open a session to view its current activity."
-    },
-    "filesTab": {
-      "changeRoot": "Set root folder",
-      "rootPlaceholder": "Home-relative path (for example, workspace)",
-      "apply": "Apply",
-      "opening": "Accessing folder…",
-      "homeUnavailable": "Could not determine the home directory",
-      "openFailed": "That folder could not be opened; check its path"
     }
   }
 }

@@ -1,34 +1,9 @@
 {
   "title": "Opzioni",
-  "tabs": {
-    "account": "Conto",
-    "permissions": "Autorizzazioni",
-    "skills": "Abilità",
-    "appearance": "Presentazione"
-  },
   "account": {
-    "title": "Conto",
     "language": "Lingua dell’interfaccia",
     "languageLabel": "Linguaggio dell'interfaccia",
-    "languageDescription": "Scegli la lingua utilizzata dall'interfaccia",
-    "username": "Nome dell’account",
-    "email": "E-mail",
-    "profile": "Profilo utente",
-    "changePassword": "Aggiorna password"
-  },
-  "appearance": {
-    "title": "Presentazione",
-    "theme": "Stile visivo",
-    "editorTheme": "Tema dell'editor di codice",
-    "wordWrap": "Avvolgi lunghe file",
-    "showMinimap": "Visualizza la minimappa",
-    "lineNumbers": "Mostra i numeri di riga",
-    "fontSize": "Dimensione del testo del codice"
-  },
-  "actions": {
-    "saveChanges": "Applicare le modifiche",
-    "resetToDefaults": "Ripristina le impostazioni predefinite",
-    "cancelChanges": "Annulla modifiche"
+    "languageDescription": "Scegli la lingua utilizzata dall'interfaccia"
   },
   "voiceSettings": {
     "title": "Voce",
@@ -55,23 +30,7 @@
     "sendByCtrlEnter": "Utilizzare Ctrl+Enter per inviare",
     "sendByCtrlEnterDescription": "Se abilitato, Ctrl+Enter invia messaggi invece di Enter. Ciò aiuta gli utenti IME a prevenire invii accidentali."
   },
-  "terminalShortcuts": {
-    "title": "Associazioni dei tasti del terminale",
-    "sectionKeys": "Chiavi",
-    "sectionNavigation": "Navigazione laterale",
-    "escape": "Escape",
-    "tab": "Tab",
-    "shiftTab": "Shift+Tab",
-    "arrowUp": "Freccia su",
-    "arrowDown": "Freccia giù",
-    "scrollDown": "Scorri verso il basso",
-    "handle": {
-      "closePanel": "Nascondi le scorciatoie da tastiera",
-      "openPanel": "Mostra scorciatoie da tastiera"
-    }
-  },
   "mainTabs": {
-    "label": "Opzioni",
     "appearance": "Presentazione",
     "git": "Git",
     "voice": "Voce",
@@ -146,13 +105,7 @@
     }
   },
   "saveStatus": {
-    "success": "Impostazioni salvate.",
-    "error": "Impossibile salvare le impostazioni",
-    "saving": "Salvataggio…"
-  },
-  "footerActions": {
-    "save": "Salva impostazioni",
-    "cancel": "Interrompi"
+    "success": "Impostazioni salvate."
   },
   "git": {
     "title": "Impostazioni Git",
@@ -171,82 +124,6 @@
     },
     "status": {
       "success": "Salvataggio completato"
-    }
-  },
-  "permissions": {
-    "title": "Controlli dei permessi",
-    "skipPermissions": {
-      "label": "Ignora le richieste di autorizzazione (usa con attenzione)",
-      "claudeDescription": "Corrisponde al flag --dangerously-skip-permissions",
-      "cursorDescription": "Corrisponde al flag -f di Cursor CLI"
-    },
-    "allowedTools": {
-      "title": "Strumenti consentiti",
-      "description": "Strumenti che funzionano senza richiedere l'approvazione",
-      "placeholder": "ad esempio \"Bash(git log:*)\" o \"Scrivi\"",
-      "quickAdd": "Aggiungi strumenti comuni:",
-      "empty": "Nessuno strumento consentito configurato"
-    },
-    "blockedTools": {
-      "title": "Strumenti negati",
-      "description": "Strumenti negati senza una richiesta di approvazione",
-      "placeholder": "ad esempio, \"Bash(rm:*)\"",
-      "empty": "Nessuno strumento negato configurato"
-    },
-    "allowedCommands": {
-      "title": "Comandi di shell consentiti",
-      "description": "Comandi della shell eseguiti senza richiesta di approvazione",
-      "placeholder": "ad esempio, \"Shell(ls)\" o \"Shell(git status)\"",
-      "quickAdd": "Aggiungi comandi comuni:",
-      "empty": "Nessun comando consentito configurato"
-    },
-    "blockedCommands": {
-      "title": "Comandi shell negati",
-      "description": "Comandi della shell che vengono negati automaticamente",
-      "placeholder": "ad esempio, \"Shell(rm -rf)\" o \"Shell(sudo)\"",
-      "empty": "Nessun comando negato configurato"
-    },
-    "toolExamples": {
-      "title": "Esempi di modelli di utensili:",
-      "bashGitLog": "- Consenti qualsiasi comando git log",
-      "bashGitDiff": "- Consenti qualsiasi comando git diff",
-      "write": "- Consenti tutte le chiamate allo strumento di scrittura",
-      "bashRm": "- Nega qualsiasi comando rm (pericoloso)"
-    },
-    "shellExamples": {
-      "title": "Esempi di comandi di shell:",
-      "ls": "- Autorizzazione ls",
-      "gitStatus": "- Consenti lo stato git",
-      "npmInstall": "- Consenti l'installazione di npm",
-      "rmRf": "- Nega la cancellazione ricorsiva"
-    },
-    "codex": {
-      "permissionMode": "Gestione dei permessi",
-      "description": "Imposta il modo in cui Codex tratta le modifiche ai file e l'esecuzione dei comandi",
-      "modes": {
-        "default": {
-          "title": "Predefinito",
-          "description": "I comandi affidabili come ls, cat, grep e git status vengono eseguiti automaticamente; altri vengono saltati. Sono consentite le scritture nell'area di lavoro."
-        },
-        "acceptEdits": {
-          "title": "Consenti modifiche",
-          "description": "Ogni comando viene eseguito automaticamente all'interno della sandbox dell'area di lavoro."
-        },
-        "bypassPermissions": {
-          "title": "Bypassare l'approvazione",
-          "description": "I comandi vengono eseguiti senza restrizioni, con accesso completo al disco e alla rete. Utilizzare solo se fidato."
-        }
-      },
-      "technicalDetails": "Dettagli di implementazione",
-      "technicalInfo": {
-        "default": "Sandbox di scrittura nell'area di lavoro con approvazione non attendibile. I comandi attendibili includono cat, cd, grep, head, ls, pwd, tail, Git status/log/diff/show e find senza -exec.",
-        "acceptEdits": "Sandbox di scrittura nell'area di lavoro senza approvazioni. I comandi vengono eseguiti automaticamente nella directory del progetto.",
-        "bypassPermissions": "sandbox ad accesso completo e pericoloso senza approvazioni. Utilizzare l'accesso completo al sistema solo in ambienti attendibili.",
-        "overrideNote": "Utilizza il pulsante della modalità chat per sovrascriverlo per una sessione."
-      }
-    },
-    "actions": {
-      "add": "Aggiungi"
     }
   }
 }

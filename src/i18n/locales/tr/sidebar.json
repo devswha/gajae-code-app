@@ -7,20 +7,13 @@
     "noProjects": "Henüz çalışma alanı yok",
     "loadingProjects": "Çalışma alanları alınıyor…",
     "projectNamePlaceholder": "Çalışma alanı adı",
-    "starred": "Yıldızlı",
-    "all": "Hepsi",
     "untitledSession": "Adsız görüşme",
     "newSession": "Konuşmayı başlat",
     "fetchingProjects": "Projeleri ve konuşmaları alma",
     "projects": "projeler",
     "createProjectHint": "Başlamak için bir proje ekleyin"
   },
-  "app": {
-    "title": "Gajae Kodu Uygulaması",
-    "subtitle": "Yapay zeka destekli kodlama için geliştirici çalışma alanı"
-  },
   "sessions": {
-    "title": "Konuşmalar",
     "work": "iş",
     "newTask": "Yeni iş öğesi",
     "newSession": "Konuşmayı başlat",
@@ -37,7 +30,6 @@
     "createSessionHint": "Bir proje seçin ve ardından bir oturum açmak için + tuşunu kullanın"
   },
   "tooltips": {
-    "viewEnvironments": "Ortamları görüntüle",
     "hideSidebar": "Kenar çubuğunu daralt",
     "createProject": "Proje ekle",
     "createSession": "Konuşma başlat",
@@ -53,57 +45,20 @@
     "activeSessionIndicator": "Konuşma son 10 dakika içinde aktif",
     "save": "Değişiklikleri kaydet",
     "cancel": "İşlemi iptal et",
-    "openCommandPalette": "Komut menüsünü aç",
     "attentionRequiredIndicator": "Konuşmaya dikkat edilmesi gerekiyor"
-  },
-  "navigation": {
-    "chat": "Sohbete git",
-    "files": "Proje dosyaları",
-    "git": "Git",
-    "terminal": "terminali"
   },
   "actions": {
     "search": "Projede ara",
-    "refresh": "Listeyi yenile",
     "settings": "Ayarları aç",
-    "collapseAll": "Tümünü kapat",
-    "expandAll": "Tümünü aç",
     "cancel": "İşlemi iptal et",
     "save": "Değişiklikleri kaydet",
-    "delete": "Projeyi sil",
-    "rename": "Yeniden adlandır",
     "joinCommunity": "Topluluğa katıl",
-    "reportIssue": "Sorun bildirme",
-    "starOnGithub": "GitHub'da yıldız"
-  },
-  "branding": {
-    "openSource": "Açık kaynak"
+    "reportIssue": "Sorun bildirme"
   },
   "status": {
-    "active": "Aktif",
-    "inactive": "Etkin değil",
-    "thinking": "Muhakeme…",
-    "error": "Çalıştırma hatası",
-    "aborted": "İptal edildi",
-    "unknown": "Durum bilinmiyor"
-  },
-  "time": {
-    "justNow": "Birkaç dakika önce",
-    "oneMinuteAgo": "Bir dakika önce",
-    "minutesAgo": "{{count}} dakika önce",
-    "oneHourAgo": "Bir saat önce",
-    "hoursAgo": "{{count}} saat önce",
-    "oneDayAgo": "Bir gün önce",
-    "daysAgo": "{{count}} gün önce"
+    "thinking": "Muhakeme…"
   },
   "messages": {
-    "deleteConfirm": "Bu öğe silinsin mi?",
-    "renameSuccess": "Yeniden adlandırma tamamlandı",
-    "deleteSuccess": "Silme işlemi tamamlandı",
-    "errorOccurred": "Bir şeyler ters gitti",
-    "deleteSessionConfirm": "Bu görüşme silinsin mi? Bu tersine çevrilemez.",
-    "deleteProjectConfirm": "Bu proje kenar çubuğundan kaldırılsın mı? Dosyalar, anılar ve konuşma verileri bozulmadan kalır.",
-    "enterProjectPath": "Bir proje yolu girin",
     "deleteSessionFailed": "Görüşme silinemedi. Tekrar deneyin.",
     "deleteSessionError": "Konuşma silme hatası oluştu. Tekrar deneyin.",
     "renameSessionFailed": "Görüşme yeniden adlandırılamadı. Tekrar deneyin.",
@@ -111,8 +66,6 @@
     "exportSessionError": "Görüşme dışa aktarılamadı. Tekrar deneyin.",
     "deleteProjectFailed": "Proje kaldırılamadı. Tekrar deneyin.",
     "deleteProjectError": "Bir proje kaldırma hatası oluştu. Tekrar deneyin.",
-    "createProjectFailed": "Proje eklenemedi. Tekrar deneyin.",
-    "createProjectError": "Bir proje oluşturma hatası oluştu. Tekrar deneyin.",
     "updateProjectError": "Bir proje güncelleme hatası oluştu. Tekrar deneyin.",
     "refreshError": "Yenilenemedi. Tekrar deneyin.",
     "restoreProjectFailed": "Proje geri yüklenemedi. Tekrar deneyin.",
@@ -121,8 +74,7 @@
     "restoreSessionError": "Konuşma geri yükleme hatası oluştu. Tekrar deneyin."
   },
   "version": {
-    "updateAvailable": "Yeni güncelleme mevcut",
-    "restartRequired": "Güncelleme yüklendi; kullanmak için sunucuyu yeniden başlatın"
+    "updateAvailable": "Yeni güncelleme mevcut"
   },
   "deleteConfirmation": {
     "deleteProject": "Çalışma alanını kaldır",
@@ -130,9 +82,6 @@
     "confirmDelete": "Ne yapacağınızı seçin",
     "sessionCount_one": "Bu projede {{count}} görüşme var.",
     "sessionCount_other": "Bu projede {{count}} görüşme var.",
-    "removeFromSidebar": "Yalnızca kenar çubuğundan kaldır",
-    "deleteAllData": "Tüm verileri kalıcı olarak sil",
-    "allConversationsDeleted": "Proje kenar çubuğundan çıkarken dosyaları, anıları ve konuşma verileri kalır.",
-    "cannotUndo": "Bu projeyi daha sonra tekrar ekleyebilirsiniz."
+    "deleteAllData": "Tüm verileri kalıcı olarak sil"
   }
 }

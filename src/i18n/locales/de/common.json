@@ -1,87 +1,13 @@
 {
   "buttons": {
-    "save": "Änderungen sichern",
-    "cancel": "Vorgang abbrechen",
-    "delete": "Entfernen",
-    "create": "Neu anlegen",
-    "edit": "Zum Bearbeiten öffnen",
-    "close": "Fenster schließen",
-    "confirm": "Auswahl bestätigen",
-    "submit": "Senden",
-    "retry": "Versuchen Sie es noch einmal",
-    "refresh": "Neu laden",
-    "search": "Suche starten",
-    "clear": "Leeren",
-    "copy": "In Zwischenablage kopieren",
-    "download": "Datei abrufen",
-    "upload": "Datei senden",
-    "browse": "Ordner erkunden"
+    "cancel": "Vorgang abbrechen"
   },
   "tabs": {
     "chat": "Chatten",
-    "shell": "Terminal",
-    "files": "Projektdateien",
-    "git": "Versionskontrolle",
-    "computer": "Rechner"
+    "git": "Versionskontrolle"
   },
   "status": {
-    "loading": "Laden...",
-    "success": "Erfolg",
-    "error": "Problem",
-    "failed": "Fehlgeschlagen",
-    "pending": "Noch offen",
-    "completed": "Fertiggestellt",
-    "inProgress": "Läuft jetzt"
-  },
-  "messages": {
-    "savedSuccessfully": "Speichern abgeschlossen",
-    "deletedSuccessfully": "Löschvorgang abgeschlossen",
-    "updatedSuccessfully": "Update abgeschlossen",
-    "operationFailed": "Der Vorgang wurde nicht abgeschlossen",
-    "networkError": "Netzwerkfehler. Überprüfen Sie Ihre Verbindung.",
-    "unauthorized": "Eine Anmeldung ist erforderlich.",
-    "notFound": "Artikel nicht gefunden",
-    "invalidInput": "Die Eingabe ist ungültig",
-    "requiredField": "Geben Sie hier einen Wert ein",
-    "unknownError": "Etwas Unerwartetes ist schief gelaufen"
-  },
-  "navigation": {
-    "settings": "Optionen",
-    "home": "Startseite",
-    "back": "Zurück",
-    "next": "Als nächstes",
-    "previous": "Zurück",
-    "logout": "Abmelden"
-  },
-  "common": {
-    "language": "Anzeigesprache",
-    "theme": "Thema",
-    "darkMode": "Dunkles Thema",
-    "lightMode": "Lichtthema",
-    "name": "Name",
-    "description": "Beschreibung",
-    "enabled": "Eingeschaltet",
-    "disabled": "Ausgeschaltet",
-    "optional": "Optional",
-    "version": "Version",
-    "select": "Auswählen",
-    "selectAll": "Wählen Sie alle aus",
-    "deselectAll": "Löschen Sie alle Auswahlen"
-  },
-  "time": {
-    "justNow": "Vor wenigen Augenblicken",
-    "minutesAgo": "Vor {{count}} Minuten",
-    "hoursAgo": "{{count}} Stunden früher",
-    "daysAgo": "{{count}} Tage zuvor",
-    "yesterday": "Gestern"
-  },
-  "fileOperations": {
-    "newFile": "Datei erstellen",
-    "newFolder": "Ordner erstellen",
-    "rename": "Neuen Namen vergeben",
-    "move": "Bewegen",
-    "copyPath": "Speicherort kopieren",
-    "openInEditor": "Datei bearbeiten"
+    "success": "Erfolg"
   },
   "mainContent": {
     "loading": "Gajae-App starten",
@@ -92,117 +18,20 @@
     "createProjectMobile": "Über das Menü oben gelangen Sie zu Ihren Projekten",
     "createProjectDesktop": "Verwenden Sie die Ordnerschaltfläche in der Seitenleiste, um ein Projekt hinzuzufügen",
     "newSession": "Gespräch beginnen",
-    "untitledSession": "Unbenanntes Gespräch",
     "projectFiles": "Dateien im Projekt"
   },
-  "fileTree": {
-    "loading": "Dateien werden abgerufen…",
-    "files": "Projektdateien",
-    "simpleView": "Grundlayout",
-    "compactView": "Verdichtetes Layout",
-    "detailedView": "Erweitertes Layout",
-    "searchPlaceholder": "Suchen Sie nach Dateien oder Ordnern …",
-    "clearSearch": "Suche zurücksetzen",
-    "name": "Name",
-    "size": "Größe",
-    "modified": "Geändert",
-    "permissions": "Berechtigungen",
-    "noFilesFound": "Dieser Ordner enthält keine Dateien",
-    "checkProjectPath": "Stellen Sie sicher, dass der Projektpfad erreichbar ist",
-    "noMatchesFound": "Nichts passte zusammen",
-    "tryDifferentSearch": "Verwenden Sie eine andere Abfrage oder löschen Sie die aktuelle",
-    "justNow": "vor wenigen Augenblicken",
-    "minAgo": "Vor {{count}} Minuten",
-    "hoursAgo": "{{count}} Stunden früher",
-    "daysAgo": "{{count}} Tage zuvor",
-    "newFile": "Datei erstellen (Cmd+N)",
-    "newFolder": "Ordner erstellen (Cmd+Shift+N)",
-    "refresh": "Neu laden",
-    "collapseAll": "Alle schließen",
-    "context": {
-      "rename": "Neuen Namen vergeben",
-      "delete": "Entfernen",
-      "copyPath": "Speicherort kopieren",
-      "download": "Datei abrufen",
-      "newFile": "Datei erstellen",
-      "newFolder": "Ordner erstellen",
-      "refresh": "Neu laden",
-      "menuLabel": "Menü „Dateiaktionen“.",
-      "loading": "Laden..."
-    }
-  },
   "projectWizard": {
-    "title": "Fügen Sie ein Projekt hinzu",
-    "steps": {
-      "type": "Typ",
-      "configure": "Konfigurieren",
-      "confirm": "Auswahl bestätigen"
-    },
-    "step1": {
-      "question": "Einen vorhandenen Arbeitsbereich hinzufügen oder einen neuen erstellen?",
-      "existing": {
-        "title": "Vorhandenen Arbeitsbereich nutzen",
-        "description": "Fügen Sie der Projektliste einen Arbeitsbereich hinzu, der bereits auf diesem Server vorhanden ist"
-      },
-      "new": {
-        "title": "Arbeitsbereich erstellen",
-        "description": "Erstellen Sie einen Arbeitsbereich mit der Option, ein GitHub-Repository zu klonen"
-      }
-    },
     "step2": {
       "existingPath": "Standort des Arbeitsbereichs",
-      "newPath": "Standort des Arbeitsbereichs",
-      "existingPlaceholder": "/path/to/existing/workspace",
-      "newPlaceholder": "/pfad/zu/neu/arbeitsbereich",
-      "existingHelp": "Absoluter Pfad des Arbeitsbereichs, den Sie bereits haben",
-      "newHelp": "Geben Sie einen absoluten Pfad für diesen Arbeitsbereich ein",
-      "githubUrl": "URL des GitHub-Repositorys (optional)",
-      "githubPlaceholder": "https://github.com/username/repository",
-      "githubHelp": "Fügen Sie die URL eines GitHub-Repositorys ein, wenn es geklont werden soll",
-      "githubAuth": "GitHub-Anmeldung (optional)",
-      "githubAuthHelp": "Private Repositorys benötigen eine Authentifizierung. öffentliche nicht.",
-      "loadingTokens": "Gespeicherte Token abrufen…",
-      "storedToken": "Gespeichertes Token",
-      "newToken": "Geben Sie ein Token ein",
-      "nonePublic": "Kein Token (öffentliches Repository)",
-      "selectToken": "Wählen Sie einen Token",
-      "selectTokenPlaceholder": "-- Wählen Sie einen Token --",
-      "tokenPlaceholder": "gp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "tokenHelp": "Dieses Token wird nur für diesen Vorgang verwendet",
-      "publicRepoInfo": "Beim Klonen eines öffentlichen Repositorys ist kein Token erforderlich.",
-      "noTokensHelp": "Es sind keine gespeicherten Token vorhanden. Fügen Sie einen unter Einstellungen → API-Schlüssel hinzu, um ihn wiederzuverwenden.",
-      "optionalTokenPublic": "GitHub-Token (optional für öffentliche Repositorys)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (für öffentliche Repos leer lassen)"
-    },
-    "step3": {
-      "reviewConfig": "Überprüfen Sie die Konfiguration",
-      "existingWorkspace": "Vorhandenen Arbeitsbereich nutzen",
-      "newWorkspace": "Arbeitsbereich erstellen",
-      "path": "Pfad:",
-      "cloneFrom": "Repository-Quelle:",
-      "authentication": "Authentifizierung:",
-      "usingStoredToken": "Gespeichertes Token verwenden:",
-      "usingProvidedToken": "Verwendung des eingegebenen Tokens",
-      "noAuthentication": "Authentifizierung nicht verwendet",
-      "sshKey": "SSH-Authentifizierungsschlüssel",
-      "existingInfo": "Der Arbeitsbereich wird in Ihrer Projektliste für Gajae Code-Sitzungen angezeigt.",
-      "newWithClone": "Das Repository wird in diesen Ordner geklont.",
-      "newEmpty": "Der Arbeitsbereich wird in Ihrer Projektliste für Gajae Code-Sitzungen angezeigt.",
-      "cloningRepository": "Klonen des Repositorys…"
+      "existingPlaceholder": "/path/to/existing/workspace"
     },
     "buttons": {
       "cancel": "Vorgang abbrechen",
-      "back": "Zurück",
-      "next": "Als nächstes",
-      "createProject": "Projekt hinzufügen",
-      "creating": "Erstellen…",
-      "cloning": "Klonen…"
+      "creating": "Erstellen…"
     },
     "errors": {
-      "selectType": "Wählen Sie, ob Sie einen vorhandenen Arbeitsbereich hinzufügen oder einen erstellen möchten",
       "providePath": "Geben Sie einen Arbeitsbereichspfad ein",
-      "failedToCreate": "Arbeitsbereich konnte nicht erstellt werden",
-      "failedToCreateFolder": "Ordner konnte nicht erstellt werden"
+      "failedToCreate": "Arbeitsbereich konnte nicht erstellt werden"
     },
     "folderBrowser": {
       "title": "Ordner auswählen",
@@ -221,62 +50,9 @@
       "browseFolders": "Suchen Sie nach Ordnern"
     }
   },
-  "notifications": {
-    "genericTool": "ein gewünschtes Werkzeug",
-    "codes": {
-      "generic": {
-        "info": {
-          "title": "Benachrichtigung"
-        }
-      },
-      "permission": {
-        "required": {
-          "title": "Ihr Beitrag wird benötigt",
-          "body": "Ihre Auswahl ist bis {{toolName}} erforderlich."
-        }
-      },
-      "run": {
-        "stopped": {
-          "title": "Lauf beendet",
-          "body": "Gestoppt, weil: {{reason}}"
-        },
-        "failed": {
-          "title": "Der Lauf wurde nicht beendet"
-        }
-      },
-      "agent": {
-        "notification": {
-          "title": "Agentennachricht"
-        }
-      }
-    }
-  },
   "versionUpdate": {
-    "title": "Neues Update verfügbar",
-    "newVersionReady": "Eine neuere Version ist verfügbar",
-    "currentVersion": "Installierte Version",
-    "latestVersion": "Neueste Version",
-    "whatsNew": "Versionshinweise:",
-    "viewFullRelease": "Vollständige Veröffentlichung lesen",
-    "updateProgress": "Update-Status:",
-    "manualUpgrade": "Update:",
-    "npmUpgradeCommand": "scripts/gajae-app.sh aktualisieren",
-    "manualUpgradeHint": "Holen Sie sich die neueste Version von GitHub Releases oder verwenden Sie diesen Befehl.",
-    "updateCompleted": "Update abgeschlossen!",
-    "restartServer": "Starten Sie den Server neu, um das Update zu verwenden.",
-    "updateFailed": "Konnte nicht aktualisiert werden",
-    "buttons": {
-      "close": "Fenster schließen",
-      "later": "Später",
-      "copyCommand": "Update-Befehl kopieren",
-      "updateNow": "Update installieren",
-      "updating": "Update wird installiert…"
-    },
     "ariaLabels": {
-      "closeModal": "Aktualisierungsdialog schließen",
       "showSidebar": "Seitenleiste anzeigen",
-      "settings": "Optionen",
-      "updateAvailable": "Neues Update verfügbar",
       "closeSidebar": "Seitenleiste ausblenden"
     }
   },
@@ -351,14 +127,6 @@
       "unreported": "Noch kein Bericht",
       "empty": "Keine offene Sitzung",
       "emptyHint": "Starten oder öffnen Sie eine Sitzung, um deren aktuelle Aktivität anzuzeigen."
-    },
-    "filesTab": {
-      "changeRoot": "Stammordner festlegen",
-      "rootPlaceholder": "Heimatrelativer Pfad (z. B. Arbeitsbereich)",
-      "apply": "Bewerben",
-      "opening": "Zugriff auf den Ordner…",
-      "homeUnavailable": "Das Home-Verzeichnis konnte nicht ermittelt werden",
-      "openFailed": "Dieser Ordner konnte nicht geöffnet werden; Überprüfen Sie den Pfad"
     }
   }
 }

@@ -1,87 +1,13 @@
 {
   "buttons": {
-    "save": "存儲",
-    "cancel": "取消",
-    "delete": "刪除",
-    "create": "創建",
-    "edit": "編輯",
-    "close": "退出",
-    "confirm": "確認",
-    "submit": "提交",
-    "retry": "重試",
-    "refresh": "刷新",
-    "search": "搜尋",
-    "clear": "清空",
-    "copy": "複製",
-    "download": "下載檔案",
-    "upload": "上傳檔案",
-    "browse": "瀏覽檔案"
+    "cancel": "取消"
   },
   "tabs": {
     "chat": "對話",
-    "shell": "指令列",
-    "files": "檔案管理",
-    "git": "版本管理",
-    "computer": "電腦"
+    "git": "版本管理"
   },
   "status": {
-    "loading": "正在加載...",
-    "success": "完成",
-    "error": "錯誤",
-    "failed": "失敗",
-    "pending": "等待中",
-    "completed": "已完成",
-    "inProgress": "現在正在運行"
-  },
-  "messages": {
-    "savedSuccessfully": "儲存完成",
-    "deletedSuccessfully": "刪除完成",
-    "updatedSuccessfully": "更新完成",
-    "operationFailed": "操作未完成",
-    "networkError": "網路錯誤。請檢查您的連線。",
-    "unauthorized": "登入是必要的。",
-    "notFound": "項目未找到",
-    "invalidInput": "輸入無效",
-    "requiredField": "請在此處輸入值",
-    "unknownError": "發生了意想不到的問題"
-  },
-  "navigation": {
-    "settings": "設定",
-    "home": "首頁",
-    "back": "返回",
-    "next": "下一頁",
-    "previous": "上一頁",
-    "logout": "登出"
-  },
-  "common": {
-    "language": "語言",
-    "theme": "主題",
-    "darkMode": "深色主題",
-    "lightMode": "淺色主題",
-    "name": "姓名",
-    "description": "簡介",
-    "enabled": "啟用",
-    "disabled": "停用",
-    "optional": "選項",
-    "version": "版本",
-    "select": "選擇",
-    "selectAll": "全部選取",
-    "deselectAll": "清除所有選項"
-  },
-  "time": {
-    "justNow": "剛才",
-    "minutesAgo": "{{count}} 分鐘前",
-    "hoursAgo": "{{count}} 小時之前",
-    "daysAgo": "{{count}}天前",
-    "yesterday": "昨天"
-  },
-  "fileOperations": {
-    "newFile": "建立檔案",
-    "newFolder": "建立資料夾",
-    "rename": "重命名",
-    "move": "移動",
-    "copyPath": "複製位置",
-    "openInEditor": "編輯檔案"
+    "success": "完成"
   },
   "mainContent": {
     "loading": "啟動 Gajae Code App",
@@ -92,117 +18,20 @@
     "createProjectMobile": "使用上方的菜單來訪問您的專案",
     "createProjectDesktop": "使用側欄的資料夾按鈕來新增一個專案",
     "newSession": "開始對話",
-    "untitledSession": "未命名對話",
     "projectFiles": "專案中的檔案"
   },
-  "fileTree": {
-    "loading": "正在獲取檔案……",
-    "files": "檔案",
-    "simpleView": "基本佈局",
-    "compactView": "緊湊佈局",
-    "detailedView": "展開佈局",
-    "searchPlaceholder": "搜尋檔案或資料夾…",
-    "clearSearch": "重置搜尋",
-    "name": "名稱",
-    "size": "檔案大小",
-    "modified": "最後修改時間",
-    "permissions": "範圍",
-    "noFilesFound": "此資料夾沒有檔案",
-    "checkProjectPath": "請確認專案路徑可以被訪問",
-    "noMatchesFound": "無符合條件的結果",
-    "tryDifferentSearch": "使用其他查詢，或清空當前查詢",
-    "justNow": "幾秒之前",
-    "minAgo": "{{count}} 分鐘前",
-    "hoursAgo": "{{count}} 小時前",
-    "daysAgo": "{{count}} 天前",
-    "newFile": "建立檔案 (Cmd+N)",
-    "newFolder": "建立資料夾 (Cmd+Shift+N)",
-    "refresh": "重新整理",
-    "collapseAll": "關閉所有",
-    "context": {
-      "rename": "重命名",
-      "delete": "刪除",
-      "copyPath": "複製位置",
-      "download": "下載",
-      "newFile": "建立檔案",
-      "newFolder": "建立資料夾",
-      "refresh": "刷新",
-      "menuLabel": "文件動作選單",
-      "loading": "正在加載..."
-    }
-  },
   "projectWizard": {
-    "title": "新增專案",
-    "steps": {
-      "type": "輸入",
-      "configure": "設定",
-      "confirm": "確認"
-    },
-    "step1": {
-      "question": "已有工作區或新建一個？",
-      "existing": {
-        "title": "使用現有工作區",
-        "description": "將已存在於此伺服器的工作區加入專案清單"
-      },
-      "new": {
-        "title": "建立工作區",
-        "description": "創建工作區，並可選克隆GitHubrepository"
-      }
-    },
     "step2": {
       "existingPath": "工作區位置",
-      "newPath": "工作空間位置",
-      "existingPlaceholder": "/path/to/existing/workspace",
-      "newPlaceholder": "/path/to/new/workspace",
-      "existingHelp": "您已有的工作空間絕對路徑",
-      "newHelp": "請輸入此工作空間的絕對路徑",
-      "githubUrl": "GitHub 儲存庫 URL（可選）",
-      "githubPlaceholder": "https://github.com/username/repository",
-      "githubHelp": "當需要克隆時，粘貼一個 GitHub 儲存庫 URL",
-      "githubAuth": "GitHub 登入（可選）",
-      "githubAuthHelp": "私有儲存庫需要驗證；公開的不需要。",
-      "loadingTokens": "正在獲取存儲的金鑰…",
-      "storedToken": "存儲的金鑰",
-      "newToken": "請輸入一個金鑰",
-      "nonePublic": "沒有金鑰（公開儲存庫）",
-      "selectToken": "選擇一個金鑰",
-      "selectTokenPlaceholder": "-- 請選擇一個金鑰 --",
-      "tokenPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "tokenHelp": "此金鑰僅用于此次操作",
-      "publicRepoInfo": "克隆公開儲存庫時不需要金鑰。",
-      "noTokensHelp": "目前沒有存儲的金鑰。請在設定 → API 金鑰 中添加一個以重用它。",
-      "optionalTokenPublic": "GitHub存取令牌（公開repos可選）",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx（公開repos留空）"
-    },
-    "step3": {
-      "reviewConfig": "檢查設定",
-      "existingWorkspace": "使用現有工作區",
-      "newWorkspace": "建立工作區",
-      "path": "路徑：",
-      "cloneFrom": "repo來源：",
-      "authentication": "驗證方式：",
-      "usingStoredToken": "使用儲存的token",
-      "usingProvidedToken": "使用輸入的token",
-      "noAuthentication": "未使用驗證",
-      "sshKey": "SSH驗證金鑰",
-      "existingInfo": "此工作區將出現在Gajae Code會話的工作項目清單中。",
-      "newWithClone": "repo將被克隆到此資料夾中。",
-      "newEmpty": "此工作區將出現在Gajae Code會話的工作項目清單中。",
-      "cloningRepository": "正在克隆repo…"
+      "existingPlaceholder": "/path/to/existing/workspace"
     },
     "buttons": {
       "cancel": "離開",
-      "back": "返回上一頁",
-      "next": "接下來",
-      "createProject": "新增專案",
-      "creating": "建立中…",
-      "cloning": "克隆中…"
+      "creating": "建立中…"
     },
     "errors": {
-      "selectType": "請選擇是新增現有工作區還是新建一個",
       "providePath": "輸入工作區路徑",
-      "failedToCreate": "無法建立工作區",
-      "failedToCreateFolder": "無法建立資料夾"
+      "failedToCreate": "無法建立工作區"
     },
     "folderBrowser": {
       "title": "選擇資料夾",
@@ -221,62 +50,9 @@
       "browseFolders": "瀏覽資料夾"
     }
   },
-  "notifications": {
-    "genericTool": "一個請求的工具",
-    "codes": {
-      "generic": {
-        "info": {
-          "title": "驚喜公告"
-        }
-      },
-      "permission": {
-        "required": {
-          "title": "您的輸入需要",
-          "body": "{{toolName}} 要求您做出選擇。"
-        }
-      },
-      "run": {
-        "stopped": {
-          "title": "執行結束",
-          "body": "停止原因: {{reason}}"
-        },
-        "failed": {
-          "title": "執行未完成"
-        }
-      },
-      "agent": {
-        "notification": {
-          "title": "代理消息"
-        }
-      }
-    }
-  },
   "versionUpdate": {
-    "title": "有新的更新可用",
-    "newVersionReady": "較新版本已發布",
-    "currentVersion": "安裝版本",
-    "latestVersion": "最新-release",
-    "whatsNew": "發行說明:",
-    "viewFullRelease": "閱讀完整的發行說明",
-    "updateProgress": "更新狀態:",
-    "manualUpgrade": "更新:",
-    "npmUpgradeCommand": "scripts/gajae-app.sh 更新",
-    "manualUpgradeHint": "從 GitHub Releases 網站取得最新的版本，或使用此指令。",
-    "updateCompleted": "更新完成！",
-    "restartServer": "重新啟動伺服器以使用更新.",
-    "updateFailed": "無法更新",
-    "buttons": {
-      "close": "消失",
-      "later": "稍後再說",
-      "copyCommand": "複製更新指令",
-      "updateNow": "安裝更新",
-      "updating": "正在安裝更新…"
-    },
     "ariaLabels": {
-      "closeModal": "忽略更新對話框",
       "showSidebar": "顯示側欄",
-      "settings": "調整",
-      "updateAvailable": "有新的更新可用",
       "closeSidebar": "隱藏側欄"
     }
   },
@@ -351,14 +127,6 @@
       "unreported": "尚無報告",
       "empty": "尚未開啟會話",
       "emptyHint": "開始或開啟一個會話以查看其當前活動。"
-    },
-    "filesTab": {
-      "changeRoot": "設定根目錄",
-      "rootPlaceholder": "相對於家目錄的路徑（例如，工作空間）",
-      "apply": "應用",
-      "opening": "存取資料夾…",
-      "homeUnavailable": "無法判斷ホーム目錄",
-      "openFailed": "無法打開該資料夾；請檢查其路徑"
     }
   }
 }

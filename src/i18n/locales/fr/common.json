@@ -1,87 +1,13 @@
 {
   "buttons": {
-    "save": "Sauvegarder",
-    "cancel": "Abandonner",
-    "delete": "Retirer",
-    "create": "Ajouter",
-    "edit": "Éditer",
-    "close": "Refermer",
-    "confirm": "Valider",
-    "submit": "Envoyer",
-    "retry": "Tenter à nouveau",
-    "refresh": "Recharger",
-    "search": "Lancer une recherche",
-    "clear": "Vider",
-    "copy": "Copier dans le presse-papiers",
-    "download": "Récupérer",
-    "upload": "Télécharger",
-    "browse": "Explorer"
+    "cancel": "Abandonner"
   },
   "tabs": {
     "chat": "Discuter",
-    "shell": "Terminal",
-    "files": "Fichiers du projet",
-    "git": "Contrôle des versions",
-    "computer": "Poste de travail"
+    "git": "Contrôle des versions"
   },
   "status": {
-    "loading": "Chargement en cours...",
-    "success": "Opération réussie",
-    "error": "Problème",
-    "failed": "Opération échouée",
-    "pending": "À venir",
-    "completed": "Finalisé",
-    "inProgress": "En cours d'exécution maintenant"
-  },
-  "messages": {
-    "savedSuccessfully": "Sauvegarde terminée",
-    "deletedSuccessfully": "Suppression terminée",
-    "updatedSuccessfully": "Mise à jour terminée",
-    "operationFailed": "L'opération n'a pas été terminée",
-    "networkError": "Erreur réseau. Vérifiez votre connexion.",
-    "unauthorized": "La connexion est requise.",
-    "notFound": "Article introuvable",
-    "invalidInput": "L'entrée n'est pas valide",
-    "requiredField": "Saisissez une valeur ici",
-    "unknownError": "Quelque chose d'inattendu s'est mal passé"
-  },
-  "navigation": {
-    "settings": "Options",
-    "home": "Accueil",
-    "back": "Retour",
-    "next": "Suivant",
-    "previous": "Précédent",
-    "logout": "Déconnexion"
-  },
-  "common": {
-    "language": "Langue affichée",
-    "theme": "Style visuel",
-    "darkMode": "Thème sombre",
-    "lightMode": "Thème lumière",
-    "name": "Nom",
-    "description": "Descriptif",
-    "enabled": "Mis en service",
-    "disabled": "Hors service",
-    "optional": "Facultatif",
-    "version": "Version",
-    "select": "Sélectionnez",
-    "selectAll": "Choisissez tout",
-    "deselectAll": "Effacer toutes les sélections"
-  },
-  "time": {
-    "justNow": "Il y a quelques instants",
-    "minutesAgo": "il y a {{count}} minutes",
-    "hoursAgo": "{{count}} heures plus tôt",
-    "daysAgo": "{{count}} jours plus tôt",
-    "yesterday": "Hier"
-  },
-  "fileOperations": {
-    "newFile": "Créer un fichier",
-    "newFolder": "Créer un dossier",
-    "rename": "Changer le nom",
-    "move": "Déplacer",
-    "copyPath": "Copier l’emplacement",
-    "openInEditor": "Modifier le fichier"
+    "success": "Opération réussie"
   },
   "mainContent": {
     "loading": "Démarrage de l'application Gajae",
@@ -92,117 +18,20 @@
     "createProjectMobile": "Utilisez le menu ci-dessus pour accéder à vos projets",
     "createProjectDesktop": "Utilisez le bouton de dossier de la barre latérale pour ajouter un projet",
     "newSession": "Démarrer une conversation",
-    "untitledSession": "Conversation sans nom",
     "projectFiles": "Fichiers dans le projet"
   },
-  "fileTree": {
-    "loading": "Récupération de fichiers…",
-    "files": "Fichiers du projet",
-    "simpleView": "Disposition de base",
-    "compactView": "Disposition condensée",
-    "detailedView": "Disposition étendue",
-    "searchPlaceholder": "Rechercher des fichiers ou des dossiers…",
-    "clearSearch": "Réinitialiser la recherche",
-    "name": "Nom",
-    "size": "Taille",
-    "modified": "Modifié",
-    "permissions": "Autorisations",
-    "noFilesFound": "Ce dossier ne contient aucun fichier",
-    "checkProjectPath": "Assurez-vous que le chemin du projet est accessible",
-    "noMatchesFound": "Rien ne correspond",
-    "tryDifferentSearch": "Utiliser une autre requête ou effacer la requête actuelle",
-    "justNow": "il y a quelques instants",
-    "minAgo": "il y a {{count}} minutes",
-    "hoursAgo": "{{count}} heures plus tôt",
-    "daysAgo": "{{count}} jours plus tôt",
-    "newFile": "Créer un fichier (Cmd+N)",
-    "newFolder": "Créer un dossier (Cmd+Shift+N)",
-    "refresh": "Recharger",
-    "collapseAll": "Fermer tout",
-    "context": {
-      "rename": "Changer le nom",
-      "delete": "Retirer",
-      "copyPath": "Copier l’emplacement",
-      "download": "Récupérer",
-      "newFile": "Créer un fichier",
-      "newFolder": "Créer un dossier",
-      "refresh": "Recharger",
-      "menuLabel": "Menu d'actions sur les fichiers",
-      "loading": "Chargement en cours..."
-    }
-  },
   "projectWizard": {
-    "title": "Ajouter un projet",
-    "steps": {
-      "type": "Tapez",
-      "configure": "Configurer",
-      "confirm": "Valider"
-    },
-    "step1": {
-      "question": "Ajouter un espace de travail existant ou en créer un nouveau ?",
-      "existing": {
-        "title": "Utiliser l'espace de travail existant",
-        "description": "Ajouter un espace de travail qui existe déjà sur ce serveur à la liste des projets"
-      },
-      "new": {
-        "title": "Créer un espace de travail",
-        "description": "Créez un espace de travail, avec la possibilité de cloner un référentiel GitHub"
-      }
-    },
     "step2": {
       "existingPath": "Emplacement de l'espace de travail",
-      "newPath": "Emplacement de l'espace de travail",
-      "existingPlaceholder": "/chemin/vers/existant/espace de travail",
-      "newPlaceholder": "/chemin/vers/nouveau/espace de travail",
-      "existingHelp": "Chemin absolu de l'espace de travail que vous possédez déjà",
-      "newHelp": "Saisissez un chemin absolu pour cet espace de travail",
-      "githubUrl": "URL du dépôt GitHub (facultatif)",
-      "githubPlaceholder": "https://github.com/username/repository",
-      "githubHelp": "Collez l’URL d’un dépôt GitHub lorsqu’il doit être cloné",
-      "githubAuth": "Connexion GitHub (facultatif)",
-      "githubAuthHelp": "Les référentiels privés nécessitent une authentification ; les publics ne le font pas.",
-      "loadingTokens": "Récupération des jetons enregistrés…",
-      "storedToken": "Jeton enregistré",
-      "newToken": "Saisissez un jeton",
-      "nonePublic": "Aucun jeton (dépôt public)",
-      "selectToken": "Choisissez un jeton",
-      "selectTokenPlaceholder": "-- Choisissez un jeton --",
-      "tokenPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "tokenHelp": "Ce jeton est utilisé pour cette opération uniquement",
-      "publicRepoInfo": "Aucun jeton n'est nécessaire lors du clonage d'un référentiel public.",
-      "noTokensHelp": "Il n'y a aucun jeton enregistré. Ajoutez-en un sous Paramètres → Clés API pour le réutiliser.",
-      "optionalTokenPublic": "Jeton GitHub (facultatif pour les référentiels publics)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (laisser vide pour les dépôts publics)"
-    },
-    "step3": {
-      "reviewConfig": "Vérifiez la configuration",
-      "existingWorkspace": "Utiliser l'espace de travail existant",
-      "newWorkspace": "Créer un espace de travail",
-      "path": "Chemin :",
-      "cloneFrom": "Source du référentiel :",
-      "authentication": "Authentification :",
-      "usingStoredToken": "Utilisation du jeton enregistré :",
-      "usingProvidedToken": "Utilisation du jeton saisi",
-      "noAuthentication": "Authentification non utilisée",
-      "sshKey": "Clé d'authentification SSH",
-      "existingInfo": "L'espace de travail apparaîtra dans votre liste de projets pour les sessions Gajae Code.",
-      "newWithClone": "Le référentiel sera cloné dans ce dossier.",
-      "newEmpty": "L'espace de travail apparaîtra dans votre liste de projets pour les sessions Gajae Code.",
-      "cloningRepository": "Dépôt de clonage…"
+      "existingPlaceholder": "/chemin/vers/existant/espace de travail"
     },
     "buttons": {
       "cancel": "Abandonner",
-      "back": "Retour",
-      "next": "Suivant",
-      "createProject": "Ajouter un projet",
-      "creating": "Création…",
-      "cloning": "Clonage…"
+      "creating": "Création…"
     },
     "errors": {
-      "selectType": "Choisissez si vous souhaitez ajouter un espace de travail existant ou en créer un",
       "providePath": "Saisissez un chemin d'espace de travail",
-      "failedToCreate": "Impossible de créer un espace de travail",
-      "failedToCreateFolder": "Impossible de créer le dossier"
+      "failedToCreate": "Impossible de créer un espace de travail"
     },
     "folderBrowser": {
       "title": "Choisir un dossier",
@@ -221,62 +50,9 @@
       "browseFolders": "Rechercher des dossiers"
     }
   },
-  "notifications": {
-    "genericTool": "un outil demandé",
-    "codes": {
-      "generic": {
-        "info": {
-          "title": "Notification"
-        }
-      },
-      "permission": {
-        "required": {
-          "title": "Votre contribution est nécessaire",
-          "body": "Votre choix est requis par {{toolName}}."
-        }
-      },
-      "run": {
-        "stopped": {
-          "title": "Exécution terminée",
-          "body": "Arrêté parce que : {{reason}}"
-        },
-        "failed": {
-          "title": "L'exécution n'est pas terminée"
-        }
-      },
-      "agent": {
-        "notification": {
-          "title": "Message de l'agent"
-        }
-      }
-    }
-  },
   "versionUpdate": {
-    "title": "Nouvelle mise à jour disponible",
-    "newVersionReady": "Une version plus récente est disponible",
-    "currentVersion": "Version installée",
-    "latestVersion": "Version la plus récente",
-    "whatsNew": "Notes de version :",
-    "viewFullRelease": "Lire le communiqué complet",
-    "updateProgress": "Statut de la mise à jour :",
-    "manualUpgrade": "Mise à jour :",
-    "npmUpgradeCommand": "mise à jour scripts/gajae-app.sh",
-    "manualUpgradeHint": "Obtenez la version la plus récente à partir des versions GitHub ou utilisez cette commande.",
-    "updateCompleted": "Mise à jour terminée !",
-    "restartServer": "Redémarrez le serveur pour utiliser la mise à jour.",
-    "updateFailed": "Impossible de mettre à jour",
-    "buttons": {
-      "close": "Refermer",
-      "later": "Plus tard",
-      "copyCommand": "Copier la commande de mise à jour",
-      "updateNow": "Installer la mise à jour",
-      "updating": "Installation de la mise à jour…"
-    },
     "ariaLabels": {
-      "closeModal": "Fermer la boîte de dialogue de mise à jour",
       "showSidebar": "Révéler la barre latérale",
-      "settings": "Options",
-      "updateAvailable": "Nouvelle mise à jour disponible",
       "closeSidebar": "Masquer la barre latérale"
     }
   },
@@ -351,14 +127,6 @@
       "unreported": "Pas encore de rapport",
       "empty": "Pas de séance ouverte",
       "emptyHint": "Démarrez ou ouvrez une session pour afficher son activité actuelle."
-    },
-    "filesTab": {
-      "changeRoot": "Définir le dossier racine",
-      "rootPlaceholder": "Chemin relatif à la maison (par exemple, espace de travail)",
-      "apply": "Postuler",
-      "opening": "Accès au dossier…",
-      "homeUnavailable": "Impossible de déterminer le répertoire personnel",
-      "openFailed": "Ce dossier n'a pas pu être ouvert ; vérifie son chemin"
     }
   }
 }

@@ -12,8 +12,6 @@
     "copyAsText": "Copier en texte brut"
   },
   "messageTypes": {
-    "user": "U",
-    "tool": "Outil",
     "claude": "Claude",
     "cursor": "Cursor",
     "codex": "Codex",
@@ -25,100 +23,28 @@
     }
   },
   "tools": {
-    "settings": "Options d'outils",
-    "error": "Problème d'outil",
-    "result": "Sortie de l'outil",
-    "viewParams": "Inspecter les paramètres d'entrée",
-    "viewRawParams": "Inspecter les paramètres bruts",
-    "viewDiff": "Inspectez le diff d'édition pour",
-    "creatingFile": "Création d'un fichier :",
-    "updatingTodo": "Mise à jour de la liste des tâches",
-    "read": "Lire",
-    "readFile": "Lire un fichier",
-    "updateTodo": "Mettre à jour la liste des tâches",
-    "readTodo": "Lire la liste des tâches",
-    "searchResults": "matchs"
+    "error": "Problème d'outil"
   },
   "search": {
-    "found": "{{count}} {{type}} trouvé",
-    "file": "fichier",
-    "files": "fichiers",
-    "pattern": "modèle :",
     "in": "dans :"
-  },
-  "fileOperations": {
-    "updated": "Mise à jour du fichier terminée",
-    "created": "Création du fichier terminée",
-    "written": "Écriture du fichier terminée",
-    "diff": "Différence",
-    "newFile": "Créer un fichier",
-    "viewContent": "Inspecter le contenu du fichier",
-    "viewFullOutput": "Afficher toutes les sorties (caractères {{count}})",
-    "contentDisplayed": "La vue différentielle ci-dessus contient le contenu de ce fichier"
   },
   "interactive": {
     "title": "Demande interactive",
     "waiting": "En attente d'une réponse dans le CLI",
-    "instruction": "Choisissez une option dans le terminal exécutant Claude.",
-    "selectedOption": "✓ Claude a choisi l'option {{number}}",
-    "instructionDetail": "Dans le CLI, sélectionnez-le de manière interactive avec les touches fléchées ou son numéro."
-  },
-  "thinking": {
-    "title": "Raisonnement…",
-    "emoji": "💭 Raisonnement…"
+    "instruction": "Choisissez une option dans le terminal exécutant Claude."
   },
   "json": {
     "response": "Réponse JSON"
   },
-  "permissions": {
-    "grant": "Autoriser {{tool}} à s'exécuter",
-    "added": "Autorisation enregistrée",
-    "addTo": "Ajoute {{entry}} aux outils autorisés.",
-    "retry": "Autorisation enregistrée. Exécutez à nouveau la demande d'outil.",
-    "error": "Impossible de mettre à jour les autorisations. Essayer à nouveau.",
-    "openSettings": "Allez dans les paramètres"
-  },
-  "todo": {
-    "updated": "Liste des tâches mise à jour",
-    "current": "Liste de tâches actuelle"
-  },
-  "plan": {
-    "viewPlan": "📋 Plan de construction ouvert",
-    "title": "Plan de construction"
-  },
-  "usageLimit": {
-    "resetAt": "L'utilisation de Claude est actuellement plafonnée. Il se réinitialise à **{{time}} {{timezone}}** sur {{date}}."
-  },
-  "codex": {
-    "permissionMode": "Gestion des autorisations",
-    "modes": {
-      "default": "Mode standard",
-      "auto": "Mode automatique",
-      "acceptEdits": "Autoriser les modifications",
-      "bypassPermissions": "Contourner l'approbation",
-      "plan": "Mode planification"
-    },
-    "descriptions": {
-      "default": "Les commandes fiables telles que ls, cat, grep et git status s'exécutent automatiquement ; d'autres sont ignorés. Les écritures dans l'espace de travail sont autorisées.",
-      "auto": "Un classificateur de modèles approuve ou rejette chaque appel d'outil. Il ne touche pas mais refuse toujours les appels dangereux.",
-      "acceptEdits": "Chaque commande s'exécute automatiquement dans le bac à sable de l'espace de travail.",
-      "bypassPermissions": "Les commandes s'exécutent sans restrictions, avec un accès complet au disque et au réseau. À utiliser uniquement en cas de confiance.",
-      "plan": "Planification seulement ; les commandes ne s'exécutent pas"
-    },
-    "technicalDetails": "Détails de mise en œuvre"
-  },
   "voice": {
     "input": "Dicter un message",
     "stopRecording": "Terminer l'enregistrement",
-    "transcribing": "Conversion de la parole…",
     "speak": "Prononcez la réponse",
     "stopSpeaking": "Arrêter",
     "loading": "Chargement…"
   },
   "input": {
     "placeholder": "Demandez {{provider}}, utilisez / pour les commandes, ou @ pour ajouter des fichiers…",
-    "placeholderDefault": "Écrivez un message…",
-    "disabled": "Saisie de message indisponible",
     "modelReasoning": {
       "label": "Paramètres du modèle et du raisonnement",
       "providerTitle": "Fournisseur",
@@ -134,19 +60,14 @@
       "search": "Rechercher des configurations",
       "noMatches": "Aucune configuration ne correspond."
     },
-    "attachFiles": "Ajouter des fichiers",
     "attachImages": "Ajouter des images",
     "send": "Envoyer",
     "stop": "Arrêter",
     "hintText": {
       "ctrlEnter": "Envoyer avec Ctrl+Enter • nouvelle ligne avec Shift+Enter • changer de mode avec Tab • commandes avec /",
       "enter": "Envoyer avec Enter • nouvelle ligne avec Shift+Enter • changer de mode avec Tab • commandes avec /",
-      "queue": "Appuyez sur Enter pour mettre un autre message en file d'attente",
-      "steer": "Appuyez sur Enter pour orienter le tour actif"
+      "queue": "Appuyez sur Enter pour mettre un autre message en file d'attente"
     },
-    "clickToChangeMode": "Cliquez pour changer de mode d'autorisation ou appuyez sur Tab dans la saisie.",
-    "showAllCommands": "Parcourir les commandes",
-    "clearInput": "Saisie de message vide",
     "scrollToBottom": "Aller au dernier",
     "queue": {
       "sendNext": "Mettre un autre message en file d'attente",
@@ -162,30 +83,7 @@
       "steerNow": "Piloter le virage actif"
     }
   },
-  "providerSelection": {
-    "title": "Choisissez un assistant IA",
-    "description": "Choisissez un fournisseur pour une nouvelle conversation",
-    "selectModel": "Choisir le modèle",
-    "providerInfo": {
-      "anthropic": "Fournisseur anthropique",
-      "openai": "Fournisseur OpenAI",
-      "cursorEditor": "Éditeur de code avec IA",
-      "google": "Fournisseur Google"
-    },
-    "readyPrompt": {
-      "claude": "Claude avec {{model}} est prêt. Écrivez votre message ci-dessous.",
-      "cursor": "Cursor avec {{model}} est prêt. Écrivez votre message ci-dessous.",
-      "codex": "Codex avec {{model}} est prêt. Écrivez votre message ci-dessous.",
-      "opencode": "OpenCode avec {{model}} est prêt. Écrivez votre message ci-dessous.",
-      "default": "Choisissez un fournisseur ci-dessus pour commencer"
-    },
-    "pressToSearch": "Utilisez <kbd>{{shortcut}}</kbd> pour rechercher des conversations, des fichiers et des commits"
-  },
   "session": {
-    "continue": {
-      "title": "Continuez cette conversation",
-      "description": "Renseignez-vous sur le code, demandez des modifications ou obtenez de l'aide pour le travail de développement"
-    },
     "loading": {
       "olderMessages": "Récupération des messages précédents…",
       "sessionMessages": "Récupération des messages de conversation…"
@@ -200,35 +98,11 @@
       "loadingFullToolOutput": "Récupération de la sortie complète…",
       "fullToolOutputFailed": "La sortie complète n'a pas pu être chargée.",
       "loadingAll": "Récupération de chaque message…",
-      "allLoaded": "Chaque message est chargé",
-      "perfWarning": "Chaque message est chargé, ce qui peut ralentir le défilement. Utilisez « Faites défiler vers le bas » pour l'améliorer."
+      "allLoaded": "Chaque message est chargé"
     }
   },
   "shell": {
-    "selectProject": {
-      "title": "Choisissez un projet",
-      "description": "Choisissez un projet pour ouvrir un shell interactif dans son répertoire"
-    },
-    "status": {
-      "newSession": "Démarrer une conversation",
-      "initializing": "Commencer…",
-      "restarting": "On recommence…"
-    },
-    "actions": {
-      "disconnect": "Déconnecter",
-      "disconnectTitle": "Connexion de la coque d'extrémité",
-      "restart": "Redémarrer",
-      "restartTitle": "Redémarrez le shell",
-      "connect": "Continuer dans le terminal",
-      "connectTitle": "Ouvrir la connexion au terminal"
-    },
-    "loading": "Borne de démarrage…",
-    "connecting": "Connexion coque ouvrante…",
-    "startSession": "Commencer une session Claude",
-    "resumeSession": "Continuer : {{displayName}}…",
-    "runCommand": "Exécutez {{command}} pour {{projectName}}",
-    "startCli": "Lancement de Claude CLI pour {{projectName}}",
-    "defaultCommand": "commande"
+    "loading": "Borne de démarrage…"
   },
   "claudeStatus": {
     "actions": {
@@ -239,24 +113,11 @@
       "computing": "Informatique",
       "reasoning": "Raisonnement"
     },
-    "state": {
-      "live": "En direct",
-      "paused": "En pause"
-    },
     "elapsed": {
       "seconds": "{{count}}",
-      "minutesSeconds": "{{minutes}}m {{seconds}}s",
-      "label": "{{time}} jusqu'à présent",
-      "startingNow": "Je viens juste de commencer"
+      "minutesSeconds": "{{minutes}}m {{seconds}}s"
     },
-    "stop": "Arrêter",
-    "controls": {
-      "stopGeneration": "Arrêter la réponse",
-      "pressEscToStop": "Appuyez sur Esc pour arrêter à tout moment"
-    },
-    "providers": {
-      "assistant": "Assistante"
-    }
+    "stop": "Arrêter"
   },
   "projectSelection": {
     "startChatWithProvider": "Choisissez un projet avant de discuter avec {{provider}}"

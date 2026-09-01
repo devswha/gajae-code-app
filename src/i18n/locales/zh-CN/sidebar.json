@@ -7,20 +7,13 @@
     "noProjects": "暂无工作区",
     "loadingProjects": "正在检索工作区……",
     "projectNamePlaceholder": "工作区名称",
-    "starred": "已星标",
-    "all": "所有",
     "untitledSession": "未命名对话",
     "newSession": "开始对话",
     "fetchingProjects": "正在检索项目和对话",
     "projects": "项目集",
     "createProjectHint": "添加一个项目以开始"
   },
-  "app": {
-    "title": "Gajae Code App",
-    "subtitle": "AI辅助编码的开发者工作区"
-  },
   "sessions": {
-    "title": "对话",
     "work": "办公",
     "newTask": "新建任务项",
     "newSession": "开始对话",
@@ -37,7 +30,6 @@
     "createSessionHint": "选择一个项目，然后使用+打开会话"
   },
   "tooltips": {
-    "viewEnvironments": "查看环境列表",
     "hideSidebar": "折叠侧边栏",
     "createProject": "添加一个项目",
     "createSession": "开始对话",
@@ -53,57 +45,20 @@
     "activeSessionIndicator": "最近十分钟内活跃的对话",
     "save": "保存更改",
     "cancel": "取消操作",
-    "openCommandPalette": "打开命令菜单",
     "attentionRequiredIndicator": "对话需要关注"
-  },
-  "navigation": {
-    "chat": "聊天室",
-    "files": "文档",
-    "git": "Git",
-    "terminal": "命令行"
   },
   "actions": {
     "search": "检索",
-    "refresh": "重新加载",
     "settings": "配置",
-    "collapseAll": "关闭全部",
-    "expandAll": "打开全部",
     "cancel": "取消",
     "save": "保存",
-    "delete": "移除",
-    "rename": "更改名称",
     "joinCommunity": "一起来玩",
-    "reportIssue": "提交问题",
-    "starOnGithub": "GitHub 上收藏"
-  },
-  "branding": {
-    "openSource": "开放源代码"
+    "reportIssue": "提交问题"
   },
   "status": {
-    "active": "活跃",
-    "inactive": "不活跃",
-    "thinking": "原因...",
-    "error": "异常",
-    "aborted": "中止",
-    "unknown": "不明"
-  },
-  "time": {
-    "justNow": "现在",
-    "oneMinuteAgo": "一分钟前",
-    "minutesAgo": "{{count}}分钟前",
-    "oneHourAgo": "一小时前",
-    "hoursAgo": "{{count}}小时前",
-    "oneDayAgo": "一天前",
-    "daysAgo": "{{count}}天前"
+    "thinking": "原因..."
   },
   "messages": {
-    "deleteConfirm": "删除此项目？",
-    "renameSuccess": "重命名完成",
-    "deleteSuccess": "已移除",
-    "errorOccurred": "出现问题",
-    "deleteSessionConfirm": "是否删除此对话？此操作无法撤销。",
-    "deleteProjectConfirm": "是否从侧边栏移除该项目？文件、记忆和对话数据保持完整。",
-    "enterProjectPath": "请指定项目路径",
     "deleteSessionFailed": "无法删除对话，请重试。",
     "deleteSessionError": "发生了对话删除错误，请重试。",
     "renameSessionFailed": "无法重命名对话，请重试。",
@@ -111,8 +66,6 @@
     "exportSessionError": "无法导出对话，请重试。",
     "deleteProjectFailed": "无法移除该项目，请重试。",
     "deleteProjectError": "发生了项目移除错误，请重试。",
-    "createProjectFailed": "无法添加该项目，请重试。",
-    "createProjectError": "发生了项目创建错误，请重试。",
     "updateProjectError": "发生了项目更新错误，请重试。",
     "refreshError": "无法刷新，请重试。",
     "restoreProjectFailed": "无法恢复该项目，请重试。",
@@ -121,8 +74,7 @@
     "restoreSessionError": "发生了对话恢复错误，请重试。"
   },
   "version": {
-    "updateAvailable": "有新版本可用",
-    "restartRequired": "已安装更新；重启服务器以使用最新功能"
+    "updateAvailable": "有新版本可用"
   },
   "deleteConfirmation": {
     "deleteProject": "删除工作区",
@@ -130,9 +82,6 @@
     "confirmDelete": "请选择要执行的操作",
     "sessionCount_one": "该项目中有{{count}}条对话。",
     "sessionCount_other": "该项目中共有{{count}}条对话。",
-    "removeFromSidebar": "仅从列表中移除",
-    "deleteAllData": "清空所有记录",
-    "allConversationsDeleted": "项目将从侧边栏中移除，但其文件、记忆和对话数据仍保留。",
-    "cannotUndo": "您以后可以再次添加此项目."
+    "deleteAllData": "清空所有记录"
   }
 }

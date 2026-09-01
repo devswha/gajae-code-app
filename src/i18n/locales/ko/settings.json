@@ -1,34 +1,9 @@
 {
   "title": "환경설정",
-  "tabs": {
-    "account": "사용자 계정",
-    "permissions": "접근 권한",
-    "skills": "스킬",
-    "appearance": "화면 모양"
-  },
   "account": {
-    "title": "사용자 계정",
     "language": "표시 언어",
     "languageLabel": "인터페이스 언어",
-    "languageDescription": "인터페이스에서 사용할 언어를 선택하세요",
-    "username": "사용자 이름",
-    "email": "이메일",
-    "profile": "프로필",
-    "changePassword": "비밀번호 변경"
-  },
-  "appearance": {
-    "title": "외형",
-    "theme": "색상 테마",
-    "editorTheme": "코드 에디터 테마",
-    "wordWrap": "길게 된 줄 감싸기",
-    "showMinimap": "미니맵 표시",
-    "lineNumbers": "라인 번호 표시",
-    "fontSize": "코드 글꼴 크기"
-  },
-  "actions": {
-    "saveChanges": "변경사항 적용",
-    "resetToDefaults": "기본값으로 복원",
-    "cancelChanges": "변경사항 취소"
+    "languageDescription": "인터페이스에서 사용할 언어를 선택하세요"
   },
   "voiceSettings": {
     "title": "음성",
@@ -55,23 +30,7 @@
     "sendByCtrlEnter": "Ctrl+Enter로 전송",
     "sendByCtrlEnterDescription": "활성화하면 Enter 대신 Ctrl+Enter로 메시지를 보냅니다. IME 사용 중 실수로 전송하는 일을 막을 수 있습니다."
   },
-  "terminalShortcuts": {
-    "title": "터미널 키 바인딩",
-    "sectionKeys": "키",
-    "sectionNavigation": "이동",
-    "escape": "ESCAPE",
-    "tab": "TAB",
-    "shiftTab": "SHIFT+TAB",
-    "arrowUp": "위 화살표",
-    "arrowDown": "아래 화살표",
-    "scrollDown": "스크롤 내리기",
-    "handle": {
-      "closePanel": "키 바인딩 숨기기",
-      "openPanel": "키 바인딩 표시"
-    }
-  },
   "mainTabs": {
-    "label": "환경설정",
     "appearance": "화면 모양",
     "git": "Git",
     "voice": "음성",
@@ -146,13 +105,7 @@
     }
   },
   "saveStatus": {
-    "success": "설정이 저장되었습니다.",
-    "error": "설정을 저장할 수 없습니다.",
-    "saving": "저장 중…"
-  },
-  "footerActions": {
-    "save": " 설정 저장",
-    "cancel": " 취소"
+    "success": "설정이 저장되었습니다."
   },
   "git": {
     "title": "Git 설정",
@@ -171,82 +124,6 @@
     },
     "status": {
       "success": "저장 완료"
-    }
-  },
-  "permissions": {
-    "title": "권한 제어",
-    "skipPermissions": {
-      "label": "권한 요청 팝업 무시 (주의해서 사용)",
-      "claudeDescription": " 명령어와 동일하게 --dangerously-skip-permissions 플래그를 매치합니다",
-      "cursorDescription": "Cursor CLI의 -f 플래그와 같습니다"
-    },
-    "allowedTools": {
-      "title": "허용된 도구",
-      "description": "승인 없이 실행되는 도구들",
-      "placeholder": "예: \"Bash(git log:*)\" 또는 \"Write\"",
-      "quickAdd": "일반적인 도구 추가:",
-      "empty": "허용된 도구가 설정되지 않았습니다"
-    },
-    "blockedTools": {
-      "title": "차단된 도구",
-      "description": "승인 요청 없이 차단되는 도구들",
-      "placeholder": "예: \"Bash(rm:*)\"",
-      "empty": "차단된 도구가 설정되지 않았습니다"
-    },
-    "allowedCommands": {
-      "title": "허용된 셸 명령어",
-      "description": "승인 없이 실행되는 셸 명령어들",
-      "placeholder": "예: \"Shell(ls)\" 또는 \"Shell(git status)\"",
-      "quickAdd": "일반적인 명령어 추가:",
-      "empty": "허용된 명령어가 설정되지 않았습니다"
-    },
-    "blockedCommands": {
-      "title": "차단된 셸 명령어",
-      "description": "자동으로 차단되는 셸 명령어들",
-      "placeholder": "예: \"Shell(rm -rf)\" 또는 \"Shell(sudo)\"",
-      "empty": "차단된 명령어가 설정되지 않았습니다"
-    },
-    "toolExamples": {
-      "title": "도구 패턴 예시:",
-      "bashGitLog": "- git log 명령어의 모든 실행을 허용",
-      "bashGitDiff": "- git diff 명령어의 모든 실행을 허용",
-      "write": "- 모든 Write 도구 호출을 허용",
-      "bashRm": "- rm 명령어의 모든 실행을 차단 (위험)"
-    },
-    "shellExamples": {
-      "title": "셸 명령어 예시:",
-      "ls": "- ls를 허용",
-      "gitStatus": "- git status를 허용",
-      "npmInstall": "- npm install를 허용",
-      "rmRf": "- 재귀적 삭제를 차단"
-    },
-    "codex": {
-      "permissionMode": "권한 처리 방식",
-      "description": "Codex의 파일 수정과 명령 실행 방식을 설정합니다",
-      "modes": {
-        "default": {
-          "title": "기본 모드",
-          "description": "ls, cat, grep, git status와 같은 신뢰할 수 있는 명령어는 자동으로 실행되며, 나머지는 무시됩니다. 워크스페이스 쓰기는 허용됩니다."
-        },
-        "acceptEdits": {
-          "title": "편집 허용",
-          "description": "모든 명령어가 프로젝트 샌드박스 내에서 자동으로 실행됩니다."
-        },
-        "bypassPermissions": {
-          "title": "승인 무시",
-          "description": "명령어는 제한 없이 실행되며, 전체 디스크와 네트워크 접근 권한을 가집니다. 신뢰할 수 있는 환경에서만 사용하십시오."
-        }
-      },
-      "technicalDetails": "구현 세부 사항",
-      "technicalInfo": {
-        "default": "워크스페이스 쓰기 샌드박스와 불신의 승인. 신뢰할 수 있는 명령어는 cat, cd, grep, head, ls, pwd, tail, Git status/log/diff/show, find( -exec 없음)입니다.",
-        "acceptEdits": "워크스페이스 쓰기 샌드박스와 승인이 필요하지 않습니다. 프로젝트 디렉토리 내에서 명령어가 자동으로 실행됩니다.",
-        "bypassPermissions": "전체 접근 권한을 가진 위험한 샌드박스, 승인이 필요하지 않습니다. 신뢰할 수 있는 환경에서만 사용하십시오.",
-        "overrideNote": "차단 모드를 한 세션 동안 재정의하려면 채팅 모드 버튼을 사용하세요."
-      }
-    },
-    "actions": {
-      "add": "추가"
     }
   }
 }

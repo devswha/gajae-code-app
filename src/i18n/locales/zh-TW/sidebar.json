@@ -7,20 +7,13 @@
     "noProjects": "尚未有任何工作空間",
     "loadingProjects": "正在取得工作空間…",
     "projectNamePlaceholder": "工作空間名稱",
-    "starred": "標星",
-    "all": "全部",
     "untitledSession": "未命名對話",
     "newSession": "開始對話",
     "fetchingProjects": "正在獲取專案和對話",
     "projects": "專案",
     "createProjectHint": "新增一個專案以開始"
   },
-  "app": {
-    "title": "Gajae Code App",
-    "subtitle": "AI 協助編碼的開發工作空間"
-  },
   "sessions": {
-    "title": "對話",
     "work": "工作",
     "newTask": "新的工作項目",
     "newSession": "開始對話",
@@ -37,7 +30,6 @@
     "createSessionHint": "選擇專案，然後使用 + 開啟會話"
   },
   "tooltips": {
-    "viewEnvironments": "檢視環境",
     "hideSidebar": "收合側欄",
     "createProject": "新增專案",
     "createSession": "開始對話",
@@ -53,57 +45,20 @@
     "activeSessionIndicator": "對話最近十分鐘內有活動",
     "save": "儲存",
     "cancel": "取消",
-    "openCommandPalette": "開啟指令選單",
     "attentionRequiredIndicator": "對話需要注意"
-  },
-  "navigation": {
-    "chat": "聊天",
-    "files": "檔案",
-    "git": "Git",
-    "terminal": "終端機"
   },
   "actions": {
     "search": "搜尋",
-    "refresh": "更新",
     "settings": "設定",
-    "collapseAll": "關閉全部",
-    "expandAll": "開啟全部",
     "cancel": "取消",
     "save": "存儲",
-    "delete": "刪除",
-    "rename": "重命名",
     "joinCommunity": "加入社群",
-    "reportIssue": "提報問題",
-    "starOnGithub": "在GitHub上按讚"
-  },
-  "branding": {
-    "openSource": "開放原始碼"
+    "reportIssue": "提報問題"
   },
   "status": {
-    "active": "活躍",
-    "inactive": "不活躍",
-    "thinking": "原因...",
-    "error": "錯誤",
-    "aborted": "中斷",
-    "unknown": "未知"
-  },
-  "time": {
-    "justNow": "剛才",
-    "oneMinuteAgo": "剛剛過去了一分鐘",
-    "minutesAgo": "{{count}} 分鐘前",
-    "oneHourAgo": "剛過了一小時",
-    "hoursAgo": "{{count}} 小時前",
-    "oneDayAgo": "剛過了一天",
-    "daysAgo": "{{count}} 天前"
+    "thinking": "原因..."
   },
   "messages": {
-    "deleteConfirm": "是否刪除此項目？",
-    "renameSuccess": "重命名完成",
-    "deleteSuccess": "刪除完成",
-    "errorOccurred": "發生錯誤",
-    "deleteSessionConfirm": "刪除此對話？此操作無法撤銷。",
-    "deleteProjectConfirm": "從側欄移除此專案？檔案、回憶和對話資料仍保持完整。",
-    "enterProjectPath": "請輸入專案路徑",
     "deleteSessionFailed": "無法刪除對話。再試一次。",
     "deleteSessionError": "發生對話刪除錯誤。再試一次。",
     "renameSessionFailed": "無法重命名對話。再試一次。",
@@ -111,8 +66,6 @@
     "exportSessionError": "無法匯出對話。再試一次。",
     "deleteProjectFailed": "無法移除專案。再試一次。",
     "deleteProjectError": "發生專案移除錯誤。請再試一次。",
-    "createProjectFailed": "無法新增專案。再試一次。",
-    "createProjectError": "發生專案建立錯誤。請再試一次。",
     "updateProjectError": "發生專案更新錯誤。請再試一次。",
     "refreshError": "無法重新整理。請再試一次。",
     "restoreProjectFailed": "無法復原專案。請再試一次。",
@@ -121,8 +74,7 @@
     "restoreSessionError": "發生對話恢復錯誤。請再試一次。"
   },
   "version": {
-    "updateAvailable": "有新版本可用",
-    "restartRequired": "已安裝更新；重新啟動伺服器以使用它"
+    "updateAvailable": "有新版本可用"
   },
   "deleteConfirmation": {
     "deleteProject": "移除工作區",
@@ -130,9 +82,6 @@
     "confirmDelete": "選擇要執行的動作",
     "sessionCount_one": "此專案中有 {{count}} 個對話。",
     "sessionCount_other": "此專案中共有 {{count}} 個對話。",
-    "removeFromSidebar": "僅從側欄移除",
-    "deleteAllData": "永久刪除所有資料",
-    "allConversationsDeleted": "專案離開側欄，但其檔案、記憶和對話資料仍會保留。",
-    "cannotUndo": "您可以稍後再新增此專案."
+    "deleteAllData": "永久刪除所有資料"
   }
 }

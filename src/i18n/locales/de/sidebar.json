@@ -7,20 +7,13 @@
     "noProjects": "Noch keine Arbeitsbereiche",
     "loadingProjects": "Arbeitsbereiche werden abgerufen…",
     "projectNamePlaceholder": "Name des Arbeitsbereichs",
-    "starred": "Mit einem Stern versehen",
-    "all": "Sämtliche",
     "untitledSession": "Unbenanntes Gespräch",
     "newSession": "Gespräch beginnen",
     "fetchingProjects": "Projekte und Gespräche abrufen",
     "projects": "Arbeitsprojekte",
     "createProjectHint": "Fügen Sie zunächst ein Projekt hinzu"
   },
-  "app": {
-    "title": "Gajae Code App",
-    "subtitle": "Entwicklerarbeitsbereich für KI-gestütztes Codieren"
-  },
   "sessions": {
-    "title": "Gespräche",
     "work": "Arbeitsbereich",
     "newTask": "Neues Arbeitselement",
     "newSession": "Gespräch beginnen",
@@ -37,7 +30,6 @@
     "createSessionHint": "Wählen Sie ein Projekt aus und öffnen Sie dann mit + eine Sitzung"
   },
   "tooltips": {
-    "viewEnvironments": "Umgebungen anzeigen",
     "hideSidebar": "Seitenleiste einklappen",
     "createProject": "Fügen Sie ein Projekt hinzu",
     "createSession": "Beginnen Sie ein Gespräch",
@@ -53,57 +45,20 @@
     "activeSessionIndicator": "Konversation aktiv innerhalb der letzten 10 Minuten",
     "save": "Änderungen sichern",
     "cancel": "Vorgang abbrechen",
-    "openCommandPalette": "Befehlsmenü öffnen",
     "attentionRequiredIndicator": "Gespräche brauchen Aufmerksamkeit"
-  },
-  "navigation": {
-    "chat": "Chatten",
-    "files": "Projektdateien",
-    "git": "Git",
-    "terminal": "Kommandozeile"
   },
   "actions": {
     "search": "Suche starten",
-    "refresh": "Neu laden",
     "settings": "Optionen",
-    "collapseAll": "Alle schließen",
-    "expandAll": "Alle öffnen",
     "cancel": "Vorgang abbrechen",
     "save": "Änderungen sichern",
-    "delete": "Entfernen",
-    "rename": "Neuen Namen vergeben",
     "joinCommunity": "Treten Sie der Community bei",
-    "reportIssue": "Melden Sie ein Problem",
-    "starOnGithub": "Stern auf GitHub"
-  },
-  "branding": {
-    "openSource": "Open Source"
+    "reportIssue": "Melden Sie ein Problem"
   },
   "status": {
-    "active": "Derzeit aktiv",
-    "inactive": "Derzeit inaktiv",
-    "thinking": "Begründung…",
-    "error": "Problem",
-    "aborted": "Vorgang abgebrochen",
-    "unknown": "Unbekannt"
-  },
-  "time": {
-    "justNow": "Vor wenigen Augenblicken",
-    "oneMinuteAgo": "Vor einer Minute",
-    "minutesAgo": "Vor {{count}} Minuten",
-    "oneHourAgo": "Vor einer Stunde",
-    "hoursAgo": "{{count}} Stunden früher",
-    "oneDayAgo": "Vor einem Tag",
-    "daysAgo": "{{count}} Tage zuvor"
+    "thinking": "Begründung…"
   },
   "messages": {
-    "deleteConfirm": "Dieses Element löschen?",
-    "renameSuccess": "Umbenennung abgeschlossen",
-    "deleteSuccess": "Löschvorgang abgeschlossen",
-    "errorOccurred": "Etwas ist schief gelaufen",
-    "deleteSessionConfirm": "Diese Konversation löschen? Dies kann nicht rückgängig gemacht werden.",
-    "deleteProjectConfirm": "Dieses Projekt aus der Seitenleiste entfernen? Dateien, Erinnerungen und Gesprächsdaten bleiben erhalten.",
-    "enterProjectPath": "Geben Sie einen Projektpfad ein",
     "deleteSessionFailed": "Die Konversation konnte nicht gelöscht werden. Versuchen Sie es erneut.",
     "deleteSessionError": "Beim Löschen der Konversation ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
     "renameSessionFailed": "Konversation konnte nicht umbenannt werden. Versuchen Sie es erneut.",
@@ -111,8 +66,6 @@
     "exportSessionError": "Konversation konnte nicht exportiert werden. Versuchen Sie es erneut.",
     "deleteProjectFailed": "Das Projekt konnte nicht entfernt werden. Versuchen Sie es erneut.",
     "deleteProjectError": "Beim Entfernen des Projekts ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
-    "createProjectFailed": "Das Projekt konnte nicht hinzugefügt werden. Versuchen Sie es erneut.",
-    "createProjectError": "Bei der Projekterstellung ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
     "updateProjectError": "Es ist ein Projektaktualisierungsfehler aufgetreten. Versuchen Sie es erneut.",
     "refreshError": "Konnte nicht aktualisiert werden. Versuchen Sie es erneut.",
     "restoreProjectFailed": "Das Projekt konnte nicht wiederhergestellt werden. Versuchen Sie es erneut.",
@@ -121,8 +74,7 @@
     "restoreSessionError": "Beim Wiederherstellen der Konversation ist ein Fehler aufgetreten. Versuchen Sie es erneut."
   },
   "version": {
-    "updateAvailable": "Neues Update verfügbar",
-    "restartRequired": "Update installiert; Starten Sie den Server neu, um ihn zu verwenden"
+    "updateAvailable": "Neues Update verfügbar"
   },
   "deleteConfirmation": {
     "deleteProject": "Arbeitsbereich entfernen",
@@ -130,9 +82,6 @@
     "confirmDelete": "Wählen Sie, was Sie tun möchten",
     "sessionCount_one": "In diesem Projekt gibt es eine {{count}}-Konversation.",
     "sessionCount_other": "In diesem Projekt gibt es {{count}}-Gespräche.",
-    "removeFromSidebar": "Nur aus der Seitenleiste entfernen",
-    "deleteAllData": "Alle Daten dauerhaft löschen",
-    "allConversationsDeleted": "Das Projekt verlässt die Seitenleiste, seine Dateien, Erinnerungen und Konversationsdaten bleiben jedoch erhalten.",
-    "cannotUndo": "Sie können dieses Projekt später erneut hinzufügen."
+    "deleteAllData": "Alle Daten dauerhaft löschen"
   }
 }

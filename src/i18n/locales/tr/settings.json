@@ -1,34 +1,9 @@
 {
   "title": "Uygulama ayarları",
-  "tabs": {
-    "account": "Hesap bilgileri",
-    "permissions": "Erişim izinleri",
-    "skills": "Beceriler",
-    "appearance": "Görünüm ayarları"
-  },
   "account": {
-    "title": "Hesap ayarları",
     "language": "Seçilen dil",
     "languageLabel": "Arayüz dili",
-    "languageDescription": "Arayüz tarafından kullanılan dili seçin",
-    "username": "Kullanıcı adı",
-    "email": "E-posta",
-    "profile": "Profil",
-    "changePassword": "Şifreyi güncelle"
-  },
-  "appearance": {
-    "title": "Arayüz görünümü",
-    "theme": "Görünüm teması",
-    "editorTheme": "Kod düzenleyici teması",
-    "wordWrap": "Uzun çizgileri sar",
-    "showMinimap": "Mini haritayı göster",
-    "lineNumbers": "Satır numaralarını göster",
-    "fontSize": "Kod metni boyutu"
-  },
-  "actions": {
-    "saveChanges": "Değişiklikleri uygula",
-    "resetToDefaults": "Varsayılanları geri yükle",
-    "cancelChanges": "Değişiklikleri sil"
+    "languageDescription": "Arayüz tarafından kullanılan dili seçin"
   },
   "voiceSettings": {
     "title": "Ses",
@@ -55,23 +30,7 @@
     "sendByCtrlEnter": "Göndermek için Ctrl+Enter tuşlarını kullanın",
     "sendByCtrlEnterDescription": "Etkinleştirildiğinde Ctrl+Enter, Enter yerine mesaj gönderir. Bu, IME kullanıcılarının yanlışlıkla yapılan gönderimleri önlemesine yardımcı olur."
   },
-  "terminalShortcuts": {
-    "title": "Terminal anahtar bağlamaları",
-    "sectionKeys": "Anahtarlar",
-    "sectionNavigation": "Navigasyon",
-    "escape": "Kaçış",
-    "tab": "Sekme",
-    "shiftTab": "Shift+Sekme",
-    "arrowUp": "Yukarı ok",
-    "arrowDown": "Aşağı ok",
-    "scrollDown": "Aşağı kaydır",
-    "handle": {
-      "closePanel": "Klavye kısayollarını gizle",
-      "openPanel": "Klavye kısayollarını göster"
-    }
-  },
   "mainTabs": {
-    "label": "Ayarlar",
     "appearance": "Görünüm",
     "git": "Git",
     "voice": "Ses",
@@ -146,13 +105,7 @@
     }
   },
   "saveStatus": {
-    "success": "Ayarlar kaydedildi.",
-    "error": "Ayarlar kaydedilemedi",
-    "saving": "Kaydediliyor…"
-  },
-  "footerActions": {
-    "save": "Ayarları kaydet",
-    "cancel": "Değişiklikleri iptal et"
+    "success": "Ayarlar kaydedildi."
   },
   "git": {
     "title": "Git ayarları",
@@ -171,82 +124,6 @@
     },
     "status": {
       "success": "Kaydetme tamamlandı"
-    }
-  },
-  "permissions": {
-    "title": "İzin kontrolleri",
-    "skipPermissions": {
-      "label": "İzin istemlerini atlayın (dikkatli kullanın)",
-      "claudeDescription": "--dangerously-skip-permissions bayrağıyla eşleşir",
-      "cursorDescription": "İmleç CLI'nin -f bayrağıyla eşleşir"
-    },
-    "allowedTools": {
-      "title": "İzin verilen araçlar",
-      "description": "Onay istemeden çalışan araçlar",
-      "placeholder": "örneğin, \"Bash(git log:*)\" veya \"Yaz\"",
-      "quickAdd": "Ortak araçlar ekleyin:",
-      "empty": "İzin verilen araç yapılandırılmadı"
-    },
-    "blockedTools": {
-      "title": "Reddedilen araçlar",
-      "description": "Onay istemi olmadan reddedilen araçlar",
-      "placeholder": "örneğin, \"Bash(rm:*)\"",
-      "empty": "Reddedilen araç yapılandırılmadı"
-    },
-    "allowedCommands": {
-      "title": "İzin verilen kabuk komutları",
-      "description": "Onay istemi olmadan çalışan kabuk komutları",
-      "placeholder": "örneğin, \"Kabuk(ls)\" veya \"Kabuk(git durumu)\"",
-      "quickAdd": "Ortak komutlar ekleyin:",
-      "empty": "İzin verilen komut yapılandırılmadı"
-    },
-    "blockedCommands": {
-      "title": "Reddedilen kabuk komutları",
-      "description": "Otomatik olarak reddedilen kabuk komutları",
-      "placeholder": "örneğin, \"Kabuk(rm -rf)\" veya \"Kabuk(sudo)\"",
-      "empty": "Reddedilen komut yapılandırılmadı"
-    },
-    "toolExamples": {
-      "title": "Takım modeli örnekleri:",
-      "bashGitLog": "- Herhangi bir git log komutuna izin verin",
-      "bashGitDiff": "- Herhangi bir git diff komutuna izin ver",
-      "write": "- Tüm Yazma aracı çağrılarına izin ver",
-      "bashRm": "- Herhangi bir rm komutunu reddet (tehlikeli)"
-    },
-    "shellExamples": {
-      "title": "Kabuk komutu örnekleri:",
-      "ls": "- İzin ls",
-      "gitStatus": "- Git durumuna izin ver",
-      "npmInstall": "- Npm kurulumuna izin ver",
-      "rmRf": "- Özyinelemeli silmeyi reddet"
-    },
-    "codex": {
-      "permissionMode": "İzin yönetimi",
-      "description": "Codex'in dosya düzenlemelerini ve komut yürütmeyi nasıl ele alacağını ayarlar",
-      "modes": {
-        "default": {
-          "title": "Varsayılan",
-          "description": "ls, cat, grep ve git status gibi güvenilir komutlar otomatik olarak çalışır; diğerleri atlanır. Çalışma alanı yazma işlemlerine izin verilir."
-        },
-        "acceptEdits": {
-          "title": "Düzenlemelere izin ver",
-          "description": "Her komut, çalışma alanı sanal alanında otomatik olarak çalışır."
-        },
-        "bypassPermissions": {
-          "title": "Onaylamayı atla",
-          "description": "Komutlar, tam disk ve ağ erişimiyle kısıtlama olmaksızın çalışır. Yalnızca güvenildiğinde kullanın."
-        }
-      },
-      "technicalDetails": "Uygulama ayrıntıları",
-      "technicalInfo": {
-        "default": "güvenilmeyen onaya sahip çalışma alanı yazma korumalı alanı. Güvenilir komutlar arasında cat, cd, grep, head, ls, pwd, tail, Git status/log/diff/show ve -exec olmadan find bulunur.",
-        "acceptEdits": "onayları olmayan çalışma alanı yazma sanal alanı. Komutlar proje dizininde otomatik olarak çalışır.",
-        "bypassPermissions": "onayı olmayan, tehlike dolu tam erişimli sanal alan. Tam sistem erişimini yalnızca güvenilir ortamlarda kullanın.",
-        "overrideNote": "Bunu bir oturum için geçersiz kılmak için sohbet modu düğmesini kullanın."
-      }
-    },
-    "actions": {
-      "add": "Eklemek"
     }
   }
 }

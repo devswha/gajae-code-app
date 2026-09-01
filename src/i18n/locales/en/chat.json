@@ -12,8 +12,6 @@
     "copyAsText": "Copy in plain text"
   },
   "messageTypes": {
-    "user": "U",
-    "tool": "Tool",
     "claude": "Claude",
     "cursor": "Cursor",
     "codex": "Codex",
@@ -25,100 +23,28 @@
     }
   },
   "tools": {
-    "settings": "Tool options",
-    "error": "Tool problem",
-    "result": "Tool output",
-    "viewParams": "Inspect input parameters",
-    "viewRawParams": "Inspect raw parameters",
-    "viewDiff": "Inspect the edit diff for",
-    "creatingFile": "Making file:",
-    "updatingTodo": "Updating task list",
-    "read": "Read",
-    "readFile": "Read a file",
-    "updateTodo": "Update task list",
-    "readTodo": "Read task list",
-    "searchResults": "matches"
+    "error": "Tool problem"
   },
   "search": {
-    "found": "{{count}} {{type}} found",
-    "file": "file",
-    "files": "files",
-    "pattern": "pattern:",
     "in": "in:"
-  },
-  "fileOperations": {
-    "updated": "File update complete",
-    "created": "File creation complete",
-    "written": "File write complete",
-    "diff": "Diff",
-    "newFile": "Create file",
-    "viewContent": "Inspect file contents",
-    "viewFullOutput": "Show all output ({{count}} characters)",
-    "contentDisplayed": "The diff view above contains this file’s content"
   },
   "interactive": {
     "title": "Interactive request",
     "waiting": "Waiting for a response in the CLI",
-    "instruction": "Choose an option in the terminal running Claude.",
-    "selectedOption": "✓ Claude chose option {{number}}",
-    "instructionDetail": "In the CLI, select this interactively with arrow keys or its number."
-  },
-  "thinking": {
-    "title": "Reasoning…",
-    "emoji": "💭 Reasoning…"
+    "instruction": "Choose an option in the terminal running Claude."
   },
   "json": {
     "response": "JSON reply"
   },
-  "permissions": {
-    "grant": "Allow {{tool}} to run",
-    "added": "Permission recorded",
-    "addTo": "Adds {{entry}} to the allowed tools.",
-    "retry": "Permission saved. Run the tool request again.",
-    "error": "Could not update permissions. Try again.",
-    "openSettings": "Go to settings"
-  },
-  "todo": {
-    "updated": "Task list updated",
-    "current": "Current task list"
-  },
-  "plan": {
-    "viewPlan": "📋 Open build plan",
-    "title": "Build plan"
-  },
-  "usageLimit": {
-    "resetAt": "Claude usage is currently capped. It resets at **{{time}} {{timezone}}** on {{date}}."
-  },
-  "codex": {
-    "permissionMode": "Permission handling",
-    "modes": {
-      "default": "Standard mode",
-      "auto": "Automatic mode",
-      "acceptEdits": "Allow edits",
-      "bypassPermissions": "Bypass approval",
-      "plan": "Planning mode"
-    },
-    "descriptions": {
-      "default": "Trusted commands such as ls, cat, grep, and git status run automatically; others are skipped. Workspace writes are allowed.",
-      "auto": "A model classifier approves or rejects each tool call. It is hands-off but still denies unsafe calls.",
-      "acceptEdits": "Every command runs automatically inside the workspace sandbox.",
-      "bypassPermissions": "Commands run without restrictions, with full disk and network access. Use only when trusted.",
-      "plan": "Planning only; commands do not run"
-    },
-    "technicalDetails": "Implementation details"
-  },
   "voice": {
     "input": "Dictate message",
     "stopRecording": "Finish recording",
-    "transcribing": "Converting speech…",
     "speak": "Speak response",
     "stopSpeaking": "Stop",
     "loading": "Loading…"
   },
   "input": {
     "placeholder": "Ask {{provider}}, use / for commands, or @ to add files…",
-    "placeholderDefault": "Write a message…",
-    "disabled": "Message input unavailable",
     "modelReasoning": {
       "label": "Model and reasoning settings",
       "providerTitle": "Provider",
@@ -134,19 +60,14 @@
       "search": "Find configurations",
       "noMatches": "No configurations match."
     },
-    "attachFiles": "Add files",
     "attachImages": "Add images",
     "send": "Send",
     "stop": "Stop",
     "hintText": {
       "ctrlEnter": "Send with Ctrl+Enter • newline with Shift+Enter • change modes with Tab • commands with /",
       "enter": "Send with Enter • newline with Shift+Enter • change modes with Tab • commands with /",
-      "queue": "Press Enter to queue another message",
-      "steer": "Press Enter to steer the active turn"
+      "queue": "Press Enter to queue another message"
     },
-    "clickToChangeMode": "Click to switch permission mode, or press Tab in the input",
-    "showAllCommands": "Browse commands",
-    "clearInput": "Empty message input",
     "scrollToBottom": "Jump to latest",
     "queue": {
       "sendNext": "Queue another message",
@@ -162,30 +83,7 @@
       "steerNow": "Steer the active turn"
     }
   },
-  "providerSelection": {
-    "title": "Choose an AI assistant",
-    "description": "Choose a provider for a new conversation",
-    "selectModel": "Choose model",
-    "providerInfo": {
-      "anthropic": "Anthropic provider",
-      "openai": "OpenAI provider",
-      "cursorEditor": "Code editor with AI",
-      "google": "Google provider"
-    },
-    "readyPrompt": {
-      "claude": "Claude with {{model}} is ready. Write your message below.",
-      "cursor": "Cursor with {{model}} is ready. Write your message below.",
-      "codex": "Codex with {{model}} is ready. Write your message below.",
-      "opencode": "OpenCode with {{model}} is ready. Write your message below.",
-      "default": "Choose a provider above to begin"
-    },
-    "pressToSearch": "Use <kbd>{{shortcut}}</kbd> to search conversations, files, and commits"
-  },
   "session": {
-    "continue": {
-      "title": "Continue this conversation",
-      "description": "Ask about code, request edits, or get help with development work"
-    },
     "loading": {
       "olderMessages": "Retrieving earlier messages…",
       "sessionMessages": "Retrieving conversation messages…"
@@ -200,35 +98,11 @@
       "loadingFullToolOutput": "Retrieving complete output…",
       "fullToolOutputFailed": "Complete output could not be loaded.",
       "loadingAll": "Retrieving every message…",
-      "allLoaded": "Every message is loaded",
-      "perfWarning": "Every message is loaded, which may slow scrolling. Use “Scroll to bottom” to improve it."
+      "allLoaded": "Every message is loaded"
     }
   },
   "shell": {
-    "selectProject": {
-      "title": "Choose a project",
-      "description": "Pick a project to open an interactive shell in its directory"
-    },
-    "status": {
-      "newSession": "Start conversation",
-      "initializing": "Starting…",
-      "restarting": "Starting again…"
-    },
-    "actions": {
-      "disconnect": "Disconnect",
-      "disconnectTitle": "End shell connection",
-      "restart": "Restart",
-      "restartTitle": "Start shell again",
-      "connect": "Continue in the shell",
-      "connectTitle": "Open shell connection"
-    },
-    "loading": "Starting terminal…",
-    "connecting": "Opening shell connection…",
-    "startSession": "Begin a Claude session",
-    "resumeSession": "Continue: {{displayName}}…",
-    "runCommand": "Run {{command}} for {{projectName}}",
-    "startCli": "Launching Claude CLI for {{projectName}}",
-    "defaultCommand": "command"
+    "loading": "Starting terminal…"
   },
   "claudeStatus": {
     "actions": {
@@ -239,24 +113,11 @@
       "computing": "Computing",
       "reasoning": "Reasoning"
     },
-    "state": {
-      "live": "Live",
-      "paused": "Paused"
-    },
     "elapsed": {
       "seconds": "{{count}}s",
-      "minutesSeconds": "{{minutes}}m {{seconds}}s",
-      "label": "{{time}} so far",
-      "startingNow": "Just starting"
+      "minutesSeconds": "{{minutes}}m {{seconds}}s"
     },
-    "stop": "Stop",
-    "controls": {
-      "stopGeneration": "Stop response",
-      "pressEscToStop": "Press Esc to stop at any time"
-    },
-    "providers": {
-      "assistant": "Assistant"
-    }
+    "stop": "Stop"
   },
   "projectSelection": {
     "startChatWithProvider": "Choose a project before chatting with {{provider}}"

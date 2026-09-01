@@ -1,34 +1,9 @@
 {
   "title": "設定。",
-  "tabs": {
-    "account": "アカウント。",
-    "permissions": "権限。",
-    "skills": "スキル。",
-    "appearance": "外観。"
-  },
   "account": {
-    "title": "アカウント。",
     "language": "言語。",
     "languageLabel": "表示言語。",
-    "languageDescription": "インターフェースの表示言語を選択してください。",
-    "username": "ユーザー名。",
-    "email": "メールアドレス。",
-    "profile": "プロフィール。",
-    "changePassword": "パスワードを変更。"
-  },
-  "appearance": {
-    "title": "外観。",
-    "theme": "テーマ。",
-    "editorTheme": "エディタのテーマ。",
-    "wordWrap": "折り返し。",
-    "showMinimap": "ミニマップを表示。",
-    "lineNumbers": "行番号。",
-    "fontSize": "フォントサイズ。"
-  },
-  "actions": {
-    "saveChanges": "変更を保存。",
-    "resetToDefaults": "デフォルトに戻す。",
-    "cancelChanges": "変更をキャンセル。"
+    "languageDescription": "インターフェースの表示言語を選択してください。"
   },
   "voiceSettings": {
     "title": "Voice。",
@@ -55,23 +30,7 @@
     "sendByCtrlEnter": "Ctrl+Enterで送信。",
     "sendByCtrlEnterDescription": "有効にすると、Enterではなく Ctrl+Enter でメッセージを送信します。IMEユーザーの誤送信防止に便利です。"
   },
-  "terminalShortcuts": {
-    "title": "ターミナルショートカット。",
-    "sectionKeys": "キー。",
-    "sectionNavigation": "ナビゲーション。",
-    "escape": "Escape。",
-    "tab": "Tab。",
-    "shiftTab": "Shift+Tab。",
-    "arrowUp": "上矢印。",
-    "arrowDown": "下矢印。",
-    "scrollDown": "下にスクロール。",
-    "handle": {
-      "closePanel": "ショートカットパネルを閉じる。",
-      "openPanel": "ショートカットパネルを開く。"
-    }
-  },
   "mainTabs": {
-    "label": "設定。",
     "appearance": "外観。",
     "git": "Git。",
     "voice": "音声。",
@@ -146,13 +105,7 @@
     }
   },
   "saveStatus": {
-    "success": "設定を保存しました！",
-    "error": "設定の保存に失敗しました。",
-    "saving": "保存中...。"
-  },
-  "footerActions": {
-    "save": "設定を保存。",
-    "cancel": "キャンセル。"
+    "success": "設定を保存しました！"
   },
   "git": {
     "title": "Git設定。",
@@ -171,82 +124,6 @@
     },
     "status": {
       "success": "保存しました。"
-    }
-  },
-  "permissions": {
-    "title": "権限設定。",
-    "skipPermissions": {
-      "label": "権限プロンプトをスキップ（注意して使用）。",
-      "claudeDescription": "--dangerously-skip-permissions フラグに相当。",
-      "cursorDescription": "Cursor CLIの -f フラグに相当。"
-    },
-    "allowedTools": {
-      "title": "許可されたツール。",
-      "description": "権限の確認なしに自動的に許可されるツール。",
-      "placeholder": "例: \"Bash(git log:*)\" または \"Write\"。",
-      "quickAdd": "よく使うツールを追加:。",
-      "empty": "許可されたツールはありません。"
-    },
-    "blockedTools": {
-      "title": "ブロックされたツール。",
-      "description": "権限の確認なしに自動的にブロックされるツール。",
-      "placeholder": "例: \"Bash(rm:*)\"。",
-      "empty": "ブロックされたツールはありません。"
-    },
-    "allowedCommands": {
-      "title": "許可されたシェルコマンド。",
-      "description": "権限の確認なしに自動的に許可されるシェルコマンド。",
-      "placeholder": "例: \"Shell(ls)\" または \"Shell(git status)\"。",
-      "quickAdd": "よく使うコマンドを追加:。",
-      "empty": "許可されたコマンドはありません。"
-    },
-    "blockedCommands": {
-      "title": "ブロックされたシェルコマンド。",
-      "description": "自動的にブロックされるシェルコマンド。",
-      "placeholder": "例: \"Shell(rm -rf)\" または \"Shell(sudo)\"。",
-      "empty": "ブロックされたコマンドはありません。"
-    },
-    "toolExamples": {
-      "title": "ツールパターンの例:。",
-      "bashGitLog": "- すべてのgit logコマンドを許可。",
-      "bashGitDiff": "- すべてのgit diffコマンドを許可。",
-      "write": "- すべてのWriteツールの使用を許可。",
-      "bashRm": "- すべてのrmコマンドをブロック（危険）。"
-    },
-    "shellExamples": {
-      "title": "シェルコマンドの例:。",
-      "ls": "- lsコマンドを許可。",
-      "gitStatus": "- git statusを許可。",
-      "npmInstall": "- npm installを許可。",
-      "rmRf": "- 再帰的削除をブロック。"
-    },
-    "codex": {
-      "permissionMode": "権限モード。",
-      "description": "Codexがファイルの変更やコマンドの実行を処理する方法を制御します。",
-      "modes": {
-        "default": {
-          "title": "デフォルト。",
-          "description": "信頼されたコマンド（ls、cat、grep、git statusなど）のみ自動実行。その他のコマンドはスキップ。ワークスペースへの書き込みは可能。"
-        },
-        "acceptEdits": {
-          "title": "編集を許可。",
-          "description": "ワークスペース内ですべてのコマンドを自動実行。サンドボックス環境での完全自動モード。"
-        },
-        "bypassPermissions": {
-          "title": "権限をバイパス。",
-          "description": "制限なしの完全なシステムアクセス。すべてのコマンドがディスクとネットワークへの完全なアクセスで自動実行されます。注意して使用してください。"
-        }
-      },
-      "technicalDetails": "技術的な詳細。",
-      "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted。信頼されたコマンド: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find（-execなし）など。",
-        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never。すべてのコマンドがプロジェクトディレクトリ内で自動実行。",
-        "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never。完全なシステムアクセス。信頼された環境でのみ使用してください。",
-        "overrideNote": "チャットインターフェースのモードボタンを使用してセッションごとに上書きできます。"
-      }
-    },
-    "actions": {
-      "add": "追加。"
     }
   }
 }

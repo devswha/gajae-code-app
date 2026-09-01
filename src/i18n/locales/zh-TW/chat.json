@@ -12,8 +12,6 @@
     "copyAsText": "以純文字複製"
   },
   "messageTypes": {
-    "user": "U",
-    "tool": "工具",
     "claude": "克勞德",
     "cursor": "光標",
     "codex": "科德克斯",
@@ -25,100 +23,28 @@
     }
   },
   "tools": {
-    "settings": "工具選項",
-    "error": "工具問題",
-    "result": "工具輸出",
-    "viewParams": "檢查輸入參數",
-    "viewRawParams": "檢查原始參數",
-    "viewDiff": "檢視編輯差異為",
-    "creatingFile": "正在存檔：",
-    "updatingTodo": "更新任務清單",
-    "read": "讀取",
-    "readFile": "讀取檔案",
-    "updateTodo": "更新任務清單",
-    "readTodo": "讀取任務清單",
-    "searchResults": "匹配"
+    "error": "工具問題"
   },
   "search": {
-    "found": "{{count}} {{type}} 被找到",
-    "file": "檔案",
-    "files": "檔案們",
-    "pattern": "模式：",
     "in": "於："
-  },
-  "fileOperations": {
-    "updated": "檔案更新完成",
-    "created": "檔案建立完成",
-    "written": "檔案寫入完成",
-    "diff": "差異",
-    "newFile": "創建檔案",
-    "viewContent": "檢視檔案內容",
-    "viewFullOutput": "顯示所有輸出（{{count}} 個字元）",
-    "contentDisplayed": "上方的比對視圖包含此檔案的内容"
   },
   "interactive": {
     "title": "互動式請求",
     "waiting": "等待 CLI 回應中",
-    "instruction": "在執行中的終端機選擇選項。",
-    "selectedOption": "✓ Claude 選擇了第 {{number}} 項",
-    "instructionDetail": "在 CLI 中，使用箭頭鍵或其編號互動地選擇它。"
-  },
-  "thinking": {
-    "title": "思考……",
-    "emoji": "💭 考慮中……"
+    "instruction": "在執行中的終端機選擇選項。"
   },
   "json": {
     "response": "JSON 回應"
   },
-  "permissions": {
-    "grant": "允許 {{tool}} 執行",
-    "added": "已記錄權限",
-    "addTo": "添加 {{entry}} 至允許的工具列表中。",
-    "retry": "權限已保存。再次執行工具請求。",
-    "error": "無法更新權限。請嘗試重新執行。",
-    "openSettings": "前往設定"
-  },
-  "todo": {
-    "updated": "任務清單已更新",
-    "current": "目前的任務清單"
-  },
-  "plan": {
-    "viewPlan": "📋 開啟建設計畫",
-    "title": "建置計畫"
-  },
-  "usageLimit": {
-    "resetAt": "目前Claude的使用量已被限制。它會在{{date}} {{time}} {{timezone}}重設。"
-  },
-  "codex": {
-    "permissionMode": "權限處理",
-    "modes": {
-      "default": "標準模式",
-      "auto": "自動模式",
-      "acceptEdits": "允許編輯",
-      "bypassPermissions": "跳過審核",
-      "plan": "規劃模式"
-    },
-    "descriptions": {
-      "default": "如ls、cat、grep和git status等受信任命令將自動執行；其他命令則被忽略。工作空間寫入被允許。",
-      "auto": "模型分類器會批準或拒絕每個工具呼叫。它雖然是無人為干預的，但仍會拒絕不安全的呼叫。",
-      "acceptEdits": "每一個命令都會在工作空間沙盒內自動運行。",
-      "bypassPermissions": "命令不受限制地執行，具有完整的磁碟機和網路存取權限。僅在可信任的情況下使用。",
-      "plan": "僅規劃；命令不會執行"
-    },
-    "technicalDetails": "實作細節"
-  },
   "voice": {
     "input": "口述訊息",
     "stopRecording": "結束錄製",
-    "transcribing": "轉換語音…",
     "speak": "發言回應",
     "stopSpeaking": "停止",
     "loading": "載入中…"
   },
   "input": {
     "placeholder": "請問 {{provider}}，使用 / 進行指令，或 @ 添加檔案…",
-    "placeholderDefault": "輸入訊息…",
-    "disabled": "無法輸入訊息",
     "modelReasoning": {
       "label": "模型與推理設定",
       "providerTitle": "提供者",
@@ -134,19 +60,14 @@
       "search": "查找配置",
       "noMatches": "無匹配的配置。"
     },
-    "attachFiles": "添加檔案",
     "attachImages": "添加圖片",
     "send": "發送",
     "stop": "停止",
     "hintText": {
       "ctrlEnter": "使用 Ctrl+Enter 發送 • 使用 Shift+Enter 換行 • 切換模式使用 Tab • 使用 / 運行指令",
       "enter": "使用 Enter 發送 • 使用 Shift+Enter 換行 • 切換模式使用 Tab • 使用 / 運行指令",
-      "queue": "按下 Enter 以佇列另一則訊息",
-      "steer": "按下 Enter 以操控當前輪次"
+      "queue": "按下 Enter 以佇列另一則訊息"
     },
-    "clickToChangeMode": "點擊切換權限模式，或在輸入框中按 Tab 鍵",
-    "showAllCommands": "瀏覽指令",
-    "clearInput": "空白的訊息輸入",
     "scrollToBottom": "跳轉至最新",
     "queue": {
       "sendNext": "佇列另一則訊息",
@@ -162,30 +83,7 @@
       "steerNow": "操控當前輪次"
     }
   },
-  "providerSelection": {
-    "title": "選擇一個 AI 農助員",
-    "description": "為新對話選擇一個提供者",
-    "selectModel": "選擇模型",
-    "providerInfo": {
-      "anthropic": "Anthropic 提供者",
-      "openai": "OpenAI 提供者",
-      "cursorEditor": "具有人工智慧的程式編輯器",
-      "google": "Google 提供者"
-    },
-    "readyPrompt": {
-      "claude": "Claude 選擇 {{model}} 即可使用。請在下方輸入您的訊息。",
-      "cursor": "Cursor 選擇 {{model}} 即可使用。請在下方輸入您的訊息。",
-      "codex": "Codex 選擇 {{model}} 即可使用。請在下方輸入您的訊息。",
-      "opencode": "OpenCode 選擇 {{model}} 即可使用。請在下方輸入您的訊息。",
-      "default": "請選擇上方的提供者以開始使用"
-    },
-    "pressToSearch": "使用 <kbd>{{shortcut}}</kbd> 快捷鍵搜尋對話、檔案和提交"
-  },
   "session": {
-    "continue": {
-      "title": "繼續這場對話",
-      "description": "詢問程式碼相關問題，請求編輯或獲得開發工作的幫助"
-    },
     "loading": {
       "olderMessages": "正在取得較早的訊息…",
       "sessionMessages": "正在取得對話中的訊息…"
@@ -200,35 +98,11 @@
       "loadingFullToolOutput": "正在取得完整輸出…",
       "fullToolOutputFailed": "無法載入完整輸出。",
       "loadingAll": "正在取得每則訊息…",
-      "allLoaded": "所有訊息已載入",
-      "perfWarning": "所有訊息已載入，可能會降低捲動速度。請使用“捲動到底端”以改善此問題。"
+      "allLoaded": "所有訊息已載入"
     }
   },
   "shell": {
-    "selectProject": {
-      "title": "選擇專案",
-      "description": "選取一個專案以在其目錄中開啟互動式指令介面"
-    },
-    "status": {
-      "newSession": "開始對話",
-      "initializing": "正在啟動…",
-      "restarting": "重新啟動中…"
-    },
-    "actions": {
-      "disconnect": "斷開連接",
-      "disconnectTitle": "結束指令介面連接",
-      "restart": "重新啟動",
-      "restartTitle": "再次啟動指令介面",
-      "connect": "繼續在指令介面中",
-      "connectTitle": "開啟指令介面連接"
-    },
-    "loading": "正在啟動終端機…",
-    "connecting": "正在開啟指令介面連接…",
-    "startSession": "開始使用Claude會話",
-    "resumeSession": "繼續：{{displayName}}…",
-    "runCommand": "執行 {{command}} 以處理 {{projectName}}",
-    "startCli": "啟動 Gajae Code App CLI 以處理 {{projectName}}",
-    "defaultCommand": "指令"
+    "loading": "正在啟動終端機…"
   },
   "claudeStatus": {
     "actions": {
@@ -239,24 +113,11 @@
       "computing": "計算中",
       "reasoning": "推理中"
     },
-    "state": {
-      "live": "實時",
-      "paused": "暫停中"
-    },
     "elapsed": {
       "seconds": "{{count}}秒",
-      "minutesSeconds": "{{minutes}}分 {{seconds}}秒",
-      "label": "{{time}} 已過",
-      "startingNow": "剛開始"
+      "minutesSeconds": "{{minutes}}分 {{seconds}}秒"
     },
-    "stop": "停止",
-    "controls": {
-      "stopGeneration": "停止回應",
-      "pressEscToStop": "隨時按下 Esc 以停止"
-    },
-    "providers": {
-      "assistant": "助手"
-    }
+    "stop": "停止"
   },
   "projectSelection": {
     "startChatWithProvider": "請先選擇一個專案再與 {{provider}} 聊天"

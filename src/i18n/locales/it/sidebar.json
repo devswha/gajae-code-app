@@ -7,20 +7,13 @@
     "noProjects": "Ancora nessuno spazio di lavoro",
     "loadingProjects": "Recupero degli spazi di lavoro…",
     "projectNamePlaceholder": "Nome dell'area di lavoro",
-    "starred": "Stellato",
-    "all": "Tutto",
     "untitledSession": "Conversazione senza nome",
     "newSession": "Inizia la conversazione",
     "fetchingProjects": "Recupero di progetti e conversazioni",
     "projects": "progetti",
     "createProjectHint": "Aggiungi un progetto per iniziare"
   },
-  "app": {
-    "title": "Gajae Code App",
-    "subtitle": "Area di lavoro per sviluppatori per la codifica assistita dall'intelligenza artificiale"
-  },
   "sessions": {
-    "title": "Conversazioni",
     "work": "Area di lavoro",
     "newTask": "Nuovo oggetto di lavoro",
     "newSession": "Inizia la conversazione",
@@ -37,7 +30,6 @@
     "createSessionHint": "Scegli un progetto, quindi utilizza + per aprire una sessione"
   },
   "tooltips": {
-    "viewEnvironments": "Visualizza gli ambienti",
     "hideSidebar": "Comprimi la barra laterale",
     "createProject": "Aggiungi un progetto",
     "createSession": "Inizia una conversazione",
@@ -53,57 +45,20 @@
     "activeSessionIndicator": "Conversazione attiva negli ultimi 10 minuti",
     "save": "Registra",
     "cancel": "Interrompi",
-    "openCommandPalette": "Apri il menu dei comandi",
     "attentionRequiredIndicator": "La conversazione richiede attenzione"
-  },
-  "navigation": {
-    "chat": "Chatta",
-    "files": "File del progetto",
-    "git": "Git",
-    "terminal": "Riga di comando"
   },
   "actions": {
     "search": "Avvia ricerca",
-    "refresh": "Ricarica",
     "settings": "Opzioni",
-    "collapseAll": "Chiudi tutto",
-    "expandAll": "Apri tutto",
     "cancel": "Interrompi",
     "save": "Registra",
-    "delete": "Rimuovi",
-    "rename": "Rinominare",
     "joinCommunity": "Unisciti alla comunità",
-    "reportIssue": "Segnala un problema",
-    "starOnGithub": "Stella su GitHub"
-  },
-  "branding": {
-    "openSource": "Open source"
+    "reportIssue": "Segnala un problema"
   },
   "status": {
-    "active": "In esecuzione",
-    "inactive": "Non attivo",
-    "thinking": "Ragionamento…",
-    "error": "Problema",
-    "aborted": "Arrestato",
-    "unknown": "Sconosciuto"
-  },
-  "time": {
-    "justNow": "Qualche istante fa",
-    "oneMinuteAgo": "Un minuto fa",
-    "minutesAgo": "{{count}} minuti fa",
-    "oneHourAgo": "Un'ora fa",
-    "hoursAgo": "{{count}} ore prima",
-    "oneDayAgo": "Un giorno fa",
-    "daysAgo": "{{count}} giorni prima"
+    "thinking": "Ragionamento…"
   },
   "messages": {
-    "deleteConfirm": "Eliminare questo elemento?",
-    "renameSuccess": "Rinomina completata",
-    "deleteSuccess": "Eliminazione completata",
-    "errorOccurred": "Qualcosa è andato storto",
-    "deleteSessionConfirm": "Eliminare questa conversazione? Ciò non può essere invertito.",
-    "deleteProjectConfirm": "Rimuovere questo progetto dalla barra laterale? File, ricordi e dati delle conversazioni rimangono intatti.",
-    "enterProjectPath": "Inserisci un percorso del progetto",
     "deleteSessionFailed": "Impossibile eliminare la conversazione. Riprova.",
     "deleteSessionError": "Si è verificato un errore di eliminazione della conversazione. Riprova.",
     "renameSessionFailed": "Impossibile rinominare la conversazione. Riprova.",
@@ -111,8 +66,6 @@
     "exportSessionError": "Impossibile esportare la conversazione. Riprova.",
     "deleteProjectFailed": "Impossibile rimuovere il progetto. Riprova.",
     "deleteProjectError": "Si è verificato un errore di rimozione del progetto. Riprova.",
-    "createProjectFailed": "Impossibile aggiungere il progetto. Riprova.",
-    "createProjectError": "Si è verificato un errore di creazione del progetto. Riprova.",
     "updateProjectError": "Si è verificato un errore di aggiornamento del progetto. Riprova.",
     "refreshError": "Impossibile aggiornare. Riprova.",
     "restoreProjectFailed": "Impossibile ripristinare il progetto. Riprova.",
@@ -121,8 +74,7 @@
     "restoreSessionError": "Si è verificato un errore di ripristino della conversazione. Riprova."
   },
   "version": {
-    "updateAvailable": "Nuovo aggiornamento disponibile",
-    "restartRequired": "Aggiornamento installato; riavviare il server per usarlo"
+    "updateAvailable": "Nuovo aggiornamento disponibile"
   },
   "deleteConfirmation": {
     "deleteProject": "Rimuovere l'area di lavoro",
@@ -130,9 +82,6 @@
     "confirmDelete": "Scegli cosa fare con",
     "sessionCount_one": "C'è una conversazione {{count}} in questo progetto.",
     "sessionCount_other": "Ci sono conversazioni {{count}} in questo progetto.",
-    "removeFromSidebar": "Rimuovi solo dalla barra laterale",
-    "deleteAllData": "Cancella definitivamente tutti i dati",
-    "allConversationsDeleted": "Il progetto lascia la barra laterale, mentre rimangono i file, i ricordi e i dati delle conversazioni.",
-    "cannotUndo": "Puoi aggiungere nuovamente questo progetto in un secondo momento."
+    "deleteAllData": "Cancella definitivamente tutti i dati"
   }
 }

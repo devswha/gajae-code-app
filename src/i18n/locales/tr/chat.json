@@ -12,8 +12,6 @@
     "copyAsText": "Düz metin olarak kopyala"
   },
   "messageTypes": {
-    "user": "sen",
-    "tool": "Aracı",
     "claude": "Claude",
     "cursor": "İmleç",
     "codex": "Kodeks",
@@ -25,100 +23,28 @@
     }
   },
   "tools": {
-    "settings": "Araç seçenekleri",
-    "error": "Takım sorunu",
-    "result": "Takım çıkışı",
-    "viewParams": "Giriş parametrelerini inceleyin",
-    "viewRawParams": "Ham parametreleri inceleyin",
-    "viewDiff": "Düzenleme farkını inceleyin",
-    "creatingFile": "Dosya yapma:",
-    "updatingTodo": "Görev listesi güncelleniyor",
-    "read": "Oku",
-    "readFile": "Bir dosyayı okuma",
-    "updateTodo": "Görev listesini güncelle",
-    "readTodo": "Görev listesini oku",
-    "searchResults": "maçlar"
+    "error": "Takım sorunu"
   },
   "search": {
-    "found": "{{count}} {{type}} bulundu",
-    "file": "proje dosyası",
-    "files": "dosyalar",
-    "pattern": "desen:",
     "in": "konum:"
-  },
-  "fileOperations": {
-    "updated": "Dosya güncellemesi tamamlandı",
-    "created": "Dosya oluşturma tamamlandı",
-    "written": "Dosya yazma tamamlandı",
-    "diff": "Fark",
-    "newFile": "Dosya oluştur",
-    "viewContent": "Dosya içeriğini inceleyin",
-    "viewFullOutput": "Tüm çıktıyı göster ({{count}} karakter)",
-    "contentDisplayed": "Yukarıdaki fark görünümü bu dosyanın içeriğini içerir"
   },
   "interactive": {
     "title": "Etkileşimli istek",
     "waiting": "CLI'de yanıt bekleniyor",
-    "instruction": "Claude'u çalıştıran terminalde bir seçenek seçin.",
-    "selectedOption": "✓ Claude {{number}} seçeneğini seçti",
-    "instructionDetail": "CLI'de bunu ok tuşlarıyla veya numarasıyla etkileşimli olarak seçin."
-  },
-  "thinking": {
-    "title": "Muhakeme…",
-    "emoji": "💭 Akıl yürütme…"
+    "instruction": "Claude'u çalıştıran terminalde bir seçenek seçin."
   },
   "json": {
     "response": "JSON yanıtı"
   },
-  "permissions": {
-    "grant": "{{tool}} aracının çalışmasına izin ver",
-    "added": "İzin kaydedildi",
-    "addTo": "İzin verilen araçlara {{entry}} ekler.",
-    "retry": "İzin kaydedildi. Araç isteğini yeniden çalıştırın.",
-    "error": "İzinler güncellenemedi. Tekrar deneyin.",
-    "openSettings": "Ayarlara git"
-  },
-  "todo": {
-    "updated": "Görev listesi güncellendi",
-    "current": "Mevcut görev listesi"
-  },
-  "plan": {
-    "viewPlan": "📋 Açık inşa planı",
-    "title": "Plan oluştur"
-  },
-  "usageLimit": {
-    "resetAt": "Claude kullanımı şu anda sınırlıdır.  tarihinde ** ** itibarıyla sıfırlanır. {{time}} {{timezone}} {{date}}"
-  },
-  "codex": {
-    "permissionMode": "İzin yönetimi",
-    "modes": {
-      "default": "Standart mod",
-      "auto": "Otomatik mod",
-      "acceptEdits": "Düzenlemelere izin ver",
-      "bypassPermissions": "Onaylamayı atla",
-      "plan": "Planlama modu"
-    },
-    "descriptions": {
-      "default": "ls, cat, grep ve git status gibi güvenilir komutlar otomatik olarak çalışır; diğerleri atlanır. Çalışma alanı yazma işlemlerine izin verilir.",
-      "auto": "Bir model sınıflandırıcı her bir araç çağrısını onaylar veya reddeder. Eller kapalıdır ancak yine de güvenli olmayan aramaları reddeder.",
-      "acceptEdits": "Her komut, çalışma alanı sanal alanında otomatik olarak çalışır.",
-      "bypassPermissions": "Komutlar, tam disk ve ağ erişimiyle kısıtlama olmaksızın çalışır. Yalnızca güvenildiğinde kullanın.",
-      "plan": "Yalnızca planlama; komutlar çalışmıyor"
-    },
-    "technicalDetails": "Uygulama ayrıntıları"
-  },
   "voice": {
     "input": "Mesajı dikte et",
     "stopRecording": "Kaydı bitir",
-    "transcribing": "Konuşma dönüştürülüyor…",
     "speak": "Yanıtı söyle",
     "stopSpeaking": "Durmak",
     "loading": "Yükleniyor…"
   },
   "input": {
     "placeholder": "'ya sorun, komutlar için / tuşunu veya dosya eklemek için @ tuşunu kullanın… {{provider}}",
-    "placeholderDefault": "Bir mesaj yazın…",
-    "disabled": "Mesaj girişi kullanılamıyor",
     "modelReasoning": {
       "label": "Model ve muhakeme ayarları",
       "providerTitle": "sağlayıcı",
@@ -134,19 +60,14 @@
       "search": "Yapılandırmaları bulun",
       "noMatches": "Hiçbir yapılandırma eşleşmiyor."
     },
-    "attachFiles": "Dosya ekle",
     "attachImages": "Resim ekle",
     "send": "Mesajı gönder",
     "stop": "Çalışmayı durdur",
     "hintText": {
       "ctrlEnter": "Ctrl+Enter ile gönderin • Shift+Enter ile yeni satır • Sekme ile modları değiştirin • / ile komutlar",
       "enter": "Enter ile gönder • Shift+Enter ile yeni satır • Sekme ile modları değiştirin • / ile komutlar",
-      "queue": "Başka bir mesajı kuyruğa almak için Enter tuşuna basın",
-      "steer": "Aktif dönüşü yönlendirmek için Enter'a basın"
+      "queue": "Başka bir mesajı kuyruğa almak için Enter tuşuna basın"
     },
-    "clickToChangeMode": "İzin modunu değiştirmek için tıklayın veya girişte Sekme tuşuna basın",
-    "showAllCommands": "Komutlara göz at",
-    "clearInput": "Boş mesaj girişi",
     "scrollToBottom": "En yeniye atla",
     "queue": {
       "sendNext": "Başka bir mesajı sıraya koy",
@@ -162,30 +83,7 @@
       "steerNow": "Aktif dönüşü yönlendirin"
     }
   },
-  "providerSelection": {
-    "title": "Bir yapay zeka asistanı seçin",
-    "description": "Yeni bir görüşme için bir sağlayıcı seçin",
-    "selectModel": "Modeli seç",
-    "providerInfo": {
-      "anthropic": "Antropik sağlayıcı",
-      "openai": "OpenAI sağlayıcısı",
-      "cursorEditor": "AI ile kod düzenleyici",
-      "google": "Google sağlayıcısı"
-    },
-    "readyPrompt": {
-      "claude": "{{model}} ile Claude hazır. Mesajınızı aşağıya yazın.",
-      "cursor": "{{model}} içeren imleç hazır. Mesajınızı aşağıya yazın.",
-      "codex": "{{model}} içeren kodeks hazır. Mesajınızı aşağıya yazın.",
-      "opencode": "{{model}} ile OpenCode hazır. Mesajınızı aşağıya yazın.",
-      "default": "Başlamak için yukarıdan bir sağlayıcı seçin"
-    },
-    "pressToSearch": "Konuşmaları, dosyaları ve taahhütleri aramak için <kbd>{{shortcut}</kbd>'yi kullanın {{shortcut}}"
-  },
   "session": {
-    "continue": {
-      "title": "Bu konuşmaya devam et",
-      "description": "Kod hakkında soru sorun, düzenleme isteğinde bulunun veya geliştirme çalışmaları konusunda yardım alın"
-    },
     "loading": {
       "olderMessages": "Önceki mesajlar alınıyor…",
       "sessionMessages": "Konuşma mesajları alınıyor…"
@@ -200,35 +98,11 @@
       "loadingFullToolOutput": "Çıktının tamamı alınıyor…",
       "fullToolOutputFailed": "Çıkışın tamamı yüklenemedi.",
       "loadingAll": "Her mesaj alınıyor…",
-      "allLoaded": "Her mesaj yüklenir",
-      "perfWarning": "Her mesaj yüklendiğinden kaydırma işlemi yavaşlayabilir. Geliştirmek için “Aşağıya kaydır” seçeneğini kullanın."
+      "allLoaded": "Her mesaj yüklenir"
     }
   },
   "shell": {
-    "selectProject": {
-      "title": "Bir proje seçin",
-      "description": "Dizinde etkileşimli bir kabuk açmak için bir proje seçin"
-    },
-    "status": {
-      "newSession": "Konuşmayı başlat",
-      "initializing": "Başlıyor…",
-      "restarting": "Yeniden başlıyoruz…"
-    },
-    "actions": {
-      "disconnect": "Bağlantıyı kes",
-      "disconnectTitle": "Kabuk bağlantısını sonlandır",
-      "restart": "Yeniden başlat",
-      "restartTitle": "Kabuğu yeniden başlat",
-      "connect": "Kabukta devam et",
-      "connectTitle": "Kabuk bağlantısını aç"
-    },
-    "loading": "Terminal başlatılıyor…",
-    "connecting": "Kabuk bağlantısı açılıyor…",
-    "startSession": "Claude oturumunu başlatın",
-    "resumeSession": "Devam et: {{displayName}}…",
-    "runCommand": " için  komutunu çalıştırın {{command}} {{projectName}}",
-    "startCli": "{{projectName}} için Claude CLI başlatılıyor",
-    "defaultCommand": "kabuk komutu"
+    "loading": "Terminal başlatılıyor…"
   },
   "claudeStatus": {
     "actions": {
@@ -239,24 +113,11 @@
       "computing": "bilgisayar",
       "reasoning": "muhakeme"
     },
-    "state": {
-      "live": "Canlı",
-      "paused": "Duraklatıldı"
-    },
     "elapsed": {
       "seconds": "{{count}} sn",
-      "minutesSeconds": "m sn {{minutes}} {{seconds}}",
-      "label": "şu ana kadar {{time}}",
-      "startingNow": "Yeni başlıyorum"
+      "minutesSeconds": "m sn {{minutes}} {{seconds}}"
     },
-    "stop": "Durdur",
-    "controls": {
-      "stopGeneration": "Yanıtı durdur",
-      "pressEscToStop": "İstediğiniz zaman durdurmak için Esc tuşuna basın"
-    },
-    "providers": {
-      "assistant": "Yapay zekâ asistanı"
-    }
+    "stop": "Durdur"
   },
   "projectSelection": {
     "startChatWithProvider": "{{provider}} ile sohbet etmeden önce bir proje seçin"

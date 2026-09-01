@@ -1,34 +1,9 @@
 {
   "title": "Settings",
-  "tabs": {
-    "account": "Account",
-    "permissions": "Permissions",
-    "skills": "Skills",
-    "appearance": "Appearance"
-  },
   "account": {
-    "title": "Account",
     "language": "Language",
     "languageLabel": "Interface language",
-    "languageDescription": "Choose the language used by the interface",
-    "username": "Username",
-    "email": "Email",
-    "profile": "Profile",
-    "changePassword": "Update password"
-  },
-  "appearance": {
-    "title": "Appearance",
-    "theme": "Theme",
-    "editorTheme": "Code editor theme",
-    "wordWrap": "Wrap long lines",
-    "showMinimap": "Display minimap",
-    "lineNumbers": "Show line numbers",
-    "fontSize": "Code text size"
-  },
-  "actions": {
-    "saveChanges": "Apply changes",
-    "resetToDefaults": "Restore defaults",
-    "cancelChanges": "Discard changes"
+    "languageDescription": "Choose the language used by the interface"
   },
   "voiceSettings": {
     "title": "Voice",
@@ -55,23 +30,7 @@
     "sendByCtrlEnter": "Use Ctrl+Enter to send",
     "sendByCtrlEnterDescription": "When enabled, Ctrl+Enter sends messages instead of Enter. This helps IME users prevent accidental sends."
   },
-  "terminalShortcuts": {
-    "title": "Terminal key bindings",
-    "sectionKeys": "Keys",
-    "sectionNavigation": "Navigation",
-    "escape": "Escape",
-    "tab": "Tab",
-    "shiftTab": "Shift+Tab",
-    "arrowUp": "Up arrow",
-    "arrowDown": "Down arrow",
-    "scrollDown": "Scroll downward",
-    "handle": {
-      "closePanel": "Hide keyboard shortcuts",
-      "openPanel": "Show keyboard shortcuts"
-    }
-  },
   "mainTabs": {
-    "label": "Settings",
     "appearance": "Appearance",
     "git": "Git",
     "voice": "Voice",
@@ -146,13 +105,7 @@
     }
   },
   "saveStatus": {
-    "success": "Settings saved.",
-    "error": "Could not save settings",
-    "saving": "Saving…"
-  },
-  "footerActions": {
-    "save": "Save settings",
-    "cancel": "Cancel"
+    "success": "Settings saved."
   },
   "git": {
     "title": "Git settings",
@@ -171,82 +124,6 @@
     },
     "status": {
       "success": "Save complete"
-    }
-  },
-  "permissions": {
-    "title": "Permission controls",
-    "skipPermissions": {
-      "label": "Bypass permission prompts (use carefully)",
-      "claudeDescription": "Matches the --dangerously-skip-permissions flag",
-      "cursorDescription": "Matches Cursor CLI’s -f flag"
-    },
-    "allowedTools": {
-      "title": "Permitted tools",
-      "description": "Tools that run without asking for approval",
-      "placeholder": "e.g., \"Bash(git log:*)\" or \"Write\"",
-      "quickAdd": "Add common tools:",
-      "empty": "No permitted tools configured"
-    },
-    "blockedTools": {
-      "title": "Denied tools",
-      "description": "Tools that are denied without an approval prompt",
-      "placeholder": "e.g., \"Bash(rm:*)\"",
-      "empty": "No denied tools configured"
-    },
-    "allowedCommands": {
-      "title": "Permitted shell commands",
-      "description": "Shell commands that run without an approval prompt",
-      "placeholder": "e.g., \"Shell(ls)\" or \"Shell(git status)\"",
-      "quickAdd": "Add common commands:",
-      "empty": "No permitted commands configured"
-    },
-    "blockedCommands": {
-      "title": "Denied shell commands",
-      "description": "Shell commands that are denied automatically",
-      "placeholder": "e.g., \"Shell(rm -rf)\" or \"Shell(sudo)\"",
-      "empty": "No denied commands configured"
-    },
-    "toolExamples": {
-      "title": "Tool pattern examples:",
-      "bashGitLog": "- Permit any git log command",
-      "bashGitDiff": "- Permit any git diff command",
-      "write": "- Permit all Write tool calls",
-      "bashRm": "- Deny any rm command (dangerous)"
-    },
-    "shellExamples": {
-      "title": "Shell command examples:",
-      "ls": "- Permit ls",
-      "gitStatus": "- Permit git status",
-      "npmInstall": "- Permit npm install",
-      "rmRf": "- Deny recursive deletion"
-    },
-    "codex": {
-      "permissionMode": "Permission handling",
-      "description": "Sets how Codex treats file edits and command execution",
-      "modes": {
-        "default": {
-          "title": "Default",
-          "description": "Trusted commands such as ls, cat, grep, and git status run automatically; others are skipped. Workspace writes are allowed."
-        },
-        "acceptEdits": {
-          "title": "Allow edits",
-          "description": "Every command runs automatically inside the workspace sandbox."
-        },
-        "bypassPermissions": {
-          "title": "Bypass approval",
-          "description": "Commands run without restrictions, with full disk and network access. Use only when trusted."
-        }
-      },
-      "technicalDetails": "Implementation details",
-      "technicalInfo": {
-        "default": "workspace-write sandbox with untrusted approval. Trusted commands include cat, cd, grep, head, ls, pwd, tail, Git status/log/diff/show, and find without -exec.",
-        "acceptEdits": "workspace-write sandbox with no approvals. Commands run automatically in the project directory.",
-        "bypassPermissions": "danger-full-access sandbox with no approvals. Use full system access only in trusted environments.",
-        "overrideNote": "Use the chat mode button to override this for one session."
-      }
-    },
-    "actions": {
-      "add": "Add"
     }
   }
 }

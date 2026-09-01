@@ -3,18 +3,6 @@ const driveRoot = /^[A-Za-z]:\\?$/;
 const lastPathSeparator = (path: string) => Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
 const isDrivePath = (path: string) => /^[A-Za-z]:/.test(path);
 
-export const isSshGitUrl = (url: string): boolean => {
-  const candidate = url.trim();
-  return candidate.startsWith('git@') || candidate.startsWith('ssh://');
-};
-
-export const shouldShowGithubAuthentication = (githubUrl: string): boolean => {
-  const repositoryUrl = githubUrl.trim();
-  return repositoryUrl.length !== 0 && !isSshGitUrl(repositoryUrl);
-};
-
-export const isCloneWorkflow = (githubUrl: string): boolean => githubUrl.trim() !== '';
-
 export const getSuggestionRootPath = (inputPath: string): string => {
   const path = inputPath.trim();
   const separator = lastPathSeparator(path);

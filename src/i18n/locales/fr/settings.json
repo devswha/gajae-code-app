@@ -1,34 +1,9 @@
 {
   "title": "Options",
-  "tabs": {
-    "account": "Compte utilisateur",
-    "permissions": "Autorisations",
-    "skills": "Compétences",
-    "appearance": "Présentation"
-  },
   "account": {
-    "title": "Compte utilisateur",
     "language": "Langue affichée",
     "languageLabel": "Langue de l'interface",
-    "languageDescription": "Choisissez la langue utilisée par l'interface",
-    "username": "Nom d'utilisateur",
-    "email": "Courriel",
-    "profile": "Profil utilisateur",
-    "changePassword": "Mettre à jour le mot de passe"
-  },
-  "appearance": {
-    "title": "Présentation",
-    "theme": "Style visuel",
-    "editorTheme": "Thème de l'éditeur de code",
-    "wordWrap": "Enroulez les longues lignes",
-    "showMinimap": "Afficher la mini-carte",
-    "lineNumbers": "Afficher les numéros de ligne",
-    "fontSize": "Taille du texte du code"
-  },
-  "actions": {
-    "saveChanges": "Appliquer les modifications",
-    "resetToDefaults": "Restaurer les valeurs par défaut",
-    "cancelChanges": "Ignorer les modifications"
+    "languageDescription": "Choisissez la langue utilisée par l'interface"
   },
   "voiceSettings": {
     "title": "Voix",
@@ -55,23 +30,7 @@
     "sendByCtrlEnter": "Utilisez Ctrl+Enter pour envoyer",
     "sendByCtrlEnterDescription": "Lorsqu'il est activé, Ctrl+Enter envoie des messages au lieu de Enter. Cela aide les utilisateurs IME à éviter les envois accidentels."
   },
-  "terminalShortcuts": {
-    "title": "Raccourcis des touches du terminal",
-    "sectionKeys": "Clés",
-    "sectionNavigation": "Navigation latérale",
-    "escape": "Escape",
-    "tab": "Onglet",
-    "shiftTab": "Shift+Tabulation",
-    "arrowUp": "Flèche vers le haut",
-    "arrowDown": "Flèche vers le bas",
-    "scrollDown": "Faites défiler vers le bas",
-    "handle": {
-      "closePanel": "Masquer les raccourcis clavier",
-      "openPanel": "Afficher les raccourcis clavier"
-    }
-  },
   "mainTabs": {
-    "label": "Options",
     "appearance": "Présentation",
     "git": "Git",
     "voice": "Voix",
@@ -146,13 +105,7 @@
     }
   },
   "saveStatus": {
-    "success": "Paramètres enregistrés.",
-    "error": "Impossible d'enregistrer les paramètres",
-    "saving": "Sauvegarde…"
-  },
-  "footerActions": {
-    "save": "Enregistrer les paramètres",
-    "cancel": "Abandonner"
+    "success": "Paramètres enregistrés."
   },
   "git": {
     "title": "Paramètres Git",
@@ -171,82 +124,6 @@
     },
     "status": {
       "success": "Sauvegarde terminée"
-    }
-  },
-  "permissions": {
-    "title": "Contrôles d'autorisation",
-    "skipPermissions": {
-      "label": "Contourner les invites d’autorisation (à utiliser avec précaution)",
-      "claudeDescription": "Correspond à l'indicateur --dangerously-skip-permissions",
-      "cursorDescription": "Correspond à l'indicateur -f de Cursor CLI"
-    },
-    "allowedTools": {
-      "title": "Outils autorisés",
-      "description": "Des outils qui fonctionnent sans demander d’approbation",
-      "placeholder": "par exemple, \"Bash(git log:*)\" ou \"Write\"",
-      "quickAdd": "Ajoutez des outils communs :",
-      "empty": "Aucun outil autorisé configuré"
-    },
-    "blockedTools": {
-      "title": "Outils refusés",
-      "description": "Outils refusés sans invite d'approbation",
-      "placeholder": "par exemple, \"Bash(rm:*)\"",
-      "empty": "Aucun outil refusé configuré"
-    },
-    "allowedCommands": {
-      "title": "Commandes shell autorisées",
-      "description": "Commandes Shell qui s'exécutent sans invite d'approbation",
-      "placeholder": "par exemple, \"Shell(ls)\" ou \"Shell(git status)\"",
-      "quickAdd": "Ajoutez des commandes courantes :",
-      "empty": "Aucune commande autorisée configurée"
-    },
-    "blockedCommands": {
-      "title": "Commandes shell refusées",
-      "description": "Commandes Shell refusées automatiquement",
-      "placeholder": "par exemple, \"Shell(rm -rf)\" ou \"Shell(sudo)\"",
-      "empty": "Aucune commande refusée configurée"
-    },
-    "toolExamples": {
-      "title": "Exemples de modèles d'outils :",
-      "bashGitLog": "- Autoriser n'importe quelle commande git log",
-      "bashGitDiff": "- Autoriser n'importe quelle commande git diff",
-      "write": "- Autoriser tous les appels d'outils d'écriture",
-      "bashRm": "- Refuser toute commande rm (dangereux)"
-    },
-    "shellExamples": {
-      "title": "Exemples de commandes Shell :",
-      "ls": "- Permis ls",
-      "gitStatus": "- Autoriser le statut git",
-      "npmInstall": "- Autoriser l'installation de npm",
-      "rmRf": "- Refuser la suppression récursive"
-    },
-    "codex": {
-      "permissionMode": "Gestion des autorisations",
-      "description": "Définit la façon dont Codex traite les modifications de fichiers et l'exécution des commandes",
-      "modes": {
-        "default": {
-          "title": "Par défaut",
-          "description": "Les commandes fiables telles que ls, cat, grep et git status s'exécutent automatiquement ; d'autres sont ignorés. Les écritures dans l'espace de travail sont autorisées."
-        },
-        "acceptEdits": {
-          "title": "Autoriser les modifications",
-          "description": "Chaque commande s'exécute automatiquement dans le bac à sable de l'espace de travail."
-        },
-        "bypassPermissions": {
-          "title": "Contourner l'approbation",
-          "description": "Les commandes s'exécutent sans restrictions, avec un accès complet au disque et au réseau. À utiliser uniquement en cas de confiance."
-        }
-      },
-      "technicalDetails": "Détails de mise en œuvre",
-      "technicalInfo": {
-        "default": "sandbox d'écriture dans un espace de travail avec approbation non fiable. Les commandes fiables incluent cat, cd, grep, head, ls, pwd, tail, Git status/log/diff/show et find sans -exec.",
-        "acceptEdits": "sandbox d'écriture dans un espace de travail sans approbation. Les commandes s'exécutent automatiquement dans le répertoire du projet.",
-        "bypassPermissions": "bac à sable à accès complet et sans approbation. Utilisez l'accès complet au système uniquement dans des environnements fiables.",
-        "overrideNote": "Utilisez le bouton du mode chat pour remplacer cela pour une session."
-      }
-    },
-    "actions": {
-      "add": "Ajouter"
     }
   }
 }

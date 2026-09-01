@@ -7,20 +7,13 @@
     "noProjects": "ワークスペースはまだありません。",
     "loadingProjects": "ワークスペースを取得中…",
     "projectNamePlaceholder": "ワークスペース名。",
-    "starred": "お気に入り。",
-    "all": "すべて。",
     "untitledSession": "無題のセッション。",
     "newSession": "会話を開始。",
     "fetchingProjects": "プロジェクトと会話を取得中。",
     "projects": "プロジェクト。",
     "createProjectHint": "プロジェクトを追加して開始。"
   },
-  "app": {
-    "title": "Gajae Code App。",
-    "subtitle": "AI 支援コーディングのための開発者ワークスペース。"
-  },
   "sessions": {
-    "title": "会話。",
     "work": "作業。",
     "newTask": "新しい作業項目。",
     "newSession": "会話を開始。",
@@ -37,7 +30,6 @@
     "createSessionHint": "プロジェクトを選択してから、+ で会話を開きます。"
   },
   "tooltips": {
-    "viewEnvironments": "環境を表示。",
     "hideSidebar": "サイドバーを隠す。",
     "createProject": "プロジェクトを追加。",
     "createSession": "会話を開始。",
@@ -53,57 +45,20 @@
     "activeSessionIndicator": "最近アクティブなセッション（過去10分以内）。",
     "save": "保存。",
     "cancel": "キャンセル。",
-    "openCommandPalette": "コマンドパレットを開く。",
     "attentionRequiredIndicator": "会話に対応が必要です。"
-  },
-  "navigation": {
-    "chat": "チャット。",
-    "files": "ファイル。",
-    "git": "Git。",
-    "terminal": "ターミナル。"
   },
   "actions": {
     "search": "検索。",
-    "refresh": "更新。",
     "settings": "設定。",
-    "collapseAll": "すべて折りたたむ。",
-    "expandAll": "すべて展開。",
     "cancel": "キャンセル。",
     "save": "保存。",
-    "delete": "削除。",
-    "rename": "名前の変更。",
     "joinCommunity": "コミュニティに参加。",
-    "reportIssue": "問題を報告。",
-    "starOnGithub": "GitHubでスター。"
-  },
-  "branding": {
-    "openSource": "オープンソース。"
+    "reportIssue": "問題を報告。"
   },
   "status": {
-    "active": "アクティブ。",
-    "inactive": "非アクティブ。",
-    "thinking": "思考中...。",
-    "error": "エラー。",
-    "aborted": "中断。",
-    "unknown": "不明。"
-  },
-  "time": {
-    "justNow": "たった今。",
-    "oneMinuteAgo": "1分前。",
-    "minutesAgo": "{{count}}分前。",
-    "oneHourAgo": "1時間前。",
-    "hoursAgo": "{{count}}時間前。",
-    "oneDayAgo": "1日前。",
-    "daysAgo": "{{count}}日前。"
+    "thinking": "思考中...。"
   },
   "messages": {
-    "deleteConfirm": "本当に削除しますか？",
-    "renameSuccess": "名前を変更しました。",
-    "deleteSuccess": "削除しました。",
-    "errorOccurred": "エラーが発生しました。",
-    "deleteSessionConfirm": "この会話を削除しますか？元に戻せません。",
-    "deleteProjectConfirm": "このプロジェクトをサイドバーから削除しますか？ファイル、メモリ、会話データはそのまま残ります。",
-    "enterProjectPath": "プロジェクトのパスを入力してください。",
     "deleteSessionFailed": "セッションの削除に失敗しました。もう一度お試しください。",
     "deleteSessionError": "セッションの削除でエラーが発生しました。もう一度お試しください。",
     "renameSessionFailed": "セッション名の変更に失敗しました。もう一度お試しください。",
@@ -111,8 +66,6 @@
     "exportSessionError": "セッションのエクスポートに失敗しました。もう一度お試しください。",
     "deleteProjectFailed": "プロジェクトの除去に失敗しました。もう一度お試しください。",
     "deleteProjectError": "プロジェクトの除去でエラーが発生しました。もう一度お試しください。",
-    "createProjectFailed": "プロジェクトの作成に失敗しました。もう一度お試しください。",
-    "createProjectError": "プロジェクトの作成でエラーが発生しました。もう一度お試しください。",
     "updateProjectError": "プロジェクトの更新でエラーが発生しました。もう一度お試しください。",
     "refreshError": "更新に失敗しました。もう一度お試しください。",
     "restoreProjectFailed": "プロジェクトの復元に失敗しました。もう一度お試しください。",
@@ -121,8 +74,7 @@
     "restoreSessionError": "セッションの復元でエラーが発生しました。もう一度お試しください。"
   },
   "version": {
-    "updateAvailable": "アップデートあり。",
-    "restartRequired": "更新が適用されていません。サーバーを再起動してください。"
+    "updateAvailable": "アップデートあり。"
   },
   "deleteConfirmation": {
     "deleteProject": "ワークスペースを削除。",
@@ -130,9 +82,6 @@
     "confirmDelete": "このプロジェクトをどうしますか：。",
     "sessionCount_one": "このプロジェクトには会話が {{count}} 件あります。",
     "sessionCount_other": "このプロジェクトには会話が {{count}} 件あります。",
-    "removeFromSidebar": "サイドバーからのみ除去。",
-    "deleteAllData": "すべてのデータを完全に削除。",
-    "allConversationsDeleted": "プロジェクトはサイドバーから消えますが、ファイル、メモリ、会話データは残ります。",
-    "cannotUndo": "後からプロジェクトを再追加できます。"
+    "deleteAllData": "すべてのデータを完全に削除。"
   }
 }

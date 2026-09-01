@@ -1,23 +1,11 @@
 import { api } from '../../../utils/api';
 import type {
   BrowseFilesystemResponse,
-  CloneProgressEvent,
   CreateFolderResponse,
   CreateProjectPayload,
   CreateProjectResponse,
-  CredentialsResponse,
   FolderSuggestion,
-  TokenMode,
 } from '../types';
-
-type CloneWorkspaceParams = {
-  workspacePath: string;
-  githubUrl: string;
-  tokenMode: TokenMode;
-  selectedGithubToken: string;
-  newGithubToken: string;
-};
-type CloneProgressHandlers = { onProgress: (message: string) => void };
 
 const readResponse = <T>(response: Response) => response.json() as Promise<T>;
 
@@ -46,16 +34,6 @@ const projectErrorMessage = (payload: CreateProjectResponse): string | null => {
   }
 
   return nonEmptyString(payload.message);
-};
-
-export const fetchGithubTokenCredentials = async () => {
-  const response = await api.get('/settings/credentials?type=github_token');
-  const payload = await readResponse<CredentialsResponse>(response);
-  if (!response.ok) {
-    throw new Error(payload.error || 'Failed to load GitHub tokens');
-  }
-
-  return (payload.credentials || []).filter(({ is_active }) => is_active);
 };
 
 export const browseFilesystemFolders = async (pathToBrowse: string) => {
@@ -126,61 +104,3 @@ export const createProjectRequest = async (payload: CreateProjectPayload) => {
 
   throw new Error(projectErrorMessage(result) || 'Failed to create project');
 };
-
-const cloneQuery = (params: CloneWorkspaceParams) => {
-  const values = new URLSearchParams({
-    path: params.workspacePath.trim(),
-    githubUrl: params.githubUrl.trim(),
-  });
-
-  if (params.tokenMode === 'stored' && params.selectedGithubToken) {
-    values.set('githubTokenId', params.selectedGithubToken);
-  } else if (params.tokenMode === 'new' && params.newGithubToken.trim()) {
-    values.set('newGithubToken', params.newGithubToken.trim());
-  }
-
-  return values.toString();
-};
-
-export const cloneWorkspaceWithProgress = (
-  params: CloneWorkspaceParams,
-  handlers: CloneProgressHandlers,
-) => new Promise<Record<string, unknown> | undefined>((resolve, reject) => {
-  const source = new EventSource(`/api/projects/clone-progress?${cloneQuery(params)}`);
-  let closed = false;
-  const finish = (action: () => void) => {
-    if (closed) {
-      return;
-    }
-    closed = true;
-    source.close();
-    action();
-  };
-
-  source.onmessage = (event) => {
-    try {
-      const update = JSON.parse(event.data) as CloneProgressEvent;
-      switch (update.type) {
-        case 'progress':
-          if (update.message) {
-            handlers.onProgress(update.message);
-          }
-          break;
-        case 'complete':
-          finish(() => resolve(update.project));
-          break;
-        case 'error':
-          finish(() => reject(new Error(update.message || 'Failed to clone repository')));
-          break;
-        default:
-          break;
-      }
-    } catch (error) {
-      console.error('Error parsing clone progress event:', error);
-    }
-  };
-
-  source.onerror = () => {
-    finish(() => reject(new Error('Connection lost during clone')));
-  };
-});

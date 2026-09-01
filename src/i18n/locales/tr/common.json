@@ -1,87 +1,13 @@
 {
   "buttons": {
-    "save": "Değişiklikleri kaydet",
-    "cancel": "İşlemi iptal et",
-    "delete": "Öğeyi sil",
-    "create": "Oluştur",
-    "edit": "Değiştir",
-    "close": "Pencereyi kapat",
-    "confirm": "Onayla",
-    "submit": "Formu gönder",
-    "retry": "Yeniden dene",
-    "refresh": "Yeniden yükle",
-    "search": "Bul",
-    "clear": "Seçimi temizle",
-    "copy": "Panoya kopyala",
-    "download": "Dosyayı indir",
-    "upload": "Dosya yükle",
-    "browse": "Göz at"
+    "cancel": "İşlemi iptal et"
   },
   "tabs": {
     "chat": "Sohbet",
-    "shell": "Kabuk",
-    "files": "Dosyalar",
-    "git": "Sürüm kontrolü",
-    "computer": "Bilgisayar"
+    "git": "Sürüm kontrolü"
   },
   "status": {
-    "loading": "Yükleniyor...",
-    "success": "Başarı",
-    "error": "Hata",
-    "failed": "Başarısız",
-    "pending": "Sırada bekliyor",
-    "completed": "İşlem tamamlandı",
-    "inProgress": "Şimdi koşuyorum"
-  },
-  "messages": {
-    "savedSuccessfully": "Kaydetme tamamlandı",
-    "deletedSuccessfully": "Silme işlemi tamamlandı",
-    "updatedSuccessfully": "Güncelleme tamamlandı",
-    "operationFailed": "İşlem tamamlanamadı",
-    "networkError": "Ağ hatası. Bağlantınızı kontrol edin.",
-    "unauthorized": "Oturum açmanız gerekiyor.",
-    "notFound": "Öğe bulunamadı",
-    "invalidInput": "Giriş geçerli değil",
-    "requiredField": "Buraya bir değer girin",
-    "unknownError": "Beklenmedik bir şey ters gitti"
-  },
-  "navigation": {
-    "settings": "Ayarlar",
-    "home": "Ana sayfa",
-    "back": "Geri dön",
-    "next": "Sonraki",
-    "previous": "Önceki adım",
-    "logout": "Oturumu kapat"
-  },
-  "common": {
-    "language": "Dil",
-    "theme": "Tema",
-    "darkMode": "Koyu tema",
-    "lightMode": "Işık teması",
-    "name": "İsim",
-    "description": "Açıklama",
-    "enabled": "Açık",
-    "disabled": "Devre dışı",
-    "optional": "İsteğe bağlı",
-    "version": "Uygulama sürümü",
-    "select": "Seçim yap",
-    "selectAll": "Tümünü seç",
-    "deselectAll": "Tüm seçimleri temizle"
-  },
-  "time": {
-    "justNow": "Birkaç dakika önce",
-    "minutesAgo": "{{count}} dakika önce",
-    "hoursAgo": "{{count}} saat önce",
-    "daysAgo": "{{count}} gün önce",
-    "yesterday": "Dün"
-  },
-  "fileOperations": {
-    "newFile": "Dosya oluştur",
-    "newFolder": "Klasör oluştur",
-    "rename": "Yeniden adlandır",
-    "move": "Taşı",
-    "copyPath": "Konumu kopyala",
-    "openInEditor": "Dosyayı düzenle"
+    "success": "Başarı"
   },
   "mainContent": {
     "loading": "Gajae-app başlatılıyor",
@@ -92,117 +18,20 @@
     "createProjectMobile": "Projelerinize ulaşmak için yukarıdaki menüyü kullanın",
     "createProjectDesktop": "Proje eklemek için kenar çubuğu klasör düğmesini kullanın",
     "newSession": "Konuşmayı başlat",
-    "untitledSession": "Adsız görüşme",
     "projectFiles": "Projedeki dosyalar"
   },
-  "fileTree": {
-    "loading": "Dosyalar alınıyor…",
-    "files": "Dosyalar",
-    "simpleView": "Temel düzen",
-    "compactView": "Yoğunlaştırılmış düzen",
-    "detailedView": "Genişletilmiş düzen",
-    "searchPlaceholder": "Dosyaları veya klasörleri bulun…",
-    "clearSearch": "Aramayı sıfırla",
-    "name": "Dosya adı",
-    "size": "Dosya boyutu",
-    "modified": "Değiştirildi",
-    "permissions": "İzinler",
-    "noFilesFound": "Bu klasörde dosya yok",
-    "checkProjectPath": "Proje yoluna ulaşılabildiğinden emin olun",
-    "noMatchesFound": "Hiçbir şey eşleşmedi",
-    "tryDifferentSearch": "Başka bir sorgu kullanın veya mevcut sorguyu temizleyin",
-    "justNow": "birkaç dakika önce",
-    "minAgo": "{{count}} dakika önce",
-    "hoursAgo": "{{count}} saat önce",
-    "daysAgo": "{{count}} gün önce",
-    "newFile": "Dosya oluştur (Cmd+N)",
-    "newFolder": "Klasör oluştur (Cmd+Shift+N)",
-    "refresh": "Yenile",
-    "collapseAll": "Tümünü kapat",
-    "context": {
-      "rename": "Yeniden adlandır",
-      "delete": "Sil",
-      "copyPath": "Konumu kopyala",
-      "download": "İndir",
-      "newFile": "Dosya oluştur",
-      "newFolder": "Klasör oluştur",
-      "refresh": "Yenile",
-      "menuLabel": "Dosya eylemleri menüsü",
-      "loading": "Yükleniyor..."
-    }
-  },
   "projectWizard": {
-    "title": "Proje ekle",
-    "steps": {
-      "type": "Tür",
-      "configure": "Yapılandır",
-      "confirm": "Onaylamak"
-    },
-    "step1": {
-      "question": "Mevcut bir çalışma alanı mı ekleyeceksiniz yoksa yeni bir çalışma alanı mı oluşturacaksınız?",
-      "existing": {
-        "title": "Mevcut çalışma alanını kullan",
-        "description": "Bu sunucuda zaten mevcut olan bir çalışma alanını proje listesine ekleyin"
-      },
-      "new": {
-        "title": "Çalışma alanı oluştur",
-        "description": "GitHub deposunu klonlama seçeneğiyle bir çalışma alanı oluşturun"
-      }
-    },
     "step2": {
       "existingPath": "Çalışma alanı konumu",
-      "newPath": "Çalışma alanı konumu",
-      "existingPlaceholder": "/yol/giden/mevcut/çalışma alanı",
-      "newPlaceholder": "/yol/giden/yeni/çalışma alanı",
-      "existingHelp": "Zaten sahip olduğunuz çalışma alanının mutlak yolu",
-      "newHelp": "Bu çalışma alanı için mutlak bir yol girin",
-      "githubUrl": "GitHub deposu URL'si (isteğe bağlı)",
-      "githubPlaceholder": "https://github.com/kullanıcı adı/depo",
-      "githubHelp": "Klonlanması gerektiğinde bir GitHub deposu URL'sini yapıştırın",
-      "githubAuth": "GitHub oturum açma (isteğe bağlı)",
-      "githubAuthHelp": "Özel veri havuzlarının kimlik doğrulamasına ihtiyacı vardır; halka açık olanlar bunu yapmaz.",
-      "loadingTokens": "Kaydedilen jetonlar alınıyor…",
-      "storedToken": "Jeton kaydedildi",
-      "newToken": "Bir belirteç girin",
-      "nonePublic": "Belirteç yok (genel depo)",
-      "selectToken": "Bir belirteç seçin",
-      "selectTokenPlaceholder": "-- Bir belirteç seçin --",
-      "tokenPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "tokenHelp": "Bu jeton yalnızca bu işlem için kullanılır",
-      "publicRepoInfo": "Genel bir havuzu klonlarken belirtece gerek yoktur.",
-      "noTokensHelp": "Kaydedilmiş jeton yok. Yeniden kullanmak için Ayarlar → API Anahtarları altına bir tane ekleyin.",
-      "optionalTokenPublic": "GitHub belirteci (genel depolar için isteğe bağlı)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (genel depolar için boş bırakın)"
-    },
-    "step3": {
-      "reviewConfig": "Yapılandırmayı kontrol edin",
-      "existingWorkspace": "Mevcut çalışma alanını kullan",
-      "newWorkspace": "Çalışma alanı oluştur",
-      "path": "Yol:",
-      "cloneFrom": "Depo kaynağı:",
-      "authentication": "Kimlik doğrulama:",
-      "usingStoredToken": "Kaydedilen jetonu kullanma:",
-      "usingProvidedToken": "Girilen belirteci kullanma",
-      "noAuthentication": "Kimlik doğrulama kullanılmadı",
-      "sshKey": "SSH kimlik doğrulama anahtarı",
-      "existingInfo": "Gajae Code oturumları için çalışma alanı proje listenizde görünecektir.",
-      "newWithClone": "Depo bu klasöre kopyalanacak.",
-      "newEmpty": "Gajae Code oturumları için çalışma alanı proje listenizde görünecektir.",
-      "cloningRepository": "Depo klonlanıyor…"
+      "existingPlaceholder": "/yol/giden/mevcut/çalışma alanı"
     },
     "buttons": {
       "cancel": "İptal",
-      "back": "Geri",
-      "next": "Sonraki",
-      "createProject": "Proje ekle",
-      "creating": "Oluşturuluyor…",
-      "cloning": "Klonlanıyor…"
+      "creating": "Oluşturuluyor…"
     },
     "errors": {
-      "selectType": "Mevcut bir çalışma alanını eklemeyi veya oluşturmayı seçin",
       "providePath": "Bir çalışma alanı yolu girin",
-      "failedToCreate": "Çalışma alanı oluşturulamadı",
-      "failedToCreateFolder": "Klasör oluşturulamadı"
+      "failedToCreate": "Çalışma alanı oluşturulamadı"
     },
     "folderBrowser": {
       "title": "Klasör seç",
@@ -221,62 +50,9 @@
       "browseFolders": "Klasörlere göz atın"
     }
   },
-  "notifications": {
-    "genericTool": "talep edilen bir araç",
-    "codes": {
-      "generic": {
-        "info": {
-          "title": "Bildirim"
-        }
-      },
-      "permission": {
-        "required": {
-          "title": "Girişiniz gerekli",
-          "body": "Seçiminiz {{toolName}} tarafından zorunlu tutuluyor."
-        }
-      },
-      "run": {
-        "stopped": {
-          "title": "Çalıştırma sona erdi",
-          "body": "Durduruldu çünkü: {{reason}}"
-        },
-        "failed": {
-          "title": "Koşu tamamlanamadı"
-        }
-      },
-      "agent": {
-        "notification": {
-          "title": "Temsilci mesajı"
-        }
-      }
-    }
-  },
   "versionUpdate": {
-    "title": "Yeni güncelleme mevcut",
-    "newVersionReady": "Daha yeni bir sürüm mevcut",
-    "currentVersion": "Yüklü sürüm",
-    "latestVersion": "En yeni sürüm",
-    "whatsNew": "Sürüm notları:",
-    "viewFullRelease": "Tam sürümü okuyun",
-    "updateProgress": "Güncelleme durumu:",
-    "manualUpgrade": "Güncelleme:",
-    "npmUpgradeCommand": "scripts/gajae-app.sh güncellemesi",
-    "manualUpgradeHint": "GitHub Sürümlerinden en yeni sürümü edinin veya bu komutu kullanın.",
-    "updateCompleted": "Güncelleme tamamlandı!",
-    "restartServer": "Güncellemeyi kullanmak için sunucuyu yeniden başlatın.",
-    "updateFailed": "Güncellenemedi",
-    "buttons": {
-      "close": "Kapat",
-      "later": "Daha sonra",
-      "copyCommand": "Güncelleme komutunu kopyala",
-      "updateNow": "Güncellemeyi yükle",
-      "updating": "Güncelleme yükleniyor…"
-    },
     "ariaLabels": {
-      "closeModal": "Güncelleme iletişim kutusunu kapat",
       "showSidebar": "Kenar çubuğunu göster",
-      "settings": "Ayarlar",
-      "updateAvailable": "Yeni güncelleme mevcut",
       "closeSidebar": "Kenar çubuğunu gizle"
     }
   },
@@ -351,14 +127,6 @@
       "unreported": "Henüz rapor yok",
       "empty": "Açık oturum yok",
       "emptyHint": "Mevcut etkinliğini görüntülemek için bir oturum başlatın veya açın."
-    },
-    "filesTab": {
-      "changeRoot": "Kök klasörü ayarla",
-      "rootPlaceholder": "Evle ilgili yol (örneğin, çalışma alanı)",
-      "apply": "Uygula",
-      "opening": "Klasöre erişiliyor…",
-      "homeUnavailable": "Ana dizin belirlenemedi",
-      "openFailed": "Bu klasör açılamadı; yolunu kontrol et"
     }
   }
 }

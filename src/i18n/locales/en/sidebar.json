@@ -7,20 +7,13 @@
     "noProjects": "No workspaces yet",
     "loadingProjects": "Retrieving workspaces…",
     "projectNamePlaceholder": "Workspace name",
-    "starred": "Starred",
-    "all": "All",
     "untitledSession": "Unnamed conversation",
     "newSession": "Start conversation",
     "fetchingProjects": "Retrieving projects and conversations",
     "projects": "projects",
     "createProjectHint": "Add a project to begin"
   },
-  "app": {
-    "title": "Gajae Code App",
-    "subtitle": "Developer workspace for AI-assisted coding"
-  },
   "sessions": {
-    "title": "Conversations",
     "work": "Work",
     "newTask": "New work item",
     "newSession": "Start conversation",
@@ -37,7 +30,6 @@
     "createSessionHint": "Choose a project, then use + to open a session"
   },
   "tooltips": {
-    "viewEnvironments": "View environments",
     "hideSidebar": "Collapse sidebar",
     "createProject": "Add a project",
     "createSession": "Start a conversation",
@@ -53,57 +45,20 @@
     "activeSessionIndicator": "Conversation active within the last 10 minutes",
     "save": "Save",
     "cancel": "Cancel",
-    "openCommandPalette": "Open command menu",
     "attentionRequiredIndicator": "Conversation needs attention"
-  },
-  "navigation": {
-    "chat": "Chat",
-    "files": "Files",
-    "git": "Git",
-    "terminal": "Terminal"
   },
   "actions": {
     "search": "Search",
-    "refresh": "Refresh",
     "settings": "Settings",
-    "collapseAll": "Close all",
-    "expandAll": "Open all",
     "cancel": "Cancel",
     "save": "Save",
-    "delete": "Delete",
-    "rename": "Rename",
     "joinCommunity": "Join the community",
-    "reportIssue": "File an issue",
-    "starOnGithub": "Star on GitHub"
-  },
-  "branding": {
-    "openSource": "Open-source"
+    "reportIssue": "File an issue"
   },
   "status": {
-    "active": "Active",
-    "inactive": "Inactive",
-    "thinking": "Reasoning…",
-    "error": "Error",
-    "aborted": "Aborted",
-    "unknown": "Unknown"
-  },
-  "time": {
-    "justNow": "Moments ago",
-    "oneMinuteAgo": "A minute ago",
-    "minutesAgo": "{{count}} minutes ago",
-    "oneHourAgo": "An hour ago",
-    "hoursAgo": "{{count}} hours earlier",
-    "oneDayAgo": "A day ago",
-    "daysAgo": "{{count}} days earlier"
+    "thinking": "Reasoning…"
   },
   "messages": {
-    "deleteConfirm": "Delete this item?",
-    "renameSuccess": "Rename complete",
-    "deleteSuccess": "Deletion complete",
-    "errorOccurred": "Something went wrong",
-    "deleteSessionConfirm": "Delete this conversation? This cannot be reversed.",
-    "deleteProjectConfirm": "Remove this project from the sidebar? Files, memories, and conversation data stay intact.",
-    "enterProjectPath": "Enter a project path",
     "deleteSessionFailed": "Could not delete the conversation. Try again.",
     "deleteSessionError": "A conversation deletion error occurred. Try again.",
     "renameSessionFailed": "Could not rename the conversation. Try again.",
@@ -111,8 +66,6 @@
     "exportSessionError": "Could not export the conversation. Try again.",
     "deleteProjectFailed": "Could not remove the project. Try again.",
     "deleteProjectError": "A project removal error occurred. Try again.",
-    "createProjectFailed": "Could not add the project. Try again.",
-    "createProjectError": "A project creation error occurred. Try again.",
     "updateProjectError": "A project update error occurred. Try again.",
     "refreshError": "Could not refresh. Try again.",
     "restoreProjectFailed": "Could not restore the project. Try again.",
@@ -121,8 +74,7 @@
     "restoreSessionError": "A conversation restore error occurred. Try again."
   },
   "version": {
-    "updateAvailable": "New update available",
-    "restartRequired": "Update installed; restart the server to use it"
+    "updateAvailable": "New update available"
   },
   "deleteConfirmation": {
     "deleteProject": "Remove workspace",
@@ -130,9 +82,6 @@
     "confirmDelete": "Choose what to do with",
     "sessionCount_one": "There is {{count}} conversation in this project.",
     "sessionCount_other": "There are {{count}} conversations in this project.",
-    "removeFromSidebar": "Only remove from sidebar",
-    "deleteAllData": "Permanently erase all data",
-    "allConversationsDeleted": "The project leaves the sidebar, while its files, memories, and conversation data remain.",
-    "cannotUndo": "You can add this project again later."
+    "deleteAllData": "Permanently erase all data"
   }
 }

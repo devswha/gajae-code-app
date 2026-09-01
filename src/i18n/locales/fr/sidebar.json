@@ -7,20 +7,13 @@
     "noProjects": "Aucun espace de travail pour l'instant",
     "loadingProjects": "Récupération des espaces de travail…",
     "projectNamePlaceholder": "Nom de l'espace de travail",
-    "starred": "Éléments suivis",
-    "all": "Tout",
     "untitledSession": "Conversation sans nom",
     "newSession": "Démarrer une conversation",
     "fetchingProjects": "Récupération de projets et de conversations",
     "projects": "projets",
     "createProjectHint": "Ajouter un projet pour commencer"
   },
-  "app": {
-    "title": "Gajae Code App",
-    "subtitle": "Espace de travail des développeurs pour le codage assisté par IA"
-  },
   "sessions": {
-    "title": "Conversations",
     "work": "Espace de travail",
     "newTask": "Nouvel élément de travail",
     "newSession": "Démarrer une conversation",
@@ -37,7 +30,6 @@
     "createSessionHint": "Choisissez un projet, puis utilisez + pour ouvrir une session"
   },
   "tooltips": {
-    "viewEnvironments": "Afficher les environnements",
     "hideSidebar": "Réduire la barre latérale",
     "createProject": "Ajouter un projet",
     "createSession": "Démarrer une conversation",
@@ -53,57 +45,20 @@
     "activeSessionIndicator": "Conversation active au cours des 10 dernières minutes",
     "save": "Sauvegarder",
     "cancel": "Abandonner",
-    "openCommandPalette": "Ouvrir le menu des commandes",
     "attentionRequiredIndicator": "La conversation a besoin d’attention"
-  },
-  "navigation": {
-    "chat": "Discuter",
-    "files": "Fichiers du projet",
-    "git": "Git",
-    "terminal": "Borne"
   },
   "actions": {
     "search": "Lancer une recherche",
-    "refresh": "Recharger",
     "settings": "Options",
-    "collapseAll": "Fermer tout",
-    "expandAll": "Tout ouvrir",
     "cancel": "Abandonner",
     "save": "Sauvegarder",
-    "delete": "Retirer",
-    "rename": "Changer le nom",
     "joinCommunity": "Rejoignez la communauté",
-    "reportIssue": "Déposer un problème",
-    "starOnGithub": "Étoile sur GitHub"
-  },
-  "branding": {
-    "openSource": "Source ouverte"
+    "reportIssue": "Déposer un problème"
   },
   "status": {
-    "active": "En activité",
-    "inactive": "Sans activité",
-    "thinking": "Raisonnement…",
-    "error": "Problème",
-    "aborted": "Avorté",
-    "unknown": "Inconnu"
-  },
-  "time": {
-    "justNow": "Il y a quelques instants",
-    "oneMinuteAgo": "Il y a une minute",
-    "minutesAgo": "il y a {{count}} minutes",
-    "oneHourAgo": "Il y a une heure",
-    "hoursAgo": "{{count}} heures plus tôt",
-    "oneDayAgo": "Il y a un jour",
-    "daysAgo": "{{count}} jours plus tôt"
+    "thinking": "Raisonnement…"
   },
   "messages": {
-    "deleteConfirm": "Supprimer cet élément ?",
-    "renameSuccess": "Renommer terminé",
-    "deleteSuccess": "Suppression terminée",
-    "errorOccurred": "Quelque chose s'est mal passé",
-    "deleteSessionConfirm": "Supprimer cette conversation ? Cela ne peut pas être inversé.",
-    "deleteProjectConfirm": "Supprimer ce projet de la barre latérale ? Les fichiers, les souvenirs et les données de conversation restent intacts.",
-    "enterProjectPath": "Saisissez un chemin de projet",
     "deleteSessionFailed": "Impossible de supprimer la conversation. Essayer à nouveau.",
     "deleteSessionError": "Une erreur de suppression de conversation s'est produite. Essayer à nouveau.",
     "renameSessionFailed": "Impossible de renommer la conversation. Essayer à nouveau.",
@@ -111,8 +66,6 @@
     "exportSessionError": "Impossible d'exporter la conversation. Essayer à nouveau.",
     "deleteProjectFailed": "Impossible de supprimer le projet. Essayer à nouveau.",
     "deleteProjectError": "Une erreur de suppression du projet s'est produite. Essayer à nouveau.",
-    "createProjectFailed": "Impossible d'ajouter le projet. Essayer à nouveau.",
-    "createProjectError": "Une erreur de création de projet s'est produite. Essayer à nouveau.",
     "updateProjectError": "Une erreur de mise à jour du projet s'est produite. Essayer à nouveau.",
     "refreshError": "Impossible d'actualiser. Essayer à nouveau.",
     "restoreProjectFailed": "Impossible de restaurer le projet. Essayer à nouveau.",
@@ -121,8 +74,7 @@
     "restoreSessionError": "Une erreur de restauration de conversation s'est produite. Essayer à nouveau."
   },
   "version": {
-    "updateAvailable": "Nouvelle mise à jour disponible",
-    "restartRequired": "Mise à jour installée ; redémarrez le serveur pour l'utiliser"
+    "updateAvailable": "Nouvelle mise à jour disponible"
   },
   "deleteConfirmation": {
     "deleteProject": "Supprimer l'espace de travail",
@@ -130,9 +82,6 @@
     "confirmDelete": "Choisissez quoi faire avec",
     "sessionCount_one": "Il y a une conversation {{count}} dans ce projet.",
     "sessionCount_other": "Il y a des conversations {{count}} dans ce projet.",
-    "removeFromSidebar": "Supprimer uniquement de la barre latérale",
-    "deleteAllData": "Effacer définitivement toutes les données",
-    "allConversationsDeleted": "Le projet quitte la barre latérale, tandis que ses fichiers, souvenirs et données de conversation restent.",
-    "cannotUndo": "Vous pourrez rajouter ce projet ultérieurement."
+    "deleteAllData": "Effacer définitivement toutes les données"
   }
 }

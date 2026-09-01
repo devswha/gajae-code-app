@@ -1,87 +1,13 @@
 {
   "buttons": {
-    "save": "저장하기",
-    "cancel": "취소하기",
-    "delete": "삭제하기",
-    "create": "만들기",
-    "edit": "수정",
-    "close": "닫기",
-    "confirm": "확인",
-    "submit": "보내기",
-    "retry": "다시 시도",
-    "refresh": "새로 고침",
-    "search": "찾기",
-    "clear": "비우기",
-    "copy": "복사하기",
-    "download": "내려받기",
-    "upload": "올리기",
-    "browse": "찾아보기"
+    "cancel": "취소하기"
   },
   "tabs": {
     "chat": "대화",
-    "shell": "쉘",
-    "files": "파일",
-    "git": "버전 관리",
-    "computer": "컴퓨터"
+    "git": "버전 관리"
   },
   "status": {
-    "loading": "불러오는 중…",
-    "success": "성공함",
-    "error": "오류 발생",
-    "failed": "실패함",
-    "pending": "대기",
-    "completed": "완료됨",
-    "inProgress": "실행 중"
-  },
-  "messages": {
-    "savedSuccessfully": "저장 완료",
-    "deletedSuccessfully": "삭제 완료",
-    "updatedSuccessfully": "수정 완료",
-    "operationFailed": "작업을 완료하지 못함",
-    "networkError": "네트워크 오류. 연결 상태를 확인하세요.",
-    "unauthorized": "로그인이 필요합니다.",
-    "notFound": "항목을 찾을 수 없습니다",
-    "invalidInput": "입력 값이 유효하지 않습니다",
-    "requiredField": "값을 입력해주세요",
-    "unknownError": "예기치 않은 오류가 발생했습니다"
-  },
-  "navigation": {
-    "settings": "환경설정",
-    "home": "시작 화면",
-    "back": "이전 화면",
-    "next": "계속",
-    "previous": "이전 단계",
-    "logout": "로그아웃하기"
-  },
-  "common": {
-    "language": "표시 언어",
-    "theme": "색상 테마",
-    "darkMode": "다크 테마",
-    "lightMode": "라이트 테마",
-    "name": "이름",
-    "description": "세부 설명",
-    "enabled": "활성화됨",
-    "disabled": "비활성화됨",
-    "optional": "선택 사항",
-    "version": "릴리스 버전",
-    "select": "고르기",
-    "selectAll": "모두 선택",
-    "deselectAll": "모든 선택 해제"
-  },
-  "time": {
-    "justNow": "조금 전",
-    "minutesAgo": "{{count}}분 이전",
-    "hoursAgo": "{{count}}시간 이전",
-    "daysAgo": "{{count}}일 이전",
-    "yesterday": "어제 날짜"
-  },
-  "fileOperations": {
-    "newFile": "새 파일 생성",
-    "newFolder": "폴더 생성",
-    "rename": "이름 바꾸기",
-    "move": "옮기기",
-    "copyPath": "위치 복사",
-    "openInEditor": "파일 편집"
+    "success": "성공함"
   },
   "mainContent": {
     "loading": "Gajae-app 시작 중",
@@ -92,117 +18,20 @@
     "createProjectMobile": "프로젝트에 도달하려면 위의 메뉴를 사용하세요",
     "createProjectDesktop": "프로젝트 추가하려면 사이드바 폴더 버튼을 사용하세요",
     "newSession": "대화 시작",
-    "untitledSession": "제목 없는 대화",
     "projectFiles": "프로젝트 내 파일"
   },
-  "fileTree": {
-    "loading": "파일 불러오는 중…",
-    "files": "파일",
-    "simpleView": "기본 레이아웃",
-    "compactView": "축소된 레이아웃",
-    "detailedView": "확장된 레이아웃",
-    "searchPlaceholder": "파일 또는 폴더를 찾으세요…",
-    "clearSearch": "검색 초기화",
-    "name": "이름",
-    "size": "파일 크기",
-    "modified": "수정됨",
-    "permissions": "접근 권한",
-    "noFilesFound": "이 폴더에는 파일이 없습니다",
-    "checkProjectPath": "프로젝트 경로가 접근 가능인지 확인하세요",
-    "noMatchesFound": "일치하는 항목 없음",
-    "tryDifferentSearch": "다른 검색어를 사용하거나 현재 검색어를 초기화하세요",
-    "justNow": "조금 전",
-    "minAgo": "{{count}}분 이전",
-    "hoursAgo": "{{count}}시간 이전",
-    "daysAgo": "{{count}}일 이전",
-    "newFile": "새 파일 생성 (Cmd+N)",
-    "newFolder": "새 폴더 생성 (Cmd+Shift+N)",
-    "refresh": "새로 고침",
-    "collapseAll": "전체 접기",
-    "context": {
-      "rename": "이름 바꾸기",
-      "delete": "삭제하기",
-      "copyPath": "위치 복사",
-      "download": "내려받기",
-      "newFile": "새 파일 생성",
-      "newFolder": "새 폴더 생성",
-      "refresh": "새로 고침하기",
-      "menuLabel": "파일 작업 메뉴",
-      "loading": "불러오는 중…"
-    }
-  },
   "projectWizard": {
-    "title": "프로젝트 추가",
-    "steps": {
-      "type": "타입",
-      "configure": "구성",
-      "confirm": "확인"
-    },
-    "step1": {
-      "question": "기존 워크스페이스를 사용하거나 새로운 워크스페이스를 만듭니까?",
-      "existing": {
-        "title": "기존 워크스페이스 사용",
-        "description": "이 서버에 이미 존재하는 워크스페이스를 프로젝트 목록에 추가합니다."
-      },
-      "new": {
-        "title": "워크스페이스 생성",
-        "description": "워크스페이스를 만들고 GitHub 리포지토리를 클론할 수 있는 옵션을 제공합니다."
-      }
-    },
     "step2": {
       "existingPath": "워크스페이스 위치",
-      "newPath": "워크스페이스 위치",
-      "existingPlaceholder": "/path/to/existing/workspace",
-      "newPlaceholder": "/path/to/new/workspace",
-      "existingHelp": "이미 존재하는 워크스페이스의 절대 경로",
-      "newHelp": "이 워크스페이스에 대한 절대 경로를 입력하세요",
-      "githubUrl": "GitHub 리포지토리 URL (선택 사항)",
-      "githubPlaceholder": "https://github.com/username/repository",
-      "githubHelp": "클론할 때 GitHub 리포지토리 URL을 붙여넣으세요",
-      "githubAuth": "GitHub 로그인 (선택 사항)",
-      "githubAuthHelp": "개인용 저장소는 인증이 필요하지만 공용 저장소는 필요하지 않습니다.",
-      "loadingTokens": "저장된 토큰을 가져오는 중…",
-      "storedToken": "보관된 토큰",
-      "newToken": "토큰 입력",
-      "nonePublic": "토큰 없음 (공용 저장소)",
-      "selectToken": "토큰 고르기",
-      "selectTokenPlaceholder": "-- 토큰 선택 --",
-      "tokenPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "tokenHelp": "이 토큰은 이 작업에만 사용됩니다",
-      "publicRepoInfo": "공용 저장소를 클론할 때는 토큰이 필요하지 않습니다.",
-      "noTokensHelp": "저장된 토큰이 없습니다. 설정 → API 키에서 재사용 가능한 토큰을 추가하세요.",
-      "optionalTokenPublic": "GitHub 토큰 (공용 저장소에 대한 선택 사항)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (공용 저장소는 빈칸으로)"
-    },
-    "step3": {
-      "reviewConfig": "구성 확인",
-      "existingWorkspace": "기존 워크스페이스 사용",
-      "newWorkspace": "워크스페이스 생성",
-      "path": "경로:",
-      "cloneFrom": "클론 원본:",
-      "authentication": "인증:",
-      "usingStoredToken": "저장된 토큰 사용:",
-      "usingProvidedToken": "입력한 토큰 사용",
-      "noAuthentication": "인증 미사용",
-      "sshKey": "SSH 인증키",
-      "existingInfo": "이 워크스페이스는 Gajae Code 세션에 프로젝트 목록에 나타납니다.",
-      "newWithClone": "리포지토리는 이 폴더에 클론됩니다.",
-      "newEmpty": "이 워크스페이스는 Gajae Code 세션에 프로젝트 목록에 나타납니다.",
-      "cloningRepository": "리포지토리를 클론하는 중…"
+      "existingPlaceholder": "/path/to/existing/workspace"
     },
     "buttons": {
       "cancel": "취소하기",
-      "back": "이전",
-      "next": "계속",
-      "createProject": "프로젝트 추가",
-      "creating": "생성 중…",
-      "cloning": "클론 중…"
+      "creating": "생성 중…"
     },
     "errors": {
-      "selectType": "기존 워크스페이스를 추가하거나 새로 만들 것인지 선택하세요",
       "providePath": "워크스페이스 경로를 입력하세요",
-      "failedToCreate": "워크스페이스 생성에 실패했습니다",
-      "failedToCreateFolder": "폴더 생성에 실패했습니다"
+      "failedToCreate": "워크스페이스 생성에 실패했습니다"
     },
     "folderBrowser": {
       "title": "폴더 고르기",
@@ -221,62 +50,9 @@
       "browseFolders": "폴더 탐색"
     }
   },
-  "notifications": {
-    "genericTool": "요청된 도구",
-    "codes": {
-      "generic": {
-        "info": {
-          "title": "알림 메시지"
-        }
-      },
-      "permission": {
-        "required": {
-          "title": "필수 입력 필요",
-          "body": "{{toolName}}에 의해 선택이 필요합니다."
-        }
-      },
-      "run": {
-        "stopped": {
-          "title": "실행 종료",
-          "body": "중지 사유: {{reason}}"
-        },
-        "failed": {
-          "title": "실행하지 못함"
-        }
-      },
-      "agent": {
-        "notification": {
-          "title": "봇 메시지"
-        }
-      }
-    }
-  },
   "versionUpdate": {
-    "title": "새로운 업데이트가 준비되었습니다",
-    "newVersionReady": "최신 버전이 준비되었습니다",
-    "currentVersion": "설치된 버전",
-    "latestVersion": "가장 최신 버전",
-    "whatsNew": "변경 사항:",
-    "viewFullRelease": "전체 변경 사항 보기",
-    "updateProgress": "업데이트 상태:",
-    "manualUpgrade": "업데이트 방법:",
-    "npmUpgradeCommand": "scripts/gajae-app.sh update",
-    "manualUpgradeHint": "GitHub Releases에서 최신 버전을 얻거나 이 명령어를 사용하세요.",
-    "updateCompleted": "업데이트 완료!",
-    "restartServer": "업데이트를 사용하기 위해 서버 재시작이 필요합니다.",
-    "updateFailed": "업데이트하지 못함",
-    "buttons": {
-      "close": "닫기",
-      "later": "나중에 하기",
-      "copyCommand": "업데이트 명령 복사",
-      "updateNow": "업데이트 설치",
-      "updating": "업데이트 설치 중…"
-    },
     "ariaLabels": {
-      "closeModal": "업데이트 대화상자 닫기",
       "showSidebar": "사이드바 열기",
-      "settings": "환경설정",
-      "updateAvailable": "새로운 업데이트가 준비되었습니다",
       "closeSidebar": "사이드바 숨김"
     }
   },
@@ -351,14 +127,6 @@
       "unreported": "아직 보고서가 없음",
       "empty": "열린 세션이 없음",
       "emptyHint": "세션을 시작하거나 열어 현재 활동을 확인하세요."
-    },
-    "filesTab": {
-      "changeRoot": "루트 폴더 설정",
-      "rootPlaceholder": "홈 상대 경로 (예: 워크스페이스)",
-      "apply": "적용",
-      "opening": "폴더에 액세스 중...",
-      "homeUnavailable": "홈 디렉토리를 결정할 수 없습니다",
-      "openFailed": "해당 폴더를 열 수 없음; 경로를 확인하세요"
     }
   }
 }

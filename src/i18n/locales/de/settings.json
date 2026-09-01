@@ -1,34 +1,9 @@
 {
   "title": "Optionen",
-  "tabs": {
-    "account": "Benutzerkonto",
-    "permissions": "Berechtigungen",
-    "skills": "Fähigkeiten",
-    "appearance": "Aussehen"
-  },
   "account": {
-    "title": "Benutzerkonto",
     "language": "Anzeigesprache",
     "languageLabel": "Schnittstellensprache",
-    "languageDescription": "Wählen Sie die von der Benutzeroberfläche verwendete Sprache",
-    "username": "Kontoname",
-    "email": "E-Mail",
-    "profile": "Benutzerprofil",
-    "changePassword": "Passwort aktualisieren"
-  },
-  "appearance": {
-    "title": "Aussehen",
-    "theme": "Thema",
-    "editorTheme": "Code-Editor-Thema",
-    "wordWrap": "Wickeln Sie lange Schlangen ein",
-    "showMinimap": "Minikarte anzeigen",
-    "lineNumbers": "Zeilennummern anzeigen",
-    "fontSize": "Codetextgröße"
-  },
-  "actions": {
-    "saveChanges": "Änderungen übernehmen",
-    "resetToDefaults": "Standardeinstellungen wiederherstellen",
-    "cancelChanges": "Änderungen verwerfen"
+    "languageDescription": "Wählen Sie die von der Benutzeroberfläche verwendete Sprache"
   },
   "voiceSettings": {
     "title": "Stimme",
@@ -55,23 +30,7 @@
     "sendByCtrlEnter": "Verwenden Sie zum Senden Ctrl+Enter",
     "sendByCtrlEnterDescription": "Wenn aktiviert, sendet Ctrl+Enter Nachrichten anstelle von Enter. Dies hilft IME-Benutzern, versehentliche Versendungen zu verhindern."
   },
-  "terminalShortcuts": {
-    "title": "Terminal-Tastenbelegung",
-    "sectionKeys": "Schlüssel",
-    "sectionNavigation": "Seitennavigation",
-    "escape": "Escape",
-    "tab": "Tab",
-    "shiftTab": "Shift+Tab",
-    "arrowUp": "Pfeil nach oben",
-    "arrowDown": "Pfeil nach unten",
-    "scrollDown": "Scrollen Sie nach unten",
-    "handle": {
-      "closePanel": "Tastaturkürzel ausblenden",
-      "openPanel": "Tastaturkürzel anzeigen"
-    }
-  },
   "mainTabs": {
-    "label": "Optionen",
     "appearance": "Aussehen",
     "git": "Git",
     "voice": "Stimme",
@@ -146,13 +105,7 @@
     }
   },
   "saveStatus": {
-    "success": "Einstellungen gespeichert.",
-    "error": "Die Einstellungen konnten nicht gespeichert werden",
-    "saving": "Sparen…"
-  },
-  "footerActions": {
-    "save": "Einstellungen speichern",
-    "cancel": "Vorgang abbrechen"
+    "success": "Einstellungen gespeichert."
   },
   "git": {
     "title": "Git-Einstellungen",
@@ -171,82 +124,6 @@
     },
     "status": {
       "success": "Speichern abgeschlossen"
-    }
-  },
-  "permissions": {
-    "title": "Berechtigungskontrollen",
-    "skipPermissions": {
-      "label": "Berechtigungsaufforderungen umgehen (vorsichtig verwenden)",
-      "claudeDescription": "Entspricht dem Flag --dangerously-skip-permissions",
-      "cursorDescription": "Entspricht dem Flag -f von Cursor CLI"
-    },
-    "allowedTools": {
-      "title": "Zugelassene Werkzeuge",
-      "description": "Tools, die ohne vorherige Genehmigung ausgeführt werden können",
-      "placeholder": "z. B. „Bash(git log:*)“ oder „Write“",
-      "quickAdd": "Fügen Sie gängige Tools hinzu:",
-      "empty": "Keine zulässigen Tools konfiguriert"
-    },
-    "blockedTools": {
-      "title": "Abgelehnte Werkzeuge",
-      "description": "Werkzeuge, die ohne Genehmigungsaufforderung abgelehnt werden",
-      "placeholder": "z. B. „Bash(rm:*)“",
-      "empty": "Keine verweigerten Tools konfiguriert"
-    },
-    "allowedCommands": {
-      "title": "Zulässige Shell-Befehle",
-      "description": "Shell-Befehle, die ohne Genehmigungsaufforderung ausgeführt werden",
-      "placeholder": "z. B. „Shell(ls)“ oder „Shell(git status)“",
-      "quickAdd": "Fügen Sie allgemeine Befehle hinzu:",
-      "empty": "Keine zulässigen Befehle konfiguriert"
-    },
-    "blockedCommands": {
-      "title": "Shell-Befehle verweigert",
-      "description": "Shell-Befehle, die automatisch abgelehnt werden",
-      "placeholder": "z. B. „Shell(rm -rf)“ oder „Shell(sudo)“",
-      "empty": "Keine verweigerten Befehle konfiguriert"
-    },
-    "toolExamples": {
-      "title": "Beispiele für Werkzeugmuster:",
-      "bashGitLog": "- Erlauben Sie jeden Git-Log-Befehl",
-      "bashGitDiff": "- Erlauben Sie jeden Git-Diff-Befehl",
-      "write": "- Alle Write-Tool-Aufrufe zulassen",
-      "bashRm": "- Jeglichen rm-Befehl verweigern (gefährlich)"
-    },
-    "shellExamples": {
-      "title": "Beispiele für Shell-Befehle:",
-      "ls": "- Erlaubnis ls",
-      "gitStatus": "- Git-Status zulassen",
-      "npmInstall": "- Installation von npm zulassen",
-      "rmRf": "- Rekursives Löschen verweigern"
-    },
-    "codex": {
-      "permissionMode": "Umgang mit Berechtigungen",
-      "description": "Legt fest, wie Codex Dateibearbeitungen und Befehlsausführung behandelt",
-      "modes": {
-        "default": {
-          "title": "Voreinstellung",
-          "description": "Vertrauenswürdige Befehle wie ls, cat, grep und git status werden automatisch ausgeführt; andere werden übersprungen. Schreibvorgänge im Arbeitsbereich sind zulässig."
-        },
-        "acceptEdits": {
-          "title": "Änderungen zulassen",
-          "description": "Jeder Befehl wird automatisch in der Workspace-Sandbox ausgeführt."
-        },
-        "bypassPermissions": {
-          "title": "Genehmigung umgehen",
-          "description": "Befehle laufen ohne Einschränkungen, mit vollem Festplatten- und Netzwerkzugriff. Nur verwenden, wenn es vertrauenswürdig ist."
-        }
-      },
-      "technicalDetails": "Details zur Implementierung",
-      "technicalInfo": {
-        "default": "Workspace-Write-Sandbox mit nicht vertrauenswürdiger Genehmigung. Zu den vertrauenswürdigen Befehlen gehören cat, cd, grep, head, ls, pwd, tail, Git status/log/diff/show und find ohne -exec.",
-        "acceptEdits": "Workspace-Write-Sandbox ohne Genehmigungen. Befehle werden automatisch im Projektverzeichnis ausgeführt.",
-        "bypassPermissions": "Gefahr-Vollzugriff-Sandbox ohne Genehmigungen. Verwenden Sie den vollständigen Systemzugriff nur in vertrauenswürdigen Umgebungen.",
-        "overrideNote": "Verwenden Sie die Chat-Modus-Schaltfläche, um dies für eine Sitzung zu überschreiben."
-      }
-    },
-    "actions": {
-      "add": "Hinzufügen"
     }
   }
 }

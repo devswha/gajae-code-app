@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
-import { setNotificationSoundEnabled } from '../../../utils/notificationSound';
 import {
   applyInterfaceFontSize,
   INTERFACE_FONT_SIZE_STORAGE_KEY,
   readInterfaceFontSize,
 } from '../../../utils/interfaceFontSize';
+import { setNotificationSoundEnabled } from '../../../utils/notificationSound';
 import { DEFAULT_CODE_EDITOR_SETTINGS } from '../constants/constants';
 import type {
   CodeEditorSettingsState,
@@ -15,143 +15,102 @@ import type {
   SettingsMainTab,
 } from '../types/types';
 
-type UseSettingsControllerArgs = {
-  isOpen: boolean;
-  initialTab: string;
-};
+type UseSettingsControllerArgs = { isOpen: boolean; initialTab: string };
+type StoredProjectSettings = { projectSortOrder?: ProjectSortOrder };
+type NotificationPreferencesResponse = { success?: boolean; preferences?: NotificationPreferencesState };
 
-type ProjectSettingsStorage = {
-  projectSortOrder?: ProjectSortOrder;
-};
+const tabNames: SettingsMainTab[] = ['appearance', 'git', 'voice', 'notifications', 'automation', 'about'];
 
-type NotificationPreferencesResponse = {
-  success?: boolean;
-  preferences?: NotificationPreferencesState;
-};
+function chooseTab(value: string): SettingsMainTab {
+  return tabNames.includes(value as SettingsMainTab) ? value as SettingsMainTab : 'appearance';
+}
 
-const KNOWN_MAIN_TABS: SettingsMainTab[] = ['appearance', 'git', 'voice', 'notifications', 'automation', 'about'];
-
-const normalizeMainTab = (tab: string): SettingsMainTab => (
-  KNOWN_MAIN_TABS.includes(tab as SettingsMainTab) ? (tab as SettingsMainTab) : 'appearance'
-);
-
-const parseJson = <T>(value: string | null, fallback: T): T => {
-  if (!value) {
-    return fallback;
-  }
-
+function decodeStoredValue<T>(value: string | null, fallback: T): T {
+  if (value === null) return fallback;
   try {
     return JSON.parse(value) as T;
   } catch {
     return fallback;
   }
-};
+}
 
+function initialEditorSettings(): CodeEditorSettingsState {
+  return {
+    wordWrap: localStorage.getItem('codeEditorWordWrap') === 'true',
+    showMinimap: localStorage.getItem('codeEditorShowMinimap') !== 'false',
+    lineNumbers: localStorage.getItem('codeEditorLineNumbers') !== 'false',
+    fontSize: localStorage.getItem('codeEditorFontSize') ?? DEFAULT_CODE_EDITOR_SETTINGS.fontSize,
+  };
+}
 
-const readCodeEditorSettings = (): CodeEditorSettingsState => ({
-  wordWrap: localStorage.getItem('codeEditorWordWrap') === 'true',
-  showMinimap: localStorage.getItem('codeEditorShowMinimap') !== 'false',
-  lineNumbers: localStorage.getItem('codeEditorLineNumbers') !== 'false',
-  fontSize: localStorage.getItem('codeEditorFontSize') ?? DEFAULT_CODE_EDITOR_SETTINGS.fontSize,
-});
+function notificationDefaults(): NotificationPreferencesState {
+  return {
+    channels: { inApp: true, desktop: false, sound: true },
+    events: { actionRequired: true, stop: true, error: true },
+  };
+}
 
-const toResponseJson = async <T>(response: Response): Promise<T> => response.json() as Promise<T>;
-
-
-const createDefaultNotificationPreferences = (): NotificationPreferencesState => ({
-  channels: {
-    inApp: true,
-    desktop: false,
-    sound: true,
-  },
-  events: {
-    actionRequired: true,
-    stop: true,
-    error: true,
-  },
-});
-
-const normalizeNotificationPreferences = (
-  preferences?: Partial<NotificationPreferencesState> | null,
-): NotificationPreferencesState => {
-  const defaults = createDefaultNotificationPreferences();
-
+function normalizeNotificationPreferences(value?: Partial<NotificationPreferencesState> | null): NotificationPreferencesState {
+  const fallback = notificationDefaults();
   return {
     channels: {
-      inApp: preferences?.channels?.inApp ?? defaults.channels.inApp,
-      desktop: preferences?.channels?.desktop ?? defaults.channels.desktop,
-      sound: preferences?.channels?.sound ?? defaults.channels.sound,
+      inApp: value?.channels?.inApp ?? fallback.channels.inApp,
+      desktop: value?.channels?.desktop ?? fallback.channels.desktop,
+      sound: value?.channels?.sound ?? fallback.channels.sound,
     },
     events: {
-      actionRequired: preferences?.events?.actionRequired ?? defaults.events.actionRequired,
-      stop: preferences?.events?.stop ?? defaults.events.stop,
-      error: preferences?.events?.error ?? defaults.events.error,
+      actionRequired: value?.events?.actionRequired ?? fallback.events.actionRequired,
+      stop: value?.events?.stop ?? fallback.events.stop,
+      error: value?.events?.error ?? fallback.events.error,
     },
   };
-};
+}
 
 export function useSettingsController({ isOpen, initialTab }: UseSettingsControllerArgs) {
-
-  const [activeTab, setActiveTab] = useState<SettingsMainTab>(() => normalizeMainTab(initialTab));
+  const [activeTab, setActiveTab] = useState<SettingsMainTab>(() => chooseTab(initialTab));
   const [saveStatus, setSaveStatus] = useState<'success' | 'error' | null>(null);
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
   const [interfaceFontSize, setInterfaceFontSize] = useState(readInterfaceFontSize);
-  const [codeEditorSettings, setCodeEditorSettings] = useState<CodeEditorSettingsState>(() => (
-    readCodeEditorSettings()
-  ));
-  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferencesState>(() => (
-    createDefaultNotificationPreferences()
-  ));
-
+  const [codeEditorSettings, setCodeEditorSettings] = useState<CodeEditorSettingsState>(initialEditorSettings);
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferencesState>(notificationDefaults);
+  const saveTimer = useRef<number | null>(null);
+  const hasJustOpened = useRef(true);
 
   const loadSettings = useCallback(async () => {
     try {
-      const savedProjectSettings = parseJson<ProjectSettingsStorage>(
-        localStorage.getItem('claude-settings'),
-        {},
-      );
-      setProjectSortOrder(savedProjectSettings.projectSortOrder === 'date' ? 'date' : 'name');
-
+      const saved = decodeStoredValue<StoredProjectSettings>(localStorage.getItem('claude-settings'), {});
+      setProjectSortOrder(saved.projectSortOrder === 'date' ? 'date' : 'name');
       try {
-        const notificationResponse = await authenticatedFetch('/api/settings/notification-preferences');
-        if (notificationResponse.ok) {
-          const notificationData = await toResponseJson<NotificationPreferencesResponse>(notificationResponse);
-          if (notificationData.success && notificationData.preferences) {
-            setNotificationPreferences(normalizeNotificationPreferences(notificationData.preferences));
-          } else {
-            setNotificationPreferences(createDefaultNotificationPreferences());
-          }
-        } else {
-          setNotificationPreferences(createDefaultNotificationPreferences());
+        const response = await authenticatedFetch('/api/settings/notification-preferences');
+        if (!response.ok) {
+          setNotificationPreferences(notificationDefaults());
+          return;
         }
+        const payload = await response.json() as NotificationPreferencesResponse;
+        setNotificationPreferences(
+          payload.success && payload.preferences
+            ? normalizeNotificationPreferences(payload.preferences)
+            : notificationDefaults(),
+        );
       } catch {
-        setNotificationPreferences(createDefaultNotificationPreferences());
+        setNotificationPreferences(notificationDefaults());
       }
-
     } catch (error) {
       console.error('Error loading settings:', error);
-      setNotificationPreferences(createDefaultNotificationPreferences());
       setProjectSortOrder('name');
+      setNotificationPreferences(notificationDefaults());
     }
   }, []);
 
-
   const saveSettings = useCallback(async () => {
     setSaveStatus(null);
-
     try {
-      localStorage.setItem('claude-settings', JSON.stringify({
-        projectSortOrder,
-      }));
-
-      const notificationResponse = await authenticatedFetch('/api/settings/notification-preferences', {
+      localStorage.setItem('claude-settings', JSON.stringify({ projectSortOrder }));
+      const response = await authenticatedFetch('/api/settings/notification-preferences', {
         method: 'PUT',
         body: JSON.stringify(notificationPreferences),
       });
-      if (!notificationResponse.ok) {
-        throw new Error('Failed to save notification preferences');
-      }
-
+      if (!response.ok) throw new Error('Failed to save notification preferences');
       setSaveStatus('success');
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -159,20 +118,15 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     }
   }, [notificationPreferences, projectSortOrder]);
 
-  const updateCodeEditorSetting = useCallback(
-    <K extends keyof CodeEditorSettingsState>(key: K, value: CodeEditorSettingsState[K]) => {
-      setCodeEditorSettings((prev) => ({ ...prev, [key]: value }));
-    },
-    [],
-  );
+  const updateCodeEditorSetting = useCallback(<K extends keyof CodeEditorSettingsState>(key: K, value: CodeEditorSettingsState[K]) => {
+    setCodeEditorSettings((current) => ({ ...current, [key]: value }));
+  }, []);
 
   useEffect(() => {
-    if (!isOpen) {
-      return;
+    if (isOpen) {
+      setActiveTab(chooseTab(initialTab));
+      void loadSettings();
     }
-
-    setActiveTab(normalizeMainTab(initialTab));
-    void loadSettings();
   }, [initialTab, isOpen, loadSettings]);
 
   useEffect(() => {
@@ -185,60 +139,40 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   }, [interfaceFontSize]);
 
   useEffect(() => {
-    localStorage.setItem('codeEditorWordWrap', String(codeEditorSettings.wordWrap));
-    localStorage.setItem('codeEditorShowMinimap', String(codeEditorSettings.showMinimap));
-    localStorage.setItem('codeEditorLineNumbers', String(codeEditorSettings.lineNumbers));
-    localStorage.setItem('codeEditorFontSize', codeEditorSettings.fontSize);
+    const settings = codeEditorSettings;
+    localStorage.setItem('codeEditorWordWrap', String(settings.wordWrap));
+    localStorage.setItem('codeEditorShowMinimap', String(settings.showMinimap));
+    localStorage.setItem('codeEditorLineNumbers', String(settings.lineNumbers));
+    localStorage.setItem('codeEditorFontSize', settings.fontSize);
     window.dispatchEvent(new Event('codeEditorSettingsChanged'));
   }, [codeEditorSettings]);
 
-  // Auto-save notification preferences and project sort order with debounce
-  const autoSaveTimerRef = useRef<number | null>(null);
-  const isInitialLoadRef = useRef(true);
-
   useEffect(() => {
-    // Skip auto-save on initial load (settings are being loaded from localStorage)
-    if (isInitialLoadRef.current) {
-      isInitialLoadRef.current = false;
+    if (hasJustOpened.current) {
+      hasJustOpened.current = false;
       return;
     }
-
-    if (autoSaveTimerRef.current !== null) {
-      window.clearTimeout(autoSaveTimerRef.current);
-    }
-
-    autoSaveTimerRef.current = window.setTimeout(() => {
-      saveSettings();
-    }, 500);
-
+    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => { void saveSettings(); }, 500);
     return () => {
-      if (autoSaveTimerRef.current !== null) {
-        window.clearTimeout(autoSaveTimerRef.current);
-      }
+      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
     };
   }, [saveSettings]);
 
-  // Clear save status after 2 seconds
   useEffect(() => {
-    if (saveStatus === null) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => setSaveStatus(null), 2000);
-    return () => window.clearTimeout(timer);
+    if (saveStatus === null) return;
+    const timeout = window.setTimeout(() => setSaveStatus(null), 2000);
+    return () => window.clearTimeout(timeout);
   }, [saveStatus]);
 
-  // Reset initial load flag when settings dialog opens
   useEffect(() => {
-    if (isOpen) {
-      isInitialLoadRef.current = true;
-    }
+    if (isOpen) hasJustOpened.current = true;
   }, [isOpen]);
 
   useEffect(() => () => {
-    if (autoSaveTimerRef.current !== null) {
-      window.clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null;
+    if (saveTimer.current !== null) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
     }
   }, []);
 

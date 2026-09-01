@@ -19,24 +19,34 @@ change unilaterally.
 Measured with `node scripts/measure-upstream-derivation.mjs`:
 
 ```
-Upstream-derived code: 32,920 of 98,175 lines (33.5%)      baseline 2026-09-01
+Upstream-derived code: 31,480 of 98,582 lines (31.9%)      baseline 2026-09-01
 
-  9067 lines   59 files  server modules
-  6527 lines   40 files  chat UI
-  3077 lines   23 files  other client
-  2751 lines   21 files  file tree
-  2629 lines   22 files  git panel
-  1812 lines   20 files  UI primitives
-  1801 lines   25 files  other components
-  1230 lines    6 files  other server
-  1203 lines   16 files  settings
-  1141 lines   11 files  code editor
-   913 lines    4 files  sidebar
-   769 lines    7 files  other
+  7944 lines   49 files  server modules
+  6226 lines   42 files  chat UI
+  2873 lines   23 files  other client
+  2736 lines   21 files  file tree
+  2731 lines   24 files  git panel
+  1840 lines   26 files  other components
+  1777 lines   20 files  UI primitives
+  1517 lines    7 files  other server
+  1208 lines   16 files  settings
+  1138 lines   11 files  code editor
+   962 lines    4 files  sidebar
+   528 lines    7 files  other
 ```
 
 Re-run it to see the number move. Zero is the point at which this project can be
 licensed as it chooses.
+
+Two accounting notes on the 2026-09-01 baseline. First, it is not comparable to
+the 33.5% figure previously recorded here: the measurement now diffs only
+substantive lines (blank and punctuation-only lines no longer count as shared)
+and uses a symmetric denominator, on the grounds that neither blank lines nor
+file-length asymmetry are protected expression. Under the previous ruler the
+same tree measures 32.7%. Second, the first replacements are done: the nine
+database files under `server/modules/database/` (repositories plus
+initialization) were rewritten from their behavioral contracts on 2026-09-01,
+each in its own commit carrying the contract it was written from.
 
 ## What "removing" it actually requires
 

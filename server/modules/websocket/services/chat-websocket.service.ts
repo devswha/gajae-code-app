@@ -5,722 +5,294 @@ import type { WebSocket } from 'ws';
 import { sessionsDb } from '@/modules/database/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
-import { getGlobalImageAssetsDir, normalizeImageDescriptors } from '@/shared/image-attachments.js';
-import type {
-  AnyRecord,
-  AuthenticatedWebSocketRequest,
-  LLMProvider,
-} from '@/shared/types.js';
-import { createNormalizedMessage, parseIncomingJsonObject } from '@/shared/utils.js';
 import type { GjcJobProjectionService } from '@/modules/websocket/services/gjc-job-projection.service.js';
+import { getGlobalImageAssetsDir, normalizeImageDescriptors } from '@/shared/image-attachments.js';
+import type { AnyRecord, AuthenticatedWebSocketRequest, LLMProvider } from '@/shared/types.js';
+import { createNormalizedMessage, parseIncomingJsonObject } from '@/shared/utils.js';
 
-/**
- * Trust boundary for client-supplied image attachments: chat.send options come
- * straight from the browser, and the provider runtimes read the referenced
- * files off disk (Claude base64-encodes them into the prompt). Only images
- * that live directly inside the global upload store (`~/.gajae-app/assets`,
- * where POST /api/assets/images puts them) are allowed through — anything
- * else (absolute paths elsewhere, traversal, subdirectories) is dropped.
- *
- * Exported for tests; `assetsRootOverride` exists only for them.
- */
 export function filterImagesToUploadStore(images: unknown, assetsRootOverride?: string): AnyRecord[] {
-  const assetsRoot = path.resolve(assetsRootOverride ?? getGlobalImageAssetsDir());
-
-  return normalizeImageDescriptors(images).filter((descriptor) => {
-    // Relative paths are anchored in the store; absolute ones must already be in it.
-    const resolved = path.resolve(assetsRoot, descriptor.path);
-    const relative = path.relative(assetsRoot, resolved);
-    const isDirectChild =
-      relative.length > 0 &&
-      !relative.startsWith('..') &&
-      !path.isAbsolute(relative) &&
-      !relative.includes(path.sep) &&
-      !relative.includes('/');
-
-    if (!isDirectChild) {
-      console.warn(`[Chat] Dropping image outside the upload store: ${descriptor.path}`);
-    }
-    return isDirectChild;
+  const root = path.resolve(assetsRootOverride ?? getGlobalImageAssetsDir());
+  return normalizeImageDescriptors(images).filter(({ path: candidate }) => {
+    const relative = path.relative(root, path.resolve(root, candidate));
+    const accepted = relative.length > 0 && !relative.startsWith('..') && !path.isAbsolute(relative) && !relative.includes(path.sep) && !relative.includes('/');
+    if (!accepted) console.warn(`[Chat] Dropping image outside the upload store: ${candidate}`);
+    return accepted;
   });
 }
 
-/**
- * One provider runtime entry point. All five runtimes share this signature,
- * which lets the chat handler dispatch through a provider-keyed map instead
- * of provider-specific branches.
- */
-type ProviderSpawnFn = (
-  command: string,
-  options: AnyRecord,
-  writer: unknown
-) => Promise<unknown>;
-type ProviderSpawnResult = Promise<unknown> & {
-  abortHandle?: string;
-};
-
-type OAuthEvent = {
-  method: 'oauth.phase' | 'oauth.providers.updated' | 'provider.auth.updated';
-  payload: AnyRecord;
-};
-
+type ProviderSpawnFn = (command: string, options: AnyRecord, writer: unknown) => Promise<unknown>;
+type ProviderSpawnResult = Promise<unknown> & { abortHandle?: string; };
+type OAuthEvent = { method: 'oauth.phase' | 'oauth.providers.updated' | 'provider.auth.updated'; payload: AnyRecord; };
 type OAuthSupervisor = {
-  oauthProviders(): Promise<unknown>;
-  oauthStatus(): Promise<unknown>;
-  oauthStart(providerId: string): Promise<unknown>;
-  oauthSubmit(attemptId: string, value: string): Promise<unknown>;
-  oauthCancel(attemptId: string): Promise<unknown>;
-  subscribeOAuth(listener: (event: OAuthEvent) => void): () => void;
+  oauthProviders(): Promise<unknown>; oauthStatus(): Promise<unknown>; oauthStart(providerId: string): Promise<unknown>; oauthSubmit(attemptId: string, value: string): Promise<unknown>; oauthCancel(attemptId: string): Promise<unknown>; subscribeOAuth(listener: (event: OAuthEvent) => void): () => void;
 };
-const OAUTH_MESSAGE_TYPES = new Set([
-  'oauth.providers',
-  'oauth.status',
-  'oauth.start',
-  'oauth.submit',
-  'oauth.cancel',
-]);
-type OAuthAttemptOwner = {
-  attemptId: string;
-  userKey: string;
-};
-
-let latestOAuthAttemptOwner: OAuthAttemptOwner | null = null;
-
-const oauthUserKey = (userId: string | number | null): string => `${typeof userId}:${String(userId)}`;
-
-function oauthRecord(value: unknown): AnyRecord | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? value as AnyRecord
-    : null;
-}
-
-function oauthAttemptIdFromResponse(response: unknown): string | null {
-  const payload = oauthRecord(response);
-  const result = oauthRecord(payload?.result);
-  return typeof result?.attemptId === 'string' ? result.attemptId : null;
-}
-
-function oauthOwnershipFailure(): AnyRecord {
-  return {
-    ok: false,
-    error: {
-      code: 'oauth_attempt_not_owner',
-      message: 'OAuth request failed.',
-    },
-  };
-}
-
-
-
 type ChatWebSocketDependencies = {
-  /** Provider runtimes keyed by provider id. */
   spawnFns: Record<LLMProvider, ProviderSpawnFn>;
-  /**
-   * Abort functions are normally addressed with a provider-native session id.
-   * A fresh gjc run uses its in-memory abort handle until that id arrives.
-   */
   abortFns: Record<LLMProvider, (providerSessionId: string) => boolean | Promise<boolean>>;
-  /**
-   * Delivers a message into a run that is already streaming, addressed like an
-   * abort. Optional per provider: a runtime that cannot reach a live turn simply
-   * has no entry, and the client keeps the message queued instead.
-   */
   steerFns?: Partial<Record<LLMProvider, (providerSessionId: string, message: string) => boolean | Promise<boolean>>>;
-  resolveToolApproval: (
-    requestId: string,
-    payload: {
-      allow: boolean;
-      updatedInput?: unknown;
-      message?: string;
-      rememberEntry?: unknown;
-    }
-  ) => void;
-  /** Provider-runtime approvals included in `chat_subscribed` after reconnect. */
+  resolveToolApproval: (requestId: string, payload: { allow: boolean; updatedInput?: unknown; message?: string; rememberEntry?: unknown; }) => void;
   getPendingApprovalsForSession: (providerSessionId: string) => unknown[];
-  /**
-   * Per-session model resolution (injectable for tests). The default consults
-   * the persisted active-model change store so a model picked for a session
-   * survives page reloads and session switches instead of depending on the
-   * client's global localStorage value.
-   */
-  resolveSessionModel?: (
-    provider: LLMProvider,
-    sessionId: string,
-    requestedModel?: string | null,
-  ) => Promise<string | undefined>;
+  resolveSessionModel?: (provider: LLMProvider, sessionId: string, requestedModel?: string | null) => Promise<string | undefined>;
   gjcProjection?: GjcJobProjectionService;
   oauthSupervisor?: OAuthSupervisor;
 };
+type OAuthAttemptOwner = { attemptId: string; userKey: string; };
 
-async function defaultResolveSessionModel(
-  provider: LLMProvider,
-  sessionId: string,
-  requestedModel?: string | null,
-): Promise<string | undefined> {
+const oauthTypes = new Set(['oauth.providers', 'oauth.status', 'oauth.start', 'oauth.submit', 'oauth.cancel']);
+let activeOAuthOwner: OAuthAttemptOwner | null = null;
+
+const object = (value: unknown): AnyRecord | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as AnyRecord : null;
+const oauthKey = (userId: string | number | null): string => `${typeof userId}:${String(userId)}`;
+const attemptId = (response: unknown): string | null => {
+  const result = object(object(response)?.result);
+  return typeof result?.attemptId === 'string' ? result.attemptId : null;
+};
+const ownershipError = (): AnyRecord => ({ ok: false, error: { code: 'oauth_attempt_not_owner', message: 'OAuth request failed.' } });
+
+async function defaultResolveSessionModel(provider: LLMProvider, sessionId: string, requestedModel?: string | null): Promise<string | undefined> {
   const { providerModelsService } = await import('@/modules/providers/index.js');
   return providerModelsService.resolveResumeModel(provider, sessionId, requestedModel);
 }
 
-/**
- * Extracts the authenticated request user id in the formats currently produced
- * by platform and OSS auth code paths.
- */
-function readRequestUserId(
-  request: AuthenticatedWebSocketRequest | undefined
-): string | number | null {
+function requestUserId(request: AuthenticatedWebSocketRequest | undefined): string | number | null {
   const user = request?.user;
-  if (!user) {
-    return null;
-  }
-
-  if (typeof user.id === 'string' || typeof user.id === 'number') {
-    return user.id;
-  }
-
-  if (typeof user.userId === 'string' || typeof user.userId === 'number') {
-    return user.userId;
-  }
-
-  return null;
+  if (!user) return null;
+  return typeof user.id === 'string' || typeof user.id === 'number'
+    ? user.id
+    : typeof user.userId === 'string' || typeof user.userId === 'number' ? user.userId : null;
 }
 
-function sendJson(ws: WebSocket, payload: unknown): void {
-  if (ws.readyState === WS_OPEN_STATE) {
-    ws.send(JSON.stringify(payload));
-  }
+function reply(ws: WebSocket, frame: unknown): void {
+  if (ws.readyState === WS_OPEN_STATE) ws.send(JSON.stringify(frame));
 }
 
-/**
- * Reports a protocol-level failure to the requesting client.
- *
- * Protocol errors deliberately use their own `kind` (instead of the provider
- * `error` message kind) so the frontend can distinguish "your request was
- * invalid" from "the model run produced an error" without inspecting text.
- */
-function sendProtocolError(
-  ws: WebSocket,
-  code: string,
-  error: string,
-  sessionId?: string
-): void {
-  sendJson(ws, {
-    kind: 'protocol_error',
-    code,
-    error,
-    sessionId: sessionId ?? null,
-    timestamp: new Date().toISOString(),
-  });
+function protocolFailure(ws: WebSocket, code: string, error: string, sessionId?: string): void {
+  reply(ws, { kind: 'protocol_error', code, error, sessionId: sessionId ?? null, timestamp: new Date().toISOString() });
 }
 
-function readRequiredSessionId(data: AnyRecord): string | null {
-  const sessionId = typeof data.sessionId === 'string' ? data.sessionId.trim() : '';
-  return sessionId.length > 0 ? sessionId : null;
+function requiredSessionId(data: AnyRecord): string | null {
+  const value = typeof data.sessionId === 'string' ? data.sessionId.trim() : '';
+  return value || null;
 }
 
-/**
- * Handles `chat.send`: resolves the session row (provider, project path, and
- * provider-native id all come from the database — never from the client),
- * registers the run, and dispatches to the provider runtime.
- */
-async function handleChatSend(
-  ws: WebSocket,
-  userId: string | number | null,
-  data: AnyRecord,
-  dependencies: ChatWebSocketDependencies
-): Promise<void> {
-  const command = typeof data.content === 'string' ? data.content : '';
-  if (/^\/(?:login|logout)(?:\s|$)/i.test(command.trim())) {
-    sendProtocolError(
-      ws,
-      'LOGIN_UI_REQUIRED',
-      'Account authentication commands must be completed in the app login dialog.',
-      typeof data.sessionId === 'string' ? data.sessionId : undefined,
-    );
+async function sendChat(ws: WebSocket, userId: string | number | null, data: AnyRecord, dependencies: ChatWebSocketDependencies): Promise<void> {
+  const content = typeof data.content === 'string' ? data.content : '';
+  if (/^\/(?:login|logout)(?:\s|$)/i.test(content.trim())) {
+    protocolFailure(ws, 'LOGIN_UI_REQUIRED', 'Account authentication commands must be completed in the app login dialog.', typeof data.sessionId === 'string' ? data.sessionId : undefined);
     return;
   }
-
-  const sessionId = readRequiredSessionId(data);
+  const sessionId = requiredSessionId(data);
   if (!sessionId) {
-    sendProtocolError(ws, 'SESSION_ID_REQUIRED', 'chat.send requires a sessionId.');
+    protocolFailure(ws, 'SESSION_ID_REQUIRED', 'chat.send requires a sessionId.');
     return;
   }
-
   const session = sessionsDb.getSessionById(sessionId);
   if (!session) {
-    sendProtocolError(
-      ws,
-      'SESSION_NOT_FOUND',
-      `Session "${sessionId}" was not found. Create it via POST /api/providers/sessions first.`,
-      sessionId
-    );
+    protocolFailure(ws, 'SESSION_NOT_FOUND', `Session "${sessionId}" was not found. Create it via POST /api/providers/sessions first.`, sessionId);
     return;
   }
-
   const provider = session.provider as LLMProvider;
-  const spawnFn = dependencies.spawnFns[provider];
-  if (!spawnFn) {
-    sendProtocolError(ws, 'UNSUPPORTED_PROVIDER', `Provider "${provider}" is not available.`, sessionId);
+  const spawn = dependencies.spawnFns[provider];
+  if (!spawn) {
+    protocolFailure(ws, 'UNSUPPORTED_PROVIDER', `Provider "${provider}" is not available.`, sessionId);
     return;
   }
-
-  const run = chatRunRegistry.startRun({
-    appSessionId: sessionId,
-    provider,
-    providerSessionId: session.provider_session_id,
-    connection: ws,
-    userId,
-  });
-
+  const run = chatRunRegistry.startRun({ appSessionId: sessionId, provider, providerSessionId: session.provider_session_id, connection: ws, userId });
   if (!run) {
-    sendProtocolError(
-      ws,
-      'RUN_IN_PROGRESS',
-      `Session "${sessionId}" already has a run in progress.`,
-      sessionId
-    );
+    protocolFailure(ws, 'RUN_IN_PROGRESS', `Session "${sessionId}" already has a run in progress.`, sessionId);
     return;
   }
-
   const clientOptions = (data.options ?? {}) as AnyRecord;
-
-  // The session's persisted model choice outranks the client's global default:
-  // the active-model POST stores per-session picks under the app session id,
-  // and this is the only place runs are dispatched.
   const requestedModel = typeof clientOptions.model === 'string' ? clientOptions.model : null;
-  let resolvedModel: string | undefined;
+  let model: string | undefined;
   try {
-    resolvedModel = await (dependencies.resolveSessionModel ?? defaultResolveSessionModel)(
-      provider,
-      sessionId,
-      requestedModel,
-    );
+    model = await (dependencies.resolveSessionModel ?? defaultResolveSessionModel)(provider, sessionId, requestedModel);
   } catch {
-    resolvedModel = requestedModel ?? undefined;
+    model = requestedModel ?? undefined;
   }
-
-  // The provider runtimes receive the provider-native session id (that is the
-  // id their CLI/SDK understands for resume). Brand-new sessions have no
-  // provider id yet, so the runtime starts fresh and announces one, which the
-  // gateway writer captures and maps back to the app session id.
-  const runtimeOptions: AnyRecord = {
-    ...clientOptions,
-    ...(resolvedModel ? { model: resolvedModel } : {}),
-    // Image attachments are re-validated server-side: only files inside the
-    // global upload store may reach the provider runtimes' file reads.
+  const options: AnyRecord = {
+    ...clientOptions, ...(model ? { model } : {}),
     images: filterImagesToUploadStore(clientOptions.images),
     sessionId: session.provider_session_id ?? undefined,
     resume: Boolean(session.provider_session_id),
     cwd: session.project_path ?? undefined,
     projectPath: session.project_path ?? undefined,
   };
-
   try {
-    const providerRun = spawnFn(command, runtimeOptions, run.writer);
+    const providerRun = spawn(content, options, run.writer);
     if (provider === 'gjc') {
-      const abortHandle = (providerRun as ProviderSpawnResult).abortHandle;
-      if (abortHandle) {
-        run.writer.setAbortHandle(abortHandle);
-      }
+      const handle = (providerRun as ProviderSpawnResult).abortHandle;
+      if (handle) run.writer.setAbortHandle(handle);
     }
     await providerRun;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[Chat] Provider runtime "${provider}" failed`, { sessionId, error: message });
-    const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
-      ? error.code
-      : null;
-    if (provider === 'gjc' && code) {
-      sendProtocolError(ws, code, message, sessionId);
-    } else {
-      run.writer.send(createNormalizedMessage({
-        kind: 'error',
-        provider,
-        sessionId: session.provider_session_id ?? sessionId,
-        content: message,
-      }));
-    }
+    const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : null;
+    if (provider === 'gjc' && code) protocolFailure(ws, code, message, sessionId);
+    else run.writer.send(createNormalizedMessage({ kind: 'error', provider, sessionId: session.provider_session_id ?? sessionId, content: message }));
   } finally {
-    // Safety net: a runtime that crashed (or resolved) without emitting its
-    // terminal `complete` would otherwise leave the session stuck in
-    // "processing" forever on every connected client. Scoped to THIS run —
-    // a queued message can start the session's next run before this promise
-    // settles, and the session-keyed completeRun would kill that new run.
     chatRunRegistry.completeRunIfCurrent(run, { exitCode: 1 });
   }
 }
 
-/**
- * Handles `chat.steer`: hands a message to the turn that is already running.
- *
- * Answers `chat.steered` with whether the runtime took it. A false answer is
- * not an error — it means the turn settled first, or this provider cannot steer
- * — and the client queues the message instead of losing it.
- */
-async function handleChatSteer(
-  ws: WebSocket,
-  data: AnyRecord,
-  dependencies: ChatWebSocketDependencies
-): Promise<void> {
-  const sessionId = readRequiredSessionId(data);
+async function steerChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSocketDependencies): Promise<void> {
+  const sessionId = requiredSessionId(data);
   if (!sessionId) {
-    sendProtocolError(ws, 'SESSION_ID_REQUIRED', 'chat.steer requires a sessionId.');
+    protocolFailure(ws, 'SESSION_ID_REQUIRED', 'chat.steer requires a sessionId.');
     return;
   }
-
   const content = typeof data.content === 'string' ? data.content : '';
   if (!content.trim()) {
-    sendProtocolError(ws, 'CONTENT_REQUIRED', 'chat.steer requires content.', sessionId);
+    protocolFailure(ws, 'CONTENT_REQUIRED', 'chat.steer requires content.', sessionId);
     return;
   }
-
   const run = chatRunRegistry.getRun(sessionId);
-  const steerFn = run ? dependencies.steerFns?.[run.provider] : undefined;
-  const steerSessionId = run
-    ? (run.provider === 'gjc'
-      ? run.writer.getAbortHandle() ?? run.providerSessionId
-      : run.providerSessionId ?? run.writer.getAbortHandle())
+  const destination = run
+    ? (run.provider === 'gjc' ? run.writer.getAbortHandle() ?? run.providerSessionId : run.providerSessionId ?? run.writer.getAbortHandle())
     : null;
-
-  // Why a message was not taken is the difference between "ask again" and
-  // "never ask this provider", so it travels with the answer instead of being
-  // flattened into a bare false.
+  const steer = run ? dependencies.steerFns?.[run.provider] : undefined;
   let steered = false;
   let reason: 'steered' | 'no-run' | 'not-running' | 'unsupported' | 'refused' | 'failed' = 'no-run';
-  if (!run) {
-    reason = 'no-run';
-  } else if (run.status !== 'running') {
-    reason = 'not-running';
-  } else if (!steerFn || !steerSessionId) {
-    reason = 'unsupported';
-  } else {
-    try {
-      steered = Boolean(await steerFn(steerSessionId, content));
-      reason = steered ? 'steered' : 'refused';
-    } catch (error) {
-      console.error('[ERROR] chat.steer failed:', error instanceof Error ? error.message : String(error));
-      reason = 'failed';
-    }
+  if (!run) reason = 'no-run';
+  else if (run.status !== 'running') reason = 'not-running';
+  else if (!steer || !destination) reason = 'unsupported';
+  else try {
+    steered = Boolean(await steer(destination, content));
+    reason = steered ? 'steered' : 'refused';
+  } catch (error) {
+    console.error('[ERROR] chat.steer failed:', error instanceof Error ? error.message : String(error));
+    reason = 'failed';
   }
-
-  // Its own kind, like protocol_error: the client has to tell "the turn took
-  // your message" apart from any provider message the run itself emits.
-  sendJson(ws, { kind: 'chat_steered', sessionId, steered, reason, content });
+  reply(ws, { kind: 'chat_steered', sessionId, steered, reason, content });
 }
 
-/**
- * Handles `chat.abort`: cancels the run for one app session and emits the
- * terminal `complete` on its behalf (runtimes skip their own complete for
- * aborted runs, and the registry drops any duplicate).
- */
-async function handleChatAbort(
-  ws: WebSocket,
-  data: AnyRecord,
-  dependencies: ChatWebSocketDependencies
-): Promise<void> {
-  const sessionId = readRequiredSessionId(data);
+async function abortChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSocketDependencies): Promise<void> {
+  const sessionId = requiredSessionId(data);
   if (!sessionId) {
-    sendProtocolError(ws, 'SESSION_ID_REQUIRED', 'chat.abort requires a sessionId.');
+    protocolFailure(ws, 'SESSION_ID_REQUIRED', 'chat.abort requires a sessionId.');
     return;
   }
-
   const run = chatRunRegistry.getRun(sessionId);
   if (!run || run.status !== 'running') {
-    sendProtocolError(ws, 'NO_ACTIVE_RUN', `Session "${sessionId}" has no active run.`, sessionId);
+    protocolFailure(ws, 'NO_ACTIVE_RUN', `Session "${sessionId}" has no active run.`, sessionId);
     return;
   }
-
-  const abortFn = dependencies.abortFns[run.provider];
-  const abortSessionId = run.provider === 'gjc'
-    ? run.writer.getAbortHandle() ?? run.providerSessionId
-    : run.providerSessionId ?? run.writer.getAbortHandle();
-  let success = false;
+  const id = run.provider === 'gjc' ? run.writer.getAbortHandle() ?? run.providerSessionId : run.providerSessionId ?? run.writer.getAbortHandle();
+  let succeeded = false;
   try {
-    if (abortFn && abortSessionId) {
-      success = Boolean(await abortFn(abortSessionId));
-    }
+    if (dependencies.abortFns[run.provider] && id) succeeded = Boolean(await dependencies.abortFns[run.provider](id));
   } catch (error) {
-    const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
-      ? error.code
-      : null;
+    const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : null;
     if (run.provider === 'gjc' && code) {
-      sendProtocolError(ws, code, error instanceof Error ? error.message : String(error), sessionId);
+      protocolFailure(ws, code, error instanceof Error ? error.message : String(error), sessionId);
       return;
     }
     throw error;
   }
-  if (!success && run.provider === 'gjc') {
-    sendProtocolError(ws, 'ABORT_FAILED', `Session "${sessionId}" could not be aborted.`, sessionId);
+  if (!succeeded && run.provider === 'gjc') {
+    protocolFailure(ws, 'ABORT_FAILED', `Session "${sessionId}" could not be aborted.`, sessionId);
     return;
   }
-
-  chatRunRegistry.completeRun(sessionId, {
-    exitCode: success ? 0 : 1,
-    aborted: true,
-  });
+  chatRunRegistry.completeRun(sessionId, { exitCode: succeeded ? 0 : 1, aborted: true });
 }
 
-/**
- * Handles `chat.subscribe`: for each requested session, reports whether a run
- * is processing, re-attaches the live stream to this socket, replays missed
- * events (seq > lastSeq), and includes pending permission requests.
- *
- * This single message replaces the old `check-session-status`,
- * `get-pending-permissions`, and Claude-only writer reconnect flows.
- */
-function handleChatSubscribe(
-  ws: WebSocket,
-  data: AnyRecord,
-  dependencies: ChatWebSocketDependencies
-): void {
-  const targets = Array.isArray(data.sessions) ? data.sessions : [];
-
-  for (const target of targets) {
-    if (!target || typeof target !== 'object') {
-      continue;
-    }
-
-    const sessionId = typeof (target as AnyRecord).sessionId === 'string'
-      ? ((target as AnyRecord).sessionId as string).trim()
-      : '';
-    if (!sessionId) {
-      continue;
-    }
-
-    const lastSeqRaw = (target as AnyRecord).lastSeq;
-    const lastSeq = typeof lastSeqRaw === 'number' && Number.isFinite(lastSeqRaw)
-      ? Math.max(0, Math.floor(lastSeqRaw))
-      : 0;
-
+function subscribeChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSocketDependencies): void {
+  const requested = Array.isArray(data.sessions) ? data.sessions : [];
+  for (const target of requested) {
+    const targetData = object(target);
+    const sessionId = typeof targetData?.sessionId === 'string' ? targetData.sessionId.trim() : '';
+    if (!targetData || !sessionId) continue;
+    const rawSeq = targetData.lastSeq;
+    const lastSeq = typeof rawSeq === 'number' && Number.isFinite(rawSeq) ? Math.max(0, Math.floor(rawSeq)) : 0;
     const run = chatRunRegistry.getRun(sessionId);
-    const isProcessing = chatRunRegistry.isProcessing(sessionId);
-
-    // Future live events for this run should land on the socket that asked —
-    // this is what makes mid-stream page refreshes work for all providers.
-    if (isProcessing) {
-      chatRunRegistry.attachConnection(sessionId, ws);
-    }
-
-    // Most provider runtimes track approvals under their provider-native id.
-    // GJC's app-owned automation bridge deliberately scopes them to the stable
-    // app session id so reconnects cannot leak an approval across app sessions.
-    const approvalScope = run?.provider === 'gjc'
-      ? run.appSessionId
-      : run?.providerSessionId;
-    const pendingPermissions = (approvalScope
-      ? dependencies.getPendingApprovalsForSession(approvalScope)
-      : []
-    ).map((approval) =>
-      approval && typeof approval === 'object'
-        ? { ...(approval as AnyRecord), sessionId }
-        : approval,
-    );
-
-    sendJson(ws, {
-      kind: 'chat_subscribed',
-      sessionId,
-      isProcessing,
-      lastSeq: run?.lastSeq ?? 0,
-      pendingPermissions,
-      timestamp: new Date().toISOString(),
+    const processing = chatRunRegistry.isProcessing(sessionId);
+    if (processing) chatRunRegistry.attachConnection(sessionId, ws);
+    const scope = run?.provider === 'gjc' ? run.appSessionId : run?.providerSessionId;
+    const pendingPermissions = (scope ? dependencies.getPendingApprovalsForSession(scope) : []).map((approval) => {
+      const value = object(approval);
+      return value ? { ...value, sessionId } : approval;
     });
-
-    // Replay only for RUNNING runs, strictly after the ack. Completed runs
-    // are fully persisted to the provider transcript and served over REST —
-    // replaying them (e.g. after a page reload where the client's lastSeq is
-    // 0) would duplicate messages the history fetch already returned.
-    if (isProcessing) {
-      for (const event of chatRunRegistry.replayEvents(sessionId, lastSeq)) {
-        sendJson(ws, event);
-      }
-    }
+    reply(ws, { kind: 'chat_subscribed', sessionId, isProcessing: processing, lastSeq: run?.lastSeq ?? 0, pendingPermissions, timestamp: new Date().toISOString() });
+    if (processing) for (const event of chatRunRegistry.replayEvents(sessionId, lastSeq)) reply(ws, event);
   }
 }
 
-/**
- * Handles `chat.permission-response`: forwards a tool-approval decision to the
- * pending approval resolver (Claude is the only provider with interactive
- * approvals today, but the message is intentionally provider-neutral).
- */
-function handlePermissionResponse(data: AnyRecord, dependencies: ChatWebSocketDependencies): void {
-  if (typeof data.requestId !== 'string' || data.requestId.length === 0) {
+function permissionResponse(data: AnyRecord, dependencies: ChatWebSocketDependencies): void {
+  if (typeof data.requestId !== 'string' || !data.requestId.length) return;
+  dependencies.resolveToolApproval(data.requestId, { allow: Boolean(data.allow), updatedInput: data.updatedInput, message: typeof data.message === 'string' ? data.message : undefined, rememberEntry: data.rememberEntry });
+}
+
+async function oauthRequest(ws: WebSocket, userId: string | number | null, type: string, data: AnyRecord, oauth: OAuthSupervisor): Promise<void> {
+  const userKey = oauthKey(userId);
+  const wanted = typeof data.attemptId === 'string' ? data.attemptId : '';
+  if ((type === 'oauth.submit' || type === 'oauth.cancel') && (activeOAuthOwner?.attemptId !== wanted || activeOAuthOwner?.userKey !== userKey)) {
+    reply(ws, { kind: type, payload: ownershipError() });
     return;
   }
-
-  dependencies.resolveToolApproval(data.requestId, {
-    allow: Boolean(data.allow),
-    updatedInput: data.updatedInput,
-    message: typeof data.message === 'string' ? data.message : undefined,
-    rememberEntry: data.rememberEntry,
-  });
-}
-async function handleOAuthRequest(
-  ws: WebSocket,
-  userId: string | number | null,
-  messageType: string,
-  data: AnyRecord,
-  supervisor: OAuthSupervisor,
-): Promise<void> {
-  const userKey = oauthUserKey(userId);
-  const requestedAttemptId = typeof data.attemptId === 'string' ? data.attemptId : '';
-  const owner = latestOAuthAttemptOwner;
-  if (
-    (messageType === 'oauth.submit' || messageType === 'oauth.cancel')
-    && (
-      owner?.attemptId !== requestedAttemptId
-      || owner?.userKey !== userKey
-    )
-  ) {
-    sendJson(ws, { kind: messageType, payload: oauthOwnershipFailure() });
-    return;
-  }
-
-  let response: unknown;
-  switch (messageType) {
-    case 'oauth.providers':
-      response = await supervisor.oauthProviders();
-      break;
-    case 'oauth.status': {
-      response = await supervisor.oauthStatus();
-      const payload = oauthRecord(response);
-      const result = oauthRecord(payload?.result);
-      const attempt = oauthRecord(result?.attempt);
-      const statusOwner = latestOAuthAttemptOwner;
-      if (
-        attempt
-        && (
-          statusOwner?.attemptId !== attempt.attemptId
-          || statusOwner?.userKey !== userKey
-        )
-      ) {
-        response = {
-          ...payload,
-          result: {
-            ...result,
-            attempt: undefined,
-          },
-        };
-      }
-      break;
+  const operations: Record<string, () => Promise<unknown>> = {
+    'oauth.providers': () => oauth.oauthProviders(),
+    'oauth.status': () => oauth.oauthStatus(),
+    'oauth.start': () => oauth.oauthStart(typeof data.providerId === 'string' ? data.providerId : ''),
+    'oauth.submit': () => oauth.oauthSubmit(wanted, typeof data.value === 'string' ? data.value : ''),
+    'oauth.cancel': () => oauth.oauthCancel(wanted),
+  };
+  let response = await operations[type]!();
+  if (type === 'oauth.start') {
+    const id = attemptId(response);
+    if (id) activeOAuthOwner = { attemptId: id, userKey };
+  } else if (type === 'oauth.status') {
+    const payload = object(response);
+    const result = object(payload?.result);
+    const reported = object(result?.attempt);
+    if (reported && (activeOAuthOwner?.attemptId !== reported.attemptId || activeOAuthOwner?.userKey !== userKey)) {
+      response = { ...payload, result: { ...result, attempt: undefined } };
     }
-    case 'oauth.start':
-      response = await supervisor.oauthStart(typeof data.providerId === 'string' ? data.providerId : '');
-      {
-        const attemptId = oauthAttemptIdFromResponse(response);
-        if (attemptId) latestOAuthAttemptOwner = { attemptId, userKey };
-      }
-      break;
-    case 'oauth.submit':
-      response = await supervisor.oauthSubmit(requestedAttemptId, typeof data.value === 'string' ? data.value : '');
-      break;
-    case 'oauth.cancel':
-      response = await supervisor.oauthCancel(requestedAttemptId);
-      break;
-    default:
-      return;
   }
-
-  sendJson(ws, { kind: messageType, payload: response });
+  reply(ws, { kind: type, payload: response });
 }
 
-
-/**
- * Handles authenticated chat websocket messages used by the main chat panel.
- *
- * Inbound protocol (client to server):
- * - `chat.send`                { sessionId, content, options? }
- * - `chat.steer`               { sessionId, content } -> { kind: 'chat_steered', steered, reason }
- * - `chat.abort`               { sessionId }
- * - `chat.subscribe`           { sessions: [{ sessionId, lastSeq? }] }
- * - `chat.permission-response` { requestId, allow, updatedInput?, message?, rememberEntry? }
- *
- * Outbound protocol (server to client): every frame is `kind`-based — either
- * a provider `NormalizedMessage` (with `seq`) or a gateway event
- * (`chat_subscribed`, `session_upserted`, `loading_progress`,
- * `protocol_error`).
- */
-export function handleChatConnection(
-  ws: WebSocket,
-  request: AuthenticatedWebSocketRequest,
-  dependencies: ChatWebSocketDependencies
-): void {
+export function handleChatConnection(ws: WebSocket, request: AuthenticatedWebSocketRequest, dependencies: ChatWebSocketDependencies): void {
   console.log('[INFO] Chat WebSocket connected');
   connectedClients.add(ws);
-
-  const userId = readRequestUserId(request);
-  const userKey = oauthUserKey(userId);
-  const oauthSupervisor = dependencies.oauthSupervisor;
-  const unsubscribeOAuth = oauthSupervisor?.subscribeOAuth((event) => {
-    if (event.method === 'oauth.phase') {
-      const attemptId = typeof event.payload.attemptId === 'string' ? event.payload.attemptId : '';
-      const eventOwner = latestOAuthAttemptOwner;
-      if (
-        eventOwner?.attemptId !== attemptId
-        || eventOwner?.userKey !== userKey
-      ) {
-        return;
-      }
-    }
-    sendJson(ws, { kind: event.method, payload: event.payload });
+  const userId = requestUserId(request);
+  const userKey = oauthKey(userId);
+  const unsubscribe = dependencies.oauthSupervisor?.subscribeOAuth((event) => {
+    if (event.method === 'oauth.phase' && (activeOAuthOwner?.attemptId !== (typeof event.payload.attemptId === 'string' ? event.payload.attemptId : '') || activeOAuthOwner?.userKey !== userKey)) return;
+    reply(ws, { kind: event.method, payload: event.payload });
   }) ?? (() => {});
-
-
-
-  ws.on('message', async (rawMessage) => {
+  const chatHandlers: Record<string, (data: AnyRecord) => Promise<void> | void> = {
+    'chat.send': (data) => sendChat(ws, userId, data, dependencies),
+    'chat.abort': (data) => abortChat(ws, data, dependencies),
+    'chat.steer': (data) => steerChat(ws, data, dependencies),
+    'chat.subscribe': (data) => subscribeChat(ws, data, dependencies),
+    'chat.permission-response': (data) => permissionResponse(data, dependencies),
+  };
+  ws.on('message', async (raw) => {
     try {
-      const parsed = parseIncomingJsonObject(rawMessage);
-      if (!parsed) {
-        throw new Error('Invalid websocket payload');
-      }
-
+      const parsed = parseIncomingJsonObject(raw);
+      if (!parsed) throw new Error('Invalid websocket payload');
       const data = parsed as AnyRecord;
-      const messageType = typeof data.type === 'string' ? data.type : '';
-      if (await dependencies.gjcProjection?.handle(ws, data)) {
+      const type = typeof data.type === 'string' ? data.type : '';
+      if (await dependencies.gjcProjection?.handle(ws, data)) return;
+      if (type.startsWith('oauth.')) {
+        if (!oauthTypes.has(type)) protocolFailure(ws, 'UNKNOWN_MESSAGE_TYPE', `Unknown message type "${type}".`);
+        else if (!dependencies.oauthSupervisor) protocolFailure(ws, 'OAUTH_UNAVAILABLE', 'App sign-in is unavailable.');
+        else await oauthRequest(ws, userId, type, data, dependencies.oauthSupervisor);
         return;
       }
-
-      if (messageType.startsWith('oauth.')) {
-        if (!OAUTH_MESSAGE_TYPES.has(messageType)) {
-          sendProtocolError(ws, 'UNKNOWN_MESSAGE_TYPE', `Unknown message type "${messageType}".`);
-          return;
-        }
-        if (!oauthSupervisor) {
-          sendProtocolError(ws, 'OAUTH_UNAVAILABLE', 'App sign-in is unavailable.');
-          return;
-        }
-        await handleOAuthRequest(ws, userId, messageType, data, oauthSupervisor);
-        return;
-      }
-
-      switch (messageType) {
-        case 'chat.send':
-          await handleChatSend(ws, userId, data, dependencies);
-          return;
-        case 'chat.abort':
-          await handleChatAbort(ws, data, dependencies);
-          return;
-        case 'chat.steer':
-          await handleChatSteer(ws, data, dependencies);
-          return;
-        case 'chat.subscribe':
-          handleChatSubscribe(ws, data, dependencies);
-          return;
-        case 'chat.permission-response':
-          handlePermissionResponse(data, dependencies);
-          return;
-        default:
-          sendProtocolError(ws, 'UNKNOWN_MESSAGE_TYPE', `Unknown message type "${messageType}".`);
-          return;
-      }
+      const handler = chatHandlers[type];
+      if (handler) await handler(data);
+      else protocolFailure(ws, 'UNKNOWN_MESSAGE_TYPE', `Unknown message type "${type}".`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('[ERROR] Chat WebSocket error:', message);
-      sendProtocolError(ws, 'INTERNAL_ERROR', message);
+      protocolFailure(ws, 'INTERNAL_ERROR', message);
     }
   });
-
   ws.on('close', () => {
     console.log('[INFO] Chat client disconnected');
-    unsubscribeOAuth();
+    unsubscribe();
     connectedClients.delete(ws);
   });
 }

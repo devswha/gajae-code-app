@@ -7,12 +7,12 @@ import {
 type ErrorFallbackProps = FallbackProps & { showDetails: boolean; componentStack: string | null };
 type ErrorBoundaryProps = { children: ReactNode; showDetails?: boolean; onRetry?: () => void; resetKeys?: unknown[] };
 
-const describeError = (failure: unknown) => failure instanceof Error
-  ? `${failure.name}: ${failure.message}`
-  : String(failure);
+function errorText(value: unknown): string {
+  if (!(value instanceof Error)) return String(value);
+  return [value.name, value.message].join(': ');
+}
 
-function ErrorFallback(props: ErrorFallbackProps) {
-  const { componentStack, error, resetErrorBoundary, showDetails } = props;
+function ErrorFallback({ componentStack, error, resetErrorBoundary, showDetails }: ErrorFallbackProps) {
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center">
       <div className="max-w-md rounded-lg border border-destructive/30 bg-destructive/10 p-6">
@@ -34,7 +34,7 @@ function ErrorFallback(props: ErrorFallbackProps) {
             <details className="mt-4">
               <summary className="cursor-pointer font-mono text-xs">Error Details</summary>
               <pre className="mt-2 max-h-40 overflow-auto rounded bg-destructive/10 p-2 text-xs">
-                {describeError(error)}
+                {errorText(error)}
                 {componentStack}
               </pre>
             </details>
@@ -59,34 +59,34 @@ function ErrorBoundary({
   onRetry,
   resetKeys,
 }: ErrorBoundaryProps) {
-  const [stack, setStack] = useState<string | null>(null);
+  const [componentStack, setComponentStack] = useState<string | null>(null);
 
-  const captureFailure = useCallback((failure: Error, details: ErrorInfo) => {
-    console.error('ErrorBoundary caught an error:', failure, details);
-    setStack(details.componentStack ?? null);
+  const reportError = useCallback((error: Error, metadata: ErrorInfo) => {
+    console.error('ErrorBoundary caught an error:', error, metadata);
+    setComponentStack(metadata.componentStack ?? null);
   }, []);
 
-  const resetFailure = useCallback(() => {
-    setStack(null);
+  const clearError = useCallback(() => {
+    setComponentStack(null);
     onRetry?.();
   }, [onRetry]);
 
-  const fallback = useCallback(
-    (fallbackProps: FallbackProps) => (
+  const renderFallback = useCallback(
+    (boundaryProps: FallbackProps) => (
       <ErrorFallback
-        {...fallbackProps}
+        {...boundaryProps}
         showDetails={showDetails}
-        componentStack={stack}
+        componentStack={componentStack}
       />
     ),
-    [showDetails, stack]
+    [componentStack, showDetails],
   );
 
   return (
     <ReactErrorBoundary
-      fallbackRender={fallback}
-      onError={captureFailure}
-      onReset={resetFailure}
+      fallbackRender={renderFallback}
+      onError={reportError}
+      onReset={clearError}
       resetKeys={resetKeys}
     >
       {children}

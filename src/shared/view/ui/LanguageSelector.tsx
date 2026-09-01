@@ -1,21 +1,13 @@
 
-
 import { useTranslation } from 'react-i18next';
 
 import { languages } from '../../../i18n/languages';
 
-/**
- * Language Selector Component
- *
- * A dropdown component for selecting the application language.
- * Automatically updates the i18n language and persists to localStorage.
- */
 export default function LanguageSelector() {
   const { i18n, t } = useTranslation('settings');
 
-  const handleLanguageChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newLanguage = event.target.value;
-    i18n.changeLanguage(newLanguage);
+  const selectLanguage = ({ target }: React.ChangeEvent<HTMLSelectElement>) => {
+    i18n.changeLanguage(target.value);
   };
 
   return (
@@ -30,12 +22,12 @@ export default function LanguageSelector() {
       </div>
       <select
         value={i18n.language}
-        onChange={handleLanguageChange}
+        onChange={selectLanguage}
         className="w-36 rounded-lg border border-input bg-card p-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary"
       >
-        {languages.map((lang) => (
-          <option key={lang.value} value={lang.value}>
-            {lang.nativeName}
+        {languages.map(({ nativeName, value }) => (
+          <option key={value} value={value}>
+            {nativeName}
           </option>
         ))}
       </select>

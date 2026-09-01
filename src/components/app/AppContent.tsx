@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import Sidebar from '../sidebar/view/Sidebar';
 import MainContent from '../main-content/view/MainContent';
+import type { MainContentProps } from '../main-content/types/types';
 import CommandPalette from '../command-palette/CommandPalette';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 import { usePaletteOpsRegister } from '../../stores/usePaletteOpsStore';
@@ -16,7 +17,7 @@ import { hiddenKeyboardHeight } from './appContentUtils';
 import { useRunningSessionsSync } from './useRunningSessionsSync';
 
 export default function AppContent() {
-  const go = useNavigate();
+  const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { t } = useTranslation('common');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
@@ -45,13 +46,13 @@ export default function AppContent() {
     handleNewSession,
   } = useProjectsState({
     sessionId,
-    navigate: go,
+    navigate,
     subscribe,
     isMobile,
     activeSessions: processingSessions,
   });
 
-  const activeSessionId = selectedSession?.id ?? sessionId ?? null;
+  const activeSessionId = selectedSession ? selectedSession.id : (sessionId ?? null);
   useQueuedMessageAutoSend({
     processingSessions,
     activeSessionId,
@@ -62,12 +63,21 @@ export default function AppContent() {
 
   useRunningSessionsSync(syncProcessingSessions);
 
-  const startNewChat = useCallback(
-    () => {
-      if (selectedProject) handleNewSession(selectedProject);
-    },
-    [handleNewSession, selectedProject],
-  );
+  const startNewChat = useCallback(() => {
+    if (selectedProject) handleNewSession(selectedProject);
+  }, [handleNewSession, selectedProject]);
+
+  const showSidebar = useCallback(() => {
+    setSidebarOpen(true);
+  }, [setSidebarOpen]);
+
+  const navigateToSession = useCallback((targetSessionId: string, options?: { replace?: boolean }) => {
+    navigate(`/session/${targetSessionId}`, { replace: options?.replace === true });
+  }, [navigate]);
+
+  const establishSession = useCallback<MainContentProps['onSessionEstablished']>((targetSessionId, context) => {
+    registerOptimisticSession({ sessionId: targetSessionId, ...context });
+  }, [registerOptimisticSession]);
 
   usePaletteOpsRegister({
     openSettings,
@@ -78,13 +88,16 @@ export default function AppContent() {
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
-    const updateKeyboardInset = () => {
-      const inset = hiddenKeyboardHeight(document.documentElement.clientHeight, viewport.height);
-      document.documentElement.style.setProperty('--keyboard-height', `${inset}px`);
+    const syncKeyboardInset = () => {
+      const documentHeight = document.documentElement.clientHeight;
+      document.documentElement.style.setProperty(
+        '--keyboard-height',
+        `${hiddenKeyboardHeight(documentHeight, viewport.height)}px`,
+      );
     };
-    updateKeyboardInset();
-    viewport.addEventListener('resize', updateKeyboardInset);
-    return () => viewport.removeEventListener('resize', updateKeyboardInset);
+    syncKeyboardInset();
+    viewport.addEventListener('resize', syncKeyboardInset);
+    return () => viewport.removeEventListener('resize', syncKeyboardInset);
   }, []);
 
 
@@ -132,18 +145,14 @@ export default function AppContent() {
           ws={ws}
           sendMessage={sendMessage}
           isMobile={isMobile}
-          onMenuClick={() => setSidebarOpen(true)}
+          onMenuClick={showSidebar}
           isLoading={isLoadingProjects}
           onInputFocusChange={setIsInputFocused}
           onSessionProcessing={markProcessing}
           onSessionIdle={markIdle}
           processingSessions={processingSessions}
-          onNavigateToSession={(targetSessionId: string, options) =>
-            go(`/session/${targetSessionId}`, { replace: Boolean(options?.replace) })
-          }
-          onSessionEstablished={(targetSessionId, context) =>
-            registerOptimisticSession({ sessionId: targetSessionId, ...context })
-          }
+          onNavigateToSession={navigateToSession}
+          onSessionEstablished={establishSession}
           onShowSettings={openSettings}
           newSessionTrigger={newSessionTrigger}
         />

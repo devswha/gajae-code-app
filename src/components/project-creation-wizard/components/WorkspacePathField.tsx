@@ -16,13 +16,16 @@ type WorkspacePathFieldProps = {
   onAdvanceToConfirm: () => void;
 };
 
-const matchingPaths = (input: string, folders: FolderSuggestion[]) => {
-  const enteredPath = input.toLowerCase();
-  return folders.filter(({ path }) => {
-    const candidate = path.toLowerCase();
-    return candidate.startsWith(enteredPath) && candidate !== enteredPath;
-  }).slice(0, 5);
-};
+const matchingPaths = (input: string, folders: FolderSuggestion[]) => folders.reduce<FolderSuggestion[]>(
+  (matches, folder) => {
+    const candidate = folder.path.toLowerCase();
+    if (candidate !== input.toLowerCase() && candidate.startsWith(input.toLowerCase()) && matches.length < 5) {
+      matches.push(folder);
+    }
+    return matches;
+  },
+  [],
+);
 
 export default function WorkspacePathField({
   value,
@@ -36,40 +39,39 @@ export default function WorkspacePathField({
   const [showFolderBrowser, setShowFolderBrowser] = useState(false);
 
   useEffect(() => {
-    if (value.trim().length <= 2) {
+    const canSuggest = value.trim().length > 2;
+    if (!canSuggest) {
       setPathSuggestions([]);
       setShowPathDropdown(false);
       return undefined;
     }
 
-    const timeout = window.setTimeout(() => {
-      const loadSuggestions = async () => {
+    const delay = window.setTimeout(() => {
+      const requestSuggestions = async () => {
         try {
           const response = await browseFilesystemFolders(getSuggestionRootPath(value));
-          const suggestions = matchingPaths(value, response.suggestions);
-          setPathSuggestions(suggestions);
-          setShowPathDropdown(suggestions.length !== 0);
+          const matches = matchingPaths(value, response.suggestions);
+          setPathSuggestions(matches);
+          setShowPathDropdown(matches.length > 0);
         } catch (reason) {
           console.error('Failed to load path suggestions:', reason);
         }
       };
-      void loadSuggestions();
+      void requestSuggestions();
     }, 200);
 
-    return () => window.clearTimeout(timeout);
+    return () => window.clearTimeout(delay);
   }, [value]);
 
-  const selectSuggestion = useCallback((suggestion: FolderSuggestion) => {
-    onChange(suggestion.path);
+  const applySuggestion = useCallback(({ path }: FolderSuggestion) => {
+    onChange(path);
     setShowPathDropdown(false);
   }, [onChange]);
 
-  const selectFolder = useCallback((selectedPath: string, advanceToConfirm: boolean) => {
+  const applyFolder = useCallback((selectedPath: string, shouldAdvance: boolean) => {
     onChange(selectedPath);
     setShowFolderBrowser(false);
-    if (advanceToConfirm) {
-      onAdvanceToConfirm();
-    }
+    if (shouldAdvance) onAdvanceToConfirm();
   }, [onAdvanceToConfirm, onChange]);
 
   return (
@@ -91,7 +93,7 @@ export default function WorkspacePathField({
                 <button
                   key={suggestion.path}
                   type="button"
-                  onClick={() => selectSuggestion(suggestion)}
+                  onClick={() => applySuggestion(suggestion)}
                   className="w-full rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent"
                 >
                   <div className="text-foreground">{suggestion.name}</div>
@@ -119,7 +121,7 @@ export default function WorkspacePathField({
         isOpen={showFolderBrowser}
         autoAdvanceOnSelect={false}
         onClose={() => setShowFolderBrowser(false)}
-        onFolderSelected={selectFolder}
+        onFolderSelected={applyFolder}
       />
     </>
   );

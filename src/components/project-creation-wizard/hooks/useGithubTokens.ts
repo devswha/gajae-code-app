@@ -3,11 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { fetchGithubTokenCredentials } from '../data/workspaceApi';
 import type { GithubTokenCredential } from '../types';
 
-type UseGithubTokensParams = {
-  shouldLoad: boolean;
-  selectedTokenId: string;
-  onAutoSelectToken: (tokenId: string) => void;
-};
+type UseGithubTokensParams = { shouldLoad: boolean; selectedTokenId: string; onAutoSelectToken: (tokenId: string) => void };
 
 export const useGithubTokens = ({
   shouldLoad,
@@ -17,46 +13,41 @@ export const useGithubTokens = ({
   const [tokens, setTokens] = useState<GithubTokenCredential[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const loaded = useRef(false);
+  const hasLoaded = useRef(false);
 
   useEffect(() => {
-    if (!shouldLoad || loaded.current) {
-      return undefined;
-    }
+    if (!shouldLoad || hasLoaded.current) return undefined;
 
-    let active = true;
-    const requestTokens = async () => {
+    let isCurrent = true;
+    const load = async () => {
       setLoading(true);
       setLoadError(null);
 
       try {
         const availableTokens = await fetchGithubTokenCredentials();
-        if (!active) {
-          return;
-        }
-
-        loaded.current = true;
+        if (!isCurrent) return;
+        hasLoaded.current = true;
         setTokens(availableTokens);
-        if (availableTokens.length && !selectedTokenId) {
-          onAutoSelectToken(String(availableTokens[0].id));
-        }
+        const firstToken = availableTokens[0];
+        if (firstToken && !selectedTokenId) onAutoSelectToken(String(firstToken.id));
       } catch (reason) {
-        if (active) {
+        if (isCurrent) {
           setLoadError(reason instanceof Error ? reason.message : 'Failed to load GitHub tokens');
         }
       } finally {
-        if (active) {
+        if (isCurrent) {
           setLoading(false);
         }
       }
     };
 
-    void requestTokens();
+    void load();
     return () => {
-      active = false;
+      isCurrent = false;
     };
   }, [onAutoSelectToken, selectedTokenId, shouldLoad]);
 
-  const selectedTokenName = tokens.find(({ id }) => String(id) === selectedTokenId)?.credential_name || null;
+  const selectedCredential = tokens.find((credential) => String(credential.id) === selectedTokenId);
+  const selectedTokenName = selectedCredential?.credential_name ?? null;
   return { tokens, loading, loadError, selectedTokenName };
 };

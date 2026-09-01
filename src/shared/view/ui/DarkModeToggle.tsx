@@ -3,11 +3,7 @@ import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { cn } from '../../../utils/cn';
 
-type DarkModeToggleProps = {
-  checked?: boolean;
-  onToggle?: (nextValue: boolean) => void;
-  ariaLabel?: string;
-};
+type DarkModeToggleProps = { checked?: boolean; onToggle?: (nextValue: boolean) => void; ariaLabel?: string };
 
 function DarkModeToggle({
   checked,
@@ -15,38 +11,33 @@ function DarkModeToggle({
   ariaLabel = 'Toggle dark mode',
 }: DarkModeToggleProps) {
   const { isDarkMode, toggleDarkMode } = useTheme();
-  const isControlled = typeof checked === 'boolean' && typeof onToggle === 'function';
-  const isEnabled = isControlled ? checked : isDarkMode;
+  const managesItsOwnState = checked === undefined || onToggle === undefined;
+  const enabled = managesItsOwnState ? isDarkMode : checked;
 
-  const handleToggle = () => {
-    if (isControlled && onToggle) {
-      onToggle(!isEnabled);
-      return;
-    }
-
-    toggleDarkMode();
-  };
+  const flip = managesItsOwnState
+    ? toggleDarkMode
+    : () => onToggle(!enabled);
 
   return (
     <button
-      onClick={handleToggle}
+      onClick={flip}
       className={cn(
         'relative inline-flex h-7 w-12 shrink-0 cursor-pointer touch-manipulation items-center rounded-full border-2 transition-colors duration-200',
         'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden',
-        isEnabled ? 'border-primary bg-primary' : 'border-border bg-muted',
+        enabled ? 'border-primary bg-primary' : 'border-border bg-muted',
       )}
       role="switch"
-      aria-checked={isEnabled}
+      aria-checked={enabled}
       aria-label={ariaLabel}
     >
       <span className="sr-only">{ariaLabel}</span>
       <span
         className={cn(
           'flex h-5 w-5 transform items-center justify-center rounded-full shadow-xs transition-transform duration-200',
-          isEnabled ? 'translate-x-[22px] bg-card' : 'translate-x-[2px] bg-muted-foreground/60',
+          enabled ? 'translate-x-[22px] bg-card' : 'translate-x-[2px] bg-muted-foreground/60',
         )}
       >
-        {isEnabled ? (
+        {enabled ? (
           <Moon className="h-3 w-3 text-primary" />
         ) : (
           <Sun className="h-3 w-3 text-background" />

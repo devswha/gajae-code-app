@@ -3,7 +3,6 @@ import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cn } from '../../../utils/cn';
 
-// Keep visual variants centralized so all button usages stay consistent.
 const buttonVariants = cva(
   'inline-flex touch-manipulation items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
@@ -32,15 +31,16 @@ const buttonVariants = cva(
   }
 );
 
-type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
-  VariantProps<typeof buttonVariants>;
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants>;
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, ...props }, ref) => {
-    return (
-      <button className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
-    );
-  }
+  ({ className, size, variant, ...attributes }, elementRef) => (
+    <button
+      className={cn(buttonVariants({ variant, size }), className)}
+      ref={elementRef}
+      {...attributes}
+    />
+  ),
 );
 
 Button.displayName = 'Button';

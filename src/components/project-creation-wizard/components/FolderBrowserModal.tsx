@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ChevronRight, Eye, EyeOff, Folder, FolderOpen, Loader2, Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -7,12 +7,11 @@ import { browseFilesystemFolders, createFolderInFilesystem } from '../data/works
 import type { FolderSuggestion } from '../types';
 import { getParentPath, joinFolderPath } from '../utils/pathUtils';
 
-type FolderBrowserModalProps = {
-  isOpen: boolean;
-  autoAdvanceOnSelect: boolean;
-  onClose: () => void;
-  onFolderSelected: (folderPath: string, advanceToConfirm: boolean) => void;
-};
+type FolderBrowserModalProps = { isOpen: boolean; autoAdvanceOnSelect: boolean; onClose: () => void; onFolderSelected: (folderPath: string, advanceToConfirm: boolean) => void };
+
+function failureMessage(reason: unknown, fallback: string) {
+  return reason instanceof Error ? reason.message : fallback;
+}
 
 export default function FolderBrowserModal({
   isOpen,
@@ -30,7 +29,7 @@ export default function FolderBrowserModal({
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const openDirectory = async (path: string) => {
+  const readDirectory = useCallback(async (path: string, fallback: string) => {
     setLoadingFolders(true);
     setError(null);
     try {
@@ -38,64 +37,44 @@ export default function FolderBrowserModal({
       setCurrentPath(contents.path);
       setFolders(contents.suggestions);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t('projectWizard.folderBrowser.failedToLoad'));
+      setError(failureMessage(reason, fallback));
     } finally {
       setLoadingFolders(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (!isOpen) {
-      return undefined;
-    }
-
-    const loadInitialDirectory = async () => {
-      setLoadingFolders(true);
-      setError(null);
-      try {
-        const contents = await browseFilesystemFolders('~');
-        setCurrentPath(contents.path);
-        setFolders(contents.suggestions);
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : t('projectWizard.folderBrowser.failedToLoad'));
-      } finally {
-        setLoadingFolders(false);
-      }
-    };
-
-    void loadInitialDirectory();
+    if (!isOpen) return undefined;
+    void readDirectory('~', t('projectWizard.folderBrowser.failedToLoad'));
     return undefined;
-  }, [isOpen, t]);
+  }, [isOpen, readDirectory, t]);
 
-  const visibleFolders = folders
-    .filter(({ name }) => showHiddenFolders || !name.startsWith('.'))
-    .sort((first, second) => first.name.toLowerCase().localeCompare(second.name.toLowerCase()));
+  const visibleFolders = [...folders].sort((first, second) =>
+    first.name.toLowerCase().localeCompare(second.name.toLowerCase()),
+  ).filter(({ name }) => showHiddenFolders || name.charAt(0) !== '.');
   const parentPath = getParentPath(currentPath);
 
-  const clearFolderName = () => {
+  const hideNewFolderForm = () => {
     setShowNewFolderInput(false);
     setNewFolderName('');
   };
 
-  const closeModal = () => {
+  const dismiss = () => {
     setError(null);
-    clearFolderName();
+    hideNewFolderForm();
     onClose();
   };
 
-  const createFolder = async () => {
-    if (!newFolderName.trim()) {
-      return;
-    }
-
+  const addDirectory = async () => {
+    if (!newFolderName.trim()) return;
     setCreatingFolder(true);
     setError(null);
     try {
       const newPath = await createFolderInFilesystem(joinFolderPath(currentPath, newFolderName));
-      clearFolderName();
-      await openDirectory(newPath);
+      hideNewFolderForm();
+      await readDirectory(newPath, t('projectWizard.folderBrowser.failedToLoad'));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t('projectWizard.folderBrowser.failedToCreate'));
+      setError(failureMessage(reason, t('projectWizard.folderBrowser.failedToCreate')));
     } finally {
       setCreatingFolder(false);
     }
@@ -147,7 +126,7 @@ export default function FolderBrowserModal({
             </button>
             <button
               type="button"
-              onClick={closeModal}
+              onClick={dismiss}
               className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
               aria-label={t('projectWizard.folderBrowser.close')}
             >
@@ -167,10 +146,10 @@ export default function FolderBrowserModal({
                 className="h-7 flex-1 text-xs"
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
-                    createFolder();
+                    addDirectory();
                   }
                   if (event.key === 'Escape') {
-                    clearFolderName();
+                    hideNewFolderForm();
                   }
                 }}
                 autoFocus
@@ -179,7 +158,7 @@ export default function FolderBrowserModal({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={createFolder}
+                onClick={addDirectory}
                 disabled={!newFolderName.trim() || creatingFolder}
                 className="h-7 w-7 p-0"
                 aria-label={t('projectWizard.folderBrowser.create')}
@@ -194,7 +173,7 @@ export default function FolderBrowserModal({
                 type="button"
                 size="sm"
                 variant="ghost"
-                onClick={clearFolderName}
+                onClick={hideNewFolderForm}
                 className="h-7 w-7 p-0"
                 aria-label={t('projectWizard.folderBrowser.cancel')}
               >
@@ -220,7 +199,7 @@ export default function FolderBrowserModal({
               {parentPath && (
                 <button
                   type="button"
-                  onClick={() => openDirectory(parentPath)}
+                  onClick={() => readDirectory(parentPath, t('projectWizard.folderBrowser.failedToLoad'))}
                   className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent"
                 >
                   <Folder className="size-4 shrink-0 text-muted-foreground" />
@@ -238,7 +217,7 @@ export default function FolderBrowserModal({
                   <button
                     key={folder.path}
                     type="button"
-                    onClick={() => openDirectory(folder.path)}
+                    onClick={() => readDirectory(folder.path, t('projectWizard.folderBrowser.failedToLoad'))}
                     className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-accent"
                   >
                     <Folder className="size-4 shrink-0 text-muted-foreground" />
@@ -261,7 +240,7 @@ export default function FolderBrowserModal({
             </code>
           </div>
           <div className="flex items-center justify-end gap-2 px-3 py-2.5">
-            <Button type="button" size="sm" variant="outline" onClick={closeModal}>
+            <Button type="button" size="sm" variant="outline" onClick={dismiss}>
               {t('projectWizard.folderBrowser.cancel')}
             </Button>
             <Button

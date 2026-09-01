@@ -8,6 +8,7 @@ import SettingsSection from '../../SettingsSection';
 
 export default function GitSettingsTab() {
   const { t } = useTranslation('settings');
+  const gitSettings = useGitSettings();
   const {
     gitName,
     setGitName,
@@ -17,7 +18,8 @@ export default function GitSettingsTab() {
     isSaving,
     saveStatus,
     saveGitConfig,
-  } = useGitSettings();
+  } = gitSettings;
+  const canSave = !isSaving && Boolean(gitName.trim()) && Boolean(gitEmail.trim());
 
   return (
     <div className="space-y-8">
@@ -62,7 +64,7 @@ export default function GitSettingsTab() {
             <div className="flex items-center gap-2">
               <Button
                 onClick={saveGitConfig}
-                disabled={isSaving || !gitName.trim() || !gitEmail.trim()}
+                disabled={!canSave}
               >
                 {isSaving ? t('git.actions.saving') : t('git.actions.save')}
               </Button>

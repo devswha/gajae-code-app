@@ -19,17 +19,20 @@ change unilaterally.
 Measured with `node scripts/measure-upstream-derivation.mjs`:
 
 ```
-Upstream-derived code: 3,713 of 73,910 lines (5.0%)      baseline 2026-09-01
+Upstream-derived code: 6,554 of 99,019 lines (6.6%)      baseline 2026-09-01
 
-   813 lines   23 files  other components
-   811 lines   39 files  server modules
-   704 lines   27 files  chat UI
-   442 lines   15 files  settings
-   407 lines   19 files  UI primitives
-   242 lines   17 files  other client
-   122 lines    6 files  other server
-    93 lines    5 files  other
+  2216 lines   39 files  translations
+   761 lines   35 files  server modules
+   743 lines   23 files  other components
+   733 lines   18 files  other client
+   694 lines   27 files  chat UI
+   404 lines   15 files  settings
+   329 lines   19 files  UI primitives
+   306 lines   10 files  other
+   155 lines    7 files  other server
+    79 lines    3 files  docs and config
     79 lines    3 files  sidebar
+    55 lines    1 files  served assets
 ```
 
 Re-run it to see the number move. Zero is the point at which this project can be
@@ -40,12 +43,20 @@ the 33.5% figure previously recorded here: the measurement now diffs only
 substantive lines (blank and punctuation-only lines no longer count as shared)
 and uses a symmetric denominator, on the grounds that neither blank lines nor
 file-length asymmetry are protected expression. Under the previous ruler the
-same tree measures 32.7%. Second, the work is essentially done: every area was
-rewritten from behavioral contracts, each in its own commit carrying the
-contract it was written from, and step 1 was answered by deletion - the file
-tree, git panel and code editor are gone, along with their dependencies and
-settings. What remains is 3,713 lines spread thin across files that have
-already been rewritten once and now sit at their functional floor.
+same tree measures 32.7%. Second, the measurement was widened after the code
+was done, and the widening is the more important half of the story: it had only
+ever read `.ts/.tsx/.js/.jsx`, so it walked past four screenshots byte-identical
+to upstream's, an API documentation page served verbatim, the stylesheet, the
+changelog and the UI copy in ten languages. Prose, screenshots and design are
+the most clearly ownable things in a repository and were the last to be checked.
+They have since been deleted or rewritten, and the measurement now reads
+css/json/html/md/conf/yml as well and compares binary assets byte for byte.
+
+Third, step 1 was answered by deletion rather than rewriting: the file tree, git
+panel and code editor are gone with their dependencies, settings and
+translations, because agent-first tools meet the user inside the editor they
+already have. Files referenced in chat open through
+`POST /api/system/open-file`.
 
 ## Residual similarity that is not expression
 
@@ -71,22 +82,25 @@ shares with upstream and files it by the construct it belongs to, so the
 conversion review starts from an itemized list instead of a percentage.
 
 ```
-Lines still shared with upstream: 3,455 across 199 files      2026-09-01
+Lines still shared with upstream: 6,116 across 254 files      2026-09-01
 
-  1980  57.3%  declaration   type, prop, parameter and return-shape names
-                             callers depend on
-   600  17.4%  import        imports of this repository's own modules
-   461  13.3%  markup        JSX and class strings pinned by the design and by
+  4149  67.8%  declaration   type, prop and parameter names callers depend on,
+                             and the i18n keys the components read
+   694  11.3%  literal       CSS declarations, route paths, error codes
+   600   9.8%  import        imports of this repository's own modules
+   493   8.1%  markup        JSX and class strings pinned by the design and by
                              tests that assert on rendered HTML
-   340   9.8%  literal       route paths, error codes, i18n keys, message kinds
-    64   1.9%  sql/ddl       schema pinned by existing user databases
-    10   0.3%  other         everything a human still has to read
+    88   1.4%  other         everything a human still has to read
+    64   1.0%  sql/ddl       schema pinned by existing user databases
+    28   0.5%  i18n key      key lines in locale files
 ```
 
-The whole `other` bucket is ten lines, and they are what is left over when a
-classifier stops guessing: `}: MainContentProps) {`, `useEffect(() => {`,
-`export {};`, `declare global {`, `#!/usr/bin/env node`, `export default {`,
-and `export default PermissionContext;`.
+The `other` bucket is 88 lines and it is entirely file format: nginx directives
+and comment markers in the subpath template, YAML keys in a workflow, the `---`
+fences of issue-template frontmatter, `#!/usr/bin/env node`, `export {};`,
+`@layer base {`, and the `}: Props) {` that closes a destructured parameter
+list. The stylesheet's share is single CSS declarations - one project cannot
+write `padding-top: var(--safe-area-inset-top);` differently from another.
 
 The declaration bucket is the largest and the most tempting to attack, because
 those names are pinned by *our own* callers - a repository-wide rename would

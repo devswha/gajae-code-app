@@ -24,7 +24,10 @@ import { fileURLToPath } from 'node:url';
 
 const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const UPSTREAM = `https://github.com/${['siteboon', 'claudecodeui'].join('/')}.git`;
-const CODE = /\.(?:ts|tsx|js|jsx)$/;
+// Same file set the measurement covers: prose and styling are as ownable as
+// a function body, so they have to be classified too.
+const CODE = /\.(?:ts|tsx|js|jsx|mjs|css|json|html|md|conf|sh|ya?ml)$/;
+const IGNORED = /^(?:package-lock\.json|node_modules\/|dist\/|website\/dist\/|THIRD-PARTY-NOTICES\.md)/;
 const NOISE_LINE = /^[\s{}()[\];,]*$/u;
 
 /**
@@ -50,6 +53,7 @@ const CATEGORIES = [
     || /^\s*(?:public|private|protected|readonly|static)\s/.test(line)
     || /^\s*(?:return|const|let)\s*\{\s*$/.test(line)
     || /^\s*\w+\s*\([^)]*\)\s*[:{]/.test(line)],
+  ['i18n key', (line) => /^\s*"[\w.-]+"\s*:\s*[{"]/.test(line)],
   ['literal', (line) => /['"`]/.test(line)],
 ];
 
@@ -86,7 +90,8 @@ function git(args, cwd) {
 }
 
 function trackedCodeFiles(root) {
-  return git(['ls-files'], root).trim().split('\n').filter((file) => CODE.test(file));
+  return git(['ls-files'], root).trim().split('\n')
+    .filter((file) => CODE.test(file) && !IGNORED.test(file));
 }
 
 function substantiveLines(path) {

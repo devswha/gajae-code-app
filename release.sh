@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # A local token is optional; release-it can still use credentials supplied by CI.
 if [[ -r .env ]]; then

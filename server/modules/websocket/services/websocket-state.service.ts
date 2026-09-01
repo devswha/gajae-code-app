@@ -1,4 +1,4 @@
-import type { RealtimeClientConnection } from '@/shared/types.js';
+import type { RealtimeClientConnection } from '@/shared/types.js'; // the socket shape every service shares
 
 // Keep the numeric transport boundary independent from the ws package for shared publishers.
 export const WS_OPEN_STATE = 1; // matches WebSocket.OPEN

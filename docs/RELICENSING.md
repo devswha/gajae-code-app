@@ -40,22 +40,28 @@ Upstream-derived code: 6,554 of 99,019 lines (6.6%)      baseline 2026-09-01
 
 A same-day rewrite pass then took the reducible remainder apart file by file -
 translations reworded, components and server modules restructured, the
-stylesheet reorganized - and the tree now measures:
+stylesheet reorganized. A second pass the same day went after what the first
+had called fixed: the nginx template was redesigned around server-level proxy
+inheritance, the schema DDL was re-expressed (layout, commentary, commutable
+constraint order - the logical schema is pinned by every user database on disk
+and did not move), the feature-request template became a GitHub issue form,
+and the last matching shebangs and re-export lines were reworked. The tree now
+measures:
 
 ```
-Upstream-derived code: 206 of 99,040 lines (0.2%)        after rewrite 2026-09-01
+Upstream-derived code: 88 of 98,979 lines (0.1%)         after rewrite 2026-09-01
 
-    88 lines  package.json                        dependency declarations and
-                                                  deep-link identity fields
-    56 lines  docs/nginx-subpath-template.conf    nginx directive syntax
-    50 lines  server/modules/database/schema.ts   SQL DDL pinned by user databases
-    12 lines  6 other files                       shebangs, frontmatter fences,
-                                                  single re-export lines
+    88 lines  package.json    the dependency set and its semver ranges, npm's
+                              JSON grammar, and tool invocations (vite, tsc)
 ```
 
 Re-run it to see the number move. Zero is the point at which this project can be
-licensed as it chooses; what still scores above zero is itemized below, and it
-is interface and file format rather than expression.
+licensed as it chooses. The one file above zero is itemized in full: its shared
+lines are the factual list of packages this product depends on, the version
+ranges it accepts, and commands dictated by the tools they invoke. Driving it
+to zero would mean shipping different dependencies - changing the product, not
+the expression. That is stated as the limit of this exercise, not as its
+completion.
 
 Two accounting notes on the 2026-09-01 baseline. First, it is not comparable to
 the 33.5% figure previously recorded here: the measurement now diffs only
@@ -91,8 +97,10 @@ and observable behavior, not protectable expression. Concretely:
   shapes, pinned by clients and tests;
 - JSX structure and class strings in presentational components, pinned by the
   product's visual design and by tests that assert on rendered HTML;
-- the DDL in `schema.ts`, pinned byte-for-byte in effect by compatibility with
-  existing user databases.
+- the DDL in `schema.ts`, whose logical content - column names, types,
+  defaults, constraints - is pinned by compatibility with existing user
+  databases; its layout and commentary have been re-expressed, which is all
+  the expression DDL has.
 
 Changing any of these would change observable behavior, so no rewrite can
 remove them. That claim is now measured rather than asserted:
@@ -101,25 +109,24 @@ shares with upstream and files it by the construct it belongs to, so the
 conversion review starts from an itemized list instead of a percentage.
 
 ```
-Lines still shared with upstream: 872 across 78 files    after rewrite 2026-09-01
+Lines still shared with upstream: 750 across 72 files    after rewrite 2026-09-01
 
-   381  43.7%  declaration   type, prop and parameter names callers depend on,
+   380  50.7%  declaration   type, prop and parameter names callers depend on,
                              and the i18n keys the components read
-   182  20.9%  import        imports of this repository's own modules
-   124  14.2%  literal       CSS declarations, route paths, error codes
-    84   9.6%  other         everything a human still has to read
-    62   7.1%  sql/ddl       schema pinned by existing user databases
-    22   2.5%  i18n key      key lines in locale files
-    17   1.9%  markup        JSX and class strings pinned by the design and by
+   178  23.7%  import        imports of this repository's own modules
+   121  16.1%  literal       CSS declarations, route paths, error codes
+    26   3.5%  other         everything a human still has to read
+    22   2.9%  i18n key      key lines in locale files
+    17   2.3%  markup        JSX and class strings pinned by the design and by
                              tests that assert on rendered HTML
+     6   0.8%  sql/ddl       inline DDL in migrations, pinned by user databases
 ```
 
-The `other` bucket is 84 lines and it is entirely file format: nginx directives
-and comment markers in the subpath template, YAML keys in a workflow, the `---`
-fences of issue-template frontmatter, `#!/usr/bin/env node`, `export {};`,
-`@layer base {`, and the `}: Props) {` that closes a destructured parameter
-list. The stylesheet's share is single CSS declarations - one project cannot
-write `padding-top: var(--safe-area-inset-top);` differently from another.
+The `other` bucket is 26 lines and it is entirely file format: YAML keys in a
+workflow, `#!/usr/bin/env node`, `export {};`, `@layer base {`, and the
+`}: Props) {` that closes a destructured parameter list. The stylesheet's share
+is single CSS declarations - one project cannot write
+`padding-top: var(--safe-area-inset-top);` differently from another.
 
 The declaration bucket is the largest and the most tempting to attack, because
 those names are pinned by *our own* callers - a repository-wide rename would

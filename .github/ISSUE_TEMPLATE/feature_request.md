@@ -1,19 +1,26 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
-title: "[Feature]"
+about: Propose an improvement to Gajae Code App
+title: '[Feature] '
 labels: ''
 assignees: ''
 type: Feature
-
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## Problem or opportunity
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+Explain the workflow that is difficult today and who it affects. A concrete
+example is more useful than a proposed implementation alone.
 
+## Desired outcome
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+Describe what a successful change would let someone do.
+
+## Alternatives considered
+
+List workarounds, related tools, or other approaches you evaluated.
+
+## Supporting context
+
+Add mockups, screenshots, links, or technical constraints that would help scope
+the request. Do not include credentials or private project material.

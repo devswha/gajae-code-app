@@ -1,222 +1,252 @@
 {
-  "title": "Paramètres",
+  "title": "Options",
   "tabs": {
-    "account": "Compte",
-    "permissions": "Permissions",
-    "appearance": "Apparence"
+    "account": "Compte utilisateur",
+    "permissions": "Autorisations",
+    "skills": "Compétences",
+    "appearance": "Présentation"
   },
   "account": {
-    "title": "Compte",
-    "language": "Langue",
-    "languageLabel": "Langue d'affichage",
-    "languageDescription": "Choisissez votre langue préférée pour l'interface",
+    "title": "Compte utilisateur",
+    "language": "Langue affichée",
+    "languageLabel": "Langue de l'interface",
+    "languageDescription": "Choisissez la langue utilisée par l'interface",
     "username": "Nom d'utilisateur",
-    "email": "E-mail",
-    "profile": "Profil",
-    "changePassword": "Changer le mot de passe"
+    "email": "Courriel",
+    "profile": "Profil utilisateur",
+    "changePassword": "Mettre à jour le mot de passe"
   },
   "appearance": {
-    "title": "Apparence",
-    "theme": "Thème",
-    "editorTheme": "Thème de l'éditeur",
-    "wordWrap": "Retour à la ligne",
-    "showMinimap": "Afficher la minimap",
-    "lineNumbers": "Numéros de ligne",
-    "fontSize": "Taille de police"
+    "title": "Présentation",
+    "theme": "Style visuel",
+    "editorTheme": "Thème de l'éditeur de code",
+    "wordWrap": "Enroulez les longues lignes",
+    "showMinimap": "Afficher la mini-carte",
+    "lineNumbers": "Afficher les numéros de ligne",
+    "fontSize": "Taille du texte du code"
   },
   "actions": {
-    "saveChanges": "Enregistrer les modifications",
-    "resetToDefaults": "Rétablir les valeurs par défaut",
-    "cancelChanges": "Annuler les modifications"
+    "saveChanges": "Appliquer les modifications",
+    "resetToDefaults": "Restaurer les valeurs par défaut",
+    "cancelChanges": "Ignorer les modifications"
+  },
+  "voiceSettings": {
+    "title": "Voix",
+    "description": "Saisie vocale et lecture à haute voix via un service audio compatible OpenAI.",
+    "enable": "Activer la voix",
+    "enableDescription": "Ajoutez un microphone et des commandes de lecture à haute voix aux messages.",
+    "backendTitle": "Back-end",
+    "backendDescription": "Utilisez OpenAI, Groq ou un service local tel que LocalAI, Speaches ou Kokoro-FastAPI. Laissez vide pour la valeur par défaut du serveur.",
+    "baseUrl": "URL du service",
+    "apiKey": "Clé de service API",
+    "sttModel": "Modèle de reconnaissance vocale",
+    "ttsModel": "Modèle de synthèse vocale",
+    "voice": "Voix",
+    "format": "Format de fichier son",
+    "note": "Le navigateur contacte directement une URL de base personnalisée et doit donc autoriser CORS. Laissez ce champ vide pour utiliser le backend du serveur."
   },
   "preferences": {
     "sections": {
-      "toolDisplay": "Affichage des outils",
-      "inputSettings": "Paramètres de saisie"
+      "toolDisplay": "Affichage de la sortie de l'outil",
+      "inputSettings": "Saisie des messages"
     },
-    "showRawParameters": "Afficher les paramètres bruts",
-    "showThinking": "Afficher la réflexion",
-    "sendByCtrlEnter": "Envoyer avec Ctrl+Entrée",
-    "sendByCtrlEnterDescription": "Lorsqu'activé, appuyer sur Ctrl+Entrée envoie le message au lieu de simplement Entrée. Utile pour les utilisateurs IME pour éviter les envois accidentels."
+    "showRawParameters": "Afficher les paramètres non traités",
+    "showThinking": "Afficher le raisonnement",
+    "sendByCtrlEnter": "Utilisez Ctrl+Enter pour envoyer",
+    "sendByCtrlEnterDescription": "Lorsqu'il est activé, Ctrl+Enter envoie des messages au lieu de Enter. Cela aide les utilisateurs IME à éviter les envois accidentels."
   },
   "terminalShortcuts": {
-    "title": "Raccourcis terminal",
-    "sectionKeys": "Touches",
-    "sectionNavigation": "Navigation",
-    "escape": "Échap",
-    "tab": "Tab",
-    "shiftTab": "Maj+Tab",
-    "arrowUp": "Flèche haut",
-    "arrowDown": "Flèche bas",
-    "scrollDown": "Défiler vers le bas",
+    "title": "Raccourcis des touches du terminal",
+    "sectionKeys": "Clés",
+    "sectionNavigation": "Navigation latérale",
+    "escape": "Escape",
+    "tab": "Onglet",
+    "shiftTab": "Shift+Tabulation",
+    "arrowUp": "Flèche vers le haut",
+    "arrowDown": "Flèche vers le bas",
+    "scrollDown": "Faites défiler vers le bas",
     "handle": {
-      "closePanel": "Fermer le panneau de raccourcis",
-      "openPanel": "Ouvrir le panneau de raccourcis"
+      "closePanel": "Masquer les raccourcis clavier",
+      "openPanel": "Afficher les raccourcis clavier"
     }
   },
   "mainTabs": {
-    "label": "Paramètres",
-    "appearance": "Apparence",
+    "label": "Options",
+    "appearance": "Présentation",
     "git": "Git",
-    "notifications": "Notifications",
+    "voice": "Voix",
+    "notifications": "Alertes",
+    "automation": "Automatisation",
     "about": "À propos"
   },
+  "automation": {
+    "title": "Navigateur et applications natives",
+    "description": "Passez en revue le runtime Chromium isolé et le CUA Driver installé séparément.",
+    "chromium": "Exécution Chromium isolée",
+    "notDownloaded": "Téléchargements lors de la première ouverture du panneau du navigateur",
+    "notInstalled": "Indisponible",
+    "installGuide": "Instructions de configuration",
+    "accessibility": "Accessibilité",
+    "screenRecording": "Enregistrer l'écran",
+    "granted": "Accordé",
+    "missing": "Manquant",
+    "unknown": "Inconnu",
+    "refresh": "Recharger les diagnostics",
+    "grants": "Cibles autorisées en permanence",
+    "grantsDescription": "Seules les cibles marquées Toujours autoriser sont enregistrées.",
+    "noGrants": "Aucune approbation d’automatisation enregistrée.",
+    "origin": "Origine du site",
+    "application": "Application de bureau",
+    "revoke": "Supprimer l'approbation"
+  },
   "notifications": {
-    "title": "Notifications",
-    "description": "Contrôlez les événements de notification que vous recevez.",
+    "title": "Alertes",
+    "description": "Choisissez quels événements peuvent vous avertir.",
+    "desktop": {
+      "title": "Notifications des applications de bureau",
+      "enable": "Activer les notifications",
+      "disable": "Désactiver les notifications",
+      "enabled": "Cette application de bureau peut afficher des notifications",
+      "unsupported": "Ce système ne prend pas en charge les notifications sur le bureau."
+    },
     "sound": {
-      "title": "Son",
-      "description": "Jouer un court son lorsqu'une exécution de chat se termine.",
-      "enabled": "Activé",
-      "test": "Tester le son"
+      "title": "Signal sonore",
+      "description": "Jouez un bref son lorsqu'une conversation se termine ou nécessite l'approbation de l'outil.",
+      "enabled": "Mis en service",
+      "test": "Jouer le son de test"
     },
     "events": {
-      "title": "Types d'événements",
-      "actionRequired": "Action requise",
-      "stop": "Exécution arrêtée",
+      "title": "Événements de notification",
+      "actionRequired": "Approbation nécessaire",
+      "stop": "Exécution terminée",
       "error": "Exécution échouée"
     }
   },
   "appearanceSettings": {
     "darkMode": {
-      "label": "Mode sombre",
-      "description": "Basculer entre les thèmes clair et sombre"
+      "label": "Thème sombre",
+      "description": "Basculer entre les thèmes clairs et sombres"
     },
     "interfaceFontSize": {
-      "label": "Taille du texte de l’interface",
-      "description": "Modifier la taille du texte dans les discussions, sessions, paramètres et le reste de l’interface",
-      "small": "Petite",
-      "medium": "Moyenne",
-      "large": "Grande"
+      "label": "Taille du texte de l'interface",
+      "description": "Définir la taille du texte dans les discussions, les sessions, les paramètres et l'interface",
+      "small": "Petit",
+      "medium": "Moyen",
+      "large": "Grand"
     },
     "imagePreviews": {
-      "label": "Aperçus d’images",
-      "description": "Charger et afficher les images jointes dans l’historique du chat"
+      "label": "Aperçus des pièces jointes",
+      "description": "Charger les pièces jointes d’images dans l’historique des conversations"
     },
     "projectSorting": {
-      "label": "Tri des projets",
-      "description": "Ordre d'affichage des projets dans la barre latérale",
+      "label": "Ordre du projet",
+      "description": "Définir l'ordre du projet dans la barre latérale",
       "alphabetical": "Alphabétique",
-      "recentActivity": "Activité récente"
+      "recentActivity": "Dernière activité"
     }
   },
   "saveStatus": {
-    "success": "Paramètres enregistrés avec succès !",
-    "error": "Échec de l'enregistrement des paramètres",
-    "saving": "Enregistrement..."
+    "success": "Paramètres enregistrés.",
+    "error": "Impossible d'enregistrer les paramètres",
+    "saving": "Sauvegarde…"
   },
   "footerActions": {
     "save": "Enregistrer les paramètres",
-    "cancel": "Annuler"
+    "cancel": "Abandonner"
   },
   "git": {
-    "title": "Configuration Git",
-    "description": "Configurez votre identité git pour les commits. Ces paramètres seront appliqués globalement via git config --global",
+    "title": "Paramètres Git",
+    "description": "Définissez l'identité Git utilisée pour les validations. Il est écrit globalement avec git config --global.",
     "name": {
-      "label": "Nom Git",
-      "help": "Votre nom pour les commits git"
+      "label": "Nom de l'auteur de la validation",
+      "help": "Nom enregistré sur les commits Git"
     },
     "email": {
-      "label": "E-mail Git",
-      "help": "Votre e-mail pour les commits git"
+      "label": "Adresse e-mail de l'auteur de la validation",
+      "help": "E-mail enregistré sur les commits Git"
     },
     "actions": {
-      "save": "Enregistrer la configuration",
-      "saving": "Enregistrement..."
+      "save": "Enregistrer les paramètres Git",
+      "saving": "Sauvegarde…"
     },
     "status": {
-      "success": "Enregistré avec succès"
+      "success": "Sauvegarde terminée"
     }
   },
   "permissions": {
-    "title": "Paramètres de permission",
+    "title": "Contrôles d'autorisation",
     "skipPermissions": {
-      "label": "Ignorer les invites de permission (à utiliser avec précaution)",
-      "claudeDescription": "Équivalent au flag --dangerously-skip-permissions",
-      "cursorDescription": "Équivalent au flag -f dans le CLI Cursor"
+      "label": "Contourner les invites d’autorisation (à utiliser avec précaution)",
+      "claudeDescription": "Correspond à l'indicateur --dangerously-skip-permissions",
+      "cursorDescription": "Correspond à l'indicateur -f de Cursor CLI"
     },
     "allowedTools": {
       "title": "Outils autorisés",
-      "description": "Outils automatiquement autorisés sans demande de permission",
-      "placeholder": "ex. : \"Bash(git log:*)\" ou \"Write\"",
-      "quickAdd": "Ajout rapide d'outils courants :",
+      "description": "Des outils qui fonctionnent sans demander d’approbation",
+      "placeholder": "par exemple, \"Bash(git log:*)\" ou \"Write\"",
+      "quickAdd": "Ajoutez des outils communs :",
       "empty": "Aucun outil autorisé configuré"
     },
     "blockedTools": {
-      "title": "Outils bloqués",
-      "description": "Outils automatiquement bloqués sans demande de permission",
-      "placeholder": "ex. : \"Bash(rm:*)\"",
-      "empty": "Aucun outil bloqué configuré"
+      "title": "Outils refusés",
+      "description": "Outils refusés sans invite d'approbation",
+      "placeholder": "par exemple, \"Bash(rm:*)\"",
+      "empty": "Aucun outil refusé configuré"
     },
     "allowedCommands": {
       "title": "Commandes shell autorisées",
-      "description": "Commandes shell automatiquement autorisées sans demande",
-      "placeholder": "ex. : \"Shell(ls)\" ou \"Shell(git status)\"",
-      "quickAdd": "Ajout rapide de commandes courantes :",
+      "description": "Commandes Shell qui s'exécutent sans invite d'approbation",
+      "placeholder": "par exemple, \"Shell(ls)\" ou \"Shell(git status)\"",
+      "quickAdd": "Ajoutez des commandes courantes :",
       "empty": "Aucune commande autorisée configurée"
     },
     "blockedCommands": {
-      "title": "Commandes shell bloquées",
-      "description": "Commandes shell automatiquement bloquées",
-      "placeholder": "ex. : \"Shell(rm -rf)\" ou \"Shell(sudo)\"",
-      "empty": "Aucune commande bloquée configurée"
+      "title": "Commandes shell refusées",
+      "description": "Commandes Shell refusées automatiquement",
+      "placeholder": "par exemple, \"Shell(rm -rf)\" ou \"Shell(sudo)\"",
+      "empty": "Aucune commande refusée configurée"
     },
     "toolExamples": {
-      "title": "Exemples de motifs d'outils :",
-      "bashGitLog": "- Autoriser toutes les commandes git log",
-      "bashGitDiff": "- Autoriser toutes les commandes git diff",
-      "write": "- Autoriser toutes les utilisations de l'outil Write",
-      "bashRm": "- Bloquer toutes les commandes rm (dangereux)"
+      "title": "Exemples de modèles d'outils :",
+      "bashGitLog": "- Autoriser n'importe quelle commande git log",
+      "bashGitDiff": "- Autoriser n'importe quelle commande git diff",
+      "write": "- Autoriser tous les appels d'outils d'écriture",
+      "bashRm": "- Refuser toute commande rm (dangereux)"
     },
     "shellExamples": {
-      "title": "Exemples de commandes shell :",
-      "ls": "- Autoriser la commande ls",
-      "gitStatus": "- Autoriser git status",
-      "npmInstall": "- Autoriser npm install",
-      "rmRf": "- Bloquer la suppression récursive"
+      "title": "Exemples de commandes Shell :",
+      "ls": "- Permis ls",
+      "gitStatus": "- Autoriser le statut git",
+      "npmInstall": "- Autoriser l'installation de npm",
+      "rmRf": "- Refuser la suppression récursive"
     },
     "codex": {
-      "permissionMode": "Mode de permission",
-      "description": "Contrôle comment Codex gère les modifications de fichiers et l'exécution des commandes",
+      "permissionMode": "Gestion des autorisations",
+      "description": "Définit la façon dont Codex traite les modifications de fichiers et l'exécution des commandes",
       "modes": {
         "default": {
           "title": "Par défaut",
-          "description": "Seules les commandes de confiance (ls, cat, grep, git status, etc.) s'exécutent automatiquement. Les autres sont ignorées. Peut écrire dans l'espace de travail."
+          "description": "Les commandes fiables telles que ls, cat, grep et git status s'exécutent automatiquement ; d'autres sont ignorés. Les écritures dans l'espace de travail sont autorisées."
         },
         "acceptEdits": {
-          "title": "Accepter les modifications",
-          "description": "Toutes les commandes s'exécutent automatiquement dans l'espace de travail. Mode entièrement automatique avec exécution sandboxée."
+          "title": "Autoriser les modifications",
+          "description": "Chaque commande s'exécute automatiquement dans le bac à sable de l'espace de travail."
         },
         "bypassPermissions": {
-          "title": "Contourner les permissions",
-          "description": "Accès système complet sans restrictions. Toutes les commandes s'exécutent automatiquement avec accès disque et réseau complet. À utiliser avec précaution."
+          "title": "Contourner l'approbation",
+          "description": "Les commandes s'exécutent sans restrictions, avec un accès complet au disque et au réseau. À utiliser uniquement en cas de confiance."
         }
       },
-      "technicalDetails": "Détails techniques",
+      "technicalDetails": "Détails de mise en œuvre",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Commandes de confiance : cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (sans -exec), etc.",
-        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Toutes les commandes s'exécutent automatiquement dans le répertoire du projet.",
-        "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Accès système complet, à utiliser uniquement dans des environnements de confiance.",
-        "overrideNote": "Vous pouvez remplacer ce mode par session via le bouton de mode dans l'interface de chat."
+        "default": "sandbox d'écriture dans un espace de travail avec approbation non fiable. Les commandes fiables incluent cat, cd, grep, head, ls, pwd, tail, Git status/log/diff/show et find sans -exec.",
+        "acceptEdits": "sandbox d'écriture dans un espace de travail sans approbation. Les commandes s'exécutent automatiquement dans le répertoire du projet.",
+        "bypassPermissions": "bac à sable à accès complet et sans approbation. Utilisez l'accès complet au système uniquement dans des environnements fiables.",
+        "overrideNote": "Utilisez le bouton du mode chat pour remplacer cela pour une session."
       }
     },
     "actions": {
       "add": "Ajouter"
     }
-  },
-  "voiceSettings": {
-    "title": "Voice",
-    "description": "Speech-to-text input and read-aloud, via an OpenAI-compatible audio backend.",
-    "enable": "Enable voice",
-    "enableDescription": "Show the mic button and the read-aloud button on messages.",
-    "backendTitle": "Backend",
-    "backendDescription": "Point at OpenAI, Groq, or a local server (LocalAI, Speaches, Kokoro-FastAPI). Leave blank to use the server default.",
-    "baseUrl": "Base URL",
-    "apiKey": "API key",
-    "sttModel": "Speech-to-text model",
-    "ttsModel": "Text-to-speech model",
-    "voice": "Voice",
-    "format": "Audio format",
-    "note": "A custom base URL is called directly by your browser and must allow browser CORS requests. Leave it blank to use the server-configured backend."
   }
 }

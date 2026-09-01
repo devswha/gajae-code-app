@@ -1,15 +1,15 @@
 {
   "codeBlock": {
-    "copy": "Copia",
+    "copy": "Copia negli appunti",
     "copied": "Copiato",
-    "copyCode": "Copia codice"
+    "copyCode": "Copia fonte"
   },
   "copyMessage": {
-    "copy": "Copia messaggio",
-    "copied": "Messaggio copiato",
-    "selectFormat": "Seleziona formato copia",
-    "copyAsMarkdown": "Copia come markdown",
-    "copyAsText": "Copia come testo"
+    "copy": "Copia testo",
+    "copied": "Testo copiato",
+    "selectFormat": "Scegli il formato della copia",
+    "copyAsMarkdown": "Copia in Markdown",
+    "copyAsText": "Copia in testo semplice"
   },
   "messageTypes": {
     "user": "U",
@@ -17,247 +17,258 @@
     "claude": "Claude",
     "cursor": "Cursor",
     "codex": "Codex",
+    "opencode": "OpenCode",
     "notice": {
       "info": "Avviso",
-      "warning": "Attenzione",
-      "error": "Errore"
+      "warning": "Avvertimento",
+      "error": "Problema"
     }
   },
   "tools": {
-    "settings": "Impostazioni strumento",
-    "error": "Errore strumento",
-    "result": "Risultato strumento",
-    "viewParams": "Vedi parametri input",
-    "viewRawParams": "Vedi parametri grezzi",
-    "viewDiff": "Vedi differenze per",
-    "creatingFile": "Creazione nuovo file:",
-    "updatingTodo": "Aggiornamento lista attività",
+    "settings": "Opzioni dello strumento",
+    "error": "Problema con lo strumento",
+    "result": "Uscita dello strumento",
+    "viewParams": "Ispezionare i parametri di input",
+    "viewRawParams": "Ispezionare i parametri grezzi",
+    "viewDiff": "Ispeziona la differenza di modifica per",
+    "creatingFile": "Creazione del file:",
+    "updatingTodo": "Aggiornamento dell'elenco delle attività",
     "read": "Leggi",
-    "readFile": "Leggi file",
-    "updateTodo": "Aggiorna lista attività",
-    "readTodo": "Leggi lista attività",
-    "searchResults": "risultati"
+    "readFile": "Leggere un file",
+    "updateTodo": "Aggiorna l'elenco delle attività",
+    "readTodo": "Leggi l'elenco delle attività",
+    "searchResults": "partite"
   },
   "search": {
-    "found": "Trovati {{count}} {{type}}",
+    "found": "{{count}} {{type}} trovato",
     "file": "file",
     "files": "file",
-    "pattern": "pattern:",
+    "pattern": "modello:",
     "in": "in:"
   },
   "fileOperations": {
-    "updated": "File aggiornato con successo",
-    "created": "File creato con successo",
-    "written": "File scritto con successo",
-    "diff": "Differenze",
-    "newFile": "Nuovo file",
-    "viewContent": "Vedi contenuto file",
-    "viewFullOutput": "Vedi output completo ({{count}} caratteri)",
-    "contentDisplayed": "Il contenuto del file è visualizzato nella vista differenze sopra"
+    "updated": "Aggiornamento del file completato",
+    "created": "Creazione del file completata",
+    "written": "Scrittura del file completata",
+    "diff": "Diff",
+    "newFile": "Crea file",
+    "viewContent": "Ispeziona il contenuto del file",
+    "viewFullOutput": "Mostra tutto l'output (caratteri {{count}})",
+    "contentDisplayed": "La vista differenziale sopra contiene il contenuto di questo file"
   },
   "interactive": {
-    "title": "Prompt interattivo",
-    "waiting": "In attesa della tua risposta nella CLI",
-    "instruction": "Seleziona un'opzione nel terminale dove Claude è in esecuzione.",
-    "selectedOption": "✓ Claude ha selezionato l'opzione {{number}}",
-    "instructionDetail": "Nella CLI, selezioneresti questa opzione interattivamente usando i tasti freccia o digitando il numero."
+    "title": "Richiesta interattiva",
+    "waiting": "In attesa di risposta nello CLI",
+    "instruction": "Scegli un'opzione nel terminale che esegue Claude.",
+    "selectedOption": "✓ Claude ha scelto l'opzione {{number}}",
+    "instructionDetail": "Nello CLI, selezionalo in modo interattivo con i tasti freccia o il suo numero."
   },
   "thinking": {
-    "title": "Sto pensando...",
-    "emoji": "💭 Sto pensando..."
+    "title": "Ragionamento…",
+    "emoji": "💭 Ragionamento..."
   },
   "json": {
-    "response": "Risposta JSON"
+    "response": "Rispondi JSON"
   },
   "permissions": {
-    "grant": "Concedi permesso per {{tool}}",
-    "added": "Permesso aggiunto",
+    "grant": "Consenti l'esecuzione di {{tool}}",
+    "added": "Autorizzazione registrata",
     "addTo": "Aggiunge {{entry}} agli strumenti consentiti.",
-    "retry": "Permesso salvato. Riprova la richiesta per usare lo strumento.",
-    "error": "Impossibile aggiornare i permessi. Riprova.",
-    "openSettings": "Apri impostazioni"
+    "retry": "Autorizzazione salvata. Esegui nuovamente la richiesta dello strumento.",
+    "error": "Impossibile aggiornare le autorizzazioni. Riprova.",
+    "openSettings": "Vai alle impostazioni"
   },
   "todo": {
-    "updated": "Lista attività aggiornata con successo",
-    "current": "Lista attività corrente"
+    "updated": "Elenco attività aggiornato",
+    "current": "Elenco attività corrente"
   },
   "plan": {
-    "viewPlan": "📋 Vedi piano di implementazione",
-    "title": "Piano di implementazione"
+    "viewPlan": "📋 Piano di costruzione aperto",
+    "title": "Costruisci il piano"
   },
   "usageLimit": {
-    "resetAt": "Limite di utilizzo Claude raggiunto. Il tuo limite verrà ripristinato alle **{{time}} {{timezone}}** - {{date}}"
+    "resetAt": "L'utilizzo di Claude è attualmente limitato. Si reimposta su **{{time}} {{timezone}}** su {{date}}."
   },
   "codex": {
-    "permissionMode": "Modalità permessi",
+    "permissionMode": "Gestione dei permessi",
     "modes": {
-      "default": "Modalità predefinita",
-      "auto": "Auto Mode",
-      "acceptEdits": "Accetta modifiche",
-      "bypassPermissions": "Ignora permessi",
-      "plan": "Modalità piano"
+      "default": "Modalità standard",
+      "auto": "Modalità automatica",
+      "acceptEdits": "Consenti modifiche",
+      "bypassPermissions": "Bypassare l'approvazione",
+      "plan": "Modalità di pianificazione"
     },
     "descriptions": {
-      "default": "Solo i comandi attendibili (ls, cat, grep, git status, ecc.) vengono eseguiti automaticamente. Gli altri comandi vengono saltati. Può scrivere nell'area di lavoro.",
-      "auto": "A model classifier decides per tool call whether to approve or deny. Hands-off, but safer than Bypass — denials still happen.",
-      "acceptEdits": "Tutti i comandi vengono eseguiti automaticamente nell'area di lavoro. Modalità completamente automatica con esecuzione sandboxed.",
-      "bypassPermissions": "Accesso completo al sistema senza restrizioni. Tutti i comandi vengono eseguiti automaticamente con accesso completo a disco e rete. Usa con cautela.",
-      "plan": "Modalità pianificazione - nessun comando viene eseguito"
+      "default": "I comandi affidabili come ls, cat, grep e git status vengono eseguiti automaticamente; altri vengono saltati. Sono consentite le scritture nell'area di lavoro.",
+      "auto": "Un classificatore di modelli approva o rifiuta ogni chiamata allo strumento. È automatico ma rifiuta comunque le chiamate non sicure.",
+      "acceptEdits": "Ogni comando viene eseguito automaticamente all'interno della sandbox dell'area di lavoro.",
+      "bypassPermissions": "I comandi vengono eseguiti senza restrizioni, con accesso completo al disco e alla rete. Utilizzare solo se fidato.",
+      "plan": "Solo pianificazione; i comandi non vengono eseguiti"
     },
-    "technicalDetails": "Dettagli tecnici"
+    "technicalDetails": "Dettagli di implementazione"
+  },
+  "voice": {
+    "input": "Dettare il messaggio",
+    "stopRecording": "Termina la registrazione",
+    "transcribing": "Conversione del discorso...",
+    "speak": "Pronuncia la risposta",
+    "stopSpeaking": "Fermati",
+    "loading": "Caricamento…"
   },
   "input": {
-    "placeholder": "Digita / per i comandi, @ per i file, o chiedi qualcosa a {{provider}}...",
-    "placeholderDefault": "Scrivi il tuo messaggio...",
-    "disabled": "Input disabilitato",
+    "placeholder": "Chiedi {{provider}}, usa / per i comandi o @ per aggiungere file...",
+    "placeholderDefault": "Scrivi un messaggio...",
+    "disabled": "Inserimento messaggio non disponibile",
     "modelReasoning": {
-      "label": "Modello e ragionamento",
-      "providerTitle": "Provider",
-      "modelTitle": "Modello di chat",
+      "label": "Impostazioni del modello e del ragionamento",
+      "providerTitle": "Fornitore",
+      "modelTitle": "Modello di conversazione",
       "reasoningTitle": "Ragionamento",
       "defaultModel": "Predefinito",
-      "currentConfiguration": "Usa la configurazione corrente"
+      "currentConfiguration": "Mantieni la configurazione corrente"
     },
     "agentConfiguration": {
-      "label": "Configurazione agente",
-      "title": "Configurazione agente",
-      "description": "Scegli i modelli usati per i ruoli chat, pianificatore, esecutore, architetto e critico.",
-      "search": "Cerca configurazioni",
-      "noMatches": "Nessuna configurazione corrispondente."
+      "label": "Configurazione dell'agente",
+      "title": "Configurazione dell'agente",
+      "description": "Stabilisci modelli per i ruoli di chat, pianificatore, esecutore, architetto e critico.",
+      "search": "Trova configurazioni",
+      "noMatches": "Nessuna configurazione corrisponde."
     },
-    "attachFiles": "Allega file",
-    "attachImages": "Allega immagini",
-    "send": "Invia",
-    "stop": "Ferma",
+    "attachFiles": "Aggiungi file",
+    "attachImages": "Aggiungi immagini",
+    "send": "Spedisci",
+    "stop": "Fermati",
     "hintText": {
-      "ctrlEnter": "Ctrl+Invio per inviare • Shift+Invio per nuova riga • Tab per cambiare modalità • / per comandi",
-      "enter": "Invio per inviare • Shift+Invio per nuova riga • Tab per cambiare modalità • / per comandi",
-      "queue": "Invio per mettere in coda il prossimo messaggio",
-      "steer": "Invio per inviare nel turno in corso"
+      "ctrlEnter": "Invia con Ctrl+Enter • ritorno a capo con Shift+Enter • cambia modalità con Tab • comandi con /",
+      "enter": "Invia con Enter • fine riga con Shift+Enter • cambia modalità con Tab • comandi con /",
+      "queue": "Premere Enter per mettere in coda un altro messaggio",
+      "steer": "Premi Enter per orientare il turno attivo"
     },
-    "clickToChangeMode": "Clicca per cambiare modalità permessi (o premi Tab nell'input)",
-    "showAllCommands": "Mostra tutti i comandi",
-    "clearInput": "Cancella input",
-    "scrollToBottom": "Scorri in basso",
+    "clickToChangeMode": "Fare clic per cambiare la modalità di autorizzazione oppure premere Tab nell'input",
+    "showAllCommands": "Sfoglia i comandi",
+    "clearInput": "Inserimento messaggio vuoto",
+    "scrollToBottom": "Vai all'ultimo",
     "queue": {
-      "sendNext": "Metti in coda il prossimo messaggio",
+      "sendNext": "Metti in coda un altro messaggio",
       "label": "In coda",
-      "willSend": "Verrà inviato al termine di questa risposta",
-      "willFollow": "Verrà inviato dopo i precedenti",
-      "edit": "Modifica il messaggio in coda",
-      "delete": "Elimina il messaggio in coda",
-      "moveUp": "Sposta prima nella coda",
-      "moveDown": "Sposta dopo nella coda",
-      "images_one": "{{count}} immagine allegata",
-      "images_other": "{{count}} immagini allegate",
-      "steerNow": "Invia nel turno in corso"
+      "willSend": "Invia al termine dell'esecuzione corrente",
+      "willFollow": "Invia dopo i messaggi sopra",
+      "edit": "Modifica elemento in coda",
+      "delete": "Rimuovi l'elemento in coda",
+      "moveUp": "Salire in coda",
+      "moveDown": "Scendi in coda",
+      "images_one": "Aggiunta immagine {{count}}",
+      "images_other": "Aggiunte immagini {{count}}",
+      "steerNow": "Orienta il turno attivo"
     }
   },
   "providerSelection": {
-    "title": "Scegli il tuo assistente AI",
-    "description": "Seleziona un provider per iniziare una nuova conversazione",
-    "selectModel": "Seleziona modello",
+    "title": "Scegli un assistente AI",
+    "description": "Scegli un fornitore per una nuova conversazione",
+    "selectModel": "Scegli il modello",
     "providerInfo": {
-      "anthropic": "di Anthropic",
-      "openai": "di OpenAI",
-      "cursorEditor": "Editor codice AI",
-      "google": "di Google"
+      "anthropic": "Fornitore antropico",
+      "openai": "Fornitore OpenAI",
+      "cursorEditor": "Editor di codice con intelligenza artificiale",
+      "google": "Fornitore di Google"
     },
     "readyPrompt": {
-      "claude": "Pronto a usare Claude con {{model}}. Inizia a digitare il tuo messaggio qui sotto.",
-      "cursor": "Pronto a usare Cursor con {{model}}. Inizia a digitare il tuo messaggio qui sotto.",
-      "codex": "Pronto a usare Codex con {{model}}. Inizia a digitare il tuo messaggio qui sotto.",
-      "default": "Seleziona un provider sopra per iniziare"
+      "claude": "Claude con {{model}} è pronto. Scrivi il tuo messaggio qui sotto.",
+      "cursor": "Cursor con {{model}} è pronto. Scrivi il tuo messaggio qui sotto.",
+      "codex": "Codex con {{model}} è pronto. Scrivi il tuo messaggio qui sotto.",
+      "opencode": "OpenCode con {{model}} è pronto. Scrivi il tuo messaggio qui sotto.",
+      "default": "Scegli un fornitore sopra per iniziare"
     },
-    "pressToSearch": "Premi <kbd>{{shortcut}}</kbd> per cercare sessioni, file e commit"
+    "pressToSearch": "Utilizza <kbd>{{shortcut}}</kbd> per cercare conversazioni, file e commit"
   },
   "session": {
     "continue": {
-      "title": "Continua la tua conversazione",
-      "description": "Fai domande sul tuo codice, richiedi modifiche o chiedi aiuto con le attività di sviluppo"
+      "title": "Continua questa conversazione",
+      "description": "Chiedi informazioni sul codice, richiedi modifiche o ottieni aiuto con il lavoro di sviluppo"
     },
     "loading": {
-      "olderMessages": "Caricamento messaggi precedenti...",
-      "sessionMessages": "Caricamento messaggi della sessione..."
+      "olderMessages": "Recupero dei messaggi precedenti…",
+      "sessionMessages": "Recupero dei messaggi di conversazione…"
     },
     "messages": {
-      "showingOf": "Visualizzati {{shown}} di {{total}} messaggi",
-      "scrollToLoad": "Scorri in alto per caricare altri",
-      "showingLast": "Visualizzati ultimi {{count}} messaggi ({{total}} totali)",
-      "loadEarlier": "Carica messaggi precedenti",
-      "loadAll": "Carica tutti i messaggi",
-      "loadFullToolOutput": "Carica output completo",
-      "loadingFullToolOutput": "Caricamento dell'output completo...",
+      "showingOf": "Visualizzazione di {{shown}} di messaggi {{total}}",
+      "scrollToLoad": "Scorri verso l'alto per ulteriori informazioni",
+      "showingLast": "Visualizzazione degli ultimi messaggi {{count}} di {{total}}",
+      "loadEarlier": "Ricevi messaggi precedenti",
+      "loadAll": "Ricevi tutti i messaggi",
+      "loadFullToolOutput": "Ottieni l'output completo",
+      "loadingFullToolOutput": "Recupero dell'output completo…",
       "fullToolOutputFailed": "Impossibile caricare l'output completo.",
-      "loadingAll": "Caricamento di tutti i messaggi...",
-      "allLoaded": "Tutti i messaggi caricati",
-      "perfWarning": "Tutti i messaggi caricati — lo scorrimento potrebbe essere più lento. Clicca \"Scorri in basso\" per ripristinare le prestazioni."
+      "loadingAll": "Recupero di ogni messaggio…",
+      "allLoaded": "Ogni messaggio viene caricato",
+      "perfWarning": "Ogni messaggio viene caricato, il che potrebbe rallentare lo scorrimento. Usa \"Scorri fino in fondo\" per migliorarlo."
     }
   },
   "shell": {
     "selectProject": {
-      "title": "Seleziona un progetto",
-      "description": "Scegli un progetto per aprire una shell interattiva in quella directory"
+      "title": "Scegli un progetto",
+      "description": "Scegli un progetto per aprire una shell interattiva nella sua directory"
     },
     "status": {
-      "newSession": "Nuova sessione",
-      "initializing": "Inizializzazione...",
-      "restarting": "Riavvio..."
+      "newSession": "Inizia la conversazione",
+      "initializing": "A partire…",
+      "restarting": "Ricominciare…"
     },
     "actions": {
       "disconnect": "Disconnetti",
-      "disconnectTitle": "Disconnetti dalla shell",
-      "restart": "Riavvia",
-      "restartTitle": "Riavvia shell (disconnetti prima)",
-      "connect": "Continua nella shell",
-      "connectTitle": "Connetti alla shell"
+      "disconnectTitle": "Terminare la connessione della shell",
+      "restart": "Ricominciare",
+      "restartTitle": "Avvia di nuovo la shell",
+      "connect": "Continua nel terminale",
+      "connectTitle": "Apri la connessione al terminale"
     },
-    "loading": "Caricamento terminale...",
-    "connecting": "Connessione alla shell...",
-    "startSession": "Avvia una nuova sessione Claude",
-    "resumeSession": "Riprendi sessione: {{displayName}}...",
-    "runCommand": "Esegui {{command}} in {{projectName}}",
-    "startCli": "Avvio Claude CLI in {{projectName}}",
+    "loading": "Terminale di avvio...",
+    "connecting": "Apertura connessione shell...",
+    "startSession": "Inizia una sessione Claude",
+    "resumeSession": "Continua: {{displayName}}…",
+    "runCommand": "Esegui {{command}} per {{projectName}}",
+    "startCli": "Lancio di Claude CLI per {{projectName}}",
     "defaultCommand": "comando"
   },
   "claudeStatus": {
     "actions": {
-      "thinking": "Ragionamento",
+      "thinking": "Pensare",
       "processing": "Elaborazione",
-      "analyzing": "Analisi",
-      "working": "In lavorazione",
-      "computing": "Calcolo",
+      "analyzing": "Analizzando",
+      "working": "Funzionante",
+      "computing": "Informatica",
       "reasoning": "Ragionamento"
     },
     "state": {
-      "live": "Attivo",
+      "live": "Vivi",
       "paused": "In pausa"
     },
     "elapsed": {
-      "seconds": "{{count}}s",
+      "seconds": "{{count}}",
       "minutesSeconds": "{{minutes}}m {{seconds}}s",
-      "label": "{{time}} trascorsi",
-      "startingNow": "Avvio in corso"
+      "label": "{{time}} finora",
+      "startingNow": "Ho appena iniziato"
     },
+    "stop": "Fermati",
     "controls": {
-      "stopGeneration": "Interrompi generazione",
-      "pressEscToStop": "Premi Esc in qualsiasi momento per interrompere"
+      "stopGeneration": "Interrompere la risposta",
+      "pressEscToStop": "Premere Esc per interrompere in qualsiasi momento"
     },
     "providers": {
       "assistant": "Assistente"
     }
   },
   "projectSelection": {
-    "startChatWithProvider": "Seleziona un progetto per iniziare a chattare con {{provider}}"
+    "startChatWithProvider": "Scegli un progetto prima di chattare con {{provider}}"
   },
   "newSession": {
-    "greeting": "Cosa costruiamo oggi?",
-    "subtitle": "Gajae Code è pronto a lavorare in {{project}}."
+    "greeting": "Cosa dovremmo costruire?",
+    "subtitle": "Gajae Code è pronto in {{project}}."
   },
   "reasoning": {
-    "thinking": "Sto pensando…",
-    "thoughtBriefly": "Ha pensato per qualche secondo",
-    "thoughtFor_one": "Ha pensato per {{count}} secondo",
-    "thoughtFor_other": "Ha pensato per {{count}} secondi"
+    "thinking": "Ragionamento…",
+    "thoughtBriefly": "Ragionato per qualche secondo",
+    "thoughtFor_one": "Motivato per {{count}} secondo",
+    "thoughtFor_other": "Ragionato per {{count}} secondi"
   }
 }

@@ -1,85 +1,60 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Clear Cache - Gajae Code App</title>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reset local data | Gajae Code App</title>
     <style>
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            max-width: 600px;
-            margin: 50px auto;
-            padding: 20px;
-            line-height: 1.6;
-        }
-        .success { color: green; }
-        .error { color: red; }
-        button {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            margin: 10px 5px;
-        }
-        button:hover {
-            background: #0056b3;
-        }
-        #status {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 5px;
-            background: #f0f0f0;
-        }
+      :root { color-scheme: light dark; font-family: system-ui, -apple-system, sans-serif; }
+      body { max-width: 42rem; margin: 4rem auto; padding: 0 1.25rem; line-height: 1.55; }
+      main { border: 1px solid #c9c9c9; border-radius: 0.75rem; padding: 1.5rem; }
+      button { border: 0; border-radius: 0.5rem; background: #e14b20; color: #fff; cursor: pointer; font: inherit; font-weight: 600; padding: 0.7rem 1rem; }
+      button:hover { background: #b93918; }
+      #status { min-height: 1.5rem; margin-top: 1.25rem; padding: 0.75rem; border-radius: 0.5rem; background: color-mix(in srgb, currentColor 8%, transparent); }
+      .success { color: #18753a; }
+      .error { color: #b42318; }
     </style>
-</head>
-<body>
-    <h1>Clear Cache & Service Worker</h1>
-    <p>If you're seeing a blank page or old content, click the button below to clear all cached data.</p>
-
-    <button onclick="clearEverything()">Clear Cache & Reload</button>
-
-    <div id="status"></div>
+  </head>
+  <body>
+    <main>
+      <h1>Reset cached app data</h1>
+      <p>Use this page when Gajae Code App opens with an outdated screen or fails to render. It removes locally stored cache data and unregisters service workers for this browser.</p>
+      <button type="button" onclick="clearEverything()">Reset local data</button>
+      <div id="status" role="status" aria-live="polite"></div>
+    </main>
 
     <script>
-        async function clearEverything() {
-            const status = document.getElementById('status');
-            status.innerHTML = '<p>Clearing cache and service workers...</p>';
+      async function clearEverything() {
+        const status = document.getElementById('status');
+        status.innerHTML = '<p>Removing stored browser data…</p>';
 
-            try {
-                // Unregister all service workers
-                if ('serviceWorker' in navigator) {
-                    const registrations = await navigator.serviceWorker.getRegistrations();
-                    for (let registration of registrations) {
-                        await registration.unregister();
-                        status.innerHTML += '<p class="success">✓ Unregistered service worker</p>';
-                    }
-                }
-
-                // Clear all caches
-                if ('caches' in window) {
-                    const cacheNames = await caches.keys();
-                    for (let cacheName of cacheNames) {
-                        await caches.delete(cacheName);
-                        status.innerHTML += `<p class="success">✓ Deleted cache: ${cacheName}</p>`;
-                    }
-                }
-
-                // Clear localStorage
-                localStorage.clear();
-                status.innerHTML += '<p class="success">✓ Cleared localStorage</p>';
-
-                // Clear sessionStorage
-                sessionStorage.clear();
-                status.innerHTML += '<p class="success">✓ Cleared sessionStorage</p>';
-
-                status.innerHTML += '<p class="success"><strong>✓ All caches cleared!</strong></p>';
-                status.innerHTML += '<p>Cache cleared successfully. You can now close this tab or <a href="/">go to home page</a>.</p>';
-
-            } catch (error) {
-                status.innerHTML += `<p class="error">✗ Error: ${error.message}</p>`;
+        try {
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (const registration of registrations) {
+              await registration.unregister();
+              status.innerHTML += '<p class="success">Service worker removed.</p>';
             }
+          }
+
+          if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            for (const cacheName of cacheNames) {
+              await caches.delete(cacheName);
+              status.innerHTML += `<p class="success">Removed cache: ${cacheName}</p>`;
+            }
+          }
+
+          localStorage.clear();
+          status.innerHTML += '<p class="success">Local storage removed.</p>';
+          sessionStorage.clear();
+          status.innerHTML += '<p class="success">Session storage removed.</p>';
+          status.innerHTML += '<p class="success"><strong>Browser data reset is complete.</strong></p>';
+          status.innerHTML += '<p>Close this tab, or <a href="/">return to Gajae Code App</a>.</p>';
+        } catch (error) {
+          status.innerHTML += `<p class="error">Unable to finish: ${error.message}</p>`;
         }
+      }
     </script>
-</body>
+  </body>
 </html>

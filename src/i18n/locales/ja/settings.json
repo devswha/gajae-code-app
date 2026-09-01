@@ -1,198 +1,243 @@
 {
-  "title": "設定",
+  "title": "設定。",
   "tabs": {
-    "account": "アカウント",
-    "permissions": "権限",
-    "appearance": "外観"
+    "account": "アカウント。",
+    "permissions": "権限。",
+    "skills": "スキル。",
+    "appearance": "外観。"
   },
   "account": {
-    "title": "アカウント",
-    "language": "言語",
-    "languageLabel": "表示言語",
-    "languageDescription": "インターフェースの表示言語を選択してください",
-    "username": "ユーザー名",
-    "email": "メールアドレス",
-    "profile": "プロフィール",
-    "changePassword": "パスワードを変更"
+    "title": "アカウント。",
+    "language": "言語。",
+    "languageLabel": "表示言語。",
+    "languageDescription": "インターフェースの表示言語を選択してください。",
+    "username": "ユーザー名。",
+    "email": "メールアドレス。",
+    "profile": "プロフィール。",
+    "changePassword": "パスワードを変更。"
   },
   "appearance": {
-    "title": "外観",
-    "theme": "テーマ",
-    "editorTheme": "エディタのテーマ",
-    "wordWrap": "折り返し",
-    "showMinimap": "ミニマップを表示",
-    "lineNumbers": "行番号",
-    "fontSize": "フォントサイズ"
+    "title": "外観。",
+    "theme": "テーマ。",
+    "editorTheme": "エディタのテーマ。",
+    "wordWrap": "折り返し。",
+    "showMinimap": "ミニマップを表示。",
+    "lineNumbers": "行番号。",
+    "fontSize": "フォントサイズ。"
   },
   "actions": {
-    "saveChanges": "変更を保存",
-    "resetToDefaults": "デフォルトに戻す",
-    "cancelChanges": "変更をキャンセル"
+    "saveChanges": "変更を保存。",
+    "resetToDefaults": "デフォルトに戻す。",
+    "cancelChanges": "変更をキャンセル。"
+  },
+  "voiceSettings": {
+    "title": "Voice。",
+    "description": "Speech-to-text input and read-aloud, via an OpenAI-compatible audio backend.。",
+    "enable": "Enable voice。",
+    "enableDescription": "Show the mic button and the read-aloud button on messages.。",
+    "backendTitle": "Backend。",
+    "backendDescription": "Point at OpenAI, Groq, or a local server (LocalAI, Speaches, Kokoro-FastAPI). Leave blank to use the server default.。",
+    "baseUrl": "Base URL。",
+    "apiKey": "API key。",
+    "sttModel": "Speech-to-text model。",
+    "ttsModel": "Text-to-speech model。",
+    "voice": "Voice。",
+    "format": "Audio format。",
+    "note": "A custom base URL is called directly by your browser and must allow browser CORS requests. Leave it blank to use the server-configured backend.。"
   },
   "preferences": {
     "sections": {
-      "toolDisplay": "ツール表示",
-      "inputSettings": "入力設定"
+      "toolDisplay": "ツール表示。",
+      "inputSettings": "入力設定。"
     },
-    "showRawParameters": "生パラメータを表示",
-    "showThinking": "思考を表示",
-    "sendByCtrlEnter": "Ctrl+Enterで送信",
+    "showRawParameters": "生パラメータを表示。",
+    "showThinking": "思考を表示。",
+    "sendByCtrlEnter": "Ctrl+Enterで送信。",
     "sendByCtrlEnterDescription": "有効にすると、Enterではなく Ctrl+Enter でメッセージを送信します。IMEユーザーの誤送信防止に便利です。"
   },
   "terminalShortcuts": {
-    "title": "ターミナルショートカット",
-    "sectionKeys": "キー",
-    "sectionNavigation": "ナビゲーション",
-    "escape": "Escape",
-    "tab": "Tab",
-    "shiftTab": "Shift+Tab",
-    "arrowUp": "上矢印",
-    "arrowDown": "下矢印",
-    "scrollDown": "下にスクロール",
+    "title": "ターミナルショートカット。",
+    "sectionKeys": "キー。",
+    "sectionNavigation": "ナビゲーション。",
+    "escape": "Escape。",
+    "tab": "Tab。",
+    "shiftTab": "Shift+Tab。",
+    "arrowUp": "上矢印。",
+    "arrowDown": "下矢印。",
+    "scrollDown": "下にスクロール。",
     "handle": {
-      "closePanel": "ショートカットパネルを閉じる",
-      "openPanel": "ショートカットパネルを開く"
+      "closePanel": "ショートカットパネルを閉じる。",
+      "openPanel": "ショートカットパネルを開く。"
     }
   },
   "mainTabs": {
-    "label": "設定",
-    "appearance": "外観",
-    "git": "Git",
-    "notifications": "通知",
-    "about": "概要"
+    "label": "設定。",
+    "appearance": "外観。",
+    "git": "Git。",
+    "voice": "音声。",
+    "notifications": "通知。",
+    "automation": "Automation。",
+    "about": "概要。"
+  },
+  "automation": {
+    "title": "ブラウザとネイティブアプリケーション。",
+    "description": "分離された Chromium ランタイムと別途インストールされた CUA Driver を確認します。",
+    "chromium": "分離された Chromium ランタイム。",
+    "notDownloaded": "ブラウザパネルを初めて開いたときにダウンロードされます。",
+    "notInstalled": "利用不可。",
+    "installGuide": "セットアップ手順。",
+    "accessibility": "アクセシビリティ。",
+    "screenRecording": "画面を録画。",
+    "granted": "許可済み。",
+    "missing": "未許可。",
+    "unknown": "不明。",
+    "refresh": "診断を再読み込み。",
+    "grants": "常に許可された対象。",
+    "grantsDescription": "「常に許可」とした対象のみ保存されます。",
+    "noGrants": "保存された自動化の承認はありません。",
+    "origin": "サイトのオリジン。",
+    "application": "デスクトップアプリケーション。",
+    "revoke": "承認を削除。"
   },
   "notifications": {
-    "title": "通知",
+    "title": "通知。",
     "description": "受信する通知イベントを設定します。",
+    "desktop": {
+      "title": "デスクトップアプリの通知。",
+      "enable": "通知をオンにする。",
+      "disable": "通知をオフにする。",
+      "enabled": "このデスクトップアプリは通知を表示できます。",
+      "unsupported": "このシステムはデスクトップ通知に対応していません。"
+    },
     "sound": {
-      "title": "サウンド",
+      "title": "サウンド。",
       "description": "チャット実行が完了したときに短い音を再生します。",
-      "enabled": "有効",
-      "test": "サウンドをテスト"
+      "enabled": "有効。",
+      "test": "サウンドをテスト。"
     },
     "events": {
-      "title": "イベント種別",
-      "actionRequired": "対応が必要",
-      "stop": "実行停止",
-      "error": "実行失敗"
+      "title": "イベント種別。",
+      "actionRequired": "対応が必要。",
+      "stop": "実行停止。",
+      "error": "実行失敗。"
     }
   },
   "appearanceSettings": {
     "darkMode": {
-      "label": "ダークモード",
-      "description": "ライトテーマとダークテーマを切り替えます"
+      "label": "ダークモード。",
+      "description": "ライトテーマとダークテーマを切り替えます。"
     },
     "interfaceFontSize": {
-      "label": "インターフェースの文字サイズ",
-      "description": "チャット、セッション、設定など画面全体の文字サイズを変更します",
-      "small": "小",
-      "medium": "中",
-      "large": "大"
+      "label": "インターフェースの文字サイズ。",
+      "description": "チャット、セッション、設定など画面全体の文字サイズを変更します。",
+      "small": "小。",
+      "medium": "中。",
+      "large": "大。"
     },
     "imagePreviews": {
-      "label": "画像プレビュー",
-      "description": "チャット履歴の添付画像を読み込んで表示します"
+      "label": "画像プレビュー。",
+      "description": "チャット履歴の添付画像を読み込んで表示します。"
     },
     "projectSorting": {
-      "label": "プロジェクトの並び順",
-      "description": "サイドバーでのプロジェクトの並び順を設定します",
-      "alphabetical": "アルファベット順",
-      "recentActivity": "最近のアクティビティ順"
+      "label": "プロジェクトの並び順。",
+      "description": "サイドバーでのプロジェクトの並び順を設定します。",
+      "alphabetical": "アルファベット順。",
+      "recentActivity": "最近のアクティビティ順。"
     }
   },
   "saveStatus": {
     "success": "設定を保存しました！",
-    "error": "設定の保存に失敗しました",
-    "saving": "保存中..."
+    "error": "設定の保存に失敗しました。",
+    "saving": "保存中...。"
   },
   "footerActions": {
-    "save": "設定を保存",
-    "cancel": "キャンセル"
+    "save": "設定を保存。",
+    "cancel": "キャンセル。"
   },
   "git": {
-    "title": "Git設定",
-    "description": "コミット用のGit IDを設定します。この設定は git config --global で適用されます",
+    "title": "Git設定。",
+    "description": "コミット用のGit IDを設定します。この設定は git config --global で適用されます。",
     "name": {
-      "label": "Git名前",
-      "help": "コミットに使用する名前"
+      "label": "Git名前。",
+      "help": "コミットに使用する名前。"
     },
     "email": {
-      "label": "Gitメールアドレス",
-      "help": "コミットに使用するメールアドレス"
+      "label": "Gitメールアドレス。",
+      "help": "コミットに使用するメールアドレス。"
     },
     "actions": {
-      "save": "設定を保存",
-      "saving": "保存中..."
+      "save": "設定を保存。",
+      "saving": "保存中...。"
     },
     "status": {
-      "success": "保存しました"
+      "success": "保存しました。"
     }
   },
   "permissions": {
-    "title": "権限設定",
+    "title": "権限設定。",
     "skipPermissions": {
-      "label": "権限プロンプトをスキップ（注意して使用）",
-      "claudeDescription": "--dangerously-skip-permissions フラグに相当",
-      "cursorDescription": "Cursor CLIの -f フラグに相当"
+      "label": "権限プロンプトをスキップ（注意して使用）。",
+      "claudeDescription": "--dangerously-skip-permissions フラグに相当。",
+      "cursorDescription": "Cursor CLIの -f フラグに相当。"
     },
     "allowedTools": {
-      "title": "許可されたツール",
-      "description": "権限の確認なしに自動的に許可されるツール",
-      "placeholder": "例: \"Bash(git log:*)\" または \"Write\"",
-      "quickAdd": "よく使うツールを追加:",
-      "empty": "許可されたツールはありません"
+      "title": "許可されたツール。",
+      "description": "権限の確認なしに自動的に許可されるツール。",
+      "placeholder": "例: \"Bash(git log:*)\" または \"Write\"。",
+      "quickAdd": "よく使うツールを追加:。",
+      "empty": "許可されたツールはありません。"
     },
     "blockedTools": {
-      "title": "ブロックされたツール",
-      "description": "権限の確認なしに自動的にブロックされるツール",
-      "placeholder": "例: \"Bash(rm:*)\"",
-      "empty": "ブロックされたツールはありません"
+      "title": "ブロックされたツール。",
+      "description": "権限の確認なしに自動的にブロックされるツール。",
+      "placeholder": "例: \"Bash(rm:*)\"。",
+      "empty": "ブロックされたツールはありません。"
     },
     "allowedCommands": {
-      "title": "許可されたシェルコマンド",
-      "description": "権限の確認なしに自動的に許可されるシェルコマンド",
-      "placeholder": "例: \"Shell(ls)\" または \"Shell(git status)\"",
-      "quickAdd": "よく使うコマンドを追加:",
-      "empty": "許可されたコマンドはありません"
+      "title": "許可されたシェルコマンド。",
+      "description": "権限の確認なしに自動的に許可されるシェルコマンド。",
+      "placeholder": "例: \"Shell(ls)\" または \"Shell(git status)\"。",
+      "quickAdd": "よく使うコマンドを追加:。",
+      "empty": "許可されたコマンドはありません。"
     },
     "blockedCommands": {
-      "title": "ブロックされたシェルコマンド",
-      "description": "自動的にブロックされるシェルコマンド",
-      "placeholder": "例: \"Shell(rm -rf)\" または \"Shell(sudo)\"",
-      "empty": "ブロックされたコマンドはありません"
+      "title": "ブロックされたシェルコマンド。",
+      "description": "自動的にブロックされるシェルコマンド。",
+      "placeholder": "例: \"Shell(rm -rf)\" または \"Shell(sudo)\"。",
+      "empty": "ブロックされたコマンドはありません。"
     },
     "toolExamples": {
-      "title": "ツールパターンの例:",
-      "bashGitLog": "- すべてのgit logコマンドを許可",
-      "bashGitDiff": "- すべてのgit diffコマンドを許可",
-      "write": "- すべてのWriteツールの使用を許可",
-      "bashRm": "- すべてのrmコマンドをブロック（危険）"
+      "title": "ツールパターンの例:。",
+      "bashGitLog": "- すべてのgit logコマンドを許可。",
+      "bashGitDiff": "- すべてのgit diffコマンドを許可。",
+      "write": "- すべてのWriteツールの使用を許可。",
+      "bashRm": "- すべてのrmコマンドをブロック（危険）。"
     },
     "shellExamples": {
-      "title": "シェルコマンドの例:",
-      "ls": "- lsコマンドを許可",
-      "gitStatus": "- git statusを許可",
-      "npmInstall": "- npm installを許可",
-      "rmRf": "- 再帰的削除をブロック"
+      "title": "シェルコマンドの例:。",
+      "ls": "- lsコマンドを許可。",
+      "gitStatus": "- git statusを許可。",
+      "npmInstall": "- npm installを許可。",
+      "rmRf": "- 再帰的削除をブロック。"
     },
     "codex": {
-      "permissionMode": "権限モード",
-      "description": "Codexがファイルの変更やコマンドの実行を処理する方法を制御します",
+      "permissionMode": "権限モード。",
+      "description": "Codexがファイルの変更やコマンドの実行を処理する方法を制御します。",
       "modes": {
         "default": {
-          "title": "デフォルト",
+          "title": "デフォルト。",
           "description": "信頼されたコマンド（ls、cat、grep、git statusなど）のみ自動実行。その他のコマンドはスキップ。ワークスペースへの書き込みは可能。"
         },
         "acceptEdits": {
-          "title": "編集を許可",
+          "title": "編集を許可。",
           "description": "ワークスペース内ですべてのコマンドを自動実行。サンドボックス環境での完全自動モード。"
         },
         "bypassPermissions": {
-          "title": "権限をバイパス",
+          "title": "権限をバイパス。",
           "description": "制限なしの完全なシステムアクセス。すべてのコマンドがディスクとネットワークへの完全なアクセスで自動実行されます。注意して使用してください。"
         }
       },
-      "technicalDetails": "技術的な詳細",
+      "technicalDetails": "技術的な詳細。",
       "technicalInfo": {
         "default": "sandboxMode=workspace-write, approvalPolicy=untrusted。信頼されたコマンド: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find（-execなし）など。",
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never。すべてのコマンドがプロジェクトディレクトリ内で自動実行。",
@@ -201,22 +246,7 @@
       }
     },
     "actions": {
-      "add": "追加"
+      "add": "追加。"
     }
-  },
-  "voiceSettings": {
-    "title": "Voice",
-    "description": "Speech-to-text input and read-aloud, via an OpenAI-compatible audio backend.",
-    "enable": "Enable voice",
-    "enableDescription": "Show the mic button and the read-aloud button on messages.",
-    "backendTitle": "Backend",
-    "backendDescription": "Point at OpenAI, Groq, or a local server (LocalAI, Speaches, Kokoro-FastAPI). Leave blank to use the server default.",
-    "baseUrl": "Base URL",
-    "apiKey": "API key",
-    "sttModel": "Speech-to-text model",
-    "ttsModel": "Text-to-speech model",
-    "voice": "Voice",
-    "format": "Audio format",
-    "note": "A custom base URL is called directly by your browser and must allow browser CORS requests. Leave it blank to use the server-configured backend."
   }
 }

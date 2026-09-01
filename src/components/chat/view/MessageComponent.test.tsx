@@ -5,6 +5,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import '../../../i18n/config';
+import enChat from '../../../i18n/locales/en/chat.json';
 import type { ChatMessage } from '../types/types';
 
 import MessageComponent from './MessageComponent';
@@ -52,7 +53,7 @@ test('truncated tool history offers an explicit full-output load action', () => 
     toolResultBytes: 2 * 1024 * 1024,
   });
 
-  assert.match(html, /Load full output/);
+  assert.ok(html.includes(enChat.session.messages.loadFullToolOutput));
   assert.match(html, /2048 KB/);
 });
 
@@ -92,7 +93,7 @@ test('a turn ends with a visible, quiet footer rather than nothing at all', () =
   // Hiding this outright removed the only mark for where an answer ends.
   assert.doesNotMatch(html, /opacity-0/);
   assert.match(html, /text-muted-foreground\/50/);
-  assert.match(html, /aria-label="Copy message"/);
+  assert.ok(html.includes(`aria-label="${enChat.copyMessage.copy}"`));
 });
 
 test('a new exchange is separated from the one before it', () => {
@@ -315,7 +316,7 @@ test('a failed tool reads as output, not as a card of prose', () => {
   // it replaced.
   assert.doesNotMatch(html, /border-destructive\/30 bg-destructive\/10/);
   // Colour alone must not say "this failed".
-  assert.match(html, /sr-only">Tool Error</);
+  assert.ok(html.includes(`sr-only">${enChat.tools.error}<`));
 });
 
 test('a failed turn is a notice row rather than an avatar and a heading', () => {

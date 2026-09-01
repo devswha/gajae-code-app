@@ -1,223 +1,252 @@
 {
-  "title": "Ayarlar",
+  "title": "Uygulama ayarları",
   "tabs": {
-    "account": "Hesap",
-    "permissions": "İzinler",
-    "appearance": "Görünüm"
+    "account": "Hesap bilgileri",
+    "permissions": "Erişim izinleri",
+    "skills": "Beceriler",
+    "appearance": "Görünüm ayarları"
   },
   "account": {
-    "title": "Hesap",
-    "language": "Dil",
-    "languageLabel": "Görüntüleme Dili",
-    "languageDescription": "Arayüz için tercih ettiğin dili seç",
-    "username": "Kullanıcı Adı",
+    "title": "Hesap ayarları",
+    "language": "Seçilen dil",
+    "languageLabel": "Arayüz dili",
+    "languageDescription": "Arayüz tarafından kullanılan dili seçin",
+    "username": "Kullanıcı adı",
     "email": "E-posta",
     "profile": "Profil",
-    "changePassword": "Şifreyi Değiştir"
+    "changePassword": "Şifreyi güncelle"
   },
   "appearance": {
-    "title": "Görünüm",
-    "theme": "Tema",
-    "editorTheme": "Editör Teması",
-    "wordWrap": "Kelime Kaydırma",
-    "showMinimap": "Minimap'i Göster",
-    "lineNumbers": "Satır Numaraları",
-    "fontSize": "Yazı Tipi Boyutu"
+    "title": "Arayüz görünümü",
+    "theme": "Görünüm teması",
+    "editorTheme": "Kod düzenleyici teması",
+    "wordWrap": "Uzun çizgileri sar",
+    "showMinimap": "Mini haritayı göster",
+    "lineNumbers": "Satır numaralarını göster",
+    "fontSize": "Kod metni boyutu"
   },
   "actions": {
-    "saveChanges": "Değişiklikleri Kaydet",
-    "resetToDefaults": "Varsayılanlara Döndür",
-    "cancelChanges": "Değişiklikleri İptal Et"
+    "saveChanges": "Değişiklikleri uygula",
+    "resetToDefaults": "Varsayılanları geri yükle",
+    "cancelChanges": "Değişiklikleri sil"
+  },
+  "voiceSettings": {
+    "title": "Ses",
+    "description": "OpenAI uyumlu bir ses hizmeti aracılığıyla konuşma girişi ve yüksek sesle okuma.",
+    "enable": "Sesi aç",
+    "enableDescription": "Mesajlara mikrofon ve sesli okuma kontrolleri ekleyin.",
+    "backendTitle": "Arka uç",
+    "backendDescription": "OpenAI, Groq veya LocalAI, Speaches veya Kokoro-FastAPI gibi yerel bir hizmeti kullanın. Sunucu varsayılanı için boş bırakın.",
+    "baseUrl": "Hizmet URL'si",
+    "apiKey": "Hizmet API anahtarı",
+    "sttModel": "Konuşma tanıma modeli",
+    "ttsModel": "Konuşma sentezi modeli",
+    "voice": "Ses",
+    "format": "Ses dosyası formatı",
+    "note": "Tarayıcı özel bir temel URL ile doğrudan iletişim kurar, dolayısıyla CORS'a izin vermesi gerekir. Sunucu arka ucunu kullanmak için boş bırakın."
   },
   "preferences": {
     "sections": {
-      "toolDisplay": "Araç Gösterimi",
-      "inputSettings": "Girdi Ayarları"
+      "toolDisplay": "Takım çıkış ekranı",
+      "inputSettings": "Mesaj girişi"
     },
-    "showRawParameters": "Ham parametreleri göster",
-    "showThinking": "Düşünmeyi göster",
-    "sendByCtrlEnter": "Ctrl+Enter ile gönder",
-    "sendByCtrlEnterDescription": "Etkinleştirildiğinde, Ctrl+Enter'a basmak yalnız Enter yerine mesajı gönderir. IME (girdi metot düzenleyici) kullananlar için yanlışlıkla göndermeyi önler."
+    "showRawParameters": "İşlenmemiş parametreleri görüntüle",
+    "showThinking": "Mantık yürütmeyi göster",
+    "sendByCtrlEnter": "Göndermek için Ctrl+Enter tuşlarını kullanın",
+    "sendByCtrlEnterDescription": "Etkinleştirildiğinde Ctrl+Enter, Enter yerine mesaj gönderir. Bu, IME kullanıcılarının yanlışlıkla yapılan gönderimleri önlemesine yardımcı olur."
   },
   "terminalShortcuts": {
-    "title": "Terminal Kısayolları",
-    "sectionKeys": "Tuşlar",
-    "sectionNavigation": "Gezinme",
-    "escape": "Escape",
-    "tab": "Tab",
-    "shiftTab": "Shift+Tab",
-    "arrowUp": "Yukarı Ok",
-    "arrowDown": "Aşağı Ok",
-    "scrollDown": "Aşağı Kaydır",
+    "title": "Terminal anahtar bağlamaları",
+    "sectionKeys": "Anahtarlar",
+    "sectionNavigation": "Navigasyon",
+    "escape": "Kaçış",
+    "tab": "Sekme",
+    "shiftTab": "Shift+Sekme",
+    "arrowUp": "Yukarı ok",
+    "arrowDown": "Aşağı ok",
+    "scrollDown": "Aşağı kaydır",
     "handle": {
-      "closePanel": "Kısayol panelini kapat",
-      "openPanel": "Kısayol panelini aç"
+      "closePanel": "Klavye kısayollarını gizle",
+      "openPanel": "Klavye kısayollarını göster"
     }
   },
   "mainTabs": {
     "label": "Ayarlar",
     "appearance": "Görünüm",
     "git": "Git",
-    "computer": "Bilgisayar Kullanımı",
+    "voice": "Ses",
     "notifications": "Bildirimler",
+    "automation": "Otomasyon",
     "about": "Hakkında"
   },
+  "automation": {
+    "title": "Tarayıcı ve yerel uygulamalar",
+    "description": "Yalıtılmış Chromium çalışma zamanını ve ayrıca yüklenen CUA Sürücüsünü inceleyin.",
+    "chromium": "Yalıtılmış Chromium çalışma zamanı",
+    "notDownloaded": "Tarayıcı paneli ilk açıldığında indirilenler",
+    "notInstalled": "Kullanılamıyor",
+    "installGuide": "Kurulum talimatları",
+    "accessibility": "Erişilebilirlik",
+    "screenRecording": "Ekranı kaydedin",
+    "granted": "İzin verildi",
+    "missing": "Eksik",
+    "unknown": "Bilinmiyor",
+    "refresh": "Tanılamayı yeniden yükle",
+    "grants": "Kalıcı olarak izin verilen hedefler",
+    "grantsDescription": "Yalnızca Her zaman izin ver olarak işaretlenen hedefler kaydedilir.",
+    "noGrants": "Kaydedilmiş otomasyon onayı yok.",
+    "origin": "Sitenin kökeni",
+    "application": "Masaüstü uygulaması",
+    "revoke": "Onayı kaldır"
+  },
   "notifications": {
-    "title": "Bildirimler",
-    "description": "Hangi bildirim etkinliklerini alacağını kontrol et.",
+    "title": "Uygulama bildirimleri",
+    "description": "Hangi etkinliklerin size bildirimde bulunabileceğini seçin.",
+    "desktop": {
+      "title": "Masaüstü uygulaması bildirimleri",
+      "enable": "Bildirimleri aç",
+      "disable": "Bildirimleri kapat",
+      "enabled": "Bu masaüstü uygulaması bildirimleri gösterebilir",
+      "unsupported": "Bu sistem masaüstü bildirimlerini desteklemiyor."
+    },
     "sound": {
-      "title": "Ses",
-      "description": "Sohbet çalışması tamamlandığında kısa bir ton çal.",
-      "enabled": "Etkin",
-      "test": "Sesi test et"
+      "title": "Bildirim sesi",
+      "description": "Bir sohbet çalışması sona erdiğinde veya araç onayına ihtiyaç duyulduğunda kısa bir ses çalın.",
+      "enabled": "Ses açık",
+      "test": "Test sesini çal"
     },
     "events": {
-      "title": "Etkinlik Türleri",
-      "actionRequired": "Aksiyon gerekli",
-      "stop": "Çalıştırma durduruldu",
+      "title": "Bildirim etkinlikleri",
+      "actionRequired": "Onay gerekiyor",
+      "stop": "Çalıştırma sona erdi",
       "error": "Çalıştırma başarısız"
     }
   },
   "appearanceSettings": {
     "darkMode": {
-      "label": "Koyu Mod",
-      "description": "Açık ve koyu temalar arasında geçiş yap"
+      "label": "Koyu tema",
+      "description": "Açık ve koyu temalar arasında geçiş yapın"
     },
     "interfaceFontSize": {
-      "label": "Arayüz yazı tipi boyutu",
-      "description": "Sohbetler, oturumlar, ayarlar ve arayüzün geri kalanındaki metin boyutunu değiştir",
+      "label": "Arayüz metin boyutu",
+      "description": "Sohbetler, oturumlar, ayarlar ve arayüz genelinde metin boyutunu ayarlayın",
       "small": "Küçük",
       "medium": "Orta",
       "large": "Büyük"
     },
     "imagePreviews": {
-      "label": "Görsel önizlemeleri",
-      "description": "Sohbet geçmişindeki görsel eklerini yükle ve göster"
+      "label": "Resim eki önizlemeleri",
+      "description": "Görüntü eklerini konuşma geçmişine yükle"
     },
     "projectSorting": {
-      "label": "Proje Sıralama",
-      "description": "Projelerin kenar çubuğunda nasıl sıralanacağı",
-      "alphabetical": "Alfabetik",
-      "recentActivity": "Son Etkinlik"
+      "label": "Proje sırası",
+      "description": "Kenar çubuğu proje sırasını ayarlayın",
+      "alphabetical": "alfabetik",
+      "recentActivity": "En son etkinlik"
     }
   },
   "saveStatus": {
-    "success": "Ayarlar başarıyla kaydedildi!",
+    "success": "Ayarlar kaydedildi.",
     "error": "Ayarlar kaydedilemedi",
-    "saving": "Kaydediliyor..."
+    "saving": "Kaydediliyor…"
   },
   "footerActions": {
-    "save": "Ayarları Kaydet",
-    "cancel": "İptal"
+    "save": "Ayarları kaydet",
+    "cancel": "Değişiklikleri iptal et"
   },
   "git": {
-    "title": "Git Yapılandırması",
-    "description": "Commit'ler için git kimliğini yapılandır. Bu ayarlar git config --global ile genel olarak uygulanacak",
+    "title": "Git ayarları",
+    "description": "Taahhütler için kullanılan Git kimliğini ayarlayın. Global olarak git config --global ile yazılmıştır.",
     "name": {
-      "label": "Git Adı",
-      "help": "Git commit'leri için adın"
+      "label": "Yazar adını kaydet",
+      "help": "Git taahhütlerinde kaydedilen ad"
     },
     "email": {
-      "label": "Git E-postası",
-      "help": "Git commit'leri için e-postan"
+      "label": "Yazar e-postasını kaydet",
+      "help": "Git taahhütlerinde kaydedilen e-posta"
     },
     "actions": {
-      "save": "Yapılandırmayı Kaydet",
-      "saving": "Kaydediliyor..."
+      "save": "Git ayarlarını kaydet",
+      "saving": "Kaydediliyor…"
     },
     "status": {
-      "success": "Başarıyla kaydedildi"
+      "success": "Kaydetme tamamlandı"
     }
   },
   "permissions": {
-    "title": "İzin Ayarları",
+    "title": "İzin kontrolleri",
     "skipPermissions": {
-      "label": "İzin istemlerini atla (dikkatli kullan)",
-      "claudeDescription": "--dangerously-skip-permissions bayrağının eşdeğeri",
-      "cursorDescription": "Cursor CLI'daki -f bayrağının eşdeğeri"
+      "label": "İzin istemlerini atlayın (dikkatli kullanın)",
+      "claudeDescription": "--dangerously-skip-permissions bayrağıyla eşleşir",
+      "cursorDescription": "İmleç CLI'nin -f bayrağıyla eşleşir"
     },
     "allowedTools": {
-      "title": "İzin Verilen Araçlar",
-      "description": "İzin istemeden otomatik olarak izin verilen araçlar",
-      "placeholder": "ör. \"Bash(git log:*)\" veya \"Write\"",
-      "quickAdd": "Yaygın araçları hızlı ekle:",
-      "empty": "İzin verilen araç yapılandırılmamış"
+      "title": "İzin verilen araçlar",
+      "description": "Onay istemeden çalışan araçlar",
+      "placeholder": "örneğin, \"Bash(git log:*)\" veya \"Yaz\"",
+      "quickAdd": "Ortak araçlar ekleyin:",
+      "empty": "İzin verilen araç yapılandırılmadı"
     },
     "blockedTools": {
-      "title": "Engellenen Araçlar",
-      "description": "İzin istemeden otomatik olarak engellenen araçlar",
-      "placeholder": "ör. \"Bash(rm:*)\"",
-      "empty": "Engellenen araç yapılandırılmamış"
+      "title": "Reddedilen araçlar",
+      "description": "Onay istemi olmadan reddedilen araçlar",
+      "placeholder": "örneğin, \"Bash(rm:*)\"",
+      "empty": "Reddedilen araç yapılandırılmadı"
     },
     "allowedCommands": {
-      "title": "İzin Verilen Shell Komutları",
-      "description": "İzin istemeden otomatik olarak izin verilen shell komutları",
-      "placeholder": "ör. \"Shell(ls)\" veya \"Shell(git status)\"",
-      "quickAdd": "Yaygın komutları hızlı ekle:",
-      "empty": "İzin verilen komut yapılandırılmamış"
+      "title": "İzin verilen kabuk komutları",
+      "description": "Onay istemi olmadan çalışan kabuk komutları",
+      "placeholder": "örneğin, \"Kabuk(ls)\" veya \"Kabuk(git durumu)\"",
+      "quickAdd": "Ortak komutlar ekleyin:",
+      "empty": "İzin verilen komut yapılandırılmadı"
     },
     "blockedCommands": {
-      "title": "Engellenen Shell Komutları",
-      "description": "Otomatik olarak engellenen shell komutları",
-      "placeholder": "ör. \"Shell(rm -rf)\" veya \"Shell(sudo)\"",
-      "empty": "Engellenen komut yapılandırılmamış"
+      "title": "Reddedilen kabuk komutları",
+      "description": "Otomatik olarak reddedilen kabuk komutları",
+      "placeholder": "örneğin, \"Kabuk(rm -rf)\" veya \"Kabuk(sudo)\"",
+      "empty": "Reddedilen komut yapılandırılmadı"
     },
     "toolExamples": {
-      "title": "Araç Desen Örnekleri:",
-      "bashGitLog": "- Tüm git log komutlarına izin ver",
-      "bashGitDiff": "- Tüm git diff komutlarına izin ver",
-      "write": "- Tüm Write aracı kullanımına izin ver",
-      "bashRm": "- Tüm rm komutlarını engelle (tehlikeli)"
+      "title": "Takım modeli örnekleri:",
+      "bashGitLog": "- Herhangi bir git log komutuna izin verin",
+      "bashGitDiff": "- Herhangi bir git diff komutuna izin ver",
+      "write": "- Tüm Yazma aracı çağrılarına izin ver",
+      "bashRm": "- Herhangi bir rm komutunu reddet (tehlikeli)"
     },
     "shellExamples": {
-      "title": "Shell Komut Örnekleri:",
-      "ls": "- ls komutuna izin ver",
-      "gitStatus": "- git status'a izin ver",
-      "npmInstall": "- npm install'a izin ver",
-      "rmRf": "- Özyinelemeli silmeyi engelle"
+      "title": "Kabuk komutu örnekleri:",
+      "ls": "- İzin ls",
+      "gitStatus": "- Git durumuna izin ver",
+      "npmInstall": "- Npm kurulumuna izin ver",
+      "rmRf": "- Özyinelemeli silmeyi reddet"
     },
     "codex": {
-      "permissionMode": "İzin Modu",
-      "description": "Codex'in dosya değişiklikleri ve komut çalıştırmayı nasıl ele aldığını kontrol eder",
+      "permissionMode": "İzin yönetimi",
+      "description": "Codex'in dosya düzenlemelerini ve komut yürütmeyi nasıl ele alacağını ayarlar",
       "modes": {
         "default": {
           "title": "Varsayılan",
-          "description": "Sadece güvenilir komutlar (ls, cat, grep, git status, vb.) otomatik çalışır. Diğer komutlar atlanır. Çalışma alanına yazabilir."
+          "description": "ls, cat, grep ve git status gibi güvenilir komutlar otomatik olarak çalışır; diğerleri atlanır. Çalışma alanı yazma işlemlerine izin verilir."
         },
         "acceptEdits": {
-          "title": "Düzenlemeleri Kabul Et",
-          "description": "Tüm komutlar çalışma alanı içinde otomatik çalışır. Sandbox'lu çalıştırma ile tam otomatik mod."
+          "title": "Düzenlemelere izin ver",
+          "description": "Her komut, çalışma alanı sanal alanında otomatik olarak çalışır."
         },
         "bypassPermissions": {
-          "title": "İzinleri Atla",
-          "description": "Kısıtlama olmadan tam sistem erişimi. Tüm komutlar tam disk ve ağ erişimiyle otomatik çalışır. Dikkatli kullan."
+          "title": "Onaylamayı atla",
+          "description": "Komutlar, tam disk ve ağ erişimiyle kısıtlama olmaksızın çalışır. Yalnızca güvenildiğinde kullanın."
         }
       },
-      "technicalDetails": "Teknik ayrıntılar",
+      "technicalDetails": "Uygulama ayrıntıları",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Güvenilir komutlar: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (-exec olmadan), vb.",
-        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Tüm komutlar proje dizini içinde otomatik çalışır.",
-        "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Tam sistem erişimi, yalnızca güvenilir ortamlarda kullan.",
-        "overrideNote": "Sohbet arayüzündeki mod düğmesini kullanarak bunu oturum başına geçersiz kılabilirsin."
+        "default": "güvenilmeyen onaya sahip çalışma alanı yazma korumalı alanı. Güvenilir komutlar arasında cat, cd, grep, head, ls, pwd, tail, Git status/log/diff/show ve -exec olmadan find bulunur.",
+        "acceptEdits": "onayları olmayan çalışma alanı yazma sanal alanı. Komutlar proje dizininde otomatik olarak çalışır.",
+        "bypassPermissions": "onayı olmayan, tehlike dolu tam erişimli sanal alan. Tam sistem erişimini yalnızca güvenilir ortamlarda kullanın.",
+        "overrideNote": "Bunu bir oturum için geçersiz kılmak için sohbet modu düğmesini kullanın."
       }
     },
     "actions": {
-      "add": "Ekle"
+      "add": "Eklemek"
     }
-  },
-  "voiceSettings": {
-    "title": "Voice",
-    "description": "Speech-to-text input and read-aloud, via an OpenAI-compatible audio backend.",
-    "enable": "Enable voice",
-    "enableDescription": "Show the mic button and the read-aloud button on messages.",
-    "backendTitle": "Backend",
-    "backendDescription": "Point at OpenAI, Groq, or a local server (LocalAI, Speaches, Kokoro-FastAPI). Leave blank to use the server default.",
-    "baseUrl": "Base URL",
-    "apiKey": "API key",
-    "sttModel": "Speech-to-text model",
-    "ttsModel": "Text-to-speech model",
-    "voice": "Voice",
-    "format": "Audio format",
-    "note": "A custom base URL is called directly by your browser and must allow browser CORS requests. Leave it blank to use the server-configured backend."
   }
 }

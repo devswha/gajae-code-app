@@ -1,165 +1,92 @@
 # Contributing to Gajae Code App
 
-Thanks for your interest in contributing to Gajae Code App! Before you start, please take a moment to read through this guide.
+Gajae Code App is a self-hosted web and desktop interface for GJC. Small,
+well-explained changes are easier to review and safer to release.
 
-## Before You Start
+## Start with the existing work
 
-- **Search first.** Check [existing issues](https://github.com/devswha/gajae-code-app/issues) and [pull requests](https://github.com/devswha/gajae-code-app/pulls) to avoid duplicating work.
-- **Discuss first** for new features. Open an [issue](https://github.com/devswha/gajae-code-app/issues/new) to discuss your idea before investing time in implementation. We may already have plans or opinions on how it should work.
-- **Bug fixes are always welcome.** If you spot a bug, feel free to open a PR directly.
+- Search [issues](https://github.com/devswha/gajae-code-app/issues) and [pull requests](https://github.com/devswha/gajae-code-app/pulls) before opening a duplicate.
+- Open an issue first when a change affects product behavior, APIs, or architecture.
+- A focused bug fix may be submitted directly when its cause and scope are clear.
 
-## Prerequisites
+## Local setup
 
-- [Node.js](https://nodejs.org/) 22 or later
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
-- Git
-
-## Getting Started
-
-1. Fork the [repository](https://github.com/devswha/gajae-code-app).
-2. Clone your fork:
-   ```bash
-   git clone https://github.com/<your-username>/gajae-app.git
-   cd gajae-app
-   ```
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
-4. Start the development server:
-   ```bash
-   npm run dev
-   ```
-5. Create a branch for your changes:
-   ```bash
-   git checkout -b feat/your-feature-name
-   ```
-
-## Project Structure
-
-```
-gajae-app/
-├── src/              # React frontend (Vite + Tailwind)
-│   ├── components/   # UI components
-│   ├── contexts/     # React context providers
-│   ├── hooks/        # Custom React hooks
-│   ├── i18n/         # Internationalization and translations
-│   ├── lib/          # Shared frontend libraries
-│   ├── types/        # TypeScript type definitions
-│   └── utils/        # Frontend utilities
-├── server/           # Express backend
-│   ├── routes/       # API route handlers
-│   ├── middleware/   # Express middleware
-│   ├── database/     # SQLite database layer
-│   └── tools/        # CLI tool integrations
-├── shared/           # Code shared between client and server
-└── public/           # Static assets, icons, PWA manifest
-```
-
-## Development Workflow
-
-- `npm run dev` — Start both the frontend and backend in development mode
-- `npm run build` — Create a production build
-- `npm run server` — Start only the backend server
-- `npm run client` — Start only the Vite dev server
-
-## Making Changes
-
-### Bug Fixes
-
-- Reference the issue number in your PR if one exists
-- Describe how to reproduce the bug in your PR description
-- Add a screenshot or recording for visual bugs
-
-### New Features
-
-- Keep the scope focused — one feature per PR
-- Include screenshots or recordings for UI changes
-
-### Documentation
-
-- Documentation improvements are always welcome
-- Keep language clear and concise
-- Keep installation and self-hosting instructions aligned with [the self-hosting guide](docs/SELF-HOST.md)
-
-## Commit Convention
-
-We follow [Conventional Commits](https://conventionalcommits.org/) to generate release notes automatically. Every commit message should follow this format:
-
-```
-<type>(optional scope): <description>
-```
-
-Use imperative, present tense: "add feature" not "added feature" or "adds feature".
-
-### Types
-
-| Type | Description |
-|------|-------------|
-| `feat` | A new feature |
-| `fix` | A bug fix |
-| `perf` | A performance improvement |
-| `refactor` | Code change that neither fixes a bug nor adds a feature |
-| `docs` | Documentation only |
-| `style` | CSS, formatting, visual changes |
-| `chore` | Maintenance, dependencies, config |
-| `ci` | CI/CD pipeline changes |
-| `test` | Adding or updating tests |
-| `build` | Build system changes |
-
-### Examples
+Install Git, a supported Node.js release (`>=22.22.2 <23` or `>=24.15.0 <25`),
+and the GJC tooling needed for the area you are changing. Then create a branch
+from your fork and install dependencies:
 
 ```bash
-feat: add conversation search
-feat(i18n): add Japanese language support
-fix: redirect unauthenticated users to login
-fix(editor): syntax highlighting for .env files
-perf: lazy load code editor component
-refactor(chat): extract message list component
-docs: update self-hosting guide
+git clone https://github.com/<your-account>/gajae-code-app.git
+cd gajae-code-app
+npm install
+git switch -c fix/short-description
 ```
 
-### Breaking Changes
-
-Add `!` after the type or include `BREAKING CHANGE:` in the commit footer:
+Run the development servers with:
 
 ```bash
-feat!: redesign settings page layout
+npm run dev
 ```
 
-## Pull Requests
+Useful commands:
 
-- Give your PR a clear, descriptive title following the commit convention above
-- Fill in the PR description with what changed and why
-- Link any related issues
-- Include screenshots for UI changes
-- Make sure the build passes (`npm run build`)
-- Keep PRs focused — avoid unrelated changes
+| Command | Purpose |
+| --- | --- |
+| `npm run server:dev` | Run the backend through `tsx`. |
+| `npm run client` | Start the Vite development server. |
+| `npm run build` | Build the client, server, and native core. |
+| `npm run typecheck` | Check the TypeScript projects. |
+| `npm test` | Run the repository test suite. |
+| `npm run lint` | Check JavaScript and TypeScript style. |
+| `npm run check:identity` | Validate the product and release identity. |
 
-## Releases
+## Repository map
 
-Maintainers publish approved repository revisions through the repository-owned self-hosting lifecycle. Use an immutable commit SHA for installations and updates; do not rely on a global package or a moving branch.
+- `src/` contains the React client, UI components, translations, and browser utilities.
+- `server/` contains the HTTP server, runtime integration, routes, and backend services.
+- `shared/` holds code shared between browser-facing and server code.
+- `native/gajae-core/` contains the Rust native core.
+- `public/` provides static browser assets.
+- `docs/` contains installation and operational guidance.
+
+## Change expectations
+
+Keep one concern in each pull request. Describe the problem, the resulting
+behavior, and how you checked it. Include reproduction steps for a defect;
+include before-and-after images or recordings when a UI change needs them.
+Update tests and documentation when a behavior or operator workflow changes.
+
+Use an imperative commit subject with a conventional type where it helps readers
+scan the history, for example `fix: prevent duplicate session creation` or
+`docs: clarify the rollback procedure`. Do not combine unrelated cleanup with a
+behavioral change.
+
+Before requesting review, run the focused checks for the affected code and any
+required project checks. A typical full local gate is:
+
+```bash
+npm run verify
+```
+
+## Pull request review
+
+A pull request should state its intent, link the relevant issue when one exists,
+and call out compatibility, security, operational, or migration consequences.
+Reviewers may request a smaller scope, tests, or documentation before merging.
+
+## Releases and operations
+
+Release installation, update, rollback, and service procedures live in
+[docs/SELF-HOST.md](docs/SELF-HOST.md). Use an approved immutable commit SHA for
+source-checkout updates rather than a moving branch:
 
 ```bash
 ./scripts/gajae-app.sh status
 ./scripts/gajae-app.sh update --ref <approved-full-commit-sha>
 ```
 
-See the [self-hosting guide](docs/SELF-HOST.md) for installation, updates, rollback, and service operations.
+## Contribution terms
 
-## License
-
-By contributing, you agree that your contributions will be licensed under the [AGPL-3.0-or-later License](LICENSE), including the additional terms specified in Section 7 of the LICENSE file.
-
-### Contributor License Agreement
-
-First-time contributors must also sign the [Contributor License Agreement](CLA.md)
-before a pull request is merged. You keep the copyright in what you write; the
-agreement grants the project owner the right to license it, **including under
-terms other than AGPL-3.0-or-later**.
-
-Without it, every contributor holds a veto over any future licensing decision,
-and one unreachable contributor turns that decision from difficult into
-impossible. Read the agreement before you sign it — if you are not comfortable
-with your work being distributed under a proprietary license, do not sign, and
-do not contribute.
+By submitting a contribution, you agree to the terms in [LICENSE](LICENSE) and,
+for a first contribution, the [Contributor License Agreement](CLA.md). Read both
+before opening a pull request.

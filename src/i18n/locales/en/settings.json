@@ -9,65 +9,65 @@
   "account": {
     "title": "Account",
     "language": "Language",
-    "languageLabel": "Display Language",
-    "languageDescription": "Choose your preferred language for the interface",
+    "languageLabel": "Interface language",
+    "languageDescription": "Choose the language used by the interface",
     "username": "Username",
     "email": "Email",
     "profile": "Profile",
-    "changePassword": "Change Password"
+    "changePassword": "Update password"
   },
   "appearance": {
     "title": "Appearance",
     "theme": "Theme",
-    "editorTheme": "Editor Theme",
-    "wordWrap": "Word Wrap",
-    "showMinimap": "Show Minimap",
-    "lineNumbers": "Line Numbers",
-    "fontSize": "Font Size"
+    "editorTheme": "Code editor theme",
+    "wordWrap": "Wrap long lines",
+    "showMinimap": "Display minimap",
+    "lineNumbers": "Show line numbers",
+    "fontSize": "Code text size"
   },
   "actions": {
-    "saveChanges": "Save Changes",
-    "resetToDefaults": "Reset to Defaults",
-    "cancelChanges": "Cancel Changes"
+    "saveChanges": "Apply changes",
+    "resetToDefaults": "Restore defaults",
+    "cancelChanges": "Discard changes"
   },
   "voiceSettings": {
     "title": "Voice",
-    "description": "Speech-to-text input and read-aloud, via an OpenAI-compatible audio backend.",
-    "enable": "Enable voice",
-    "enableDescription": "Show the mic button and the read-aloud button on messages.",
+    "description": "Speech input and read-aloud through an OpenAI-compatible audio service.",
+    "enable": "Turn on voice",
+    "enableDescription": "Add microphone and read-aloud controls to messages.",
     "backendTitle": "Backend",
-    "backendDescription": "Point at OpenAI, Groq, or a local server (LocalAI, Speaches, Kokoro-FastAPI). Leave blank to use the server default.",
-    "baseUrl": "Base URL",
-    "apiKey": "API key",
-    "sttModel": "Speech-to-text model",
-    "ttsModel": "Text-to-speech model",
+    "backendDescription": "Use OpenAI, Groq, or a local service such as LocalAI, Speaches, or Kokoro-FastAPI. Leave empty for the server default.",
+    "baseUrl": "Service URL",
+    "apiKey": "Service API key",
+    "sttModel": "Speech recognition model",
+    "ttsModel": "Speech synthesis model",
     "voice": "Voice",
-    "format": "Audio format",
-    "note": "A custom base URL is called directly by your browser and must allow browser CORS requests. Leave it blank to use the server-configured backend."
+    "format": "Sound file format",
+    "note": "The browser contacts a custom base URL directly, so it must allow CORS. Leave it empty to use the server backend."
   },
   "preferences": {
     "sections": {
-      "toolDisplay": "Tool Display",
-      "inputSettings": "Input Settings"
+      "toolDisplay": "Tool output display",
+      "inputSettings": "Message input"
     },
-    "showRawParameters": "Show raw parameters",
-    "showThinking": "Show thinking",
-    "sendByCtrlEnter": "Send by Ctrl+Enter",
-    "sendByCtrlEnterDescription": "When enabled, pressing Ctrl+Enter will send the message instead of just Enter. This is useful for IME users to avoid accidental sends."
+    "showRawParameters": "Display unprocessed parameters",
+    "showThinking": "Display reasoning",
+    "sendByCtrlEnter": "Use Ctrl+Enter to send",
+    "sendByCtrlEnterDescription": "When enabled, Ctrl+Enter sends messages instead of Enter. This helps IME users prevent accidental sends."
   },
   "terminalShortcuts": {
-    "title": "Terminal Shortcuts",
+    "title": "Terminal key bindings",
     "sectionKeys": "Keys",
     "sectionNavigation": "Navigation",
     "escape": "Escape",
     "tab": "Tab",
     "shiftTab": "Shift+Tab",
-    "arrowUp": "Arrow Up",
-    "arrowDown": "Arrow Down",
-    "scrollDown": "Scroll Down",
+    "arrowUp": "Up arrow",
+    "arrowDown": "Down arrow",
+    "scrollDown": "Scroll downward",
     "handle": {
-      "closePanel": "Close shortcuts panel",
-      "openPanel": "Open shortcuts panel"
+      "closePanel": "Hide keyboard shortcuts",
+      "openPanel": "Show keyboard shortcuts"
     }
   },
   "mainTabs": {
@@ -80,169 +80,169 @@
     "about": "About"
   },
   "automation": {
-    "title": "Browser and native apps",
-    "description": "Inspect the isolated Chromium runtime and the separately installed CUA Driver.",
-    "chromium": "Chromium sidecar",
-    "notDownloaded": "Downloaded on first Browser-panel activation",
-    "notInstalled": "Not installed",
-    "installGuide": "Install guide",
+    "title": "Browser and native applications",
+    "description": "Review the isolated Chromium runtime and the separately installed CUA Driver.",
+    "chromium": "Isolated Chromium runtime",
+    "notDownloaded": "Downloads when the Browser panel first opens",
+    "notInstalled": "Unavailable",
+    "installGuide": "Setup instructions",
     "accessibility": "Accessibility",
-    "screenRecording": "Screen Recording",
+    "screenRecording": "Record the screen",
     "granted": "Granted",
     "missing": "Missing",
     "unknown": "Unknown",
-    "refresh": "Refresh diagnostics",
-    "grants": "Always-allowed targets",
-    "grantsDescription": "Only targets explicitly marked Always allow are persisted.",
-    "noGrants": "No persistent automation grants.",
-    "origin": "Website origin",
-    "application": "Native application",
-    "revoke": "Revoke grant"
+    "refresh": "Reload diagnostics",
+    "grants": "Persistently allowed targets",
+    "grantsDescription": "Only targets marked Always allow are saved.",
+    "noGrants": "No saved automation approvals.",
+    "origin": "Site origin",
+    "application": "Desktop application",
+    "revoke": "Remove approval"
   },
   "notifications": {
     "title": "Notifications",
-    "description": "Control which notification events you receive.",
+    "description": "Choose which events can notify you.",
     "desktop": {
-      "title": "Notify this desktop app",
-      "enable": "Enable notifications",
-      "disable": "Disable notifications",
-      "enabled": "Notifications are enabled for this desktop app",
-      "unsupported": "Desktop notifications are not supported on this system."
+      "title": "Desktop app notifications",
+      "enable": "Turn notifications on",
+      "disable": "Turn notifications off",
+      "enabled": "This desktop app can show notifications",
+      "unsupported": "This system does not support desktop notifications."
     },
     "sound": {
       "title": "Sound",
-      "description": "Play a short tone when a chat run finishes or needs tool approval.",
+      "description": "Play a brief sound when a chat run ends or needs tool approval.",
       "enabled": "Enabled",
-      "test": "Test sound"
+      "test": "Play test sound"
     },
     "events": {
-      "title": "Event Types",
-      "actionRequired": "Action required",
-      "stop": "Run stopped",
-      "error": "Run failed"
+      "title": "Notification events",
+      "actionRequired": "Approval needed",
+      "stop": "Run ended",
+      "error": "Run unsuccessful"
     }
   },
   "appearanceSettings": {
     "darkMode": {
-      "label": "Dark Mode",
-      "description": "Toggle between light and dark themes"
+      "label": "Dark theme",
+      "description": "Switch between light and dark themes"
     },
     "interfaceFontSize": {
-      "label": "Interface font size",
-      "description": "Change text size across chats, sessions, settings, and the rest of the interface",
+      "label": "Interface text size",
+      "description": "Set text size throughout chats, sessions, settings, and the interface",
       "small": "Small",
       "medium": "Medium",
       "large": "Large"
     },
     "imagePreviews": {
-      "label": "Image previews",
-      "description": "Load and display image attachments in chat history"
+      "label": "Image attachment previews",
+      "description": "Load image attachments in conversation history"
     },
     "projectSorting": {
-      "label": "Project Sorting",
-      "description": "How projects are ordered in the sidebar",
+      "label": "Project order",
+      "description": "Set the sidebar project order",
       "alphabetical": "Alphabetical",
-      "recentActivity": "Recent Activity"
+      "recentActivity": "Latest activity"
     }
   },
   "saveStatus": {
-    "success": "Settings saved successfully!",
-    "error": "Failed to save settings",
-    "saving": "Saving..."
+    "success": "Settings saved.",
+    "error": "Could not save settings",
+    "saving": "Saving…"
   },
   "footerActions": {
-    "save": "Save Settings",
+    "save": "Save settings",
     "cancel": "Cancel"
   },
   "git": {
-    "title": "Git Configuration",
-    "description": "Configure your git identity for commits. These settings will be applied globally via git config --global",
+    "title": "Git settings",
+    "description": "Set the Git identity used for commits. It is written globally with git config --global.",
     "name": {
-      "label": "Git Name",
-      "help": "Your name for git commits"
+      "label": "Commit author name",
+      "help": "Name recorded on Git commits"
     },
     "email": {
-      "label": "Git Email",
-      "help": "Your email for git commits"
+      "label": "Commit author email",
+      "help": "Email recorded on Git commits"
     },
     "actions": {
-      "save": "Save Configuration",
-      "saving": "Saving..."
+      "save": "Save Git settings",
+      "saving": "Saving…"
     },
     "status": {
-      "success": "Saved successfully"
+      "success": "Save complete"
     }
   },
   "permissions": {
-    "title": "Permission Settings",
+    "title": "Permission controls",
     "skipPermissions": {
-      "label": "Skip permission prompts (use with caution)",
-      "claudeDescription": "Equivalent to --dangerously-skip-permissions flag",
-      "cursorDescription": "Equivalent to -f flag in Cursor CLI"
+      "label": "Bypass permission prompts (use carefully)",
+      "claudeDescription": "Matches the --dangerously-skip-permissions flag",
+      "cursorDescription": "Matches Cursor CLI’s -f flag"
     },
     "allowedTools": {
-      "title": "Allowed Tools",
-      "description": "Tools that are automatically allowed without prompting for permission",
+      "title": "Permitted tools",
+      "description": "Tools that run without asking for approval",
       "placeholder": "e.g., \"Bash(git log:*)\" or \"Write\"",
-      "quickAdd": "Quick add common tools:",
-      "empty": "No allowed tools configured"
+      "quickAdd": "Add common tools:",
+      "empty": "No permitted tools configured"
     },
     "blockedTools": {
-      "title": "Blocked Tools",
-      "description": "Tools that are automatically blocked without prompting for permission",
+      "title": "Denied tools",
+      "description": "Tools that are denied without an approval prompt",
       "placeholder": "e.g., \"Bash(rm:*)\"",
-      "empty": "No blocked tools configured"
+      "empty": "No denied tools configured"
     },
     "allowedCommands": {
-      "title": "Allowed Shell Commands",
-      "description": "Shell commands that are automatically allowed without prompting",
+      "title": "Permitted shell commands",
+      "description": "Shell commands that run without an approval prompt",
       "placeholder": "e.g., \"Shell(ls)\" or \"Shell(git status)\"",
-      "quickAdd": "Quick add common commands:",
-      "empty": "No allowed commands configured"
+      "quickAdd": "Add common commands:",
+      "empty": "No permitted commands configured"
     },
     "blockedCommands": {
-      "title": "Blocked Shell Commands",
-      "description": "Shell commands that are automatically blocked",
+      "title": "Denied shell commands",
+      "description": "Shell commands that are denied automatically",
       "placeholder": "e.g., \"Shell(rm -rf)\" or \"Shell(sudo)\"",
-      "empty": "No blocked commands configured"
+      "empty": "No denied commands configured"
     },
     "toolExamples": {
-      "title": "Tool Pattern Examples:",
-      "bashGitLog": "- Allow all git log commands",
-      "bashGitDiff": "- Allow all git diff commands",
-      "write": "- Allow all Write tool usage",
-      "bashRm": "- Block all rm commands (dangerous)"
+      "title": "Tool pattern examples:",
+      "bashGitLog": "- Permit any git log command",
+      "bashGitDiff": "- Permit any git diff command",
+      "write": "- Permit all Write tool calls",
+      "bashRm": "- Deny any rm command (dangerous)"
     },
     "shellExamples": {
-      "title": "Shell Command Examples:",
-      "ls": "- Allow ls command",
-      "gitStatus": "- Allow git status",
-      "npmInstall": "- Allow npm install",
-      "rmRf": "- Block recursive delete"
+      "title": "Shell command examples:",
+      "ls": "- Permit ls",
+      "gitStatus": "- Permit git status",
+      "npmInstall": "- Permit npm install",
+      "rmRf": "- Deny recursive deletion"
     },
     "codex": {
-      "permissionMode": "Permission Mode",
-      "description": "Controls how Codex handles file modifications and command execution",
+      "permissionMode": "Permission handling",
+      "description": "Sets how Codex treats file edits and command execution",
       "modes": {
         "default": {
           "title": "Default",
-          "description": "Only trusted commands (ls, cat, grep, git status, etc.) run automatically. Other commands are skipped. Can write to workspace."
+          "description": "Trusted commands such as ls, cat, grep, and git status run automatically; others are skipped. Workspace writes are allowed."
         },
         "acceptEdits": {
-          "title": "Accept Edits",
-          "description": "All commands run automatically within the workspace. Full auto mode with sandboxed execution."
+          "title": "Allow edits",
+          "description": "Every command runs automatically inside the workspace sandbox."
         },
         "bypassPermissions": {
-          "title": "Bypass Permissions",
-          "description": "Full system access with no restrictions. All commands run automatically with full disk and network access. Use with caution."
+          "title": "Bypass approval",
+          "description": "Commands run without restrictions, with full disk and network access. Use only when trusted."
         }
       },
-      "technicalDetails": "Technical details",
+      "technicalDetails": "Implementation details",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Trusted commands: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (without -exec), etc.",
-        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. All commands auto-execute within project directory.",
-        "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Full system access, use only in trusted environments.",
-        "overrideNote": "You can override this per-session using the mode button in the chat interface."
+        "default": "workspace-write sandbox with untrusted approval. Trusted commands include cat, cd, grep, head, ls, pwd, tail, Git status/log/diff/show, and find without -exec.",
+        "acceptEdits": "workspace-write sandbox with no approvals. Commands run automatically in the project directory.",
+        "bypassPermissions": "danger-full-access sandbox with no approvals. Use full system access only in trusted environments.",
+        "overrideNote": "Use the chat mode button to override this for one session."
       }
     },
     "actions": {

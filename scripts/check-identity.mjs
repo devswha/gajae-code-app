@@ -60,10 +60,13 @@ const LEGACY_MATCHERS = [
     expression: new RegExp(STALE_FORK_COORDINATE, 'gi'),
   },
 ];
+// The changelog now records this project's own releases; the inherited history
+// it used to carry lives in the upstream project instead. One provenance line
+// remains, and these counts pin it so it cannot quietly grow back.
 const CHANGELOG_ALLOWANCES = [
-  { matcher: LEGACY_MATCHERS[0], expected: 3 },
+  { matcher: LEGACY_MATCHERS[0], expected: 0 },
   { matcher: LEGACY_MATCHERS[1], expected: 0 },
-  { matcher: LEGACY_MATCHERS[2], expected: 332 },
+  { matcher: LEGACY_MATCHERS[2], expected: 0 },
   { matcher: LEGACY_MATCHERS[3], expected: 0 },
 ];
 const DATED_MIGRATION_HISTORY = /^docs\/(?:history|migration)\/\d{4}-\d{2}-\d{2}(?:[-_][^/]+)?\.md$/i;

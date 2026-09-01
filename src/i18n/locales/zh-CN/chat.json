@@ -1,261 +1,274 @@
 {
   "codeBlock": {
     "copy": "复制",
-    "copied": "已复制",
-    "copyCode": "复制代码"
+    "copied": "已完成复制",
+    "copyCode": "复制源代码"
   },
   "copyMessage": {
-    "copy": "复制消息",
-    "copied": "消息已复制",
-    "selectFormat": "选择复制格式",
-    "copyAsMarkdown": "复制为 Markdown",
-    "copyAsText": "复制为纯文本"
+    "copy": "复制文本",
+    "copied": "文本已复制",
+    "selectFormat": "选择复制的格式",
+    "copyAsMarkdown": "使用Markdown复制",
+    "copyAsText": "使用纯文本复制"
   },
   "messageTypes": {
     "user": "U",
-    "tool": "工具",
+    "tool": "功能",
     "claude": "Claude",
     "cursor": "Cursor",
     "codex": "Codex",
+    "opencode": "打开代码",
     "notice": {
-      "info": "提示",
-      "warning": "警告",
-      "error": "错误"
+      "info": "通知",
+      "warning": "提示",
+      "error": "系统错误"
     }
   },
   "tools": {
-    "settings": "工具设置",
-    "error": "工具错误",
-    "result": "工具结果",
-    "viewParams": "查看输入参数",
-    "viewRawParams": "查看原始参数",
-    "viewDiff": "查看编辑差异",
-    "creatingFile": "创建新文件：",
-    "updatingTodo": "更新待办事项",
-    "read": "读取",
-    "readFile": "读取文件",
-    "updateTodo": "更新待办列表",
-    "readTodo": "读取待办列表",
-    "searchResults": "结果"
+    "settings": "工具选项",
+    "error": "工具问题",
+    "result": "工具输出",
+    "viewParams": "检查输入参数",
+    "viewRawParams": "检查原始参数",
+    "viewDiff": "查看编辑差异：",
+    "creatingFile": "正在保存文件：",
+    "updatingTodo": "更新任务列表",
+    "read": "查看",
+    "readFile": "打开文件",
+    "updateTodo": "更新任务列表",
+    "readTodo": "查看任务列表",
+    "searchResults": "匹配项"
   },
   "search": {
-    "found": "找到 {{count}} 个{{type}}",
+    "found": "{{count}} {{type}}找到",
     "file": "文件",
-    "files": "文件",
+    "files": "文件夹",
     "pattern": "模式：",
-    "in": "在："
+    "in": "于："
   },
   "fileOperations": {
-    "updated": "文件更新成功",
-    "created": "文件创建成功",
-    "written": "文件写入成功",
-    "diff": "差异",
-    "newFile": "新文件",
-    "viewContent": "查看文件内容",
-    "viewFullOutput": "查看完整输出（{{count}} 个字符）",
-    "contentDisplayed": "文件内容显示在上面的差异视图中"
+    "updated": "文件更新完成",
+    "created": "文件创建完成",
+    "written": "文件写入完成",
+    "diff": "差异对比",
+    "newFile": "创建文件",
+    "viewContent": "检查文件内容",
+    "viewFullOutput": "显示所有输出（{{count}}个字符）",
+    "contentDisplayed": "上方的差异视图包含该文件的内容"
   },
   "interactive": {
-    "title": "交互式提示",
-    "waiting": "等待您在 CLI 中响应",
-    "instruction": "请在 Claude 运行的终端中选择一个选项。",
-    "selectedOption": "✓ Claude 选择了选项 {{number}}",
-    "instructionDetail": "在 CLI 中，您可以使用方向键或输入数字来交互式地选择此选项。"
+    "title": "交互式请求",
+    "waiting": "在命令行界面等待响应",
+    "instruction": "在运行Claude的终端中选择一个选项。",
+    "selectedOption": "✓ Claude选择了选项{{number}}",
+    "instructionDetail": "在命令行界面中，使用箭头键或其编号进行交互选择。"
   },
   "thinking": {
-    "title": "思考中...",
-    "emoji": "💭 思考中..."
+    "title": "推理……",
+    "emoji": "💭 推理……"
   },
   "json": {
-    "response": "JSON 响应"
+    "response": "JSON回复"
   },
   "permissions": {
-    "grant": "授予 {{tool}} 权限",
-    "added": "权限已添加",
-    "addTo": "将 {{entry}} 添加到允许的工具。",
-    "retry": "权限已保存。重试请求以使用该工具。",
-    "error": "无法更新权限。请重试。",
-    "openSettings": "打开设置"
+    "grant": "允许{{tool}}运行",
+    "added": "权限记录",
+    "addTo": "将{{entry}}添加到允许的工具中",
+    "retry": "保存权限。再次运行工具请求.",
+    "error": "权限更新失败。请重试。",
+    "openSettings": "前往设置"
   },
   "todo": {
-    "updated": "待办列表已成功更新",
-    "current": "当前待办列表"
+    "updated": "任务列表已更新",
+    "current": "当前任务列表"
   },
   "plan": {
-    "viewPlan": "📋 查看实施计划",
-    "title": "实施计划"
+    "viewPlan": "📋 打开构建计划",
+    "title": "构建计划"
   },
   "usageLimit": {
-    "resetAt": "Claude 使用限制已达到。您的限制将在 **{{time}} {{timezone}}** - {{date}} 重置"
+    "resetAt": "当前 Claude 的使用量已达到上限。它将在 **{{time}} {{timezone}}** 于 {{date}} 重置。"
   },
   "codex": {
-    "permissionMode": "权限模式",
+    "permissionMode": "权限处理",
     "modes": {
-      "default": "默认模式",
-      "auto": "Auto Mode",
-      "acceptEdits": "编辑模式",
-      "bypassPermissions": "无限制模式",
-      "plan": "计划模式"
+      "default": "标准模式",
+      "auto": "自动模式",
+      "acceptEdits": "允许编辑",
+      "bypassPermissions": "绕过审批",
+      "plan": "规划模式"
     },
     "descriptions": {
-      "default": "只有受信任的命令（ls、cat、grep、git status 等）自动运行。其他命令将被跳过。可以写入工作区。",
-      "auto": "A model classifier decides per tool call whether to approve or deny. Hands-off, but safer than Bypass — denials still happen.",
-      "acceptEdits": "工作区内的所有命令自动运行。完全自动模式，具有沙盒执行功能。",
-      "bypassPermissions": "完全的系统访问，无限制。所有命令自动运行，具有完整的磁盘和网络访问权限。请谨慎使用。",
-      "plan": "计划模式 - 不执行任何命令"
+      "default": "如ls、cat、grep和git status等可信命令会自动运行；其他命令会被跳过。工作区写入被允许。",
+      "auto": "模型分类器将批准或拒绝每个工具调用。这虽然是无干预的，但仍会拒绝不安全的调用.",
+      "acceptEdits": "每个命令都会在工作区沙盒内自动运行。",
+      "bypassPermissions": "命令不受限制，具有完整的磁盘和网络访问权限。仅在可信任时使用。",
+      "plan": "仅为规划；命令不会运行"
     },
-    "technicalDetails": "技术细节"
+    "technicalDetails": "实现细节"
+  },
+  "voice": {
+    "input": "口述信息",
+    "stopRecording": "完成录制",
+    "transcribing": "转换语音……",
+    "speak": "说出回应",
+    "stopSpeaking": "停止",
+    "loading": "加载中……"
   },
   "input": {
-    "placeholder": "输入 / 调用命令，@ 选择文件，或向 {{provider}} 提问...",
-    "placeholderDefault": "输入您的消息...",
-    "disabled": "输入已禁用",
-    "attachFiles": "附加文件",
-    "attachImages": "附加图片",
-    "send": "发送",
-    "stop": "停止",
+    "placeholder": "询问{{provider}}，使用/发送命令，或@添加文件……",
+    "placeholderDefault": "输入消息……",
+    "disabled": "无法输入消息",
     "modelReasoning": {
-      "label": "模型与推理",
-      "providerTitle": "提供商",
-      "modelTitle": "聊天模型",
-      "reasoningTitle": "推理",
-      "defaultModel": "默认",
-      "currentConfiguration": "使用当前配置"
+      "label": "模型和推理设置",
+      "providerTitle": "提供者",
+      "modelTitle": "对话模型",
+      "reasoningTitle": "分析",
+      "defaultModel": "标准",
+      "currentConfiguration": "保留当前配置"
     },
     "agentConfiguration": {
-      "label": "智能体配置",
-      "title": "智能体配置",
-      "description": "选择聊天、规划器、执行器、架构师和评审所使用的模型。",
-      "search": "搜索配置",
-      "noMatches": "没有匹配的配置。"
+      "label": "代理设置",
+      "title": "代理设置",
+      "description": "为聊天、规划者、执行器、架构师和批评家角色设置模型.",
+      "search": "查找配置",
+      "noMatches": "未找到匹配的配置."
     },
+    "attachFiles": "添加文件",
+    "attachImages": "添加图片",
+    "send": "发送",
+    "stop": "停止",
     "hintText": {
-      "ctrlEnter": "Ctrl+Enter 发送 • Shift+Enter 换行 • Tab 切换模式 • / 斜杠命令",
-      "enter": "Enter 发送 • Shift+Enter 换行 • Tab 切换模式 • / 斜杠命令",
-      "queue": "按 Enter 将下一条消息加入队列",
-      "steer": "按 Enter 发送到正在进行的回合"
+      "ctrlEnter": "使用Ctrl+Enter发送•使用Shift+Enter换行•使用Tab切换模式•输入/调用命令",
+      "enter": "使用Enter发送•使用Shift+Enter换行•使用Tab切换模式•输入/调用命令",
+      "queue": "按下Enter键以排队发送另一条消息",
+      "steer": "按下Enter键以操控当前回合"
     },
-    "clickToChangeMode": "点击更改权限模式（或在输入框中按 Tab）",
-    "showAllCommands": "显示所有命令",
-    "clearInput": "清空输入",
-    "scrollToBottom": "滚动到底部",
+    "clickToChangeMode": "点击以切换权限模式，或在输入框中按Tab键",
+    "showAllCommands": "浏览命令",
+    "clearInput": "消息输入框为空",
+    "scrollToBottom": "跳转到最后一个",
     "queue": {
-      "sendNext": "将下一条消息加入队列",
-      "label": "排队中",
-      "willSend": "当前任务结束后发送",
+      "sendNext": "添加另一个消息",
+      "label": "已加入队列",
+      "willSend": "当前运行结束后发送",
       "willFollow": "在上面的消息之后发送",
-      "edit": "编辑排队消息",
-      "delete": "删除排队消息",
-      "moveUp": "在队列中前移",
-      "moveDown": "在队列中后移",
-      "images_other": "已附加 {{count}} 张图片",
-      "steerNow": "直接发送到正在进行的回合"
+      "edit": "编辑队列项",
+      "delete": "移除队列项",
+      "moveUp": "在队列中上移",
+      "moveDown": "在队列中下移",
+      "images_one": "添加{{count}}张图片",
+      "images_other": "{{count}}张图片已添加",
+      "steerNow": "操控当前转弯"
     }
   },
   "providerSelection": {
-    "title": "选择您的 AI 助手",
-    "description": "选择一个供应商以开始新对话",
+    "title": "选择一个AI助手",
+    "description": "为新对话选择一个提供商",
     "selectModel": "选择模型",
     "providerInfo": {
-      "anthropic": "由 Anthropic 提供",
-      "openai": "由 OpenAI 提供",
-      "cursorEditor": "AI 代码编辑器",
-      "google": "由 Google 提供"
+      "anthropic": " Anthropic 供应商 ",
+      "openai": " OpenAI 供应商 ",
+      "cursorEditor": " 带有 AI 的代码编辑器 ",
+      "google": " Google 供应商 "
     },
     "readyPrompt": {
-      "claude": "准备好使用带有 {{model}} 的 Claude。请在下方开始输入您的消息。",
-      "cursor": "准备好使用带有 {{model}} 的 Cursor。请在下方开始输入您的消息。",
-      "codex": "准备好使用带有 {{model}} 的 Codex。请在下方开始输入您的消息。",
-      "default": "请在上方选择一个提供者以开始"
+      "claude": " Claude 配备了 {{model}}，已就绪。请在下方输入您的消息。 ",
+      "cursor": "Cursor与{{model}}已准备好，请在此输入您的消息。",
+      "codex": "Codex与{{model}}已准备好，请在此输入您的消息。",
+      "opencode": "OpenCode与{{model}}已准备好，请在此输入您的消息。",
+      "default": "请选择上方的提供者以开始"
     },
-    "pressToSearch": "按 <kbd>{{shortcut}}</kbd> 搜索会话、文件和提交"
+    "pressToSearch": "使用<kbd>{{shortcut}}</kbd>搜索对话、文件和提交"
   },
   "session": {
     "continue": {
-      "title": "继续您的对话",
-      "description": "询问有关代码的问题、请求更改或获取开发任务的帮助"
+      "title": "继续此对话",
+      "description": "询问代码相关问题、请求修改或获取开发帮助"
     },
     "loading": {
-      "olderMessages": "正在加载更早的消息...",
-      "sessionMessages": "正在加载会话消息..."
+      "olderMessages": "正在检索早期消息……",
+      "sessionMessages": "正在检索对话消息……"
     },
     "messages": {
-      "showingOf": "显示 {{shown}} / {{total}} 条消息",
-      "scrollToLoad": "向上滚动以加载更多",
-      "showingLast": "显示最近 {{count}} 条消息（共 {{total}} 条）",
-      "loadEarlier": "加载更早的消息",
-      "loadAll": "加载全部消息",
-      "loadFullToolOutput": "加载完整输出",
-      "loadingFullToolOutput": "正在加载完整输出...",
+      "showingOf": "正在显示 {{shown}} / {{total}} 条消息",
+      "scrollToLoad": "向上滚动以查看更多",
+      "showingLast": "正在显示最新的{{count}}条消息，共{{total}}条",
+      "loadEarlier": "获取更早的消息",
+      "loadAll": "获取所有消息",
+      "loadFullToolOutput": "获取完整输出",
+      "loadingFullToolOutput": "正在检索完整输出……",
       "fullToolOutputFailed": "无法加载完整输出。",
-      "loadingAll": "正在加载全部消息...",
-      "allLoaded": "全部消息已加载",
-      "perfWarning": "已加载全部消息 - 滚动可能变慢。点击「滚动到底部」恢复性能。"
+      "loadingAll": "正在检索每条消息……",
+      "allLoaded": "已加载每条消息",
+      "perfWarning": "已加载每条消息，这可能会减慢滚动速度。请使用“滚动到底部”以改善此问题."
     }
   },
   "shell": {
     "selectProject": {
       "title": "选择项目",
-      "description": "选择一个项目以在该目录中打开交互式 Shell"
+      "description": "选择一个项目以在其目录中打开交互式外壳"
     },
     "status": {
-      "newSession": "新会话",
-      "initializing": "初始化中...",
-      "restarting": "重启中..."
+      "newSession": "开始对话",
+      "initializing": "启动中……",
+      "restarting": "重新启动中……"
     },
     "actions": {
       "disconnect": "断开连接",
-      "disconnectTitle": "断开 Shell 连接",
+      "disconnectTitle": "结束Shell会话",
       "restart": "重启",
-      "restartTitle": "重启 Shell（请先断开连接）",
-      "connect": "在 Shell 中继续",
-      "connectTitle": "连接到 Shell"
+      "restartTitle": "重新启动Shell",
+      "connect": "继续在Shell中",
+      "connectTitle": "打开Shell连接"
     },
-    "loading": "正在加载终端...",
-    "connecting": "正在连接到 Shell...",
-    "startSession": "启动新的 Claude 会话",
-    "resumeSession": "恢复会话：{{displayName}}...",
-    "runCommand": "在 {{projectName}} 中运行 {{command}}",
-    "startCli": "在 {{projectName}} 中启动 Claude CLI",
+    "loading": "启动终端……",
+    "connecting": "打开Shell连接……",
+    "startSession": "开始使用Gajae Code App会话",
+    "resumeSession": "继续：{{displayName}}……",
+    "runCommand": "运行 {{command}} 命令以启动 {{projectName}} 项目",
+    "startCli": "为 {{projectName}} 项目启动 Claude CLI",
     "defaultCommand": "命令"
   },
   "claudeStatus": {
     "actions": {
-      "thinking": "Thinking",
-      "processing": "Processing",
-      "analyzing": "Analyzing",
-      "working": "Working",
-      "computing": "Computing",
-      "reasoning": "Reasoning"
+      "thinking": "思考中",
+      "processing": "处理中",
+      "analyzing": "分析中",
+      "working": "处理中",
+      "computing": "计算中",
+      "reasoning": "推理中"
     },
     "state": {
-      "live": "Live",
-      "paused": "Paused"
+      "live": "实时",
+      "paused": "暂停"
     },
     "elapsed": {
-      "seconds": "{{count}}s",
-      "minutesSeconds": "{{minutes}}m {{seconds}}s",
-      "label": "{{time}} elapsed",
-      "startingNow": "Starting now"
+      "seconds": "{{count}}次",
+      "minutesSeconds": "{{minutes}} 分 {{seconds}} 秒",
+      "label": "已持续 {{time}}",
+      "startingNow": "刚刚开始"
     },
+    "stop": "停止",
     "controls": {
-      "stopGeneration": "Stop Generation",
-      "pressEscToStop": "Press Esc anytime to stop"
+      "stopGeneration": "停止响应",
+      "pressEscToStop": "随时按下Esc键以停止"
     },
     "providers": {
-      "assistant": "Assistant"
+      "assistant": "助手"
     }
   },
   "projectSelection": {
-    "startChatWithProvider": "选择一个项目以开始与 {{provider}} 聊天"
+    "startChatWithProvider": "在与{{provider}}聊天前，请先选择一个项目"
   },
   "newSession": {
-    "greeting": "今天我们要构建什么？",
-    "subtitle": "Gajae Code 已准备好在 {{project}} 中工作。"
+    "greeting": "我们应该构建什么？",
+    "subtitle": "Gajae Code App 已准备好在 {{project}} 项目中。"
   },
   "reasoning": {
-    "thinking": "思考中…",
-    "thoughtBriefly": "思考了几秒",
-    "thoughtFor_other": "思考了 {{count}} 秒"
+    "thinking": "推理……",
+    "thoughtBriefly": "推理了几秒钟",
+    "thoughtFor_one": "已推理 {{count}} 秒",
+    "thoughtFor_other": "{{count}}秒后的原因"
   }
 }

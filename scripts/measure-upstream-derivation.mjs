@@ -36,7 +36,15 @@ const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // product reference outside the provenance files as a defect, and this script is
 // not one of them. The coordinate itself is recorded in docs/UPSTREAM.md.
 const UPSTREAM = `https://github.com/${['siteboon', 'claudecodeui'].join('/')}.git`;
-const CODE = /\.(?:ts|tsx|js|jsx)$/;
+// Code is where a rewrite happens, but it is not where all the expression
+// lives: shipped screenshots, the UI's own English copy and its translations,
+// the stylesheet and the served HTML are as ownable as a function body, and a
+// measurement that skipped them once already hid four byte-identical upstream
+// screenshots sitting in `public/`.
+const CODE = /\.(?:ts|tsx|js|jsx|mjs|css|json|html|md|conf|sh|ya?ml)$/;
+const BINARY = /\.(?:png|jpe?g|gif|webp|svg|ico|woff2?|ttf|otf|mp3|wav)$/;
+// Generated or vendored files say nothing about authorship.
+const IGNORED = /^(?:package-lock\.json|node_modules\/|dist\/|website\/dist\/|THIRD-PARTY-NOTICES\.md)/;
 
 /** Where a file belongs, for ordering the work rather than for precision. */
 const AREAS = [
@@ -47,10 +55,13 @@ const AREAS = [
   [/^src\/components\/sidebar\//, 'sidebar'],
   [/^src\/components\/settings\//, 'settings'],
   [/^src\/shared\/view\/ui\//, 'UI primitives'],
+  [/^src\/i18n\/locales\//, 'translations'],
   [/^src\/components\//, 'other components'],
   [/^src\//, 'other client'],
   [/^server\/modules\//, 'server modules'],
   [/^server\//, 'other server'],
+  [/^public\//, 'served assets'],
+  [/\.(?:md|conf|ya?ml)$/, 'docs and config'],
 ];
 
 function areaOf(file) {
@@ -63,7 +74,14 @@ function git(args, cwd) {
 }
 
 function trackedCodeFiles(root) {
-  return git(['ls-files'], root).trim().split('\n').filter((file) => CODE.test(file));
+  return git(['ls-files'], root).trim().split('\n')
+    .filter((file) => CODE.test(file) && !IGNORED.test(file));
+}
+
+/** Assets a diff cannot read: identical bytes are the whole answer for them. */
+function trackedBinaryFiles(root) {
+  return git(['ls-files'], root).trim().split('\n')
+    .filter((file) => BINARY.test(file) && !IGNORED.test(file));
 }
 
 function lineCount(path) {
@@ -139,9 +157,19 @@ if (!checkout) {
 
 try {
   const upstream = new Set(trackedCodeFiles(checkout));
+  const upstreamAssets = new Set(trackedBinaryFiles(checkout));
   const areas = new Map();
   const files = [];
   let ownTotal = 0;
+
+  // An asset is either ours or theirs; there is no partial rewrite of a PNG.
+  const copiedAssets = trackedBinaryFiles(REPOSITORY_ROOT).filter((file) => {
+    if (!upstreamAssets.has(file)) return false;
+    const mine = join(REPOSITORY_ROOT, file);
+    const theirs = join(checkout, file);
+    if (!existsSync(mine) || !existsSync(theirs)) return false;
+    return readFileSync(mine).equals(readFileSync(theirs));
+  });
 
   for (const file of trackedCodeFiles(REPOSITORY_ROOT)) {
     const absolute = join(REPOSITORY_ROOT, file);
@@ -174,6 +202,7 @@ try {
       percent: Number(((derivedTotal / ownTotal) * 100).toFixed(1)),
       areas: ranked,
       files: files.sort((a, b) => b.derived - a.derived),
+      copiedAssets,
     }, null, 2));
   } else {
     console.log(`\nUpstream-derived code: ${derivedTotal.toLocaleString()} of ${ownTotal.toLocaleString()} lines`
@@ -184,6 +213,10 @@ try {
     console.log('\n  Largest files:');
     for (const entry of files.sort((a, b) => b.derived - a.derived).slice(0, 10)) {
       console.log(`  ${String(entry.derived).padStart(6)} lines  ${(entry.retained * 100).toFixed(0)}% retained  ${entry.file}`);
+    }
+    if (copiedAssets.length > 0) {
+      console.log('\n  Byte-identical upstream assets still shipped:');
+      for (const asset of copiedAssets) console.log(`    ${asset}`);
     }
     console.log('\n  Zero is the point at which this project can be licensed as it chooses.\n');
   }

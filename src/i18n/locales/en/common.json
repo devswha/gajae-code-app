@@ -21,7 +21,7 @@
     "chat": "Chat",
     "shell": "Shell",
     "files": "Files",
-    "git": "Source Control",
+    "git": "Version control",
     "computer": "Computer"
   },
   "status": {
@@ -31,19 +31,19 @@
     "failed": "Failed",
     "pending": "Pending",
     "completed": "Completed",
-    "inProgress": "In Progress"
+    "inProgress": "Running now"
   },
   "messages": {
-    "savedSuccessfully": "Saved successfully",
-    "deletedSuccessfully": "Deleted successfully",
-    "updatedSuccessfully": "Updated successfully",
-    "operationFailed": "Operation failed",
-    "networkError": "Network error. Please check your connection.",
-    "unauthorized": "Unauthorized. Please log in.",
-    "notFound": "Not found",
-    "invalidInput": "Invalid input",
-    "requiredField": "This field is required",
-    "unknownError": "An unknown error occurred"
+    "savedSuccessfully": "Save complete",
+    "deletedSuccessfully": "Deletion complete",
+    "updatedSuccessfully": "Update complete",
+    "operationFailed": "Operation did not complete",
+    "networkError": "Network error. Check your connection.",
+    "unauthorized": "Sign in is required.",
+    "notFound": "Item not found",
+    "invalidInput": "Input is not valid",
+    "requiredField": "Enter a value here",
+    "unknownError": "Something unexpected went wrong"
   },
   "navigation": {
     "settings": "Settings",
@@ -56,8 +56,8 @@
   "common": {
     "language": "Language",
     "theme": "Theme",
-    "darkMode": "Dark Mode",
-    "lightMode": "Light Mode",
+    "darkMode": "Dark theme",
+    "lightMode": "Light theme",
     "name": "Name",
     "description": "Description",
     "enabled": "Enabled",
@@ -65,164 +65,164 @@
     "optional": "Optional",
     "version": "Version",
     "select": "Select",
-    "selectAll": "Select All",
-    "deselectAll": "Deselect All"
+    "selectAll": "Choose all",
+    "deselectAll": "Clear all selections"
   },
   "time": {
-    "justNow": "Just now",
-    "minutesAgo": "{{count}} mins ago",
-    "hoursAgo": "{{count}} hours ago",
-    "daysAgo": "{{count}} days ago",
+    "justNow": "Moments ago",
+    "minutesAgo": "{{count}} minutes ago",
+    "hoursAgo": "{{count}} hours earlier",
+    "daysAgo": "{{count}} days earlier",
     "yesterday": "Yesterday"
   },
   "fileOperations": {
-    "newFile": "New File",
-    "newFolder": "New Folder",
+    "newFile": "Create file",
+    "newFolder": "Create folder",
     "rename": "Rename",
     "move": "Move",
-    "copyPath": "Copy Path",
-    "openInEditor": "Open in Editor"
+    "copyPath": "Copy location",
+    "openInEditor": "Edit file"
   },
   "mainContent": {
-    "loading": "Loading Gajae Code App",
-    "settingUpWorkspace": "Setting up your workspace...",
-    "chooseProject": "Choose Your Project",
-    "selectProjectDescription": "Select a project from the sidebar to start coding with Gajae Code. Each project contains your chat sessions and file history.",
+    "loading": "Starting gajae-app",
+    "settingUpWorkspace": "Preparing the workspace…",
+    "chooseProject": "Pick a project",
+    "selectProjectDescription": "Pick a sidebar project to begin coding in Gajae Code. Its conversations and file history stay together there.",
     "tip": "Tip",
-    "createProjectMobile": "Tap the menu button above to access projects",
-    "createProjectDesktop": "Create a new project by clicking the folder icon in the sidebar",
-    "newSession": "New Session",
-    "untitledSession": "Untitled Session",
-    "projectFiles": "Project Files"
+    "createProjectMobile": "Use the menu above to reach your projects",
+    "createProjectDesktop": "Use the sidebar folder button to add a project",
+    "newSession": "Start conversation",
+    "untitledSession": "Unnamed conversation",
+    "projectFiles": "Files in project"
   },
   "fileTree": {
-    "loading": "Loading files...",
+    "loading": "Retrieving files…",
     "files": "Files",
-    "simpleView": "Simple view",
-    "compactView": "Compact view",
-    "detailedView": "Detailed view",
-    "searchPlaceholder": "Search files and folders...",
-    "clearSearch": "Clear search",
+    "simpleView": "Basic layout",
+    "compactView": "Condensed layout",
+    "detailedView": "Expanded layout",
+    "searchPlaceholder": "Find files or folders…",
+    "clearSearch": "Reset search",
     "name": "Name",
     "size": "Size",
     "modified": "Modified",
     "permissions": "Permissions",
-    "noFilesFound": "No files found",
-    "checkProjectPath": "Check if the project path is accessible",
-    "noMatchesFound": "No matches found",
-    "tryDifferentSearch": "Try a different search term or clear the search",
-    "justNow": "just now",
-    "minAgo": "{{count}} min ago",
-    "hoursAgo": "{{count}} hours ago",
-    "daysAgo": "{{count}} days ago",
-    "newFile": "New File (Cmd+N)",
-    "newFolder": "New Folder (Cmd+Shift+N)",
+    "noFilesFound": "This folder has no files",
+    "checkProjectPath": "Make sure the project path can be reached",
+    "noMatchesFound": "Nothing matched",
+    "tryDifferentSearch": "Use another query, or clear the current one",
+    "justNow": "moments ago",
+    "minAgo": "{{count}} minutes ago",
+    "hoursAgo": "{{count}} hours earlier",
+    "daysAgo": "{{count}} days earlier",
+    "newFile": "Create file (Cmd+N)",
+    "newFolder": "Create folder (Cmd+Shift+N)",
     "refresh": "Refresh",
-    "collapseAll": "Collapse All",
+    "collapseAll": "Close all",
     "context": {
       "rename": "Rename",
       "delete": "Delete",
-      "copyPath": "Copy Path",
+      "copyPath": "Copy location",
       "download": "Download",
-      "newFile": "New File",
-      "newFolder": "New Folder",
+      "newFile": "Create file",
+      "newFolder": "Create folder",
       "refresh": "Refresh",
-      "menuLabel": "File context menu",
+      "menuLabel": "File actions menu",
       "loading": "Loading..."
     }
   },
   "projectWizard": {
-    "title": "Create New Project",
+    "title": "Add a project",
     "steps": {
       "type": "Type",
       "configure": "Configure",
       "confirm": "Confirm"
     },
     "step1": {
-      "question": "Do you already have a workspace, or would you like to create a new one?",
+      "question": "Add an existing workspace or make a fresh one?",
       "existing": {
-        "title": "Existing Workspace",
-        "description": "I already have a workspace on my server and just need to add it to the project list"
+        "title": "Use existing workspace",
+        "description": "Add a workspace that already exists on this server to the project list"
       },
       "new": {
-        "title": "New Workspace",
-        "description": "Create a new workspace, optionally clone from a GitHub repository"
+        "title": "Create workspace",
+        "description": "Make a workspace, with the option to clone a GitHub repository"
       }
     },
     "step2": {
-      "existingPath": "Workspace Path",
-      "newPath": "Workspace Path",
+      "existingPath": "Workspace location",
+      "newPath": "Workspace location",
       "existingPlaceholder": "/path/to/existing/workspace",
       "newPlaceholder": "/path/to/new/workspace",
-      "existingHelp": "Full path to your existing workspace directory",
-      "newHelp": "Full path to your workspace directory",
-      "githubUrl": "GitHub URL (Optional)",
+      "existingHelp": "Absolute path of the workspace you already have",
+      "newHelp": "Enter an absolute path for this workspace",
+      "githubUrl": "GitHub repository URL (optional)",
       "githubPlaceholder": "https://github.com/username/repository",
-      "githubHelp": "Optional: provide a GitHub URL to clone a repository",
-      "githubAuth": "GitHub Authentication (Optional)",
-      "githubAuthHelp": "Only required for private repositories. Public repos can be cloned without authentication.",
-      "loadingTokens": "Loading stored tokens...",
-      "storedToken": "Stored Token",
-      "newToken": "New Token",
-      "nonePublic": "None (Public)",
-      "selectToken": "Select Token",
-      "selectTokenPlaceholder": "-- Select a token --",
+      "githubHelp": "Paste a GitHub repository URL when it should be cloned",
+      "githubAuth": "GitHub sign-in (optional)",
+      "githubAuthHelp": "Private repositories need authentication; public ones do not.",
+      "loadingTokens": "Retrieving saved tokens…",
+      "storedToken": "Saved token",
+      "newToken": "Enter a token",
+      "nonePublic": "No token (public repository)",
+      "selectToken": "Choose a token",
+      "selectTokenPlaceholder": "-- Choose a token --",
       "tokenPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "tokenHelp": "This token will be used only for this operation",
-      "publicRepoInfo": "Public repositories don't require authentication. You can skip providing a token if cloning a public repo.",
-      "noTokensHelp": "No stored tokens available. You can add tokens in Settings → API Keys for easier reuse.",
-      "optionalTokenPublic": "GitHub Token (Optional for Public Repos)",
+      "tokenHelp": "This token is used for this operation only",
+      "publicRepoInfo": "No token is needed when cloning a public repository.",
+      "noTokensHelp": "There are no saved tokens. Add one under Settings → API Keys to reuse it.",
+      "optionalTokenPublic": "GitHub token (optional for public repositories)",
       "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (leave empty for public repos)"
     },
     "step3": {
-      "reviewConfig": "Review Your Configuration",
-      "existingWorkspace": "Existing Workspace",
-      "newWorkspace": "New Workspace",
+      "reviewConfig": "Check the configuration",
+      "existingWorkspace": "Use existing workspace",
+      "newWorkspace": "Create workspace",
       "path": "Path:",
-      "cloneFrom": "Clone From:",
+      "cloneFrom": "Repository source:",
       "authentication": "Authentication:",
-      "usingStoredToken": "Using stored token:",
-      "usingProvidedToken": "Using provided token",
-      "noAuthentication": "No authentication",
-      "sshKey": "SSH Key",
-      "existingInfo": "The workspace will be added to your project list and will be available for Gajae Code sessions.",
-      "newWithClone": "The repository will be cloned from this folder.",
-      "newEmpty": "The workspace will be added to your project list and will be available for Gajae Code sessions.",
-      "cloningRepository": "Cloning repository..."
+      "usingStoredToken": "Using saved token:",
+      "usingProvidedToken": "Using entered token",
+      "noAuthentication": "Authentication not used",
+      "sshKey": "SSH authentication key",
+      "existingInfo": "The workspace will appear in your project list for Gajae Code sessions.",
+      "newWithClone": "The repository will be cloned into this folder.",
+      "newEmpty": "The workspace will appear in your project list for Gajae Code sessions.",
+      "cloningRepository": "Cloning repository…"
     },
     "buttons": {
       "cancel": "Cancel",
       "back": "Back",
       "next": "Next",
-      "createProject": "Create Project",
-      "creating": "Creating...",
-      "cloning": "Cloning..."
+      "createProject": "Add project",
+      "creating": "Creating…",
+      "cloning": "Cloning…"
     },
     "errors": {
-      "selectType": "Please select whether you have an existing workspace or want to create a new one",
-      "providePath": "Please provide a workspace path",
-      "failedToCreate": "Failed to create workspace",
-      "failedToCreateFolder": "Failed to create folder"
+      "selectType": "Choose whether to add an existing workspace or create one",
+      "providePath": "Enter a workspace path",
+      "failedToCreate": "Could not create workspace",
+      "failedToCreateFolder": "Could not create folder"
     },
     "folderBrowser": {
-      "title": "Select Folder",
-      "showHiddenFolders": "Show hidden folders",
-      "hideHiddenFolders": "Hide hidden folders",
-      "createNewFolder": "Create new folder",
-      "close": "Close folder browser",
-      "newFolderName": "New folder name",
+      "title": "Choose folder",
+      "showHiddenFolders": "Reveal hidden folders",
+      "hideHiddenFolders": "Conceal hidden folders",
+      "createNewFolder": "Make a folder",
+      "close": "Dismiss folder picker",
+      "newFolderName": "Name the folder",
       "create": "Create",
       "cancel": "Cancel",
-      "failedToLoad": "Failed to load folders",
-      "failedToCreate": "Failed to create folder",
-      "noSubfolders": "No subfolders found",
+      "failedToLoad": "Could not load folders",
+      "failedToCreate": "Could not create folder",
+      "noSubfolders": "No child folders found",
       "path": "Path:",
-      "useThisFolder": "Use this folder",
-      "browseFolders": "Browse folders"
+      "useThisFolder": "Choose this folder",
+      "browseFolders": "Browse for folders"
     }
   },
   "notifications": {
-    "genericTool": "a tool",
+    "genericTool": "a requested tool",
     "codes": {
       "generic": {
         "info": {
@@ -231,102 +231,102 @@
       },
       "permission": {
         "required": {
-          "title": "Action Required",
-          "body": "{{toolName}} is waiting for your decision."
+          "title": "Your input is needed",
+          "body": "Your choice is required by {{toolName}}."
         }
       },
       "run": {
         "stopped": {
-          "title": "Run Stopped",
-          "body": "Reason: {{reason}}"
+          "title": "Run ended",
+          "body": "Stopped because: {{reason}}"
         },
         "failed": {
-          "title": "Run Failed"
+          "title": "Run did not finish"
         }
       },
       "agent": {
         "notification": {
-          "title": "Agent Notification"
+          "title": "Agent message"
         }
       }
     }
   },
   "versionUpdate": {
-    "title": "Update Available",
-    "newVersionReady": "A new version is ready",
-    "currentVersion": "Current Version",
-    "latestVersion": "Latest Version",
-    "whatsNew": "What's New:",
-    "viewFullRelease": "View full release",
-    "updateProgress": "Update Progress:",
+    "title": "New update available",
+    "newVersionReady": "A newer version is available",
+    "currentVersion": "Installed version",
+    "latestVersion": "Newest version",
+    "whatsNew": "Release notes:",
+    "viewFullRelease": "Read full release",
+    "updateProgress": "Update status:",
     "manualUpgrade": "Update:",
     "npmUpgradeCommand": "scripts/gajae-app.sh update",
-    "manualUpgradeHint": "Download the latest version from GitHub Releases, or run this update command.",
-    "updateCompleted": "Update completed successfully!",
-    "restartServer": "Please restart the server to apply changes.",
-    "updateFailed": "Update failed",
+    "manualUpgradeHint": "Get the newest version from GitHub Releases, or use this command.",
+    "updateCompleted": "Update complete!",
+    "restartServer": "Restart the server to use the update.",
+    "updateFailed": "Could not update",
     "buttons": {
       "close": "Close",
       "later": "Later",
-      "copyCommand": "Copy Command",
-      "updateNow": "Update Now",
-      "updating": "Updating..."
+      "copyCommand": "Copy update command",
+      "updateNow": "Install update",
+      "updating": "Installing update…"
     },
     "ariaLabels": {
-      "closeModal": "Close version upgrade modal",
-      "showSidebar": "Show sidebar",
+      "closeModal": "Dismiss update dialog",
+      "showSidebar": "Reveal sidebar",
       "settings": "Settings",
-      "updateAvailable": "Update available",
-      "closeSidebar": "Close sidebar"
+      "updateAvailable": "New update available",
+      "closeSidebar": "Hide sidebar"
     }
   },
   "workspace": {
     "title": "Workspace",
-    "open": "Open workspace panel",
-    "close": "Close workspace panel",
-    "expand": "Expand workspace panel",
-    "collapse": "Collapse workspace panel",
-    "resize": "Drag to resize the workspace panel",
+    "open": "Show workspace panel",
+    "close": "Hide workspace panel",
+    "expand": "Widen workspace panel",
+    "collapse": "Narrow workspace panel",
+    "resize": "Resize the workspace panel by dragging",
     "tabs": {
       "status": "Status",
       "browser": "Browser"
     },
     "browser": {
-      "address": "Browser address",
+      "address": "Web address",
       "back": "Back",
       "forward": "Forward",
-      "reload": "Reload",
-      "external": "Open in external browser",
-      "stop": "Stop browser session",
-      "preview": "Live Chromium preview",
-      "empty": "Enter an address or choose a local development URL.",
-      "installTitle": "Set up the development browser",
-      "installDescription": "Gajae downloads an isolated Chrome for Testing build and keeps its profile separate from your personal browser.",
-      "download": "Download Chromium and start",
-      "preparing": "Preparing Chromium…",
-      "downloading": "Downloading… {{progress}}%",
-      "connecting": "Connecting to the development browser…",
-      "newTab": "New tab",
-      "closeTab": "Close tab",
+      "reload": "Reload page",
+      "external": "Open in your default browser",
+      "stop": "End browser session",
+      "preview": "Chromium live preview",
+      "empty": "Enter a URL, or select a local development address.",
+      "installTitle": "Install the development browser",
+      "installDescription": "Gajae uses a separate Chrome for Testing download and isolated browser profile.",
+      "download": "Get Chromium and launch it",
+      "preparing": "Setting up Chromium…",
+      "downloading": "Getting Chromium… {{progress}}%",
+      "connecting": "Linking to the development browser…",
+      "newTab": "Open tab",
+      "closeTab": "Dismiss tab",
       "connection": {
         "connecting": "Connecting",
         "live": "Live",
         "offline": "Offline"
       },
-      "unsupported": "The automation preview currently requires Apple Silicon and macOS 14 or later.",
-      "error": "Browser automation failed.",
-      "downloadBlocked": "Download blocked: {{filename}}. Saving downloads is not available in this preview.",
+      "unsupported": "Automation preview needs Apple Silicon with macOS 14 or newer.",
+      "error": "Could not start browser automation.",
+      "downloadBlocked": "Blocked download: {{filename}}. This preview cannot save downloads.",
       "downloadUnknown": "download",
-      "dialogDismissed": "The page opened a dialog and Gajae dismissed it: {{message}}",
+      "dialogDismissed": "Gajae closed a page dialog: {{message}}",
       "cua": "Native apps · CUA Driver",
-      "cuaMissing": "Not installed"
+      "cuaMissing": "Unavailable"
     },
     "statusTab": {
       "session": "Session",
       "model": "Model",
       "reasoning": "Reasoning",
       "context": "Context",
-      "contextWindow": "Context window",
+      "contextWindow": "Available context",
       "tokens": "Tokens",
       "tokensUsed": "Used",
       "tokensInput": "Input",
@@ -335,7 +335,7 @@
       "activity": "Activity",
       "running": "Running",
       "idle": "Idle",
-      "queuedMessage": "One message queued",
+      "queuedMessage": "1 message queued",
       "location": "Location",
       "project": "Project",
       "directory": "Directory",
@@ -344,21 +344,21 @@
       "changes": "Changes",
       "staged": "Staged",
       "untracked": "Untracked",
-      "clean": "No local changes",
-      "notARepository": "Not a Git repository",
-      "gitUnavailable": "Git status unavailable",
-      "refreshGit": "Refresh Git status",
-      "unreported": "Not reported yet",
-      "empty": "No session open",
-      "emptyHint": "Open or start a session to see what it is running."
+      "clean": "Working tree is clean",
+      "notARepository": "This folder is not a Git repository",
+      "gitUnavailable": "Could not read Git status",
+      "refreshGit": "Reload Git status",
+      "unreported": "No report yet",
+      "empty": "No open session",
+      "emptyHint": "Start or open a session to view its current activity."
     },
     "filesTab": {
-      "changeRoot": "Change root folder",
-      "rootPlaceholder": "Path under home (e.g. workspace)",
+      "changeRoot": "Set root folder",
+      "rootPlaceholder": "Home-relative path (for example, workspace)",
       "apply": "Apply",
-      "opening": "Opening folder…",
-      "homeUnavailable": "Home directory could not be resolved",
-      "openFailed": "Could not open that folder — check the path"
+      "opening": "Accessing folder…",
+      "homeUnavailable": "Could not determine the home directory",
+      "openFailed": "That folder could not be opened; check its path"
     }
   }
 }

@@ -1,6 +1,10 @@
+/* Tailwind integration */
+
 @import 'tailwindcss';
 
 @plugin '@tailwindcss/typography';
+
+/* Theme selector and layout primitive */
 
 @custom-variant dark (&:is(.dark *));
 
@@ -15,63 +19,47 @@
   }
 }
 
-@theme {
-  --font-sans:
-    'Pretendard Variable', Pretendard, -apple-system,
-    BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-serif:
-    Georgia, Cambria, 'Times New Roman', 'Pretendard Variable',
-    Pretendard, serif;
+/* Design tokens and generated aliases */
 
+@theme {
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-serif: Georgia, Cambria, 'Times New Roman', 'Pretendard Variable',
+    Pretendard, serif;
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
-
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
-
   --color-secondary: hsl(var(--secondary));
   --color-secondary-foreground: hsl(var(--secondary-foreground));
-
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
-
   --color-diff-added: hsl(var(--diff-added));
   --color-diff-added-foreground: hsl(var(--diff-added-foreground));
-
   --color-diff-removed: hsl(var(--diff-removed));
   --color-diff-removed-foreground: hsl(var(--diff-removed-foreground));
-
   --color-chat-bubble: hsl(var(--chat-bubble));
   --color-chat-bubble-foreground: hsl(var(--chat-bubble-foreground));
-
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
-
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
-
   --color-popover: hsl(var(--popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
-
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
-
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
-
   --spacing-safe-area-inset-bottom: env(safe-area-inset-bottom);
   --spacing-mobile-nav: var(--mobile-nav-total);
-
   --container-chat: var(--chat-column-width);
-
   --animate-shimmer: shimmer 2s linear infinite;
   --animate-dialog-overlay-show: dialog-overlay-show 150ms ease-out;
   --animate-dialog-content-show: dialog-content-show 150ms ease-out;
-
   @keyframes shimmer {
     0% {
       background-position: 200% 0;
@@ -100,14 +88,8 @@
   }
 }
 
-/*
-  The default border color has changed to `currentcolor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
+/* Browser baseline */
 
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
 @layer base {
   *,
   ::after,
@@ -118,15 +100,14 @@
   }
 }
 
+/* Reusable interface utilities */
+
 @utility sidebar-transition {
-  /* Sidebar transitions */
-  transition:
-    transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
     opacity 300ms ease-in-out;
 }
 
 @utility nav-glass {
-  /* Nav glass surface — uses theme tokens */
   background: hsl(var(--nav-glass-bg));
   backdrop-filter: blur(var(--nav-glass-blur))
     saturate(var(--nav-glass-saturate));
@@ -135,14 +116,11 @@
 }
 
 @utility mobile-nav-float {
-  /* Floating mobile nav bar — uses theme tokens */
-  box-shadow:
-    0 -1px 20px hsl(var(--nav-float-shadow)),
+  box-shadow: 0 -1px 20px hsl(var(--nav-float-shadow)),
     0 0 0 1px hsl(var(--nav-float-ring));
 }
 
 @utility nav-divider {
-  /* Subtle sidebar divider — uses theme tokens */
   height: 1px;
   background: linear-gradient(
     90deg,
@@ -154,249 +132,186 @@
 }
 
 @utility modal-transition {
-  /* Modal and dropdown transitions */
-  transition:
-    opacity 200ms ease-in-out,
+  transition: opacity 200ms ease-in-out,
     transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @utility message-transition {
-  /* Chat message transitions */
-  transition:
-    opacity 300ms ease-in-out,
+  transition: opacity 300ms ease-in-out,
     transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @utility height-transition {
-  /* Height transitions for expanding elements */
-  transition:
-    height 200ms ease-in-out,
+  transition: height 200ms ease-in-out,
     max-height 200ms ease-in-out;
 }
 
 @utility scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--muted-foreground)) transparent;
-
   &::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-
   &::-webkit-scrollbar-track {
     background: transparent;
   }
-
   &::-webkit-scrollbar-thumb {
     background-color: hsl(var(--muted-foreground));
     border-radius: 3px;
   }
-
   &::-webkit-scrollbar-thumb:hover {
     background-color: hsl(var(--muted-foreground) / 0.8);
   }
-
-  /* Dark mode scrollbar styles */
   .dark & {
     scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
   }
-
   .dark &::-webkit-scrollbar-track {
     background: rgba(38, 38, 38, 0.3);
   }
-
   .dark &::-webkit-scrollbar-thumb {
     background-color: rgba(156, 163, 175, 0.5);
     border-radius: 3px;
   }
-
   .dark &::-webkit-scrollbar-thumb:hover {
     background-color: rgba(156, 163, 175, 0.7);
   }
 }
 
 @utility dark {
-  /* Dark mode scrollbar styles */
   & .scrollbar-thin {
     scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
   }
-
   & .scrollbar-thin::-webkit-scrollbar-track {
     background: rgba(38, 38, 38, 0.3);
   }
-
   & .scrollbar-thin::-webkit-scrollbar-thumb {
     background-color: rgba(156, 163, 175, 0.5);
     border-radius: 3px;
   }
-
   & .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background-color: rgba(156, 163, 175, 0.7);
   }
-
-  /* Global scrollbar styles for main content areas */
   &::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
-
   &::-webkit-scrollbar-track {
     background: rgba(38, 38, 38, 0.5);
   }
-
   &::-webkit-scrollbar-thumb {
     background-color: rgba(107, 114, 128, 0.5);
     border-radius: 4px;
   }
-
   &::-webkit-scrollbar-thumb:hover {
     background-color: rgba(107, 114, 128, 0.7);
   }
-
-  /* Firefox scrollbar styles */
   scrollbar-width: thin;
   scrollbar-color: rgba(115, 115, 115, 0.5) rgba(38, 38, 38, 0.5);
-
-  /* Fix checkbox appearance in dark mode */
   & input[type='checkbox'] {
-    background-color: rgb(31 41 55); /* gray-800 */
-    border-color: rgb(75 85 99); /* gray-600 */
-    color: rgb(37 99 235); /* blue-600 */
+    background-color: rgb(31 41 55);
+    border-color: rgb(75 85 99);
+    color: rgb(37 99 235);
     color-scheme: dark;
   }
-
   & input[type='checkbox']:checked {
-    background-color: rgb(37 99 235); /* blue-600 */
-    border-color: rgb(37 99 235); /* blue-600 */
+    background-color: rgb(37 99 235);
+    border-color: rgb(37 99 235);
   }
-
   & input[type='checkbox']:focus {
-    --tw-ring-color: rgb(59 130 246); /* blue-500 */
-    --tw-ring-offset-color: rgb(31 41 55); /* gray-800 */
+    --tw-ring-color: rgb(59 130 246);
+    --tw-ring-offset-color: rgb(31 41 55);
   }
-
-  /* Fix radio button appearance in dark mode */
   & input[type='radio'] {
-    background-color: rgb(31 41 55); /* gray-800 */
-    border-color: rgb(75 85 99); /* gray-600 */
-    color: rgb(37 99 235); /* blue-600 */
+    background-color: rgb(31 41 55);
+    border-color: rgb(75 85 99);
+    color: rgb(37 99 235);
     color-scheme: dark;
   }
-
   & input[type='radio']:checked {
-    background-color: rgb(37 99 235); /* blue-600 */
-    border-color: rgb(37 99 235); /* blue-600 */
+    background-color: rgb(37 99 235);
+    border-color: rgb(37 99 235);
   }
-
   & input[type='radio']:focus {
-    --tw-ring-color: rgb(59 130 246); /* blue-500 */
-    --tw-ring-offset-color: rgb(31 41 55); /* gray-800 */
+    --tw-ring-color: rgb(59 130 246);
+    --tw-ring-offset-color: rgb(31 41 55);
   }
-
   & textarea {
-    color: rgb(243 244 246) !important; /* gray-100 */
+    color: rgb(243 244 246) !important;
     -webkit-text-fill-color: rgb(243 244 246) !important;
     caret-color: rgb(243 244 246) !important;
   }
-
-  /* Fix for focus state in dark mode */
   & textarea:focus {
     color: rgb(243 244 246) !important;
     -webkit-text-fill-color: rgb(243 244 246) !important;
   }
-
-  /* Fix for iOS/Safari dark mode textarea issues */
   @supports (-webkit-touch-callout: none) {
     & textarea {
       background-color: transparent !important;
       color: rgb(243 244 246) !important;
       -webkit-text-fill-color: rgb(243 244 246) !important;
     }
-
     & textarea:focus {
       background-color: transparent !important;
       color: rgb(243 244 246) !important;
       -webkit-text-fill-color: rgb(243 244 246) !important;
     }
   }
-
-  /* Ensure textarea remains transparent with visible text */
   & textarea.bg-transparent {
     background-color: transparent !important;
     color: rgb(243 244 246) !important;
     -webkit-text-fill-color: rgb(243 244 246) !important;
   }
-
   & textarea::placeholder {
-    color: rgb(75 85 99) !important; /* gray-600 - darker gray */
+    color: rgb(75 85 99) !important;
     opacity: 1 !important;
   }
-
-  /* More specific selector for chat input textarea */
   & textarea.bg-transparent::placeholder {
-    color: rgb(75 85 99) !important; /* gray-600 - darker gray */
+    color: rgb(75 85 99) !important;
     opacity: 1 !important;
     -webkit-text-fill-color: rgb(75 85 99) !important;
   }
-
   & .chat-input-placeholder::placeholder {
     color: rgb(75 85 99) !important;
     opacity: 1 !important;
     -webkit-text-fill-color: rgb(75 85 99) !important;
   }
-
   & .chat-input-placeholder::-webkit-input-placeholder {
     color: rgb(75 85 99) !important;
     opacity: 1 !important;
     -webkit-text-fill-color: rgb(75 85 99) !important;
   }
-
   & textarea::-webkit-input-placeholder {
-    color: rgb(75 85 99) !important; /* gray-600 - darker gray */
+    color: rgb(75 85 99) !important;
     opacity: 1 !important;
   }
-
   & textarea::-moz-placeholder {
-    color: rgb(75 85 99) !important; /* gray-600 - darker gray */
+    color: rgb(75 85 99) !important;
     opacity: 1 !important;
   }
-
   & textarea:-ms-input-placeholder {
-    color: rgb(75 85 99) !important; /* gray-600 - darker gray */
+    color: rgb(75 85 99) !important;
     opacity: 1 !important;
   }
-
   & .chat-input-placeholder {
     scrollbar-color: rgba(107, 114, 128, 0.3) transparent;
   }
-
   & .chat-input-placeholder::-webkit-scrollbar-thumb {
     background-color: rgba(107, 114, 128, 0.3);
   }
-
   & .chat-input-placeholder::-webkit-scrollbar-thumb:hover {
     background-color: rgba(107, 114, 128, 0.5);
   }
-
   & .chat-input-expanded {
-    box-shadow:
-      0 -5px 15px -3px rgba(0, 0, 0, 0.3),
+    box-shadow: 0 -5px 15px -3px rgba(0, 0, 0, 0.3),
       0 -4px 6px -2px rgba(0, 0, 0, 0.2);
   }
-
-  /* Fix focus ring offset color in dark mode */
   & [class*='ring-offset'] {
     --tw-ring-offset-color: rgb(20 20 20);
   }
-
-  /* Ensure buttons don't show white backgrounds in dark mode */
   & button:focus {
     --tw-ring-offset-color: rgb(20 20 20);
   }
-
-  /* Fix mobile select dropdown styling */
-
-  /* Improve select appearance in dark mode */
   & select {
     background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
     background-repeat: no-repeat;
@@ -407,7 +322,6 @@
     -moz-appearance: none;
     appearance: none;
   }
-
   & select option {
     background-color: rgb(31 31 31) !important;
     color: rgb(237 235 230) !important;
@@ -415,84 +329,64 @@
 }
 
 @utility bg-transparent {
-  /* Fix for iOS/Safari dark mode textarea issues */
-
-  /* Ensure textarea remains transparent with visible text */
   .dark &textarea {
     background-color: transparent !important;
     color: rgb(243 244 246) !important;
     -webkit-text-fill-color: rgb(243 244 246) !important;
   }
-
-  /* More specific selector for chat input textarea */
   .dark &textarea::placeholder {
-    color: rgb(75 85 99) !important; /* gray-600 - darker gray */
+    color: rgb(75 85 99) !important;
     opacity: 1 !important;
     -webkit-text-fill-color: rgb(75 85 99) !important;
   }
 }
 
 @utility chat-input-placeholder {
-  /* Custom class for chat input placeholder */
   &::placeholder {
     color: rgb(156 163 175) !important;
     opacity: 1 !important;
   }
-
   .dark &::placeholder {
     color: rgb(75 85 99) !important;
     opacity: 1 !important;
     -webkit-text-fill-color: rgb(75 85 99) !important;
   }
-
   &::-webkit-input-placeholder {
     color: rgb(156 163 175) !important;
     opacity: 1 !important;
   }
-
   .dark &::-webkit-input-placeholder {
     color: rgb(75 85 99) !important;
     opacity: 1 !important;
     -webkit-text-fill-color: rgb(75 85 99) !important;
   }
-
-  /* Improved textarea styling */
   display: block !important;
   scrollbar-width: thin;
   scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
-
-  /* Ensure container fits textarea tightly */
   &:not(:focus) {
     height: auto;
   }
-
   &::-webkit-scrollbar {
     width: 6px;
   }
-
   &::-webkit-scrollbar-track {
     background: transparent;
     margin: 8px 0;
   }
-
   &::-webkit-scrollbar-thumb {
     background-color: rgba(156, 163, 175, 0.3);
     border-radius: 3px;
     transition: background-color 0.2s;
   }
-
   &::-webkit-scrollbar-thumb:hover {
     background-color: rgba(156, 163, 175, 0.5);
   }
-
   .dark & {
     scrollbar-color: rgba(107, 114, 128, 0.3) transparent;
   }
-
   .dark &::-webkit-scrollbar-thumb {
     background-color: rgba(107, 114, 128, 0.3);
   }
-
   .dark &::-webkit-scrollbar-thumb:hover {
     background-color: rgba(107, 114, 128, 0.5);
   }
@@ -503,7 +397,6 @@
 }
 
 @utility loading-spinner {
-  /* Force hardware acceleration for smoother animation on mobile */
   animation: spin 1s linear infinite;
   will-change: transform;
   transform: translateZ(0);
@@ -513,67 +406,50 @@
 }
 
 @utility chat-input-expanded {
-  /* Enhanced box shadow when textarea expands */
-  box-shadow:
-    0 -5px 15px -3px rgba(0, 0, 0, 0.1),
+  box-shadow: 0 -5px 15px -3px rgba(0, 0, 0, 0.1),
     0 -4px 6px -2px rgba(0, 0, 0, 0.05);
-
   .dark & {
-    box-shadow:
-      0 -5px 15px -3px rgba(0, 0, 0, 0.3),
+    box-shadow: 0 -5px 15px -3px rgba(0, 0, 0, 0.3),
       0 -4px 6px -2px rgba(0, 0, 0, 0.2);
   }
 }
 
 @utility details-chevron {
-  /* Tool details chevron animation */
   details[open] & {
     transform: rotate(180deg);
   }
-
-  /* Smooth chevron transition */
   transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @utility settings-content-enter {
-  /* Settings content fade-in transition */
   animation: settings-fade-in 150ms ease-out;
 }
 
 @utility search-highlight-flash {
-  /* Search result highlight flash */
   animation: search-flash 4s ease-out;
 }
 
+/* Interface-scale utility overrides */
+
 @layer utilities {
-  /* Tailwind's standard text sizes use rem and follow the root interface size.
-   Scale the few fixed-pixel labels too so badges and metadata keep the same
-   visual ratio at every interface font-size setting. */
   .text-\[9px\] {
     font-size: calc(9px * var(--interface-font-scale, 1));
   }
-
   .text-\[10px\] {
     font-size: calc(10px * var(--interface-font-scale, 1));
   }
-
   .text-\[11px\] {
     font-size: calc(11px * var(--interface-font-scale, 1));
   }
-
   .text-\[12px\] {
     font-size: calc(12px * var(--interface-font-scale, 1));
   }
-
   .text-\[13px\] {
     font-size: calc(13px * var(--interface-font-scale, 1));
   }
-
   .text-\[14px\] {
     font-size: calc(14px * var(--interface-font-scale, 1));
   }
-
-  /* Global spinner animation - defined early to ensure it loads */
   @keyframes spin {
     0% {
       transform: rotate(0deg);
@@ -582,7 +458,6 @@
       transform: rotate(360deg);
     }
   }
-
   @-webkit-keyframes spin {
     0% {
       -webkit-transform: rotate(0deg);
@@ -592,6 +467,8 @@
     }
   }
 }
+
+/* Color modes and shell variables */
 
 @layer base {
   :root {
@@ -603,10 +480,6 @@
     --popover-foreground: 36 25% 4%;
     --primary: 14 89% 52%;
     --primary-foreground: 210 40% 98%;
-    /* The user bubble is the one place a whole block is filled with the accent,
-       so it needs its own shade: the vivid accent that reads well as a button
-       only reaches 3.5:1 behind body text. Darkening it lets the light text
-       clear WCAG AA while the accent itself stays untouched everywhere else. */
     --chat-bubble: 14 89% 42%;
     --chat-bubble-foreground: 0 0% 100%;
     --secondary: 44 15% 91%;
@@ -625,54 +498,37 @@
     --input: 44 14% 87%;
     --ring: 14 89% 52%;
     --radius: 0.5rem;
-
-    /* Nav design tokens */
     --nav-glass-bg: 44 22% 96% / 0.7;
     --nav-glass-blur: 20px;
     --nav-glass-saturate: 1.8;
     --nav-float-shadow: 0 0% 0% / 0.06;
     --nav-float-ring: 44 14% 87% / 0.5;
     --nav-divider-color: 44 14% 87% / 0.5;
-
-    /* Safe area CSS variables */
     --safe-area-inset-top: env(safe-area-inset-top);
     --safe-area-inset-right: env(safe-area-inset-right);
     --safe-area-inset-bottom: env(safe-area-inset-bottom);
     --safe-area-inset-left: env(safe-area-inset-left);
-
-    /* Mobile navigation dimensions - Single source of truth */
-    /* Floating nav: ~52px bar + 8px bottom margin + 12px px-3 top spacing */
     --mobile-nav-height: 52px;
     --mobile-nav-padding: 20px;
     --mobile-nav-total: calc(var(--mobile-nav-height) + var(--mobile-nav-padding) + env(safe-area-inset-bottom, 0px));
     --chat-column-width: 54.25rem;
-
-    /* Header safe area dimensions: the standalone offset is only applied in
-       pwa-mode (below); in the browser the page starts at the viewport top. */
     --header-safe-area-top: env(safe-area-inset-top, 0px);
     --header-base-padding: 8px;
     --header-total-padding: 0px;
   }
-
   body.pwa-mode {
     --header-total-padding: calc(var(--header-safe-area-top) + var(--header-base-padding));
   }
-
-  /* A 1200px window - the desktop app's default - sat below the old 1280px
-     step, so the widening never applied where it was most needed. */
   @media (min-width: 1024px) {
     :root {
       --chat-column-width: 60rem;
     }
   }
-
   @media (min-width: 1280px) {
     :root {
       --chat-column-width: 66rem;
     }
   }
-  
-  /* Fallback for older iOS versions */
   @supports (padding-top: constant(safe-area-inset-top)) {
     :root {
       --safe-area-inset-top: constant(safe-area-inset-top);
@@ -681,7 +537,6 @@
       --safe-area-inset-left: constant(safe-area-inset-left);
     }
   }
-
   .dark {
     --background: 0 0% 8%;
     --foreground: 40 8% 93%;
@@ -708,8 +563,6 @@
     --border: 0 0% 17%;
     --input: 0 0% 23%;
     --ring: 16 90% 57%;
-
-    /* Nav design tokens — dark overrides */
     --nav-glass-bg: 0 0% 12% / 0.55;
     --nav-glass-blur: 24px;
     --nav-glass-saturate: 1.6;
@@ -719,44 +572,35 @@
   }
 }
 
+/* Document and PWA foundations */
+
 @layer base {
   * {
     @apply border-border;
     box-sizing: border-box;
     transition: none;
   }
-  
   body {
     @apply bg-background text-foreground;
-
     font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     margin: 0;
     padding: 0;
   }
-
   html, body {
     height: 100%;
     margin: 0;
     padding: 0;
-    /* The app shell is a fixed inset-0 container (see AppContent), so the
-       document itself never needs to scroll. Clipping it removes the phantom
-       full-height page scrollbar and disables the browser pull-to-refresh
-       gesture that reloads the page when scrolling up on mobile. */
     overflow: hidden;
     overscroll-behavior-y: contain;
   }
-  
-  /* Root element with safe area padding for PWA */
   #root {
     min-height: 100vh;
     margin: 0;
     padding: 0;
     box-sizing: border-box;
   }
-  
-  /* Apply safe area padding in standalone mode */
   @supports (padding-top: env(safe-area-inset-top)) {
     @media (display-mode: standalone) {
       #root {
@@ -766,24 +610,18 @@
       }
     }
   }
-
-  /* PWA mode detected by JavaScript - more reliable */
   body.pwa-mode #root {
     padding-left: var(--safe-area-inset-left);
     padding-right: var(--safe-area-inset-right);
     height: 100dvh;
     overflow: hidden;
   }
-
-  /* Adjust fixed inset positioning in PWA mode */
   body.pwa-mode .fixed.inset-0 {
     top: var(--header-total-padding);
     left: var(--safe-area-inset-left);
     right: var(--safe-area-inset-right);
     bottom: 0;
   }
-
-  /* Global transition defaults */
   button, 
   a, 
   input, 
@@ -793,8 +631,6 @@
   .transition-all {
     transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
-  /* Color transitions for theme switching - exclude interactive elements */
   body, div, section, article, aside, header, footer, nav, main,
   h1, h2, h3, h4, h5, h6, p, span, blockquote,
   ul, ol, li, dl, dt, dd,
@@ -804,28 +640,18 @@
                 border-color 200ms ease-in-out,
                 color 200ms ease-in-out;
   }
-  
-  /* Transform transitions */
   .transition-transform {
     transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
-  /* Opacity transitions */
   .transition-opacity {
     transition: opacity 200ms ease-in-out;
   }
-  
-  /* Scale transitions for interactions */
   .transition-scale {
     transition: transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
-  /* Shadow transitions */
   .transition-shadow {
     transition: box-shadow 200ms ease-in-out;
   }
-  
-  /* Respect reduced motion preference */
   @media (prefers-reduced-motion: reduce) {
     *,
     ::before,
@@ -838,20 +664,9 @@
   }
 }
 
+/* Dynamic viewport sizing */
+
 @layer utilities {
-  /*
- * Fixed full-screen surfaces must fit the dynamic viewport. inset-0 and
- * vh resolve against the layout viewport, which on mobile browsers
- * includes the area behind the URL/tab bar, so the composer and modal
- * bottoms were clipped with no way to scroll to them (the document never
- * scrolls). dvh tracks the visible height instead; --keyboard-height
- * (see AppContent) subtracts the overlay keyboard on iOS, and
- * --header-total-padding is only non-zero in standalone pwa-mode, where
- * these surfaces are pushed below the status bar. With height set, the
- * over-constrained bottom from inset-0 is ignored; browsers without dvh
- * drop the declaration and keep the inset-0 stretch. Unlayered on purpose:
- * it must win over any utility on the same element.
- */
   .fixed.inset-0 {
     height: calc(
       100dvh - var(--keyboard-height, 0px) - var(--header-total-padding, 0px)
@@ -859,22 +674,19 @@
   }
 }
 
+/* Input and interaction behavior */
+
 @layer utilities {
-  /* Smooth hover transitions for interactive elements */
   button:hover,
   a:hover,
   [role="button"]:hover {
     transition-duration: 100ms;
   }
-  
-  /* Active state transitions */
   button:active,
   a:active,
   [role="button"]:active {
     transition-duration: 50ms;
   }
-  
-  /* Focus transitions */
   button:focus-visible,
   a:focus-visible,
   input:focus-visible,
@@ -882,115 +694,85 @@
   select:focus-visible {
     transition: outline-offset 150ms ease-out, box-shadow 150ms ease-out;
   }
-  
-  /* Ensure checkbox styling is preserved */
   input[type="checkbox"] {
     @apply accent-blue-600;
     opacity: 1;
   }
-  
   input[type="checkbox"]:focus {
     opacity: 1;
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
   }
-  
-  /* Ensure textarea text is always visible in dark mode */
   textarea {
     color-scheme: light dark;
   }
-  
-  /* Fix placeholder text color to be properly gray */
   textarea::placeholder {
-    color: rgb(156 163 175) !important; /* gray-400 */
+    color: rgb(156 163 175) !important;
     opacity: 1 !important;
   }
-  
-  /* WebKit specific placeholder styles */
   textarea::-webkit-input-placeholder {
     color: rgb(156 163 175) !important;
     opacity: 1 !important;
   }
-  
-  /* Mozilla specific placeholder styles */
   textarea::-moz-placeholder {
     color: rgb(156 163 175) !important;
     opacity: 1 !important;
   }
-  
-  /* IE/Edge specific placeholder styles */
   textarea:-ms-input-placeholder {
     color: rgb(156 163 175) !important;
     opacity: 1 !important;
   }
 }
 
+/* Responsive content utilities */
+
 @layer utilities {
-  /* Mobile optimizations and components.
- * Keep this block outside Tailwind's component layer: it intentionally overrides
- * generated utility selectors, which Tailwind otherwise re-expands into invalid
- * empty selector blocks during CSS minification.
- */
   .chat-messages-pane {
     contain: layout style paint;
   }
-
   .chat-composer-shell {
     contain: layout style;
   }
-
   .chat-activity-enter {
     animation: chat-activity-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
     transform-origin: bottom center;
     will-change: transform, opacity, filter;
   }
-
   .chat-activity-exit {
     animation: chat-activity-exit 220ms cubic-bezier(0.4, 0, 1, 1) both;
     transform-origin: bottom center;
     will-change: transform, opacity, filter;
   }
-
   .chat-activity-tab {
     clip-path: inset(-8px -8px 0 -8px);
   }
-
   .chat-message {
     contain: layout style paint;
     content-visibility: auto;
     contain-intrinsic-size: auto 180px;
   }
-
   .chat-message.assistant {
     contain-intrinsic-size: auto 240px;
   }
-
   .chat-message.user,
   .chat-message.tool,
   .chat-message.error {
     contain-intrinsic-size: auto 96px;
   }
-
-  /* Mobile touch optimization and safe areas */
   @media (max-width: 768px) {
     * {
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }
-
-    /* Allow vertical scrolling in scroll containers */
     .overflow-y-auto,
     [data-scroll-container] {
       touch-action: pan-y;
       -webkit-overflow-scrolling: touch;
     }
-
-    /* Preserve checkbox visibility */
     input[type='checkbox'] {
       -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
       opacity: 1 !important;
     }
-
     button,
     [role='button'],
     .clickable,
@@ -1001,63 +783,46 @@
       -webkit-user-select: none;
       touch-action: manipulation;
     }
-
-    /* Better mobile touch targets */
     .mobile-touch-target {
       @apply min-h-[44px] min-w-[44px];
     }
-
-    /* Chat message improvements */
     .chat-message.user {
       @apply justify-end;
     }
-
     .chat-message.user > div {
       @apply max-w-[85%];
     }
-
     .chat-message.assistant > div,
     .chat-message.error > div {
       @apply w-full sm:max-w-[95%];
     }
-
-    /* Session name truncation on mobile */
     .session-name-mobile {
       @apply truncate;
       max-width: calc(
         100vw - 120px
-      ); /* Account for sidebar padding and buttons */
+      );
     }
-
-    /* Enable text selection on mobile for terminal */
     .xterm,
     .xterm .xterm-viewport {
       -webkit-user-select: text !important;
       user-select: text !important;
       -webkit-touch-callout: default !important;
     }
-
-    /* Fix mobile scrolling */
     .overflow-y-auto {
       touch-action: pan-y;
       -webkit-overflow-scrolling: touch;
     }
-
     .chat-message {
       touch-action: pan-y;
     }
-
-    /* Fix hover states on mobile */
     .group:active .group-hover\:opacity-100,
     .group .group-hover\:opacity-100 {
       opacity: 1 !important;
     }
-
     @media (hover: none) and (pointer: coarse) {
       .group-hover\:opacity-100 {
         opacity: 1 !important;
       }
-
       .hover\:bg-gray-50:hover,
       .hover\:bg-gray-100:hover,
       .hover\:bg-red-200:hover,
@@ -1067,25 +832,17 @@
       }
     }
   }
-
-  /* Touch device optimizations for all screen sizes */
   @media (hover: none) and (pointer: coarse) {
     .touch\:opacity-100 {
       opacity: 1 !important;
     }
-
-    /* Completely disable hover states on touch devices */
     * {
       -webkit-tap-highlight-color: transparent !important;
     }
-
-    /* Preserve checkbox visibility on touch devices */
     input[type='checkbox'] {
       -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1) !important;
       opacity: 1 !important;
     }
-
-    /* Only disable hover states for interactive elements, not containers */
     button:hover,
     [role='button']:hover,
     .cursor-pointer:hover,
@@ -1099,70 +856,47 @@
       opacity: inherit !important;
       transform: inherit !important;
     }
-
-    /* Force buttons to be immediately clickable */
     button,
     [role='button'],
     .cursor-pointer {
       cursor: pointer !important;
       pointer-events: auto !important;
     }
-
-    /* Keep active states for immediate feedback */
     .active\:scale-\[0\.98\]:active,
     .active\:scale-95:active {
       transform: scale(0.98) !important;
     }
   }
-
-  /* Safe area support for iOS devices */
   .ios-bottom-safe {
     padding-bottom: env(safe-area-inset-bottom);
   }
-
-  /* PWA specific header adjustments - uses CSS variables for consistency */
   .pwa-header-safe {
     padding-top: var(--header-base-padding);
   }
-
-  /* When PWA mode is detected by JavaScript */
   body.pwa-mode .pwa-header-safe {
-    /* Reset padding since #root already handles safe area */
     padding-top: 0px !important;
   }
-
-  /* For mobile PWA, add bottom padding for better spacing */
   @media screen and (max-width: 768px) {
     body.pwa-mode .pwa-header-safe {
       padding-bottom: 8px;
     }
   }
-
   @media screen and (max-width: 768px) {
     .chat-input-mobile {
       padding-bottom: calc(60px + env(safe-area-inset-bottom));
     }
   }
-
-  /* Text wrapping improvements */
   .chat-message {
     word-wrap: break-word;
     overflow-wrap: break-word;
     hyphens: auto;
   }
-
-  /* Force wrap long URLs and code */
   .chat-message pre,
   .chat-message code {
     white-space: pre-wrap !important;
     word-break: break-all;
     overflow-wrap: break-word;
   }
-
-  /* Prevent horizontal scroll in chat area.
-     Scoped to what can actually overflow: a universal max-width overrode every
-     width utility inside a message, so a reading measure could not be set at
-     all — the prose ran the full 836px column at 118 characters per line. */
   .chat-message pre,
   .chat-message img,
   .chat-message table,
@@ -1171,30 +905,25 @@
   .chat-message iframe {
     max-width: 100%;
   }
-
   .chat-message * {
     box-sizing: border-box;
   }
-
-  /* Hide scrollbar utility for horizontal scroll */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
-
-  /* Hide markdown backticks in prose content */
   .prose code::before,
   .prose code::after {
     content: '' !important;
     display: none !important;
   }
-
-  /* Custom spinner animation for mobile compatibility */
 }
+
+/* Motion definitions and form controls */
+
 @layer utilities {
   @keyframes spin {
     from {
@@ -1210,7 +939,6 @@
       -webkit-appearance: none;
     }
   }
-  
   select {
     background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
     background-repeat: no-repeat;
@@ -1221,8 +949,6 @@
     -moz-appearance: none;
     appearance: none;
   }
-  
-  /* Fix select option text in mobile */
   select option {
     font-size: 16px !important;
     padding: 8px !important;
@@ -1230,10 +956,15 @@
     color: var(--foreground) !important;
   }
   @keyframes settings-fade-in {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
-
   @keyframes chat-activity-enter {
     0% {
       opacity: 0;
@@ -1251,7 +982,6 @@
       transform: translateY(0) scaleY(1);
     }
   }
-
   @keyframes chat-activity-exit {
     0% {
       opacity: 1;
@@ -1264,7 +994,6 @@
       transform: translateY(14px) scaleY(0.96);
     }
   }
-
   @keyframes search-flash {
     0%, 50% {
       outline: 3px solid hsl(var(--primary));

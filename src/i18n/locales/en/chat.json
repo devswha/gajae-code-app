@@ -2,14 +2,14 @@
   "codeBlock": {
     "copy": "Copy",
     "copied": "Copied",
-    "copyCode": "Copy code"
+    "copyCode": "Copy source"
   },
   "copyMessage": {
-    "copy": "Copy message",
-    "copied": "Message copied",
-    "selectFormat": "Select copy format",
-    "copyAsMarkdown": "Copy as markdown",
-    "copyAsText": "Copy as text"
+    "copy": "Copy text",
+    "copied": "Text copied",
+    "selectFormat": "Choose copy format",
+    "copyAsMarkdown": "Copy in Markdown",
+    "copyAsText": "Copy in plain text"
   },
   "messageTypes": {
     "user": "U",
@@ -25,209 +25,209 @@
     }
   },
   "tools": {
-    "settings": "Tool Settings",
-    "error": "Tool Error",
-    "result": "Tool Result",
-    "viewParams": "View input parameters",
-    "viewRawParams": "View raw parameters",
-    "viewDiff": "View edit diff for",
-    "creatingFile": "Creating new file:",
-    "updatingTodo": "Updating Todo List",
+    "settings": "Tool options",
+    "error": "Tool problem",
+    "result": "Tool output",
+    "viewParams": "Inspect input parameters",
+    "viewRawParams": "Inspect raw parameters",
+    "viewDiff": "Inspect the edit diff for",
+    "creatingFile": "Making file:",
+    "updatingTodo": "Updating task list",
     "read": "Read",
-    "readFile": "Read file",
-    "updateTodo": "Update todo list",
-    "readTodo": "Read todo list",
-    "searchResults": "results"
+    "readFile": "Read a file",
+    "updateTodo": "Update task list",
+    "readTodo": "Read task list",
+    "searchResults": "matches"
   },
   "search": {
-    "found": "Found {{count}} {{type}}",
+    "found": "{{count}} {{type}} found",
     "file": "file",
     "files": "files",
     "pattern": "pattern:",
     "in": "in:"
   },
   "fileOperations": {
-    "updated": "File updated successfully",
-    "created": "File created successfully",
-    "written": "File written successfully",
+    "updated": "File update complete",
+    "created": "File creation complete",
+    "written": "File write complete",
     "diff": "Diff",
-    "newFile": "New File",
-    "viewContent": "View file content",
-    "viewFullOutput": "View full output ({{count}} chars)",
-    "contentDisplayed": "The file content is displayed in the diff view above"
+    "newFile": "Create file",
+    "viewContent": "Inspect file contents",
+    "viewFullOutput": "Show all output ({{count}} characters)",
+    "contentDisplayed": "The diff view above contains this file’s content"
   },
   "interactive": {
-    "title": "Interactive Prompt",
-    "waiting": "Waiting for your response in the CLI",
-    "instruction": "Please select an option in your terminal where Claude is running.",
-    "selectedOption": "✓ Claude selected option {{number}}",
-    "instructionDetail": "In the CLI, you would select this option interactively using arrow keys or by typing the number."
+    "title": "Interactive request",
+    "waiting": "Waiting for a response in the CLI",
+    "instruction": "Choose an option in the terminal running Claude.",
+    "selectedOption": "✓ Claude chose option {{number}}",
+    "instructionDetail": "In the CLI, select this interactively with arrow keys or its number."
   },
   "thinking": {
-    "title": "Thinking...",
-    "emoji": "💭 Thinking..."
+    "title": "Reasoning…",
+    "emoji": "💭 Reasoning…"
   },
   "json": {
-    "response": "JSON Response"
+    "response": "JSON reply"
   },
   "permissions": {
-    "grant": "Grant permission for {{tool}}",
-    "added": "Permission added",
-    "addTo": "Adds {{entry}} to Allowed Tools.",
-    "retry": "Permission saved. Retry the request to use the tool.",
-    "error": "Unable to update permissions. Please try again.",
-    "openSettings": "Open settings"
+    "grant": "Allow {{tool}} to run",
+    "added": "Permission recorded",
+    "addTo": "Adds {{entry}} to the allowed tools.",
+    "retry": "Permission saved. Run the tool request again.",
+    "error": "Could not update permissions. Try again.",
+    "openSettings": "Go to settings"
   },
   "todo": {
-    "updated": "Todo list has been updated successfully",
-    "current": "Current Todo List"
+    "updated": "Task list updated",
+    "current": "Current task list"
   },
   "plan": {
-    "viewPlan": "📋 View implementation plan",
-    "title": "Implementation Plan"
+    "viewPlan": "📋 Open build plan",
+    "title": "Build plan"
   },
   "usageLimit": {
-    "resetAt": "Claude usage limit reached. Your limit will reset at **{{time}} {{timezone}}** - {{date}}"
+    "resetAt": "Claude usage is currently capped. It resets at **{{time}} {{timezone}}** on {{date}}."
   },
   "codex": {
-    "permissionMode": "Permission Mode",
+    "permissionMode": "Permission handling",
     "modes": {
-      "default": "Default Mode",
-      "auto": "Auto Mode",
-      "acceptEdits": "Accept Edits",
-      "bypassPermissions": "Bypass Permissions",
-      "plan": "Plan Mode"
+      "default": "Standard mode",
+      "auto": "Automatic mode",
+      "acceptEdits": "Allow edits",
+      "bypassPermissions": "Bypass approval",
+      "plan": "Planning mode"
     },
     "descriptions": {
-      "default": "Only trusted commands (ls, cat, grep, git status, etc.) run automatically. Other commands are skipped. Can write to workspace.",
-      "auto": "A model classifier decides per tool call whether to approve or deny. Hands-off, but safer than Bypass — denials still happen.",
-      "acceptEdits": "All commands run automatically within the workspace. Full auto mode with sandboxed execution.",
-      "bypassPermissions": "Full system access with no restrictions. All commands run automatically with full disk and network access. Use with caution.",
-      "plan": "Planning mode - no commands are executed"
+      "default": "Trusted commands such as ls, cat, grep, and git status run automatically; others are skipped. Workspace writes are allowed.",
+      "auto": "A model classifier approves or rejects each tool call. It is hands-off but still denies unsafe calls.",
+      "acceptEdits": "Every command runs automatically inside the workspace sandbox.",
+      "bypassPermissions": "Commands run without restrictions, with full disk and network access. Use only when trusted.",
+      "plan": "Planning only; commands do not run"
     },
-    "technicalDetails": "Technical details"
+    "technicalDetails": "Implementation details"
   },
   "voice": {
-    "input": "Voice input",
-    "stopRecording": "Stop recording",
-    "transcribing": "Transcribing…",
-    "speak": "Read aloud",
+    "input": "Dictate message",
+    "stopRecording": "Finish recording",
+    "transcribing": "Converting speech…",
+    "speak": "Speak response",
     "stopSpeaking": "Stop",
     "loading": "Loading…"
   },
   "input": {
-    "placeholder": "Type / for commands, @ for files, or ask {{provider}} anything...",
-    "placeholderDefault": "Type your message...",
-    "disabled": "Input disabled",
+    "placeholder": "Ask {{provider}}, use / for commands, or @ to add files…",
+    "placeholderDefault": "Write a message…",
+    "disabled": "Message input unavailable",
     "modelReasoning": {
-      "label": "Model and reasoning",
+      "label": "Model and reasoning settings",
       "providerTitle": "Provider",
-      "modelTitle": "Chat model",
+      "modelTitle": "Conversation model",
       "reasoningTitle": "Reasoning",
       "defaultModel": "Default",
-      "currentConfiguration": "Use current configuration"
+      "currentConfiguration": "Keep current configuration"
     },
     "agentConfiguration": {
-      "label": "Agent configuration",
-      "title": "Agent configuration",
-      "description": "Choose models used for chat, planner, executor, architect, and critic roles.",
-      "search": "Search configurations",
-      "noMatches": "No matching configurations."
+      "label": "Agent setup",
+      "title": "Agent setup",
+      "description": "Set models for the chat, planner, executor, architect, and critic roles.",
+      "search": "Find configurations",
+      "noMatches": "No configurations match."
     },
-    "attachFiles": "Attach files",
-    "attachImages": "Attach images",
+    "attachFiles": "Add files",
+    "attachImages": "Add images",
     "send": "Send",
     "stop": "Stop",
     "hintText": {
-      "ctrlEnter": "Ctrl+Enter to send • Shift+Enter for new line • Tab to change modes • / for slash commands",
-      "enter": "Enter to send • Shift+Enter for new line • Tab to change modes • / for slash commands",
-      "queue": "Enter to queue your next message",
-      "steer": "Enter to send into the running turn"
+      "ctrlEnter": "Send with Ctrl+Enter • newline with Shift+Enter • change modes with Tab • commands with /",
+      "enter": "Send with Enter • newline with Shift+Enter • change modes with Tab • commands with /",
+      "queue": "Press Enter to queue another message",
+      "steer": "Press Enter to steer the active turn"
     },
-    "clickToChangeMode": "Click to change permission mode (or press Tab in input)",
-    "showAllCommands": "Show all commands",
-    "clearInput": "Clear input",
-    "scrollToBottom": "Scroll to bottom",
+    "clickToChangeMode": "Click to switch permission mode, or press Tab in the input",
+    "showAllCommands": "Browse commands",
+    "clearInput": "Empty message input",
+    "scrollToBottom": "Jump to latest",
     "queue": {
-      "sendNext": "Queue next message",
+      "sendNext": "Queue another message",
       "label": "Queued",
-      "willSend": "Will send when this finishes",
-      "willFollow": "Will send after the ones above",
-      "edit": "Edit queued message",
-      "delete": "Delete queued message",
-      "moveUp": "Move earlier in the queue",
-      "moveDown": "Move later in the queue",
-      "images_one": "{{count}} image attached",
-      "images_other": "{{count}} images attached",
-      "steerNow": "Send into the running turn"
+      "willSend": "Sends when the current run finishes",
+      "willFollow": "Sends after the messages above",
+      "edit": "Edit queued item",
+      "delete": "Remove queued item",
+      "moveUp": "Move up in queue",
+      "moveDown": "Move down in queue",
+      "images_one": "{{count}} image added",
+      "images_other": "{{count}} images added",
+      "steerNow": "Steer the active turn"
     }
   },
   "providerSelection": {
-    "title": "Choose Your AI Assistant",
-    "description": "Select a provider to start a new conversation",
-    "selectModel": "Select Model",
+    "title": "Choose an AI assistant",
+    "description": "Choose a provider for a new conversation",
+    "selectModel": "Choose model",
     "providerInfo": {
-      "anthropic": "by Anthropic",
-      "openai": "by OpenAI",
-      "cursorEditor": "AI Code Editor",
-      "google": "by Google"
+      "anthropic": "Anthropic provider",
+      "openai": "OpenAI provider",
+      "cursorEditor": "Code editor with AI",
+      "google": "Google provider"
     },
     "readyPrompt": {
-      "claude": "Ready to use Claude with {{model}}. Start typing your message below.",
-      "cursor": "Ready to use Cursor with {{model}}. Start typing your message below.",
-      "codex": "Ready to use Codex with {{model}}. Start typing your message below.",
-      "opencode": "Ready to use OpenCode with {{model}}. Start typing your message below.",
-      "default": "Select a provider above to begin"
+      "claude": "Claude with {{model}} is ready. Write your message below.",
+      "cursor": "Cursor with {{model}} is ready. Write your message below.",
+      "codex": "Codex with {{model}} is ready. Write your message below.",
+      "opencode": "OpenCode with {{model}} is ready. Write your message below.",
+      "default": "Choose a provider above to begin"
     },
-    "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits"
+    "pressToSearch": "Use <kbd>{{shortcut}}</kbd> to search conversations, files, and commits"
   },
   "session": {
     "continue": {
-      "title": "Continue your conversation",
-      "description": "Ask questions about your code, request changes, or get help with development tasks"
+      "title": "Continue this conversation",
+      "description": "Ask about code, request edits, or get help with development work"
     },
     "loading": {
-      "olderMessages": "Loading older messages...",
-      "sessionMessages": "Loading session messages..."
+      "olderMessages": "Retrieving earlier messages…",
+      "sessionMessages": "Retrieving conversation messages…"
     },
     "messages": {
-      "showingOf": "Showing {{shown}} of {{total}} messages",
-      "scrollToLoad": "Scroll up to load more",
-      "showingLast": "Showing last {{count}} messages ({{total}} total)",
-      "loadEarlier": "Load earlier messages",
-      "loadAll": "Load all messages",
-      "loadFullToolOutput": "Load full output",
-      "loadingFullToolOutput": "Loading full output...",
-      "fullToolOutputFailed": "Could not load full output.",
-      "loadingAll": "Loading all messages...",
-      "allLoaded": "All messages loaded",
-      "perfWarning": "All messages loaded — scrolling may be slower. Click \"Scroll to bottom\" to restore performance."
+      "showingOf": "Displaying {{shown}} of {{total}} messages",
+      "scrollToLoad": "Scroll upward for more",
+      "showingLast": "Displaying the latest {{count}} messages of {{total}}",
+      "loadEarlier": "Get earlier messages",
+      "loadAll": "Get all messages",
+      "loadFullToolOutput": "Get complete output",
+      "loadingFullToolOutput": "Retrieving complete output…",
+      "fullToolOutputFailed": "Complete output could not be loaded.",
+      "loadingAll": "Retrieving every message…",
+      "allLoaded": "Every message is loaded",
+      "perfWarning": "Every message is loaded, which may slow scrolling. Use “Scroll to bottom” to improve it."
     }
   },
   "shell": {
     "selectProject": {
-      "title": "Select a Project",
-      "description": "Choose a project to open an interactive shell in that directory"
+      "title": "Choose a project",
+      "description": "Pick a project to open an interactive shell in its directory"
     },
     "status": {
-      "newSession": "New Session",
-      "initializing": "Initializing...",
-      "restarting": "Restarting..."
+      "newSession": "Start conversation",
+      "initializing": "Starting…",
+      "restarting": "Starting again…"
     },
     "actions": {
       "disconnect": "Disconnect",
-      "disconnectTitle": "Disconnect from shell",
+      "disconnectTitle": "End shell connection",
       "restart": "Restart",
-      "restartTitle": "Restart Shell",
-      "connect": "Continue in Shell",
-      "connectTitle": "Connect to shell"
+      "restartTitle": "Start shell again",
+      "connect": "Continue in the shell",
+      "connectTitle": "Open shell connection"
     },
-    "loading": "Loading terminal...",
-    "connecting": "Connecting to shell...",
-    "startSession": "Start a new Claude session",
-    "resumeSession": "Resume session: {{displayName}}...",
-    "runCommand": "Run {{command}} in {{projectName}}",
-    "startCli": "Starting Claude CLI in {{projectName}}",
+    "loading": "Starting terminal…",
+    "connecting": "Opening shell connection…",
+    "startSession": "Begin a Claude session",
+    "resumeSession": "Continue: {{displayName}}…",
+    "runCommand": "Run {{command}} for {{projectName}}",
+    "startCli": "Launching Claude CLI for {{projectName}}",
     "defaultCommand": "command"
   },
   "claudeStatus": {
@@ -246,29 +246,29 @@
     "elapsed": {
       "seconds": "{{count}}s",
       "minutesSeconds": "{{minutes}}m {{seconds}}s",
-      "label": "{{time}} elapsed",
-      "startingNow": "Starting now"
+      "label": "{{time}} so far",
+      "startingNow": "Just starting"
     },
     "stop": "Stop",
     "controls": {
-      "stopGeneration": "Stop Generation",
-      "pressEscToStop": "Press Esc anytime to stop"
+      "stopGeneration": "Stop response",
+      "pressEscToStop": "Press Esc to stop at any time"
     },
     "providers": {
       "assistant": "Assistant"
     }
   },
   "projectSelection": {
-    "startChatWithProvider": "Select a project to start chatting with {{provider}}"
+    "startChatWithProvider": "Choose a project before chatting with {{provider}}"
   },
   "newSession": {
-    "greeting": "What are we building today?",
-    "subtitle": "Gajae Code is ready to work in {{project}}."
+    "greeting": "What should we build?",
+    "subtitle": "Gajae Code is ready in {{project}}."
   },
   "reasoning": {
-    "thinking": "Thinking…",
-    "thoughtBriefly": "Thought for a few seconds",
-    "thoughtFor_one": "Thought for {{count}} second",
-    "thoughtFor_other": "Thought for {{count}} seconds"
+    "thinking": "Reasoning…",
+    "thoughtBriefly": "Reasoned for a few seconds",
+    "thoughtFor_one": "Reasoned for {{count}} second",
+    "thoughtFor_other": "Reasoned for {{count}} seconds"
   }
 }

@@ -1,41 +1,43 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Report behavior that does not work as intended
 title: ''
 labels: ''
 assignees: ''
 type: Bug
-
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## What happened?
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+Describe the observed result and why it appears incorrect.
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Steps to trigger it
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+Give the smallest repeatable sequence. Include the project, command, or setting
+that matters.
 
-**Error message**
-If applicable, add the error message you see to help explain your problem.
+1.
+2.
+3.
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+## What should have happened instead?
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
+State the expected result.
 
-**Additional context**
-Add any other context about the problem here.
+## Evidence
+
+Paste relevant errors, logs, or request details. Attach a screenshot or short
+recording when it makes the problem clearer. Remove secrets, tokens, and private
+project content before posting.
+
+## Environment
+
+- Gajae Code App version:
+- Installation type (source, server bundle, or desktop app):
+- Operating system and version:
+- Browser and version (web app only):
+- GJC/runtime version, when relevant:
+
+## Other details
+
+Add workarounds, frequency, or anything else that may help reproduce the issue.

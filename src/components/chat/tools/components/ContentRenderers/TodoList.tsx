@@ -1,56 +1,36 @@
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 
-import { Queue, QueueItem, QueueItemIndicator, QueueItemContent } from '../../../../../shared/view/ui';
+import { Queue, QueueItem, QueueItemContent, QueueItemIndicator } from '../../../../../shared/view/ui';
 import type { QueueItemStatus } from '../../../../../shared/view/ui';
 
-export type TodoItem = {
-  id?: string;
-  content: string;
-  status: string;
-  priority?: string;
-  activeForm?: string;
+export type TodoItem = { id?: string; content: string; status: string; priority?: string; activeForm?: string; };
+
+const queueStatusFor = (status: string): QueueItemStatus => {
+  const recognizedStatuses: Record<string, QueueItemStatus> = {
+    completed: 'completed',
+    in_progress: 'in_progress',
+  };
+  return recognizedStatuses[status] ?? 'pending';
 };
 
-const normalizeStatus = (status: string): QueueItemStatus => {
-  if (status === 'completed') return 'completed';
-  if (status === 'in_progress') return 'in_progress';
-  return 'pending';
-};
+const TodoList = memo(({ todos, isResult = false }: { todos: TodoItem[]; isResult?: boolean }) => {
+  if (todos.length === 0) return null;
 
-const TodoList = memo(
-  ({
-    todos,
-    isResult = false,
-  }: {
-    todos: TodoItem[];
-    isResult?: boolean;
-  }) => {
-    const normalized = useMemo(
-      () => todos.map((todo) => ({ ...todo, queueStatus: normalizeStatus(todo.status) })),
-      [todos],
-    );
-
-    if (normalized.length === 0) return null;
-
-    return (
-      <div>
-        {isResult && (
-          <div className="mb-1.5 text-xs font-medium text-muted-foreground">
-            Todo List ({normalized.length} {normalized.length === 1 ? 'item' : 'items'})
-          </div>
-        )}
-        <Queue>
-          {normalized.map((todo, index) => (
-            <QueueItem key={todo.id ?? `${todo.content}-${index}`} status={todo.queueStatus}>
-              <QueueItemIndicator />
-              <QueueItemContent>{todo.content}</QueueItemContent>
-            </QueueItem>
-          ))}
-        </Queue>
-      </div>
-    );
-  },
-);
+  const itemWord = todos.length === 1 ? 'item' : 'items';
+  return (
+    <div>
+      {isResult && <div className="mb-1.5 text-xs font-medium text-muted-foreground">Todo List ({todos.length} {itemWord})</div>}
+      <Queue>
+        {todos.map((todo, index) => (
+          <QueueItem key={todo.id ?? `${todo.content}-${index}`} status={queueStatusFor(todo.status)}>
+            <QueueItemIndicator />
+            <QueueItemContent>{todo.content}</QueueItemContent>
+          </QueueItem>
+        ))}
+      </Queue>
+    </div>
+  );
+});
 
 TodoList.displayName = 'TodoList';
 

@@ -1,114 +1,106 @@
-/**
- * Notification preferences repository.
- *
- * Stores per-user notification channel/event preferences as JSON.
- */
-
 import { getConnection } from '@/modules/database/connection.js';
 
-type NotificationPreferences = {
-  channels: {
-    inApp: boolean;
-    desktop: boolean;
-    sound: boolean;
-    [key: string]: boolean;
-  };
-  events: {
-    actionRequired: boolean;
-    stop: boolean;
-    error: boolean;
-  };
-};
+interface NotificationEventToggles { actionRequired: boolean; error: boolean; stop: boolean }
 
-const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
-  channels: {
-    inApp: false,
-    desktop: false,
-    sound: true,
-  },
-  events: {
-    actionRequired: true,
-    stop: true,
-    error: true,
-  },
-};
+interface NotificationPreferences {
+  channels: { [key: string]: boolean; desktop: boolean; inApp: boolean; sound: boolean };
+  events: NotificationEventToggles;
+}
 
-function normalizeNotificationPreferences(value: unknown): NotificationPreferences {
-  const source = value && typeof value === 'object' ? (value as Record<string, any>) : {};
-  const sourceChannels = source.channels && typeof source.channels === 'object'
-    ? source.channels as Record<string, unknown>
-    : {};
-  const extraChannels = Object.fromEntries(
-    Object.entries(sourceChannels)
-      .filter(([key, channelValue]) => !['inApp', 'desktop', 'sound'].includes(key) && typeof channelValue === 'boolean')
-  ) as Record<string, boolean>;
+const BUILT_IN_CHANNEL_NAMES: readonly string[] = ['desktop', 'inApp', 'sound'];
 
+function createDefaultPreferences(): NotificationPreferences {
   return {
-    channels: {
-      ...extraChannels,
-      inApp: source.channels?.inApp === true,
-      desktop: source.channels?.desktop === true,
-      sound: source.channels?.sound !== false,
-    },
-    events: {
-      actionRequired: source.events?.actionRequired !== false,
-      stop: source.events?.stop !== false,
-      error: source.events?.error !== false,
-    },
+    channels: { desktop: false, inApp: false, sound: true },
+    events: { actionRequired: true, error: true, stop: true },
   };
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value === null || typeof value !== 'object') {
+    return {};
+  }
+  return value as Record<string, unknown>;
+}
+
+function normalizePreferences(value: unknown): NotificationPreferences {
+  const source = asRecord(value);
+  const rawChannels = asRecord(source.channels);
+  const rawEvents = asRecord(source.events);
+
+  const channels: NotificationPreferences['channels'] = {
+    desktop: rawChannels.desktop === true,
+    inApp: rawChannels.inApp === true,
+    sound: rawChannels.sound !== false,
+  };
+  for (const [name, flag] of Object.entries(rawChannels)) {
+    if (typeof flag === 'boolean' && !BUILT_IN_CHANNEL_NAMES.includes(name)) {
+      channels[name] = flag;
+    }
+  }
+
+  const events: NotificationEventToggles = {
+    actionRequired: rawEvents.actionRequired !== false,
+    error: rawEvents.error !== false,
+    stop: rawEvents.stop !== false,
+  };
+
+  return { channels, events };
+}
+
+function readStoredRow(userId: number): { preferences_json: string } | undefined {
+  const statement = getConnection().prepare(
+    'SELECT preferences_json FROM user_notification_preferences WHERE user_id = ?',
+  );
+  return statement.get(userId) as { preferences_json: string } | undefined;
+}
+
+function decodeStoredPreferences(json: string): NotificationPreferences {
+  try {
+    return normalizePreferences(JSON.parse(json));
+  } catch {
+    return normalizePreferences(createDefaultPreferences());
+  }
+}
+
+function persistPreferences(userId: number, preferences: NotificationPreferences): void {
+  const statement = getConnection().prepare(`
+    INSERT INTO user_notification_preferences (user_id, preferences_json, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id) DO UPDATE SET
+      preferences_json = excluded.preferences_json,
+      updated_at = CURRENT_TIMESTAMP
+  `);
+  statement.run(userId, JSON.stringify(preferences));
+}
+
+function getNotificationPreferences(userId: number): NotificationPreferences {
+  const stored = readStoredRow(userId);
+  if (stored !== undefined) {
+    return decodeStoredPreferences(stored.preferences_json);
+  }
+
+  const defaults = normalizePreferences(createDefaultPreferences());
+  getConnection()
+    .prepare(
+      'INSERT INTO user_notification_preferences (user_id, preferences_json, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+    )
+    .run(userId, JSON.stringify(defaults));
+  return defaults;
+}
+
+function updateNotificationPreferences(
+  userId: number,
+  preferences: unknown,
+): NotificationPreferences {
+  const normalized = normalizePreferences(preferences);
+  persistPreferences(userId, normalized);
+  return normalized;
+}
+
 export const notificationPreferencesDb = {
-  /** Returns the normalized preferences for a user, creating defaults on first read. */
-  getNotificationPreferences(userId: number): NotificationPreferences {
-    const db = getConnection();
-    const row = db
-      .prepare(
-        'SELECT preferences_json FROM user_notification_preferences WHERE user_id = ?'
-      )
-      .get(userId) as { preferences_json: string } | undefined;
-
-    if (!row) {
-      const defaults = normalizeNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES);
-      db.prepare(
-        'INSERT INTO user_notification_preferences (user_id, preferences_json, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)'
-      ).run(userId, JSON.stringify(defaults));
-      return defaults;
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(row.preferences_json);
-    } catch {
-      parsed = DEFAULT_NOTIFICATION_PREFERENCES;
-    }
-    return normalizeNotificationPreferences(parsed);
-  },
-
-  /** Upserts normalized preferences for a user and returns the stored value. */
-  updateNotificationPreferences(
-    userId: number,
-    preferences: unknown
-  ): NotificationPreferences {
-    const normalized = normalizeNotificationPreferences(preferences);
-    const db = getConnection();
-
-    db.prepare(
-      `INSERT INTO user_notification_preferences (user_id, preferences_json, updated_at)
-       VALUES (?, ?, CURRENT_TIMESTAMP)
-       ON CONFLICT(user_id) DO UPDATE SET
-         preferences_json = excluded.preferences_json,
-         updated_at = CURRENT_TIMESTAMP`
-    ).run(userId, JSON.stringify(normalized));
-
-    return normalized;
-  },
-
-  // Legacy aliases used by existing services/routes
-  getPreferences(userId: number): NotificationPreferences {
-    return notificationPreferencesDb.getNotificationPreferences(userId);
-  },
-  updatePreferences(userId: number, preferences: unknown): NotificationPreferences {
-    return notificationPreferencesDb.updateNotificationPreferences(userId, preferences);
-  },
+  getNotificationPreferences,
+  updateNotificationPreferences,
+  getPreferences: getNotificationPreferences,
+  updatePreferences: updateNotificationPreferences,
 };

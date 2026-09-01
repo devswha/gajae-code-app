@@ -331,7 +331,7 @@ async function handleChatSend(
       : null;
     if (provider === 'gjc' && code) {
       sendProtocolError(ws, code, message, sessionId);
-    } else {
+    } else if (run.status === 'running') {
       run.writer.send(createNormalizedMessage({
         kind: 'error',
         provider,
@@ -339,6 +339,10 @@ async function handleChatSend(
         content: message,
       }));
     }
+    // A run that already passed its terminal `complete` reported the failure
+    // itself (GJC forwards `error` + `complete` before rejecting), so a second
+    // bubble here is the same failure rendered twice in the transcript. The
+    // console line above keeps the rejection visible server-side either way.
   } finally {
     // Safety net: a runtime that crashed (or resolved) without emitting its
     // terminal `complete` would otherwise leave the session stuck in

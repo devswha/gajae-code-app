@@ -304,6 +304,100 @@ test('chat.send dispatches a non-Git GJC session directly in its persisted proje
   });
 });
 
+test('a runtime that reported its own failure does not get a second error bubble', async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('failing-session', 'gjc', '/workspace/failing-project');
+
+    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+    try {
+      await once(server, 'listening');
+      server.on('connection', (socket, request) => {
+        handleChatConnection(
+          socket,
+          Object.assign(request, { user: { id: 'test-user' } }),
+          {
+            spawnFns: {
+              // This is what the GJC supervisor does on a failed run: forward
+              // the error and the terminal complete, then reject the promise.
+              gjc: (_command, _options, writer) => {
+                const chatWriter = writer as {
+                  send(message: unknown): void;
+                  sendComplete(options: { exitCode: number }): void;
+                };
+                chatWriter.send({
+                  kind: 'error',
+                  provider: 'gjc',
+                  sessionId: 'failing-session',
+                  content: 'GJC worker failed.',
+                });
+                chatWriter.sendComplete({ exitCode: 1 });
+                return Promise.reject(new Error('GJC worker failed.'));
+              },
+            },
+            abortFns: { gjc: async () => false },
+            resolveToolApproval() {},
+            getPendingApprovalsForSession: () => [],
+          },
+        );
+      });
+
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Expected the websocket test server to bind a TCP port.');
+      }
+
+      const client = new WebSocket(`ws://127.0.0.1:${address.port}`);
+      try {
+        await once(client, 'open');
+        const frames: OutboundFrame[] = [];
+        const completed = new Promise<void>((resolve, reject) => {
+          client.on('message', (raw) => {
+            try {
+              const frame = parseOutboundFrame(String(raw));
+              frames.push(frame);
+              if (frame.kind === 'complete') {
+                resolve();
+              }
+            } catch (error) {
+              reject(error);
+            }
+          });
+        });
+
+        client.send(JSON.stringify({
+          type: 'chat.send',
+          sessionId: 'failing-session',
+          content: 'fail please',
+          options: {},
+        }));
+        await completed;
+        // The rejection is handled after the terminal frame, so give the
+        // catch branch a turn before asserting nothing else arrived.
+        await flushMessages();
+        await flushMessages();
+
+        assert.deepEqual(frames.map((frame) => frame.kind), ['error', 'complete']);
+        assert.equal(frames[0]?.content, 'GJC worker failed.');
+      } finally {
+        client.terminate();
+      }
+    } finally {
+      for (const client of server.clients) {
+        client.terminate();
+      }
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
+  });
+});
+
 test('chat.abort uses the direct GJC run handle before the app session id', async () => {
   await withIsolatedDatabase(async () => {
     sessionsDb.createAppSession('abort-session', 'gjc', '/workspace/non-git-project');

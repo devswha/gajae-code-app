@@ -5,917 +5,299 @@ import type { NavigateFunction } from 'react-router-dom';
 import type { ServerEvent } from '../contexts/WebSocketContext';
 import { api } from '../utils/api';
 import { useAppShellStore } from '../stores/useAppShellStore';
-import type {
-  LLMProvider,
-  LoadingProgress,
-  Project,
-  ProjectSession,
-} from '../types/app';
+import type { LLMProvider, LoadingProgress, Project, ProjectSession } from '../types/app';
 
-import {
-  mergeExpandedSessionPages,
-  PROJECTS_QUERY_KEY,
-  projectsHaveChanges,
-  useProjectsQuery,
-} from './useProjectsQuery';
+import { mergeExpandedSessionPages, PROJECTS_QUERY_KEY, projectsHaveChanges, useProjectsQuery } from './useProjectsQuery';
 import type { SessionActivityMap } from './useSessionProtection';
 
 export { projectsHaveChanges, readProjectsResponse } from './useProjectsQuery';
 
-type UseProjectsStateArgs = {
-  sessionId?: string | null;
-  navigate: NavigateFunction;
-  /** Subscription to the unified websocket event stream. */
-  subscribe: (listener: (event: ServerEvent) => void) => () => void;
-  isMobile: boolean;
-  activeSessions: SessionActivityMap;
-};
-
-/**
- * Shape of the per-session sidebar delta broadcast by the backend file
- * watcher (`kind: session_upserted`). It carries everything needed to upsert
- * one session row in place — no full project-list snapshot is ever pushed.
- */
-type SessionUpsertedEvent = ServerEvent & {
-  sessionId: string;
-  providerSessionId?: string | null;
-  provider: LLMProvider;
-  session: ProjectSession;
-  project: {
-    projectId: string;
-    path: string;
-    fullPath: string;
-    displayName: string;
-    isStarred: boolean;
-  } | null;
-};
-
-type FetchProjectsOptions = {
-  showLoadingState?: boolean;
-};
-
-type RegisterOptimisticSessionArgs = {
-  sessionId: string;
-  provider: LLMProvider;
-  project: Project;
-  summary?: string | null;
-};
-
+type UseProjectsStateArgs = { sessionId?: string | null; navigate: NavigateFunction; subscribe: (listener: (event: ServerEvent) => void) => () => void; isMobile: boolean; activeSessions: SessionActivityMap };
+type SessionUpsert = ServerEvent & { sessionId: string; providerSessionId?: string | null; provider: LLMProvider; session: ProjectSession; project: { projectId: string; path: string; fullPath: string; displayName: string; isStarred: boolean } | null };
+type RegisterOptimisticSessionArgs = { sessionId: string; provider: LLMProvider; project: Project; summary?: string | null };
 type ProjectSessionPage = Pick<Project, 'sessions' | 'sessionMeta'>;
+type FetchProjectsOptions = { showLoadingState?: boolean };
 
-const DEFAULT_PROVIDER: LLMProvider = 'gjc';
+const fallbackProvider: LLMProvider = 'gjc';
+const encode = (value: unknown) => JSON.stringify(value ?? null);
+const rowsOf = (project: Project) => project.sessions ?? [];
+const rowCount = (project: Project) => rowsOf(project).length;
 
-const serialize = (value: unknown) => JSON.stringify(value ?? null);
-
-// Live session creation is GJC-only; historical non-GJC sessions keep their
-// provider from the indexed DB row.
-const readSelectedProvider = (): LLMProvider => DEFAULT_PROVIDER;
-
-const getSessionProvider = (session: ProjectSession): LLMProvider => {
+const providerOf = (session: ProjectSession): LLMProvider => {
   const provider = session.__provider ?? session.provider;
-  return typeof provider === 'string' && provider.trim()
-    ? provider as LLMProvider
-    : DEFAULT_PROVIDER;
+  return typeof provider === 'string' && provider.trim() ? provider as LLMProvider : fallbackProvider;
 };
 
-const normalizeSessionProvider = (session: ProjectSession): ProjectSession => ({
-  ...session,
-  __provider: getSessionProvider(session),
-});
+const withProvider = (session: ProjectSession): ProjectSession => ({ ...session, __provider: providerOf(session) });
 
-const getProjectSessions = (project: Project): ProjectSession[] => {
-  return project.sessions ?? [];
+const combineRows = (first: ProjectSession[], second: ProjectSession[]) => {
+  const ids = new Set(first.map((session) => String(session.id)));
+  return first.concat(second.filter((session) => !ids.has(String(session.id))));
 };
 
-const countLoadedProjectSessions = (project: Project): number => getProjectSessions(project).length;
+export const reconcileSelectedProject = (selected: Project | null, incoming: Project[]): Project | null => {
+  if (!selected) return null;
+  const replacement = incoming.find((project) => project.projectId === selected.projectId);
+  if (!replacement) return selected;
+  const merged = mergeExpandedSessionPages([selected], [replacement])[0];
+  return projectsHaveChanges([selected], [merged]) ? merged : selected;
+};
 
-const mergeSessionProviderLists = (baseSessions: ProjectSession[], additionalSessions: ProjectSession[]): ProjectSession[] => {
-  const merged = [...baseSessions];
-  const seenSessionIds = new Set(baseSessions.map((session) => String(session.id)));
-
-  for (const session of additionalSessions) {
-    const sessionId = String(session.id);
-    if (seenSessionIds.has(sessionId)) {
-      continue;
-    }
-
-    merged.push(session);
-    seenSessionIds.add(sessionId);
+const aliasesFor = (event: SessionUpsert) => {
+  const aliases = new Set<string>();
+  for (const value of [event.sessionId, event.providerSessionId, event.session?.id]) {
+    if (typeof value === 'string' && value.trim()) aliases.add(value.trim());
   }
-
-  return merged;
+  return aliases;
 };
 
-export const reconcileSelectedProject = (
-  previousProject: Project | null,
-  freshProjects: Project[],
-): Project | null => {
-  if (!previousProject) {
-    return null;
-  }
-
-  const freshProject = freshProjects.find(
-    (project) => project.projectId === previousProject.projectId,
-  );
-  if (!freshProject) {
-    return previousProject;
-  }
-
-  const [mergedProject] = mergeExpandedSessionPages([previousProject], [freshProject]);
-  return projectsHaveChanges([previousProject], [mergedProject])
-    ? mergedProject
-    : previousProject;
-};
-
-const mergeProjectSessionPage = (
-  existingProject: Project,
-  sessionsPage: ProjectSessionPage,
-): Project => {
-  const mergedProject: Project = {
-    ...existingProject,
-    sessions: mergeSessionProviderLists(existingProject.sessions ?? [], sessionsPage.sessions ?? []),
-  };
-
-  const totalSessions = Number(sessionsPage.sessionMeta?.total ?? existingProject.sessionMeta?.total ?? 0);
-  mergedProject.sessionMeta = {
-    ...existingProject.sessionMeta,
-    ...sessionsPage.sessionMeta,
-    total: totalSessions,
-    hasMore: countLoadedProjectSessions(mergedProject) < totalSessions,
-  };
-
-  return mergedProject;
-};
-
-const getSessionAliasIds = (event: SessionUpsertedEvent): Set<string> => {
-  const ids = new Set<string>();
-  const add = (value: unknown) => {
-    if (typeof value !== 'string') {
-      return;
-    }
-
-    const trimmed = value.trim();
-    if (trimmed) {
-      ids.add(trimmed);
-    }
-  };
-
-  add(event.sessionId);
-  add(event.providerSessionId);
-  add(event.session?.id);
-
-  return ids;
-};
-
-/**
- * Upserts one session into a project's normalized session list.
- *
- * Existing rows are updated in place (summary/lastActivity changes from the
- * watcher); new rows are prepended since the watcher only fires for sessions
- * with fresh activity. `sessionMeta.total` grows only on insert.
- */
-const upsertSessionIntoProject = (project: Project, event: SessionUpsertedEvent): Project => {
-  const sessions = project.sessions ?? [];
-  const aliasIds = getSessionAliasIds(event);
-  const normalizedSession: ProjectSession = {
-    ...event.session,
-    id: event.sessionId,
-    __provider: event.provider,
-  };
-  const existingIndex = sessions.findIndex((session) => aliasIds.has(String(session.id)));
-
-  let nextSessions: ProjectSession[];
-  let inserted = false;
-  if (existingIndex >= 0) {
-    let changed = false;
-    nextSessions = [];
-
-    for (const [index, session] of sessions.entries()) {
-      if (index === existingIndex) {
-        const updated = { ...session, ...normalizedSession };
-        // Never let a later upsert that carries an empty summary blank out a
-        // title we already have. Fresh sessions momentarily broadcast an empty
-        // custom_name before the disk indexer fills it in, which would
-        // otherwise flash the row back to the "New session" placeholder.
-        if (!normalizedSession.summary?.trim() && session.summary?.trim()) {
-          updated.summary = session.summary;
-        }
-        if (serialize(session) !== serialize(updated)) {
-          changed = true;
-        }
-        nextSessions.push(updated);
-        continue;
-      }
-
-      if (aliasIds.has(String(session.id))) {
-        changed = true;
-        continue;
-      }
-
-      nextSessions.push(session);
-    }
-
-    if (!changed) {
-      return project;
-    }
-  } else {
-    nextSessions = [normalizedSession, ...sessions];
-    inserted = true;
-  }
-
-  const next: Project = { ...project, sessions: nextSessions };
-  if (inserted) {
+const applySessionUpsert = (project: Project, event: SessionUpsert): Project => {
+  const aliases = aliasesFor(event);
+  const replacement: ProjectSession = { ...event.session, id: event.sessionId, __provider: event.provider };
+  const existing = rowsOf(project);
+  const matchingIndex = existing.findIndex((session) => aliases.has(String(session.id)));
+  if (matchingIndex < 0) {
+    const sessions = [replacement, ...existing];
     const total = Number(project.sessionMeta?.total ?? 0) + 1;
-    next.sessionMeta = {
-      ...project.sessionMeta,
-      total,
-      hasMore: countLoadedProjectSessions(next) < total,
-    };
+    return { ...project, sessions, sessionMeta: { ...project.sessionMeta, total, hasMore: sessions.length < total } };
   }
 
-  return next;
+  let changed = false;
+  const sessions = existing.reduce<ProjectSession[]>((kept, session, index) => {
+    if (index === matchingIndex) {
+      const next = { ...session, ...replacement };
+      if (!replacement.summary?.trim() && session.summary?.trim()) next.summary = session.summary;
+      if (encode(next) !== encode(session)) changed = true;
+      kept.push(next);
+    } else if (aliases.has(String(session.id))) {
+      changed = true;
+    } else {
+      kept.push(session);
+    }
+    return kept;
+  }, []);
+  return changed ? { ...project, sessions } : project;
 };
 
-const projectFromRegistration = (project: Project): Project => ({
-  projectId: project.projectId,
-  path: project.path || project.fullPath,
-  fullPath: project.fullPath || project.path || '',
-  displayName: project.displayName,
-  isStarred: project.isStarred,
-  sessions: project.sessions ?? [],
-  sessionMeta: project.sessionMeta ?? { hasMore: false, total: countLoadedProjectSessions(project) },
-});
+const pageIntoProject = (project: Project, page: ProjectSessionPage): Project => {
+  const sessions = combineRows(rowsOf(project), page.sessions ?? []);
+  const total = Number(page.sessionMeta?.total ?? project.sessionMeta?.total ?? 0);
+  return { ...project, sessions, sessionMeta: { ...project.sessionMeta, ...page.sessionMeta, total, hasMore: sessions.length < total } };
+};
 
-const removeSessionFromProject = (project: Project, sessionIdToDelete: string): Project => {
-  const sessions = project.sessions ?? [];
-  const nextSessions = sessions.filter((session) => session.id !== sessionIdToDelete);
-  if (nextSessions.length === sessions.length) {
-    return project;
+const withoutSession = (project: Project, sessionId: string): Project => {
+  const sessions = rowsOf(project).filter((session) => session.id !== sessionId);
+  if (sessions.length === rowsOf(project).length) return project;
+  const total = Math.max(0, Number(project.sessionMeta?.total ?? 0) - 1);
+  return { ...project, sessions, sessionMeta: { ...project.sessionMeta, total, hasMore: sessions.length < total } };
+};
+
+const updateProjectCache = (projects: Project[], event: SessionUpsert): Project[] => {
+  const projectId = event.project?.projectId;
+  const found = projects.find((project) => projectId
+    ? project.projectId === projectId
+    : rowsOf(project).some((session) => session.id === event.sessionId));
+  if (found) {
+    const next = applySessionUpsert(found, event);
+    return next === found ? projects : projects.map((project) => project === found ? next : project);
   }
-
-  const updatedProject: Project = {
-    ...project,
-    sessions: nextSessions,
-  };
-
-  const totalSessions = Math.max(0, Number(project.sessionMeta?.total ?? 0) - 1);
-  updatedProject.sessionMeta = {
-    ...project.sessionMeta,
-    total: totalSessions,
-    hasMore: countLoadedProjectSessions(updatedProject) < totalSessions,
-  };
-
-  return updatedProject;
+  if (!event.project) return projects;
+  const fresh: Project = { ...event.project, sessions: [], sessionMeta: { hasMore: false, total: 0 } } as Project;
+  return [...projects, applySessionUpsert(fresh, event)];
 };
 
-export function useProjectsState({
-  sessionId,
-  navigate,
-  subscribe,
-  isMobile,
-  activeSessions,
-}: UseProjectsStateArgs) {
-  const queryClient = useQueryClient();
-  const projectsQuery = useProjectsQuery();
-  const { data: projectsData, isLoading: isLoadingProjects, refetch: refetchProjects } = projectsQuery;
-  const projects = useMemo(() => projectsData ?? [], [projectsData]);
+export function useProjectsState({ sessionId, navigate, subscribe, isMobile, activeSessions }: UseProjectsStateArgs) {
+  const client = useQueryClient();
+  const query = useProjectsQuery();
+  const projects = useMemo(() => query.data ?? [], [query.data]);
   const selectedProject = useAppShellStore((state) => state.selectedProject);
   const selectedSession = useAppShellStore((state) => state.selectedSession);
   const activeTab = useAppShellStore((state) => state.activeTab);
   const sidebarOpen = useAppShellStore((state) => state.sidebarOpen);
+  const loadingProgress = useAppShellStore((state) => state.loadingProgress);
+  const showSettings = useAppShellStore((state) => state.showSettings);
+  const settingsInitialTab = useAppShellStore((state) => state.settingsInitialTab);
   const setSelectedProject = useAppShellStore((state) => state.setSelectedProject);
   const setSelectedSession = useAppShellStore((state) => state.setSelectedSession);
   const setActiveTab = useAppShellStore((state) => state.setActiveTab);
   const setSidebarOpen = useAppShellStore((state) => state.setSidebarOpen);
-  const loadingProgress = useAppShellStore((state) => state.loadingProgress);
-  const [isInputFocused, setIsInputFocused] = useState(false);
-  const showSettings = useAppShellStore((state) => state.showSettings);
-  const settingsInitialTab = useAppShellStore((state) => state.settingsInitialTab);
   const setShowSettings = useAppShellStore((state) => state.setShowSettings);
   const openSettings = useAppShellStore((state) => state.openSettings);
-  /**
-   * `newSessionTrigger` is an explicit, monotonic intent signal for user-driven
-   * New Session actions.
-   *
-   * It exists because `handleNewSession` can be invoked while the app is already in
-   * the same visible state (`selectedSession === null`, `activeTab === 'chat'`,
-   * route already `/`). In that case, React/router updates are idempotent and no
-   * downstream reset logic runs.
-   *
-   * Usage across the codebase:
-   * 1) Produced here in `handleNewSession` via increment (always changes).
-   * 2) Returned from this hook and threaded through:
-   *    useProjectsState -> AppContent -> MainContent -> ChatInterface.
-   * 3) Consumed in `useChatSessionState` as an effect dependency to forcibly clear
-   *    chat-local state (`currentSessionId`, pending draft message, streaming flags,
-   *    pending session storage keys, pagination/scroll artifacts).
-   *
-   * Keeping this signal dedicated avoids coupling resets to unrelated counters/events
-   * (for example websocket/project refresh updates) that could cause accidental resets.
-   */
+  const [isInputFocused, setIsInputFocused] = useState(false);
   const [newSessionTrigger, setNewSessionTrigger] = useState(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const viewed = useRef(selectedSession);
+  const active = useRef(activeSessions);
+  viewed.current = selectedSession;
+  active.current = activeSessions;
 
-  const loadingProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /**
-   * Ref mirrors for state the websocket subscription handler needs.
-   *
-   * The subscription is registered once (per `subscribe` identity) and events
-   * are dispatched synchronously outside React's render cycle, so the handler
-   * must read the latest values through refs instead of stale closures —
-   * re-subscribing on every state change would risk missing events.
-   */
-  const selectedSessionRef = useRef(selectedSession);
-  selectedSessionRef.current = selectedSession;
-  const activeSessionsRef = useRef(activeSessions);
-  activeSessionsRef.current = activeSessions;
-
-  const markSessionAttention = useCallback((targetSessionId?: string | null) => {
-    if (!targetSessionId) {
-      return;
-    }
-
-    const viewedSessionId = selectedSessionRef.current?.id ?? sessionId ?? null;
-    if (targetSessionId === viewedSessionId) {
-      return;
-    }
-
-    useAppShellStore.getState().markSessionAttention(targetSessionId, viewedSessionId);
+  const clearAttention = useCallback((id?: string | null) => {
+    if (id) useAppShellStore.getState().clearSessionAttention(id);
+  }, []);
+  const markAttention = useCallback((id?: string | null) => {
+    if (!id || id === (viewed.current?.id ?? sessionId ?? null)) return;
+    useAppShellStore.getState().markSessionAttention(id, viewed.current?.id ?? sessionId ?? null);
   }, [sessionId]);
+  const { refetch: queryRefetch } = query;
+  const refetch = useCallback(async (_options: FetchProjectsOptions = {}) => { await queryRefetch(); }, [queryRefetch]);
 
-  const clearSessionAttention = useCallback((targetSessionId?: string | null) => {
-    if (!targetSessionId) {
-      return;
-    }
-
-    useAppShellStore.getState().clearSessionAttention(targetSessionId);
-  }, []);
-
-  const fetchProjects = useCallback(async (_options: FetchProjectsOptions = {}) => {
-    await refetchProjects();
-  }, [refetchProjects]);
-
-  const refreshProjectsSilently = useCallback(async () => {
-    // Keep chat view stable while still syncing sidebar/session metadata in background.
-    await refetchProjects();
-  }, [refetchProjects]);
-
-  const registerOptimisticSession = useCallback(({
-    sessionId: newSessionId,
-    provider,
-    project,
-    summary,
-  }: RegisterOptimisticSessionArgs) => {
-    if (!newSessionId || !project?.projectId) {
-      return;
-    }
-
+  const registerOptimisticSession = useCallback(({ sessionId: id, provider, project, summary }: RegisterOptimisticSessionArgs) => {
+    if (!id || !project?.projectId) return;
     const now = new Date().toISOString();
-    const optimisticSession: ProjectSession = {
-      id: newSessionId,
-      summary: summary ?? '',
-      messageCount: 0,
-      createdAt: now,
-      created_at: now,
-      updated_at: now,
-      lastActivity: now,
-      __provider: provider,
-      __projectId: project.projectId,
-    };
-    const upsert: SessionUpsertedEvent = {
-      kind: 'session_upserted',
-      sessionId: newSessionId,
-      provider,
-      session: optimisticSession,
-      project: {
-        projectId: project.projectId,
-        path: project.path || project.fullPath,
-        fullPath: project.fullPath || project.path || '',
-        displayName: project.displayName,
-        isStarred: Boolean(project.isStarred),
-      },
-      timestamp: now,
-    };
+    const session: ProjectSession = { id, summary: summary ?? '', messageCount: 0, createdAt: now, created_at: now, updated_at: now, lastActivity: now, __provider: provider, __projectId: project.projectId };
+    const event: SessionUpsert = { kind: 'session_upserted', sessionId: id, provider, session, project: { projectId: project.projectId, path: project.path || project.fullPath, fullPath: project.fullPath || project.path || '', displayName: project.displayName, isStarred: Boolean(project.isStarred) }, timestamp: now };
+    client.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (cached) => updateProjectCache(cached ?? [], event));
+    setSelectedProject((current) => current?.projectId === project.projectId ? applySessionUpsert(current, event) : current);
+    setSelectedSession((current) => current?.id === id ? { ...current, ...session } : session);
+  }, [client, setSelectedProject, setSelectedSession]);
 
-    queryClient.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (previousProjects) => {
-      const projects = previousProjects ?? [];
-      const existingProject = projects.find((candidate) => candidate.projectId === project.projectId);
-      if (!existingProject) {
-        return [upsertSessionIntoProject(projectFromRegistration(project), upsert), ...projects];
-      }
-
-      const updatedProject = upsertSessionIntoProject(existingProject, upsert);
-      if (updatedProject === existingProject) {
-        return projects;
-      }
-
-      return projects.map((candidate) =>
-        candidate.projectId === existingProject.projectId ? updatedProject : candidate,
-      );
-    });
-
-    setSelectedProject((previousProject) => {
-      if (!previousProject || previousProject.projectId !== project.projectId) {
-        return previousProject;
-      }
-
-      const updatedProject = upsertSessionIntoProject(previousProject, upsert);
-      return updatedProject === previousProject ? previousProject : updatedProject;
-    });
-
-    setSelectedSession((previousSession) => (
-      previousSession?.id === newSessionId
-        ? { ...previousSession, ...optimisticSession }
-        : optimisticSession
-    ));
-  }, [queryClient, setSelectedProject, setSelectedSession]);
   useEffect(() => {
-    setSelectedProject((previousProject) =>
-      reconcileSelectedProject(previousProject, projectsData ?? []),
-    );
-  }, [projectsData, setSelectedProject]);
+    setSelectedProject((current) => reconcileSelectedProject(current, query.data ?? []));
+  }, [query.data, setSelectedProject]);
 
-  // Auto-select the project when there is only one, so the user lands on the new session page
   useEffect(() => {
-    if (!isLoadingProjects && projects.length === 1 && !selectedProject && !sessionId) {
-      setSelectedProject(projects[0]);
-    }
-  }, [isLoadingProjects, projects, selectedProject, sessionId, setSelectedProject]);
+    if (!query.isLoading && projects.length === 1 && !selectedProject && !sessionId) setSelectedProject(projects[0]);
+  }, [projects, query.isLoading, selectedProject, sessionId, setSelectedProject]);
 
-  // Realtime sidebar updates. The backend pushes per-session deltas
-  // (`session_upserted`) instead of full project snapshots, so each event is
-  // a keyed upsert that can never clobber unrelated client state — no
-  // "suppress updates while a run is active" protection is needed anymore.
   useEffect(() => {
-    const handleEvent = (event: ServerEvent) => {
+    const receive = (event: ServerEvent) => {
       if (event.kind === 'loading_progress') {
-        if (loadingProgressTimeoutRef.current) {
-          clearTimeout(loadingProgressTimeoutRef.current);
-          loadingProgressTimeoutRef.current = null;
-        }
-
+        if (timer.current) clearTimeout(timer.current);
         useAppShellStore.getState().setLoadingProgress(event as unknown as LoadingProgress);
-
-        if (event.phase === 'complete') {
-          loadingProgressTimeoutRef.current = setTimeout(() => {
-            useAppShellStore.getState().setLoadingProgress(null);
-            loadingProgressTimeoutRef.current = null;
-          }, 500);
-        }
-
+        if (event.phase === 'complete') timer.current = setTimeout(() => {
+          useAppShellStore.getState().setLoadingProgress(null);
+          timer.current = null;
+        }, 500);
         return;
       }
-
-      const eventSessionId = typeof event.sessionId === 'string' && event.sessionId
-        ? event.sessionId
-        : null;
-      const viewedSessionId = selectedSessionRef.current?.id ?? sessionId ?? null;
-
-      if (
-        eventSessionId
-        && eventSessionId !== viewedSessionId
-        && event.kind !== 'chat_subscribed'
-        && event.kind !== 'loading_progress'
-        && event.kind !== 'session_upserted'
-        && event.kind !== 'status'
-        && event.kind !== 'stream_end'
-        && event.kind !== 'permission_cancelled'
-        && event.kind !== 'websocket_reconnected'
-      ) {
-        markSessionAttention(eventSessionId);
-      }
-
-      if (event.kind !== 'session_upserted') {
-        return;
-      }
-
-      const upsert = event as SessionUpsertedEvent;
-      if (!upsert.sessionId || !upsert.session) {
-        return;
-      }
-
-      // The transcript of the currently viewed session changed on disk while
-      // no run is active here (e.g. edited from another client or the CLI):
-      // invalidate its message window. The session store's active-window
-      // observer refetches the bounded reconcile and re-renders the chat.
-      const currentSelectedSession = selectedSessionRef.current;
-      if (
-        currentSelectedSession
-        && upsert.sessionId === currentSelectedSession.id
-        && !activeSessionsRef.current.has(upsert.sessionId)
-      ) {
-        void queryClient.invalidateQueries({ queryKey: ['messages', upsert.sessionId] });
+      const id = typeof event.sessionId === 'string' && event.sessionId ? event.sessionId : null;
+      const ignored = new Set(['chat_subscribed', 'loading_progress', 'session_upserted', 'status', 'stream_end', 'permission_cancelled', 'websocket_reconnected']);
+      if (id && id !== (viewed.current?.id ?? sessionId ?? null) && !ignored.has(event.kind ?? '')) markAttention(id);
+      if (event.kind !== 'session_upserted') return;
+      const update = event as SessionUpsert;
+      if (!update.sessionId || !update.session) return;
+      const current = viewed.current;
+      if (current?.id === update.sessionId && !active.current.has(update.sessionId)) {
+        void client.invalidateQueries({ queryKey: ['messages', update.sessionId] });
       } else {
-        markSessionAttention(upsert.sessionId);
+        markAttention(update.sessionId);
       }
-
-      queryClient.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (previousProjects) => {
-        const projects = previousProjects ?? [];
-        const targetProjectId = upsert.project?.projectId;
-        const existingProject = projects.find((project) =>
-          targetProjectId ? project.projectId === targetProjectId : getProjectSessions(project).some((session) => session.id === upsert.sessionId),
-        );
-
-        if (!existingProject) {
-          // First session of a project this client has never seen: create the
-          // project entry from the event payload.
-          if (!upsert.project) {
-            return projects;
-          }
-
-          const newProject: Project = {
-            projectId: upsert.project.projectId,
-            path: upsert.project.path,
-            fullPath: upsert.project.fullPath,
-            displayName: upsert.project.displayName,
-            isStarred: upsert.project.isStarred,
-            sessions: [],
-            sessionMeta: { hasMore: false, total: 0 },
-          } as Project;
-
-          return [...projects, upsertSessionIntoProject(newProject, upsert)];
-        }
-
-        const updatedProject = upsertSessionIntoProject(existingProject, upsert);
-        if (updatedProject === existingProject) {
-          return projects;
-        }
-
-        return projects.map((project) =>
-          project.projectId === existingProject.projectId ? updatedProject : project,
-        );
+      client.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (cached) => updateProjectCache(cached ?? [], update));
+      setSelectedProject((project) => {
+        if (!project) return project;
+        const applies = update.project ? project.projectId === update.project.projectId : rowsOf(project).some((session) => session.id === update.sessionId);
+        return applies ? applySessionUpsert(project, update) : project;
       });
-
-      // Keep the selected project reference in sync with the upsert.
-      setSelectedProject((previousProject) => {
-        if (!previousProject) {
-          return previousProject;
-        }
-        const matches = upsert.project
-          ? previousProject.projectId === upsert.project.projectId
-          : getProjectSessions(previousProject).some((session) => session.id === upsert.sessionId);
-        if (!matches) {
-          return previousProject;
-        }
-        const updated = upsertSessionIntoProject(previousProject, upsert);
-        return updated === previousProject ? previousProject : updated;
-      });
-
-      const aliasedSelectedSessionId =
-        typeof upsert.providerSessionId === 'string' && upsert.providerSessionId !== upsert.sessionId
-          ? upsert.providerSessionId
-          : null;
-      if (!aliasedSelectedSessionId) {
-        return;
-      }
-
-      const normalizedSelectedSession: ProjectSession = {
-        ...upsert.session,
-        id: upsert.sessionId,
-        __provider: upsert.provider,
-        __projectId: upsert.project?.projectId ?? currentSelectedSession?.__projectId,
-      };
-
-      setSelectedSession((previousSession) => {
-        if (previousSession?.id !== aliasedSelectedSessionId) {
-          return previousSession;
-        }
-
-        return {
-          ...previousSession,
-          ...normalizedSelectedSession,
-        };
-      });
-
-      if (sessionId === aliasedSelectedSessionId) {
-        navigate(`/session/${upsert.sessionId}`);
-      }
+      const alias = typeof update.providerSessionId === 'string' && update.providerSessionId !== update.sessionId
+        ? update.providerSessionId
+        : null;
+      if (!alias) return;
+      const normalized: ProjectSession = { ...update.session, id: update.sessionId, __provider: update.provider, __projectId: update.project?.projectId ?? current?.__projectId };
+      setSelectedSession((session) => session?.id === alias ? { ...session, ...normalized } : session);
+      if (sessionId === alias) navigate(`/session/${update.sessionId}`);
     };
+    return subscribe(receive);
+  }, [client, markAttention, navigate, sessionId, setSelectedProject, setSelectedSession, subscribe]);
 
-    return subscribe(handleEvent);
-  }, [
-    markSessionAttention,
-    navigate,
-    queryClient,
-    sessionId,
-    setSelectedProject,
-    setSelectedSession,
-    subscribe,
-  ]);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  useEffect(() => { clearAttention(selectedSession?.id ?? sessionId ?? null); }, [clearAttention, selectedSession?.id, sessionId]);
 
   useEffect(() => {
-    return () => {
-      if (loadingProgressTimeoutRef.current) {
-        clearTimeout(loadingProgressTimeoutRef.current);
-        loadingProgressTimeoutRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    clearSessionAttention(selectedSession?.id ?? sessionId ?? null);
-  }, [clearSessionAttention, selectedSession?.id, sessionId]);
-
-  useEffect(() => {
-    if (!sessionId || projects.length === 0) {
-      return;
-    }
-
-    // Project membership is resolved through `projectId` after the migration.
+    if (!sessionId || !projects.length) return;
     for (const project of projects) {
-      const match = project.sessions?.find((session) => session.id === sessionId);
-      if (match) {
-        const normalizedSession = normalizeSessionProvider(match);
-        const shouldUpdateProject = selectedProject?.projectId !== project.projectId;
-        const shouldUpdateSession =
-          selectedSession?.id !== sessionId || selectedSession.__provider !== normalizedSession.__provider;
-
-        if (shouldUpdateProject) {
-          setSelectedProject(project);
-        }
-        if (shouldUpdateSession) {
-          setSelectedSession(normalizedSession);
-        }
-        return;
-      }
-    }
-
-    // Session id is in the URL but not yet present on any project payload
-    // (normal for a brand-new conversation: the composer allocates the id and
-    // navigates before the sidebar learns about the session via
-    // `session_upserted`). Without a `selectedSession`, chat state clears
-    // `currentSessionId` and the UI stops reading the session store even
-    // though messages stream under this id — so synthesize a placeholder.
-    if (selectedSession?.id === sessionId) {
+      const session = rowsOf(project).find((candidate) => candidate.id === sessionId);
+      if (!session) continue;
+      const normalized = withProvider(session);
+      if (selectedProject?.projectId !== project.projectId) setSelectedProject(project);
+      if (selectedSession?.id !== sessionId || selectedSession.__provider !== normalized.__provider) setSelectedSession(normalized);
       return;
     }
-
-
-    // Only the currently selected project may host the placeholder. Guessing
-    // another project (e.g. "first one with sessions") could bind the URL
-    // session to the wrong project — better to wait until the owning project
-    // arrives in a later `projects` payload and is matched by the loop above.
-    if (!selectedProject) {
-      return;
+    if (selectedSession?.id !== sessionId && selectedProject) {
+      setSelectedSession({ id: sessionId, __provider: fallbackProvider, __projectId: selectedProject.projectId, summary: '' });
     }
+  }, [projects, selectedProject, selectedSession?.__provider, selectedSession?.id, sessionId, setSelectedProject, setSelectedSession]);
 
-    setSelectedSession({
-      id: sessionId,
-      __provider: readSelectedProvider(),
-      __projectId: selectedProject.projectId,
-      summary: '',
-    });
-  }, [
-    projects,
-    selectedProject,
-    selectedSession?.__provider,
-    selectedSession?.id,
-    sessionId,
-    setSelectedProject,
-    setSelectedSession,
-  ]);
+  const handleProjectSelect = useCallback((project: Project) => {
+    setSelectedProject(project);
+    setSelectedSession(null);
+    navigate('/');
+    if (isMobile) setSidebarOpen(false);
+  }, [isMobile, navigate, setSelectedProject, setSelectedSession, setSidebarOpen]);
 
-  const handleProjectSelect = useCallback(
-    (project: Project) => {
-      setSelectedProject(project);
+  const handleSessionSelect = useCallback((session: ProjectSession) => {
+    clearAttention(session.id);
+    setSelectedSession(session);
+    if (activeTab === 'tasks' || activeTab === 'browser') setActiveTab('chat');
+    if (isMobile && session.__projectId !== selectedProject?.projectId) setSidebarOpen(false);
+    navigate(`/session/${session.id}`);
+  }, [activeTab, clearAttention, isMobile, navigate, selectedProject?.projectId, setActiveTab, setSelectedSession, setSidebarOpen]);
+
+  const handleNewSession = useCallback((project: Project) => {
+    setSelectedProject(project);
+    setSelectedSession(null);
+    setActiveTab('chat');
+    setNewSessionTrigger((trigger) => trigger + 1);
+    navigate('/');
+    if (isMobile) setSidebarOpen(false);
+  }, [isMobile, navigate, setActiveTab, setSelectedProject, setSelectedSession, setSidebarOpen]);
+
+  const handleSessionDelete = useCallback((id: string) => {
+    clearAttention(id);
+    if (selectedSession?.id === id) {
       setSelectedSession(null);
       navigate('/');
-
-      if (isMobile) {
-        setSidebarOpen(false);
-      }
-    },
-    [isMobile, navigate, setSelectedProject, setSelectedSession, setSidebarOpen],
-  );
-
-  const handleSessionSelect = useCallback(
-    (session: ProjectSession) => {
-      // Live sessions open read-only (composer hidden in the chat view), so opening
-      // one can't cause driver duplication — no confirmation needed.
-      clearSessionAttention(session.id);
-      setSelectedSession(session);
-
-      if (activeTab === 'tasks' || activeTab === 'browser') {
-        setActiveTab('chat');
-      }
-
-      if (isMobile) {
-        // Sessions are tagged with the owning project's DB `projectId` when
-        // picked from the sidebar (see useSidebarController); compare against
-        // the current selection's `projectId` so we know whether to collapse
-        // the sidebar after navigation.
-        const sessionProjectId = session.__projectId;
-        const currentProjectId = selectedProject?.projectId;
-
-        if (sessionProjectId !== currentProjectId) {
-          setSidebarOpen(false);
-        }
-      }
-
-      navigate(`/session/${session.id}`);
-    },
-    [
-      activeTab,
-      clearSessionAttention,
-      isMobile,
-      navigate,
-      selectedProject?.projectId,
-      setActiveTab,
-      setSelectedSession,
-      setSidebarOpen,
-    ],
-  );
-
-  const handleNewSession = useCallback(
-    (project: Project) => {
-      setSelectedProject(project);
-      setSelectedSession(null);
-      setActiveTab('chat');
-      setNewSessionTrigger((previous) => previous + 1);
-      navigate('/');
-
-      if (isMobile) {
-        setSidebarOpen(false);
-      }
-    },
-    [isMobile, navigate, setActiveTab, setSelectedProject, setSelectedSession, setSidebarOpen],
-  );
-
-  const handleSessionDelete = useCallback(
-    (sessionIdToDelete: string) => {
-      clearSessionAttention(sessionIdToDelete);
-
-      if (selectedSession?.id === sessionIdToDelete) {
-        setSelectedSession(null);
-        navigate('/');
-      }
-
-      queryClient.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (previousProjects) =>
-        (previousProjects ?? []).map((project) => removeSessionFromProject(project, sessionIdToDelete)),
-      );
-    },
-    [clearSessionAttention, navigate, queryClient, selectedSession?.id, setSelectedSession],
-  );
+    }
+    client.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (cached) => (cached ?? []).map((project) => withoutSession(project, id)));
+  }, [clearAttention, client, navigate, selectedSession?.id, setSelectedSession]);
 
   const handleSidebarRefresh = useCallback(async () => {
     try {
-      await refetchProjects();
-      const refreshedProjects = queryClient.getQueryData<Project[]>(PROJECTS_QUERY_KEY) ?? [];
-
-      if (!selectedProject) {
-        return;
-      }
-
-      const refreshedProject = refreshedProjects.find((project) => project.projectId === selectedProject.projectId);
-      if (!refreshedProject) {
-        return;
-      }
-
-      if (serialize(refreshedProject) !== serialize(selectedProject)) {
-        setSelectedProject(refreshedProject);
-      }
-
-      if (!selectedSession) {
-        return;
-      }
-
-      const refreshedSession = getProjectSessions(refreshedProject).find(
-        (session) => session.id === selectedSession.id,
-      );
-
-      if (refreshedSession) {
-        // Keep provider metadata stable when refreshed payload doesn't include __provider.
-        const normalizedRefreshedSession =
-          refreshedSession.__provider || !selectedSession.__provider
-            ? refreshedSession
-            : { ...refreshedSession, __provider: selectedSession.__provider };
-
-        if (serialize(normalizedRefreshedSession) !== serialize(selectedSession)) {
-          setSelectedSession(normalizedRefreshedSession);
-        }
-      }
+      await query.refetch();
+      const refreshed = client.getQueryData<Project[]>(PROJECTS_QUERY_KEY) ?? [];
+      const project = selectedProject && refreshed.find((candidate) => candidate.projectId === selectedProject.projectId);
+      if (!project) return;
+      if (encode(project) !== encode(selectedProject)) setSelectedProject(project);
+      const session = selectedSession && rowsOf(project).find((candidate) => candidate.id === selectedSession.id);
+      if (!session) return;
+      const normalized = session.__provider || !selectedSession?.__provider ? session : { ...session, __provider: selectedSession.__provider };
+      if (encode(normalized) !== encode(selectedSession)) setSelectedSession(normalized);
     } catch (error) {
       console.error('Error refreshing sidebar:', error);
     }
-  }, [queryClient, refetchProjects, selectedProject, selectedSession, setSelectedProject, setSelectedSession]);
+  }, [client, query, selectedProject, selectedSession, setSelectedProject, setSelectedSession]);
 
   const loadMoreProjectSessions = useCallback(async (projectId: string) => {
     const project = projects.find((candidate) => candidate.projectId === projectId);
-    if (!project) {
-      return;
-    }
-
-    const loadedCount = countLoadedProjectSessions(project);
-    const totalCount = Number(project.sessionMeta?.total ?? 0);
-    if (totalCount > 0 && loadedCount >= totalCount) {
-      return;
-    }
-
-    const response = await api.projectSessions(projectId, {
-      limit: 20,
-      offset: loadedCount,
-    });
-
+    if (!project) return;
+    const offset = rowCount(project);
+    if (Number(project.sessionMeta?.total ?? 0) > 0 && offset >= Number(project.sessionMeta?.total)) return;
+    const response = await api.projectSessions(projectId, { limit: 20, offset });
     if (!response.ok) {
-      const payload = (await response.json().catch(() => ({}))) as { error?: string | { message?: string } };
-      const errorPayload = payload.error;
-      const message =
-        typeof errorPayload === 'string'
-          ? errorPayload
-          : errorPayload && typeof errorPayload === 'object' && errorPayload.message
-            ? errorPayload.message
-            : `Failed to load more sessions for project ${projectId}`;
-      throw new Error(message);
+      const body = await response.json().catch(() => ({})) as { error?: string | { message?: string } };
+      const error = body.error;
+      throw new Error(typeof error === 'string' ? error : error?.message ?? `Failed to load more sessions for project ${projectId}`);
     }
+    const page = await response.json() as ProjectSessionPage;
+    let selected: Project | null = null;
+    client.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (cached) => (cached ?? []).map((candidate) => {
+      if (candidate.projectId !== projectId) return candidate;
+      const merged = pageIntoProject(candidate, page);
+      selected = merged;
+      return merged;
+    }));
+    if (selectedProject?.projectId === projectId && selected) setSelectedProject(selected);
+  }, [client, projects, selectedProject?.projectId, setSelectedProject]);
 
-    const sessionsPage = (await response.json()) as ProjectSessionPage;
-
-    let mergedProjectForSelection: Project | null = null;
-    queryClient.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (previousProjects) =>
-      (previousProjects ?? []).map((candidate) => {
-        if (candidate.projectId !== projectId) {
-          return candidate;
-        }
-
-        const mergedProject = mergeProjectSessionPage(candidate, sessionsPage);
-        mergedProjectForSelection = mergedProject;
-        return mergedProject;
-      }),
-    );
-
-    if (selectedProject?.projectId === projectId && mergedProjectForSelection) {
-      setSelectedProject(mergedProjectForSelection);
+  const handleProjectDelete = useCallback((projectId: string) => {
+    if (selectedProject?.projectId === projectId) {
+      setSelectedProject(null);
+      setSelectedSession(null);
+      navigate('/');
     }
-  }, [projects, queryClient, selectedProject?.projectId, setSelectedProject]);
+    client.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (cached) => (cached ?? []).filter((project) => project.projectId !== projectId));
+  }, [client, navigate, selectedProject?.projectId, setSelectedProject, setSelectedSession]);
 
-  // `projectId` is the DB identifier passed from the sidebar's delete flow
-  // after the migration away from folder-derived project names.
-  const handleProjectDelete = useCallback(
-    (projectId: string) => {
-      if (selectedProject?.projectId === projectId) {
-        setSelectedProject(null);
-        setSelectedSession(null);
-        navigate('/');
-      }
+  const sidebarSharedProps = useMemo(() => ({ activeSessions, onProjectSelect: handleProjectSelect, onSessionSelect: handleSessionSelect, onNewSession: handleNewSession, onSessionDelete: handleSessionDelete, onLoadMoreSessions: loadMoreProjectSessions, onProjectDelete: handleProjectDelete, onRefresh: handleSidebarRefresh, isMobile }), [activeSessions, handleNewSession, handleProjectDelete, handleProjectSelect, handleSessionDelete, handleSessionSelect, handleSidebarRefresh, isMobile, loadMoreProjectSessions]);
 
-      queryClient.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (previousProjects) =>
-        (previousProjects ?? []).filter((project) => project.projectId !== projectId),
-      );
-    },
-    [navigate, queryClient, selectedProject?.projectId, setSelectedProject, setSelectedSession],
-  );
-
-  const sidebarSharedProps = useMemo(
-    () => ({
-      activeSessions,
-      onProjectSelect: handleProjectSelect,
-      onSessionSelect: handleSessionSelect,
-      onNewSession: handleNewSession,
-      onSessionDelete: handleSessionDelete,
-      onLoadMoreSessions: loadMoreProjectSessions,
-      onProjectDelete: handleProjectDelete,
-      onRefresh: handleSidebarRefresh,
-      isMobile,
-    }),
-    [
-      handleNewSession,
-      handleProjectDelete,
-      handleProjectSelect,
-      handleSessionDelete,
-      loadMoreProjectSessions,
-      handleSessionSelect,
-      handleSidebarRefresh,
-      isMobile,
-      activeSessions,
-    ],
-  );
-
-  return {
-    projects,
-    selectedProject,
-    selectedSession,
-    activeTab,
-    sidebarOpen,
-    isLoadingProjects,
-    loadingProgress,
-    isInputFocused,
-    showSettings,
-    settingsInitialTab,
-    newSessionTrigger,
-    setActiveTab,
-    setSidebarOpen,
-    setIsInputFocused,
-    setShowSettings,
-    openSettings,
-    fetchProjects,
-    refreshProjectsSilently,
-    registerOptimisticSession,
-    sidebarSharedProps,
-    handleProjectSelect,
-    handleSessionSelect,
-    handleNewSession,
-    handleSessionDelete,
-    loadMoreProjectSessions,
-    handleProjectDelete,
-    handleSidebarRefresh,
-  };
+  return { projects, selectedProject, selectedSession, activeTab, sidebarOpen, isLoadingProjects: query.isLoading, loadingProgress, isInputFocused, showSettings, settingsInitialTab, newSessionTrigger, setActiveTab, setSidebarOpen, setIsInputFocused, setShowSettings, openSettings, fetchProjects: refetch, refreshProjectsSilently: refetch, registerOptimisticSession, sidebarSharedProps, handleProjectSelect, handleSessionSelect, handleNewSession, handleSessionDelete, loadMoreProjectSessions, handleProjectDelete, handleSidebarRefresh };
 }

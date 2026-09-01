@@ -19,20 +19,20 @@ change unilaterally.
 Measured with `node scripts/measure-upstream-derivation.mjs`:
 
 ```
-Upstream-derived code: 30,372 of 98,168 lines (30.9%)      baseline 2026-09-01
+Upstream-derived code: 10,355 of 82,975 lines (12.5%)      baseline 2026-09-01
 
-  6836 lines   46 files  server modules
-  6226 lines   42 files  chat UI
-  2873 lines   23 files  other client
   2736 lines   21 files  file tree
   2731 lines   24 files  git panel
-  1840 lines   26 files  other components
-  1777 lines   20 files  UI primitives
-  1517 lines    7 files  other server
-  1208 lines   16 files  settings
   1138 lines   11 files  code editor
-   962 lines    4 files  sidebar
-   528 lines    7 files  other
+   813 lines   23 files  other components
+   811 lines   39 files  server modules
+   704 lines   27 files  chat UI
+   479 lines   15 files  settings
+   407 lines   19 files  UI primitives
+   242 lines   17 files  other client
+   122 lines    6 files  other server
+    93 lines    5 files  other
+    79 lines    3 files  sidebar
 ```
 
 Re-run it to see the number move. Zero is the point at which this project can be
@@ -43,11 +43,11 @@ the 33.5% figure previously recorded here: the measurement now diffs only
 substantive lines (blank and punctuation-only lines no longer count as shared)
 and uses a symmetric denominator, on the grounds that neither blank lines nor
 file-length asymmetry are protected expression. Under the previous ruler the
-same tree measures 32.7%. Second, replacements are under way: the database
-layer under `server/modules/database/` and the notifications module, the
-projects services, and the projects repository were rewritten from their
-behavioral contracts on 2026-09-01, each in its own commit carrying the
-contract it was written from.
+same tree measures 32.7%. Second, replacements are well under way: every area
+outside the step-1 product decision has been rewritten from behavioral
+contracts, each in its own commit carrying the contract it was written from.
+What remains is the file tree, git panel, and code editor (step 1 - a product
+decision, not an engineering one), plus files at their functional floor.
 
 ## Residual similarity that is not expression
 
@@ -61,6 +61,8 @@ and observable behavior, not protectable expression. Concretely:
   their callers;
 - error message text, error codes, HTTP route paths, and WebSocket message
   shapes, pinned by clients and tests;
+- JSX structure and class strings in presentational components, pinned by the
+  product's visual design and by tests that assert on rendered HTML;
 - the DDL in `schema.ts`, pinned byte-for-byte in effect by compatibility with
   existing user databases.
 

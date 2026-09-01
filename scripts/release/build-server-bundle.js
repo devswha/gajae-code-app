@@ -41,16 +41,17 @@ for (const [packageName, version] of Object.entries(GJC_RUNTIME_VERSIONS)) {
 }
 const GJC_SDK_VERSION = GJC_RUNTIME_VERSIONS[GJC_SDK_PACKAGE];
 
-function parseVersion(value) {
-  const match = /^(\d+)\.(\d+)(?:\.(\d+))?/u.exec(value || '');
-  return match ? [Number(match[1]), Number(match[2]), Number(match[3] || 0)] : null;
+function versionParts(input) {
+  const matched = /^(\d+)\.(\d+)(?:\.(\d+))?/u.exec(input ?? '');
+  if (!matched) return null;
+  return matched.slice(1).map((part) => Number(part ?? 0));
 }
 
-function isAtLeastVersion(actual, minimum) {
-  return actual.some((part, index) => (
-    part > minimum[index] &&
-    actual.slice(0, index).every((value, prior) => value === minimum[prior])
-  )) || actual.every((part, index) => part === minimum[index]);
+function meetsMinimumVersion(candidate, floor) {
+  for (let index = 0; index < floor.length; index += 1) {
+    if (candidate[index] !== floor[index]) return candidate[index] > floor[index];
+  }
+  return true;
 }
 
 function assertTargetEnvironment() {
@@ -61,11 +62,11 @@ function assertTargetEnvironment() {
     throw new Error(`Server bundles must be built for ${TARGET_ARCH}; received ${process.arch}.`);
   }
 
-  const nodeVersion = parseVersion(process.versions.node);
+  const nodeVersion = versionParts(process.versions.node);
   if (
     !nodeVersion ||
     nodeVersion[0] !== TARGET_NODE_MAJOR ||
-    !isAtLeastVersion(nodeVersion, TARGET_NODE_VERSION)
+    !meetsMinimumVersion(nodeVersion, TARGET_NODE_VERSION)
   ) {
     throw new Error(
       `Server bundles require Node.js ${TARGET_NODE_VERSION.join('.')} or newer within the ${TARGET_NODE_MAJOR}.x line; received ${process.versions.node}.`,
@@ -73,7 +74,7 @@ function assertTargetEnvironment() {
   }
 
   const glibcVersion = process.report?.getReport?.().header?.glibcVersionRuntime;
-  const parsedGlibcVersion = parseVersion(glibcVersion);
+  const parsedGlibcVersion = versionParts(glibcVersion);
   if (
     !parsedGlibcVersion ||
     parsedGlibcVersion[0] !== TARGET_GLIBC_VERSION[0] ||
@@ -94,35 +95,25 @@ function sourceDateEpoch() {
   return value;
 }
 
-function run(command, args, options = {}) {
+function execute(command, args, { collectOutput = false, ...options } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
-      stdio: 'inherit',
+      stdio: collectOutput ? ['ignore', 'pipe', 'inherit'] : 'inherit',
       ...options,
     });
+    let output;
+    if (collectOutput) {
+      output = '';
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', (chunk) => { output += chunk; });
+    }
     child.once('error', reject);
     child.once('exit', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
-    });
-  });
-}
-
-function capture(command, args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      stdio: ['ignore', 'pipe', 'inherit'],
-      ...options,
-    });
-    let output = '';
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk) => {
-      output += chunk;
-    });
-    child.once('error', reject);
-    child.once('exit', (code) => {
-      if (code === 0) resolve(output);
-      else reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
+      if (code !== 0) {
+        reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
+        return;
+      }
+      resolve(output);
     });
   });
 }
@@ -179,10 +170,10 @@ async function auditGlibcRequirements(stageDir) {
   }
   elfFiles.push(corePath, bunPath);
   for (const filePath of elfFiles) {
-    const versionInfo = await capture('readelf', ['--version-info', '--wide', filePath]);
+    const versionInfo = await execute('readelf', ['--version-info', '--wide', filePath], { collectOutput: true });
     for (const match of versionInfo.matchAll(/\bGLIBC_(\d+)\.(\d+)(?:\.(\d+))?\b/gu)) {
       const required = [Number(match[1]), Number(match[2]), Number(match[3] || 0)];
-      if (!isAtLeastVersion(TARGET_GLIBC_VERSION, required)) {
+      if (!meetsMinimumVersion(TARGET_GLIBC_VERSION, required)) {
         throw new Error(
           `${path.relative(stageDir, filePath)} requires GLIBC_${required.join('.')}, newer than the supported ${TARGET_GLIBC_VERSION.slice(0, 2).join('.')} floor.`,
         );
@@ -227,7 +218,7 @@ async function assertBundledBun(directory) {
   const bunPath = path.join(directory, 'dist-native', 'bun');
   let version;
   try {
-    version = (await capture(bunPath, ['--version'])).trim();
+    version = (await execute(bunPath, ['--version'], { collectOutput: true })).trim();
   } catch {
     throw new Error(`dist-native/bun must be an executable Bun ${BUN_VERSION} binary.`);
   }
@@ -449,7 +440,7 @@ async function smokeNativeRuntime(stageDir) {
       });
     });
   `;
-  await run(process.execPath, ['--input-type=module', '--eval', smokeSource], { cwd: stageDir });
+  await execute(process.execPath, ['--input-type=module', '--eval', smokeSource], { cwd: stageDir });
 }
 
 async function createDeterministicArchive(stageDir, archivePath, epoch) {
@@ -457,7 +448,7 @@ async function createDeterministicArchive(stageDir, archivePath, epoch) {
   await fs.rm(tarPath, { force: true });
   await fs.rm(archivePath, { force: true });
 
-  await run('tar', [
+  await execute('tar', [
     '--format=gnu',
     '--sort=name',
     `--mtime=@${epoch}`,
@@ -471,23 +462,23 @@ async function createDeterministicArchive(stageDir, archivePath, epoch) {
     stageDir,
     '.',
   ]);
-  await run('gzip', ['--no-name', '--force', tarPath]);
+  await execute('gzip', ['--no-name', '--force', tarPath]);
 }
 
-assertTargetEnvironment();
-
-const packageJson = JSON.parse(
-  await fs.readFile(path.join(rootDir, 'package.json'), 'utf8'),
-);
-const version = packageJson.version;
-assertGjcSdkProductionDependency(packageJson);
-await assertBundledBun(rootDir);
-const bundleName = `gajae-app-server-${version}-linux-x64-node22.tar.gz`;
-const bundleRoot = path.join(rootDir, 'release', 'server');
-const stageDir = path.join(bundleRoot, `.stage-${version}`);
-const archivePath = path.join(bundleRoot, bundleName);
-const checksumPath = `${archivePath}.sha256`;
-const buildInputs = [
+async function buildServerBundle() {
+  assertTargetEnvironment();
+  const packageJson = JSON.parse(
+    await fs.readFile(path.join(rootDir, 'package.json'), 'utf8'),
+  );
+  const version = packageJson.version;
+  assertGjcSdkProductionDependency(packageJson);
+  await assertBundledBun(rootDir);
+  const bundleName = `gajae-app-server-${version}-linux-x64-node22.tar.gz`;
+  const bundleRoot = path.join(rootDir, 'release', 'server');
+  const stageDir = path.join(bundleRoot, `.stage-${version}`);
+  const archivePath = path.join(bundleRoot, bundleName);
+  const checksumPath = `${archivePath}.sha256`;
+  const buildInputs = [
   'dist',
   'dist-server',
   'dist-native',
@@ -509,16 +500,16 @@ const buildInputs = [
   // scripts/generate-third-party-notices.mjs; `npm run verify` fails when it is
   // stale, so shipping it cannot silently describe an older tree.
   'THIRD-PARTY-NOTICES.md',
-];
+  ];
 
-await validateRequiredInputs(buildInputs);
-await fs.mkdir(bundleRoot, { recursive: true });
-await fs.rm(stageDir, { recursive: true, force: true });
-await fs.rm(archivePath, { force: true });
-await fs.rm(checksumPath, { force: true });
-await fs.mkdir(stageDir, { recursive: true });
+  await validateRequiredInputs(buildInputs);
+  await fs.mkdir(bundleRoot, { recursive: true });
+  await fs.rm(stageDir, { recursive: true, force: true });
+  await fs.rm(archivePath, { force: true });
+  await fs.rm(checksumPath, { force: true });
+  await fs.mkdir(stageDir, { recursive: true });
 
-try {
+  try {
   for (const relativePath of buildInputs) {
     await copyRequired(stageDir, relativePath);
   }
@@ -528,7 +519,7 @@ try {
 
 
   console.log('Installing production server dependencies into bundle stage...');
-  await run('npm', ['ci', '--omit=dev'], {
+  await execute('npm', ['ci', '--omit=dev'], {
     cwd: stageDir,
     env: {
       ...process.env,
@@ -547,7 +538,7 @@ try {
   console.log(`Excluded ${excluded.join(', ')} from the bundle (see scripts/release/distribution-exclusions.mjs).`);
 
   console.log(`Rebuilding ${NATIVE_MODULES.join(', ')} from source for Node.js ${TARGET_NODE_MAJOR}...`);
-  await run('npm', ['rebuild', '--omit=dev', '--build-from-source', ...NATIVE_MODULES], {
+  await execute('npm', ['rebuild', '--omit=dev', '--build-from-source', ...NATIVE_MODULES], {
     cwd: stageDir,
     env: {
       ...process.env,
@@ -558,7 +549,7 @@ try {
     },
   });
 
-  await run(process.execPath, ['scripts/fix-node-pty.js'], { cwd: stageDir });
+  await execute(process.execPath, ['scripts/fix-node-pty.js'], { cwd: stageDir });
   await auditGlibcRequirements(stageDir);
   await smokeNativeRuntime(stageDir);
 
@@ -571,14 +562,17 @@ try {
   await createDeterministicArchive(stageDir, archivePath, sourceDateEpoch());
   const digest = await sha256(archivePath);
   await fs.writeFile(checksumPath, `${digest}  ${bundleName}\n`, 'utf8');
-} catch (error) {
-  await fs.rm(archivePath, { force: true });
-  await fs.rm(checksumPath, { force: true });
-  throw error;
-} finally {
-  await fs.rm(stageDir, { recursive: true, force: true });
+  } catch (error) {
+    await fs.rm(archivePath, { force: true });
+    await fs.rm(checksumPath, { force: true });
+    throw error;
+  } finally {
+    await fs.rm(stageDir, { recursive: true, force: true });
+  }
+
+  const size = (await fs.stat(archivePath)).size / 1024 / 1024;
+  console.log(`Wrote ${path.relative(rootDir, archivePath)} (${size.toFixed(1)} MB)`);
+  console.log(`Wrote ${path.relative(rootDir, checksumPath)}`);
 }
 
-const size = (await fs.stat(archivePath)).size / 1024 / 1024;
-console.log(`Wrote ${path.relative(rootDir, archivePath)} (${size.toFixed(1)} MB)`);
-console.log(`Wrote ${path.relative(rootDir, checksumPath)}`);
+await buildServerBundle();

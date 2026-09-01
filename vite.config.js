@@ -1,92 +1,62 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import { defineConfig, loadEnv } from 'vite'
 
 import { getConnectableHost, normalizeLoopbackHost, parseAllowedHosts } from './shared/networkHosts.js'
 
-export default defineConfig(({ mode }) => {
-  // Load env file based on `mode` in the current working directory.
-  const env = loadEnv(mode, process.cwd(), '')
+const chunkGroups = {
+  'vendor-react': ['react', 'react-dom', 'react-dom/client', 'react-router-dom', '@tanstack/react-query', 'zustand'],
+  'vendor-codemirror': [
+    '@uiw/react-codemirror',
+    '@codemirror/lang-css',
+    '@codemirror/lang-html',
+    '@codemirror/lang-javascript',
+    '@codemirror/lang-json',
+    '@codemirror/lang-markdown',
+    '@codemirror/lang-python',
+    '@codemirror/theme-one-dark'
+  ],
+  'vendor-markdown': ['react-markdown', 'remark-gfm', 'remark-math', 'rehype-katex', 'katex'],
+  'vendor-syntax': ['react-syntax-highlighter'],
+  'vendor-icons': ['lucide-react'],
+  'vendor-i18n': ['i18next', 'i18next-browser-languagedetector', 'react-i18next'],
+  'vendor-tools': ['cmdk', 'jszip', 'react-dropzone']
+}
 
-  const configuredHost = env.HOST || '0.0.0.0'
-  // if the host is not a loopback address, it should be used directly. 
-  // This allows the vite server to EXPOSE all interfaces when the host 
-  // is set to '0.0.0.0' or '::', while still using 'localhost' for browser 
-  // URLs and proxy targets.
-  const host = normalizeLoopbackHost(configuredHost)
-  
-  const proxyHost = getConnectableHost(configuredHost)
-  // TODO: Remove support for legacy PORT variables in all locations in a future major release, leaving only SERVER_PORT.
-  const serverPort = env.SERVER_PORT || env.PORT || 3001
-  // Host names allowed to reach the dev server. Vite only accepts IPs and
-  // localhost by default; a tailnet MagicDNS name or a reverse-proxy hostname
-  // has to be listed explicitly. Unset keeps Vite's default.
+function websocketProxy(host) {
+  return { target: `ws://${host}`, ws: true }
+}
+
+function buildServer(env) {
+  const requestedHost = env.HOST || '0.0.0.0'
+  const target = `${getConnectableHost(requestedHost)}:${env.SERVER_PORT || env.PORT || 3001}`
   const allowedHosts = parseAllowedHosts(env.ALLOWED_HOSTS)
 
   return {
-    plugins: [
-      // React Compiler (stable 1.0): build-time auto-memoization. Rules of
-      // React are enforced by eslint-plugin-react-hooks; components the
-      // compiler cannot prove safe are skipped, not broken.
-      react({ babel: { plugins: [['babel-plugin-react-compiler', {}]] } }),
-    ],
-    resolve: {
-      alias: {
-        '@': fileURLToPath(new URL('./src', import.meta.url))
-      }
-    },
-    server: {
-      host,
-      ...(allowedHosts === undefined ? {} : { allowedHosts }),
-      port: parseInt(env.VITE_PORT) || 5173,
-      proxy: {
-        '/api': `http://${proxyHost}:${serverPort}`,
-        '/ws': {
-          target: `ws://${proxyHost}:${serverPort}`,
-          ws: true
-        },
-        '/shell': {
-          target: `ws://${proxyHost}:${serverPort}`,
-          ws: true
-        },
-        '/plugin-ws': {
-          target: `ws://${proxyHost}:${serverPort}`,
-          ws: true
-        }
-      }
-    },
+    host: normalizeLoopbackHost(requestedHost),
+    ...(allowedHosts === undefined ? {} : { allowedHosts }),
+    port: parseInt(env.VITE_PORT) || 5173,
+    proxy: {
+      '/api': `http://${target}`,
+      '/ws': websocketProxy(target),
+      '/shell': websocketProxy(target),
+      '/plugin-ws': websocketProxy(target)
+    }
+  }
+}
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+
+  return {
+    plugins: [react({ babel: { plugins: [['babel-plugin-react-compiler', {}]] } })],
+    resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+    server: buildServer(env),
     build: {
       outDir: 'dist',
       chunkSizeWarningLimit: 1000,
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            'vendor-react': ['react', 'react-dom', 'react-dom/client', 'react-router-dom', '@tanstack/react-query', 'zustand'],
-            'vendor-codemirror': [
-              '@uiw/react-codemirror',
-              '@codemirror/lang-css',
-              '@codemirror/lang-html',
-              '@codemirror/lang-javascript',
-              '@codemirror/lang-json',
-              '@codemirror/lang-markdown',
-              '@codemirror/lang-python',
-              '@codemirror/theme-one-dark'
-            ],
-            'vendor-markdown': [
-              'react-markdown',
-              'remark-gfm',
-              'remark-math',
-              'rehype-katex',
-              'katex'
-            ],
-            'vendor-syntax': ['react-syntax-highlighter'],
-            'vendor-icons': ['lucide-react'],
-            'vendor-i18n': ['i18next', 'i18next-browser-languagedetector', 'react-i18next'],
-            'vendor-tools': ['cmdk', 'jszip', 'react-dropzone']
-          }
-        }
-      }
+      rollupOptions: { output: { manualChunks: chunkGroups } }
     }
   }
 })

@@ -16,340 +16,150 @@ import type {
 import { readProviderSessionActiveModelChange } from '@/shared/utils.js';
 
 export const PROVIDER_MODELS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
-// Bumped whenever the built-in preset catalog changes or the option shape gains
-// a field, so an SDK upgrade or a new field is not hidden behind an existing
-// cache entry for the rest of its 3-day TTL.
 const PROVIDER_MODELS_CACHE_VERSION = 11;
 
-type ProviderModelsServiceDependencies = {
-  resolveProvider?: (provider: LLMProvider) => Pick<IProvider, 'models'>;
-  cachePath?: string;
-  activeModelChangesPath?: string;
-  now?: () => number;
+type ProviderModelsServiceDependencies = { resolveProvider?: (provider: LLMProvider) => Pick<IProvider, 'models'>; cachePath?: string; activeModelChangesPath?: string; now?: () => number };
+type ProviderModelsOptions = { bypassCache?: boolean };
+type ProviderModelsCacheEntry = { updatedAt: number; expiresAt: number; models: ProviderModelsDefinition };
+type ProviderModelsCacheFile = { version: number; entries: Record<string, ProviderModelsCacheEntry> };
+
+const defaultCacheLocation = (): string => path.join(os.homedir(), '.gajae-app', 'provider-models-cache.json');
+
+const hasModelOptionShape = (candidate: unknown): candidate is ProviderModelsDefinition['OPTIONS'][number] => {
+  if (!candidate || typeof candidate !== 'object') return false;
+  const option = candidate as ProviderModelsDefinition['OPTIONS'][number];
+  return typeof option.value === 'string'
+    && typeof option.label === 'string'
+    && (option.description === undefined || typeof option.description === 'string')
+    && (option.roles === undefined || Boolean(option.roles));
 };
 
-type ProviderModelsOptions = {
-  bypassCache?: boolean;
+const hasModelsShape = (candidate: unknown): candidate is ProviderModelsDefinition => {
+  if (!candidate || typeof candidate !== 'object') return false;
+  const catalog = candidate as ProviderModelsDefinition;
+  return typeof catalog.DEFAULT === 'string'
+    && Array.isArray(catalog.OPTIONS)
+    && catalog.OPTIONS.every(hasModelOptionShape)
+    && (catalog.MODELS === undefined || (Array.isArray(catalog.MODELS) && catalog.MODELS.every(hasModelOptionShape)));
 };
 
-type ProviderModelsCacheEntry = {
-  updatedAt: number;
-  expiresAt: number;
-  models: ProviderModelsDefinition;
+const hasCacheEntryShape = (candidate: unknown): candidate is ProviderModelsCacheEntry => {
+  if (!candidate || typeof candidate !== 'object') return false;
+  const entry = candidate as ProviderModelsCacheEntry;
+  return typeof entry.updatedAt === 'number' && typeof entry.expiresAt === 'number' && hasModelsShape(entry.models);
 };
 
-type ProviderModelsCacheFile = {
-  version: number;
-  entries: Record<string, ProviderModelsCacheEntry>;
+const deserializeCache = async (fileName: string): Promise<Record<string, ProviderModelsCacheEntry>> => {
+  try {
+    const parsed = JSON.parse(await readFile(fileName, 'utf8')) as Partial<ProviderModelsCacheFile>;
+    if (parsed.version !== PROVIDER_MODELS_CACHE_VERSION || !parsed.entries || typeof parsed.entries !== 'object') return {};
+    return Object.fromEntries(Object.entries(parsed.entries).filter(([, item]) => hasCacheEntryShape(item)));
+  } catch {
+    return {};
+  }
 };
 
-const getProviderModelsCachePath = (): string => path.join(
-  os.homedir(),
-  '.gajae-app',
-  'provider-models-cache.json',
-);
-
-const toProviderModelsCacheInfo = (
-  entry: ProviderModelsCacheEntry,
-  source: ProviderModelsCacheInfo['source'],
-): ProviderModelsCacheInfo => ({
+const cacheDetails = (entry: ProviderModelsCacheEntry, source: ProviderModelsCacheInfo['source']): ProviderModelsCacheInfo => ({
   updatedAt: new Date(entry.updatedAt).toISOString(),
   expiresAt: new Date(entry.expiresAt).toISOString(),
   source,
 });
 
-const isProviderModelOption = (
-  value: unknown,
-): value is ProviderModelsDefinition['OPTIONS'][number] => (
-  Boolean(value)
-  && typeof value === 'object'
-  && typeof (value as ProviderModelsDefinition['OPTIONS'][number]).value === 'string'
-  && typeof (value as ProviderModelsDefinition['OPTIONS'][number]).label === 'string'
-  && (
-    typeof (value as ProviderModelsDefinition['OPTIONS'][number]).description === 'undefined'
-    || typeof (value as ProviderModelsDefinition['OPTIONS'][number]).description === 'string'
-  )
-  && (
-    typeof (value as ProviderModelsDefinition['OPTIONS'][number]).roles === 'undefined'
-    || Boolean((value as ProviderModelsDefinition['OPTIONS'][number]).roles)
-  )
-);
-
-const isProviderModelsDefinition = (value: unknown): value is ProviderModelsDefinition => (
-  Boolean(value)
-  && typeof value === 'object'
-  && Array.isArray((value as ProviderModelsDefinition).OPTIONS)
-  && (value as ProviderModelsDefinition).OPTIONS.every(isProviderModelOption)
-  && (
-    typeof (value as ProviderModelsDefinition).MODELS === 'undefined'
-    || (
-      Array.isArray((value as ProviderModelsDefinition).MODELS)
-      && (value as ProviderModelsDefinition).MODELS!.every(isProviderModelOption)
-    )
-  )
-  && typeof (value as ProviderModelsDefinition).DEFAULT === 'string'
-);
-
-const isProviderModelsCacheEntry = (value: unknown): value is ProviderModelsCacheEntry => (
-  Boolean(value)
-  && typeof value === 'object'
-  && typeof (value as ProviderModelsCacheEntry).updatedAt === 'number'
-  && typeof (value as ProviderModelsCacheEntry).expiresAt === 'number'
-  && isProviderModelsDefinition((value as ProviderModelsCacheEntry).models)
-);
-
-const readProviderModelsCacheFile = async (
-  cachePath: string,
-): Promise<ProviderModelsCacheFile | null> => {
-  try {
-    const raw = await readFile(cachePath, 'utf8');
-    const parsed = JSON.parse(raw) as Partial<ProviderModelsCacheFile>;
-    if (parsed.version !== PROVIDER_MODELS_CACHE_VERSION || !parsed.entries || typeof parsed.entries !== 'object') {
-      return null;
-    }
-
-    const entries = Object.fromEntries(
-      Object.entries(parsed.entries).filter((entry): entry is [string, ProviderModelsCacheEntry] =>
-        isProviderModelsCacheEntry(entry[1]),
-      ),
-    );
-
-    return {
-      version: PROVIDER_MODELS_CACHE_VERSION,
-      entries,
-    };
-  } catch {
-    return null;
-  }
-};
-
-const writeProviderModelsCacheFile = async (
-  cachePath: string,
-  entries: Map<LLMProvider, ProviderModelsCacheEntry>,
-  now: number,
-): Promise<void> => {
-  const serializableEntries = Object.fromEntries(
-    [...entries.entries()].filter(([, entry]) => entry.expiresAt > now),
-  );
-  const payload: ProviderModelsCacheFile = {
-    version: PROVIDER_MODELS_CACHE_VERSION,
-    entries: serializableEntries,
-  };
-
-  await mkdir(path.dirname(cachePath), { recursive: true });
-  await writeFile(cachePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
-};
-
-/**
- * Provider model lookup service.
- *
- * Routes and other service callers use this layer instead of resolving provider
- * classes directly so the provider-registry dependency stays centralized in one
- * place.
- */
 export const createProviderModelsService = (dependencies: ProviderModelsServiceDependencies = {}) => {
-  const resolveProvider = dependencies.resolveProvider ?? providerRegistry.resolveProvider;
-  const cachePath = dependencies.cachePath ?? getProviderModelsCachePath();
-  const activeModelChangesPath = dependencies.activeModelChangesPath;
-  const now = dependencies.now ?? (() => Date.now());
-  const memoryCache = new Map<LLMProvider, ProviderModelsCacheEntry>();
-  const pendingRequests = new Map<LLMProvider, Promise<ProviderModelsResult>>();
-  let persistedCacheLoaded = false;
-  let persistedCacheLoadPromise: Promise<void> | null = null;
+  const locateProvider = dependencies.resolveProvider ?? providerRegistry.resolveProvider;
+  const fileName = dependencies.cachePath ?? defaultCacheLocation();
+  const clock = dependencies.now ?? Date.now;
+  const remembered = new Map<LLMProvider, ProviderModelsCacheEntry>();
+  const fetching = new Map<LLMProvider, Promise<ProviderModelsResult>>();
+  let diskRead: Promise<void> | undefined;
+  let diskWasRead = false;
 
-  const pruneExpiredMemoryEntry = (
-    provider: LLMProvider,
-    currentTime: number,
-    source: ProviderModelsCacheInfo['source'],
-  ): ProviderModelsResult | null => {
-    const cachedEntry = memoryCache.get(provider);
-    if (!cachedEntry) {
-      return null;
+  const usable = (provider: LLMProvider, time: number, source: ProviderModelsCacheInfo['source']): ProviderModelsResult | undefined => {
+    const entry = remembered.get(provider);
+    if (!entry) return undefined;
+    if (entry.expiresAt <= time) {
+      remembered.delete(provider);
+      return undefined;
     }
-
-    if (cachedEntry.expiresAt > currentTime) {
-      return {
-        models: cachedEntry.models,
-        cache: toProviderModelsCacheInfo(cachedEntry, source),
-      };
-    }
-
-    memoryCache.delete(provider);
-    return null;
+    return { models: entry.models, cache: cacheDetails(entry, source) };
   };
 
-  const loadPersistedCache = async (): Promise<void> => {
-    if (persistedCacheLoaded) {
-      return;
-    }
-
-    if (!persistedCacheLoadPromise) {
-      persistedCacheLoadPromise = (async () => {
-        const cacheFile = await readProviderModelsCacheFile(cachePath);
-        const currentTime = now();
-
-        for (const [provider, entry] of Object.entries(cacheFile?.entries ?? {})) {
-          if (entry.expiresAt > currentTime) {
-            memoryCache.set(provider as LLMProvider, entry);
-          }
-        }
-
-        persistedCacheLoaded = true;
-      })().finally(() => {
-        persistedCacheLoadPromise = null;
-      });
-    }
-
-    await persistedCacheLoadPromise;
-  };
-
-  const persistCache = async (): Promise<void> => {
+  const sourceHasChanged = async (provider: LLMProvider, entry: ProviderModelsResult): Promise<boolean> => {
+    if (!Number.isFinite(Date.parse(entry.cache.updatedAt))) return false;
     try {
-      await writeProviderModelsCacheFile(cachePath, memoryCache, now());
-    } catch (error) {
-      console.warn('Unable to persist provider models cache:', error);
-    }
-  };
-
-  const setCacheEntry = async (
-    provider: LLMProvider,
-    models: ProviderModelsDefinition,
-  ): Promise<ProviderModelsCacheEntry> => {
-    const currentTime = now();
-    const entry: ProviderModelsCacheEntry = {
-      updatedAt: currentTime,
-      expiresAt: currentTime + PROVIDER_MODELS_CACHE_TTL_MS,
-      models,
-    };
-
-    memoryCache.set(provider, entry);
-    await persistCache();
-    return entry;
-  };
-
-  const loadAndCacheModels = (
-    provider: LLMProvider,
-  ): Promise<ProviderModelsResult> => {
-    const request = resolveProvider(provider).models.getSupportedModels()
-      .then(async (models) => {
-        const entry = await setCacheEntry(provider, models);
-        return {
-          models,
-          cache: toProviderModelsCacheInfo(entry, 'fresh'),
-        };
-      })
-      .finally(() => {
-        pendingRequests.delete(provider);
-      });
-
-    pendingRequests.set(provider, request);
-    return request;
-  };
-
-  /**
-   * True when the provider's own sources changed after the entry was cached.
-   *
-   * The TTL answers "is this old"; this answers "is this wrong". A catalog read
-   * from local files goes wrong the moment those files are edited, which is
-   * exactly what happens when the default model is changed outside the app.
-   */
-  const cacheEntryOutdated = async (provider: LLMProvider, cachedAt: number): Promise<boolean> => {
-    if (!Number.isFinite(cachedAt)) return false;
-    try {
-      const revision = await resolveProvider(provider).models.getCatalogRevision?.();
-      return typeof revision === 'number' && revision > cachedAt;
+      const revision = await locateProvider(provider).models.getCatalogRevision?.();
+      return typeof revision === 'number' && revision > Date.parse(entry.cache.updatedAt);
     } catch {
       return false;
     }
   };
 
-  const getProviderModels = async (
-    provider: LLMProvider,
-    options: ProviderModelsOptions = {},
-  ): Promise<ProviderModelsResult> => {
-    if (options.bypassCache) {
-      const pendingRequest = pendingRequests.get(provider);
-      if (pendingRequest) {
-        return pendingRequest;
+  const writeCache = async (): Promise<void> => {
+    try {
+      const time = clock();
+      const entries = Object.fromEntries([...remembered].filter(([, entry]) => entry.expiresAt > time));
+      await mkdir(path.dirname(fileName), { recursive: true });
+      await writeFile(fileName, `${JSON.stringify({ version: PROVIDER_MODELS_CACHE_VERSION, entries }, null, 2)}\n`, 'utf8');
+    } catch (error) {
+      console.warn('Unable to persist provider models cache:', error);
+    }
+  };
+
+  const readCacheOnce = async (): Promise<void> => {
+    if (diskWasRead) return;
+    diskRead ??= (async () => {
+      const time = clock();
+      for (const [key, entry] of Object.entries(await deserializeCache(fileName))) {
+        if (entry.expiresAt > time) remembered.set(key as LLMProvider, entry);
       }
-
-      return loadAndCacheModels(provider);
-    }
-
-    const cachedModels = pruneExpiredMemoryEntry(provider, now(), 'memory');
-    if (cachedModels && !await cacheEntryOutdated(provider, Date.parse(cachedModels.cache.updatedAt))) {
-      return cachedModels;
-    }
-
-    const pendingRequest = pendingRequests.get(provider);
-    if (pendingRequest) {
-      return pendingRequest;
-    }
-
-    await loadPersistedCache();
-
-    const persistedModels = pruneExpiredMemoryEntry(provider, now(), 'disk');
-    if (persistedModels && !await cacheEntryOutdated(provider, Date.parse(persistedModels.cache.updatedAt))) {
-      return persistedModels;
-    }
-
-    const postLoadPendingRequest = pendingRequests.get(provider);
-    if (postLoadPendingRequest) {
-      return postLoadPendingRequest;
-    }
-
-    return loadAndCacheModels(provider);
+      diskWasRead = true;
+    })().finally(() => { diskRead = undefined; });
+    await diskRead;
   };
 
-  const getCurrentActiveModel = async (
-    provider: LLMProvider,
-    sessionId?: string,
-  ): Promise<ProviderCurrentActiveModel> => resolveProvider(provider).models.getCurrentActiveModel(sessionId);
-
-  const changeActiveModel = async (
-    provider: LLMProvider,
-    input: ProviderChangeActiveModelInput,
-  ): Promise<ProviderSessionActiveModelChange> => resolveProvider(provider).models.changeActiveModel(input);
-
-  const getChangedActiveModel = async (
-    provider: LLMProvider,
-    sessionId: string,
-  ): Promise<ProviderSessionActiveModelChange> => readProviderSessionActiveModelChange(provider, sessionId, {
-    filePath: activeModelChangesPath,
-  });
-
-  const resolveResumeModel = async (
-    provider: LLMProvider,
-    sessionId: string | undefined,
-    requestedModel?: string | null,
-  ): Promise<string | undefined> => {
-    const normalizedRequestedModel = typeof requestedModel === 'string' ? requestedModel.trim() : '';
-    if (!sessionId?.trim()) {
-      return normalizedRequestedModel || undefined;
-    }
-
-    const changedModel = await getChangedActiveModel(provider, sessionId);
-    if (changedModel.supported && changedModel.changed && changedModel.model?.trim()) {
-      return changedModel.model.trim();
-    }
-
-    return normalizedRequestedModel || undefined;
+  const retrieve = (provider: LLMProvider): Promise<ProviderModelsResult> => {
+    const request = locateProvider(provider).models.getSupportedModels().then(async (models) => {
+      const updatedAt = clock();
+      const entry = { updatedAt, expiresAt: updatedAt + PROVIDER_MODELS_CACHE_TTL_MS, models };
+      remembered.set(provider, entry);
+      await writeCache();
+      return { models, cache: cacheDetails(entry, 'fresh') };
+    }).finally(() => { fetching.delete(provider); });
+    fetching.set(provider, request);
+    return request;
   };
 
-  const clearCache = (): void => {
-    memoryCache.clear();
-    pendingRequests.clear();
-    persistedCacheLoaded = false;
-    persistedCacheLoadPromise = null;
+  const getProviderModels = async (provider: LLMProvider, options: ProviderModelsOptions = {}): Promise<ProviderModelsResult> => {
+    if (options.bypassCache) return fetching.get(provider) ?? retrieve(provider);
+
+    const fromMemory = usable(provider, clock(), 'memory');
+    if (fromMemory && !await sourceHasChanged(provider, fromMemory)) return fromMemory;
+    const inFlight = fetching.get(provider);
+    if (inFlight) return inFlight;
+
+    await readCacheOnce();
+    const fromDisk = usable(provider, clock(), 'disk');
+    if (fromDisk && !await sourceHasChanged(provider, fromDisk)) return fromDisk;
+    return fetching.get(provider) ?? retrieve(provider);
   };
 
   return {
     getProviderModels,
-    getCurrentActiveModel,
-    getChangedActiveModel,
-    changeActiveModel,
-    resolveResumeModel,
-    clearCache,
+    getCurrentActiveModel: (provider: LLMProvider, sessionId?: string): Promise<ProviderCurrentActiveModel> => locateProvider(provider).models.getCurrentActiveModel(sessionId),
+    getChangedActiveModel: (provider: LLMProvider, sessionId: string): Promise<ProviderSessionActiveModelChange> => readProviderSessionActiveModelChange(provider, sessionId, { filePath: dependencies.activeModelChangesPath }),
+    changeActiveModel: (provider: LLMProvider, input: ProviderChangeActiveModelInput): Promise<ProviderSessionActiveModelChange> => locateProvider(provider).models.changeActiveModel(input),
+    async resolveResumeModel(provider: LLMProvider, sessionId: string | undefined, requestedModel?: string | null): Promise<string | undefined> {
+      const requested = typeof requestedModel === 'string' ? requestedModel.trim() : '';
+      if (!sessionId?.trim()) return requested || undefined;
+      const saved = await readProviderSessionActiveModelChange(provider, sessionId, { filePath: dependencies.activeModelChangesPath });
+      return saved.supported && saved.changed && saved.model?.trim() ? saved.model.trim() : requested || undefined;
+    },
+    clearCache(): void {
+      remembered.clear();
+      fetching.clear();
+      diskRead = undefined;
+      diskWasRead = false;
+    },
   };
 };
 

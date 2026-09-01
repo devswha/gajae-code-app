@@ -1,82 +1,54 @@
-import { promises as fs } from 'node:fs';
+import { promises as filesystem } from 'node:fs';
 import path from 'node:path';
 
 import { getGlobalImageAssetsDir, toPosixPath } from '@/shared/image-attachments.js';
 
-/**
- * Image mime types accepted for chat attachment uploads. SVG is allowed for
- * storage/preview even though some providers (Claude API) skip it at send time.
- */
-const ALLOWED_IMAGE_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'image/svg+xml',
-]);
+type StoredImageAsset = { name: string; path: string; size: number; mimeType: string };
+type UploadedImageFile = { originalname: string; filename: string; size: number; mimetype: string };
 
-// Used only by this service and the assets routes via the barrel file.
-type StoredImageAsset = {
-  /** Original upload filename, for display. */
-  name: string;
-  /** Absolute posix-normalized path inside the global assets folder. */
-  path: string;
-  size: number;
-  mimeType: string;
-};
-
-// Shape of one multer-stored file; kept local because only this module reads it.
-type UploadedImageFile = {
-  originalname: string;
-  filename: string;
-  size: number;
-  mimetype: string;
-};
-
-/** Returns whether one uploaded mime type may be stored as a chat image asset. */
 export function isAllowedImageMimeType(mimeType: string): boolean {
-  return ALLOWED_IMAGE_MIME_TYPES.has(mimeType);
+  switch (mimeType) {
+    case 'image/jpeg':
+    case 'image/png':
+    case 'image/gif':
+    case 'image/webp':
+    case 'image/svg+xml':
+      return true;
+    default:
+      return false;
+  }
 }
 
-/** Creates the global `~/.gajae-app/assets` folder if needed and returns it. */
 export async function ensureImageAssetsDir(): Promise<string> {
-  const assetsDir = getGlobalImageAssetsDir();
-  await fs.mkdir(assetsDir, { recursive: true });
-  return assetsDir;
+  const directory = getGlobalImageAssetsDir();
+  await filesystem.mkdir(directory, { recursive: true });
+  return directory;
 }
 
-/**
- * Maps multer-stored upload files to the attachment records returned to the
- * chat composer. The absolute path is what providers receive and what session
- * history carries back to the UI.
- */
 export function buildStoredImageRecords(files: UploadedImageFile[]): StoredImageAsset[] {
-  const assetsDir = getGlobalImageAssetsDir();
-  return files.map((file) => ({
-    name: file.originalname,
-    path: toPosixPath(path.join(assetsDir, file.filename)),
-    size: file.size,
-    mimeType: file.mimetype,
-  }));
+  const directory = getGlobalImageAssetsDir();
+  const records: StoredImageAsset[] = [];
+  for (const upload of files) {
+    records.push({
+      name: upload.originalname,
+      path: toPosixPath(path.join(directory, upload.filename)),
+      size: upload.size,
+      mimeType: upload.mimetype,
+    });
+  }
+  return records;
 }
 
-/**
- * Resolves one asset filename to its absolute path inside the global assets
- * folder, or null when the name is empty, contains path separators/traversal,
- * or would escape the folder. This is the only lookup the serving route uses,
- * so nothing outside `~/.gajae-app/assets` can ever be read through it.
- */
 export function resolveImageAssetFile(filename: string): string | null {
-  const trimmed = typeof filename === 'string' ? filename.trim() : '';
-  if (!trimmed || trimmed.includes('/') || trimmed.includes('\\') || trimmed.includes('..')) {
+  const basename = typeof filename === 'string' ? filename.trim() : '';
+  if (basename === '' || basename.includes('..')) {
+    return null;
+  }
+  if (/[\\/]/.test(basename)) {
     return null;
   }
 
-  const assetsDir = path.resolve(getGlobalImageAssetsDir());
-  const resolved = path.resolve(assetsDir, trimmed);
-  if (!resolved.startsWith(assetsDir + path.sep)) {
-    return null;
-  }
-
-  return resolved;
+  const directory = path.resolve(getGlobalImageAssetsDir());
+  const asset = path.resolve(directory, basename);
+  return path.dirname(asset) === directory ? asset : null;
 }

@@ -1,4 +1,4 @@
-import fsSync, { promises as fs } from 'node:fs';
+import fs, { promises as fsPromises } from 'node:fs';
 
 import express from 'express';
 import mime from 'mime-types';
@@ -13,89 +13,73 @@ import {
 
 const router = express.Router();
 
-// Multer writes uploads straight into the global assets folder; the service
-// owns the folder location and the response record shape.
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    ensureImageAssetsDir()
-      .then((assetsDir) => cb(null, assetsDir))
-      .catch((error) => cb(error as Error, ''));
+const imageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_request, _file, done) => {
+      void ensureImageAssetsDir().then(
+        (directory) => done(null, directory),
+        (reason: Error) => done(reason, ''),
+      );
+    },
+    filename: (_request, file, done) => {
+      const identifier = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      done(null, `${identifier}-${file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`);
+    },
+  }),
+  fileFilter: (_request, file, done) => {
+    if (!isAllowedImageMimeType(file.mimetype)) {
+      done(new Error('Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG are allowed.'));
+      return;
+    }
+    done(null, true);
   },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-    cb(null, `${uniqueSuffix}-${sanitizedName}`);
-  },
+  limits: { fileSize: 5 * 1024 * 1024, files: 5 },
 });
 
-const upload = multer({
-  storage,
-  fileFilter: (req, file, cb) => {
-    if (isAllowedImageMimeType(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG are allowed.'));
-    }
-  },
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB
-    files: 5,
-  },
-});
-
-/**
- * Stores chat image attachments in the global `~/.gajae-app/assets` folder and
- * returns their absolute paths for use in provider prompts and chat history.
- */
-router.post('/images', (req, res) => {
-  upload.array('images', 5)(req, res, (err: unknown) => {
-    if (err) {
-      const message = err instanceof Error ? err.message : 'Upload failed';
-      return res.status(400).json({ error: message });
+router.post('/images', (request, response) => {
+  imageUpload.array('images', 5)(request, response, (failure: unknown) => {
+    if (failure) {
+      response.status(400).json({ error: failure instanceof Error ? failure.message : 'Upload failed' });
+      return;
     }
 
-    const files = Array.isArray(req.files) ? req.files : [];
-    if (files.length === 0) {
-      return res.status(400).json({ error: 'No image files provided' });
+    const uploaded = Array.isArray(request.files) ? request.files : [];
+    if (uploaded.length === 0) {
+      response.status(400).json({ error: 'No image files provided' });
+      return;
     }
 
-    res.json({ images: buildStoredImageRecords(files) });
+    response.json({ images: buildStoredImageRecords(uploaded) });
   });
 });
 
-/**
- * Serves one stored image asset by filename. Only files directly inside the
- * global assets folder are reachable; traversal attempts resolve to null.
- */
-router.get('/images/:filename', async (req, res) => {
-  const resolved = resolveImageAssetFile(req.params.filename);
-  if (!resolved) {
-    return res.status(400).json({ error: 'Invalid asset filename' });
+router.get('/images/:filename', async (request, response) => {
+  const asset = resolveImageAssetFile(request.params.filename);
+  if (asset === null) {
+    response.status(400).json({ error: 'Invalid asset filename' });
+    return;
   }
 
   try {
-    await fs.access(resolved);
+    await fsPromises.access(asset);
   } catch {
-    return res.status(404).json({ error: 'Asset not found' });
+    response.status(404).json({ error: 'Asset not found' });
+    return;
   }
 
-  const contentType = mime.lookup(resolved) || 'application/octet-stream';
-  res.setHeader('Content-Type', contentType);
-  // Stored-XSS hardening: never let the browser sniff a different type, and
-  // force SVGs (which can carry scripts when rendered as a document) to
-  // download instead of rendering inline. The chat UI is unaffected — it
-  // fetches assets as blobs and shows them through <img>, where SVG scripts
-  // never execute.
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  if (contentType === 'image/svg+xml') {
-    res.setHeader('Content-Disposition', 'attachment');
+  const mediaType = mime.lookup(asset) || 'application/octet-stream';
+  response.setHeader('Content-Type', mediaType);
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+  if (mediaType === 'image/svg+xml') {
+    response.setHeader('Content-Disposition', 'attachment');
   }
-  const fileStream = fsSync.createReadStream(resolved);
-  fileStream.pipe(res);
-  fileStream.on('error', (error) => {
-    console.error('Error streaming image asset:', error);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Error reading asset' });
+
+  const source = fs.createReadStream(asset);
+  source.pipe(response);
+  source.on('error', (failure) => {
+    console.error('Error streaming image asset:', failure);
+    if (!response.headersSent) {
+      response.status(500).json({ error: 'Error reading asset' });
     }
   });
 });

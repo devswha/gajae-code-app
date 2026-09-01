@@ -1,52 +1,20 @@
 import type { Dispatch, SetStateAction } from 'react';
 
+import type { MarkSessionIdle, MarkSessionProcessing, SessionActivityMap } from '../../../hooks/useSessionProtection';
 import type { AppTab, Project, ProjectSession } from '../../../types/app';
-import type {
-  MarkSessionIdle,
-  MarkSessionProcessing,
-  SessionActivityMap,
-} from '../../../hooks/useSessionProtection';
 import type { SessionEstablishedContext, SessionNavigationOptions } from '../../chat/types/types';
 import type { SettingsMainTab } from '../../settings/types/types';
 
-export type MainContentProps = {
-  selectedProject: Project | null;
-  selectedSession: ProjectSession | null;
-  activeTab: AppTab;
-  setActiveTab: Dispatch<SetStateAction<AppTab>>;
-  ws: WebSocket | null;
-  sendMessage: (message: unknown) => void;
-  isMobile: boolean;
-  onMenuClick: () => void;
-  isLoading: boolean;
-  onInputFocusChange: (focused: boolean) => void;
-  onSessionProcessing: MarkSessionProcessing;
-  onSessionIdle: MarkSessionIdle;
-  processingSessions: SessionActivityMap;
-  onNavigateToSession: (targetSessionId: string, options?: SessionNavigationOptions) => void;
-  onSessionEstablished: (sessionId: string, context: SessionEstablishedContext) => void;
-  onShowSettings: (tab?: SettingsMainTab) => void;
-  newSessionTrigger: number;
-};
+type TabSetter = Dispatch<SetStateAction<AppTab>>;
+export interface MainContentProps {
+  activeTab: AppTab; isLoading: boolean; isMobile: boolean; newSessionTrigger: number; processingSessions: SessionActivityMap; selectedProject: Project | null; selectedSession: ProjectSession | null; ws: WebSocket | null;
+  onInputFocusChange: (focused: boolean) => void; onMenuClick: () => void; onNavigateToSession: (targetSessionId: string, options?: SessionNavigationOptions) => void; onSessionEstablished: (sessionId: string, context: SessionEstablishedContext) => void; onSessionIdle: MarkSessionIdle; onSessionProcessing: MarkSessionProcessing; onShowSettings: (tab?: SettingsMainTab) => void; sendMessage: (message: unknown) => void; setActiveTab: TabSetter;
+}
 
-export type MainContentHeaderProps = {
-  activeTab: AppTab;
-  setActiveTab: Dispatch<SetStateAction<AppTab>>;
-  selectedProject: Project;
-  selectedSession: ProjectSession | null;
-  isMobile: boolean;
-  onMenuClick: () => void;
-  workspaceOpen: boolean;
-  onToggleWorkspace: () => void;
-};
+export interface MainContentHeaderProps {
+  activeTab: AppTab; isMobile: boolean; selectedProject: Project; selectedSession: ProjectSession | null; workspaceOpen: boolean;
+  onMenuClick: () => void; onToggleWorkspace: () => void; setActiveTab: TabSetter;
+}
 
-export type MainContentStateViewProps = {
-  mode: 'loading' | 'empty';
-  isMobile: boolean;
-  onMenuClick: () => void;
-};
-
-export type MobileMenuButtonProps = {
-  onMenuClick: () => void;
-  compact?: boolean;
-};
+export interface MainContentStateViewProps { isMobile: boolean; mode: 'loading' | 'empty'; onMenuClick: () => void; }
+export interface MobileMenuButtonProps { compact?: boolean; onMenuClick: () => void; }

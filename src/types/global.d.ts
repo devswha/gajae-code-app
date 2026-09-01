@@ -1,13 +1,6 @@
 export {};
 
 declare global {
-  interface Window {
-    __ROUTER_BASENAME__?: string;
-  }
-
-  interface EventSourceEventMap {
-    result: MessageEvent;
-    progress: MessageEvent;
-    done: MessageEvent;
-  }
+  interface EventSourceEventMap { done: MessageEvent; progress: MessageEvent; result: MessageEvent; }
+  interface Window { __ROUTER_BASENAME__?: string; }
 }

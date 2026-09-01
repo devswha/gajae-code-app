@@ -1,27 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import type { ComponentProps } from 'react';
 import { ArrowDownIcon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
-import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
-import type { ChatInterfaceProps } from '../types/types';
-import type { ProjectSession } from '../../../types/app';
-import { useChatProviderState } from '../hooks/useChatProviderState';
-import { useChatSessionState } from '../hooks/useChatSessionState';
-import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
-import { useChatComposerState } from '../hooks/useChatComposerState';
-import { useSessionStore } from '../../../stores/useSessionStore';
+import { readSessionFacts, readTokenTotals, type SessionStatusSnapshot } from '../../../contexts/sessionStatusSnapshot';
 import { usePublishSessionStatus } from '../../../contexts/SessionStatusContext';
-import {
-  readSessionFacts,
-  readTokenTotals,
-  type SessionStatusSnapshot,
-} from '../../../contexts/sessionStatusSnapshot';
+import { useWebSocket } from '../../../contexts/WebSocketContext';
+import { useSessionStore } from '../../../stores/useSessionStore';
+import type { ProjectSession } from '../../../types/app';
+import { useChatComposerState } from '../hooks/useChatComposerState';
+import { useChatProviderState } from '../hooks/useChatProviderState';
+import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
+import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useOAuthLogin } from '../hooks/useOAuthLogin';
+import type { ChatInterfaceProps } from '../types/types';
 import OAuthLoginDialog from '../OAuthLoginDialog';
 
-import ChatMessagesPane from './ChatMessagesPane';
 import ChatComposer from './ChatComposer';
+import ChatMessagesPane from './ChatMessagesPane';
 import CommandResultModal from './CommandResultModal';
 import type { ReasoningEffort } from './reasoningEffort';
 
@@ -29,253 +26,126 @@ const REASONING_EFFORTS = new Set<ReasoningEffort>([
   'default', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max',
 ]);
 
+function ComposerSurface(props: ComponentProps<typeof ChatComposer>) {
+  return <ChatComposer {...props} />;
+}
+
+function ProjectSelectionNotice({ text }: { text: string }) {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <div className="text-center text-muted-foreground">
+        <p className="text-sm">{text}</p>
+      </div>
+    </div>
+  );
+}
+
 export function isHistoricalNonGjcReadOnlySession(selectedSession: ProjectSession | null): boolean {
-  const provider = selectedSession?.provider ?? selectedSession?.__provider;
-  return Boolean(provider && provider !== 'gjc');
+  const sourceProvider = selectedSession?.provider ?? selectedSession?.__provider;
+  return Boolean(sourceProvider && sourceProvider !== 'gjc');
 }
 
 function ChatInterface({
-  selectedProject,
-  selectedSession,
-  ws,
-  sendMessage,
-  onFileOpen,
-  onInputFocusChange,
-  onSessionProcessing,
-  onSessionIdle,
-  processingSessions,
-  onNavigateToSession,
-  onSessionEstablished,
-  onShowSettings,
-  showRawParameters,
-  showThinking,
-  showImagePreviews,
-  sendByCtrlEnter,
-  newSessionTrigger,
+  selectedProject, selectedSession, ws, sendMessage, onFileOpen, onInputFocusChange,
+  onSessionProcessing, onSessionIdle, processingSessions, onNavigateToSession,
+  onSessionEstablished, onShowSettings, showRawParameters, showThinking,
+  showImagePreviews, sendByCtrlEnter, newSessionTrigger,
 }: ChatInterfaceProps) {
   const { subscribe } = useWebSocket();
   const { t } = useTranslation('chat');
-
   const sessionStore = useSessionStore();
   const streamTimerRef = useRef<number | null>(null);
   const accumulatedStreamRef = useRef('');
-  // When each session's `chat.subscribe` was last sent; idle acks older than
-  // a later local request are discarded as stale.
   const statusCheckSentAtRef = useRef(new Map<string, number>());
-  // Highest live `seq` observed per session. Written by the realtime handler
-  // on every sequenced frame, read whenever a `chat.subscribe` is sent so the
-  // server replays only the events this client actually missed.
   const lastSeqRef = useRef(new Map<string, number>());
 
-  const resetStreamingState = useCallback(() => {
-    if (streamTimerRef.current) {
-      clearTimeout(streamTimerRef.current);
-      streamTimerRef.current = null;
-    }
+  const clearStreaming = useCallback(() => {
+    const timer = streamTimerRef.current;
+    if (timer) clearTimeout(timer);
+    streamTimerRef.current = null;
     accumulatedStreamRef.current = '';
   }, []);
-  const provider = 'gjc' as const;
 
   const {
-    gjcModel,
-    sessionPinnedModel,
-    pendingPermissionRequests,
-    setPendingPermissionRequests,
-    providerModelCatalog,
-    providerModelCacheCatalog,
-    providerModelsRefreshing,
-    providerModelsLoading,
-    hardRefreshProviderModels,
-    selectProviderModel,
-  } = useChatProviderState({
-    selectedSession,
-    selectedProject,
-  });
+    gjcModel, sessionPinnedModel, pendingPermissionRequests, setPendingPermissionRequests,
+    providerModelCatalog, providerModelCacheCatalog, providerModelsRefreshing,
+    providerModelsLoading, hardRefreshProviderModels, selectProviderModel,
+  } = useChatProviderState({ selectedSession, selectedProject });
   const oauthLogin = useOAuthLogin();
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>('default');
   const reasoningSessionRef = useRef<string | null>(selectedSession?.id ?? null);
 
   useEffect(() => {
-    if (oauthLogin.attempt?.phase === 'completed') {
-      void hardRefreshProviderModels();
-    }
+    if (oauthLogin.attempt?.phase === 'completed') void hardRefreshProviderModels();
   }, [hardRefreshProviderModels, oauthLogin.attempt?.phase]);
 
-
-  const {
-    chatMessages,
-    addMessage,
-    sessionActivity,
-    isProcessing,
-    canAbortSession,
-    currentSessionId,
-    setCurrentSessionId,
-    isLoadingSessionMessages,
-    isLoadingMoreMessages,
-    hasMoreMessages,
-    totalMessages,
-    isUserScrolledUp,
-    hasNewMessagesBelow,
-    setIsUserScrolledUp,
-    tokenBudget,
-    setTokenBudget,
-    sessionState,
-    setSessionState,
-    visibleMessageCount,
-    visibleMessages,
-    loadEarlierMessages,
-    loadAllMessages,
-    allMessagesLoaded,
-    isLoadingAllMessages,
-    loadAllJustFinished,
-    showLoadAllOverlay,
-    createDiff,
-    scrollContainerRef,
-    scrollToBottom,
-    scrollToBottomAndReset,
-    handleScroll,
-  } = useChatSessionState({
-    selectedProject,
-    selectedSession,
-    ws,
-    sendMessage,
-    newSessionTrigger,
-    processingSessions,
-    onSessionIdle,
-    resetStreamingState,
-    statusCheckSentAtRef,
-    lastSeqRef,
-    sessionStore,
-    showImagePreviews,
+  const session = useChatSessionState({
+    selectedProject, selectedSession, ws, sendMessage, newSessionTrigger, processingSessions,
+    onSessionIdle, resetStreamingState: clearStreaming, statusCheckSentAtRef, lastSeqRef,
+    sessionStore, showImagePreviews,
   });
 
-  // Brand-new conversation: the composer allocated a stable session id via
-  // the session gateway before the first send. Record it locally and put it
-  // in the URL — this id never changes again, so there is no later handoff.
-  const handleSessionEstablished = useCallback<NonNullable<ChatInterfaceProps['onSessionEstablished']>>((sessionId, context) => {
-    setCurrentSessionId(sessionId);
-    onSessionEstablished?.(sessionId, context);
-    onNavigateToSession?.(sessionId);
-  }, [setCurrentSessionId, onSessionEstablished, onNavigateToSession]);
+  const { setCurrentSessionId } = session;
+  const establishSession = useCallback<NonNullable<ChatInterfaceProps['onSessionEstablished']>>((id, context) => {
+    setCurrentSessionId(id);
+    onSessionEstablished?.(id, context);
+    onNavigateToSession?.(id);
+  }, [onNavigateToSession, onSessionEstablished, setCurrentSessionId]);
 
-  const {
-    input,
-    textareaRef,
-    inputHighlightRef,
-    isTextareaExpanded,
-    skillCommands,
-    filteredCommands,
-    frequentCommands,
-    commandQuery,
-    showCommandMenu,
-    selectedCommandIndex,
-    resetCommandMenuState,
-    handleCommandSelect,
-    showFileDropdown,
-    filteredFiles,
-    selectedFileIndex,
-    renderInputWithMentions,
-    selectFile,
-    attachedImages,
-    setAttachedImages,
-    uploadingImages,
-    imageErrors,
-    getRootProps,
-    getInputProps,
-    isDragActive,
-    openImagePicker,
-    handleSubmit,
-    handleSteer,
-    modelPickerTrigger,
-    queuedDrafts,
-    editQueuedDraft,
-    deleteQueuedDraft,
-    moveQueuedDraft,
-    resolveSteerResult,
-    pendingCommandGate,
-    confirmCommandGate,
-    cancelCommandGate,
-    handleVoiceTranscript,
-    handleInputChange,
-    handleKeyDown,
-    handlePaste,
-    handleTextareaClick,
-    handleTextareaInput,
-    syncInputOverlayScroll,
-    handleAbortSession,
-    handlePermissionDecision,
-    handleInputFocusChange,
-    isInputFocused,
-    commandModalPayload,
-    closeCommandModal,
-    showCostModal,
-  } = useChatComposerState({
+  const composer = useChatComposerState({
     selectedProject,
     selectedSession,
-    currentSessionId,
+    currentSessionId: session.currentSessionId,
     gjcModel,
     reasoningEffort,
-    isLoading: isProcessing,
-    canAbortSession,
-    tokenBudget,
+    isLoading: session.isProcessing,
+    canAbortSession: session.canAbortSession,
+    tokenBudget: session.tokenBudget,
     sendMessage,
     sendByCtrlEnter,
     onSessionProcessing,
-    onSessionEstablished: handleSessionEstablished,
+    onSessionEstablished: establishSession,
     onInputFocusChange,
     onFileOpen,
     onShowSettings,
-    scrollToBottom,
+    scrollToBottom: session.scrollToBottom,
     onLogin: oauthLogin.openLogin,
-    addMessage,
-    setIsUserScrolledUp,
+    addMessage: session.addMessage,
+    setIsUserScrolledUp: session.setIsUserScrolledUp,
     setPendingPermissionRequests,
   });
 
   useEffect(() => {
-    const previousSessionId = reasoningSessionRef.current;
-    const nextSessionId = selectedSession?.id ?? null;
-    // A brand-new chat transitions from no selected row to its freshly
-    // allocated session id after the first send. Preserve the effort chosen
-    // in the landing composer across that handoff.
-    if (previousSessionId && previousSessionId !== nextSessionId) {
-      setReasoningEffort('default');
-    }
-    reasoningSessionRef.current = nextSessionId;
+    const prior = reasoningSessionRef.current;
+    const selected = selectedSession?.id ?? null;
+    if (prior && prior !== selected) setReasoningEffort('default');
+    reasoningSessionRef.current = selected;
   }, [selectedSession?.id]);
 
   useEffect(() => {
-    const reported = sessionState?.thinkingLevel;
-    if (typeof reported === 'string' && REASONING_EFFORTS.has(reported as ReasoningEffort)) {
-      setReasoningEffort(reported as ReasoningEffort);
+    const serverValue = session.sessionState?.thinkingLevel;
+    if (typeof serverValue === 'string' && REASONING_EFFORTS.has(serverValue as ReasoningEffort)) {
+      setReasoningEffort(serverValue as ReasoningEffort);
     }
-  }, [sessionState?.thinkingLevel]);
+  }, [session.sessionState?.thinkingLevel]);
 
-  // On WebSocket reconnect, re-fetch the current session's messages from the
-  // server so missed streaming events are shown, then re-subscribe — the
-  // `chat_subscribed` ack restores or clears the activity indicator, replays
-  // missed live events, and re-attaches a still-running stream to this socket.
-  const handleWebSocketReconnect = useCallback(async () => {
+  const reconnectChat = useCallback(async () => {
     if (!selectedProject || !selectedSession) return;
     await sessionStore.refreshFromServer(selectedSession.id);
     statusCheckSentAtRef.current.set(selectedSession.id, Date.now());
     sendMessage({
       type: 'chat.subscribe',
-      sessions: [{
-        sessionId: selectedSession.id,
-        lastSeq: lastSeqRef.current.get(selectedSession.id) ?? 0,
-      }],
+      sessions: [{ sessionId: selectedSession.id, lastSeq: lastSeqRef.current.get(selectedSession.id) ?? 0 }],
     });
   }, [selectedProject, selectedSession, sendMessage, sessionStore]);
 
-
   useChatRealtimeHandlers({
     subscribe,
-    provider,
+    provider: 'gjc',
     selectedSession,
-    currentSessionId,
-    setTokenBudget,
-    setSessionState,
+    currentSessionId: session.currentSessionId,
+    setTokenBudget: session.setTokenBudget,
+    setSessionState: session.setSessionState,
     pendingPermissionRequests,
     setPendingPermissionRequests,
     streamTimerRef,
@@ -284,176 +154,126 @@ function ChatInterface({
     statusCheckSentAtRef,
     onSessionProcessing,
     onSessionIdle,
-    onWebSocketReconnect: handleWebSocketReconnect,
-    onSteerResult: resolveSteerResult,
+    onWebSocketReconnect: reconnectChat,
+    onSteerResult: composer.resolveSteerResult,
     sessionStore,
   });
 
+  const { handleAbortSession } = composer;
   useEffect(() => {
-    if (!canAbortSession) {
-      return;
-    }
-
-    const handleGlobalEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) {
-        return;
-      }
-
+    if (!session.canAbortSession) return undefined;
+    const interceptEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) return;
       event.preventDefault();
       handleAbortSession();
     };
+    document.addEventListener('keydown', interceptEscape, { capture: true });
+    return () => document.removeEventListener('keydown', interceptEscape, { capture: true });
+  }, [handleAbortSession, session.canAbortSession]);
 
-    document.addEventListener('keydown', handleGlobalEscape, { capture: true });
-    return () => {
-      document.removeEventListener('keydown', handleGlobalEscape, { capture: true });
-    };
-  }, [canAbortSession, handleAbortSession]);
-
-  useEffect(() => {
-    return () => {
-      resetStreamingState();
-    };
-  }, [resetStreamingState]);
+  useEffect(() => clearStreaming, [clearStreaming]);
 
   const permissionContextValue = useMemo(() => ({
     pendingPermissionRequests,
-    handlePermissionDecision,
-  }), [pendingPermissionRequests, handlePermissionDecision]);
+    handlePermissionDecision: composer.handlePermissionDecision,
+  }), [composer.handlePermissionDecision, pendingPermissionRequests]);
 
-  // The Workspace Status tab renders this; the chat is the only place that
-  // receives it. Session-reported facts win, and the composer's own selection
-  // stands in only until the first turn reports what the session actually uses.
   const sessionStatusSnapshot = useMemo<SessionStatusSnapshot>(() => {
-    const facts = readSessionFacts(sessionState);
+    const reported = readSessionFacts(session.sessionState);
+    const fallbackModel = gjcModel && gjcModel !== 'default' ? gjcModel : undefined;
     return {
-      ...facts,
-      sessionId: currentSessionId ?? selectedSession?.id ?? null,
-      // 'default' is the app's "let the runtime choose" selector, not a model
-      // name; until the session reports what it actually used, this is unknown.
-      // Same precedence as the composer: the pin wins over the last run.
-      modelId: sessionPinnedModel ?? facts.modelId ?? (gjcModel && gjcModel !== 'default' ? gjcModel : undefined),
-      thinkingLevel: facts.thinkingLevel ?? reasoningEffort,
-      tokens: readTokenTotals(tokenBudget),
+      ...reported,
+      sessionId: session.currentSessionId ?? selectedSession?.id ?? null,
+      modelId: sessionPinnedModel ?? reported.modelId ?? fallbackModel,
+      thinkingLevel: reported.thinkingLevel ?? reasoningEffort,
+      tokens: readTokenTotals(session.tokenBudget),
       activity: {
-        running: isProcessing,
-        statusText: typeof sessionActivity?.statusText === 'string' ? sessionActivity.statusText : null,
-        queued: queuedDrafts.length,
+        running: session.isProcessing,
+        statusText: typeof session.sessionActivity?.statusText === 'string' ? session.sessionActivity.statusText : null,
+        queued: composer.queuedDrafts.length,
       },
     };
   }, [
-    currentSessionId,
-    gjcModel,
-    isProcessing,
-    queuedDrafts.length,
-    reasoningEffort,
-    selectedSession?.id,
-    sessionPinnedModel,
-    sessionActivity?.statusText,
-    sessionState,
-    tokenBudget,
+    composer.queuedDrafts.length, gjcModel, reasoningEffort, selectedSession?.id,
+    session.currentSessionId, session.isProcessing, session.sessionActivity?.statusText,
+    session.sessionState, session.tokenBudget, sessionPinnedModel,
   ]);
-
   usePublishSessionStatus(sessionStatusSnapshot);
 
-  // Mirrors ChatComposer's own visibility check so the message pane can
-  // reserve enough bottom space to keep the floating status tab from
-  // overlapping the last message.
-  const hasActivityIndicator = Boolean(sessionActivity && pendingPermissionRequests.length === 0);
-
-  const isReadOnlyHistoricalSession = isHistoricalNonGjcReadOnlySession(selectedSession);
-
-  // Codex-style landing: with a project selected but no session yet, the
-  // composer moves to a centered hero instead of sitting at the bottom of an
-  // empty message pane.
-  const isNewSessionLanding =
-    !isReadOnlyHistoricalSession
+  const historicalSession = isHistoricalNonGjcReadOnlySession(selectedSession);
+  const showLanding = !historicalSession
     && !selectedSession
-    && !currentSessionId
-    && chatMessages.length === 0;
+    && !session.currentSessionId
+    && session.chatMessages.length === 0;
+  const showActivity = Boolean(session.sessionActivity && pendingPermissionRequests.length === 0);
 
   if (!selectedProject) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center text-muted-foreground">
-          <p className="text-sm">
-            {t('projectSelection.startChatWithProvider', {
-              provider: 'Gajae Code',
-              defaultValue: 'Select a project to start chatting with {{provider}}',
-            })}
-          </p>
-        </div>
-      </div>
-    );
+    return <ProjectSelectionNotice text={t('projectSelection.startChatWithProvider', {
+      provider: 'Gajae Code',
+      defaultValue: 'Select a project to start chatting with {{provider}}',
+    })} />;
   }
 
   const composerNode = (
-    <ChatComposer
+    <ComposerSurface
       pendingPermissionRequests={pendingPermissionRequests}
-      handlePermissionDecision={handlePermissionDecision}
-      activity={sessionActivity}
-      isLoading={isProcessing}
-      onAbortSession={handleAbortSession}
-      sessionState={sessionState}
-      onShowTokenUsage={showCostModal}
-      onSubmit={handleSubmit}
-      onSteer={handleSteer}
-      isDragActive={isDragActive}
+      handlePermissionDecision={composer.handlePermissionDecision}
+      activity={session.sessionActivity}
+      isLoading={session.isProcessing}
+      onAbortSession={composer.handleAbortSession}
+      sessionState={session.sessionState}
+      onShowTokenUsage={composer.showCostModal}
+      onSubmit={composer.handleSubmit}
+      onSteer={composer.handleSteer}
+      isDragActive={composer.isDragActive}
       sessionPinnedModel={sessionPinnedModel}
-      queuedDrafts={queuedDrafts}
-      onEditQueuedDraft={editQueuedDraft}
-      onDeleteQueuedDraft={deleteQueuedDraft}
-      onMoveQueuedDraft={moveQueuedDraft}
-      pendingCommandGate={pendingCommandGate}
-      onConfirmCommandGate={confirmCommandGate}
-      onCancelCommandGate={cancelCommandGate}
-      attachedImages={attachedImages}
-      onRemoveImage={(index) =>
-        setAttachedImages((previous) =>
-          previous.filter((_, currentIndex) => currentIndex !== index),
-        )
-      }
-      uploadingImages={uploadingImages}
-      imageErrors={imageErrors}
-      showFileDropdown={showFileDropdown}
-      filteredFiles={filteredFiles}
-      selectedFileIndex={selectedFileIndex}
-      onSelectFile={selectFile}
-      filteredCommands={filteredCommands}
-      skillCommands={skillCommands}
-      selectedCommandIndex={selectedCommandIndex}
-      onCommandSelect={handleCommandSelect}
-      onCloseCommandMenu={resetCommandMenuState}
-      isCommandMenuOpen={showCommandMenu}
-      frequentCommands={commandQuery ? [] : frequentCommands}
-      getRootProps={getRootProps}
-      getInputProps={getInputProps}
-      openImagePicker={openImagePicker}
-      inputHighlightRef={inputHighlightRef}
-      renderInputWithMentions={renderInputWithMentions}
-      textareaRef={textareaRef}
-      input={input}
-      onVoiceTranscript={handleVoiceTranscript}
-      onInputChange={handleInputChange}
-      onTextareaClick={handleTextareaClick}
-      onTextareaKeyDown={handleKeyDown}
-      onTextareaPaste={handlePaste}
-      onTextareaScrollSync={syncInputOverlayScroll}
-      onTextareaInput={handleTextareaInput}
-      isInputFocused={isInputFocused}
-      onInputFocusChange={handleInputFocusChange}
+      queuedDrafts={composer.queuedDrafts}
+      onEditQueuedDraft={composer.editQueuedDraft}
+      onDeleteQueuedDraft={composer.deleteQueuedDraft}
+      onMoveQueuedDraft={composer.moveQueuedDraft}
+      pendingCommandGate={composer.pendingCommandGate}
+      onConfirmCommandGate={composer.confirmCommandGate}
+      onCancelCommandGate={composer.cancelCommandGate}
+      attachedImages={composer.attachedImages}
+      onRemoveImage={(index) => composer.setAttachedImages((images) => images.filter((_, imageIndex) => imageIndex !== index))}
+      uploadingImages={composer.uploadingImages}
+      imageErrors={composer.imageErrors}
+      showFileDropdown={composer.showFileDropdown}
+      filteredFiles={composer.filteredFiles}
+      selectedFileIndex={composer.selectedFileIndex}
+      onSelectFile={composer.selectFile}
+      filteredCommands={composer.filteredCommands}
+      skillCommands={composer.skillCommands}
+      selectedCommandIndex={composer.selectedCommandIndex}
+      onCommandSelect={composer.handleCommandSelect}
+      onCloseCommandMenu={composer.resetCommandMenuState}
+      isCommandMenuOpen={composer.showCommandMenu}
+      frequentCommands={composer.commandQuery ? [] : composer.frequentCommands}
+      getRootProps={composer.getRootProps}
+      getInputProps={composer.getInputProps}
+      openImagePicker={composer.openImagePicker}
+      inputHighlightRef={composer.inputHighlightRef}
+      renderInputWithMentions={composer.renderInputWithMentions}
+      textareaRef={composer.textareaRef}
+      input={composer.input}
+      onVoiceTranscript={composer.handleVoiceTranscript}
+      onInputChange={composer.handleInputChange}
+      onTextareaClick={composer.handleTextareaClick}
+      onTextareaKeyDown={composer.handleKeyDown}
+      onTextareaPaste={composer.handlePaste}
+      onTextareaScrollSync={composer.syncInputOverlayScroll}
+      onTextareaInput={composer.handleTextareaInput}
+      isInputFocused={composer.isInputFocused}
+      onInputFocusChange={composer.handleInputFocusChange}
       placeholder={t('input.placeholder', { provider: 'Gajae Code' })}
-      isTextareaExpanded={isTextareaExpanded}
+      isTextareaExpanded={composer.isTextareaExpanded}
       sendByCtrlEnter={sendByCtrlEnter}
       modelPreset={gjcModel}
       modelPresetOptions={providerModelCatalog.gjc?.OPTIONS ?? []}
       modelOptions={providerModelCatalog.gjc?.MODELS ?? []}
       modelPresetsLoading={providerModelsLoading}
-      modelPickerOpenTrigger={modelPickerTrigger}
-      onSelectModelPreset={(model) => selectProviderModel(
-        'gjc',
-        model,
-        currentSessionId || selectedSession?.id || null,
-      )}
+      modelPickerOpenTrigger={composer.modelPickerTrigger}
+      onSelectModelPreset={(model) => selectProviderModel('gjc', model, session.currentSessionId || selectedSession?.id || null)}
       reasoningEffort={reasoningEffort}
       onSelectReasoningEffort={setReasoningEffort}
     />
@@ -462,17 +282,14 @@ function ChatInterface({
   return (
     <PermissionContext.Provider value={permissionContextValue}>
       <div className="flex h-full min-h-0 flex-col">
-        {isNewSessionLanding ? (
+        {showLanding ? (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-[10vh] sm:px-6">
             <div className="w-full max-w-184">
               <h1 className="text-center text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 {t('newSession.greeting', { defaultValue: 'What are we building today?' })}
               </h1>
               <p className="mt-2 mb-8 text-center text-sm text-muted-foreground">
-                {t('newSession.subtitle', {
-                  project: selectedProject.displayName,
-                  defaultValue: 'Gajae Code is ready to work in {{project}}.',
-                })}
+                {t('newSession.subtitle', { project: selectedProject.displayName, defaultValue: 'Gajae Code is ready to work in {{project}}.' })}
               </p>
               {composerNode}
             </div>
@@ -480,29 +297,29 @@ function ChatInterface({
         ) : (
           <>
             <ChatMessagesPane
-              scrollContainerRef={scrollContainerRef}
-              onWheel={handleScroll}
-              onTouchMove={handleScroll}
-              isLoadingSessionMessages={isLoadingSessionMessages}
-              isProcessing={isProcessing}
-              hasActivityIndicator={hasActivityIndicator}
-              chatMessages={chatMessages}
+              scrollContainerRef={session.scrollContainerRef}
+              onWheel={session.handleScroll}
+              onTouchMove={session.handleScroll}
+              isLoadingSessionMessages={session.isLoadingSessionMessages}
+              isProcessing={session.isProcessing}
+              hasActivityIndicator={showActivity}
+              chatMessages={session.chatMessages}
               selectedSession={selectedSession}
-              currentSessionId={currentSessionId}
+              currentSessionId={session.currentSessionId}
               provider="gjc"
-              isLoadingMoreMessages={isLoadingMoreMessages}
-              hasMoreMessages={hasMoreMessages}
-              totalMessages={totalMessages}
-              sessionMessagesCount={chatMessages.length}
-              visibleMessageCount={visibleMessageCount}
-              visibleMessages={visibleMessages}
-              loadEarlierMessages={loadEarlierMessages}
-              loadAllMessages={loadAllMessages}
-              allMessagesLoaded={allMessagesLoaded}
-              isLoadingAllMessages={isLoadingAllMessages}
-              loadAllJustFinished={loadAllJustFinished}
-              showLoadAllOverlay={showLoadAllOverlay}
-              createDiff={createDiff}
+              isLoadingMoreMessages={session.isLoadingMoreMessages}
+              hasMoreMessages={session.hasMoreMessages}
+              totalMessages={session.totalMessages}
+              sessionMessagesCount={session.chatMessages.length}
+              visibleMessageCount={session.visibleMessageCount}
+              visibleMessages={session.visibleMessages}
+              loadEarlierMessages={session.loadEarlierMessages}
+              loadAllMessages={session.loadAllMessages}
+              allMessagesLoaded={session.allMessagesLoaded}
+              isLoadingAllMessages={session.isLoadingAllMessages}
+              loadAllJustFinished={session.loadAllJustFinished}
+              showLoadAllOverlay={session.showLoadAllOverlay}
+              createDiff={session.createDiff}
               onFileOpen={onFileOpen}
               onShowSettings={onShowSettings}
               showRawParameters={showRawParameters}
@@ -510,43 +327,36 @@ function ChatInterface({
               showImagePreviews={showImagePreviews}
               selectedProject={selectedProject}
             />
-
             <div className="relative shrink-0">
-              {isUserScrolledUp && chatMessages.length > 0 && (
+              {session.isUserScrolledUp && session.chatMessages.length > 0 && (
                 <div className="pointer-events-none absolute -top-11 right-0 left-0 z-20 flex justify-center">
                   <button
                     type="button"
-                    onClick={scrollToBottomAndReset}
+                    onClick={session.scrollToBottomAndReset}
                     aria-label={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
                     title={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
-                    className={
-                      hasNewMessagesBelow
-                        ? 'pointer-events-auto flex h-8 items-center gap-1.5 rounded-full border border-primary/30 bg-primary px-3 text-xs font-medium text-primary-foreground shadow-md transition-all duration-200 hover:brightness-110'
-                        : 'pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-xs transition-all duration-200 hover:bg-accent hover:text-foreground'
-                    }
+                    className={session.hasNewMessagesBelow
+                      ? 'pointer-events-auto flex h-8 items-center gap-1.5 rounded-full border border-primary/30 bg-primary px-3 text-xs font-medium text-primary-foreground shadow-md transition-all duration-200 hover:brightness-110'
+                      : 'pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-xs transition-all duration-200 hover:bg-accent hover:text-foreground'}
                   >
-                    {hasNewMessagesBelow && (
-                      <span>{t('input.newMessages', { defaultValue: '새 메시지' })}</span>
-                    )}
+                    {session.hasNewMessagesBelow && <span>{t('input.newMessages', { defaultValue: '새 메시지' })}</span>}
                     <ArrowDownIcon className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
               )}
-
-              {!isReadOnlyHistoricalSession && composerNode}
+              {!historicalSession && composerNode}
             </div>
           </>
         )}
       </div>
-
       <CommandResultModal
-        payload={commandModalPayload}
-        onClose={closeCommandModal}
+        payload={composer.commandModalPayload}
+        onClose={composer.closeCommandModal}
         providerModelCatalog={providerModelCatalog}
         providerModelCacheCatalog={providerModelCacheCatalog}
         providerModelsRefreshing={providerModelsRefreshing}
         onHardRefreshProviderModels={hardRefreshProviderModels}
-        currentSessionId={currentSessionId || selectedSession?.id || null}
+        currentSessionId={session.currentSessionId || selectedSession?.id || null}
         onSelectProviderModel={selectProviderModel}
       />
       <OAuthLoginDialog

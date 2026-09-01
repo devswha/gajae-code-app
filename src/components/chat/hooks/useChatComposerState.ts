@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type {
   ChangeEvent,
   ClipboardEvent,
@@ -194,6 +194,28 @@ export type QueuedDraft = {
 /** A runtime form held at the confirmation card, plus the exact text to replay. */
 export type PendingCommandGate = CommandGate & { text: string };
 
+type ComposerView = {
+  expanded: boolean;
+  modal: CommandModalPayload | null;
+  focused: boolean;
+};
+
+type ComposerViewAction =
+  | { type: 'expanded'; value: boolean }
+  | { type: 'modal'; value: CommandModalPayload | null }
+  | { type: 'focused'; value: boolean };
+
+const reduceComposerView = (current: ComposerView, action: ComposerViewAction): ComposerView => {
+  switch (action.type) {
+    case 'expanded':
+      return current.expanded === action.value ? current : { ...current, expanded: action.value };
+    case 'modal':
+      return current.modal === action.value ? current : { ...current, modal: action.value };
+    case 'focused':
+      return current.focused === action.value ? current : { ...current, focused: action.value };
+  }
+};
+
 const restoreQueuedDrafts = (sessionKey: string): QueuedDraft[] =>
   // Image attachments can't survive a reload; only text and options persist.
   readQueuedMessages(sessionKey).map((saved) => ({ content: saved.content, images: [], options: saved.options }));
@@ -253,8 +275,11 @@ export function useChatComposerState({
   const [attachedImages, setAttachedImages] = useState<File[]>([]);
   const [uploadingImages, setUploadingImages] = useState<Map<string, number>>(new Map());
   const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
-  const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
-  const [commandModalPayload, setCommandModalPayload] = useState<CommandModalPayload | null>(null);
+  const [composerView, updateComposerView] = useReducer(reduceComposerView, {
+    expanded: false,
+    modal: null,
+    focused: false,
+  });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputHighlightRef = useRef<HTMLDivElement>(null);
@@ -326,24 +351,24 @@ export function useChatComposerState({
       const { action, data } = result;
       switch (action) {
         case 'help':
-          setCommandModalPayload({
+          updateComposerView({ type: 'modal', value: {
             kind: 'help',
             data: (data || {}) as HelpCommandData,
-          });
+          } });
           break;
 
         case 'models':
-          setCommandModalPayload({
+          updateComposerView({ type: 'modal', value: {
             kind: 'models',
             data: (data || {}) as ModelCommandData,
-          });
+          } });
           break;
 
         case 'status': {
-          setCommandModalPayload({
+          updateComposerView({ type: 'modal', value: {
             kind: 'status',
             data: (data || {}) as StatusCommandData,
-          });
+          } });
           break;
         }
 
@@ -378,7 +403,7 @@ export function useChatComposerState({
   );
 
   const closeCommandModal = useCallback(() => {
-    setCommandModalPayload(null);
+    updateComposerView({ type: 'modal', value: null });
   }, []);
 
   const handleCustomCommand = useCallback(async (result: CommandExecutionResult) => {
@@ -494,7 +519,7 @@ export function useChatComposerState({
     setAttachedImages([]);
     setUploadingImages(new Map());
     setImageErrors(new Map());
-    setIsTextareaExpanded(false);
+    updateComposerView({ type: 'expanded', value: false });
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -514,7 +539,7 @@ export function useChatComposerState({
     const used = Number(tokenBudget?.used);
     const total = Number(tokenBudget?.total);
 
-    setCommandModalPayload({
+    updateComposerView({ type: 'modal', value: {
       kind: 'cost',
       data: {
         tokenUsage: {
@@ -534,7 +559,7 @@ export function useChatComposerState({
         provider: typeof tokenBudget?.provider === 'string' ? tokenBudget.provider : 'gjc',
         model: typeof tokenBudget?.model === 'string' ? tokenBudget.model : gjcModel,
       },
-    });
+    } });
   }, [gjcModel, tokenBudget]);
 
   // App-level slash commands (/resume, /sessions, /new, /settings) run local
@@ -633,7 +658,7 @@ export function useChatComposerState({
     }
 
     const expanded = nextHeight > (textareaLineHeightRef.current || 24) * 2;
-    setIsTextareaExpanded((previous) => previous === expanded ? previous : expanded);
+    updateComposerView({ type: 'expanded', value: expanded });
     lastAutosizedInputRef.current = target.value;
   }, []);
 
@@ -778,7 +803,7 @@ export function useChatComposerState({
         setUploadingImages(new Map());
         setImageErrors(new Map());
         resetCommandMenuState();
-        setIsTextareaExpanded(false);
+        updateComposerView({ type: 'expanded', value: false });
         if (textareaRef.current) {
           textareaRef.current.style.height = 'auto';
         }
@@ -804,7 +829,7 @@ export function useChatComposerState({
           setUploadingImages(new Map());
           setImageErrors(new Map());
           resetCommandMenuState();
-          setIsTextareaExpanded(false);
+          updateComposerView({ type: 'expanded', value: false });
           if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
           }
@@ -984,7 +1009,7 @@ export function useChatComposerState({
       setAttachedImages([]);
       setUploadingImages(new Map());
       setImageErrors(new Map());
-      setIsTextareaExpanded(false);
+      updateComposerView({ type: 'expanded', value: false });
 
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
@@ -1060,7 +1085,7 @@ export function useChatComposerState({
       setUploadingImages(new Map());
       setImageErrors(new Map());
       resetCommandMenuState();
-      setIsTextareaExpanded(false);
+      updateComposerView({ type: 'expanded', value: false });
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
@@ -1363,7 +1388,7 @@ export function useChatComposerState({
       return;
     }
     textareaRef.current.style.height = 'auto';
-    setIsTextareaExpanded(false);
+    updateComposerView({ type: 'expanded', value: false });
   }, [input]);
 
   const handleInputChange = useCallback(
@@ -1377,7 +1402,7 @@ export function useChatComposerState({
 
       if (!newValue.trim()) {
         event.target.style.height = 'auto';
-        setIsTextareaExpanded(false);
+        updateComposerView({ type: 'expanded', value: false });
         resetCommandMenuState();
         return;
       }
@@ -1445,7 +1470,7 @@ export function useChatComposerState({
       textareaRef.current.style.height = 'auto';
       textareaRef.current.focus();
     }
-    setIsTextareaExpanded(false);
+    updateComposerView({ type: 'expanded', value: false });
   }, [resetCommandMenuState]);
 
   const handleAbortSession = useCallback(() => {
@@ -1496,11 +1521,9 @@ export function useChatComposerState({
     [sendMessage, setPendingPermissionRequests],
   );
 
-  const [isInputFocused, setIsInputFocused] = useState(false);
-
   const handleInputFocusChange = useCallback(
     (focused: boolean) => {
-      setIsInputFocused(focused);
+      updateComposerView({ type: 'focused', value: focused });
       onInputFocusChange?.(focused);
     },
     [onInputFocusChange],
@@ -1511,7 +1534,7 @@ export function useChatComposerState({
     setInput,
     textareaRef,
     inputHighlightRef,
-    isTextareaExpanded,
+    isTextareaExpanded: composerView.expanded,
     slashCommandsCount,
     skillCommands: slashCommands.filter((command) => command.type === 'skill'),
     filteredCommands,
@@ -1557,8 +1580,8 @@ export function useChatComposerState({
     handleAbortSession,
     handlePermissionDecision,
     handleInputFocusChange,
-    isInputFocused,
-    commandModalPayload,
+    isInputFocused: composerView.focused,
+    commandModalPayload: composerView.modal,
     closeCommandModal,
     showCostModal,
   };

@@ -153,7 +153,11 @@ async function sendChat(ws: WebSocket, userId: string | number | null, data: Any
     console.error(`[Chat] Provider runtime "${provider}" failed`, { sessionId, error: message });
     const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : null;
     if (provider === 'gjc' && code) protocolFailure(ws, code, message, sessionId);
-    else run.writer.send(createNormalizedMessage({ kind: 'error', provider, sessionId: storedSession.provider_session_id ?? sessionId, content: message }));
+    // A run that already passed its terminal `complete` reported the failure
+    // itself (GJC forwards `error` + `complete` before rejecting), so a second
+    // bubble here is the same failure rendered twice in the transcript. The
+    // console line above keeps the rejection visible server-side either way.
+    else if (run.status === 'running') run.writer.send(createNormalizedMessage({ kind: 'error', provider, sessionId: storedSession.provider_session_id ?? sessionId, content: message }));
   } finally {
     chatRunRegistry.completeRunIfCurrent(run, { exitCode: 1 });
   }

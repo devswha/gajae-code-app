@@ -142,6 +142,23 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
   return candidate as unknown as SdkRunConfig;
 }
 
+/**
+ * Desktop runs are single-operator: the app is a shell over the operator's own
+ * `~/.gjc` install, so a provider whose key comes from that install's
+ * `models.yml` (`apiKey` / `apiKeyEnv`) is exactly as legitimate as a stored
+ * credential row. Shared server deployments stay fail-closed on stored rows so
+ * one signed-in app user can never spend the host operator's ambient keys.
+ *
+ * Only an unpinned reference qualifies. An explicit `providerId` or
+ * `credentialId` is an assertion about stored rows and still fails closed.
+ */
+function configCredentialsAllowed(credential: ExactCredentialRef): boolean {
+  return credential.kind === 'stored'
+    && credential.providerId === undefined
+    && credential.credentialId === undefined
+    && process.env.GJC_DESKTOP === '1';
+}
+
 function modelsForCredential(
   authStorage: AuthStorage,
   modelRegistry: ModelRegistry,
@@ -149,6 +166,9 @@ function modelsForCredential(
 ): Model[] {
   const available = modelRegistry.getAvailable();
   if (credential.kind === 'runtime-env') return available;
+  // The SDK's availability set already accounts for stored rows, config keys,
+  // and env-var keys; narrowing it further would hide config-key providers.
+  if (configCredentialsAllowed(credential)) return available;
 
   const rows: Array<{ id: number; provider: string }> = authStorage.exportSnapshot().credentials;
   const eligibleProviders = new Set(
@@ -229,7 +249,12 @@ function credentialFor(
     const rows = snapshotRows
       .filter((row) => row.provider === model.provider)
       .sort((left, right) => left.id - right.id);
-    if (rows.length === 0) throw new Error(FAILURE);
+    if (rows.length === 0) {
+      // No stored row: on desktop, defer to the provider's configured key by
+      // installing no selector (the same shape the runtime-env branch returns).
+      if (configCredentialsAllowed(credential)) return { dispose() {} };
+      throw new Error(FAILURE);
+    }
     // Deterministic selection: explicit credentialId wins; otherwise the lowest
     // stored row id. Installing a selector also blocks the env-var fallback.
     const row = credential.credentialId !== undefined

@@ -1454,11 +1454,17 @@ test('explicit SDK configuration rejects missing fields, unresolvable credential
       assert.equal((response(f.frames, `invalid-${index}`).payload as Record<string, unknown>).ok, false);
     }
     assert.equal(f.sessions.length, 0);
-    // Zero stored rows for the model provider stays fail-closed.
-    f.authStorage.credentials = [];
-    await f.host.handle(request('session.start', 'invalid-zero-rows', { message: 'x', options: { ...f.options, credential: { kind: 'stored' } } }));
-    assert.equal((response(f.frames, 'invalid-zero-rows').payload as Record<string, unknown>).ok, false);
-    assert.equal(f.sessions.length, 0);
+    // Zero stored rows for the model provider stays fail-closed off desktop.
+    const desktop = process.env.GJC_DESKTOP;
+    delete process.env.GJC_DESKTOP;
+    try {
+      f.authStorage.credentials = [];
+      await f.host.handle(request('session.start', 'invalid-zero-rows', { message: 'x', options: { ...f.options, credential: { kind: 'stored' } } }));
+      assert.equal((response(f.frames, 'invalid-zero-rows').payload as Record<string, unknown>).ok, false);
+      assert.equal(f.sessions.length, 0);
+    } finally {
+      if (desktop === undefined) delete process.env.GJC_DESKTOP; else process.env.GJC_DESKTOP = desktop;
+    }
     // Multiple stored rows resolve deterministically to the lowest row id.
     f.authStorage.credentials = [
       { id: 7, provider: 'contract-provider' },
@@ -1476,6 +1482,38 @@ test('explicit SDK configuration rejects missing fields, unresolvable credential
       credentialId: 2,
     });
   } finally { await f.close(); }
+});
+
+test('desktop runs accept a provider whose key comes from the GJC config instead of a stored row', async () => {
+  const f = await fixture();
+  const desktop = process.env.GJC_DESKTOP;
+  process.env.GJC_DESKTOP = '1';
+  try {
+    // The operator's own ~/.gjc install authenticates this provider through
+    // models.yml (apiKey / apiKeyEnv), so it never gets a stored row.
+    f.authStorage.credentials = [];
+    const run = f.host.handle(request('session.start', 'desktop-config-key', { message: 'x', options: { ...f.options, credential: { kind: 'stored' } } }));
+    const session = await firstSession(f.sessions);
+    session.complete();
+    await run;
+
+    const payload = response(f.frames, 'desktop-config-key').payload as Record<string, unknown>;
+    assert.equal(payload.ok, true);
+    // No selector is installed, which is what lets the SDK use the configured key.
+    const factoryInput = f.factoryOptions.at(-1) as { credentialSelector?: unknown };
+    assert.equal(factoryInput.credentialSelector, undefined);
+    assert.equal((payload.result as Record<string, unknown>).credential, undefined);
+
+    // A pinned reference is an assertion about stored rows and still fails closed.
+    for (const [index, credential] of [{ kind: 'stored', providerId: 'contract-provider' }, { kind: 'stored', credentialId: 4 }].entries()) {
+      await f.host.handle(request('session.start', `desktop-pinned-${index}`, { message: 'x', options: { ...f.options, credential } }));
+      assert.equal((response(f.frames, `desktop-pinned-${index}`).payload as Record<string, unknown>).ok, false);
+    }
+    assert.equal(f.sessions.length, 1);
+  } finally {
+    if (desktop === undefined) delete process.env.GJC_DESKTOP; else process.env.GJC_DESKTOP = desktop;
+    await f.close();
+  }
 });
 
 test('ask bridge rejects duplicate and stale replies and cancels pending permission on dispose', async () => {

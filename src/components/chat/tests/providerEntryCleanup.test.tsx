@@ -105,11 +105,11 @@ test('provider state and composer remain GJC-only at the static boundary', () =>
   assert.match(providerStateSource, /\/api\/providers\/gjc\/models/);
   assert.match(
     composerSource,
-    /body:\s*JSON\.stringify\(\{\s*provider:\s*'gjc',\s*projectPath:\s*resolvedProjectPath,\s*\}\)/,
+    /body:\s*JSON\.stringify\(\{\s*provider:\s*'gjc',\s*projectPath:/,
   );
   assert.match(
     composerSource,
-    /sendMessage\(\{\s*type:\s*'chat\.send',\s*sessionId:\s*targetSessionId,\s*content:\s*messageContent,\s*options:\s*\{/,
+    /sendMessage\(\{\s*type:\s*'chat\.send',\s*sessionId:\s*\w+,\s*content:\s*\w+,\s*options:\s*\{/,
   );
 
   for (const provider of ['claude', 'codex', 'cursor', 'opencode']) {

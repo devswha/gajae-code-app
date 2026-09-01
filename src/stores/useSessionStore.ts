@@ -1,1248 +1,281 @@
-/**
- * Session-keyed message store.
- *
- * Holds per-session state in a Map keyed by sessionId.
- * Session switch = change activeSessionId pointer. No clearing. Old data stays.
- * WebSocket handler = store.appendRealtime(msg.sessionId, msg). One line.
- * No localStorage for messages. Backend JSONL is the source of truth.
- */
-
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { authenticatedFetch } from '../utils/api';
+import type { JobProjectionErrorCode, JobProjectionEvent, JobSnapshot, JobState, JobTerminalPayload } from '../../shared/gjc-job-projection-protocol';
 import type { LLMProvider } from '../types/app';
-import type {
-  JobProjectionErrorCode,
-  JobProjectionEvent,
-  JobSnapshot,
-  JobState,
-  JobTerminalPayload,
-} from '../../shared/gjc-job-projection-protocol';
+import { authenticatedFetch } from '../utils/api';
 
 import { buildRefreshMessagesUrl } from './sessionMessageFetch';
 
-// ─── NormalizedMessage (mirrors server/adapters/types.js) ────────────────────
-
-export type MessageKind =
-  | 'text'
-  | 'tool_use'
-  | 'tool_result'
-  | 'thinking'
-  | 'stream_delta'
-  | 'stream_end'
-  | 'error'
-  | 'complete'
-  | 'status'
-  | 'permission_request'
-  | 'permission_cancelled'
-  | 'session_created'
-  | 'interactive_prompt'
-  | 'task_notification'
-  | 'system_notice';
-
+export type MessageKind = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'stream_delta' | 'stream_end' | 'error' | 'complete' | 'status' | 'permission_request' | 'permission_cancelled' | 'session_created' | 'interactive_prompt' | 'task_notification' | 'system_notice';
 export interface NormalizedMessage {
-  id: string;
-  sessionId: string;
-  timestamp: string;
-  provider: LLMProvider;
-  kind: MessageKind;
-  /**
-   * Per-run monotonic sequence number assigned by the backend to live
-   * websocket events. Used to compute `lastSeq` for `chat.subscribe` replay;
-   * REST history messages do not carry it.
-   */
-  seq?: number;
-
-  // kind-specific fields (flat for simplicity)
-  role?: 'user' | 'assistant';
-  content?: string;
-  /**
-   * Mirrors optional transcript metadata from the server.
-   *
-   * These fields are currently used by Claude history normalization so local
-   * slash commands, local stdout, and compact summaries do not disappear when
-   * the session store hydrates from REST history.
-   */
-  displayText?: string;
-  commandName?: string;
-  commandMessage?: string;
-  commandArgs?: string;
-  isLocalCommand?: boolean;
-  isLocalCommandStdout?: boolean;
-  isCompactSummary?: boolean;
-  images?: Array<{ path?: string; data?: string; name?: string }>;
-  toolName?: string;
-  toolInput?: unknown;
-  toolId?: string;
-  toolResult?: { content: string; isError: boolean; toolUseResult?: unknown } | null;
-  toolResultTruncated?: boolean;
-  toolResultBytes?: number;
-  isError?: boolean;
-  /** Severity of a `system_notice` row. Mirrors the server contract. */
-  level?: 'info' | 'warning' | 'error';
-  text?: string;
-  tokens?: number;
-  canInterrupt?: boolean;
-  tokenBudget?: unknown;
-  requestId?: string;
-  input?: unknown;
-  context?: unknown;
-  newSessionId?: string;
-  status?: string;
-  summary?: string;
-  exitCode?: number;
-  actualSessionId?: string;
-  parentToolUseId?: string;
-  subagentTools?: unknown[];
-  isFinal?: boolean;
-  // Cursor-specific ordering
-  sequence?: number;
-  rowid?: number;
+  id: string; sessionId: string; timestamp: string; provider: LLMProvider; kind: MessageKind; seq?: number;
+  role?: 'user' | 'assistant'; content?: string; displayText?: string; commandName?: string; commandMessage?: string; commandArgs?: string;
+  isLocalCommand?: boolean; isLocalCommandStdout?: boolean; isCompactSummary?: boolean; images?: Array<{ path?: string; data?: string; name?: string }>;
+  toolName?: string; toolInput?: unknown; toolId?: string; toolResult?: { content: string; isError: boolean; toolUseResult?: unknown } | null;
+  toolResultTruncated?: boolean; toolResultBytes?: number; isError?: boolean; level?: 'info' | 'warning' | 'error'; text?: string; tokens?: number;
+  canInterrupt?: boolean; tokenBudget?: unknown; requestId?: string; input?: unknown; context?: unknown; newSessionId?: string; status?: string;
+  summary?: string; exitCode?: number; actualSessionId?: string; parentToolUseId?: string; subagentTools?: unknown[]; isFinal?: boolean; sequence?: number; rowid?: number;
 }
-
-// ─── Per-session slot ────────────────────────────────────────────────────────
-
 export type SessionStatus = 'idle' | 'loading' | 'streaming' | 'error';
-
 export interface SessionSlot {
-  serverMessages: NormalizedMessage[];
-  realtimeMessages: NormalizedMessage[];
-  merged: NormalizedMessage[];
-  /** @internal Cache-invalidation refs for computeMerged */
-  _lastServerRef: NormalizedMessage[];
-  _lastRealtimeRef: NormalizedMessage[];
-  /**
-   * @internal Monotonic ticket per server fetch (fetch/refresh/fetchMore).
-   * Only the latest ticket may replace a session's loaded server window.
-   */
-  _fetchSeq: number;
-  /** @internal Outstanding paginated request, if any. */
-  _fetchMoreTicket: number | null;
-  /** @internal Number of server requests still using this slot. */
-  _pendingRequests: number;
-  /** @internal Request currently allowed to settle `loading`. */
-  _loadingTicket: number | null;
-  /** Whether subsequent pages/reconciles should request image attachment data. */
-  _includeImages: boolean;
-  status: SessionStatus;
-  fetchedAt: number;
-  total: number;
-  hasMore: boolean;
-  offset: number;
-  tokenUsage: unknown;
+  serverMessages: NormalizedMessage[]; realtimeMessages: NormalizedMessage[]; merged: NormalizedMessage[];
+  _lastServerRef: NormalizedMessage[]; _lastRealtimeRef: NormalizedMessage[]; _fetchSeq: number; _fetchMoreTicket: number | null;
+  _pendingRequests: number; _loadingTicket: number | null; _includeImages: boolean; status: SessionStatus; fetchedAt: number;
+  total: number; hasMore: boolean; offset: number; tokenUsage: unknown;
 }
+export type MessagesWindow = { messages: NormalizedMessage[]; total: number; hasMore: boolean; offset: number; tokenUsage?: unknown };
+export type JobProjectionSlot = { snapshot: JobSnapshot | null; lastAppliedSequence: number; eventsBySequence: Map<number, JobProjectionEvent>; orderedTail: JobProjectionEvent[]; status: 'idle' | 'subscribed' | 'error'; error: JobProjectionErrorCode | 'protocol_violation' | null };
 
 const EMPTY: NormalizedMessage[] = [];
-export type MessagesWindow = {
-  messages: NormalizedMessage[];
-  total: number;
-  hasMore: boolean;
-  offset: number;
-  tokenUsage?: unknown;
+const MAX_REALTIME_MESSAGES = 500;
+const MAX_SESSION_SLOTS = 50;
+const STALE_THRESHOLD_MS = 30_000;
+const LOCAL_ACTIVITY_WINDOW = 5 * 60 * 1000;
+const CLOCK_TOLERANCE = 10_000;
+
+const messageKey = (message: NormalizedMessage) => message.id ? `id:${message.id}` : typeof message.sequence === 'number' && Number.isFinite(message.sequence) ? `sequence:${message.sessionId}:${message.sequence}` : null;
+const messageTime = (message: NormalizedMessage) => {
+  const parsed = Date.parse(message.timestamp);
+  return Number.isFinite(parsed) ? parsed : null;
 };
-export type JobProjectionSlot = {
-  snapshot: JobSnapshot | null;
-  lastAppliedSequence: number;
-  eventsBySequence: Map<number, JobProjectionEvent>;
-  orderedTail: JobProjectionEvent[];
-  status: 'idle' | 'subscribed' | 'error';
-  error: JobProjectionErrorCode | 'protocol_violation' | null;
-};
+const chronological = (left: NormalizedMessage, right: NormalizedMessage) => (messageTime(left) ?? 0) - (messageTime(right) ?? 0);
+const userContent = (message: NormalizedMessage) => message.kind === 'text' && message.role === 'user' && message.content?.trim() ? message.content.trim() : null;
 
-function createEmptyJobSlot(): JobProjectionSlot {
-  return {
-    snapshot: null,
-    lastAppliedSequence: 0,
-    eventsBySequence: new Map(),
-    orderedTail: [],
-    status: 'idle',
-    error: null,
-  };
-}
-
-function createSlot(sessionId: string, queryClient: QueryClient): SessionSlot {
-  const queryKey = ['messages', sessionId] as const;
-  const getWindow = () => queryClient.getQueryData<MessagesWindow>(queryKey);
-  const slot = {
-    realtimeMessages: EMPTY,
-    merged: EMPTY,
-    _lastServerRef: EMPTY,
-    _lastRealtimeRef: EMPTY,
-    status: 'idle',
-    _fetchSeq: 0,
-    _fetchMoreTicket: null,
-    _pendingRequests: 0,
-    _loadingTicket: null,
-    _includeImages: true,
-  } as SessionSlot;
-
-  Object.defineProperties(slot, {
-    serverMessages: {
-      enumerable: true,
-      get: () => getWindow()?.messages ?? EMPTY,
-    },
-    total: {
-      enumerable: true,
-      get: () => getWindow()?.total ?? 0,
-    },
-    hasMore: {
-      enumerable: true,
-      get: () => getWindow()?.hasMore ?? false,
-    },
-    offset: {
-      enumerable: true,
-      get: () => getWindow()?.offset ?? 0,
-    },
-    tokenUsage: {
-      enumerable: true,
-      get: () => getWindow()?.tokenUsage,
-    },
-    fetchedAt: {
-      enumerable: true,
-      get: () => queryClient.getQueryState(queryKey)?.dataUpdatedAt ?? 0,
-    },
-  });
-
-  return slot;
-}
-
-function getRealtimeMessageIdentity(message: NormalizedMessage): string | null {
-  if (message.id) {
-    return `id:${message.id}`;
-  }
-  if (typeof message.sequence === 'number' && Number.isFinite(message.sequence)) {
-    return `sequence:${message.sessionId}:${message.sequence}`;
-  }
-  return null;
-}
-
-function upsertRealtimeMessages(
-  existing: NormalizedMessage[],
-  incoming: NormalizedMessage[],
-): NormalizedMessage[] {
-  const updated = [...existing];
-  const indexes = new Map<string, number>();
-
-  updated.forEach((message, index) => {
-    const identity = getRealtimeMessageIdentity(message);
-    if (identity) indexes.set(identity, index);
-  });
-
-  for (const message of incoming) {
-    const identity = getRealtimeMessageIdentity(message);
-    const existingIndex = identity ? indexes.get(identity) : undefined;
-    if (existingIndex !== undefined) {
-      updated[existingIndex] = message;
-      continue;
-    }
-    if (identity) indexes.set(identity, updated.length);
-    updated.push(message);
-  }
-
-  return updated.length > MAX_REALTIME_MESSAGES
-    ? updated.slice(-MAX_REALTIME_MESSAGES)
-    : updated;
-}
-
-/**
- * Compute merged messages while preserving distinct persisted rows and
- * suppressing only exact IDs or proven synthetic realtime echoes.
- */
-const LOCAL_USER_DEDUPE_WINDOW_MS = 5 * 60 * 1000;
-const LOCAL_USER_DEDUPE_CLOCK_SKEW_MS = 10_000;
-
-function userTextFingerprint(m: NormalizedMessage): string | null {
-  if (m.kind !== 'text' || m.role !== 'user') return null;
-  const t = (m.content || '').trim();
-  return t.length > 0 ? t : null;
-}
-
-function readMessageTime(m: NormalizedMessage): number | null {
-  const time = Date.parse(m.timestamp);
-  return Number.isFinite(time) ? time : null;
-}
-
-function hasServerEchoForLocalUser(
-  localMessage: NormalizedMessage,
-  serverMessages: NormalizedMessage[],
-): boolean {
-  const localText = userTextFingerprint(localMessage);
-  const localTime = readMessageTime(localMessage);
-  if (!localText || localTime === null) {
-    return false;
-  }
-
-  return serverMessages.some((serverMessage) => {
-    if (userTextFingerprint(serverMessage) !== localText) {
-      return false;
-    }
-
-    const serverTime = readMessageTime(serverMessage);
-    return (
-      serverTime !== null
-      && serverTime >= localTime - LOCAL_USER_DEDUPE_CLOCK_SKEW_MS
-      && serverTime - localTime <= LOCAL_USER_DEDUPE_WINDOW_MS
-    );
-  });
-}
-
-function compareMessagesChronologically(a: NormalizedMessage, b: NormalizedMessage): number {
-  const timeA = readMessageTime(a) ?? 0;
-  const timeB = readMessageTime(b) ?? 0;
-  if (timeA !== timeB) {
-    return timeA - timeB;
-  }
-  return 0;
-}
-
-/**
- * Count how many user turns precede `message` in a chronologically merged view
- * of server + realtime rows. Used to match a realtime row to the correct turn
- * on disk when several turns share identical assistant text.
- */
-function getUserTurnOrdinalBefore(
-  message: NormalizedMessage,
-  serverMessages: NormalizedMessage[],
-  realtimeMessages: NormalizedMessage[],
-): number {
-  const messageTime = readMessageTime(message);
-  let userCount = 0;
-
-  const realtimeWithoutUserEchoes = realtimeMessages.filter((candidate) =>
-    candidate.kind !== 'text'
-    || candidate.role !== 'user'
-    || !candidate.id?.startsWith('local_')
-    || !hasServerEchoForLocalUser(candidate, serverMessages),
-  );
-
-  for (const candidate of [...serverMessages, ...realtimeWithoutUserEchoes].sort(compareMessagesChronologically)) {
-    if (candidate.id === message.id) {
-      break;
-    }
-
-    const candidateTime = readMessageTime(candidate);
-    if (
-      messageTime !== null
-      && candidateTime !== null
-      && candidateTime > messageTime
-    ) {
-      break;
-    }
-
-    if (candidate.kind === 'text' && candidate.role === 'user') {
-      userCount++;
-    }
-  }
-
-  return Math.max(0, userCount - 1);
-}
-
-function findServerTurnRangeByOrdinal(
-  serverMessages: NormalizedMessage[],
-  turnOrdinal: number,
-): { start: number; end: number } | null {
-  let userCount = -1;
-  let start = -1;
-
-  for (let index = 0; index < serverMessages.length; index++) {
-    const message = serverMessages[index];
-    if (message.kind === 'text' && message.role === 'user') {
-      userCount++;
-      if (userCount === turnOrdinal) {
-        start = index;
-        break;
-      }
-    }
-  }
-
-  if (start < 0) {
-    return null;
-  }
-
-  let end = serverMessages.length;
-  for (let index = start + 1; index < serverMessages.length; index++) {
-    if (serverMessages[index].kind === 'text' && serverMessages[index].role === 'user') {
-      end = index;
-      break;
-    }
-  }
-
-  return { start, end };
-}
-
-function isAssistantTextEchoedInSameTurnOnServer(
-  message: NormalizedMessage,
-  serverMessages: NormalizedMessage[],
-  realtimeMessages: NormalizedMessage[],
-): boolean {
-  const assistantText = (message.content || '').trim();
-  if (!assistantText) {
-    return false;
-  }
-
-  const turnOrdinal = getUserTurnOrdinalBefore(message, serverMessages, realtimeMessages);
-  const turnRange = findServerTurnRangeByOrdinal(serverMessages, turnOrdinal);
-  if (!turnRange) {
-    return false;
-  }
-
-  return serverMessages
-    .slice(turnRange.start + 1, turnRange.end)
-    .some((serverMessage) =>
-      serverMessage.kind === 'text'
-      && serverMessage.role === 'assistant'
-      && (serverMessage.content || '').trim() === assistantText,
-    );
-}
-
-/**
- * After `finalizeStreaming`, the client holds a synthetic assistant `text` row
- * while the sessions API soon returns the same reply with a different id.
- * The synthetic stream placeholder and its finalized realtime text may briefly
- * sit back-to-back. Collapse only that proven cross-source transition and exact
- * message IDs; preserve distinct persisted assistant rows even when text matches.
- */
-function dedupeAdjacentAssistantEchoes(merged: NormalizedMessage[]): NormalizedMessage[] {
-  const out: NormalizedMessage[] = [];
-  const seenIds = new Set<string>();
-  for (const m of merged) {
-    if (m.id && seenIds.has(m.id)) {
-      continue;
-    }
-    const prev = out[out.length - 1];
-    if (prev) {
-      if (prev.kind === 'stream_delta' && m.kind === 'text' && m.role === 'assistant') {
-        const ps = (prev.content || '').trim();
-        const ms = (m.content || '').trim();
-        if (ps.length > 0 && ps === ms) {
-          out[out.length - 1] = m;
-          if (m.id) seenIds.add(m.id);
-          continue;
-        }
-      }
-    }
-    if (m.id) seenIds.add(m.id);
-    out.push(m);
-  }
-  return out;
-}
-
-/**
- * After a server refresh, drop only the realtime rows the persisted transcript
- * already owns. Anything not yet on disk (common right after `complete`, while
- * JSONL indexing lags) stays in `realtimeMessages` so the chat pane never
- * flashes the empty "Continue your conversation" state.
- */
-function pruneRealtimeSupersededByServer(
-  serverMessages: NormalizedMessage[],
-  realtimeMessages: NormalizedMessage[],
-): NormalizedMessage[] {
-  if (realtimeMessages.length === 0) {
-    return realtimeMessages;
-  }
-
-  const serverIds = new Set(serverMessages.map((message) => message.id).filter(Boolean));
-
-  return realtimeMessages.filter((message) => {
-    if (message.id && serverIds.has(message.id)) {
-      return false;
-    }
-
-    // `id` is required by the contract, but a runtime that skips the envelope
-    // helper can still omit it. An unguarded deref here threw straight into the
-    // websocket handler and froze the whole chat, so treat a missing id as
-    // "not a known synthetic row" instead.
-    if (message.id?.startsWith('local_') && hasServerEchoForLocalUser(message, serverMessages)) {
-      return false;
-    }
-
-    if (message.kind === 'stream_delta' || message.id === `__streaming_${message.sessionId}`) {
-      if (isAssistantTextEchoedInSameTurnOnServer(message, serverMessages, realtimeMessages)) {
-        return false;
-      }
-      return true;
-    }
-
-    if (
-      message.kind === 'text'
-      && message.role === 'assistant'
-      && message.id?.startsWith('text_')
-    ) {
-      if (isAssistantTextEchoedInSameTurnOnServer(message, serverMessages, realtimeMessages)) {
-        return false;
-      }
-      return true;
-    }
-
-    if (message.kind === 'text' && message.role === 'user') {
-      return !hasServerEchoForLocalUser(message, serverMessages);
-    }
-
-    if (message.kind === 'tool_use' && message.toolId) {
-      if (serverMessages.some((serverMessage) => serverMessage.kind === 'tool_use' && serverMessage.toolId === message.toolId)) {
-        return false;
-      }
-    }
-
+function withoutRepeatedIds(messages: NormalizedMessage[]) {
+  const retained = new Set<string>();
+  return messages.filter((message) => {
+    if (!message.id) return true;
+    if (retained.has(message.id)) return false;
+    retained.add(message.id);
     return true;
   });
 }
 
-function computeMerged(server: NormalizedMessage[], realtime: NormalizedMessage[]): NormalizedMessage[] {
-  if (realtime.length === 0) {
-    return server;
-  }
-  if (server.length === 0) {
-    return dedupeAdjacentAssistantEchoes(realtime);
-  }
-
-  const serverIds = new Set(server.map((message) => message.id).filter(Boolean));
-  const seenRealtimeIds = new Set<string>();
-  const extra = realtime.filter((message) => {
-    if (message.id && seenRealtimeIds.has(message.id)) {
-      return false;
-    }
-    if (message.id) {
-      seenRealtimeIds.add(message.id);
-    }
-    if (message.id && serverIds.has(message.id)) {
-      return false;
-    }
-    // Optimistic user rows use `local_*` ids; once the same text exists on the
-    // server-backed copy from the same send window, drop the realtime echo to
-    // avoid duplicate bubbles without hiding repeated prompts from history.
-    if (message.id?.startsWith('local_')) {
-      if (hasServerEchoForLocalUser(message, server)) {
-        return false;
-      }
-    }
-    if (
-      message.kind === 'text'
-      && message.role === 'assistant'
-      && message.id?.startsWith('text_')
-      && isAssistantTextEchoedInSameTurnOnServer(message, server, realtime)
-    ) {
-      return false;
-    }
-    return true;
+function localUserIsPersisted(local: NormalizedMessage, server: NormalizedMessage[]) {
+  const text = userContent(local);
+  const sentAt = messageTime(local);
+  if (!text || sentAt === null) return false;
+  return server.some((candidate) => {
+    const recordedAt = messageTime(candidate);
+    return userContent(candidate) === text && recordedAt !== null && recordedAt >= sentAt - CLOCK_TOLERANCE && recordedAt - sentAt <= LOCAL_ACTIVITY_WINDOW;
   });
-
-  if (extra.length === 0) {
-    return server;
-  }
-
-  // Interleave by timestamp so live rows stay with their turn instead of
-  // piling up at the bottom after every refresh.
-  return dedupeAdjacentAssistantEchoes(
-    [...server, ...extra].sort(compareMessagesChronologically),
-  );
 }
 
-/**
- * Recompute slot.merged only when the input arrays have actually changed
- * (by reference). Returns true if merged was recomputed.
- */
-function recomputeMergedIfNeeded(slot: SessionSlot): boolean {
-  if (slot.serverMessages === slot._lastServerRef && slot.realtimeMessages === slot._lastRealtimeRef) {
-    return false;
+function ordinalFor(message: NormalizedMessage, server: NormalizedMessage[], realtime: NormalizedMessage[]) {
+  const targetAt = messageTime(message);
+  let turns = 0;
+  const candidates = [...server, ...realtime.filter((row) => !(row.kind === 'text' && row.role === 'user' && row.id?.startsWith('local_') && localUserIsPersisted(row, server)))].sort(chronological);
+  for (const candidate of candidates) {
+    if (candidate.id === message.id) break;
+    const candidateAt = messageTime(candidate);
+    if (targetAt !== null && candidateAt !== null && candidateAt > targetAt) break;
+    if (candidate.kind === 'text' && candidate.role === 'user') turns += 1;
   }
-  slot._lastServerRef = slot.serverMessages;
+  return Math.max(0, turns - 1);
+}
+
+function assistantEchoesPersisted(message: NormalizedMessage, server: NormalizedMessage[], realtime: NormalizedMessage[]) {
+  const content = message.content?.trim();
+  if (!content) return false;
+  const wanted = ordinalFor(message, server, realtime);
+  let currentTurn = -1;
+  let began = -1;
+  for (let index = 0; index < server.length; index += 1) {
+    if (server[index].kind === 'text' && server[index].role === 'user') {
+      currentTurn += 1;
+      if (currentTurn === wanted) { began = index + 1; break; }
+    }
+  }
+  if (began < 0) return false;
+  let end = server.length;
+  for (let index = began; index < server.length; index += 1) {
+    if (server[index].kind === 'text' && server[index].role === 'user') { end = index; break; }
+  }
+  return server.slice(began, end).some((row) => row.kind === 'text' && row.role === 'assistant' && row.content?.trim() === content);
+}
+
+function collapseStreamTransition(rows: NormalizedMessage[]) {
+  const result: NormalizedMessage[] = [];
+  const used = new Set<string>();
+  rows.forEach((row) => {
+    if (row.id && used.has(row.id)) return;
+    const prior = result.at(-1);
+    if (prior?.kind === 'stream_delta' && row.kind === 'text' && row.role === 'assistant' && prior.content?.trim() && prior.content.trim() === row.content?.trim()) {
+      result[result.length - 1] = row;
+      if (row.id) used.add(row.id);
+      return;
+    }
+    if (row.id) used.add(row.id);
+    result.push(row);
+  });
+  return result;
+}
+
+function retainUnpersisted(server: NormalizedMessage[], realtime: NormalizedMessage[]) {
+  if (!realtime.length) return realtime;
+  const diskIds = new Set(server.map((row) => row.id).filter(Boolean));
+  return realtime.filter((row) => {
+    if (row.id && diskIds.has(row.id)) return false;
+    if (row.id?.startsWith('local_')) return !localUserIsPersisted(row, server);
+    if ((row.kind === 'stream_delta' || row.id === `__streaming_${row.sessionId}`) || (row.kind === 'text' && row.role === 'assistant' && row.id?.startsWith('text_'))) return !assistantEchoesPersisted(row, server, realtime);
+    return !(row.kind === 'tool_use' && row.toolId && server.some((saved) => saved.kind === 'tool_use' && saved.toolId === row.toolId));
+  });
+}
+
+function mergeWindows(server: NormalizedMessage[], realtime: NormalizedMessage[]) {
+  if (!realtime.length) return server;
+  if (!server.length) return collapseStreamTransition(realtime);
+  const savedIds = new Set(server.map((row) => row.id).filter(Boolean));
+  const observed = new Set<string>();
+  const additions = realtime.filter((row) => {
+    if (row.id && observed.has(row.id)) return false;
+    if (row.id) observed.add(row.id);
+    if (row.id && savedIds.has(row.id)) return false;
+    if (row.id?.startsWith('local_') && localUserIsPersisted(row, server)) return false;
+    return !(row.kind === 'text' && row.role === 'assistant' && row.id?.startsWith('text_') && assistantEchoesPersisted(row, server, realtime));
+  });
+  return additions.length ? collapseStreamTransition([...server, ...additions].sort(chronological)) : server;
+}
+
+function refreshMerged(slot: SessionSlot) {
+  const server = slot.serverMessages;
+  if (server === slot._lastServerRef && slot.realtimeMessages === slot._lastRealtimeRef) return false;
+  slot._lastServerRef = server;
   slot._lastRealtimeRef = slot.realtimeMessages;
-  slot.merged = computeMerged(slot.serverMessages, slot.realtimeMessages);
+  slot.merged = mergeWindows(server, slot.realtimeMessages);
   return true;
 }
 
-// ─── Stale threshold ─────────────────────────────────────────────────────────
-
-const STALE_THRESHOLD_MS = 30_000;
-
-const MAX_REALTIME_MESSAGES = 500;
-const MAX_SESSION_SLOTS = 50;
-
-function dedupeMessagesById(messages: NormalizedMessage[]): NormalizedMessage[] {
-  const ids = new Set<string>();
-  return messages.filter((message) => {
-    // An empty id is not a stable identity. Retain it rather than collapsing
-    // potentially distinct legacy rows.
-    if (!message.id || ids.has(message.id)) {
-      return !message.id;
-    }
-    ids.add(message.id);
-    return true;
-  });
+function newJobSlot(): JobProjectionSlot {
+  return { snapshot: null, lastAppliedSequence: 0, eventsBySequence: new Map(), orderedTail: [], status: 'idle', error: null };
 }
 
-// ─── Hook ────────────────────────────────────────────────────────────────────
+function newSlot(sessionId: string, client: QueryClient): SessionSlot {
+  const key = ['messages', sessionId] as const;
+  const slot = { realtimeMessages: EMPTY, merged: EMPTY, _lastServerRef: EMPTY, _lastRealtimeRef: EMPTY, _fetchSeq: 0, _fetchMoreTicket: null, _pendingRequests: 0, _loadingTicket: null, _includeImages: true, status: 'idle' } as SessionSlot;
+  const window = () => client.getQueryData<MessagesWindow>(key);
+  Object.defineProperties(slot, {
+    serverMessages: { enumerable: true, get: () => window()?.messages ?? EMPTY }, total: { enumerable: true, get: () => window()?.total ?? 0 }, hasMore: { enumerable: true, get: () => window()?.hasMore ?? false }, offset: { enumerable: true, get: () => window()?.offset ?? 0 }, tokenUsage: { enumerable: true, get: () => window()?.tokenUsage }, fetchedAt: { enumerable: true, get: () => client.getQueryState(key)?.dataUpdatedAt ?? 0 },
+  });
+  return slot;
+}
 
-/**
- * Bounded reconcile fetch shared by `refreshFromServer` and the active-window
- * observer's queryFn: re-request only the currently loaded window and shape
- * the response as a `MessagesWindow`.
- */
-async function fetchReconcileWindow(sessionId: string, slot: SessionSlot): Promise<MessagesWindow> {
-  const loadedCount = slot.serverMessages.length + slot.realtimeMessages.length;
-  const url = buildRefreshMessagesUrl(sessionId, loadedCount, slot._includeImages);
-  const response = await authenticatedFetch(url);
+async function reconcile(sessionId: string, slot: SessionSlot): Promise<MessagesWindow> {
+  const count = slot.serverMessages.length + slot.realtimeMessages.length;
+  const response = await authenticatedFetch(buildRefreshMessagesUrl(sessionId, count, slot._includeImages));
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const body = await response.json();
   const data = body?.data ?? body;
   const messages: NormalizedMessage[] = data.messages || [];
-  return {
-    messages: dedupeMessagesById(messages),
-    total: data.total ?? messages.length,
-    hasMore: Boolean(data.hasMore),
-    offset: messages.length,
-    tokenUsage: data.tokenUsage || slot.tokenUsage,
-  };
+  return { messages: withoutRepeatedIds(messages), total: data.total ?? messages.length, hasMore: Boolean(data.hasMore), offset: messages.length, tokenUsage: data.tokenUsage || slot.tokenUsage };
 }
 
 export function useSessionStore() {
   const queryClient = useQueryClient();
-  const storeRef = useRef(new Map<string, SessionSlot>());
-  const activeSessionIdRef = useRef<string | null>(null);
-  // State mirror of the active session id so the active-window observer below
-  // re-subscribes when the viewed session changes. Callbacks keep reading the
-  // ref to stay identity-stable.
-  const [activeSessionId, setActiveSessionIdState] = useState<string | null>(null);
-  // Bump to force re-render — only when the active session's data changes.
-  const jobSlotsRef = useRef(new Map<string, JobProjectionSlot>());
-  const activeJobIdRef = useRef<string | null>(null);
-  // Session ids are stable for the whole conversation lifetime (the backend
-  // allocates them before the first send), so slots are keyed directly with
-  // no alias/redirect indirection.
-  const [, setTick] = useState(0);
-  const notify = useCallback((sessionId: string) => {
-    if (sessionId === activeSessionIdRef.current) {
-      setTick(n => n + 1);
+  const slots = useRef(new Map<string, SessionSlot>());
+  const jobs = useRef(new Map<string, JobProjectionSlot>());
+  const activeSession = useRef<string | null>(null);
+  const activeJob = useRef<string | null>(null);
+  const [observedSession, setObservedSession] = useState<string | null>(null);
+  const [, redraw] = useState(0);
+  const emitSession = useCallback((id: string) => { if (activeSession.current === id) redraw((version) => version + 1); }, []);
+  const emitJob = useCallback((id: string) => { if (activeJob.current === id) redraw((version) => version + 1); }, []);
+
+  const evict = useCallback((keep?: string) => {
+    while (slots.current.size > MAX_SESSION_SLOTS) {
+      const victim = [...slots.current].find(([id, slot]) => id !== keep && id !== activeSession.current && slot.status !== 'streaming' && slot._pendingRequests === 0);
+      if (!victim) return;
+      slots.current.delete(victim[0]);
     }
   }, []);
-  const notifyJob = useCallback((jobId: string) => {
-    if (jobId === activeJobIdRef.current) setTick(n => n + 1);
-  }, []);
-  const trimInactiveSlots = useCallback((protectedSessionId?: string) => {
-    const store = storeRef.current;
-    while (store.size > MAX_SESSION_SLOTS) {
-      const candidate = [...store.entries()].find(([sessionId, slot]) =>
-        sessionId !== protectedSessionId
-        && sessionId !== activeSessionIdRef.current
-        && slot.status !== 'streaming'
-        && slot._pendingRequests === 0,
-      );
-      if (!candidate) {
-        return;
-      }
-      // Message windows remain in the Query cache; its gcTime owns retention.
-      store.delete(candidate[0]);
-    }
-  }, []);
+  const remember = useCallback((id: string, slot: SessionSlot) => { slots.current.delete(id); slots.current.set(id, slot); evict(id); }, [evict]);
+  const getSlot = useCallback((id: string) => { const slot = slots.current.get(id) ?? newSlot(id, queryClient); remember(id, slot); return slot; }, [queryClient, remember]);
+  const begin = useCallback((id: string) => { const slot = slots.current.get(id) ?? newSlot(id, queryClient); slot._pendingRequests += 1; remember(id, slot); return slot; }, [queryClient, remember]);
+  const has = useCallback((id: string) => slots.current.has(id), []);
 
-  const touchSlot = useCallback((sessionId: string, slot: SessionSlot) => {
-    const store = storeRef.current;
-    store.delete(sessionId);
-    store.set(sessionId, slot);
-    trimInactiveSlots(sessionId);
-  }, [trimInactiveSlots]);
-
-  const getJobSlot = useCallback((jobId: string): JobProjectionSlot => {
-    const slot = jobSlotsRef.current.get(jobId) ?? createEmptyJobSlot();
-    jobSlotsRef.current.set(jobId, slot);
-    return slot;
-  }, []);
-
-  const setActiveJob = useCallback((jobId: string | null) => {
-    activeJobIdRef.current = jobId;
-    setTick(n => n + 1);
-  }, []);
-
-  const applyJobSubscribed = useCallback((jobId: string, snapshot: JobSnapshot) => {
-    const slot = getJobSlot(jobId);
-    slot.snapshot = snapshot;
-    slot.status = 'subscribed';
-    slot.error = null;
-    notifyJob(jobId);
-  }, [getJobSlot, notifyJob]);
-
-  const applyJobEvent = useCallback((jobId: string, event: JobProjectionEvent) => {
-    const slot = getJobSlot(jobId);
-    const existing = slot.eventsBySequence.get(event.sequence);
+  const getJobSlot = useCallback((id: string) => { const slot = jobs.current.get(id) ?? newJobSlot(); jobs.current.set(id, slot); return slot; }, []);
+  const setActiveJob = useCallback((id: string | null) => { activeJob.current = id; redraw((version) => version + 1); }, []);
+  const applyJobSubscribed = useCallback((id: string, snapshot: JobSnapshot) => { const slot = getJobSlot(id); slot.snapshot = snapshot; slot.status = 'subscribed'; slot.error = null; emitJob(id); }, [emitJob, getJobSlot]);
+  const applyEvent = useCallback((id: string, event: JobProjectionEvent) => {
+    const slot = getJobSlot(id); const prior = slot.eventsBySequence.get(event.sequence);
     if (event.sequence <= slot.lastAppliedSequence) {
-      if (existing?.eventId === event.eventId) return true;
-      if (existing && existing.eventId !== event.eventId) {
-        slot.status = 'error';
-        slot.error = 'protocol_violation';
-        notifyJob(jobId);
-        return false;
-      }
-      return true;
+      if (!prior || prior.eventId === event.eventId) return true;
+      slot.status = 'error'; slot.error = 'protocol_violation'; emitJob(id); return false;
     }
-    if (event.sequence !== slot.lastAppliedSequence + 1 || existing) {
-      slot.status = 'error';
-      slot.error = 'protocol_violation';
-      notifyJob(jobId);
-      return false;
-    }
+    if (event.sequence !== slot.lastAppliedSequence + 1 || prior) { slot.status = 'error'; slot.error = 'protocol_violation'; emitJob(id); return false; }
     const payload = event.payload as Partial<JobTerminalPayload> | null;
-    const isTerminal = payload !== null
-      && typeof payload === 'object'
-      && payload.schemaVersion === 1
-      && payload.kind === 'job_terminal'
-      && (payload.jobState === 'succeeded' || payload.jobState === 'failed' || payload.jobState === 'aborted' || payload.jobState === 'interrupted');
-    if (isTerminal && slot.snapshot) {
-      slot.snapshot = {
-        ...slot.snapshot,
-        state: payload.jobState as JobState,
-      };
-    }
-    slot.eventsBySequence.set(event.sequence, event);
-    slot.orderedTail = [...slot.orderedTail, event];
-    slot.lastAppliedSequence = event.sequence;
-    slot.status = 'subscribed';
-    slot.error = null;
-    notifyJob(jobId);
-    return true;
-  }, [getJobSlot, notifyJob]);
+    if (payload && typeof payload === 'object' && payload.schemaVersion === 1 && payload.kind === 'job_terminal' && (payload.jobState === 'succeeded' || payload.jobState === 'failed' || payload.jobState === 'aborted' || payload.jobState === 'interrupted') && slot.snapshot) slot.snapshot = { ...slot.snapshot, state: payload.jobState as JobState };
+    slot.eventsBySequence.set(event.sequence, event); slot.orderedTail = [...slot.orderedTail, event]; slot.lastAppliedSequence = event.sequence; slot.status = 'subscribed'; slot.error = null; emitJob(id); return true;
+  }, [emitJob, getJobSlot]);
+  const applyJobReplayChunk = useCallback((id: string, events: JobProjectionEvent[]) => events.every((event) => applyEvent(id, event)), [applyEvent]);
+  const applyJobLiveEvent = useCallback((id: string, event: JobProjectionEvent) => applyEvent(id, event), [applyEvent]);
+  const getJobCursor = useCallback((id: string) => jobs.current.get(id)?.lastAppliedSequence ?? 0, []);
+  const setJobError = useCallback((id: string, error: JobProjectionErrorCode | 'protocol_violation') => { const slot = getJobSlot(id); slot.status = 'error'; slot.error = error; emitJob(id); }, [emitJob, getJobSlot]);
+  const clearJobs = useCallback(() => { const wasActive = activeJob.current !== null; jobs.current.clear(); activeJob.current = null; if (wasActive) redraw((version) => version + 1); }, []);
 
-  const applyJobReplayChunk = useCallback((jobId: string, events: JobProjectionEvent[]) => {
-    for (const event of events) {
-      if (!applyJobEvent(jobId, event)) return false;
-    }
-    return true;
-  }, [applyJobEvent]);
-
-  const applyJobLiveEvent = useCallback((jobId: string, event: JobProjectionEvent) =>
-    applyJobEvent(jobId, event), [applyJobEvent]);
-
-  const getJobCursor = useCallback((jobId: string) =>
-    jobSlotsRef.current.get(jobId)?.lastAppliedSequence ?? 0, []);
-
-  const setJobError = useCallback((jobId: string, error: JobProjectionErrorCode | 'protocol_violation') => {
-    const slot = getJobSlot(jobId);
-    slot.status = 'error';
-    slot.error = error;
-    notifyJob(jobId);
-  }, [getJobSlot, notifyJob]);
-
-  const clearJobs = useCallback(() => {
-    const wasActive = activeJobIdRef.current !== null;
-    jobSlotsRef.current.clear();
-    activeJobIdRef.current = null;
-    if (wasActive) setTick(n => n + 1);
-  }, []);
-
-  const setActiveSession = useCallback((sessionId: string | null) => {
-    activeSessionIdRef.current = sessionId;
-    setActiveSessionIdState(sessionId);
-    if (sessionId) {
-      const slot = storeRef.current.get(sessionId);
-      if (slot) {
-        touchSlot(sessionId, slot);
-      }
-    }
-    trimInactiveSlots();
-  }, [touchSlot, trimInactiveSlots]);
-
-  const getSlot = useCallback((sessionId: string): SessionSlot => {
-    const store = storeRef.current;
-    const slot = store.get(sessionId) ?? createSlot(sessionId, queryClient);
-    touchSlot(sessionId, slot);
-    return slot;
-  }, [queryClient, touchSlot]);
-
-  const beginRequest = useCallback((sessionId: string): SessionSlot => {
-    const store = storeRef.current;
-    const slot = store.get(sessionId) ?? createSlot(sessionId, queryClient);
-    slot._pendingRequests += 1;
-    touchSlot(sessionId, slot);
-    return slot;
-  }, [queryClient, touchSlot]);
-
-  const has = useCallback((sessionId: string) => {
-    return storeRef.current.has(sessionId);
-  }, []);
-
-  /**
-   * Active-window observer.
-   *
-   * Subscribes to the viewed session's `['messages', sessionId]` entry so an
-   * invalidation (e.g. the sidebar's `session_upserted` watcher seeing the
-   * transcript change on disk with no local run active) refetches the bounded
-   * reconcile window and re-renders the chat. This replaces the old
-   * `externalMessageUpdate` counter and its four-component prop thread.
-   *
-   * - `enabled` requires an existing window: the initial load stays with
-   *   `fetchFromServer` and its explicit limit/offset options.
-   * - A streaming slot disables the observer, mirroring the old "skip store
-   *   refresh during active streaming" guard; the stale mark survives and the
-   *   refetch runs when streaming ends and the observer re-enables.
-   * - `staleTime: Infinity`: the observer never refetches on its own; only an
-   *   invalidation (or mounting over an invalidated entry) runs the queryFn.
-   */
-  const activeSlotForObserver = activeSessionId ? storeRef.current.get(activeSessionId) : undefined;
-  const activeWindowQuery = useQuery({
-    queryKey: ['messages', activeSessionId ?? '__no_active_session__'],
-    enabled: Boolean(
-      activeSessionId
-      && activeSlotForObserver
-      && activeSlotForObserver.status !== 'streaming'
-      && queryClient.getQueryData<MessagesWindow>(['messages', activeSessionId]) !== undefined,
-    ),
-    staleTime: Infinity,
-    queryFn: async () => {
-      const sessionId = activeSessionIdRef.current;
-      const slot = sessionId ? storeRef.current.get(sessionId) : undefined;
-      if (!sessionId || !slot) throw new Error('no active session window');
-      return fetchReconcileWindow(sessionId, slot);
-    },
+  const setActiveSession = useCallback((id: string | null) => { activeSession.current = id; setObservedSession(id); if (id) { const slot = slots.current.get(id); if (slot) remember(id, slot); } evict(); }, [evict, remember]);
+  const observerSlot = observedSession ? slots.current.get(observedSession) : undefined;
+  const observedWindow = useQuery({
+    queryKey: ['messages', observedSession ?? '__no_active_session__'], staleTime: Infinity,
+    enabled: Boolean(observedSession && observerSlot && observerSlot.status !== 'streaming' && queryClient.getQueryData<MessagesWindow>(['messages', observedSession]) !== undefined),
+    queryFn: async () => { const id = activeSession.current; const slot = id ? slots.current.get(id) : undefined; if (!id || !slot) throw new Error('no active session window'); return reconcile(id, slot); },
   });
+  const windowUpdatedAt = observedWindow.dataUpdatedAt;
+  useEffect(() => { const id = activeSession.current; const slot = id ? slots.current.get(id) : undefined; if (!slot || !id) return; const remaining = retainUnpersisted(slot.serverMessages, slot.realtimeMessages); if (remaining.length !== slot.realtimeMessages.length) slot.realtimeMessages = remaining; if (refreshMerged(slot)) emitSession(id); }, [emitSession, windowUpdatedAt]);
 
-  // After any settled-window change for the active session (observer reconcile
-  // or an imperative write), drop realtime rows the transcript now owns and
-  // recompute the merged view. Pruning only ever removes rows, so skipping the
-  // assignment when nothing was dropped keeps identities stable.
-  const activeWindowUpdatedAt = activeWindowQuery.dataUpdatedAt;
-  useEffect(() => {
-    const sessionId = activeSessionIdRef.current;
-    if (!sessionId) return;
-    const slot = storeRef.current.get(sessionId);
-    if (!slot) return;
-    const pruned = pruneRealtimeSupersededByServer(slot.serverMessages, slot.realtimeMessages);
-    if (pruned.length !== slot.realtimeMessages.length) {
-      slot.realtimeMessages = pruned;
-    }
-    if (recomputeMergedIfNeeded(slot)) {
-      notify(sessionId);
-    }
-  }, [activeWindowUpdatedAt, notify]);
-
-  /**
-   * Fetch messages from the provider sessions endpoint and populate serverMessages.
-   *
-   * Provider and project metadata are resolved server-side from `sessionId`.
-   * The endpoint returns the standard `{ success, data }` envelope.
-   */
-  const fetchFromServer = useCallback(async (
-    sessionId: string,
-    opts: {
-      limit?: number | null;
-      offset?: number;
-      includeImages?: boolean;
-    } = {},
-  ) => {
-    const slot = beginRequest(sessionId);
-    if (typeof opts.includeImages === 'boolean') {
-      slot._includeImages = opts.includeImages;
-    }
-    const fetchTicket = ++slot._fetchSeq;
-    if (slot.status !== 'streaming') {
-      slot._loadingTicket = fetchTicket;
-      slot.status = 'loading';
-    }
-    notify(sessionId);
-
+  const fetchFromServer = useCallback(async (id: string, options: { limit?: number | null; offset?: number; includeImages?: boolean } = {}) => {
+    const slot = begin(id); if (typeof options.includeImages === 'boolean') slot._includeImages = options.includeImages;
+    const ticket = ++slot._fetchSeq; if (slot.status !== 'streaming') { slot.status = 'loading'; slot._loadingTicket = ticket; } emitSession(id);
     try {
-      const params = new URLSearchParams();
-      if (opts.limit !== null && opts.limit !== undefined) {
-        params.append('limit', String(opts.limit));
-        params.append('offset', String(opts.offset ?? 0));
-      }
-      if (!slot._includeImages) params.set('includeImages', 'false');
-
-      const qs = params.toString();
-      const url = `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages${qs ? `?${qs}` : ''}`;
-      const response = await authenticatedFetch(url);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const body = await response.json();
-      const data = body?.data ?? body;
-      const messages: NormalizedMessage[] = data.messages || [];
-
-      // Only the latest request may replace this session's loaded window.
-      if (fetchTicket !== slot._fetchSeq) {
-        return slot;
-      }
-
-      queryClient.setQueryData<MessagesWindow>(['messages', sessionId], {
-        messages: dedupeMessagesById(messages),
-        total: data.total ?? messages.length,
-        hasMore: Boolean(data.hasMore),
-        offset: (opts.offset ?? 0) + messages.length,
-        tokenUsage: data.tokenUsage || slot.tokenUsage,
-      });
-      if (slot.status === 'loading' && slot._loadingTicket === fetchTicket) {
-        slot.status = 'idle';
-      }
-      recomputeMergedIfNeeded(slot);
-
-      notify(sessionId);
-      return slot;
+      const params = new URLSearchParams(); if (options.limit !== null && options.limit !== undefined) { params.set('limit', String(options.limit)); params.set('offset', String(options.offset ?? 0)); } if (!slot._includeImages) params.set('includeImages', 'false');
+      const response = await authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(id)}/messages${params.size ? `?${params}` : ''}`); if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const body = await response.json(); const data = body?.data ?? body; const messages: NormalizedMessage[] = data.messages || [];
+      if (ticket !== slot._fetchSeq) return slot;
+      queryClient.setQueryData<MessagesWindow>(['messages', id], { messages: withoutRepeatedIds(messages), total: data.total ?? messages.length, hasMore: Boolean(data.hasMore), offset: (options.offset ?? 0) + messages.length, tokenUsage: data.tokenUsage || slot.tokenUsage });
+      if (slot.status === 'loading' && slot._loadingTicket === ticket) slot.status = 'idle'; refreshMerged(slot); emitSession(id); return slot;
     } catch (error) {
-      console.error(`[SessionStore] fetch failed for ${sessionId}:`, error);
-      // Don't clobber a newer fetch's result with a stale failure.
-      if (
-        fetchTicket === slot._fetchSeq
-        && slot.status === 'loading'
-        && slot._loadingTicket === fetchTicket
-      ) {
-        slot.status = 'error';
-        notify(sessionId);
-      }
-      return slot;
-    } finally {
-      slot._pendingRequests -= 1;
-      if (slot._loadingTicket === fetchTicket) {
-        slot._loadingTicket = null;
-      }
-      trimInactiveSlots();
-    }
-  }, [beginRequest, notify, queryClient, trimInactiveSlots]);
+      console.error(`[SessionStore] fetch failed for ${id}:`, error); if (ticket === slot._fetchSeq && slot.status === 'loading' && slot._loadingTicket === ticket) { slot.status = 'error'; emitSession(id); } return slot;
+    } finally { slot._pendingRequests -= 1; if (slot._loadingTicket === ticket) slot._loadingTicket = null; evict(); }
+  }, [begin, emitSession, evict, queryClient]);
 
-  /**
-   * Load older (paginated) messages and prepend to serverMessages.
-   */
-  const fetchMore = useCallback(async (
-    sessionId: string,
-    opts: {
-      limit?: number;
-      includeImages?: boolean;
-    } = {},
-  ) => {
-    const store = storeRef.current;
-    const slot = store.get(sessionId) ?? createSlot(sessionId, queryClient);
-    if (typeof opts.includeImages === 'boolean') {
-      slot._includeImages = opts.includeImages;
-    }
-    if (!slot.hasMore || slot._fetchMoreTicket !== null) {
-      touchSlot(sessionId, slot);
-      return slot;
-    }
-
-    const expectedOffset = slot.offset;
-    const fetchTicket = ++slot._fetchSeq;
-    slot._fetchMoreTicket = fetchTicket;
-    slot._pendingRequests += 1;
-    touchSlot(sessionId, slot);
-    if (slot.status === 'loading') {
-      slot._loadingTicket = fetchTicket;
-    }
-    const params = new URLSearchParams();
-    const limit = opts.limit ?? 20;
-    params.append('limit', String(limit));
-    params.append('offset', String(expectedOffset));
-    if (!slot._includeImages) params.set('includeImages', 'false');
-
-    const qs = params.toString();
-    const url = `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages${qs ? `?${qs}` : ''}`;
-
+  const fetchMore = useCallback(async (id: string, options: { limit?: number; includeImages?: boolean } = {}) => {
+    const slot = slots.current.get(id) ?? newSlot(id, queryClient); if (typeof options.includeImages === 'boolean') slot._includeImages = options.includeImages;
+    if (!slot.hasMore || slot._fetchMoreTicket !== null) { remember(id, slot); return slot; }
+    const offset = slot.offset; const ticket = ++slot._fetchSeq; slot._fetchMoreTicket = ticket; slot._pendingRequests += 1; remember(id, slot); if (slot.status === 'loading') slot._loadingTicket = ticket;
     try {
-      const response = await authenticatedFetch(url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const body = await response.json();
-      const data = body?.data ?? body;
-      const olderMessages: NormalizedMessage[] = data.messages || [];
-
-      // A different request or loaded-window replacement invalidated this
-      // cursor. Never prepend a page fetched for another offset.
-      if (
-        fetchTicket !== slot._fetchSeq
-        || slot._fetchMoreTicket !== fetchTicket
-        || slot.offset !== expectedOffset
-      ) {
-        return slot;
-      }
-
-      queryClient.setQueryData<MessagesWindow>(['messages', sessionId], {
-        messages: dedupeMessagesById([
-          ...olderMessages,
-          ...slot.serverMessages,
-        ]),
-        total: slot.total,
-        hasMore: Boolean(data.hasMore),
-        offset: expectedOffset + olderMessages.length,
-        tokenUsage: slot.tokenUsage,
-      });
-      if (slot.status === 'loading' && slot._loadingTicket === fetchTicket) {
-        slot.status = 'idle';
-      }
-      recomputeMergedIfNeeded(slot);
-      notify(sessionId);
-      return slot;
+      const params = new URLSearchParams({ limit: String(options.limit ?? 20), offset: String(offset) }); if (!slot._includeImages) params.set('includeImages', 'false');
+      const response = await authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(id)}/messages?${params}`); if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const body = await response.json(); const data = body?.data ?? body; const older: NormalizedMessage[] = data.messages || [];
+      if (ticket !== slot._fetchSeq || slot._fetchMoreTicket !== ticket || slot.offset !== offset) return slot;
+      queryClient.setQueryData<MessagesWindow>(['messages', id], { messages: withoutRepeatedIds([...older, ...slot.serverMessages]), total: slot.total, hasMore: Boolean(data.hasMore), offset: offset + older.length, tokenUsage: slot.tokenUsage });
+      if (slot.status === 'loading' && slot._loadingTicket === ticket) slot.status = 'idle'; refreshMerged(slot); emitSession(id); return slot;
     } catch (error) {
-      console.error(`[SessionStore] fetchMore failed for ${sessionId}:`, error);
-      if (
-        fetchTicket === slot._fetchSeq
-        && slot.status === 'loading'
-        && slot._loadingTicket === fetchTicket
-      ) {
-        slot.status = 'idle';
-        notify(sessionId);
-      }
-      return slot;
-    } finally {
-      slot._pendingRequests -= 1;
-      if (slot._fetchMoreTicket === fetchTicket) {
-        slot._fetchMoreTicket = null;
-      }
-      if (slot._loadingTicket === fetchTicket) {
-        slot._loadingTicket = null;
-      }
-      trimInactiveSlots();
-    }
-  }, [notify, queryClient, touchSlot, trimInactiveSlots]);
+      console.error(`[SessionStore] fetchMore failed for ${id}:`, error); if (ticket === slot._fetchSeq && slot.status === 'loading' && slot._loadingTicket === ticket) { slot.status = 'idle'; emitSession(id); } return slot;
+    } finally { slot._pendingRequests -= 1; if (slot._fetchMoreTicket === ticket) slot._fetchMoreTicket = null; if (slot._loadingTicket === ticket) slot._loadingTicket = null; evict(); }
+  }, [emitSession, evict, queryClient, remember]);
 
-  /**
-   * Append a realtime (WebSocket) message to the correct session slot.
-   * This works regardless of which session is actively viewed.
-   */
-  const appendRealtime = useCallback((sessionId: string, msg: NormalizedMessage) => {
-    const slot = getSlot(sessionId);
-    const normalizedMessage =
-      msg.sessionId === sessionId
-        ? msg
-        : { ...msg, sessionId };
-    slot.realtimeMessages = upsertRealtimeMessages(
-      slot.realtimeMessages,
-      [normalizedMessage],
-    );
-    recomputeMergedIfNeeded(slot);
-    notify(sessionId);
-  }, [getSlot, notify]);
+  const append = useCallback((id: string, messages: NormalizedMessage[]) => { if (!messages.length) return; const slot = getSlot(id); const index = new Map<string, number>(); const next = [...slot.realtimeMessages]; next.forEach((row, position) => { const key = messageKey(row); if (key) index.set(key, position); }); messages.forEach((row) => { const normalized = row.sessionId === id ? row : { ...row, sessionId: id }; const key = messageKey(normalized); const position = key ? index.get(key) : undefined; if (position === undefined) { if (key) index.set(key, next.length); next.push(normalized); } else next[position] = normalized; }); slot.realtimeMessages = next.length > MAX_REALTIME_MESSAGES ? next.slice(-MAX_REALTIME_MESSAGES) : next; refreshMerged(slot); emitSession(id); }, [emitSession, getSlot]);
+  const appendRealtime = useCallback((id: string, message: NormalizedMessage) => append(id, [message]), [append]);
+  const appendRealtimeBatch = useCallback((id: string, messages: NormalizedMessage[]) => append(id, messages), [append]);
 
-  /**
-   * Append multiple realtime messages at once (batch).
-   */
-  const appendRealtimeBatch = useCallback((sessionId: string, msgs: NormalizedMessage[]) => {
-    if (msgs.length === 0) return;
-    const slot = getSlot(sessionId);
-    const normalizedMessages = msgs.map((msg) =>
-      msg.sessionId === sessionId
-        ? msg
-        : { ...msg, sessionId },
-    );
-    slot.realtimeMessages = upsertRealtimeMessages(
-      slot.realtimeMessages,
-      normalizedMessages,
-    );
-    recomputeMergedIfNeeded(slot);
-    notify(sessionId);
-  }, [getSlot, notify]);
+  const refreshFromServer = useCallback(async (id: string, options: { includeImages?: boolean } = {}) => {
+    const slot = begin(id); if (typeof options.includeImages === 'boolean') slot._includeImages = options.includeImages; const ticket = ++slot._fetchSeq; if (slot.status === 'loading') slot._loadingTicket = ticket;
+    try { const window = await reconcile(id, slot); if (ticket !== slot._fetchSeq) return; queryClient.setQueryData<MessagesWindow>(['messages', id], window); if (slot.status === 'loading' && slot._loadingTicket === ticket) slot.status = 'idle'; slot.realtimeMessages = retainUnpersisted(slot.serverMessages, slot.realtimeMessages); refreshMerged(slot); emitSession(id); }
+    catch (error) { console.error(`[SessionStore] refresh failed for ${id}:`, error); if (ticket === slot._fetchSeq && slot.status === 'loading' && slot._loadingTicket === ticket) { slot.status = 'idle'; emitSession(id); } }
+    finally { slot._pendingRequests -= 1; if (slot._loadingTicket === ticket) slot._loadingTicket = null; evict(); }
+  }, [begin, emitSession, evict, queryClient]);
 
-  /**
-   * Re-fetch serverMessages from the provider sessions endpoint.
-   */
-  const refreshFromServer = useCallback(async (
-    sessionId: string,
-    opts: { includeImages?: boolean } = {},
-  ) => {
-    const slot = beginRequest(sessionId);
-    if (typeof opts.includeImages === 'boolean') {
-      slot._includeImages = opts.includeImages;
-    }
-    const fetchTicket = ++slot._fetchSeq;
-    if (slot.status === 'loading') {
-      slot._loadingTicket = fetchTicket;
-    }
-    try {
-      // Bound the reconcile fetch to the currently-loaded window so a large
-      // transcript is not re-pulled in full on every refresh (latest-N + scroll-up
-      // lazy-load stays intact). total/hasMore keep older messages reachable.
-      const reconciled = await fetchReconcileWindow(sessionId, slot);
+  const setStatus = useCallback((id: string, status: SessionStatus) => { const slot = getSlot(id); slot._loadingTicket = null; slot.status = status; emitSession(id); }, [emitSession, getSlot]);
+  const isStale = useCallback((id: string) => { const slot = slots.current.get(id); return !slot || Date.now() - slot.fetchedAt > STALE_THRESHOLD_MS; }, []);
+  const updateStreaming = useCallback((id: string, content: string, provider: LLMProvider) => { const slot = getSlot(id); const streamId = `__streaming_${id}`; const row: NormalizedMessage = { id: streamId, sessionId: id, timestamp: new Date().toISOString(), provider, kind: 'stream_delta', content }; const position = slot.realtimeMessages.findIndex((message) => message.id === streamId); slot.realtimeMessages = position < 0 ? [...slot.realtimeMessages, row] : slot.realtimeMessages.map((message, index) => index === position ? row : message); refreshMerged(slot); emitSession(id); }, [emitSession, getSlot]);
+  const finalizeStreaming = useCallback((id: string) => { const slot = slots.current.get(id); if (!slot) return; const streamId = `__streaming_${id}`; const position = slot.realtimeMessages.findIndex((message) => message.id === streamId); if (position < 0) return; slot.realtimeMessages = slot.realtimeMessages.map((message, index) => index === position ? { ...message, id: `text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, kind: 'text', role: 'assistant' } : message); refreshMerged(slot); emitSession(id); }, [emitSession]);
+  const clearRealtime = useCallback((id: string) => { const slot = slots.current.get(id); if (!slot) return; slot.realtimeMessages = []; refreshMerged(slot); emitSession(id); }, [emitSession]);
+  const clear = useCallback(() => { const hadActive = activeSession.current !== null; slots.current.clear(); queryClient.removeQueries({ queryKey: ['messages'] }); activeSession.current = null; setObservedSession(null); if (hadActive) redraw((version) => version + 1); }, [queryClient]);
+  const getMessages = useCallback((id: string) => { const slot = slots.current.get(id); if (!slot) return EMPTY; refreshMerged(slot); return slot.merged; }, []);
+  const getSessionSlot = useCallback((id: string) => { const slot = slots.current.get(id); if (slot) refreshMerged(slot); return slot; }, []);
 
-      // Only the latest request may replace this session's loaded window.
-      if (fetchTicket !== slot._fetchSeq) {
-        return;
-      }
-
-      queryClient.setQueryData<MessagesWindow>(['messages', sessionId], reconciled);
-      if (slot.status === 'loading' && slot._loadingTicket === fetchTicket) {
-        slot.status = 'idle';
-      }
-      // Only drop realtime rows the server transcript now owns. A blind clear
-      // here caused the chat pane to flash "Continue your conversation" after
-      // `complete` while JSONL / provider_session_id indexing was still behind.
-      slot.realtimeMessages = pruneRealtimeSupersededByServer(
-        slot.serverMessages,
-        slot.realtimeMessages,
-      );
-      recomputeMergedIfNeeded(slot);
-      notify(sessionId);
-    } catch (error) {
-      console.error(`[SessionStore] refresh failed for ${sessionId}:`, error);
-      if (
-        fetchTicket === slot._fetchSeq
-        && slot.status === 'loading'
-        && slot._loadingTicket === fetchTicket
-      ) {
-        slot.status = 'idle';
-        notify(sessionId);
-      }
-    } finally {
-      slot._pendingRequests -= 1;
-      if (slot._loadingTicket === fetchTicket) {
-        slot._loadingTicket = null;
-      }
-      trimInactiveSlots();
-    }
-  }, [beginRequest, notify, queryClient, trimInactiveSlots]);
-
-  /**
-   * Update session status.
-   */
-  const setStatus = useCallback((sessionId: string, status: SessionStatus) => {
-    const slot = getSlot(sessionId);
-    slot._loadingTicket = null;
-    slot.status = status;
-    notify(sessionId);
-  }, [getSlot, notify]);
-
-  /**
-   * Check if a session's data is stale (>30s old).
-   */
-  const isStale = useCallback((sessionId: string) => {
-    const slot = storeRef.current.get(sessionId);
-    if (!slot) return true;
-    return Date.now() - slot.fetchedAt > STALE_THRESHOLD_MS;
-  }, []);
-
-  /**
-   * Update or create a streaming message (accumulated text so far).
-   * Uses a well-known ID so subsequent calls replace the same message.
-   */
-  const updateStreaming = useCallback((sessionId: string, accumulatedText: string, msgProvider: LLMProvider) => {
-    const slot = getSlot(sessionId);
-    const streamId = `__streaming_${sessionId}`;
-    const msg: NormalizedMessage = {
-      id: streamId,
-      sessionId,
-      timestamp: new Date().toISOString(),
-      provider: msgProvider,
-      kind: 'stream_delta',
-      content: accumulatedText,
-    };
-    const idx = slot.realtimeMessages.findIndex(m => m.id === streamId);
-    if (idx >= 0) {
-      slot.realtimeMessages = [...slot.realtimeMessages];
-      slot.realtimeMessages[idx] = msg;
-    } else {
-      slot.realtimeMessages = [...slot.realtimeMessages, msg];
-    }
-    recomputeMergedIfNeeded(slot);
-    notify(sessionId);
-  }, [getSlot, notify]);
-
-  /**
-   * Finalize streaming: convert the streaming message to a regular text message.
-   * The well-known streaming ID is replaced with a unique text message ID.
-   */
-  const finalizeStreaming = useCallback((sessionId: string) => {
-    const slot = storeRef.current.get(sessionId);
-    if (!slot) return;
-    const streamId = `__streaming_${sessionId}`;
-    const idx = slot.realtimeMessages.findIndex(m => m.id === streamId);
-    if (idx >= 0) {
-      const stream = slot.realtimeMessages[idx];
-      slot.realtimeMessages = [...slot.realtimeMessages];
-      slot.realtimeMessages[idx] = {
-        ...stream,
-        id: `text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        kind: 'text',
-        role: 'assistant',
-      };
-      recomputeMergedIfNeeded(slot);
-      notify(sessionId);
-    }
-  }, [notify]);
-
-  /**
-   * Clear realtime messages for a session (e.g., after stream completes and server fetch catches up).
-   */
-  const clearRealtime = useCallback((sessionId: string) => {
-    const slot = storeRef.current.get(sessionId);
-    if (slot) {
-      slot.realtimeMessages = [];
-      recomputeMergedIfNeeded(slot);
-      notify(sessionId);
-    }
-  }, [notify]);
-  /**
-   * Drop every cached transcript at an authentication boundary. Existing
-   * in-flight requests retain only their detached slots and cannot repopulate
-   * this store.
-   */
-  const clear = useCallback(() => {
-    const hadActiveSession = activeSessionIdRef.current !== null;
-    storeRef.current.clear();
-    queryClient.removeQueries({ queryKey: ['messages'] });
-    activeSessionIdRef.current = null;
-    setActiveSessionIdState(null);
-    if (hadActiveSession) {
-      setTick(n => n + 1);
-    }
-  }, [queryClient]);
-
-
-  /**
-   * Get merged messages for a session (for rendering).
-   *
-   * Callers read this on every render (the store signals changes via a tick
-   * re-render, not a new store identity), so the empty result must be
-   * identity-stable to keep downstream memos from recomputing on no-ops.
-   */
-  const getMessages = useCallback((sessionId: string): NormalizedMessage[] => {
-    const slot = storeRef.current.get(sessionId);
-    if (!slot) return EMPTY;
-    // The settled window can change underneath the slot (observer reconcile,
-    // invalidation refetch, any out-of-band cache write). Recompute lazily on
-    // read; the reference-equality guard makes the common case free.
-    recomputeMergedIfNeeded(slot);
-    return slot.merged;
-  }, []);
-
-  /**
-   * Get session slot (for status, pagination info, etc.).
-   */
-  const getSessionSlot = useCallback((sessionId: string): SessionSlot | undefined => {
-    const slot = storeRef.current.get(sessionId);
-    if (slot) recomputeMergedIfNeeded(slot);
-    return slot;
-  }, []);
-
-  return useMemo(() => ({
-    getSlot,
-    has,
-    fetchFromServer,
-    fetchMore,
-    appendRealtime,
-    appendRealtimeBatch,
-    refreshFromServer,
-    setActiveSession,
-    setStatus,
-    isStale,
-    updateStreaming,
-    finalizeStreaming,
-    clearRealtime,
-    clear,
-    getJobSlot,
-    getJobCursor,
-    setActiveJob,
-    applyJobSubscribed,
-    applyJobReplayChunk,
-    applyJobLiveEvent,
-    setJobError,
-    clearJobs,
-    getMessages,
-    getSessionSlot,
-  }), [
-    getSlot, has, fetchFromServer, fetchMore,
-    appendRealtime, appendRealtimeBatch, refreshFromServer,
-    setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming,
-    clearRealtime, clear, getMessages, getSessionSlot,
-    getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk,
-    applyJobLiveEvent, setJobError, clearJobs,
-  ]);
+  return useMemo(() => ({ getSlot, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot }), [getSlot, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot]);
 }
 
 export type SessionStore = ReturnType<typeof useSessionStore>;

@@ -2,95 +2,92 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
 
-type GitConfigResponse = {
-  gitName?: string;
-  gitEmail?: string;
-  error?: string;
-};
-
+type GitConfigResponse = { gitName?: string; gitEmail?: string; error?: string };
 type SaveStatus = 'success' | 'error' | null;
 
+const gitConfigEndpoint = '/api/user/git-config';
+
 export function useGitSettings() {
-  const [gitName, setGitName] = useState('');
-  const [gitEmail, setGitEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>(null);
-  const clearStatusTimerRef = useRef<number | null>(null);
+  const [name, updateName] = useState('');
+  const [email, updateEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<SaveStatus>(null);
+  const statusTimeout = useRef<number | null>(null);
 
   const clearSaveStatus = useCallback(() => {
-    if (clearStatusTimerRef.current !== null) {
-      window.clearTimeout(clearStatusTimerRef.current);
-      clearStatusTimerRef.current = null;
+    const timeout = statusTimeout.current;
+    if (timeout !== null) {
+      window.clearTimeout(timeout);
+      statusTimeout.current = null;
     }
-    setSaveStatus(null);
+    setStatus(null);
   }, []);
 
   const loadGitConfig = useCallback(async () => {
+    setLoading(true);
     try {
-      setIsLoading(true);
-      const response = await authenticatedFetch('/api/user/git-config');
-      if (!response.ok) {
-        return;
+      const response = await authenticatedFetch(gitConfigEndpoint);
+      if (response.ok) {
+        const config = await response.json() as GitConfigResponse;
+        updateName(config.gitName || '');
+        updateEmail(config.gitEmail || '');
       }
-
-      const data = await response.json() as GitConfigResponse;
-      setGitName(data.gitName || '');
-      setGitEmail(data.gitEmail || '');
     } catch (error) {
       console.error('Error loading git config:', error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   }, []);
 
   const saveGitConfig = useCallback(async () => {
+    setSaving(true);
     try {
-      setIsSaving(true);
-      const response = await authenticatedFetch('/api/user/git-config', {
+      const response = await authenticatedFetch(gitConfigEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gitName, gitEmail }),
+        body: JSON.stringify({ gitName: name, gitEmail: email }),
       });
 
       if (response.ok) {
-        setSaveStatus('success');
-        clearStatusTimerRef.current = window.setTimeout(() => {
-          setSaveStatus(null);
-          clearStatusTimerRef.current = null;
+        setStatus('success');
+        statusTimeout.current = window.setTimeout(() => {
+          setStatus(null);
+          statusTimeout.current = null;
         }, 3000);
         return;
       }
 
-      const data = await response.json() as GitConfigResponse;
-      console.error('Failed to save git config:', data.error);
-      setSaveStatus('error');
+      const failure = await response.json() as GitConfigResponse;
+      console.error('Failed to save git config:', failure.error);
+      setStatus('error');
     } catch (error) {
       console.error('Error saving git config:', error);
-      setSaveStatus('error');
+      setStatus('error');
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
-  }, [gitEmail, gitName]);
+  }, [email, name]);
 
   useEffect(() => {
     void loadGitConfig();
   }, [loadGitConfig]);
 
   useEffect(() => () => {
-    if (clearStatusTimerRef.current !== null) {
-      window.clearTimeout(clearStatusTimerRef.current);
+    const timeout = statusTimeout.current;
+    if (timeout !== null) {
+      window.clearTimeout(timeout);
     }
   }, []);
 
   return {
-    gitName,
-    setGitName,
-    gitEmail,
-    setGitEmail,
-    isLoading,
-    isSaving,
-    saveStatus,
+    gitName: name,
+    setGitName: updateName,
+    gitEmail: email,
+    setGitEmail: updateEmail,
+    isLoading: loading,
+    isSaving: saving,
+    saveStatus: status,
     clearSaveStatus,
     saveGitConfig,
   };

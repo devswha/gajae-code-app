@@ -2,86 +2,49 @@ import { scanStateDb } from '@/modules/database/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import type { LLMProvider } from '@/shared/types.js';
 
-type SessionSynchronizeResult = {
-  processedByProvider: Record<LLMProvider, number>;
-  failures: string[];
-};
+type SessionSynchronizeResult = { processedByProvider: Record<LLMProvider, number>; failures: string[] };
+type ProviderScan = { provider: LLMProvider; processed: number };
 
-/**
- * Orchestrates provider-specific session indexers and indexed-session lifecycle operations.
- */
+function failureMessage(reason: unknown): string {
+  return reason instanceof Error ? reason.message : String(reason);
+}
+
+async function scanProvider(provider: ReturnType<typeof providerRegistry.listProviders>[number], since: Date | undefined): Promise<ProviderScan> {
+  return { provider: provider.id, processed: await provider.sessionSynchronizer.synchronize(since) };
+}
+
+function scanSummary(results: PromiseSettledResult<ProviderScan>[]): SessionSynchronizeResult {
+  const processedByProvider: Record<LLMProvider, number> = { gjc: 0 };
+  const failures: string[] = [];
+  for (const outcome of results) {
+    if (outcome.status === 'fulfilled') processedByProvider[outcome.value.provider] = outcome.value.processed;
+    else failures.push(failureMessage(outcome.reason));
+  }
+  return { processedByProvider, failures };
+}
+
 export const sessionSynchronizerService = {
-  /**
-   * Runs all provider synchronizers and updates scan_state.last_scanned_at.
-   */
   async synchronizeSessions(): Promise<SessionSynchronizeResult> {
-    const lastScanAt = scanStateDb.getLastScannedAt();
-    const scanBoundary = new Date();
-    const processedByProvider: Record<LLMProvider, number> = {
-      gjc: 0,
-    };
-    const failures: string[] = [];
-
-    const results = await Promise.allSettled(
-      providerRegistry.listProviders().map(async (provider) => ({
-        provider: provider.id,
-        processed: await provider.sessionSynchronizer.synchronize(lastScanAt ?? undefined),
-      }))
-    );
-
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        processedByProvider[result.value.provider] = result.value.processed;
-        continue;
-      }
-
-      const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
-      failures.push(reason);
-    }
-
-    if (failures.length === 0) {
-      scanStateDb.updateLastScannedAt(scanBoundary);
+    const since = scanStateDb.getLastScannedAt() ?? undefined;
+    const completedAt = new Date();
+    const outcomes = await Promise.allSettled(providerRegistry.listProviders().map((provider) => scanProvider(provider, since)));
+    const summary = scanSummary(outcomes);
+    if (summary.failures.length === 0) {
+      scanStateDb.updateLastScannedAt(completedAt);
     } else {
-      console.warn(
-        `[Sessions] Skipping scan_state cursor advance because ${failures.length} provider sync(s) failed.`,
-      );
+      console.warn(`[Sessions] Skipping scan_state cursor advance because ${summary.failures.length} provider sync(s) failed.`);
     }
-
-    return {
-      processedByProvider,
-      failures,
-    };
+    return summary;
   },
 
-  /**
-   * Reconciles one provider without advancing the shared all-provider scan cursor.
-   */
-  async reconcileProvider(
-    provider: LLMProvider,
-    signal?: AbortSignal
-  ): Promise<{ processed: number; sessionIds: string[] }> {
-    const lastScanAt = scanStateDb.getLastScannedAt();
-    const resolvedProvider = providerRegistry.resolveProvider(provider);
-    if (!resolvedProvider.sessionSynchronizer.reconcile) {
-      throw new Error('Provider session reconciliation is unavailable.');
-    }
-    return resolvedProvider.sessionSynchronizer.reconcile(lastScanAt ?? undefined, signal);
+  async reconcileProvider(provider: LLMProvider, signal?: AbortSignal): Promise<{ processed: number; sessionIds: string[] }> {
+    const synchronizer = providerRegistry.resolveProvider(provider).sessionSynchronizer;
+    if (!synchronizer.reconcile) throw new Error('Provider session reconciliation is unavailable.');
+    return synchronizer.reconcile(scanStateDb.getLastScannedAt() ?? undefined, signal);
   },
 
-  /**
-   * Indexes one provider artifact file without running a full provider rescan.
-   */
-  async synchronizeProviderFile(
-    provider: LLMProvider,
-    filePath: string,
-    signal?: AbortSignal
-  ): Promise<{ provider: LLMProvider; indexed: boolean; sessionId: string | null }> {
-    const resolvedProvider = providerRegistry.resolveProvider(provider);
-    const sessionId = await resolvedProvider.sessionSynchronizer.synchronizeFile(filePath, signal);
-    return {
-      provider,
-      indexed: Boolean(sessionId),
-      sessionId,
-    };
+  async synchronizeProviderFile(provider: LLMProvider, filePath: string, signal?: AbortSignal): Promise<{ provider: LLMProvider; indexed: boolean; sessionId: string | null }> {
+    const sessionId = await providerRegistry.resolveProvider(provider).sessionSynchronizer.synchronizeFile(filePath, signal);
+    return { provider, indexed: Boolean(sessionId), sessionId };
   },
 };

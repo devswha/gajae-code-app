@@ -19,9 +19,9 @@ change unilaterally.
 Measured with `node scripts/measure-upstream-derivation.mjs`:
 
 ```
-Upstream-derived code: 31,480 of 98,582 lines (31.9%)      baseline 2026-09-01
+Upstream-derived code: 30,372 of 98,168 lines (30.9%)      baseline 2026-09-01
 
-  7944 lines   49 files  server modules
+  6836 lines   46 files  server modules
   6226 lines   42 files  chat UI
   2873 lines   23 files  other client
   2736 lines   21 files  file tree
@@ -43,10 +43,32 @@ the 33.5% figure previously recorded here: the measurement now diffs only
 substantive lines (blank and punctuation-only lines no longer count as shared)
 and uses a symmetric denominator, on the grounds that neither blank lines nor
 file-length asymmetry are protected expression. Under the previous ruler the
-same tree measures 32.7%. Second, the first replacements are done: the nine
-database files under `server/modules/database/` (repositories plus
-initialization) were rewritten from their behavioral contracts on 2026-09-01,
-each in its own commit carrying the contract it was written from.
+same tree measures 32.7%. Second, replacements are under way: the database
+layer under `server/modules/database/` and the notifications module, the
+projects services, and the projects repository were rewritten from their
+behavioral contracts on 2026-09-01, each in its own commit carrying the
+contract it was written from.
+
+## Residual similarity that is not expression
+
+Some rewritten files still score above the measurement's 0.1 threshold, and
+inspection shows why: the lines they still share with upstream are interface
+and observable behavior, not protectable expression. Concretely:
+
+- import lines referring to this repository's own modules, which match while
+  the module layout itself mirrors upstream's;
+- exported function signatures and destructured parameter names, pinned by
+  their callers;
+- error message text, error codes, HTTP route paths, and WebSocket message
+  shapes, pinned by clients and tests;
+- the DDL in `schema.ts`, pinned byte-for-byte in effect by compatibility with
+  existing user databases.
+
+Changing any of these would change observable behavior, so no rewrite can
+remove them. When the measurement reaches its floor, the remaining flagged
+lines need a per-file determination that they are functional overlap - the
+kind of review the conversion step already requires - rather than further
+rewriting.
 
 ## What "removing" it actually requires
 

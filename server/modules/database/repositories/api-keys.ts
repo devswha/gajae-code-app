@@ -1,119 +1,87 @@
-/**
- * API keys repository.
- *
- * Manages API keys used for external/programmatic access to the backend.
- * Keys are prefixed with `ck_` and tied to a user via foreign key.
- */
-
-import crypto from 'crypto';
+import { randomBytes } from 'crypto';
 
 import { getConnection } from '@/modules/database/connection.js';
 
-type ApiKeyRow = {
-  id: number;
-  key_name: string;
-  api_key: string;
-  created_at: string;
-  last_used: string | null;
-  is_active: number;
+interface ApiKeyRow { api_key: string; created_at: string; id: number; is_active: number; key_name: string; last_used: string | null }
+
+interface CreateApiKeyResult { apiKey: string; id: number | bigint; keyName: string }
+
+interface ValidatedApiKeyUser { api_key_id: number; id: number; username: string }
+
+const generateApiKey = (): string => `ck_${randomBytes(32).toString('hex')}`;
+
+const createApiKey = (userId: number, keyName: string): CreateApiKeyResult => {
+  const value = generateApiKey();
+  const saved = getConnection()
+    .prepare(`
+      INSERT INTO api_keys (user_id, key_name, api_key)
+      VALUES (?, ?, ?)
+    `)
+    .run(userId, keyName, value);
+
+  return { id: saved.lastInsertRowid, keyName, apiKey: value };
 };
 
-type CreateApiKeyResult = {
-  id: number | bigint;
-  keyName: string;
-  apiKey: string;
+const getApiKeys = (userId: number): ApiKeyRow[] =>
+  getConnection()
+    .prepare(`
+      SELECT id, key_name, api_key, created_at, last_used, is_active
+      FROM api_keys
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+    `)
+    .all(userId) as ApiKeyRow[];
+
+const validateApiKey = (apiKey: string): ValidatedApiKeyUser | undefined => {
+  const database = getConnection();
+  const owner = database
+    .prepare(`
+      SELECT users.id, users.username, api_keys.id AS api_key_id
+      FROM api_keys
+      INNER JOIN users ON users.id = api_keys.user_id
+      WHERE api_keys.api_key = ? AND api_keys.is_active = 1 AND users.is_active = 1
+    `)
+    .get(apiKey) as ValidatedApiKeyUser | undefined;
+
+  if (owner === undefined) {
+    return undefined;
+  }
+
+  database
+    .prepare('UPDATE api_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?')
+    .run(owner.api_key_id);
+  return owner;
 };
 
-type ValidatedApiKeyUser = {
-  id: number;
-  username: string;
-  api_key_id: number;
+const deleteApiKey = (userId: number, apiKeyId: number): boolean => {
+  const result = getConnection()
+    .prepare('DELETE FROM api_keys WHERE user_id = ? AND id = ?')
+    .run(userId, apiKeyId);
+
+  return result.changes > 0;
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const toggleApiKey = (
+  userId: number,
+  apiKeyId: number,
+  isActive: boolean
+): boolean => {
+  const result = getConnection()
+    .prepare(`
+      UPDATE api_keys
+      SET is_active = ?
+      WHERE user_id = ? AND id = ?
+    `)
+    .run(isActive ? 1 : 0, userId, apiKeyId);
 
-/** Generates a cryptographically random API key with the `ck_` prefix. */
-function generateApiKey(): string {
-  return 'ck_' + crypto.randomBytes(32).toString('hex');
-}
-
-// ---------------------------------------------------------------------------
-// Queries
-// ---------------------------------------------------------------------------
+  return result.changes > 0;
+};
 
 export const apiKeysDb = {
   generateApiKey,
-
-  /** Creates a new API key for the given user and returns it for one-time display. */
-  createApiKey(userId: number, keyName: string): CreateApiKeyResult {
-    const db = getConnection();
-    const apiKey = generateApiKey();
-    const result = db
-      .prepare(
-        'INSERT INTO api_keys (user_id, key_name, api_key) VALUES (?, ?, ?)'
-      )
-      .run(userId, keyName, apiKey);
-    return { id: result.lastInsertRowid, keyName, apiKey };
-  },
-
-  /** Lists all API keys for a user, most recent first. */
-  getApiKeys(userId: number): ApiKeyRow[] {
-    const db = getConnection();
-    return db
-      .prepare(
-        'SELECT id, key_name, api_key, created_at, last_used, is_active FROM api_keys WHERE user_id = ? ORDER BY created_at DESC'
-      )
-      .all(userId) as ApiKeyRow[];
-  },
-
-  /**
-   * Validates an API key and resolves the owning user.
-   * If the key is valid, its `last_used` timestamp is updated as a side effect.
-   * Returns undefined when the key is invalid or the user is inactive.
-   */
-  validateApiKey(apiKey: string): ValidatedApiKeyUser | undefined {
-    const db = getConnection();
-    const row = db
-      .prepare(
-        `SELECT u.id, u.username, ak.id as api_key_id
-         FROM api_keys ak
-         JOIN users u ON ak.user_id = u.id
-         WHERE ak.api_key = ? AND ak.is_active = 1 AND u.is_active = 1`
-      )
-      .get(apiKey) as ValidatedApiKeyUser | undefined;
-
-    if (row) {
-      db.prepare(
-        'UPDATE api_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?'
-      ).run(row.api_key_id);
-    }
-
-    return row;
-  },
-
-  /** Permanently removes an API key. Returns true if a row was deleted. */
-  deleteApiKey(userId: number, apiKeyId: number): boolean {
-    const db = getConnection();
-    const result = db
-      .prepare('DELETE FROM api_keys WHERE id = ? AND user_id = ?')
-      .run(apiKeyId, userId);
-    return result.changes > 0;
-  },
-
-  /** Enables or disables an API key without deleting it. */
-  toggleApiKey(
-    userId: number,
-    apiKeyId: number,
-    isActive: boolean
-  ): boolean {
-    const db = getConnection();
-    const result = db
-      .prepare(
-        'UPDATE api_keys SET is_active = ? WHERE id = ? AND user_id = ?'
-      )
-      .run(isActive ? 1 : 0, apiKeyId, userId);
-    return result.changes > 0;
-  },
+  createApiKey,
+  getApiKeys,
+  validateApiKey,
+  deleteApiKey,
+  toggleApiKey,
 };

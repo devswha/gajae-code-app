@@ -1,87 +1,71 @@
-export interface DiffLine {
-  type: 'added' | 'removed';
-  content: string;
-  lineNum: number;
-}
+export interface DiffLine { type: 'added' | 'removed'; content: string; lineNum: number; }
 
 export type DiffCalculator = (oldStr: string, newStr: string) => DiffLine[];
 
-export const calculateDiff = (oldStr: string, newStr: string): DiffLine[] => {
-  const oldLines = oldStr.split('\n');
-  const newLines = newStr.split('\n');
+const lineSequence = (text: string) => text.split('\n');
 
-  // Use LCS alignment so insertions/deletions don't cascade into a full-file "changed" diff.
-  const lcsTable: number[][] = Array.from({ length: oldLines.length + 1 }, () =>
-    new Array<number>(newLines.length + 1).fill(0),
-  );
-  for (let oldIndex = oldLines.length - 1; oldIndex >= 0; oldIndex -= 1) {
-    for (let newIndex = newLines.length - 1; newIndex >= 0; newIndex -= 1) {
-      if (oldLines[oldIndex] === newLines[newIndex]) {
-        lcsTable[oldIndex][newIndex] = lcsTable[oldIndex + 1][newIndex + 1] + 1;
-      } else {
-        lcsTable[oldIndex][newIndex] = Math.max(
-          lcsTable[oldIndex + 1][newIndex],
-          lcsTable[oldIndex][newIndex + 1],
-        );
-      }
+const buildAlignment = (before: string[], after: string[]) => {
+  const columns = after.length + 1;
+  const scores = new Uint32Array((before.length + 1) * columns);
+  const at = (beforeIndex: number, afterIndex: number) => beforeIndex * columns + afterIndex;
+
+  for (let beforeIndex = before.length - 1; beforeIndex >= 0; beforeIndex -= 1) {
+    for (let afterIndex = after.length - 1; afterIndex >= 0; afterIndex -= 1) {
+      scores[at(beforeIndex, afterIndex)] = before[beforeIndex] === after[afterIndex]
+        ? scores[at(beforeIndex + 1, afterIndex + 1)] + 1
+        : Math.max(scores[at(beforeIndex + 1, afterIndex)], scores[at(beforeIndex, afterIndex + 1)]);
     }
   }
 
-  const diffLines: DiffLine[] = [];
+  return { scores, columns };
+};
+
+export const calculateDiff = (oldStr: string, newStr: string): DiffLine[] => {
+  const removed = lineSequence(oldStr);
+  const added = lineSequence(newStr);
+  const alignment = buildAlignment(removed, added);
+  const scoreAt = (oldIndex: number, newIndex: number) =>
+    alignment.scores[oldIndex * alignment.columns + newIndex];
+  const changes: DiffLine[] = [];
   let oldIndex = 0;
   let newIndex = 0;
 
-  while (oldIndex < oldLines.length && newIndex < newLines.length) {
-    const oldLine = oldLines[oldIndex];
-    const newLine = newLines[newIndex];
-
-    if (oldLine === newLine) {
+  while (oldIndex < removed.length || newIndex < added.length) {
+    if (oldIndex === removed.length) {
+      changes.push({ type: 'added', content: added[newIndex], lineNum: newIndex + 1 });
+      newIndex += 1;
+    } else if (newIndex === added.length) {
+      changes.push({ type: 'removed', content: removed[oldIndex], lineNum: oldIndex + 1 });
+      oldIndex += 1;
+    } else if (removed[oldIndex] === added[newIndex]) {
       oldIndex += 1;
       newIndex += 1;
-      continue;
-    }
-
-    if (lcsTable[oldIndex + 1][newIndex] >= lcsTable[oldIndex][newIndex + 1]) {
-      diffLines.push({ type: 'removed', content: oldLine, lineNum: oldIndex + 1 });
+    } else if (scoreAt(oldIndex + 1, newIndex) >= scoreAt(oldIndex, newIndex + 1)) {
+      changes.push({ type: 'removed', content: removed[oldIndex], lineNum: oldIndex + 1 });
       oldIndex += 1;
-      continue;
+    } else {
+      changes.push({ type: 'added', content: added[newIndex], lineNum: newIndex + 1 });
+      newIndex += 1;
     }
-
-    diffLines.push({ type: 'added', content: newLine, lineNum: newIndex + 1 });
-    newIndex += 1;
   }
 
-  while (oldIndex < oldLines.length) {
-    diffLines.push({ type: 'removed', content: oldLines[oldIndex], lineNum: oldIndex + 1 });
-    oldIndex += 1;
-  }
-
-  while (newIndex < newLines.length) {
-    diffLines.push({ type: 'added', content: newLines[newIndex], lineNum: newIndex + 1 });
-    newIndex += 1;
-  }
-
-  return diffLines;
+  return changes;
 };
 
 export const createCachedDiffCalculator = (): DiffCalculator => {
-  const cache = new Map<string, DiffLine[]>();
+  const results = new Map<string, DiffLine[]>();
 
-  return (oldStr: string, newStr: string) => {
-    const key = JSON.stringify([oldStr, newStr]);
-    const cached = cache.get(key);
-    if (cached) {
-      return cached;
-    }
+  return (oldStr, newStr) => {
+    const fingerprint = JSON.stringify([oldStr, newStr]);
+    const existing = results.get(fingerprint);
+    if (existing) return existing;
 
-    const calculated = calculateDiff(oldStr, newStr);
-    cache.set(key, calculated);
-    if (cache.size > 100) {
-      const firstKey = cache.keys().next().value;
-      if (firstKey) {
-        cache.delete(firstKey);
-      }
+    const computed = calculateDiff(oldStr, newStr);
+    results.set(fingerprint, computed);
+    if (results.size > 100) {
+      const oldest = results.keys().next().value;
+      if (oldest) results.delete(oldest);
     }
-    return calculated;
+    return computed;
   };
 };

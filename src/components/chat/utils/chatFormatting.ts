@@ -1,84 +1,59 @@
+const ENTITY_VALUES: Record<string, string> = { lt: '<', gt: '>', quot: '"', '#39': "'", amp: '&' };
+const ESCAPED_CONTROLS: Record<string, string> = { '\\n': '\n', '\\t': '\t', '\\r': '\r' };
+const MONTH_ABBREVIATIONS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 export function decodeHtmlEntities(text: string) {
-  if (!text) return text;
-  return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&');
+  return text ? text.replace(/&(lt|gt|quot|#39|amp);/g, (_, entity: string) => ENTITY_VALUES[entity]) : text;
 }
 
 export function normalizeInlineCodeFences(text: string) {
-  if (!text || typeof text !== 'string') return text;
+  if (typeof text !== 'string' || !text) return text;
   try {
-    return text.replace(/```[ \t]*([^\n\r]+?)[ \t]*```/g, '`$1`');
+    return text.replace(/```[ \t]*([^\n\r]+?)[ \t]*```/g, (_, code: string) => `\`${code}\``);
   } catch {
     return text;
   }
 }
 
 export function unescapeWithMathProtection(text: string) {
-  if (!text || typeof text !== 'string') return text;
+  if (typeof text !== 'string' || !text) return text;
 
-  const mathBlocks: string[] = [];
-  const placeholderPrefix = '__MATH_BLOCK_';
-  const placeholderSuffix = '__';
-
-  let processedText = text.replace(/\$\$([\s\S]*?)\$\$|\$([^\$\n]+?)\$/g, (match) => {
-    const index = mathBlocks.length;
-    mathBlocks.push(match);
-    return `${placeholderPrefix}${index}${placeholderSuffix}`;
+  const protectedSegments: string[] = [];
+  const marker = (position: number) => `__MATH_BLOCK_${position}__`;
+  const withMarkers = text.replace(/\$\$([\s\S]*?)\$\$|\$([^\$\n]+?)\$/g, (segment) => {
+    protectedSegments.push(segment);
+    return marker(protectedSegments.length - 1);
   });
+  const unescaped = withMarkers.replace(/\\[ntr]/g, (escape) => ESCAPED_CONTROLS[escape]);
 
-  processedText = processedText.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '\r');
-
-  processedText = processedText.replace(
-    new RegExp(`${placeholderPrefix}(\\d+)${placeholderSuffix}`, 'g'),
-    (match, index) => {
-      return mathBlocks[parseInt(index, 10)];
-    },
-  );
-
-  return processedText;
+  return unescaped.replace(/__MATH_BLOCK_(\d+)__/g, (_, position: string) =>
+    protectedSegments[Number.parseInt(position, 10)]);
 }
 
 export function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const localTimeZoneLabel = (date: Date) => {
+  const offset = -date.getTimezoneOffset();
+  const offsetHours = Math.floor(Math.abs(offset) / 60);
+  const offsetMinutes = Math.abs(offset) % 60;
+  const gmt = `GMT${offset >= 0 ? '+' : '-'}${offsetHours}${offsetMinutes ? `:${String(offsetMinutes).padStart(2, '0')}` : ''}`;
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  const location = (zone.split('/').pop() || '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return location ? `${gmt} (${location})` : gmt;
+};
+
 export function formatUsageLimitText(text: string) {
+  if (typeof text !== 'string') return text;
   try {
-    if (typeof text !== 'string') return text;
-    return text.replace(/Claude AI usage limit reached\|(\d{10,13})/g, (match, ts) => {
-      let timestampMs = parseInt(ts, 10);
-      if (!Number.isFinite(timestampMs)) return match;
-      if (timestampMs < 1e12) timestampMs *= 1000;
-      const reset = new Date(timestampMs);
-
-      const timeStr = new Intl.DateTimeFormat(undefined, {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(reset);
-
-      const offsetMinutesLocal = -reset.getTimezoneOffset();
-      const sign = offsetMinutesLocal >= 0 ? '+' : '-';
-      const abs = Math.abs(offsetMinutesLocal);
-      const offH = Math.floor(abs / 60);
-      const offM = abs % 60;
-      const gmt = `GMT${sign}${offH}${offM ? ':' + String(offM).padStart(2, '0') : ''}`;
-      const tzId = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-      const cityRaw = tzId.split('/').pop() || '';
-      const city = cityRaw
-        .replace(/_/g, ' ')
-        .toLowerCase()
-        .replace(/\b\w/g, (char) => char.toUpperCase());
-      const tzHuman = city ? `${gmt} (${city})` : gmt;
-
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const dateReadable = `${reset.getDate()} ${months[reset.getMonth()]} ${reset.getFullYear()}`;
-
-      return `Claude usage limit reached. Your limit will reset at **${timeStr} ${tzHuman}** - ${dateReadable}`;
+    return text.replace(/Claude AI usage limit reached\|(\d{10,13})/g, (original, value: string) => {
+      const parsed = Number.parseInt(value, 10);
+      if (!Number.isFinite(parsed)) return original;
+      const resetAt = new Date(parsed < 1e12 ? parsed * 1000 : parsed);
+      const clock = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }).format(resetAt);
+      const calendarDate = `${resetAt.getDate()} ${MONTH_ABBREVIATIONS[resetAt.getMonth()]} ${resetAt.getFullYear()}`;
+      return `Claude usage limit reached. Your limit will reset at **${clock} ${localTimeZoneLabel(resetAt)}** - ${calendarDate}`;
     });
   } catch {
     return text;

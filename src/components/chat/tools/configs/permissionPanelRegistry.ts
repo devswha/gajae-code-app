@@ -10,17 +10,27 @@ export interface PermissionPanelProps {
   ) => void;
 }
 
-const registry: Record<string, ComponentType<PermissionPanelProps>> = {};
+const permissionPanelStore = () => {
+  const panels: Record<string, ComponentType<PermissionPanelProps>> = {};
+  return {
+    add: (name: string, panel: ComponentType<PermissionPanelProps>) => {
+      panels[name] = panel;
+    },
+    find: (name: string) => panels[name] || null,
+  };
+};
+
+const permissionPanels = permissionPanelStore();
 
 export function registerPermissionPanel(
   toolName: string,
   component: ComponentType<PermissionPanelProps>,
 ): void {
-  registry[toolName] = component;
+  permissionPanels.add(toolName, component);
 }
 
 export function getPermissionPanel(
   toolName: string,
 ): ComponentType<PermissionPanelProps> | null {
-  return registry[toolName] || null;
+  return permissionPanels.find(toolName);
 }

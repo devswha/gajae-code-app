@@ -1,6 +1,14 @@
 export function formatToolInputForDisplay(input: unknown) {
-  if (input === undefined || input === null) return '';
-  if (typeof input === 'string') return input;
+  switch (typeof input) {
+    case 'undefined':
+      return '';
+    case 'string':
+      return input;
+    case 'object':
+      if (input === null) return '';
+      break;
+  }
+
   try {
     return JSON.stringify(input, null, 2);
   } catch {

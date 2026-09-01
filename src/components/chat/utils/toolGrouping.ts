@@ -2,89 +2,63 @@ import type { ChatMessage } from '../types/types';
 
 export const TOOL_GROUP_THRESHOLD = 2;
 
-export interface ToolGroupItem {
-  _isGroup: true;
-  toolName: string;
-  messages: ChatMessage[];
-  timestamp: ChatMessage['timestamp'];
-}
+export interface ToolGroupItem { _isGroup: true; toolName: string; messages: ChatMessage[]; timestamp: ChatMessage['timestamp']; }
 
 export type MessageListItem = ChatMessage | ToolGroupItem;
 
 export function isToolGroupItem(item: MessageListItem): item is ToolGroupItem {
-  return '_isGroup' in item && (item as ToolGroupItem)._isGroup === true;
+  return Reflect.has(item, '_isGroup') && item._isGroup === true;
 }
 
-/**
- * Every tool call groups, shell commands included.
- *
- * Excluding Bash was tried and reverted: it removed the apparent inconsistency
- * between one call and several, but a long turn then rendered a hundred
- * separate command rows, and the transcript became harder to scan than the
- * thing the change set out to fix. A run folded behind a count is the more
- * useful default; the commands are one click away.
- */
-function isGroupableToolMessage(message: ChatMessage): message is ChatMessage & { toolName: string } {
-  return Boolean(message.isToolUse && message.toolName && !message.isSubagentContainer);
-}
+type NamedToolMessage = ChatMessage & { toolName: string };
 
-// Messages that render nothing (e.g. reasoning hidden when showThinking is off)
-// shouldn't split an otherwise-continuous run of the same tool — providers like
-// Codex interleave hidden reasoning between consecutive tool calls.
-function rendersNothing(message: ChatMessage, showThinking: boolean): boolean {
-  return Boolean(message.isThinking && !showThinking);
-}
+const isNamedTool = (message: ChatMessage): message is NamedToolMessage =>
+  Boolean(message.isToolUse && message.toolName && !message.isSubagentContainer);
+
+const isHiddenThought = (message: ChatMessage, showThinking: boolean) =>
+  Boolean(message.isThinking && !showThinking);
 
 export function groupConsecutiveTools(
   messages: ChatMessage[],
   showThinking: boolean = true,
 ): MessageListItem[] {
-  const items: MessageListItem[] = [];
-  let index = 0;
+  const display: MessageListItem[] = [];
+  let cursor = 0;
 
-  while (index < messages.length) {
-    const message = messages[index];
-
-    if (!isGroupableToolMessage(message)) {
-      items.push(message);
-      index += 1;
+  while (cursor < messages.length) {
+    const first = messages[cursor];
+    if (!isNamedTool(first)) {
+      display.push(first);
+      cursor += 1;
       continue;
     }
 
-    const run: ChatMessage[] = [message];
-    let nextIndex = index + 1;
-
-    while (nextIndex < messages.length) {
-      const candidate = messages[nextIndex];
-
-      // Skip invisible interleaved messages so they don't break the run.
-      if (rendersNothing(candidate, showThinking)) {
-        nextIndex += 1;
-        continue;
+    const matching: ChatMessage[] = [];
+    let probe = cursor;
+    while (probe < messages.length) {
+      const current = messages[probe];
+      if (isHiddenThought(current, showThinking)) {
+        probe += 1;
+      } else if (isNamedTool(current) && current.toolName === first.toolName) {
+        matching.push(current);
+        probe += 1;
+      } else {
+        break;
       }
-
-      if (isGroupableToolMessage(candidate) && candidate.toolName === message.toolName) {
-        run.push(candidate);
-        nextIndex += 1;
-        continue;
-      }
-
-      break;
     }
 
-    if (run.length >= TOOL_GROUP_THRESHOLD) {
-      items.push({
+    if (matching.length >= TOOL_GROUP_THRESHOLD) {
+      display.push({
         _isGroup: true,
-        toolName: message.toolName,
-        messages: run,
-        timestamp: message.timestamp,
+        toolName: first.toolName,
+        messages: matching,
+        timestamp: first.timestamp,
       });
     } else {
-      items.push(...run);
+      display.push(...matching);
     }
-
-    index = nextIndex;
+    cursor = probe;
   }
 
-  return items;
+  return display;
 }

@@ -1,38 +1,20 @@
 import type { ChatMessage } from '../types/types';
 
-const toMessageKeyPart = (value: unknown): string | null => {
-  if (typeof value !== 'string' && typeof value !== 'number') {
-    return null;
-  }
-
-  const normalized = String(value).trim();
-  return normalized.length > 0 ? normalized : null;
+const keyValue = (candidate: unknown) => {
+  if (!['string', 'number'].includes(typeof candidate)) return null;
+  const value = `${candidate}`.trim();
+  return value || null;
 };
 
 export const getIntrinsicMessageKey = (message: ChatMessage): string | null => {
-  const candidates = [
-    message.id,
-    message.messageId,
-    message.toolId,
-    message.toolCallId,
-    message.blobId,
-    message.rowid,
-    message.sequence,
-  ];
+  const identity = [message.id, message.messageId, message.toolId, message.toolCallId, message.blobId, message.rowid, message.sequence]
+    .map(keyValue)
+    .find(Boolean);
+  if (identity) return `message-${message.type}-${identity}`;
 
-  for (const candidate of candidates) {
-    const keyPart = toMessageKeyPart(candidate);
-    if (keyPart) {
-      return `message-${message.type}-${keyPart}`;
-    }
-  }
-
-  const timestamp = new Date(message.timestamp).getTime();
-  if (!Number.isFinite(timestamp)) {
-    return null;
-  }
-
-  const contentPreview = typeof message.content === 'string' ? message.content.slice(0, 48) : '';
-  const toolName = typeof message.toolName === 'string' ? message.toolName : '';
-  return `message-${message.type}-${timestamp}-${toolName}-${contentPreview}`;
+  const instant = new Date(message.timestamp).getTime();
+  if (!Number.isFinite(instant)) return null;
+  const preview = typeof message.content === 'string' ? message.content.substring(0, 48) : '';
+  const tool = typeof message.toolName === 'string' ? message.toolName : '';
+  return `message-${message.type}-${instant}-${tool}-${preview}`;
 };

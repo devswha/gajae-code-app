@@ -2,81 +2,38 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 
 import { forgetSessionStorage } from '../../chat/utils/chatStorage';
+import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
+import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import { api } from '../../../utils/api';
 import { downloadBlob, filenameFromContentDisposition } from '../../../utils/download';
-import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
-import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
-import type {
-  ArchivedProjectListItem,
-  ArchivedSessionListItem,
-  DeleteProjectConfirmation,
-  ProjectSortOrder,
-  SessionDeleteConfirmation,
-  SessionWithProvider,
-} from '../types/types';
-import {
-  clearLegacyStarredProjectIds,
-  getAllSessions,
-  readLegacyStarredProjectIds,
-  readProjectSortOrder,
-  sortProjects,
-} from '../utils/utils';
+import type { ArchivedProjectListItem, ArchivedSessionListItem, DeleteProjectConfirmation, ProjectSortOrder, SessionDeleteConfirmation, SessionWithProvider } from '../types/types';
+import { clearLegacyStarredProjectIds, getAllSessions, readLegacyStarredProjectIds, readProjectSortOrder, sortProjects } from '../utils/utils';
 
-type ArchivedSessionsApiPayload = {
-  success?: boolean;
-  data?: {
-    sessions?: ArchivedSessionListItem[];
-  };
+type ArchivedSessionsPayload = { success?: boolean; data?: { sessions?: ArchivedSessionListItem[] } };
+type ArchivedProjectsPayload = { success?: boolean; data?: { projects?: ArchivedProjectListItem[] } };
+type UseSidebarControllerArgs = { projects: Project[]; selectedProject: Project | null; selectedSession: ProjectSession | null; isLoading: boolean; isMobile: boolean; t: TFunction; onRefresh: () => Promise<void> | void; onProjectSelect: (project: Project) => void; onSessionSelect: (session: ProjectSession) => void; onSessionDelete?: (sessionId: string) => void; onLoadMoreSessions?: (projectId: string) => Promise<void> | void; onProjectDelete?: (projectId: string) => void; setSidebarVisible: (visible: boolean) => void; sidebarVisible: boolean };
+
+const cloneWith = <T,>(previous: Set<T>, value: T, include: boolean) => {
+  const next = new Set(previous);
+  if (include) next.add(value);
+  else next.delete(value);
+  return next;
 };
 
-type ArchivedProjectsApiPayload = {
-  success?: boolean;
-  data?: {
-    projects?: ArchivedProjectListItem[];
-  };
+const errorMessage = (payload: { error?: string | { message?: string } }, fallback: string) => {
+  const { error } = payload;
+  return typeof error === 'string' ? error : error?.message || fallback;
 };
 
-type UseSidebarControllerArgs = {
-  projects: Project[];
-  selectedProject: Project | null;
-  selectedSession: ProjectSession | null;
-  isLoading: boolean;
-  isMobile: boolean;
-  t: TFunction;
-  onRefresh: () => Promise<void> | void;
-  onProjectSelect: (project: Project) => void;
-  onSessionSelect: (session: ProjectSession) => void;
-  onSessionDelete?: (sessionId: string) => void;
-  onLoadMoreSessions?: (projectId: string) => Promise<void> | void;
-  // `projectId` is the DB-assigned identifier; callbacks use that post-migration.
-  onProjectDelete?: (projectId: string) => void;
-  setSidebarVisible: (visible: boolean) => void;
-  sidebarVisible: boolean;
-};
-
-export function useSidebarController({
-  projects,
-  selectedProject,
-  selectedSession: _selectedSession,
-  isLoading,
-  isMobile,
-  t,
-  onRefresh,
-  onProjectSelect,
-  onSessionSelect,
-  onSessionDelete,
-  onLoadMoreSessions,
-  onProjectDelete,
-  setSidebarVisible,
-  sidebarVisible,
-}: UseSidebarControllerArgs) {
-  const paletteOps = usePaletteOps();
+export function useSidebarController(args: UseSidebarControllerArgs) {
+  const { projects, selectedProject, isLoading, isMobile, t, onRefresh, onProjectSelect, onSessionSelect, onSessionDelete, onLoadMoreSessions, onProjectDelete, setSidebarVisible, sidebarVisible } = args;
+  const palette = usePaletteOps();
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [editingProject, setEditingProject] = useState<string | null>(null);
   const [showNewProject, setShowNewProject] = useState(false);
   const [editingName, setEditingName] = useState('');
   const [initialSessionsLoaded, setInitialSessionsLoaded] = useState<Set<string>>(new Set());
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingSession, setEditingSession] = useState<string | null>(null);
@@ -89,116 +46,58 @@ export function useSidebarController({
   const [archivedProjects, setArchivedProjects] = useState<ArchivedProjectListItem[]>([]);
   const [archivedSessions, setArchivedSessions] = useState<ArchivedSessionListItem[]>([]);
   const [isArchivedSessionsLoading, setIsArchivedSessionsLoading] = useState(false);
-  const [optimisticStarByProjectId, setOptimisticStarByProjectId] = useState<Map<string, boolean>>(new Map());
+  const [starOverrides, setStarOverrides] = useState<Map<string, boolean>>(new Map());
   const [loadingMoreProjects, setLoadingMoreProjects] = useState<Set<string>>(new Set());
-  const starToggleSequenceByProjectRef = useRef<Map<string, number>>(new Map());
-  const migrationStartedRef = useRef(false);
-  const onRefreshRef = useRef(onRefresh);
-
-  const isSidebarCollapsed = !isMobile && !sidebarVisible;
+  const starRequests = useRef(new Map<string, number>());
+  const migrated = useRef(false);
+  const refreshRef = useRef(onRefresh);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-
-    return () => clearInterval(timer);
+    const interval = setInterval(() => setCurrentTime(new Date()), 60_000);
+    return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    setInitialSessionsLoaded(new Set());
-  }, [projects]);
+  useEffect(() => setInitialSessionsLoaded(new Set()), [projects]);
 
   useEffect(() => {
-    // Auto-expand only when the selected project identity changes.
-    // Depending on the full `selectedProject` object (or `selectedSession`) causes
-    // websocket-driven list refreshes to re-open projects users manually collapsed.
-    const selectedProjectId = selectedProject?.projectId;
-    if (!selectedProjectId) {
-      return;
-    }
-
-    setExpandedProjects((prev) => {
-      if (prev.has(selectedProjectId)) {
-        return prev;
-      }
-      const next = new Set(prev);
-      next.add(selectedProjectId);
-      return next;
-    });
+    const id = selectedProject?.projectId;
+    if (!id) return;
+    setExpandedProjects((previous) => previous.has(id) ? previous : cloneWith(previous, id, true));
   }, [selectedProject?.projectId]);
 
   useEffect(() => {
-    if (projects.length > 0 && !isLoading) {
-      const loadedProjects = new Set<string>();
-      projects.forEach((project) => {
-        if (project.sessions && project.sessions.length >= 0) {
-          loadedProjects.add(project.projectId);
-        }
-      });
-      setInitialSessionsLoaded(loadedProjects);
-    }
-  }, [projects, isLoading]);
+    if (isLoading || projects.length === 0) return;
+    setInitialSessionsLoaded(new Set(projects.filter((project) => project.sessions && project.sessions.length >= 0).map((project) => project.projectId)));
+  }, [isLoading, projects]);
 
   useEffect(() => {
-    const loadSortOrder = () => {
-      setProjectSortOrder(readProjectSortOrder());
-    };
-
-    loadSortOrder();
-
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === 'claude-settings') {
-        loadSortOrder();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-
-    const interval = setInterval(() => {
-      if (document.hasFocus()) {
-        loadSortOrder();
-      }
-    }, 1000);
-
+    const syncSort = () => setProjectSortOrder(readProjectSortOrder());
+    const onStorage = (event: StorageEvent) => { if (event.key === 'claude-settings') syncSort(); };
+    syncSort();
+    window.addEventListener('storage', onStorage);
+    const interval = setInterval(() => { if (document.hasFocus()) syncSort(); }, 1000);
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('storage', onStorage);
       clearInterval(interval);
     };
   }, []);
 
-  useEffect(() => {
-    onRefreshRef.current = onRefresh;
-  }, [onRefresh]);
+  useEffect(() => { refreshRef.current = onRefresh; }, [onRefresh]);
 
   const fetchArchivedSessions = useCallback(async () => {
     setIsArchivedSessionsLoading(true);
     setArchiveLoadError(null);
-
     try {
-      const [archivedProjectsResponse, archivedSessionsResponse] = await Promise.all([
-        api.archivedProjects(),
-        api.getArchivedSessions(),
-      ]);
-
-      if (!archivedProjectsResponse.ok) {
-        throw new Error(`Failed to load archived projects: ${archivedProjectsResponse.status}`);
-      }
-
-      if (!archivedSessionsResponse.ok) {
-        throw new Error(`Failed to load archived sessions: ${archivedSessionsResponse.status}`);
-      }
-
-      const archivedProjectsPayload = (await archivedProjectsResponse.json()) as ArchivedProjectsApiPayload;
-      const archivedSessionsPayload = (await archivedSessionsResponse.json()) as ArchivedSessionsApiPayload;
-      const nextProjects = Array.isArray(archivedProjectsPayload.data?.projects) ? archivedProjectsPayload.data.projects : [];
-      const archivedProjectIds = new Set(nextProjects.map((project) => project.projectId));
-      const nextStandaloneSessions = Array.isArray(archivedSessionsPayload.data?.sessions)
-        ? archivedSessionsPayload.data.sessions.filter((session) => !session.projectId || !archivedProjectIds.has(session.projectId))
-        : [];
-
+      const responses = await Promise.all([api.archivedProjects(), api.getArchivedSessions()]);
+      const [projectsResponse, sessionsResponse] = responses;
+      if (!projectsResponse.ok) throw new Error(`Failed to load archived projects: ${projectsResponse.status}`);
+      if (!sessionsResponse.ok) throw new Error(`Failed to load archived sessions: ${sessionsResponse.status}`);
+      const [projectPayload, sessionPayload] = await Promise.all([projectsResponse.json() as Promise<ArchivedProjectsPayload>, sessionsResponse.json() as Promise<ArchivedSessionsPayload>]);
+      const nextProjects = Array.isArray(projectPayload.data?.projects) ? projectPayload.data.projects : [];
+      const projectIds = new Set(nextProjects.map((project) => project.projectId));
+      const nextSessions = Array.isArray(sessionPayload.data?.sessions) ? sessionPayload.data.sessions.filter((session) => !session.projectId || !projectIds.has(session.projectId)) : [];
       setArchivedProjects(nextProjects);
-      setArchivedSessions(nextStandaloneSessions);
+      setArchivedSessions(nextSessions);
     } catch (error) {
       console.error('[Sidebar] Failed to load archived sessions:', error);
       setArchiveLoadError(t('archived.loadError', 'Unable to load archive. Try again.'));
@@ -208,584 +107,170 @@ export function useSidebarController({
   }, [t]);
 
   useEffect(() => {
-    if (migrationStartedRef.current) {
-      return;
-    }
-
-    const legacyStarredProjectIds = readLegacyStarredProjectIds();
-    if (legacyStarredProjectIds.length === 0) {
-      return;
-    }
-
-    migrationStartedRef.current = true;
-
-    const migrateLegacyStars = async () => {
+    if (migrated.current) return;
+    const ids = readLegacyStarredProjectIds();
+    if (!ids.length) return;
+    migrated.current = true;
+    void (async () => {
       try {
-        await api.migrateLegacyProjectStars(legacyStarredProjectIds);
-        await onRefreshRef.current();
+        await api.migrateLegacyProjectStars(ids);
+        await refreshRef.current();
       } catch (error) {
         console.error('[Sidebar] Failed to migrate legacy starred projects:', error);
       } finally {
         clearLegacyStarredProjectIds();
       }
-    };
-
-    void migrateLegacyStars();
+    })();
   }, [onRefresh]);
 
   useEffect(() => {
-    setOptimisticStarByProjectId((previous) => {
-      if (previous.size === 0) {
-        return previous;
-      }
-
+    setStarOverrides((previous) => {
       const next = new Map(previous);
-      let changed = false;
-
-      for (const [projectId, optimisticValue] of previous.entries()) {
-        const project = projects.find((candidate) => candidate.projectId === projectId);
-        if (!project) {
-          next.delete(projectId);
-          changed = true;
-          continue;
-        }
-
-        if (Boolean(project.isStarred) === optimisticValue) {
-          next.delete(projectId);
-          changed = true;
-        }
+      for (const [id, starred] of previous) {
+        const project = projects.find((candidate) => candidate.projectId === id);
+        if (!project || Boolean(project.isStarred) === starred) next.delete(id);
       }
-
-      return changed ? next : previous;
+      return next.size === previous.size ? previous : next;
     });
   }, [projects]);
 
-  // All sidebar state keys (expanded, starred, loading, etc.) use the DB
-  // `projectId` as their identifier after the migration.
-  const toggleProject = useCallback((projectId: string) => {
-    setExpandedProjects((prev) => {
-      const next = new Set<string>();
-      if (!prev.has(projectId)) {
-        next.add(projectId);
-      }
-      return next;
-    });
-  }, []);
-
-  const handleSessionClick = useCallback(
-    (session: SessionWithProvider, projectId: string) => {
-      // Tag the session with its owning projectId so downstream handlers
-      // can correlate it with the selectedProject in the app state.
-      onSessionSelect({ ...session, __projectId: projectId });
-    },
-    [onSessionSelect],
-  );
-
-  const resolveProjectStarState = useCallback(
-    (projectId: string): boolean => {
-      if (optimisticStarByProjectId.has(projectId)) {
-        return Boolean(optimisticStarByProjectId.get(projectId));
-      }
-
-      return projects.some((project) => project.projectId === projectId && Boolean(project.isStarred));
-    },
-    [optimisticStarByProjectId, projects],
-  );
+  const resolveStar = useCallback((projectId: string) => starOverrides.has(projectId) ? Boolean(starOverrides.get(projectId)) : Boolean(projects.find((project) => project.projectId === projectId)?.isStarred), [projects, starOverrides]);
+  const toggleProject = useCallback((projectId: string) => setExpandedProjects((previous) => previous.has(projectId) ? new Set() : new Set([projectId])), []);
+  const handleSessionClick = useCallback((session: SessionWithProvider, projectId: string) => onSessionSelect({ ...session, __projectId: projectId }), [onSessionSelect]);
+  const isProjectStarred = useCallback((projectId: string) => resolveStar(projectId), [resolveStar]);
+  const getProjectSessions = useCallback((project: Project) => getAllSessions(project), []);
 
   const toggleStarProject = useCallback((projectId: string) => {
-    const previousStarState = resolveProjectStarState(projectId);
-    const optimisticStarState = !previousStarState;
-    const latestSequence = (starToggleSequenceByProjectRef.current.get(projectId) ?? 0) + 1;
-    starToggleSequenceByProjectRef.current.set(projectId, latestSequence);
-
-    setOptimisticStarByProjectId((previous) => {
-      const next = new Map(previous);
-      next.set(projectId, optimisticStarState);
-      return next;
-    });
-
-    const updateStar = async () => {
+    const oldValue = resolveStar(projectId);
+    const requestedValue = !oldValue;
+    const requestNumber = (starRequests.current.get(projectId) ?? 0) + 1;
+    starRequests.current.set(projectId, requestNumber);
+    setStarOverrides((previous) => new Map(previous).set(projectId, requestedValue));
+    void (async () => {
       try {
         const response = await api.toggleProjectStar(projectId);
-        if (!response.ok) {
-          const payload = (await response.json()) as { error?: string | { message?: string } };
-          const errorPayload = payload.error;
-          const message =
-            typeof errorPayload === 'string'
-              ? errorPayload
-              : errorPayload && typeof errorPayload === 'object' && errorPayload.message
-                ? errorPayload.message
-                : t('messages.updateProjectError');
-          throw new Error(message);
-        }
-
-        const payload = (await response.json()) as { isStarred?: boolean };
-        const isLatestSequence = starToggleSequenceByProjectRef.current.get(projectId) === latestSequence;
-        if (!isLatestSequence) {
-          return;
-        }
-
-        setOptimisticStarByProjectId((previous) => {
-          const next = new Map(previous);
-          next.set(projectId, Boolean(payload.isStarred));
-          return next;
-        });
+        if (!response.ok) throw new Error(errorMessage(await response.json() as { error?: string | { message?: string } }, t('messages.updateProjectError')));
+        const payload = await response.json() as { isStarred?: boolean };
+        if (starRequests.current.get(projectId) === requestNumber) setStarOverrides((previous) => new Map(previous).set(projectId, Boolean(payload.isStarred)));
       } catch (error) {
-        const isLatestSequence = starToggleSequenceByProjectRef.current.get(projectId) === latestSequence;
-        if (!isLatestSequence) {
-          return;
-        }
-
-        setOptimisticStarByProjectId((previous) => {
-          const next = new Map(previous);
-          next.set(projectId, previousStarState);
-          return next;
-        });
+        if (starRequests.current.get(projectId) !== requestNumber) return;
+        setStarOverrides((previous) => new Map(previous).set(projectId, oldValue));
         console.error('[Sidebar] Failed to toggle project star:', error);
         alert(t('messages.updateProjectError'));
       }
-    };
-
-    void updateStar();
-  }, [resolveProjectStarState, t]);
-
-  const isProjectStarred = useCallback(
-    (projectId: string) => resolveProjectStarState(projectId),
-    [resolveProjectStarState],
-  );
-
-  const getProjectSessions = useCallback((project: Project) => getAllSessions(project), []);
+    })();
+  }, [resolveStar, t]);
 
   const loadMoreSessionsForProject = useCallback(async (projectId: string) => {
-    if (!onLoadMoreSessions) {
-      return;
-    }
-
-    let shouldLoad = false;
+    if (!onLoadMoreSessions) return;
+    let canStart = false;
     setLoadingMoreProjects((previous) => {
-      if (previous.has(projectId)) {
-        return previous;
-      }
-
-      shouldLoad = true;
-      const next = new Set(previous);
-      next.add(projectId);
-      return next;
+      if (previous.has(projectId)) return previous;
+      canStart = true;
+      return cloneWith(previous, projectId, true);
     });
-
-    if (!shouldLoad) {
-      return;
-    }
-
-    try {
-      await onLoadMoreSessions(projectId);
-    } catch (error) {
-      console.error('[Sidebar] Failed to load more sessions:', error);
-      alert(t('messages.refreshError'));
-    } finally {
-      setLoadingMoreProjects((previous) => {
-        const next = new Set(previous);
-        next.delete(projectId);
-        return next;
-      });
-    }
+    if (!canStart) return;
+    try { await onLoadMoreSessions(projectId); }
+    catch (error) { console.error('[Sidebar] Failed to load more sessions:', error); alert(t('messages.refreshError')); }
+    finally { setLoadingMoreProjects((previous) => cloneWith(previous, projectId, false)); }
   }, [onLoadMoreSessions, t]);
 
-  const projectsWithResolvedStarState = useMemo(() => {
-    if (optimisticStarByProjectId.size === 0) {
-      return projects;
-    }
+  const filteredProjects = useMemo(() => {
+    const resolved = starOverrides.size === 0 ? projects : projects.map((project) => starOverrides.has(project.projectId) && Boolean(project.isStarred) !== starOverrides.get(project.projectId) ? { ...project, isStarred: starOverrides.get(project.projectId) } : project);
+    return sortProjects(resolved, projectSortOrder);
+  }, [projectSortOrder, projects, starOverrides]);
 
-    return projects.map((project) => {
-      const optimisticStarState = optimisticStarByProjectId.get(project.projectId);
-      if (optimisticStarState === undefined) {
-        return project;
-      }
+  const startEditing = useCallback((project: Project) => { setEditingProject(project.projectId); setEditingName(project.displayName); }, []);
+  const cancelEditing = useCallback(() => { setEditingProject(null); setEditingName(''); }, []);
+  const saveProjectName = useCallback(async (projectId: string) => {
+    try {
+      const response = await api.renameProject(projectId, editingName);
+      if (response.ok) await palette.refreshProjects();
+      else console.error('Failed to rename project');
+    } catch (error) { console.error('Error renaming project:', error); }
+    finally { setEditingProject(null); setEditingName(''); }
+  }, [editingName, palette]);
 
-      const currentStarState = Boolean(project.isStarred);
-      if (currentStarState === optimisticStarState) {
-        return project;
-      }
-
-      return {
-        ...project,
-        isStarred: optimisticStarState,
-      };
-    });
-  }, [optimisticStarByProjectId, projects]);
-
-  const sortedProjects = useMemo(
-    () => sortProjects(projectsWithResolvedStarState, projectSortOrder),
-    [projectSortOrder, projectsWithResolvedStarState],
-  );
-
-  const startEditing = useCallback((project: Project) => {
-    // `editingProject` is keyed by projectId so it stays stable across
-    // display-name mutations that happen while the input is open.
-    setEditingProject(project.projectId);
-    setEditingName(project.displayName);
-  }, []);
-
-  const cancelEditing = useCallback(() => {
-    setEditingProject(null);
-    setEditingName('');
-  }, []);
-
-  const saveProjectName = useCallback(
-    // `projectId` is the DB primary key; the rename API resolves the path
-    // through the `projects` table before writing the new display name.
-    async (projectId: string) => {
-      try {
-        const response = await api.renameProject(projectId, editingName);
-        if (response.ok) {
-          await paletteOps.refreshProjects();
-        } else {
-          console.error('Failed to rename project');
-        }
-      } catch (error) {
-        console.error('Error renaming project:', error);
-      } finally {
-        setEditingProject(null);
-        setEditingName('');
-      }
-    },
-    [editingName, paletteOps],
-  );
-
-  const showDeleteSessionConfirmation = useCallback(
-    // Kept with project/provider arguments for component wiring compatibility;
-    // deletion now uses only `sessionId` via /api/providers/sessions/:sessionId.
-    (
-      projectId: string | null,
-      sessionId: string,
-      sessionTitle: string,
-      provider: SessionDeleteConfirmation['provider'] = 'gjc',
-      options: {
-        isArchived?: boolean;
-      } = {},
-    ) => {
-      setSessionDeleteConfirmation({
-        projectId,
-        sessionId,
-        sessionTitle,
-        provider,
-        isArchived: Boolean(options.isArchived),
-      });
-    },
-    [],
-  );
-
+  const showDeleteSessionConfirmation = useCallback((projectId: string | null, sessionId: string, sessionTitle: string, provider: SessionDeleteConfirmation['provider'] = 'gjc', options: { isArchived?: boolean } = {}) => setSessionDeleteConfirmation({ projectId, sessionId, sessionTitle, provider, isArchived: Boolean(options.isArchived) }), []);
   const confirmDeleteSession = useCallback(async (hardDelete = false) => {
-    if (!sessionDeleteConfirmation) {
-      return;
-    }
-
+    if (!sessionDeleteConfirmation) return;
     const { sessionId } = sessionDeleteConfirmation;
     setSessionDeleteConfirmation(null);
-
     try {
       const response = await api.deleteSession(sessionId, hardDelete);
-
-      if (response.ok) {
-        // The composer keys its draft and its queue by session id, and nothing
-        // else ever reaps them; a deleted conversation would otherwise leave
-        // both in localStorage for good.
-        forgetSessionStorage(sessionId);
-        onSessionDelete?.(sessionId);
-        await fetchArchivedSessions();
-      } else {
-        const errorText = await response.text();
-        console.error('[Sidebar] Failed to delete session:', {
-          status: response.status,
-          error: errorText,
-        });
-        alert(t('messages.deleteSessionFailed'));
-      }
-    } catch (error) {
-      console.error('[Sidebar] Error deleting session:', error);
-      alert(t('messages.deleteSessionError'));
-    }
+      if (!response.ok) { console.error('[Sidebar] Failed to delete session:', { status: response.status, error: await response.text() }); alert(t('messages.deleteSessionFailed')); return; }
+      forgetSessionStorage(sessionId);
+      onSessionDelete?.(sessionId);
+      await fetchArchivedSessions();
+    } catch (error) { console.error('[Sidebar] Error deleting session:', error); alert(t('messages.deleteSessionError')); }
   }, [fetchArchivedSessions, onSessionDelete, sessionDeleteConfirmation, t]);
 
-  const requestProjectDelete = useCallback(
-    (project: Project) => {
-      setDeleteConfirmation({
-        project,
-        sessionCount: getProjectSessions(project).length,
-      });
-    },
-    [getProjectSessions],
-  );
-
+  const requestProjectDelete = useCallback((project: Project) => setDeleteConfirmation({ project, sessionCount: getProjectSessions(project).length }), [getProjectSessions]);
   const confirmDeleteProject = useCallback(async (deleteData = false) => {
-    if (!deleteConfirmation) {
-      return;
-    }
-
-    const { project } = deleteConfirmation;
-
+    if (!deleteConfirmation) return;
+    const project = deleteConfirmation.project;
     setDeleteConfirmation(null);
-    // Track in-flight deletes by projectId so the UI can disable actions
-    // even if the project object is rebuilt while the request is flying.
-    setDeletingProjects((prev) => new Set([...prev, project.projectId]));
-
+    setDeletingProjects((previous) => cloneWith(previous, project.projectId, true));
     try {
       const response = await api.deleteProject(project.projectId, deleteData);
-
-      if (response.ok) {
-        onProjectDelete?.(project.projectId);
-      } else {
-        const data = (await response.json()) as { error?: string | { message?: string } };
-        const err = data.error;
-        const message =
-          typeof err === 'string' ? err : err && typeof err === 'object' && err.message ? err.message : t('messages.deleteProjectFailed');
-        alert(message);
-      }
-    } catch (error) {
-      console.error('Error deleting project:', error);
-      alert(t('messages.deleteProjectError'));
-    } finally {
-      setDeletingProjects((prev) => {
-        const next = new Set(prev);
-        next.delete(project.projectId);
-        return next;
-      });
-    }
+      if (response.ok) onProjectDelete?.(project.projectId);
+      else alert(errorMessage(await response.json() as { error?: string | { message?: string } }, t('messages.deleteProjectFailed')));
+    } catch (error) { console.error('Error deleting project:', error); alert(t('messages.deleteProjectError')); }
+    finally { setDeletingProjects((previous) => cloneWith(previous, project.projectId, false)); }
   }, [deleteConfirmation, onProjectDelete, t]);
 
-  const handleProjectSelect = useCallback(
-    (project: Project) => {
-      onProjectSelect(project);
-    },
-    [onProjectSelect],
-  );
-
+  const handleProjectSelect = useCallback((project: Project) => onProjectSelect(project), [onProjectSelect]);
   const openArchivedSession = useCallback((session: ArchivedSessionListItem) => {
-    const activeProject = session.projectId
-      ? projects.find((candidate) => candidate.projectId === session.projectId)
-      : null;
-    const archivedProject = session.projectId
-      ? archivedProjects.find((candidate) => candidate.projectId === session.projectId)
-      : null;
-    const matchingProject = activeProject ?? archivedProject ?? null;
-    const sessionPayload: ProjectSession = {
-      id: session.sessionId,
-      summary: session.sessionTitle,
-      __provider: session.provider,
-      __projectId: matchingProject?.projectId ?? session.projectId ?? undefined,
-    };
-
-    // Archived sessions still need a selected project context. Active projects
-    // come from the normal sidebar list, while archived-project sessions resolve
-    // through the archive payload loaded by this controller.
-    if (matchingProject) {
-      handleProjectSelect(matchingProject);
-    }
-
-    onSessionSelect(sessionPayload);
+    const project = session.projectId ? projects.find((candidate) => candidate.projectId === session.projectId) ?? archivedProjects.find((candidate) => candidate.projectId === session.projectId) ?? null : null;
+    if (project) handleProjectSelect(project);
+    onSessionSelect({ id: session.sessionId, summary: session.sessionTitle, __provider: session.provider, __projectId: project?.projectId ?? session.projectId ?? undefined });
   }, [archivedProjects, handleProjectSelect, onSessionSelect, projects]);
 
-  const restoreArchivedProject = useCallback(async (projectId: string) => {
+  const restore = useCallback(async (id: string, kind: 'project' | 'session') => {
     try {
-      const response = await api.restoreProject(projectId);
+      const response = kind === 'project' ? await api.restoreProject(id) : await api.restoreSession(id);
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[Sidebar] Failed to restore project:', {
-          status: response.status,
-          error: errorText,
-        });
-        alert(t('messages.restoreProjectFailed', 'Failed to restore project. Please try again.'));
+        console.error(`[Sidebar] Failed to restore ${kind}:`, { status: response.status, error: await response.text() });
+        alert(kind === 'project' ? t('messages.restoreProjectFailed', 'Failed to restore project. Please try again.') : t('messages.restoreSessionFailed', 'Failed to restore session. Please try again.'));
         return;
       }
-
-      await Promise.all([
-        Promise.resolve(onRefresh()),
-        fetchArchivedSessions(),
-      ]);
+      await Promise.all([Promise.resolve(onRefresh()), fetchArchivedSessions()]);
     } catch (error) {
-      console.error('[Sidebar] Error restoring project:', error);
-      alert(t('messages.restoreProjectError', 'Error restoring project. Please try again.'));
+      console.error(`[Sidebar] Error restoring ${kind}:`, error);
+      alert(kind === 'project' ? t('messages.restoreProjectError', 'Error restoring project. Please try again.') : t('messages.restoreSessionError', 'Error restoring session. Please try again.'));
     }
   }, [fetchArchivedSessions, onRefresh, t]);
-
-  const restoreArchivedSession = useCallback(async (sessionId: string) => {
+  const restoreArchivedProject = useCallback(async (projectId: string) => restore(projectId, 'project'), [restore]);
+  const restoreArchivedSession = useCallback(async (sessionId: string) => restore(sessionId, 'session'), [restore]);
+  const openArchive = useCallback(() => { setIsArchiveOpen(true); void fetchArchivedSessions(); }, [fetchArchivedSessions]);
+  const closeArchive = useCallback(() => setIsArchiveOpen(false), []);
+  const refreshProjects = useCallback(async () => { setIsRefreshing(true); try { await Promise.all([Promise.resolve(onRefresh()), fetchArchivedSessions()]); } finally { setIsRefreshing(false); } }, [fetchArchivedSessions, onRefresh]);
+  const updateSessionSummary = useCallback(async (_projectId: string, sessionId: string, summary: string, _provider: LLMProvider) => {
+    const nextSummary = summary.trim();
+    if (!nextSummary) { setEditingSession(null); setEditingSessionName(''); return; }
     try {
-      const response = await api.restoreSession(sessionId);
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[Sidebar] Failed to restore session:', {
-          status: response.status,
-          error: errorText,
-        });
-        alert(t('messages.restoreSessionFailed', 'Failed to restore session. Please try again.'));
-        return;
-      }
-
-      await Promise.all([
-        Promise.resolve(onRefresh()),
-        fetchArchivedSessions(),
-      ]);
-    } catch (error) {
-      console.error('[Sidebar] Error restoring session:', error);
-      alert(t('messages.restoreSessionError', 'Error restoring session. Please try again.'));
-    }
-  }, [fetchArchivedSessions, onRefresh, t]);
-
-  const openArchive = useCallback(() => {
-    setIsArchiveOpen(true);
-    void fetchArchivedSessions();
-  }, [fetchArchivedSessions]);
-
-  const closeArchive = useCallback(() => {
-    setIsArchiveOpen(false);
-  }, []);
-
-  const refreshProjects = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await Promise.all([
-        Promise.resolve(onRefresh()),
-        fetchArchivedSessions(),
-      ]);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [fetchArchivedSessions, onRefresh]);
-
-  const updateSessionSummary = useCallback(
-    // `_projectId` and `_provider` are preserved for compatibility with
-    // existing sidebar callback signatures; backend rename only needs sessionId.
-    async (_projectId: string, sessionId: string, summary: string, _provider: LLMProvider) => {
-      const trimmed = summary.trim();
-      if (!trimmed) {
-        setEditingSession(null);
-        setEditingSessionName('');
-        return;
-      }
-      try {
-        const response = await api.renameSession(sessionId, trimmed);
-        if (response.ok) {
-          await onRefresh();
-        } else {
-          console.error('[Sidebar] Failed to rename session:', response.status);
-          alert(t('messages.renameSessionFailed'));
-        }
-      } catch (error) {
-        console.error('[Sidebar] Error renaming session:', error);
-        alert(t('messages.renameSessionError'));
-      } finally {
-        setEditingSession(null);
-        setEditingSessionName('');
-      }
-    },
-    [onRefresh, t],
-  );
-
+      const response = await api.renameSession(sessionId, nextSummary);
+      if (response.ok) await onRefresh();
+      else { console.error('[Sidebar] Failed to rename session:', response.status); alert(t('messages.renameSessionFailed')); }
+    } catch (error) { console.error('[Sidebar] Error renaming session:', error); alert(t('messages.renameSessionError')); }
+    finally { setEditingSession(null); setEditingSessionName(''); }
+  }, [onRefresh, t]);
   const toggleSessionStar = useCallback(async (sessionId: string) => {
     try {
       const response = await api.toggleSessionStar(sessionId);
-      if (!response.ok) {
-        console.error('[Sidebar] Failed to toggle session star:', response.status);
-        alert(t('messages.updateSessionError'));
-        return;
-      }
-
+      if (!response.ok) { console.error('[Sidebar] Failed to toggle session star:', response.status); alert(t('messages.updateSessionError')); return; }
       await onRefresh();
-    } catch (error) {
-      console.error('[Sidebar] Error toggling session star:', error);
-      alert(t('messages.updateSessionError'));
-    }
+    } catch (error) { console.error('[Sidebar] Error toggling session star:', error); alert(t('messages.updateSessionError')); }
   }, [onRefresh, t]);
-
-  /**
-   * Saves the conversation as Markdown.
-   *
-   * The runtime's own `/export` only runs inside a live turn and writes into
-   * the project directory; this reads the stored transcript instead, so it
-   * works on any session in the list and leaves nothing behind in the user's
-   * repository.
-   */
   const exportSession = useCallback(async (sessionId: string) => {
     try {
       const response = await api.exportSession(sessionId);
-      if (!response.ok) {
-        console.error('[Sidebar] Failed to export session:', response.status);
-        alert(t('messages.exportSessionError'));
-        return;
-      }
-
-      const blob = await response.blob();
-      downloadBlob(
-        blob,
-        filenameFromContentDisposition(response.headers.get('content-disposition'), `${sessionId}.md`),
-      );
-    } catch (error) {
-      console.error('[Sidebar] Error exporting session:', error);
-      alert(t('messages.exportSessionError'));
-    }
+      if (!response.ok) { console.error('[Sidebar] Failed to export session:', response.status); alert(t('messages.exportSessionError')); return; }
+      downloadBlob(await response.blob(), filenameFromContentDisposition(response.headers.get('content-disposition'), `${sessionId}.md`));
+    } catch (error) { console.error('[Sidebar] Error exporting session:', error); alert(t('messages.exportSessionError')); }
   }, [t]);
+  const collapseSidebar = useCallback(() => setSidebarVisible(false), [setSidebarVisible]);
+  const expandSidebar = useCallback(() => setSidebarVisible(true), [setSidebarVisible]);
 
-  const collapseSidebar = useCallback(() => {
-    setSidebarVisible(false);
-  }, [setSidebarVisible]);
-
-  const expandSidebar = useCallback(() => {
-    setSidebarVisible(true);
-  }, [setSidebarVisible]);
-
-  return {
-    isSidebarCollapsed,
-    expandedProjects,
-    editingProject,
-    showNewProject,
-    editingName,
-    initialSessionsLoaded,
-    currentTime,
-    projectSortOrder,
-    isRefreshing,
-    editingSession,
-    editingSessionName,
-    deletingProjects,
-    loadingMoreProjects,
-    deleteConfirmation,
-    sessionDeleteConfirmation,
-    filteredProjects: sortedProjects,
-    isArchiveOpen,
-    archiveLoadError,
-    archivedProjects,
-    archivedSessions,
-    archivedSessionsCount: archivedProjects.length + archivedSessions.length,
-    isArchivedSessionsLoading,
-    toggleProject,
-    handleSessionClick,
-    toggleStarProject,
-    isProjectStarred,
-    getProjectSessions,
-    loadMoreSessionsForProject,
-    startEditing,
-    cancelEditing,
-    saveProjectName,
-    showDeleteSessionConfirmation,
-    confirmDeleteSession,
-    requestProjectDelete,
-    confirmDeleteProject,
-    handleProjectSelect,
-    openArchivedSession,
-    restoreArchivedProject,
-    restoreArchivedSession,
-    openArchive,
-    closeArchive,
-    refreshProjects,
-    updateSessionSummary,
-    toggleSessionStar,
-    exportSession,
-    collapseSidebar,
-    expandSidebar,
-    setShowNewProject,
-    setEditingName,
-    setEditingSession,
-    setEditingSessionName,
-    setDeleteConfirmation,
-    setSessionDeleteConfirmation,
-  };
+  return { isSidebarCollapsed: !isMobile && !sidebarVisible, expandedProjects, editingProject, showNewProject, editingName, initialSessionsLoaded, currentTime, projectSortOrder, isRefreshing, editingSession, editingSessionName, deletingProjects, loadingMoreProjects, deleteConfirmation, sessionDeleteConfirmation, filteredProjects, isArchiveOpen, archiveLoadError, archivedProjects, archivedSessions, archivedSessionsCount: archivedProjects.length + archivedSessions.length, isArchivedSessionsLoading, toggleProject, handleSessionClick, toggleStarProject, isProjectStarred, getProjectSessions, loadMoreSessionsForProject, startEditing, cancelEditing, saveProjectName, showDeleteSessionConfirmation, confirmDeleteSession, requestProjectDelete, confirmDeleteProject, handleProjectSelect, openArchivedSession, restoreArchivedProject, restoreArchivedSession, openArchive, closeArchive, refreshProjects, updateSessionSummary, toggleSessionStar, exportSession, collapseSidebar, expandSidebar, setShowNewProject, setEditingName, setEditingSession, setEditingSessionName, setDeleteConfirmation, setSessionDeleteConfirmation };
 }

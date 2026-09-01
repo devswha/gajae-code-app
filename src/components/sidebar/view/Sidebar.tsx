@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useProjectsQuery } from '../../../hooks/useProjectsQuery';
-import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
-import { useSidebarController } from '../hooks/useSidebarController';
-import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
+import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useAppShellStore } from '../../../stores/useAppShellStore';
+import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
 import type { LLMProvider, Project } from '../../../types/app';
+import { useSidebarController } from '../hooks/useSidebarController';
 import type { SidebarProps } from '../types/types';
 
 import SidebarCollapsed from './SidebarCollapsed';
@@ -16,93 +16,28 @@ import SidebarContent from './SidebarContent';
 import SidebarModals from './SidebarModals';
 import type { SidebarProjectListProps } from './SidebarProjectList';
 
-function Sidebar({
-  activeSessions,
-  onProjectSelect,
-  onSessionSelect,
-  onNewSession,
-  onSessionDelete,
-  onLoadMoreSessions,
-  onProjectDelete,
-  onRefresh,
-  isMobile,
-}: SidebarProps) {
+function Sidebar(props: SidebarProps) {
+  const { activeSessions, onProjectSelect, onSessionSelect, onNewSession, onSessionDelete, onLoadMoreSessions, onProjectDelete, onRefresh, isMobile } = props;
   const { t } = useTranslation(['sidebar', 'common']);
   const { isPWA } = useDeviceSettings({ trackMobile: false });
   const { currentVersion } = useVersionCheck('devswha', 'gajae-app');
   const { preferences, setPreference } = useUiPreferences();
-  const { sidebarVisible } = preferences;
-  const paletteOps = usePaletteOps();
-  const projectsQuery = useProjectsQuery();
-  const projects = projectsQuery.data ?? [];
-  const isLoading = projectsQuery.isLoading;
-  const selectedProject = useAppShellStore((state) => state.selectedProject);
-  const selectedSession = useAppShellStore((state) => state.selectedSession);
-  const attentionSessionIds = useAppShellStore((state) => state.attentionSessionIds);
-  const loadingProgress = useAppShellStore((state) => state.loadingProgress);
-  const showSettings = useAppShellStore((state) => state.showSettings);
-  const settingsInitialTab = useAppShellStore((state) => state.settingsInitialTab);
-  const openSettings = useAppShellStore((state) => state.openSettings);
-  const setShowSettings = useAppShellStore((state) => state.setShowSettings);
-
-  const {
-    isSidebarCollapsed,
-    expandedProjects,
-    editingProject,
-    showNewProject,
-    editingName,
-    initialSessionsLoaded,
-    currentTime,
-    isRefreshing,
-    editingSession,
-    editingSessionName,
-    deletingProjects,
-    deleteConfirmation,
-    sessionDeleteConfirmation,
-    filteredProjects,
-    isArchiveOpen,
-    archiveLoadError,
-    archivedProjects,
-    archivedSessions,
-    archivedSessionsCount,
-    isArchivedSessionsLoading,
-    toggleProject,
-    handleSessionClick,
-    toggleStarProject,
-    isProjectStarred,
-    getProjectSessions,
-    loadingMoreProjects,
-    loadMoreSessionsForProject,
-    startEditing,
-    cancelEditing,
-    saveProjectName,
-    showDeleteSessionConfirmation,
-    confirmDeleteSession,
-    requestProjectDelete,
-    confirmDeleteProject,
-    handleProjectSelect,
-    openArchivedSession,
-    restoreArchivedProject,
-    restoreArchivedSession,
-    openArchive,
-    closeArchive,
-    refreshProjects,
-    updateSessionSummary,
-    toggleSessionStar,
-    exportSession,
-    collapseSidebar: handleCollapseSidebar,
-    expandSidebar: handleExpandSidebar,
-    setShowNewProject,
-    setEditingName,
-    setEditingSession,
-    setEditingSessionName,
-    setDeleteConfirmation,
-    setSessionDeleteConfirmation,
-  } = useSidebarController({
+  const palette = usePaletteOps();
+  const projectQuery = useProjectsQuery();
+  const selectedProject = useAppShellStore((shell) => shell.selectedProject);
+  const selectedSession = useAppShellStore((shell) => shell.selectedSession);
+  const attentionSessionIds = useAppShellStore((shell) => shell.attentionSessionIds);
+  const loadingProgress = useAppShellStore((shell) => shell.loadingProgress);
+  const showSettings = useAppShellStore((shell) => shell.showSettings);
+  const settingsInitialTab = useAppShellStore((shell) => shell.settingsInitialTab);
+  const openSettings = useAppShellStore((shell) => shell.openSettings);
+  const setShowSettings = useAppShellStore((shell) => shell.setShowSettings);
+  const projects = projectQuery.data ?? [];
+  const controller = useSidebarController({
     projects,
     selectedProject,
     selectedSession,
-    isLoading,
+    isLoading: projectQuery.isLoading,
     isMobile,
     t,
     onRefresh,
@@ -112,151 +47,112 @@ function Sidebar({
     onLoadMoreSessions,
     onProjectDelete,
     setSidebarVisible: (visible) => setPreference('sidebarVisible', visible),
-    sidebarVisible,
+    sidebarVisible: preferences.sidebarVisible,
   });
 
   useEffect(() => {
-    if (typeof document === 'undefined') {
-      return;
-    }
-
+    if (typeof document === 'undefined') return;
     document.documentElement.classList.toggle('pwa-mode', isPWA);
     document.body.classList.toggle('pwa-mode', isPWA);
   }, [isPWA]);
 
-  const handleProjectCreated = () => {
-    void paletteOps.refreshProjects();
-  };
-
-  // Sandbox project visibility: a clean first run shows nothing (Codex-style),
-  // because every pre-existing project is discovered as 'legacy'/'auto'. Only
-  // projects the user explicitly creates or opens in-app ('explicit') surface in
-  // the sidebar, and they persist across relaunches via the DB. Backend rows are
-  // untouched, so this is fully reversible by removing the filter.
-  const isSandboxVisibleProject = (project: Project) => project.origin === 'explicit';
-  const sandboxProjects = projects.filter(isSandboxVisibleProject);
-  const sandboxFilteredProjects = filteredProjects.filter(isSandboxVisibleProject);
-
+  const isExplicit = (project: Project) => project.origin === 'explicit';
+  const visibleProjects = projects.filter(isExplicit);
+  const visibleFilteredProjects = controller.filteredProjects.filter(isExplicit);
   const projectListProps: SidebarProjectListProps = {
-    projects: sandboxProjects,
-    filteredProjects: sandboxFilteredProjects,
+    projects: visibleProjects,
+    filteredProjects: visibleFilteredProjects,
     selectedProject,
     selectedSession,
-    isLoading,
+    isLoading: projectQuery.isLoading,
     loadingProgress,
-    expandedProjects,
-    editingProject,
-    editingName,
-    initialSessionsLoaded,
-    currentTime,
-    editingSession,
-    editingSessionName,
-    deletingProjects,
-    getProjectSessions,
-    loadingMoreProjects,
+    expandedProjects: controller.expandedProjects,
+    editingProject: controller.editingProject,
+    editingName: controller.editingName,
+    initialSessionsLoaded: controller.initialSessionsLoaded,
+    currentTime: controller.currentTime,
+    editingSession: controller.editingSession,
+    editingSessionName: controller.editingSessionName,
+    deletingProjects: controller.deletingProjects,
+    getProjectSessions: controller.getProjectSessions,
+    loadingMoreProjects: controller.loadingMoreProjects,
     activeSessions,
     attentionSessionIds,
-    isProjectStarred,
-    onEditingNameChange: setEditingName,
-    onToggleProject: toggleProject,
-    onProjectSelect: handleProjectSelect,
-    onToggleStarProject: toggleStarProject,
-    onStartEditingProject: startEditing,
-    onCancelEditingProject: cancelEditing,
-    onSaveProjectName: (projectName) => {
-      void saveProjectName(projectName);
-    },
-    onDeleteProject: requestProjectDelete,
-    onSessionSelect: handleSessionClick,
-    onDeleteSession: showDeleteSessionConfirmation,
-    onLoadMoreSessions: loadMoreSessionsForProject,
+    isProjectStarred: controller.isProjectStarred,
+    onEditingNameChange: controller.setEditingName,
+    onToggleProject: controller.toggleProject,
+    onProjectSelect: controller.handleProjectSelect,
+    onToggleStarProject: controller.toggleStarProject,
+    onStartEditingProject: controller.startEditing,
+    onCancelEditingProject: controller.cancelEditing,
+    onSaveProjectName: (projectId) => { void controller.saveProjectName(projectId); },
+    onDeleteProject: controller.requestProjectDelete,
+    onSessionSelect: controller.handleSessionClick,
+    onDeleteSession: controller.showDeleteSessionConfirmation,
+    onLoadMoreSessions: controller.loadMoreSessionsForProject,
     onNewSession,
-    onEditingSessionNameChange: setEditingSessionName,
+    onEditingSessionNameChange: controller.setEditingSessionName,
     onStartEditingSession: (sessionId, initialName) => {
-      setEditingSession(sessionId);
-      setEditingSessionName(initialName);
+      controller.setEditingSession(sessionId);
+      controller.setEditingSessionName(initialName);
     },
     onCancelEditingSession: () => {
-      setEditingSession(null);
-      setEditingSessionName('');
+      controller.setEditingSession(null);
+      controller.setEditingSessionName('');
     },
-    onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => {
-      void updateSessionSummary(projectName, sessionId, summary, provider);
-    },
-    onToggleSessionStar: (sessionId: string) => {
-      void toggleSessionStar(sessionId);
-    },
-    onExportSession: (sessionId: string) => {
-      void exportSession(sessionId);
-    },
+    onSaveEditingSession: (projectId: string, sessionId: string, summary: string, provider: LLMProvider) => { void controller.updateSessionSummary(projectId, sessionId, summary, provider); },
+    onToggleSessionStar: (sessionId) => { void controller.toggleSessionStar(sessionId); },
+    onExportSession: (sessionId) => { void controller.exportSession(sessionId); },
     t,
   };
 
   return (
     <>
-        <SidebarModals
-          projects={projects}
-          showSettings={showSettings}
-          settingsInitialTab={settingsInitialTab}
-          onCloseSettings={() => setShowSettings(false)}
-          showNewProject={showNewProject}
-          onCloseNewProject={() => setShowNewProject(false)}
-          onProjectCreated={handleProjectCreated}
-          deleteConfirmation={deleteConfirmation}
-          onCancelDeleteProject={() => setDeleteConfirmation(null)}
-          onConfirmDeleteProject={confirmDeleteProject}
-          sessionDeleteConfirmation={sessionDeleteConfirmation}
-          onCancelDeleteSession={() => setSessionDeleteConfirmation(null)}
-          onConfirmDeleteSession={confirmDeleteSession}
-          t={t}
-        />
-
-      {isSidebarCollapsed ? (
-        <SidebarCollapsed
-          onExpand={handleExpandSidebar}
-          onShowSettings={() => openSettings()}
-          t={t}
-        />
+      <SidebarModals
+        projects={projects}
+        showSettings={showSettings}
+        settingsInitialTab={settingsInitialTab}
+        onCloseSettings={() => setShowSettings(false)}
+        showNewProject={controller.showNewProject}
+        onCloseNewProject={() => controller.setShowNewProject(false)}
+        onProjectCreated={() => { void palette.refreshProjects(); }}
+        deleteConfirmation={controller.deleteConfirmation}
+        onCancelDeleteProject={() => controller.setDeleteConfirmation(null)}
+        onConfirmDeleteProject={controller.confirmDeleteProject}
+        sessionDeleteConfirmation={controller.sessionDeleteConfirmation}
+        onCancelDeleteSession={() => controller.setSessionDeleteConfirmation(null)}
+        onConfirmDeleteSession={controller.confirmDeleteSession}
+        t={t}
+      />
+      {controller.isSidebarCollapsed ? (
+        <SidebarCollapsed onExpand={controller.expandSidebar} onShowSettings={() => openSettings()} t={t} />
       ) : (
-        <>
         <SidebarContent
-            isPWA={isPWA}
-            isMobile={isMobile}
-            isArchiveOpen={isArchiveOpen}
-            archivedProjects={archivedProjects}
-            archivedSessions={archivedSessions}
-            archivedSessionsCount={archivedSessionsCount}
-            isArchivedSessionsLoading={isArchivedSessionsLoading}
-            archiveLoadError={archiveLoadError}
-            onOpenArchive={openArchive}
-            onCloseArchive={closeArchive}
-            onRestoreArchivedProject={restoreArchivedProject}
-            onArchivedSessionClick={openArchivedSession}
-            onRestoreArchivedSession={restoreArchivedSession}
-            onDeleteArchivedSession={(session) => {
-              showDeleteSessionConfirmation(
-                session.projectId,
-                session.sessionId,
-                session.sessionTitle,
-                session.provider,
-                { isArchived: true },
-              );
-            }}
-            onRefresh={() => {
-              void refreshProjects();
-            }}
-            isRefreshing={isRefreshing}
-            onSearch={paletteOps.openCommandPalette}
-            onCreateProject={() => setShowNewProject(true)}
-            onCollapseSidebar={handleCollapseSidebar}
-            currentVersion={currentVersion}
-            onShowSettings={() => openSettings()}
-            projectListProps={projectListProps}
-            t={t}
-          />
-        </>
+          isPWA={isPWA}
+          isMobile={isMobile}
+          isArchiveOpen={controller.isArchiveOpen}
+          archivedProjects={controller.archivedProjects}
+          archivedSessions={controller.archivedSessions}
+          archivedSessionsCount={controller.archivedSessionsCount}
+          isArchivedSessionsLoading={controller.isArchivedSessionsLoading}
+          archiveLoadError={controller.archiveLoadError}
+          onOpenArchive={controller.openArchive}
+          onCloseArchive={controller.closeArchive}
+          onRestoreArchivedProject={controller.restoreArchivedProject}
+          onArchivedSessionClick={controller.openArchivedSession}
+          onRestoreArchivedSession={controller.restoreArchivedSession}
+          onDeleteArchivedSession={(session) => controller.showDeleteSessionConfirmation(session.projectId, session.sessionId, session.sessionTitle, session.provider, { isArchived: true })}
+          onRefresh={() => { void controller.refreshProjects(); }}
+          isRefreshing={controller.isRefreshing}
+          onSearch={palette.openCommandPalette}
+          onCreateProject={() => controller.setShowNewProject(true)}
+          onCollapseSidebar={controller.collapseSidebar}
+          currentVersion={currentVersion}
+          onShowSettings={() => openSettings()}
+          projectListProps={projectListProps}
+          t={t}
+        />
       )}
-
     </>
   );
 }

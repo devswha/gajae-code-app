@@ -3,169 +3,79 @@ import type { TFunction } from 'i18next';
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type { ProjectSortOrder, SettingsProject, SessionViewModel, SessionWithProvider } from '../types/types';
 
+const settingsKey = 'claude-settings';
+const legacyStarsKey = 'starredProjects';
+
+const readStorageJson = (key: string): unknown => {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : null;
+  } catch {
+    return null;
+  }
+};
+
+const sessionTimestamp = (session: SessionWithProvider) => String(session.lastActivity || session.createdAt || session.created_at || '');
+
+const providerFor = (session: ProjectSession): LLMProvider => {
+  const candidate = session.__provider ?? session.provider;
+  return typeof candidate === 'string' && candidate.trim() ? candidate as LLMProvider : 'gjc';
+};
+
 export const readProjectSortOrder = (): ProjectSortOrder => {
-  try {
-    const rawSettings = localStorage.getItem('claude-settings');
-    if (!rawSettings) {
-      return 'name';
-    }
-
-    const settings = JSON.parse(rawSettings) as { projectSortOrder?: ProjectSortOrder };
-    return settings.projectSortOrder === 'date' ? 'date' : 'name';
-  } catch {
-    return 'name';
-  }
+  const settings = readStorageJson(settingsKey);
+  return typeof settings === 'object' && settings !== null && (settings as { projectSortOrder?: unknown }).projectSortOrder === 'date' ? 'date' : 'name';
 };
 
-const LEGACY_STARRED_PROJECTS_STORAGE_KEY = 'starredProjects';
-
-/**
- * Reads legacy project stars from localStorage (used only for one-time migration to backend).
- */
 export const readLegacyStarredProjectIds = (): string[] => {
-  try {
-    const saved = localStorage.getItem(LEGACY_STARRED_PROJECTS_STORAGE_KEY);
-    if (!saved) {
-      return [];
-    }
-
-    const parsed = JSON.parse(saved) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed
-      .map((value) => String(value).trim())
-      .filter((value) => value.length > 0);
-  } catch {
-    return [];
-  }
+  const saved = readStorageJson(legacyStarsKey);
+  return Array.isArray(saved) ? saved.map((item) => String(item).trim()).filter(Boolean) : [];
 };
 
-/**
- * Clears the legacy localStorage stars key after migration to backend completes.
- */
 export const clearLegacyStarredProjectIds = () => {
   try {
-    localStorage.removeItem(LEGACY_STARRED_PROJECTS_STORAGE_KEY);
+    localStorage.removeItem(legacyStarsKey);
   } catch {
-    // Keep UI responsive even if storage is unavailable.
+    // Storage access is optional in embedded browser contexts.
   }
 };
 
-const getCreatedTimestamp = (session: SessionWithProvider): string => {
-  return String(session.createdAt || session.created_at || '');
-};
+export const getSessionTime = (session: SessionWithProvider): string => sessionTimestamp(session);
 
-const getUpdatedTimestamp = (session: SessionWithProvider): string => {
-  return String(session.lastActivity || '');
-};
+export const getSessionDate = (session: SessionWithProvider): Date => new Date(sessionTimestamp(session) || 0);
 
-const getSessionProvider = (session: ProjectSession): LLMProvider => {
-  const provider = session.__provider ?? session.provider;
-  return typeof provider === 'string' && provider.trim()
-    ? provider as LLMProvider
-    : 'gjc';
-};
+export const getSessionName = (session: SessionWithProvider, t: TFunction): string => session.summary || session.name || t('projects.newSession');
 
-export const getSessionDate = (session: SessionWithProvider): Date => {
-  return new Date(getUpdatedTimestamp(session) || getCreatedTimestamp(session) || 0);
-};
-
-export const getSessionName = (session: SessionWithProvider, t: TFunction): string => {
-  return session.summary || session.name || t('projects.newSession');
-};
-
-export const getSessionTime = (session: SessionWithProvider): string => {
-  return getUpdatedTimestamp(session) || getCreatedTimestamp(session);
-};
-
-export const createSessionViewModel = (
-  session: SessionWithProvider,
-  currentTime: Date,
-  t: TFunction,
-): SessionViewModel => {
-  const sessionDate = getSessionDate(session);
-  const diffInMinutes = Math.floor((currentTime.getTime() - sessionDate.getTime()) / (1000 * 60));
-
-  return {
-    isActive: diffInMinutes < 10,
-    sessionName: getSessionName(session, t),
-    sessionTime: getSessionTime(session),
-    messageCount: Number(session.messageCount || 0),
-  };
-};
+export const createSessionViewModel = (session: SessionWithProvider, currentTime: Date, t: TFunction): SessionViewModel => ({
+  isActive: Math.floor((currentTime.getTime() - getSessionDate(session).getTime()) / 60_000) < 10,
+  sessionName: getSessionName(session, t),
+  sessionTime: getSessionTime(session),
+  messageCount: Number(session.messageCount || 0),
+});
 
 export const getAllSessions = (project: Project): SessionWithProvider[] => {
-  return (project.sessions || []).map((session) => ({
-    ...session,
-    __provider: getSessionProvider(session),
-  })).sort(
-    (a, b) => getSessionDate(b).getTime() - getSessionDate(a).getTime(),
-  );
+  const entries = project.sessions ?? [];
+  return entries.map((entry) => ({ ...entry, __provider: providerFor(entry) })).sort((first, second) => getSessionDate(second).getTime() - getSessionDate(first).getTime());
 };
 
 export const getProjectLastActivity = (project: Project): Date => {
-  const sessions = getAllSessions(project);
-  if (sessions.length === 0) {
-    return new Date(0);
+  let newest = new Date(0);
+  for (const session of getAllSessions(project)) {
+    const timestamp = getSessionDate(session);
+    if (timestamp > newest) newest = timestamp;
   }
-
-  return sessions.reduce((latest, session) => {
-    const sessionDate = getSessionDate(session);
-    return sessionDate > latest ? sessionDate : latest;
-  }, new Date(0));
+  return newest;
 };
 
-export const sortProjects = (
-  projects: Project[],
-  projectSortOrder: ProjectSortOrder,
-): Project[] => {
-  const byName = [...projects];
-
-  byName.sort((projectA, projectB) => {
-    // Star order now comes from backend `projects.isStarred`.
-    const aStarred = Boolean(projectA.isStarred);
-    const bStarred = Boolean(projectB.isStarred);
-
-    if (aStarred && !bStarred) {
-      return -1;
-    }
-
-    if (!aStarred && bStarred) {
-      return 1;
-    }
-
-    if (projectSortOrder === 'date') {
-      return getProjectLastActivity(projectB).getTime() - getProjectLastActivity(projectA).getTime();
-    }
-
-    return (projectA.displayName || projectA.projectId).localeCompare(projectB.displayName || projectB.projectId);
-  });
-
-  return byName;
-};
+export const sortProjects = (projects: Project[], projectSortOrder: ProjectSortOrder): Project[] => projects.slice().sort((left, right) => {
+  const starDifference = Number(Boolean(right.isStarred)) - Number(Boolean(left.isStarred));
+  if (starDifference) return starDifference;
+  if (projectSortOrder === 'date') return getProjectLastActivity(right).getTime() - getProjectLastActivity(left).getTime();
+  return (left.displayName || left.projectId).localeCompare(right.displayName || right.projectId);
+});
 
 export const normalizeProjectForSettings = (project: Project): SettingsProject => {
-  const fallbackPath =
-    typeof project.fullPath === 'string' && project.fullPath.length > 0
-      ? project.fullPath
-      : typeof project.path === 'string'
-        ? project.path
-        : '';
-
-  // Legacy SettingsProject still expects a `name` field; use the projectId so
-  // downstream consumers that rely on a stable identifier continue to work.
-  return {
-    name: project.projectId,
-    displayName:
-      typeof project.displayName === 'string' && project.displayName.trim().length > 0
-        ? project.displayName
-        : project.projectId,
-    fullPath: fallbackPath,
-    path:
-      typeof project.path === 'string' && project.path.length > 0
-        ? project.path
-        : fallbackPath,
-  };
+  const fullPath = typeof project.fullPath === 'string' && project.fullPath.length > 0 ? project.fullPath : typeof project.path === 'string' ? project.path : '';
+  const path = typeof project.path === 'string' && project.path.length > 0 ? project.path : fullPath;
+  return { name: project.projectId, displayName: typeof project.displayName === 'string' && project.displayName.trim().length > 0 ? project.displayName : project.projectId, fullPath, path };
 };

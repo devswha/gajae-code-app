@@ -9,38 +9,35 @@ import {
   resolveImageAssetFile,
 } from '@/modules/assets/services/image-assets.service.js';
 
-const ASSETS_DIR = path.join(os.homedir(), '.gajae-app', 'assets');
+const assetsDirectory = path.join(os.homedir(), '.gajae-app', 'assets');
 
-test('isAllowedImageMimeType accepts image formats and rejects the rest', () => {
-  assert.equal(isAllowedImageMimeType('image/png'), true);
-  assert.equal(isAllowedImageMimeType('image/svg+xml'), true);
-  assert.equal(isAllowedImageMimeType('application/pdf'), false);
-  assert.equal(isAllowedImageMimeType('text/html'), false);
+test('image uploads allow the supported image media types but not document or markup types', () => {
+  const expected = new Map([
+    ['image/png', true],
+    ['image/svg+xml', true],
+    ['application/pdf', false],
+    ['text/html', false],
+  ]);
+  for (const [mimeType, allowed] of expected) {
+    assert.equal(isAllowedImageMimeType(mimeType), allowed);
+  }
 });
 
-test('buildStoredImageRecords returns absolute posix paths in the assets dir', () => {
-  const records = buildStoredImageRecords([
+test('stored upload metadata preserves fields and anchors its path in global assets', () => {
+  const [record] = buildStoredImageRecords([
     { originalname: 'shot.png', filename: '123-456-shot.png', size: 42, mimetype: 'image/png' },
   ]);
-
-  assert.equal(records.length, 1);
-  assert.equal(records[0].name, 'shot.png');
-  assert.equal(records[0].size, 42);
-  assert.equal(records[0].mimeType, 'image/png');
-  assert.equal(records[0].path, `${ASSETS_DIR.replace(/\\/g, '/')}/123-456-shot.png`);
+  assert.deepEqual(record, {
+    name: 'shot.png',
+    path: `${assetsDirectory.replace(/\\/g, '/')}/123-456-shot.png`,
+    size: 42,
+    mimeType: 'image/png',
+  });
 });
 
-test('resolveImageAssetFile resolves plain filenames inside the assets dir', () => {
-  const resolved = resolveImageAssetFile('123-shot.png');
-  assert.equal(resolved, path.join(path.resolve(ASSETS_DIR), '123-shot.png'));
-});
-
-test('resolveImageAssetFile rejects traversal and separator attempts', () => {
-  assert.equal(resolveImageAssetFile(''), null);
-  assert.equal(resolveImageAssetFile('   '), null);
-  assert.equal(resolveImageAssetFile('../auth.db'), null);
-  assert.equal(resolveImageAssetFile('..'), null);
-  assert.equal(resolveImageAssetFile('sub/dir.png'), null);
-  assert.equal(resolveImageAssetFile('sub\\dir.png'), null);
-  assert.equal(resolveImageAssetFile('a..b/../c.png'), null);
+test('asset file lookup accepts a basename and excludes empty or path-shaped values', () => {
+  assert.equal(resolveImageAssetFile('123-shot.png'), path.join(path.resolve(assetsDirectory), '123-shot.png'));
+  for (const unsafeName of ['', '   ', '../auth.db', '..', 'sub/dir.png', 'sub\\dir.png', 'a..b/../c.png']) {
+    assert.equal(resolveImageAssetFile(unsafeName), null);
+  }
 });

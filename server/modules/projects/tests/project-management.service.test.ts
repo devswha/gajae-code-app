@@ -5,7 +5,7 @@ import { projectsDb } from '@/modules/database/index.js';
 import { createProject, promoteProjectOrigin } from '@/modules/projects/services/project-management.service.js';
 import { AppError } from '@/shared/utils.js';
 
-const projectRow = {
+const storedProject = {
   project_id: 'project-1',
   project_path: '/workspace/my-project',
   custom_project_name: 'my-project',
@@ -14,56 +14,69 @@ const projectRow = {
   origin: 'legacy' as const,
 };
 
-test('createProject throws when project path is missing', async () => {
+function projectDependencies(overrides: Partial<NonNullable<Parameters<typeof createProject>[1]>> = {}) {
+  return {
+    validatePath: async () => ({ valid: true, resolvedPath: '/workspace/my-project' }),
+    ensureWorkspaceDirectory: async () => undefined,
+    persistProjectPath: () => ({ outcome: 'created' as const, project: storedProject }),
+    getProjectByPath: () => storedProject,
+    ...overrides,
+  };
+}
+
+function assertServiceError(error: unknown, code: string, statusCode: number): asserts error is AppError {
+  assert.ok(error instanceof AppError);
+  assert.equal(error.code, code);
+  assert.equal(error.statusCode, statusCode);
+}
+
+function withProjectRepository(
+  replacements: Pick<typeof projectsDb, 'promoteProjectOriginById' | 'getProjectById'>,
+  check: () => void,
+) {
+  const previousPromotion = projectsDb.promoteProjectOriginById;
+  const previousLookup = projectsDb.getProjectById;
+  projectsDb.promoteProjectOriginById = replacements.promoteProjectOriginById;
+  projectsDb.getProjectById = replacements.getProjectById;
+  try {
+    check();
+  } finally {
+    projectsDb.promoteProjectOriginById = previousPromotion;
+    projectsDb.getProjectById = previousLookup;
+  }
+}
+
+test('project creation rejects absent and invalid paths with validation details', async () => {
   await assert.rejects(
-    async () => createProject({ projectPath: '' }),
+    () => createProject({ projectPath: '' }),
     (error: unknown) => {
-      assert.ok(error instanceof AppError);
-      assert.equal(error.code, 'PROJECT_PATH_REQUIRED');
-      assert.equal(error.statusCode, 400);
+      assertServiceError(error, 'PROJECT_PATH_REQUIRED', 400);
       return true;
     },
   );
-});
-
-test('createProject throws when path validation fails', async () => {
   await assert.rejects(
-    async () =>
+    () =>
       createProject(
         { projectPath: '/invalid/path' },
-        {
-          validatePath: async () => ({ valid: false, error: 'blocked path' }),
-          ensureWorkspaceDirectory: async () => undefined,
-          persistProjectPath: () => ({ outcome: 'created', project: projectRow }),
-          getProjectByPath: () => projectRow,
-        },
+        projectDependencies({ validatePath: async () => ({ valid: false, error: 'blocked path' }) }),
       ),
     (error: unknown) => {
-      assert.ok(error instanceof AppError);
-      assert.equal(error.code, 'INVALID_PROJECT_PATH');
-      assert.equal(error.statusCode, 400);
+      assertServiceError(error, 'INVALID_PROJECT_PATH', 400);
       assert.equal(error.details, 'blocked path');
       return true;
     },
   );
 });
 
-test('createProject throws conflict when active project path already exists', async () => {
+test('project creation exposes an active duplicate as its API project view', async () => {
   await assert.rejects(
-    async () =>
+    () =>
       createProject(
-        { projectPath: '/workspace/my-project' },
-        {
-          validatePath: async () => ({ valid: true, resolvedPath: '/workspace/my-project' }),
-          ensureWorkspaceDirectory: async () => undefined,
-          persistProjectPath: () => ({ outcome: 'active_conflict', project: projectRow }),
-          getProjectByPath: () => projectRow,
-        },
+        { projectPath: storedProject.project_path },
+        projectDependencies({ persistProjectPath: () => ({ outcome: 'active_conflict', project: storedProject }) }),
       ),
     (error: unknown) => {
-      assert.ok(error instanceof AppError);
-      assert.equal(error.code, 'PROJECT_ALREADY_EXISTS');
-      assert.equal(error.statusCode, 409);
+      assertServiceError(error, 'PROJECT_ALREADY_EXISTS', 409);
       assert.deepEqual(error.details, {
         project: {
           projectId: 'project-1',
@@ -83,192 +96,102 @@ test('createProject throws conflict when active project path already exists', as
   );
 });
 
-test('createProject falls back to directory name when custom name is not provided', async () => {
-  let capturedCustomName: string | null = null;
-
-  const result = await createProject(
-    { projectPath: '/workspace/my-project', customName: '' },
-    {
-      validatePath: async () => ({ valid: true, resolvedPath: '/workspace/my-project' }),
-      ensureWorkspaceDirectory: async () => undefined,
-      persistProjectPath: (_projectPath, customName) => {
-        capturedCustomName = customName;
-        return {
-          outcome: 'created',
-          project: {
-            ...projectRow,
-            custom_project_name: customName,
-          },
-        };
+test('project creation names unnamed directories and returns archived reactivations', async () => {
+  let savedName: string | null = null;
+  const created = await createProject(
+    { projectPath: storedProject.project_path, customName: '' },
+    projectDependencies({
+      persistProjectPath: (_projectPath, name) => {
+        savedName = name;
+        return { outcome: 'created', project: { ...storedProject, custom_project_name: name } };
       },
-      getProjectByPath: () => projectRow,
-    },
+    }),
   );
+  assert.equal(savedName, 'my-project');
+  assert.deepEqual({ outcome: created.outcome, displayName: created.project.displayName }, {
+    outcome: 'created',
+    displayName: 'my-project',
+  });
 
-  assert.equal(capturedCustomName, 'my-project');
-  assert.equal(result.outcome, 'created');
-  assert.equal(result.project.displayName, 'my-project');
+  const reactivated = await createProject(
+    { projectPath: storedProject.project_path },
+    projectDependencies({
+      persistProjectPath: () => ({ outcome: 'reactivated_archived', project: { ...storedProject, isArchived: 1 } }),
+    }),
+  );
+  assert.deepEqual(
+    { outcome: reactivated.outcome, isArchived: reactivated.project.isArchived },
+    { outcome: 'reactivated_archived', isArchived: true },
+  );
 });
 
-test('createProject returns archived reuse outcome when archived row is reused', async () => {
-  const result = await createProject(
-    { projectPath: '/workspace/my-project' },
-    {
-      validatePath: async () => ({ valid: true, resolvedPath: '/workspace/my-project' }),
-      ensureWorkspaceDirectory: async () => undefined,
-      persistProjectPath: () => ({
-        outcome: 'reactivated_archived',
-        project: {
-          ...projectRow,
-          isArchived: 1,
-        },
-      }),
-      getProjectByPath: () => projectRow,
-    },
-  );
-
-  assert.equal(result.outcome, 'reactivated_archived');
-  assert.equal(result.project.isArchived, true);
-});
-test('promoteProjectOrigin promotes auto and legacy projects while preserving project fields', () => {
-  const originalPromoteProjectOriginById = projectsDb.promoteProjectOriginById;
-  const originalGetProjectById = projectsDb.getProjectById;
+test('origin promotion maps auto and legacy repository rows without a second lookup', () => {
   const rows = [
-    {
-      project_id: 'auto-project',
-      project_path: '/workspace/auto-project',
-      custom_project_name: 'Auto project',
-      isStarred: 1,
-      isArchived: 0,
-      origin: 'auto' as const,
-    },
-    {
-      project_id: 'legacy-project',
-      project_path: '/workspace/legacy-project',
-      custom_project_name: null,
-      isStarred: 0,
-      isArchived: 1,
-      origin: 'legacy' as const,
-    },
+    { ...storedProject, project_id: 'auto-project', project_path: '/workspace/auto-project', custom_project_name: 'Auto project', isStarred: 1, origin: 'auto' as const },
+    { ...storedProject, project_id: 'legacy-project', project_path: '/workspace/legacy-project', custom_project_name: null, isArchived: 1 },
   ];
-  const promotedProjectIds: string[] = [];
+  const promoted: string[] = [];
+  withProjectRepository(
+    {
+      promoteProjectOriginById: (id) => {
+        const row = rows.find((candidate) => candidate.project_id === id);
+        if (!row) return null;
+        promoted.push(id);
+        return { ...row, origin: 'explicit' };
+      },
+      getProjectById: () => {
+        throw new Error('Promoted rows must be used directly');
+      },
+    },
+    () => {
+      const views = rows.map((row) => promoteProjectOrigin(row.project_id));
+      assert.deepEqual(promoted, ['auto-project', 'legacy-project']);
+      assert.deepEqual(views, [
+        { projectId: 'auto-project', path: '/workspace/auto-project', fullPath: '/workspace/auto-project', displayName: 'Auto project', customName: 'Auto project', origin: 'explicit', isArchived: false, isStarred: true, sessions: [], sessionMeta: { hasMore: false, total: 0 } },
+        { projectId: 'legacy-project', path: '/workspace/legacy-project', fullPath: '/workspace/legacy-project', displayName: 'legacy-project', customName: null, origin: 'explicit', isArchived: true, isStarred: false, sessions: [], sessionMeta: { hasMore: false, total: 0 } },
+      ]);
+    },
+  );
+});
 
-  try {
-    projectsDb.promoteProjectOriginById = (projectId: string) => {
-      const project = rows.find((row) => row.project_id === projectId);
-      if (!project) {
+test('origin promotion returns explicit rows and rejects unknown or blank IDs', () => {
+  const explicit = { ...storedProject, project_id: 'explicit-project', custom_project_name: 'Explicit project', isStarred: 1, isArchived: 1, origin: 'explicit' as const };
+  withProjectRepository(
+    {
+      promoteProjectOriginById: (id) => (id === explicit.project_id ? explicit : null),
+      getProjectById: (id) => {
+        if (id === explicit.project_id) {
+          throw new Error('Explicit promotion must not perform a fallback lookup');
+        }
         return null;
-      }
-
-      promotedProjectIds.push(projectId);
-      return { ...project, origin: 'explicit' };
-    };
-    projectsDb.getProjectById = () => {
-      throw new Error('Promotion should return the project row directly');
-    };
-
-    for (const row of rows) {
-      assert.deepEqual(promoteProjectOrigin(row.project_id), {
-        projectId: row.project_id,
-        path: row.project_path,
-        fullPath: row.project_path,
-        displayName: row.custom_project_name ?? 'legacy-project',
-        customName: row.custom_project_name,
-        origin: 'explicit',
-        isArchived: Boolean(row.isArchived),
-        isStarred: Boolean(row.isStarred),
-        sessions: [],
-        sessionMeta: { hasMore: false, total: 0 },
+      },
+    },
+    () => {
+      assert.deepEqual(promoteProjectOrigin(explicit.project_id), {
+        projectId: 'explicit-project', path: '/workspace/my-project', fullPath: '/workspace/my-project', displayName: 'Explicit project', customName: 'Explicit project', origin: 'explicit', isArchived: true, isStarred: true, sessions: [], sessionMeta: { hasMore: false, total: 0 },
       });
-    }
-
-    assert.deepEqual(promotedProjectIds, ['auto-project', 'legacy-project']);
-  } finally {
-    projectsDb.promoteProjectOriginById = originalPromoteProjectOriginById;
-    projectsDb.getProjectById = originalGetProjectById;
-  }
-});
-
-test('promoteProjectOrigin returns an already-explicit project unchanged', () => {
-  const originalPromoteProjectOriginById = projectsDb.promoteProjectOriginById;
-  const originalGetProjectById = projectsDb.getProjectById;
-  const explicitProject = {
-    project_id: 'explicit-project',
-    project_path: '/workspace/explicit-project',
-    custom_project_name: 'Explicit project',
-    isStarred: 1,
-    isArchived: 1,
-    origin: 'explicit' as const,
-  };
-
-  try {
-    projectsDb.promoteProjectOriginById = () => explicitProject;
-    projectsDb.getProjectById = () => {
-      throw new Error('An explicit project should be returned by promotion');
-    };
-
-    assert.deepEqual(promoteProjectOrigin(explicitProject.project_id), {
-      projectId: explicitProject.project_id,
-      path: explicitProject.project_path,
-      fullPath: explicitProject.project_path,
-      displayName: explicitProject.custom_project_name,
-      customName: explicitProject.custom_project_name,
-      origin: 'explicit',
-      isArchived: true,
-      isStarred: true,
-      sessions: [],
-      sessionMeta: { hasMore: false, total: 0 },
-    });
-  } finally {
-    projectsDb.promoteProjectOriginById = originalPromoteProjectOriginById;
-    projectsDb.getProjectById = originalGetProjectById;
-  }
-});
-
-test('promoteProjectOrigin throws when the project does not exist', () => {
-  const originalPromoteProjectOriginById = projectsDb.promoteProjectOriginById;
-  const originalGetProjectById = projectsDb.getProjectById;
-
-  try {
-    projectsDb.promoteProjectOriginById = () => null;
-    projectsDb.getProjectById = () => null;
-
-    assert.throws(
-      () => promoteProjectOrigin('missing-project'),
-      (error: unknown) =>
-        error instanceof AppError
-        && error.code === 'PROJECT_NOT_FOUND'
-        && error.statusCode === 404,
-    );
-  } finally {
-    projectsDb.promoteProjectOriginById = originalPromoteProjectOriginById;
-    projectsDb.getProjectById = originalGetProjectById;
-  }
-});
-
-test('promoteProjectOrigin rejects blank project IDs', () => {
-  const originalPromoteProjectOriginById = projectsDb.promoteProjectOriginById;
-  const originalGetProjectById = projectsDb.getProjectById;
-
-  try {
-    projectsDb.promoteProjectOriginById = () => {
-      throw new Error('Blank project IDs must not reach the repository');
-    };
-    projectsDb.getProjectById = () => {
-      throw new Error('Blank project IDs must not reach the repository');
-    };
-
-    for (const projectId of ['', '   ']) {
-      assert.throws(
-        () => promoteProjectOrigin(projectId),
-        (error: unknown) =>
-          error instanceof AppError
-          && error.code === 'PROJECT_ID_REQUIRED'
-          && error.statusCode === 400,
-      );
-    }
-  } finally {
-    projectsDb.promoteProjectOriginById = originalPromoteProjectOriginById;
-    projectsDb.getProjectById = originalGetProjectById;
-  }
+      assert.throws(() => promoteProjectOrigin('missing-project'), (error: unknown) => {
+        assertServiceError(error, 'PROJECT_NOT_FOUND', 404);
+        return true;
+      });
+    },
+  );
+  withProjectRepository(
+    {
+      promoteProjectOriginById: () => {
+        throw new Error('Blank IDs cannot query the repository');
+      },
+      getProjectById: () => {
+        throw new Error('Blank IDs cannot query the repository');
+      },
+    },
+    () => {
+      for (const value of ['', '   ']) {
+        assert.throws(() => promoteProjectOrigin(value), (error: unknown) => {
+          assertServiceError(error, 'PROJECT_ID_REQUIRED', 400);
+          return true;
+        });
+      }
+    },
+  );
 });

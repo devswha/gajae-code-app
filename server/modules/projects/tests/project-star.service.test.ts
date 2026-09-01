@@ -5,123 +5,73 @@ import { projectsDb } from '@/modules/database/index.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
 import { AppError } from '@/shared/utils.js';
 
-type ProjectRow = {
-  project_id: string;
-  project_path: string;
-  custom_project_name: string | null;
-  isStarred: number;
-  isArchived: number;
-  origin: 'legacy' | 'explicit' | 'auto';
-};
+type ProjectRow = { project_id: string; project_path: string; custom_project_name: string | null; isStarred: number; isArchived: number; origin: 'legacy' | 'explicit' | 'auto' };
 
-test('toggleProjectStar throws when projectId is missing', () => {
-  assert.throws(
-    () => toggleProjectStar('   '),
-    (error: unknown) =>
-      error instanceof AppError
-      && error.code === 'PROJECT_ID_REQUIRED'
-      && error.statusCode === 400,
+function row(projectId: string, isStarred = 0): ProjectRow {
+  return { project_id: projectId, project_path: `/workspace/${projectId}`, custom_project_name: projectId, isStarred, isArchived: 0, origin: 'legacy' };
+}
+
+function useStarRepository(
+  lookup: typeof projectsDb.getProjectById,
+  update: typeof projectsDb.updateProjectIsStarredById,
+  check: () => void,
+) {
+  const originalLookup = projectsDb.getProjectById;
+  const originalUpdate = projectsDb.updateProjectIsStarredById;
+  projectsDb.getProjectById = lookup;
+  projectsDb.updateProjectIsStarredById = update;
+  try {
+    check();
+  } finally {
+    projectsDb.getProjectById = originalLookup;
+    projectsDb.updateProjectIsStarredById = originalUpdate;
+  }
+}
+
+test('star toggling requires an ID and reports missing projects', () => {
+  assert.throws(() => toggleProjectStar('   '), (error: unknown) =>
+    error instanceof AppError && error.code === 'PROJECT_ID_REQUIRED' && error.statusCode === 400);
+  useStarRepository(
+    () => null,
+    () => undefined,
+    () => {
+      assert.throws(() => toggleProjectStar('project-1'), (error: unknown) =>
+        error instanceof AppError && error.code === 'PROJECT_NOT_FOUND' && error.statusCode === 404);
+    },
   );
 });
 
-test('toggleProjectStar throws when project does not exist', () => {
-  const originalGetProjectById = projectsDb.getProjectById;
-  try {
-    projectsDb.getProjectById = () => null;
-    assert.throws(
-      () => toggleProjectStar('project-1'),
-      (error: unknown) =>
-        error instanceof AppError
-        && error.code === 'PROJECT_NOT_FOUND'
-        && error.statusCode === 404,
-    );
-  } finally {
-    projectsDb.getProjectById = originalGetProjectById;
-  }
+test('star toggling persists the inverse of the stored state', () => {
+  const writes: Array<[string, boolean]> = [];
+  useStarRepository(
+    () => row('project-1'),
+    (id, state) => {
+      writes.push([id, state]);
+    },
+    () => {
+      assert.deepEqual(toggleProjectStar('project-1'), { isStarred: true });
+      assert.deepEqual(writes, [['project-1', true]]);
+    },
+  );
 });
 
-test('toggleProjectStar flips star state and persists it', () => {
-  const originalGetProjectById = projectsDb.getProjectById;
-  const originalUpdateProjectIsStarredById = projectsDb.updateProjectIsStarredById;
-
-  let capturedProjectId = '';
-  let capturedState = false;
-
-  try {
-    projectsDb.getProjectById = () =>
-      ({
-        project_id: 'project-1',
-        project_path: '/workspace/project-1',
-        custom_project_name: 'project-1',
-        isStarred: 0,
-        isArchived: 0,
-        origin: 'legacy',
-      }) as ProjectRow;
-    projectsDb.updateProjectIsStarredById = (projectId: string, isStarred: boolean) => {
-      capturedProjectId = projectId;
-      capturedState = isStarred;
-    };
-
-    const result = toggleProjectStar('project-1');
-
-    assert.equal(result.isStarred, true);
-    assert.equal(capturedProjectId, 'project-1');
-    assert.equal(capturedState, true);
-  } finally {
-    projectsDb.getProjectById = originalGetProjectById;
-    projectsDb.updateProjectIsStarredById = originalUpdateProjectIsStarredById;
-  }
-});
-
-test('applyLegacyStarredProjectIds stars only valid, unstarred projects', () => {
-  const originalGetProjectById = projectsDb.getProjectById;
-  const originalUpdateProjectIsStarredById = projectsDb.updateProjectIsStarredById;
-
-  const updatedProjectIds: string[] = [];
-
-  try {
-    projectsDb.getProjectById = (projectId: string) => {
-      if (projectId === 'project-a') {
-        return {
-          project_id: 'project-a',
-          project_path: '/workspace/project-a',
-          custom_project_name: 'A',
-          isStarred: 0,
-          isArchived: 0,
-          origin: 'legacy',
-        } as ProjectRow;
-      }
-
-      if (projectId === 'project-b') {
-        return {
-          project_id: 'project-b',
-          project_path: '/workspace/project-b',
-          custom_project_name: 'B',
-          isStarred: 1,
-          isArchived: 0,
-          origin: 'legacy',
-        } as ProjectRow;
-      }
-
+test('legacy star import ignores duplicates, blanks, missing rows, and existing stars', () => {
+  const writes: string[] = [];
+  useStarRepository(
+    (id) => {
+      if (id === 'project-a') return row(id);
+      if (id === 'project-b') return row(id, 1);
       return null;
-    };
-    projectsDb.updateProjectIsStarredById = (projectId: string) => {
-      updatedProjectIds.push(projectId);
-    };
-
-    const result = applyLegacyStarredProjectIds([
-      'project-a',
-      'project-b',
-      'missing-project',
-      'project-a',
-      '',
-      '   ',
-    ]);
-
-    assert.equal(result.updated, 1);
-    assert.deepEqual(updatedProjectIds, ['project-a']);
-  } finally {
-    projectsDb.getProjectById = originalGetProjectById;
-    projectsDb.updateProjectIsStarredById = originalUpdateProjectIsStarredById;
-  }
+    },
+    (id) => {
+      writes.push(id);
+    },
+    () => {
+      assert.deepEqual(
+        applyLegacyStarredProjectIds(['project-a', 'project-b', 'missing-project', 'project-a', '', '   ']),
+        { updated: 1 },
+      );
+      assert.deepEqual(writes, ['project-a']);
+    },
+  );
 });

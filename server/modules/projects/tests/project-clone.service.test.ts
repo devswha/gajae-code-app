@@ -7,9 +7,33 @@ import test from 'node:test';
 import { startCloneProject } from '@/modules/projects/services/project-clone.service.js';
 import { AppError } from '@/shared/utils.js';
 
-type TestDependencies = Parameters<typeof startCloneProject>[2];
+type CloneDependencies = NonNullable<Parameters<typeof startCloneProject>[2]>;
 
-function buildDependencies(overrides: Partial<NonNullable<TestDependencies>> = {}): NonNullable<TestDependencies> {
+function cloneRequest(overrides: Partial<Parameters<typeof startCloneProject>[0]> = {}) {
+  return {
+    workspacePath: '/workspace/root',
+    githubUrl: 'https://github.com/example/repo',
+    userId: 1,
+    ...overrides,
+  };
+}
+
+function eventSink() {
+  const progress: string[] = [];
+  let completed: { project: Record<string, unknown>; message: string } | undefined;
+  return {
+    handlers: {
+      onProgress: (message: string) => progress.push(message),
+      onComplete: (payload: { project: Record<string, unknown>; message: string }) => {
+        completed = payload;
+      },
+    },
+    progress,
+    completed: () => completed,
+  };
+}
+
+function dependencies(overrides: Partial<CloneDependencies> = {}): CloneDependencies {
   return {
     validatePath: async () => ({ valid: true, resolvedPath: '/workspace/root' }),
     ensureDirectory: async () => undefined,
@@ -17,7 +41,7 @@ function buildDependencies(overrides: Partial<NonNullable<TestDependencies>> = {
     removePath: async () => undefined,
     getGithubTokenById: async () => ({ github_token: 'token-value' }),
     spawnGitClone: () => {
-      throw new Error('spawnGitClone should be overridden in this test');
+      throw new Error('A clone process is required for this scenario');
     },
     registerProject: async () => ({ project: { projectId: 'project-1' } }),
     logError: () => undefined,
@@ -25,159 +49,69 @@ function buildDependencies(overrides: Partial<NonNullable<TestDependencies>> = {
   };
 }
 
-function createMockGitProcess() {
-  const emitter = new EventEmitter() as EventEmitter & {
+function childProcess() {
+  const child = new EventEmitter() as EventEmitter & {
     stdout: PassThrough;
     stderr: PassThrough;
     kill: () => void;
   };
-
-  emitter.stdout = new PassThrough();
-  emitter.stderr = new PassThrough();
-  emitter.kill = () => {
-    emitter.emit('close', null);
-  };
-
-  return emitter;
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  child.kill = () => child.emit('close', null);
+  return child;
 }
 
-test('startCloneProject rejects when workspace path is missing', async () => {
+async function expectCloneInputError(input: Partial<Parameters<typeof startCloneProject>[0]>, code: string) {
+  const sink = eventSink();
   await assert.rejects(
-    async () =>
+    () => startCloneProject(cloneRequest(input), sink.handlers, dependencies()),
+    (error: unknown) => error instanceof AppError && error.code === code,
+  );
+}
+
+test('clone startup requires a workspace and repository URL that are not git options', async () => {
+  await expectCloneInputError({ workspacePath: '' }, 'WORKSPACE_PATH_REQUIRED');
+  await expectCloneInputError({ githubUrl: '' }, 'GITHUB_URL_REQUIRED');
+  await expectCloneInputError({ githubUrl: '--upload-pack=malicious' }, 'INVALID_GITHUB_URL');
+});
+
+test('clone startup refuses a selected token that no longer belongs to the user', async () => {
+  const sink = eventSink();
+  await assert.rejects(
+    () =>
       startCloneProject(
-        {
-          workspacePath: '',
-          githubUrl: 'https://github.com/example/repo',
-          userId: 1,
-        },
-        {
-          onProgress: () => undefined,
-          onComplete: () => undefined,
-        },
-        buildDependencies(),
+        cloneRequest({ githubTokenId: 12 }),
+        sink.handlers,
+        dependencies({ getGithubTokenById: async () => null }),
       ),
-    (error: unknown) => {
-      assert.ok(error instanceof AppError);
-      assert.equal(error.code, 'WORKSPACE_PATH_REQUIRED');
-      return true;
-    },
+    (error: unknown) => error instanceof AppError && error.code === 'GITHUB_TOKEN_NOT_FOUND',
   );
 });
 
-test('startCloneProject rejects when github URL is missing', async () => {
-  await assert.rejects(
-    async () =>
-      startCloneProject(
-        {
-          workspacePath: '/workspace/root',
-          githubUrl: '',
-          userId: 1,
-        },
-        {
-          onProgress: () => undefined,
-          onComplete: () => undefined,
-        },
-        buildDependencies(),
-      ),
-    (error: unknown) => {
-      assert.ok(error instanceof AppError);
-      assert.equal(error.code, 'GITHUB_URL_REQUIRED');
-      return true;
-    },
-  );
-});
-
-test('startCloneProject rejects github URL values that begin with option prefixes', async () => {
-  await assert.rejects(
-    async () =>
-      startCloneProject(
-        {
-          workspacePath: '/workspace/root',
-          githubUrl: '--upload-pack=malicious',
-          userId: 1,
-        },
-        {
-          onProgress: () => undefined,
-          onComplete: () => undefined,
-        },
-        buildDependencies(),
-      ),
-    (error: unknown) => {
-      assert.ok(error instanceof AppError);
-      assert.equal(error.code, 'INVALID_GITHUB_URL');
-      return true;
-    },
-  );
-});
-
-test('startCloneProject rejects when selected github token does not exist', async () => {
-  await assert.rejects(
-    async () =>
-      startCloneProject(
-        {
-          workspacePath: '/workspace/root',
-          githubUrl: 'https://github.com/example/repo',
-          githubTokenId: 12,
-          userId: 1,
-        },
-        {
-          onProgress: () => undefined,
-          onComplete: () => undefined,
-        },
-        buildDependencies({
-          getGithubTokenById: async () => null,
-        }),
-      ),
-    (error: unknown) => {
-      assert.ok(error instanceof AppError);
-      assert.equal(error.code, 'GITHUB_TOKEN_NOT_FOUND');
-      return true;
-    },
-  );
-});
-
-test('startCloneProject completes and emits complete payload when git exits successfully', async () => {
-  const gitProcess = createMockGitProcess();
-  const progressMessages: string[] = [];
-  let completePayload: { project: Record<string, unknown>; message: string } | null = null;
-  let capturedProjectPath = '';
-  let capturedCustomName = '';
-
+test('a successful clone reports its repository name and registers its destination', async () => {
+  const child = childProcess();
+  const sink = eventSink();
+  const registered: Array<{ destination: string; name: string }> = [];
   const operation = await startCloneProject(
-    {
-      workspacePath: '/workspace/root',
-      githubUrl: 'https://github.com/example/repo.git',
-      userId: 1,
-    },
-    {
-      onProgress: (message) => {
-        progressMessages.push(message);
-      },
-      onComplete: (payload: { project: Record<string, unknown>; message: string }) => {
-        completePayload = payload;
-      },
-    },
-    buildDependencies({
-      spawnGitClone: () => gitProcess as any,
-      registerProject: async (projectPath, customName) => {
-        capturedProjectPath = projectPath;
-        capturedCustomName = customName;
-        return { project: { projectId: 'project-1', path: projectPath } };
+    cloneRequest({ githubUrl: 'https://github.com/example/repo.git' }),
+    sink.handlers,
+    dependencies({
+      spawnGitClone: () => child,
+      registerProject: async (destination, name) => {
+        registered.push({ destination, name });
+        return { project: { projectId: 'project-1', path: destination } };
       },
     }),
   );
 
-  gitProcess.emit('close', 0);
+  child.emit('close', 0);
   await operation.waitForCompletion;
 
-  assert.ok(progressMessages.some((message) => message.includes("Cloning into 'repo'")));
-  assert.equal(capturedCustomName, 'repo');
-  assert.equal(path.basename(capturedProjectPath), 'repo');
-  assert.notEqual(completePayload, null);
-  const resolvedCompletePayload = completePayload as unknown as {
-    project: Record<string, unknown>;
-    message: string;
-  };
-  assert.equal(resolvedCompletePayload.message, 'Repository cloned successfully');
-  assert.equal((resolvedCompletePayload.project.projectId as string) || '', 'project-1');
+  assert.deepEqual(registered.map(({ name }) => name), ['repo']);
+  assert.deepEqual(registered.map(({ destination }) => path.basename(destination)), ['repo']);
+  assert.ok(sink.progress.includes("Cloning into 'repo'..."));
+  assert.deepEqual(sink.completed(), {
+    project: { projectId: 'project-1', path: registered[0].destination },
+    message: 'Repository cloned successfully',
+  });
 });

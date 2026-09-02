@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { version as currentVersion } from '../../../../package.json';
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useProjectsQuery } from '../../../hooks/useProjectsQuery';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
-import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useAppShellStore } from '../../../stores/useAppShellStore';
 import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
 import type { LLMProvider, Project } from '../../../types/app';
@@ -20,7 +20,6 @@ function Sidebar(props: SidebarProps) {
   const { activeSessions, onProjectSelect, onSessionSelect, onNewSession, onSessionDelete, onLoadMoreSessions, onProjectDelete, onRefresh, isMobile } = props;
   const { t } = useTranslation(['sidebar', 'common']);
   const { isPWA } = useDeviceSettings({ trackMobile: false });
-  const { currentVersion } = useVersionCheck('devswha', 'gajae-app');
   const { preferences, setPreference } = useUiPreferences();
   const palette = usePaletteOps();
   const projectQuery = useProjectsQuery();

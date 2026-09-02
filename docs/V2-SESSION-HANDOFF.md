@@ -490,9 +490,18 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
      gained `insertAtEnd`; MainContent wires it to the tab through a ref,
      `composerInsertRef`). With that, item (4) is complete; a `/review`
      command stays rejected (a canned prompt not worth the command surface).
-   - (5) Worktree isolation + run-location picker. Investigate GJC runtime
-     support first (`.gjc-worktrees/` is gitignored); do not build it
-     app-side if the runtime owns it. Large.
+   - (5) Worktree isolation + run-location picker — **investigated 2026-09-03:
+     deferred to the runtime's Slice 3, no app-side work.** The native core
+     owns worktree lifecycle end to end (`gajae-core` git.rs via
+     `GjcGitClient`: create/list/status/diff/prune); background jobs already
+     run exclusively in `<repo>/.gjc-worktrees/<jobId>` on `job/<jobId>`
+     branches (`JobOrchestrator.start` never dispatches from the project
+     root; resume reuses the worktree; prune refuses dirty ones), and the
+     app DB hides managed worktree rows from listings and rejects registering
+     or targeting them. Interactive chat sessions stay on the single-turn
+     worker facade at the project root by design (GJC-LIVE-SPEC: branch/PR
+     work from managed worktrees is Slice 3). When Slice 3 lands a
+     session-worktree option, the app side is only a picker on the run.
    - Small follow-ups: LLM session titles via a Protocol v1 event plus a
      title-source DB column (see `6340490`); mobile session rename is
      missing; no locale key-parity test; the ask-controller's

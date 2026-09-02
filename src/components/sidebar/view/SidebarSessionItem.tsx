@@ -191,7 +191,8 @@ export default function SidebarSessionItem({
 
     const handlePointerDown = (event: MouseEvent) => {
       const container = editingContainerRef.current;
-      // The touch layout has no rename panel, so any press ends the edit there.
+      // While editing on touch, the row itself is the input panel, so a press
+      // outside it ends the edit.
       if (!container || !container.contains(event.target as Node)) {
         onCancelEditingSession();
       }
@@ -267,6 +268,52 @@ export default function SidebarSessionItem({
   if (isMobile) {
     // Touch rows keep the menu inline and always visible: there is no hover to
     // reveal it, and the whole row is the tap target.
+    if (isEditing) {
+      // Renaming takes the row over as an input with its own buttons; the row
+      // stops selecting the session while the keyboard is up.
+      return (
+        <div className="group relative" data-session-status={status}>
+          <SessionStatusDot status={status} t={t} />
+          <div
+            ref={editingContainerRef}
+            className="relative mx-0 my-0.5 rounded-lg border border-border bg-card p-2"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={editingSessionName}
+                onChange={(event) => onEditingSessionNameChange(event.target.value)}
+                onKeyDown={(event) => {
+                  event.stopPropagation();
+                  if (event.key === 'Enter') {
+                    saveEditedSession();
+                  } else if (event.key === 'Escape') {
+                    onCancelEditingSession();
+                  }
+                }}
+                className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 text-sm focus:ring-1 focus:ring-primary focus:outline-hidden"
+                autoFocus
+              />
+              <button
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-primary/10 hover:bg-primary/20"
+                onClick={saveEditedSession}
+                title={t('tooltips.save')}
+              >
+                <Check className="h-3.5 w-3.5 text-primary" />
+              </button>
+              <button
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted hover:bg-accent"
+                onClick={onCancelEditingSession}
+                title={t('tooltips.cancel')}
+              >
+                <X className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="group relative" data-session-status={status}>
         <SessionStatusDot status={status} t={t} />

@@ -154,3 +154,45 @@ test('the menu trigger is reachable without a pointer: it is a focusable button 
   assert.equal(screen.queryByRole('menu'), null);
   assert.equal(document.activeElement, trigger, 'Escape hands focus back to the trigger');
 });
+
+test('renaming on touch takes the row over as an input, not a silent no-op', async () => {
+  // The menu's Rename item exists on mobile too, but the edit panel used to be
+  // desktop-only, so on touch the item did nothing visible.
+  const t = await makeT();
+  const project = sidebarProjectsFixture[0];
+  const session = { ...project.sessions![0], __provider: 'gjc' as const };
+  const saved: Array<[string, string, string]> = [];
+  const { container } = render(
+    <SidebarSessionItem
+      project={project}
+      session={session}
+      selectedSession={null}
+      isProcessing={false}
+      status="idle"
+      isMobile
+      currentTime={new Date('2026-07-21T10:20:00.000Z')}
+      editingSession={session.id}
+      editingSessionName="renamed draft"
+      onEditingSessionNameChange={() => {}}
+      onStartEditingSession={() => {}}
+      onCancelEditingSession={() => {}}
+      onSaveEditingSession={(projectId, sessionId, name) => saved.push([projectId, sessionId, name])}
+      onToggleSessionStar={() => {}}
+      onExportSession={() => {}}
+      onProjectSelect={() => {}}
+      onSessionSelect={() => {}}
+      onDeleteSession={() => {}}
+      t={t}
+    />,
+  );
+
+  const input = container.querySelector('input[type="text"]') as HTMLInputElement;
+  assert.ok(input, 'the row became an input');
+  assert.equal(input.value, 'renamed draft');
+  // No actions button while editing: the row is the editor.
+  assert.equal(screen.queryByRole('button', { name: 'Conversation actions' }), null);
+
+  const save = screen.getByTitle('Save');
+  fireEvent.click(save);
+  assert.deepEqual(saved.map(([projectId, sessionId, name]) => [projectId === project.projectId, sessionId === session.id, name]), [[true, true, 'renamed draft']]);
+});

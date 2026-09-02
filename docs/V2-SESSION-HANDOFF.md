@@ -1,6 +1,6 @@
 # gajae-app v2 — Session Handoff (resume state)
 
-Last updated: 2026-09-02 evening. Supersedes the 2026-07-18 handoff.
+Last updated: 2026-09-02 night. Supersedes the 2026-07-18 handoff.
 
 ## TL;DR
 
@@ -367,6 +367,44 @@ Out-of-tree smokes (the test that would have caught this):
   (DMG). A second submission is usually minutes. `03b7fbf` stopped the DMG
   packager from re-signing a stapled app (that had been changing the
   cdhash).
+
+### 2026-09-02 night: multi-viewer streaming
+
+Found while watching a session from two tabs at once (the desktop and the
+Tailscale link). Four commits on `main`, `npm run verify` green at
+`9830260`. The signed rebuild / notarization was **not** run; the
+2026-09-02 evening state below still applies.
+
+| Commit | Message |
+|---|---|
+| `95a1461` | `refactor(chat): drop the Working prefix from the live work block row` |
+| `6abb6d2` | `fix(chat): fan a live run out to every socket viewing the session` |
+| `38d2035` | `fix(chat): show the answer stream_end carries and keep the label steady to the end of a turn` |
+| `9830260` | `fix(chat): close an answered permission card on every other viewer` |
+
+- The run writer held **one** socket and every `chat.subscribe` replaced
+  it. Two viewers re-subscribe on every `session_upserted` (one per
+  transcript write), so the stream flipped between them; a tab could
+  receive zero frames for a turn it sent, `Writing answer` flashed and the
+  answer stayed on disk until a reload. `ChatSessionWriter` now keeps a
+  `Set` of connections (attach adds, closed sockets drop at the next frame,
+  the chat socket's close handler detaches). Same `seq` reaches every tab.
+- `stream_end` carries the whole answer and now outranks the accumulated
+  deltas (late joiner, or a turn the SDK did not stream).
+- Landed prose at the end of a turn counts as `responding`: `complete`
+  follows `stream_end` by ~100 ms and the `Thinking…` flip in between
+  flickered on every turn (`toolActivity.ts`).
+- A permission answered in one tab is now closed on the others
+  (`permission_cancelled` sent by `permissionResponse`).
+- The running row is `<activity>… · 12s`, no `Working ·` prefix;
+  `workBlock.working` locale key removed from all ten languages.
+- Verified live with two instrumented tabs: identical frame sequences,
+  `Thinking… → Writing answer… → done` with the answer kept in both.
+
+Seen but left alone: a viewer that did not send the turn learns of the
+run ~2 s late (from `session_upserted`, not from the sender's optimistic
+state); a finished block's `Worked for Ns` can shift by a few seconds
+after the reconcile fetch replaces realtime timestamps with disk ones.
 
 ## How to resume (next session)
 

@@ -40,7 +40,11 @@ async function makeT(): Promise<TFunction> {
   return i18n.getFixedT('en', 'sidebar');
 }
 
-async function mountRow(status: SessionStatus, handlers: { onRegenerateTitle?: (id: string) => void } = {}) {
+async function mountRow(
+  status: SessionStatus,
+  handlers: { onRegenerateTitle?: (id: string) => void } = {},
+  { isMobile = false }: { isMobile?: boolean } = {},
+) {
   const t = await makeT();
   const project = sidebarProjectsFixture[0];
   const session = { ...project.sessions![0], __provider: 'gjc' as const };
@@ -51,6 +55,7 @@ async function mountRow(status: SessionStatus, handlers: { onRegenerateTitle?: (
       selectedSession={null}
       isProcessing={false}
       status={status}
+      isMobile={isMobile}
       currentTime={new Date('2026-07-21T10:20:00.000Z')}
       editingSession={null}
       editingSessionName=""
@@ -67,12 +72,37 @@ async function mountRow(status: SessionStatus, handlers: { onRegenerateTitle?: (
       {...handlers}
     />,
   );
-  // The row renders a mobile and a desktop layout and CSS picks one; in a
-  // DOM without stylesheets both exist, so the test reaches for the desktop
-  // one explicitly, the way a viewport wider than `md` would.
-  const desktop = container.querySelector<HTMLElement>('.hidden.md\\:block')!;
-  return { container, desktop, sessionId: session.id };
+  return { container, sessionId: session.id };
 }
+
+test('each row has exactly one actions button, whichever device it is on', async () => {
+  // The row used to render both layouts and let CSS hide one, which handed
+  // assistive tech two "Conversation actions" buttons per row.
+  for (const isMobile of [false, true]) {
+    const { container } = await mountRow('idle', {}, { isMobile });
+    assert.equal(
+      within(container).getAllByRole('button', { name: 'Conversation actions' }).length,
+      1,
+      `${isMobile ? 'mobile' : 'desktop'} row`,
+    );
+    cleanup();
+  }
+});
+
+test('the desktop row is a link with a hover-revealed menu; the touch row is a tap target with the menu inline', async () => {
+  const desktop = await mountRow('idle');
+  const link = desktop.container.querySelector('a[href="/session/session-running"]');
+  assert.ok(link, 'desktop rows open in a new tab through their href');
+  const desktopMenuWrapper = within(desktop.container).getByRole('button', { name: 'Conversation actions' }).closest('.absolute');
+  assert.ok(desktopMenuWrapper?.className.includes('group-hover:opacity-100'), 'the desktop menu waits for hover or focus');
+  cleanup();
+
+  const mobile = await mountRow('idle', {}, { isMobile: true });
+  assert.equal(mobile.container.querySelector('a'), null, 'the touch row is not a link');
+  const mobileMenu = within(mobile.container).getByRole('button', { name: 'Conversation actions' });
+  assert.equal(mobileMenu.closest('.absolute'), null, 'the touch menu sits inline, always visible');
+  assert.equal(mobile.container.querySelector('.hidden, .md\\:hidden'), null, 'nothing is left for CSS to hide');
+});
 
 test('the row carries its status as data even when idle, and an accessible indicator only when it has something to say', async () => {
   const idle = await mountRow('idle');
@@ -93,8 +123,8 @@ test('the row carries its status as data even when idle, and an accessible indic
 
 test('a click on the row menu opens it with Regenerate title in place, and the item runs', async () => {
   const regenerated: string[] = [];
-  const { desktop, sessionId } = await mountRow('idle', { onRegenerateTitle: (id) => regenerated.push(id) });
-  const trigger = within(desktop).getByRole('button', { name: 'Conversation actions' });
+  const { container, sessionId } = await mountRow('idle', { onRegenerateTitle: (id) => regenerated.push(id) });
+  const trigger = within(container).getByRole('button', { name: 'Conversation actions' });
 
   assert.equal(trigger.getAttribute('aria-expanded'), 'false');
   fireEvent.click(trigger);
@@ -109,8 +139,8 @@ test('a click on the row menu opens it with Regenerate title in place, and the i
 });
 
 test('the menu trigger is reachable without a pointer: it is a focusable button that toggles on click', async () => {
-  const { desktop } = await mountRow('idle', { onRegenerateTitle: () => {} });
-  const trigger = within(desktop).getByRole('button', { name: 'Conversation actions' });
+  const { container } = await mountRow('idle', { onRegenerateTitle: () => {} });
+  const trigger = within(container).getByRole('button', { name: 'Conversation actions' });
 
   trigger.focus();
   assert.equal(document.activeElement, trigger, 'Tab can land on the trigger');

@@ -143,6 +143,7 @@ export function sidebarContentPropsFixture(t: TFunction): ComponentProps<typeof 
       selectedProject: null,
       selectedSession: null,
       isLoading: false,
+      isMobile: false,
       loadingProgress: null,
       expandedProjects: new Set(['project-alpha', 'project-beta']),
       editingProject: null,

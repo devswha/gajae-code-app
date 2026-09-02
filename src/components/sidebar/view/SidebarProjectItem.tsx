@@ -15,6 +15,7 @@ type SidebarProjectItemProps = {
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   isExpanded: boolean;
+  isMobile: boolean;
   showSessions: boolean;
   isDeleting: boolean;
   isStarred: boolean;
@@ -55,6 +56,7 @@ export default function SidebarProjectItem({
   selectedProject,
   selectedSession,
   isExpanded,
+  isMobile,
   showSessions,
   isDeleting,
   isStarred,
@@ -193,6 +195,7 @@ export default function SidebarProjectItem({
         <SidebarProjectSessions
           project={project}
           isExpanded={isExpanded}
+          isMobile={isMobile}
           sessions={sessions}
           selectedSession={selectedSession}
           initialSessionsLoaded={initialSessionsLoaded}

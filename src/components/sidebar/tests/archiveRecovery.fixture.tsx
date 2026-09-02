@@ -117,6 +117,7 @@ function ArchiveFixture() {
           selectedProject: null,
           selectedSession: null,
           isLoading: false,
+          isMobile: false,
           loadingProgress: null,
           expandedProjects: new Set(),
           editingProject: null,

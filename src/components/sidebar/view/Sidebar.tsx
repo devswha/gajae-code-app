@@ -65,6 +65,7 @@ function Sidebar(props: SidebarProps) {
     selectedProject,
     selectedSession,
     isLoading: projectQuery.isLoading,
+    isMobile,
     loadingProgress,
     expandedProjects: controller.expandedProjects,
     editingProject: controller.editingProject,

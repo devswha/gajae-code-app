@@ -17,6 +17,7 @@ export default function SidebarWorkList({ projectListProps, quietWhenEmpty = fal
     filteredProjects,
     selectedSession,
     isLoading,
+    isMobile,
     loadingProgress,
     initialSessionsLoaded,
     currentTime,
@@ -77,6 +78,7 @@ export default function SidebarWorkList({ projectListProps, quietWhenEmpty = fal
           selectedSession={selectedSession}
           isProcessing={activeSessions.has(session.id)}
           status={status}
+          isMobile={isMobile}
           showProjectName
           compact
           currentTime={currentTime}

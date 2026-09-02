@@ -11,6 +11,7 @@ import SidebarSessionItem from './SidebarSessionItem';
 type SidebarProjectSessionsProps = {
   project: Project;
   isExpanded: boolean;
+  isMobile: boolean;
   sessions: SessionWithProvider[];
   selectedSession: ProjectSession | null;
   initialSessionsLoaded: boolean;
@@ -61,6 +62,7 @@ function SessionListSkeleton() {
 export default function SidebarProjectSessions({
   project,
   isExpanded,
+  isMobile,
   sessions,
   selectedSession,
   initialSessionsLoaded,
@@ -108,6 +110,7 @@ export default function SidebarProjectSessions({
               selectedSession={selectedSession}
               isProcessing={activeSessions.has(session.id)}
               status={getSessionStatus(session.id)}
+              isMobile={isMobile}
               compact
               currentTime={currentTime}
               editingSession={editingSession}

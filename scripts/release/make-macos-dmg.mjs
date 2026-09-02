@@ -60,10 +60,22 @@ if (typeof releaseVersion !== 'string'
 }
 const identifier = run('/usr/libexec/PlistBuddy', ['-c', 'Print CFBundleIdentifier', infoPlist]).trim();
 
-// Finalize the nested ad-hoc signature from the inside out, then verify the
-// complete app before packaging. This catches native-addon signatures that a
-// shallow bundle verification would miss.
-run(process.execPath, [join(rootDir, 'scripts/release/finalize-macos-app.mjs'), '--app', appPath]);
+// Finalize the nested signature from the inside out, then verify the complete
+// app before packaging. This catches native-addon signatures that a shallow
+// bundle verification would miss.
+//
+// A stapled bundle is left alone: re-signing is not byte-identical (every
+// secure timestamp changes the nested signatures the resource seal hashes, so
+// the bundle's cdhash moves) and the ticket already stapled at
+// Contents/CodeResources would no longer match the app it ships with.
+const stapledTicket = join(appPath, 'Contents/CodeResources');
+const stapled = existsSync(stapledTicket);
+if (stapled) {
+  run('codesign', ['--verify', '--deep', '--strict', appPath]);
+  run('xcrun', ['stapler', 'validate', appPath]);
+} else {
+  run(process.execPath, [join(rootDir, 'scripts/release/finalize-macos-app.mjs'), '--app', appPath]);
+}
 
 mkdirSync(outDir, { recursive: true });
 const dmgPath = join(outDir, `gajae-app-desktop-${releaseVersion}-macos-arm64.dmg`);
@@ -112,6 +124,7 @@ console.log(JSON.stringify({
   releaseVersion,
   identifier,
   signature: adhoc ? 'adhoc' : signingIdentity,
+  appFinalized: stapled ? 'kept (stapled ticket present)' : 're-signed',
   note: 'Plain hdiutil DMG (no Finder cosmetics). Notarization + cosmetic layout require Apple credentials + a GUI session.',
 }, null, 2));
 void signatureInfo;

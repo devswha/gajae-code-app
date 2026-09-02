@@ -9,6 +9,8 @@ import type {
   ToolResult, CodeEditorDiffInfo 
 } from '../types/types';
 import { formatUsageLimitText } from '../utils/chatFormatting';
+import { toolOutputDensityRules } from '../utils/toolOutputDensity';
+import type { ToolOutputDensity } from '../utils/toolOutputDensity';
 import type { Project } from '../../../types/app';
 import { ToolRenderer, rendersResultInline, shouldHideToolResult } from '../tools';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../shared/view/ui';
@@ -31,8 +33,7 @@ type MessageComponentProps = {
   createDiff: (oldStr: string, newStr: string) => DiffLine[];
   onFileOpen?: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void;
   onShowSettings?: () => void;
-  showRawParameters?: boolean;
-  showThinking?: boolean;
+  density?: ToolOutputDensity;
   showImagePreviews?: boolean;
   selectedProject?: Project | null;
   provider: Provider | string;
@@ -71,7 +72,11 @@ const NOTICE_STYLES = {
   },
 } as const;
 
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, showImagePreviews = true, selectedProject, provider }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, density, showImagePreviews = true, selectedProject, provider }: MessageComponentProps) => {
+  const densityRules = toolOutputDensityRules(density);
+  // Remounting the cards on a level change is what discards the folds and
+  // unfolds the reader made by hand under the previous level.
+  const densityKey = density ?? 'balanced';
   // Every user message opens a new exchange. Marking that boundary is what
   // replaces the per-turn name rows: one rule, once, instead of a label on
   // every answer. The first message in a session has nothing to separate from.
@@ -108,7 +113,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
 
   const formattedTime = useMemo(() => new Date(message.timestamp).toLocaleTimeString(), [message.timestamp]);
-  const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
+  const shouldHideThinkingMessage = Boolean(message.isThinking && !densityRules.showReasoning);
 
   const [fullToolResult, setFullToolResult] = useState<ToolResult | null>(null);
   const [isLoadingFullToolResult, setIsLoadingFullToolResult] = useState(false);
@@ -254,6 +259,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
                 {message.toolInput && (
                   <ToolRenderer
+                    key={densityKey}
                     toolName={message.toolName || 'UnknownTool'}
                     toolInput={message.toolInput}
                     toolResult={effectiveToolResult}
@@ -262,7 +268,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     onFileOpen={onFileOpen}
                     createDiff={createDiff}
                     selectedProject={selectedProject}
-                    showRawParameters={showRawParameters}
+                    density={density}
                     rawToolInput={typeof message.toolInput === 'string' ? message.toolInput : undefined}
                     isSubagentContainer={message.isSubagentContainer}
                     subagentState={message.subagentState}
@@ -289,6 +295,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     // Non-error results - route through ToolRenderer (single source of truth)
                     <div id={`tool-result-${message.toolId}`} className="scroll-mt-4">
                       <ToolRenderer
+                        key={densityKey}
                         toolName={message.toolName || 'UnknownTool'}
                         toolInput={message.toolInput}
                         toolResult={effectiveToolResult}
@@ -297,6 +304,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                         onFileOpen={onFileOpen}
                         createDiff={createDiff}
                         selectedProject={selectedProject}
+                        density={density}
                       />
                     </div>
                   )
@@ -409,7 +417,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               </div>
             ) : message.isThinking ? (
               /* Thinking messages — Reasoning component (ai-elements pattern) */
-              <Reasoning defaultOpen={false}>
+              <Reasoning key={densityKey} defaultOpen={densityRules.reasoningOpen}>
                 <ReasoningTrigger />
                 <ReasoningContent>
                   <Markdown className="prose prose-base max-w-none dark:prose-invert [&_pre]:max-w-none [&_table]:max-w-none">
@@ -423,8 +431,8 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             ) : (
               <div dir="auto" className="text-sm text-foreground">
                 {/* Reasoning accordion */}
-                {showThinking && message.reasoning && (
-                  <Reasoning className="mb-3" defaultOpen={false}>
+                {densityRules.showReasoning && message.reasoning && (
+                  <Reasoning key={densityKey} className="mb-3" defaultOpen={densityRules.reasoningOpen}>
                     <ReasoningTrigger />
                     <ReasoningContent>
                       <div className="whitespace-pre-wrap">

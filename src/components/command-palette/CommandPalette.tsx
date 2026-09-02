@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowDownToLine,
@@ -17,6 +18,9 @@ import {
 } from 'lucide-react';
 
 import { useTheme } from '../../contexts/ThemeContext';
+import { useUiPreferences } from '../../hooks/useUiPreferences';
+import { TOOL_OUTPUT_DENSITIES } from '../chat/utils/toolOutputDensity';
+import { TOOL_OUTPUT_DENSITY_ICONS } from '../chat/view/ToolOutputDensityPicker';
 import {
   Command,
   CommandEmpty,
@@ -50,6 +54,7 @@ type ActionItemProps = {
   onSelect: () => void;
   disabled?: boolean;
   disabledHint?: string;
+  hint?: string;
 };
 type PaletteAction =
   | { type: 'change-visibility'; open: boolean }
@@ -130,12 +135,14 @@ function PaletteActionItem({
   onSelect,
   disabled,
   disabledHint,
+  hint,
 }: ActionItemProps) {
+  const trailing = disabledHint ?? hint;
   return (
     <CommandItem value={value} disabled={disabled} onSelect={onSelect}>
       <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
       <span className="flex-1">{label}</span>
-      {disabledHint && <span className="text-xs text-muted-foreground">{disabledHint}</span>}
+      {trailing && <span className="text-xs text-muted-foreground">{trailing}</span>}
     </CommandItem>
   );
 }
@@ -149,6 +156,8 @@ export default function CommandPalette({
 }: CommandPaletteProps) {
   const [palette, dispatchPalette] = React.useReducer(paletteReducer, { open: false, query: '', history: [] });
   const { toggleDarkMode } = useTheme();
+  const { t } = useTranslation('chat');
+  const { preferences, setPreference } = useUiPreferences();
   const { openFile } = usePaletteOps();
   const navigate = useNavigate();
   const projectId = selectedProject?.projectId;
@@ -235,6 +244,16 @@ export default function CommandPalette({
       value: 'Toggle theme dark light mode',
       onSelect: () => runAfterDismissal(toggleDarkMode),
     },
+    ...TOOL_OUTPUT_DENSITIES.map((level): ActionItemProps => {
+      const levelLabel = t(`toolOutputDensity.${level}`);
+      return {
+        icon: TOOL_OUTPUT_DENSITY_ICONS[level],
+        label: t('toolOutputDensity.paletteAction', { level: levelLabel }),
+        value: `Tool output density ${level} ${levelLabel}`,
+        hint: preferences.toolOutputDensity === level ? 'Current' : undefined,
+        onSelect: () => runAfterDismissal(() => setPreference('toolOutputDensity', level)),
+      };
+    }),
   ];
   const gitActions: ActionItemProps[] = [
     {

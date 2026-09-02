@@ -131,5 +131,12 @@
     "thoughtBriefly": "推理了几秒钟",
     "thoughtFor_one": "已推理 {{count}} 秒",
     "thoughtFor_other": "{{count}}秒后的原因"
+  },
+  "toolOutputDensity": {
+    "tooltip": "工具输出：{{level}}（{{shortcut}}）",
+    "paletteAction": "工具输出：{{level}}",
+    "compact": "紧凑",
+    "balanced": "均衡",
+    "detailed": "详细"
   }
 }

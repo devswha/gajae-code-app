@@ -28,7 +28,17 @@
     "showRawParameters": "미처리 매개변수 표시",
     "showThinking": "사고 과정 표시",
     "sendByCtrlEnter": "Ctrl+Enter로 전송",
-    "sendByCtrlEnterDescription": "활성화하면 Enter 대신 Ctrl+Enter로 메시지를 보냅니다. IME 사용 중 실수로 전송하는 일을 막을 수 있습니다."
+    "sendByCtrlEnterDescription": "활성화하면 Enter 대신 Ctrl+Enter로 메시지를 보냅니다. IME 사용 중 실수로 전송하는 일을 막을 수 있습니다.",
+    "toolOutputDensity": {
+      "label": "도구 출력 밀도",
+      "description": "각 도구 호출을 열기 전에 대화에 얼마나 보여줄지 정합니다.",
+      "compact": "간결",
+      "balanced": "보통",
+      "detailed": "상세",
+      "compactDescription": "모든 호출을 접힌 한 줄로 표시합니다. 변경 내용은 파일명과 +N/−M만 보이고, 사고 과정과 원본 매개변수는 숨깁니다.",
+      "balancedDescription": "반복된 호출은 한 줄로 묶고, 명령 출력은 접고, 변경 내용은 펼칩니다. 사고 과정과 원본 매개변수는 숨깁니다.",
+      "detailedDescription": "모든 호출을 개별 카드로 표시하고 출력, 변경 내용, 사고 과정, 원본 매개변수를 모두 펼칩니다."
+    }
   },
   "mainTabs": {
     "appearance": "화면 모양",

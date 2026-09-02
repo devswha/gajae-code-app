@@ -34,7 +34,7 @@ function MainContent({
   onShowSettings,
   newSessionTrigger,
 }: MainContentProps) {
-  const { showImagePreviews, showRawParameters, showThinking, sendByCtrlEnter } = useUiPreferences().preferences;
+  const { showImagePreviews, toolOutputDensity, sendByCtrlEnter } = useUiPreferences().preferences;
   const panel = useWorkspacePanel({ isMobile });
   const { closePanel, containerRef, expanded, handleResizeKeyDown, handleResizeStart, isOpen, resizeHandleRef, setTab, tab, toggleExpanded, togglePanel, width } = panel;
   const [pendingBrowserNavigation, setPendingBrowserNavigation] = useState<{ id: number; url: string } | null>(null);
@@ -116,8 +116,7 @@ function MainContent({
                   onNavigateToSession={onNavigateToSession}
                   onSessionEstablished={onSessionEstablished}
                   onShowSettings={onShowSettings}
-                  showRawParameters={showRawParameters}
-                  showThinking={showThinking}
+                  toolOutputDensity={toolOutputDensity}
                   showImagePreviews={showImagePreviews}
                   sendByCtrlEnter={sendByCtrlEnter}
                   newSessionTrigger={newSessionTrigger}

@@ -131,5 +131,12 @@
     "thoughtBriefly": "수초간 추론",
     "thoughtFor_one": "{{count}}초 동안 추론",
     "thoughtFor_other": "{{count}}초 동안 추론"
+  },
+  "toolOutputDensity": {
+    "tooltip": "도구 출력: {{level}} ({{shortcut}})",
+    "paletteAction": "도구 출력: {{level}}",
+    "compact": "간결",
+    "balanced": "보통",
+    "detailed": "상세"
   }
 }

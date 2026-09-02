@@ -28,7 +28,17 @@
     "showRawParameters": "Unbearbeitete Parameter anzeigen",
     "showThinking": "Argumentation anzeigen",
     "sendByCtrlEnter": "Verwenden Sie zum Senden Ctrl+Enter",
-    "sendByCtrlEnterDescription": "Wenn aktiviert, sendet Ctrl+Enter Nachrichten anstelle von Enter. Dies hilft IME-Benutzern, versehentliche Versendungen zu verhindern."
+    "sendByCtrlEnterDescription": "Wenn aktiviert, sendet Ctrl+Enter Nachrichten anstelle von Enter. Dies hilft IME-Benutzern, versehentliche Versendungen zu verhindern.",
+    "toolOutputDensity": {
+      "label": "Dichte der Werkzeugausgabe",
+      "description": "Wie viel von jedem Werkzeugaufruf das Protokoll zeigt, bevor Sie ihn öffnen.",
+      "compact": "Kompakt",
+      "balanced": "Ausgewogen",
+      "detailed": "Ausführlich",
+      "compactDescription": "Jeder Aufruf ist eine eingeklappte Zeile. Diffs zeigen nur Datei und +N/−M; Argumentation und Rohparameter bleiben verborgen.",
+      "balancedDescription": "Wiederholte Aufrufe werden zu einer Zeile zusammengefasst, Befehlsausgaben bleiben eingeklappt, Diffs bleiben offen. Argumentation und Rohparameter bleiben verborgen.",
+      "detailedDescription": "Jeder Aufruf ist eine eigene Karte mit geöffneter Ausgabe, Diffs, Argumentation und Rohparametern."
+    }
   },
   "mainTabs": {
     "appearance": "Aussehen",

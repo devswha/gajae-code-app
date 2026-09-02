@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useUiPreferences } from '../../../../hooks/useUiPreferences';
 import { DarkModeToggle } from '../../../../shared/view/ui';
 import LanguageSelector from '../../../../shared/view/ui/LanguageSelector';
+import ToolOutputDensityPicker from '../../../chat/view/ToolOutputDensityPicker';
 import type { InterfaceFontSize, ProjectSortOrder } from '../../types/types';
 import SettingsCard from '../SettingsCard';
 import SettingsRow from '../SettingsRow';
@@ -65,13 +66,21 @@ export default function AppearanceSettingsTab(input: AppearanceSettingsTabProps)
       </SettingsSection>
 
       <SettingsSection title={t('preferences.sections.toolDisplay')}>
-        <SettingsCard divided>
-          <SettingsRow label={t('preferences.showThinking')}>
-            <PreferenceToggle checked={preferences.showThinking} change={(value) => setPreference('showThinking', value)} label={t('preferences.showThinking')} />
+        <SettingsCard>
+          <SettingsRow
+            label={t('preferences.toolOutputDensity.label')}
+            description={t('preferences.toolOutputDensity.description')}
+            className="flex-col items-stretch gap-3 sm:flex-row sm:items-center"
+          >
+            <ToolOutputDensityPicker
+              value={preferences.toolOutputDensity}
+              onChange={(value) => setPreference('toolOutputDensity', value)}
+              ariaLabel={t('preferences.toolOutputDensity.label')}
+            />
           </SettingsRow>
-          <SettingsRow label={t('preferences.showRawParameters')}>
-            <PreferenceToggle checked={preferences.showRawParameters} change={(value) => setPreference('showRawParameters', value)} label={t('preferences.showRawParameters')} />
-          </SettingsRow>
+          <p className="px-4 pb-4 text-xs text-muted-foreground" aria-live="polite">
+            {t(`preferences.toolOutputDensity.${preferences.toolOutputDensity}Description`)}
+          </p>
         </SettingsCard>
       </SettingsSection>
 

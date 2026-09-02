@@ -104,3 +104,64 @@ test('a profile stamped by that bug is corrected once', () => {
   assert.equal(readInitialPreferencesForTest(STORAGE_KEY).showThinking, false);
   assert.equal(store.get(`${STORAGE_KEY}.version`), String(UI_PREFERENCES_VERSION));
 });
+
+/*
+ * Version 3 replaces the two display switches with one density level. Someone
+ * who had turned either switch on was asking to see more than the default, so
+ * they land on `detailed`; everyone else keeps the balanced default. Neither
+ * old key is dropped: a downgrade still finds them.
+ */
+
+test('a fresh profile starts balanced', () => {
+  assert.equal(readInitialPreferencesForTest(STORAGE_KEY).toolOutputDensity, 'balanced');
+});
+
+test('a profile that chose to see reasoning becomes detailed', () => {
+  store.set(STORAGE_KEY, JSON.stringify({ showThinking: true, showRawParameters: false }));
+  store.set(`${STORAGE_KEY}.version`, '2');
+
+  assert.equal(readInitialPreferencesForTest(STORAGE_KEY).toolOutputDensity, 'detailed');
+});
+
+test('a profile that chose to see raw parameters becomes detailed, and the choice is kept', () => {
+  store.set(STORAGE_KEY, JSON.stringify({ showThinking: false, showRawParameters: true }));
+  store.set(`${STORAGE_KEY}.version`, '2');
+
+  const preferences = readInitialPreferencesForTest(STORAGE_KEY);
+
+  assert.equal(preferences.toolOutputDensity, 'detailed');
+  assert.equal(preferences.showRawParameters, true);
+  assert.equal(JSON.parse(store.get(STORAGE_KEY)!).showRawParameters, true);
+});
+
+test('a profile with both switches off becomes balanced', () => {
+  store.set(STORAGE_KEY, JSON.stringify({ showThinking: false, showRawParameters: false }));
+  store.set(`${STORAGE_KEY}.version`, '2');
+
+  assert.equal(readInitialPreferencesForTest(STORAGE_KEY).toolOutputDensity, 'balanced');
+});
+
+test('an unstamped profile whose thinking flag was only the old default does not become detailed', () => {
+  // The version-2 reset runs first, so the stale default is not read as a wish
+  // for more detail. Raw parameters were never defaulted on, so that one counts.
+  store.set(STORAGE_KEY, JSON.stringify({ showThinking: true }));
+  assert.equal(readInitialPreferencesForTest(STORAGE_KEY).toolOutputDensity, 'balanced');
+
+  store.clear();
+  store.set(STORAGE_KEY, JSON.stringify({ showThinking: true, showRawParameters: true }));
+  assert.equal(readInitialPreferencesForTest(STORAGE_KEY).toolOutputDensity, 'detailed');
+});
+
+test('a level chosen after the migration is never re-derived from the old switches', () => {
+  store.set(STORAGE_KEY, JSON.stringify({ showThinking: true, showRawParameters: true, toolOutputDensity: 'compact' }));
+  store.set(`${STORAGE_KEY}.version`, String(UI_PREFERENCES_VERSION));
+
+  assert.equal(readInitialPreferencesForTest(STORAGE_KEY).toolOutputDensity, 'compact');
+});
+
+test('a level that is not one of the three reads as the default', () => {
+  store.set(STORAGE_KEY, JSON.stringify({ toolOutputDensity: 'verbose' }));
+  store.set(`${STORAGE_KEY}.version`, String(UI_PREFERENCES_VERSION));
+
+  assert.equal(readInitialPreferencesForTest(STORAGE_KEY).toolOutputDensity, 'balanced');
+});

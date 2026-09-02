@@ -2,7 +2,7 @@ import type { KeyboardEvent, ReactNode, Ref } from 'react';
 
 import { cn } from '../../../utils/cn';
 
-type PillBarProps = { children: ReactNode; className?: string; role?: 'tablist'; 'aria-label'?: string };
+type PillBarProps = { children: ReactNode; className?: string; role?: 'tablist' | 'radiogroup'; 'aria-label'?: string };
 
 export function PillBar({ 'aria-label': label, children, className, role }: PillBarProps) {
   return (
@@ -16,7 +16,7 @@ export function PillBar({ 'aria-label': label, children, className, role }: Pill
   );
 }
 
-type PillProps = { isActive: boolean; onClick: () => void; children: ReactNode; className?: string; id?: string; role?: 'tab'; ariaSelected?: boolean; ariaControls?: string; tabIndex?: number; onKeyDown?: (event: KeyboardEvent<HTMLButtonElement>) => void; buttonRef?: Ref<HTMLButtonElement> };
+type PillProps = { isActive: boolean; onClick: () => void; children: ReactNode; className?: string; id?: string; role?: 'tab' | 'radio'; ariaSelected?: boolean; ariaChecked?: boolean; ariaControls?: string; ariaLabel?: string; title?: string; tabIndex?: number; onKeyDown?: (event: KeyboardEvent<HTMLButtonElement>) => void; buttonRef?: Ref<HTMLButtonElement> };
 
 export function Pill({
   isActive,
@@ -26,7 +26,10 @@ export function Pill({
   id,
   role,
   ariaSelected,
+  ariaChecked,
   ariaControls,
+  ariaLabel,
+  title,
   tabIndex,
   onKeyDown,
   buttonRef,
@@ -42,7 +45,10 @@ export function Pill({
       id={id}
       role={role}
       aria-selected={ariaSelected}
+      aria-checked={ariaChecked}
       aria-controls={ariaControls}
+      aria-label={ariaLabel}
+      title={title}
       tabIndex={tabIndex}
       onClick={onClick}
       onKeyDown={onKeyDown}

@@ -1,6 +1,14 @@
 import { useEffect, useReducer, useRef } from 'react';
 
-type UiPreferences = { showRawParameters: boolean; showThinking: boolean; showImagePreviews: boolean; sendByCtrlEnter: boolean; sidebarVisible: boolean; voiceEnabled: boolean };
+import { DEFAULT_TOOL_OUTPUT_DENSITY, isToolOutputDensity } from '../components/chat/utils/toolOutputDensity';
+import type { ToolOutputDensity } from '../components/chat/utils/toolOutputDensity';
+
+/**
+ * `showRawParameters` and `showThinking` are superseded by `toolOutputDensity`
+ * (version 3): nothing reads them any more, but they stay in the record for one
+ * release so a downgrade still finds them and an upgrade can derive from them.
+ */
+type UiPreferences = { showRawParameters: boolean; showThinking: boolean; showImagePreviews: boolean; sendByCtrlEnter: boolean; sidebarVisible: boolean; voiceEnabled: boolean; toolOutputDensity: ToolOutputDensity };
 type UiPreferenceKey = keyof UiPreferences;
 type UiPreferencesAction =
   | { type: 'set'; key: UiPreferenceKey; value: unknown }
@@ -14,11 +22,13 @@ const initialValues: UiPreferences = {
   sendByCtrlEnter: false,
   sidebarVisible: true,
   voiceEnabled: false,
+  toolOutputDensity: DEFAULT_TOOL_OUTPUT_DENSITY,
 };
 const preferenceNames = Object.keys(initialValues) as UiPreferenceKey[];
 const preferenceEvent = 'ui-preferences:sync';
 
-export const UI_PREFERENCES_VERSION = 2;
+export const UI_PREFERENCES_VERSION = 3;
+const DENSITY_PREFERENCE_VERSION = 3;
 
 type SyncEventDetail = { storageKey: string; sourceId: string; value: Partial<Record<UiPreferenceKey, unknown>> };
 
@@ -27,6 +37,13 @@ const asBoolean = (candidate: unknown, otherwise: boolean): boolean => {
   if (candidate === 'true') return true;
   if (candidate === 'false') return false;
   return otherwise;
+};
+
+const coerce = <K extends UiPreferenceKey>(key: K, candidate: unknown, otherwise: UiPreferences[K]): UiPreferences[K] => {
+  if (key === 'toolOutputDensity') {
+    return (isToolOutputDensity(candidate) ? candidate : otherwise) as UiPreferences[K];
+  }
+  return asBoolean(candidate, otherwise as boolean) as UiPreferences[K];
 };
 
 const preferencesVersionKey = (storageKey: string) => `${storageKey}.version`;
@@ -65,7 +82,7 @@ const collectPreferences = (source: Record<string, unknown> | null): UiPreferenc
   const result = { ...initialValues };
   if (!source) return result;
   for (const preference of preferenceNames) {
-    result[preference] = asBoolean(source[preference], result[preference]);
+    (result as Record<UiPreferenceKey, unknown>)[preference] = coerce(preference, source[preference], result[preference]);
   }
   return result;
 };
@@ -75,11 +92,27 @@ const storedVersion = (storageKey: string): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const applyMigrations = (preferences: UiPreferences, version: number): UiPreferences => (
-  version < UI_PREFERENCES_VERSION
-    ? { ...preferences, showThinking: initialValues.showThinking }
-    : preferences
-);
+/**
+ * Version 2 undid a default that had been written into every profile (thinking
+ * on). Version 3 folds the two display switches into one density level: a
+ * profile that had either one on was asking for more than the default shows,
+ * so it lands on `detailed`; everything else keeps the balanced default. The
+ * order matters - the thinking reset runs first, so a stale default never
+ * counts as a choice.
+ */
+const applyMigrations = (preferences: UiPreferences, version: number): UiPreferences => {
+  let migrated = preferences;
+  if (version < 2) {
+    migrated = { ...migrated, showThinking: initialValues.showThinking };
+  }
+  if (version < DENSITY_PREFERENCE_VERSION) {
+    migrated = {
+      ...migrated,
+      toolOutputDensity: migrated.showThinking || migrated.showRawParameters ? 'detailed' : DEFAULT_TOOL_OUTPUT_DENSITY,
+    };
+  }
+  return migrated;
+};
 
 const saveLoadedPreferences = (storageKey: string, preferences: UiPreferences) => {
   try {
@@ -106,10 +139,10 @@ const updateState = (current: UiPreferences, changes: Partial<Record<UiPreferenc
   let updated: UiPreferences | null = null;
   for (const name of preferenceNames) {
     if (!(name in changes)) continue;
-    const value = asBoolean(changes[name], current[name]);
+    const value = coerce(name, changes[name], current[name]);
     if (value !== current[name]) {
       updated ??= { ...current };
-      updated[name] = value;
+      (updated as Record<UiPreferenceKey, unknown>)[name] = value;
     }
   }
   return updated ?? current;

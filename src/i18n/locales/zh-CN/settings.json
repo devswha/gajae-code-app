@@ -28,7 +28,17 @@
     "showRawParameters": "显示未处理的参数",
     "showThinking": "显示推理过程",
     "sendByCtrlEnter": "按下Ctrl+Enter发送",
-    "sendByCtrlEnterDescription": "启用时，Ctrl+Enter用于发送消息而非Enter键，这有助于IME用户防止意外发送。"
+    "sendByCtrlEnterDescription": "启用时，Ctrl+Enter用于发送消息而非Enter键，这有助于IME用户防止意外发送。",
+    "toolOutputDensity": {
+      "label": "工具输出密度",
+      "description": "决定每次工具调用在展开前于对话中显示多少内容。",
+      "compact": "紧凑",
+      "balanced": "均衡",
+      "detailed": "详细",
+      "compactDescription": "每次调用折叠为一行。差异仅显示文件名和 +N/−M，推理过程和原始参数隐藏。",
+      "balancedDescription": "连续的相同调用折叠为一行，命令输出保持折叠，差异保持展开。推理过程和原始参数隐藏。",
+      "detailedDescription": "每次调用为独立卡片，输出、差异、推理过程和原始参数全部展开。"
+    }
   },
   "mainTabs": {
     "appearance": "外观",

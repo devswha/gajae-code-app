@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { groupConsecutiveTools, isToolGroupItem } from '../utils/toolGrouping';
+import { groupConsecutiveTools, hasFailedResult, isToolGroupItem } from '../utils/toolGrouping';
 import type { ChatMessage } from '../types/types';
 
 /**
@@ -73,9 +73,71 @@ test('hidden reasoning still does not split a groupable run', () => {
   // renders nothing and must not break an otherwise continuous run.
   const items = groupConsecutiveTools(
     [toolCall('Read', 'a'), thinking('t'), toolCall('Read', 'b')],
-    false,
+    'balanced',
   );
 
   assert.equal(items.length, 1);
   assert.equal(isToolGroupItem(items[0]), true);
+});
+
+test('detailed never folds: every call keeps its own card', () => {
+  const items = groupConsecutiveTools(
+    [toolCall('Bash', 'a'), toolCall('Bash', 'b'), toolCall('Bash', 'c')],
+    'detailed',
+  );
+
+  assert.equal(items.length, 3);
+  assert.equal(items.some(isToolGroupItem), false);
+});
+
+test('detailed shows reasoning, so a thought between calls is a row of its own', () => {
+  const items = groupConsecutiveTools(
+    [toolCall('Read', 'a'), thinking('t'), toolCall('Read', 'b')],
+    'detailed',
+  );
+
+  assert.equal(items.length, 3);
+  assert.equal((items[1] as ChatMessage).isThinking, true);
+});
+
+test('compact folds even a lone call into a row', () => {
+  const items = groupConsecutiveTools([toolCall('Bash', 'only')], 'compact');
+
+  assert.equal(items.length, 1);
+  assert.equal(isToolGroupItem(items[0]), true);
+  assert.equal(isToolGroupItem(items[0]) && items[0].messages.length, 1);
+});
+
+test('compact keeps runs of different tools as separate rows', () => {
+  const items = groupConsecutiveTools(
+    [toolCall('Read', 'a'), toolCall('Bash', 'b'), toolCall('Bash', 'c')],
+    'compact',
+  );
+
+  assert.equal(items.length, 2);
+  assert.equal(items.every(isToolGroupItem), true);
+  assert.deepEqual(items.map((item) => isToolGroupItem(item) && item.messages.length), [1, 2]);
+});
+
+test('a subagent container is never folded, whatever the level', () => {
+  const subagent = { ...toolCall('Task', 's'), isSubagentContainer: true } as ChatMessage;
+
+  for (const density of ['compact', 'balanced', 'detailed'] as const) {
+    const items = groupConsecutiveTools([subagent, subagent], density);
+    assert.equal(items.some(isToolGroupItem), false, density);
+  }
+});
+
+test('the default level is balanced', () => {
+  const run = [toolCall('Read', 'a'), toolCall('Read', 'b')];
+
+  assert.deepEqual(groupConsecutiveTools(run), groupConsecutiveTools(run, 'balanced'));
+});
+
+test('a failed call is what a folded group must never hide', () => {
+  const failed = { ...toolCall('Bash', 'x'), toolResult: { content: 'boom', isError: true } } as ChatMessage;
+
+  assert.equal(hasFailedResult(failed), true);
+  assert.equal(hasFailedResult(toolCall('Bash', 'ok')), false);
+  assert.equal(hasFailedResult({ ...toolCall('Bash', 'ok'), toolResult: { content: 'fine', isError: false } } as ChatMessage), false);
 });

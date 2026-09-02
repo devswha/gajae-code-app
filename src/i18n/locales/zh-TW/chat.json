@@ -131,5 +131,12 @@
     "thoughtBriefly": "推敲數秒",
     "thoughtFor_one": "推敲{{count}}秒",
     "thoughtFor_other": "推敲{{count}}秒"
+  },
+  "toolOutputDensity": {
+    "tooltip": "工具輸出：{{level}}（{{shortcut}}）",
+    "paletteAction": "工具輸出：{{level}}",
+    "compact": "精簡",
+    "balanced": "均衡",
+    "detailed": "詳細"
   }
 }

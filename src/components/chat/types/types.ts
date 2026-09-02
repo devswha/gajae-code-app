@@ -1,5 +1,6 @@
 import type { MarkSessionIdle, MarkSessionProcessing, SessionActivityMap } from '../../../hooks/useSessionProtection';
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
+import type { ToolOutputDensity } from '../utils/toolOutputDensity';
 
 /** Old/new text a tool reported for a file edit, forwarded with file-open requests. */
 export type CodeEditorDiffInfo = { old_string?: string; new_string?: string; [key: string]: unknown };
@@ -28,5 +29,5 @@ export interface SessionEstablishedContext { project: Project; provider: LLMProv
 export interface ChatInterfaceProps {
   selectedProject: Project | null; selectedSession: ProjectSession | null; ws: WebSocket | null; sendMessage: (message: unknown) => void;
   onFileOpen?: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void; onInputFocusChange?: (focused: boolean) => void; onSessionProcessing?: MarkSessionProcessing; onSessionIdle?: MarkSessionIdle; processingSessions?: SessionActivityMap; onNavigateToSession?: (targetSessionId: string, options?: SessionNavigationOptions) => void; onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void; onShowSettings?: () => void;
-  showRawParameters?: boolean; showThinking?: boolean; showImagePreviews?: boolean; sendByCtrlEnter?: boolean; newSessionTrigger?: number; onTaskClick?: (...args: unknown[]) => void;
+  toolOutputDensity?: ToolOutputDensity; showImagePreviews?: boolean; sendByCtrlEnter?: boolean; newSessionTrigger?: number; onTaskClick?: (...args: unknown[]) => void;
 }

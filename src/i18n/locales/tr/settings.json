@@ -28,7 +28,17 @@
     "showRawParameters": "İşlenmemiş parametreleri görüntüle",
     "showThinking": "Mantık yürütmeyi göster",
     "sendByCtrlEnter": "Göndermek için Ctrl+Enter tuşlarını kullanın",
-    "sendByCtrlEnterDescription": "Etkinleştirildiğinde Ctrl+Enter, Enter yerine mesaj gönderir. Bu, IME kullanıcılarının yanlışlıkla yapılan gönderimleri önlemesine yardımcı olur."
+    "sendByCtrlEnterDescription": "Etkinleştirildiğinde Ctrl+Enter, Enter yerine mesaj gönderir. Bu, IME kullanıcılarının yanlışlıkla yapılan gönderimleri önlemesine yardımcı olur.",
+    "toolOutputDensity": {
+      "label": "Araç çıktısı yoğunluğu",
+      "description": "Her araç çağrısının, açmadan önce dökümde ne kadarının gösterileceğini belirler.",
+      "compact": "Sıkışık",
+      "balanced": "Dengeli",
+      "detailed": "Ayrıntılı",
+      "compactDescription": "Her çağrı katlanmış tek bir satırdır. Farklar yalnızca dosyayı ve +N/−M değerini gösterir; mantık yürütme ve ham parametreler gizlidir.",
+      "balancedDescription": "Tekrarlanan çağrılar tek satıra katlanır, komut çıktısı katlı kalır, farklar açık kalır. Mantık yürütme ve ham parametreler gizlidir.",
+      "detailedDescription": "Her çağrı; çıktısı, farkları, mantık yürütmesi ve ham parametreleri açık olan kendi kartıdır."
+    }
   },
   "mainTabs": {
     "appearance": "Görünüm",

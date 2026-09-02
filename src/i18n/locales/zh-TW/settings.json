@@ -28,7 +28,17 @@
     "showRawParameters": "顯示未處理的參數",
     "showThinking": "顯示推理",
     "sendByCtrlEnter": "使用 Ctrl+Enter 送出",
-    "sendByCtrlEnterDescription": "當啟用時，Ctrl+Enter 將取代 Enter 以發送訊息。這有助於IME使用者防止意外送出."
+    "sendByCtrlEnterDescription": "當啟用時，Ctrl+Enter 將取代 Enter 以發送訊息。這有助於IME使用者防止意外送出.",
+    "toolOutputDensity": {
+      "label": "工具輸出密度",
+      "description": "決定每次工具呼叫在展開前於對話中顯示多少內容。",
+      "compact": "精簡",
+      "balanced": "均衡",
+      "detailed": "詳細",
+      "compactDescription": "每次呼叫折疊為一行。差異僅顯示檔名和 +N/−M，推理與原始參數隱藏。",
+      "balancedDescription": "連續的相同呼叫折疊為一行，命令輸出保持折疊，差異保持展開。推理與原始參數隱藏。",
+      "detailedDescription": "每次呼叫為獨立卡片，輸出、差異、推理與原始參數全部展開。"
+    }
   },
   "mainTabs": {
     "appearance": "外觀",

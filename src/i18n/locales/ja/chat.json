@@ -131,5 +131,12 @@
     "thoughtBriefly": "少し考えました。",
     "thoughtFor_one": "{{count}} 秒間推論しました。",
     "thoughtFor_other": "{{count}} 秒考えました。"
+  },
+  "toolOutputDensity": {
+    "tooltip": "ツール出力: {{level}} ({{shortcut}})",
+    "paletteAction": "ツール出力: {{level}}",
+    "compact": "コンパクト",
+    "balanced": "標準",
+    "detailed": "詳細"
   }
 }

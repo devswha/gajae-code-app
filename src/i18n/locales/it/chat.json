@@ -131,5 +131,12 @@
     "thoughtBriefly": "Ragionato per qualche secondo",
     "thoughtFor_one": "Motivato per {{count}} secondo",
     "thoughtFor_other": "Ragionato per {{count}} secondi"
+  },
+  "toolOutputDensity": {
+    "tooltip": "Output degli strumenti: {{level}} ({{shortcut}})",
+    "paletteAction": "Output degli strumenti: {{level}}",
+    "compact": "Compatto",
+    "balanced": "Bilanciato",
+    "detailed": "Dettagliato"
   }
 }

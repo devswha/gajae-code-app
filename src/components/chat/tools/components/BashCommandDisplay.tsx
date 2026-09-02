@@ -90,9 +90,13 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
   const text = (output || '').replace(/\s+$/, '');
   const hasOutput = text.length > 0;
   const lineCount = hasOutput ? text.split('\n').length : 0;
-  const [open, setOpen] = useState(false);
+  // Output that is already here decides the first paint; output that arrives
+  // later (a live run) is caught by the effect, once, so a row the reader has
+  // since folded by hand is not reopened by every chunk.
+  const startsOpen = hasOutput && (defaultOpen || isError);
+  const [open, setOpen] = useState(startsOpen);
   const [copied, setCopied] = useState(false);
-  const autoOpenHandled = useRef(false);
+  const autoOpenHandled = useRef(startsOpen);
 
   useEffect(() => {
     const shouldOpen = hasOutput && (defaultOpen || isError);

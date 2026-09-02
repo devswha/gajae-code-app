@@ -131,5 +131,12 @@
     "thoughtBriefly": "Birkaç saniyeliğine mantık yürüttüm",
     "thoughtFor_one": "{{count}} saniye süreyle gerekçelendirildi",
     "thoughtFor_other": "{{count}} saniye süreyle gerekçelendirildi"
+  },
+  "toolOutputDensity": {
+    "tooltip": "Araç çıktısı: {{level}} ({{shortcut}})",
+    "paletteAction": "Araç çıktısı: {{level}}",
+    "compact": "Sıkışık",
+    "balanced": "Dengeli",
+    "detailed": "Ayrıntılı"
   }
 }

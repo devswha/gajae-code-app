@@ -10,6 +10,8 @@ import type {
 } from '../../../types/app';
 import { getIntrinsicMessageKey } from '../utils/messageKeys';
 import { groupConsecutiveTools, isToolGroupItem } from '../utils/toolGrouping';
+import { DEFAULT_TOOL_OUTPUT_DENSITY } from '../utils/toolOutputDensity';
+import type { ToolOutputDensity } from '../utils/toolOutputDensity';
 
 import MessageComponent from './MessageComponent';
 import ProviderSelectionEmptyState from './ProviderSelectionEmptyState';
@@ -44,8 +46,7 @@ interface ChatMessagesPaneProps {
   createDiff: any;
   onFileOpen?: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void;
   onShowSettings?: () => void;
-  showRawParameters?: boolean;
-  showThinking?: boolean;
+  density?: ToolOutputDensity;
   showImagePreviews?: boolean;
   selectedProject: Project;
 }
@@ -76,16 +77,15 @@ function ChatMessagesPane({
   createDiff,
   onFileOpen,
   onShowSettings,
-  showRawParameters,
-  showThinking,
+  density = DEFAULT_TOOL_OUTPUT_DENSITY,
   showImagePreviews = true,
   selectedProject,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
   const displayProvider = selectedSession?.provider ?? selectedSession?.__provider ?? provider;
   const groupedVisibleMessages = useMemo(
-    () => groupConsecutiveTools(visibleMessages, Boolean(showThinking)),
-    [visibleMessages, showThinking],
+    () => groupConsecutiveTools(visibleMessages, density),
+    [visibleMessages, density],
   );
 
   // Stable, deterministic keys for the messages rendered this pass.
@@ -204,15 +204,14 @@ function ChatMessagesPane({
 
                 return (
                   <ToolGroupContainer
-                    key={`tool-group-${getMessageKey(item.messages[0])}`}
+                    key={`tool-group-${density}-${getMessageKey(item.messages[0])}`}
                     group={item}
                     prevMessage={groupPrevMessage}
                     createDiff={createDiff}
                     getMessageKey={getMessageKey}
                     onFileOpen={onFileOpen}
                     onShowSettings={onShowSettings}
-                    showRawParameters={showRawParameters}
-                    showThinking={showThinking}
+                    density={density}
                     showImagePreviews={showImagePreviews}
                     selectedProject={selectedProject}
                     provider={displayProvider}
@@ -231,8 +230,7 @@ function ChatMessagesPane({
                   createDiff={createDiff}
                   onFileOpen={onFileOpen}
                   onShowSettings={onShowSettings}
-                  showRawParameters={showRawParameters}
-                  showThinking={showThinking}
+                  density={density}
                   showImagePreviews={showImagePreviews}
                   selectedProject={selectedProject}
                   provider={displayProvider}

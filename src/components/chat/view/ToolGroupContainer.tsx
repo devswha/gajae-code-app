@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronRight } from 'lucide-react';
 
 import type { ChatMessage, Provider, CodeEditorDiffInfo  } from '../types/types';
 import type { Project } from '../../../types/app';
+import { hasFailedResult } from '../utils/toolGrouping';
 import type { ToolGroupItem } from '../utils/toolGrouping';
-import { getToolConfig } from '../tools';
+import type { ToolOutputDensity } from '../utils/toolOutputDensity';
+import { getToolConfig, rendersCommandRow } from '../tools';
 
 import MessageComponent from './MessageComponent';
 
@@ -21,8 +24,7 @@ interface ToolGroupContainerProps {
   getMessageKey: (message: ChatMessage) => string;
   onFileOpen?: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void;
   onShowSettings?: () => void;
-  showRawParameters?: boolean;
-  showThinking?: boolean;
+  density?: ToolOutputDensity;
   showImagePreviews?: boolean;
   selectedProject?: Project | null;
   provider: Provider | string;
@@ -45,12 +47,17 @@ function getToolInputPreview(message: ChatMessage): string {
   const parsedInput = parseToolInput(message.toolInput);
   const title = typeof config.title === 'function' ? config.title(parsedInput) : config.title;
   const value = config.getValue?.(parsedInput);
+  // The runtime's shell tool has no one-line config of its own (it renders as
+  // a command row), so the preview reads the command straight off the input.
+  const command = parsedInput && typeof parsedInput === 'object' && 'command' in parsedInput
+    ? String((parsedInput as { command?: unknown }).command || '')
+    : '';
 
-  return String(value || title || message.displayText || message.content || '').trim();
+  return String(value || command || title || message.displayText || message.content || '').trim();
 }
 
 function getToolGroupIcon(icon: string | undefined, toolName: string): string {
-  if (icon === 'terminal') {
+  if (icon === 'terminal' || rendersCommandRow(toolName)) {
     return '$';
   }
 
@@ -64,13 +71,19 @@ export default function ToolGroupContainer({
   getMessageKey,
   onFileOpen,
   onShowSettings,
-  showRawParameters,
-  showThinking,
+  density,
   showImagePreviews = true,
   selectedProject,
   provider,
 }: ToolGroupContainerProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  // A failure never hides behind a count, whatever the level folds.
+  const containsFailure = group.messages.some(hasFailedResult);
+  const [isExpanded, setIsExpanded] = useState(containsFailure);
+  useEffect(() => {
+    // A run that fails while streaming unfolds at that moment, not on remount.
+    if (containsFailure) setIsExpanded(true);
+  }, [containsFailure]);
+  const { t } = useTranslation('chat');
   const config = getToolConfig(group.toolName).input;
   const label = config.label || group.toolName;
   const iconClass = config.colorScheme?.icon || 'text-muted-foreground';
@@ -109,11 +122,16 @@ export default function ToolGroupContainer({
         />
         <span className={`${iconClass} shrink-0 text-xs font-medium`}>{icon}</span>
         <span className="min-w-0 shrink-0 text-xs font-medium text-foreground">{label}</span>
-        <span className="shrink-0 text-[11px] text-muted-foreground/60 tabular-nums">
-          ×{group.messages.length}
-        </span>
+        {group.messages.length > 1 && (
+          <span className="shrink-0 text-[11px] text-muted-foreground/60 tabular-nums">
+            ×{group.messages.length}
+          </span>
+        )}
         {preview && (
           <span className="min-w-0 truncate font-mono text-xs text-muted-foreground/80">{preview}</span>
+        )}
+        {containsFailure && (
+          <span className="shrink-0 text-[11px] text-destructive">{t('tools.error')}</span>
         )}
       </button>
 
@@ -127,8 +145,7 @@ export default function ToolGroupContainer({
               createDiff={createDiff}
               onFileOpen={onFileOpen}
               onShowSettings={onShowSettings}
-              showRawParameters={showRawParameters}
-              showThinking={showThinking}
+              density={density}
               showImagePreviews={showImagePreviews}
               selectedProject={selectedProject}
               provider={provider}

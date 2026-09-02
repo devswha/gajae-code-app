@@ -131,5 +131,12 @@
     "thoughtBriefly": "Überlegte ein paar Sekunden lang",
     "thoughtFor_one": "Begründet für {{count}} Sekunde",
     "thoughtFor_other": "Begründet für {{count}} Sekunden"
+  },
+  "toolOutputDensity": {
+    "tooltip": "Werkzeugausgabe: {{level}} ({{shortcut}})",
+    "paletteAction": "Werkzeugausgabe: {{level}}",
+    "compact": "Kompakt",
+    "balanced": "Ausgewogen",
+    "detailed": "Ausführlich"
   }
 }

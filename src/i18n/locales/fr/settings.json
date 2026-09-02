@@ -28,7 +28,17 @@
     "showRawParameters": "Afficher les paramètres non traités",
     "showThinking": "Afficher le raisonnement",
     "sendByCtrlEnter": "Utilisez Ctrl+Enter pour envoyer",
-    "sendByCtrlEnterDescription": "Lorsqu'il est activé, Ctrl+Enter envoie des messages au lieu de Enter. Cela aide les utilisateurs IME à éviter les envois accidentels."
+    "sendByCtrlEnterDescription": "Lorsqu'il est activé, Ctrl+Enter envoie des messages au lieu de Enter. Cela aide les utilisateurs IME à éviter les envois accidentels.",
+    "toolOutputDensity": {
+      "label": "Densité de la sortie des outils",
+      "description": "Quelle part de chaque appel d'outil la transcription affiche avant que vous l'ouvriez.",
+      "compact": "Compact",
+      "balanced": "Équilibré",
+      "detailed": "Détaillé",
+      "compactDescription": "Chaque appel est une ligne repliée. Les diffs n'affichent que le fichier et son +N/−M ; le raisonnement et les paramètres bruts restent masqués.",
+      "balancedDescription": "Les appels répétés se replient en une ligne, la sortie des commandes reste repliée et les diffs restent ouverts. Le raisonnement et les paramètres bruts restent masqués.",
+      "detailedDescription": "Chaque appel a sa propre carte avec la sortie, les diffs, le raisonnement et les paramètres bruts ouverts."
+    }
   },
   "mainTabs": {
     "appearance": "Présentation",

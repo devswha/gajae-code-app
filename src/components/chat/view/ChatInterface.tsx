@@ -48,7 +48,7 @@ export function isHistoricalNonGjcReadOnlySession(selectedSession: ProjectSessio
 function ChatInterface({
   selectedProject, selectedSession, ws, sendMessage, onFileOpen, onInputFocusChange,
   onSessionProcessing, onSessionIdle, processingSessions, onNavigateToSession,
-  onSessionEstablished, onShowSettings, showRawParameters, showThinking,
+  onSessionEstablished, onShowSettings, toolOutputDensity,
   showImagePreviews, sendByCtrlEnter, newSessionTrigger,
 }: ChatInterfaceProps) {
   const { subscribe } = useWebSocket();
@@ -322,8 +322,7 @@ function ChatInterface({
               createDiff={session.createDiff}
               onFileOpen={onFileOpen}
               onShowSettings={onShowSettings}
-              showRawParameters={showRawParameters}
-              showThinking={showThinking}
+              density={toolOutputDensity}
               showImagePreviews={showImagePreviews}
               selectedProject={selectedProject}
             />

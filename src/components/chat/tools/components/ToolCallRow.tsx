@@ -12,6 +12,8 @@ interface ToolCallRowProps {
   output: string;
   isError?: boolean;
   status?: ToolStatus;
+  /** Start unfolded (the detailed density level); a failure unfolds regardless. */
+  defaultOpen?: boolean;
 }
 
 /**
@@ -35,6 +37,7 @@ export const ToolCallRow: React.FC<ToolCallRowProps> = ({
   output,
   isError = false,
   status,
+  defaultOpen = false,
 }) => {
   const trimmedOutput = output.trim();
   const lineCount = trimmedOutput.split('\n').length;
@@ -44,7 +47,7 @@ export const ToolCallRow: React.FC<ToolCallRowProps> = ({
       <CollapsibleSection
         toolName={label || toolName}
         title={value}
-        open={isError}
+        open={isError || defaultOpen}
         outputLabel="Output"
         badge={status ? <ToolStatusBadge status={status} /> : undefined}
         action={(

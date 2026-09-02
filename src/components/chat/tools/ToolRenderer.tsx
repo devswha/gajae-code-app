@@ -2,6 +2,8 @@ import React, { useCallback, useMemo } from 'react';
 
 import type { Project } from '../../../types/app';
 import type { SubagentChildTool, CodeEditorDiffInfo  } from '../types/types';
+import { collapsibleStartsOpen, toolOutputDensityRules } from '../utils/toolOutputDensity';
+import type { ToolOutputDensity } from '../utils/toolOutputDensity';
 
 import { getToolConfig, getToolResultConfig, rendersCommandRow, rendersResultInline } from './configs/toolConfigs';
 import { OneLineDisplay, BashCommandDisplay, CollapsibleDisplay, ToolCallRow, ToolDiffViewer, MarkdownContent, FileListContent, TodoListContent, TaskListContent, TextContent, QuestionAnswerContent, SubagentContainer } from './components';
@@ -10,7 +12,7 @@ import { ToolStatusBadge } from './components/ToolStatusBadge';
 import type { ToolStatus } from './components/ToolStatusBadge';
 
 type DiffLine = { type: string; content: string; lineNum: number };
-interface ToolRendererProps { toolName: string; toolInput: any; toolResult?: any; toolId?: string; mode: 'input' | 'result'; onFileOpen?: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void; createDiff?: (oldStr: string, newStr: string) => DiffLine[]; selectedProject?: Project | null; showRawParameters?: boolean; rawToolInput?: string; isSubagentContainer?: boolean; subagentState?: { childTools: SubagentChildTool[]; currentToolIndex: number; isComplete: boolean } }
+interface ToolRendererProps { toolName: string; toolInput: any; toolResult?: any; toolId?: string; mode: 'input' | 'result'; onFileOpen?: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void; createDiff?: (oldStr: string, newStr: string) => DiffLine[]; selectedProject?: Project | null; density?: ToolOutputDensity; rawToolInput?: string; isSubagentContainer?: boolean; subagentState?: { childTools: SubagentChildTool[]; currentToolIndex: number; isComplete: boolean } }
 
 const deniedPhrases = ['user denied tool use', 'tool disallowed by settings', 'permission request timed out', 'permission request cancelled'];
 
@@ -52,7 +54,23 @@ function CollapsibleBody({ contentType, contentProps, createDiff, onFileOpen, co
   return null;
 }
 
-export const ToolRenderer: React.FC<ToolRendererProps> = ({ toolName, toolInput, toolResult, toolId, mode, onFileOpen, createDiff, selectedProject, showRawParameters = false, rawToolInput, isSubagentContainer, subagentState }) => {
+/** The +N/-M a folded diff row carries, so a closed edit still says how big it was. */
+function DiffStats({ createDiff, oldContent, newContent }: { createDiff?: (oldStr: string, newStr: string) => DiffLine[]; oldContent?: string; newContent?: string }): React.ReactNode {
+  if (!createDiff || oldContent === undefined || newContent === undefined) return null;
+  const lines = createDiff(oldContent, newContent);
+  const added = lines.filter((line) => line.type === 'added').length;
+  const removed = lines.filter((line) => line.type === 'removed').length;
+  return (
+    <span className="flex items-center gap-1 font-mono text-[10px] tabular-nums" data-testid="diff-stats">
+      <span className="text-diff-added-foreground">+{added}</span>
+      <span className="text-diff-removed-foreground">−{removed}</span>
+    </span>
+  );
+}
+
+export const ToolRenderer: React.FC<ToolRendererProps> = ({ toolName, toolInput, toolResult, toolId, mode, onFileOpen, createDiff, selectedProject, density, rawToolInput, isSubagentContainer, subagentState }) => {
+  const rules = toolOutputDensityRules(density);
+  const showRawParameters = rules.showRawParameters;
   const config = getToolConfig(toolName);
   const displayConfig: any = mode === 'input' ? config.input : getToolResultConfig(toolName);
   const parsedData = useMemo(() => decodeToolData(mode === 'input' ? toolInput : toolResult), [mode, toolInput, toolResult]);
@@ -62,7 +80,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({ toolName, toolInput,
   }, [displayConfig, onFileOpen, parsedData]);
 
   if (isSubagentContainer && subagentState) {
-    return mode === 'result' ? null : <SubagentContainer toolInput={toolInput} toolResult={toolResult} subagentState={subagentState} />;
+    return mode === 'result' ? null : <SubagentContainer toolInput={toolInput} toolResult={toolResult} subagentState={subagentState} defaultOpen={rules.subagentOpen} showHistory={rules.subagentHistory} />;
   }
   if (!displayConfig) return null;
 
@@ -70,7 +88,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({ toolName, toolInput,
     const objectInput = typeof parsedData === 'object' && parsedData !== null ? parsedData as Record<string, unknown> : null;
     const command = objectInput && 'command' in objectInput ? String(objectInput.command || '') : typeof toolInput === 'string' ? toolInput : typeof rawToolInput === 'string' ? rawToolInput : '';
     const details = objectInput ? String(objectInput.description || (objectInput.cwd ? `in ${objectInput.cwd}` : '') || '') : '';
-    return <BashCommandDisplay command={command} description={details || undefined} output={resultText(toolResult)} isError={Boolean(toolResult?.isError)} status={toolStatus !== 'completed' ? toolStatus : undefined} defaultOpen={false} />;
+    return <BashCommandDisplay command={command} description={details || undefined} output={resultText(toolResult)} isError={Boolean(toolResult?.isError)} status={toolStatus !== 'completed' ? toolStatus : undefined} defaultOpen={rules.bashOutputOpen} />;
   }
 
   if (displayConfig.type === 'one-line') {
@@ -78,21 +96,24 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({ toolName, toolInput,
     const secondary = displayConfig.getSecondary?.(parsedData);
     const output = resultText(toolResult);
     if (mode === 'input' && rendersResultInline(toolName) && output.trim()) {
-      return <ToolCallRow toolName={toolName} label={displayConfig.label} value={value} secondary={secondary} output={output} isError={Boolean(toolResult?.isError)} status={toolStatus !== 'completed' ? toolStatus : undefined} />;
+      return <ToolCallRow toolName={toolName} label={displayConfig.label} value={value} secondary={secondary} output={output} isError={Boolean(toolResult?.isError)} status={toolStatus !== 'completed' ? toolStatus : undefined} defaultOpen={rules.bashOutputOpen} />;
     }
     return <OneLineDisplay toolName={toolName} icon={displayConfig.icon} label={displayConfig.label} value={value} secondary={secondary} action={displayConfig.action} onAction={handleAction} style={displayConfig.style} wrapText={displayConfig.wrapText} colorScheme={displayConfig.colorScheme} status={toolStatus !== 'completed' ? toolStatus : undefined} />;
   }
 
   const contentProps = displayConfig.getContentProps?.(parsedData, { selectedProject, createDiff, onFileOpen }) || {};
   if (displayConfig.type === 'plan') {
-    return <PlanDisplay title={titleFrom(displayConfig, parsedData, 'Plan')} content={contentProps.content || ''} defaultOpen={displayConfig.defaultOpen ?? false} isStreaming={mode === 'input' && !toolResult} showRawParameters={mode === 'input' && showRawParameters} rawContent={rawToolInput} toolName={toolName} toolId={toolId} />;
+    return <PlanDisplay title={titleFrom(displayConfig, parsedData, 'Plan')} content={contentProps.content || ''} defaultOpen={collapsibleStartsOpen(rules, displayConfig.defaultOpen ?? false)} isStreaming={mode === 'input' && !toolResult} showRawParameters={mode === 'input' && showRawParameters} rawContent={rawToolInput} toolName={toolName} toolId={toolId} />;
   }
   if (displayConfig.type !== 'collapsible') return null;
 
+  const isDiff = displayConfig.contentType === 'diff';
   const canOpenFile = (toolName === 'Edit' || toolName === 'Write' || toolName === 'ApplyPatch') && contentProps.filePath && onFileOpen;
   const onTitleClick = canOpenFile ? () => onFileOpen(contentProps.filePath, { old_string: contentProps.oldContent, new_string: contentProps.newContent }) : undefined;
   const badge = toolStatus && toolStatus !== 'completed' ? <ToolStatusBadge status={toolStatus} /> : undefined;
-  return <CollapsibleDisplay toolName={toolName} toolId={toolId} title={titleFrom(displayConfig, parsedData, 'Details')} defaultOpen={displayConfig.defaultOpen !== undefined ? displayConfig.defaultOpen : false} onTitleClick={onTitleClick} badge={badge} showRawParameters={mode === 'input' && showRawParameters} rawContent={rawToolInput}><CollapsibleBody contentType={displayConfig.contentType} contentProps={contentProps} createDiff={createDiff} onFileOpen={onFileOpen} config={displayConfig} data={parsedData} /></CollapsibleDisplay>;
+  const startsOpen = isDiff ? rules.diffOpen : collapsibleStartsOpen(rules, displayConfig.defaultOpen);
+  const action = isDiff ? <DiffStats createDiff={createDiff} oldContent={contentProps.oldContent} newContent={contentProps.newContent} /> : undefined;
+  return <CollapsibleDisplay toolName={toolName} toolId={toolId} title={titleFrom(displayConfig, parsedData, 'Details')} defaultOpen={startsOpen} onTitleClick={onTitleClick} badge={badge} action={action} showRawParameters={mode === 'input' && showRawParameters} rawContent={rawToolInput}><CollapsibleBody contentType={displayConfig.contentType} contentProps={contentProps} createDiff={createDiff} onFileOpen={onFileOpen} config={displayConfig} data={parsedData} /></CollapsibleDisplay>;
 };
 
 ToolRenderer.displayName = 'ToolRenderer';

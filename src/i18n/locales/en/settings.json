@@ -28,7 +28,17 @@
     "showRawParameters": "Display unprocessed parameters",
     "showThinking": "Display reasoning",
     "sendByCtrlEnter": "Use Ctrl+Enter to send",
-    "sendByCtrlEnterDescription": "When enabled, Ctrl+Enter sends messages instead of Enter. This helps IME users prevent accidental sends."
+    "sendByCtrlEnterDescription": "When enabled, Ctrl+Enter sends messages instead of Enter. This helps IME users prevent accidental sends.",
+    "toolOutputDensity": {
+      "label": "Tool output density",
+      "description": "How much of each tool call the transcript shows before you open it.",
+      "compact": "Compact",
+      "balanced": "Balanced",
+      "detailed": "Detailed",
+      "compactDescription": "Every call is one folded row. Diffs show the file and its +N/−M, and reasoning and raw parameters stay hidden.",
+      "balancedDescription": "Repeated calls fold into one row, command output stays folded and diffs stay open. Reasoning and raw parameters stay hidden.",
+      "detailedDescription": "Every call is its own card with output, diffs, reasoning and raw parameters open."
+    }
   },
   "mainTabs": {
     "appearance": "Appearance",

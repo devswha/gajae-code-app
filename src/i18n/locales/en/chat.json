@@ -131,5 +131,12 @@
     "thoughtBriefly": "Reasoned for a few seconds",
     "thoughtFor_one": "Reasoned for {{count}} second",
     "thoughtFor_other": "Reasoned for {{count}} seconds"
+  },
+  "toolOutputDensity": {
+    "tooltip": "Tool output: {{level}} ({{shortcut}})",
+    "paletteAction": "Tool output: {{level}}",
+    "compact": "Compact",
+    "balanced": "Balanced",
+    "detailed": "Detailed"
   }
 }

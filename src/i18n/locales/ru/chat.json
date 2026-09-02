@@ -135,5 +135,12 @@
     "thoughtFor_other": "Обоснование длилось {{count}} секунд.",
     "thoughtFor_few": "Обоснование длилось {{count}} секунд.",
     "thoughtFor_many": "Обоснование длилось {{count}} секунд."
+  },
+  "toolOutputDensity": {
+    "tooltip": "Вывод инструментов: {{level}} ({{shortcut}})",
+    "paletteAction": "Вывод инструментов: {{level}}",
+    "compact": "Компактно",
+    "balanced": "Сбалансировано",
+    "detailed": "Подробно"
   }
 }

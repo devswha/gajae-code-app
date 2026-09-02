@@ -28,7 +28,17 @@
     "showRawParameters": "Visualizza i parametri non elaborati",
     "showThinking": "Mostra il ragionamento",
     "sendByCtrlEnter": "Utilizzare Ctrl+Enter per inviare",
-    "sendByCtrlEnterDescription": "Se abilitato, Ctrl+Enter invia messaggi invece di Enter. Ciò aiuta gli utenti IME a prevenire invii accidentali."
+    "sendByCtrlEnterDescription": "Se abilitato, Ctrl+Enter invia messaggi invece di Enter. Ciò aiuta gli utenti IME a prevenire invii accidentali.",
+    "toolOutputDensity": {
+      "label": "Densità dell'output degli strumenti",
+      "description": "Quanto di ogni chiamata allo strumento mostra la trascrizione prima che la apri.",
+      "compact": "Compatto",
+      "balanced": "Bilanciato",
+      "detailed": "Dettagliato",
+      "compactDescription": "Ogni chiamata è una riga ripiegata. I diff mostrano solo il file e il suo +N/−M; ragionamento e parametri grezzi restano nascosti.",
+      "balancedDescription": "Le chiamate ripetute si ripiegano in una riga, l'output dei comandi resta ripiegato e i diff restano aperti. Ragionamento e parametri grezzi restano nascosti.",
+      "detailedDescription": "Ogni chiamata è una scheda a sé con output, diff, ragionamento e parametri grezzi aperti."
+    }
   },
   "mainTabs": {
     "appearance": "Presentazione",

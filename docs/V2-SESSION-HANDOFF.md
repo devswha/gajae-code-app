@@ -303,11 +303,12 @@ lived on that strip. Now there is one progress surface:
   `[chat] status "A" -> "B"`) after a phase flashed through `Thinking…`
   too fast to read. And a tool in flight no longer swaps the row's text:
   the row is the run's *phase* (`Thinking…` / `Writing answer…` / a server
-  status / awaiting approval, `phaseActivity`), and the block lists its
-  last three calls on lines under the row (`LiveCallLines`,
-  `data-live-calls`): finished plain, failed red, running shimmering with
-  an ellipsis. Detailed density's inline row is the phase too (the open
-  cards show the calls). Dark-mode `--destructive` is now the TUI's
+  status / awaiting approval, `phaseActivity`) with the block's latest call
+  beside it, one at a time (`data-live-call`): `Thinking… · Running npm
+  test… · 12s`, the ellipsis only while the call is in flight, the last call
+  kept while the model decides its next move. Both halves go through
+  `useSteadyLabel`. Detailed density's inline row has the same shape from
+  `liveActivity`. Dark-mode `--destructive` is now the TUI's
   `dangerRed` `#ff4d5e` (`354 100% 65%`, foreground `0 0% 8%`): the shadcn
   maroon was unreadable as text on the dark surface.
 - **Streaming stutter (same night).** Measured with a happy-dom bench (30

@@ -73,7 +73,7 @@ test('detailed has no block at all: the rule is off and the pane list is the mes
   assert.equal(buildPaneList(finishedTurn, 'detailed').some(isTurnWorkBlockItem), false);
 });
 
-test('running: "Thinking… · <elapsed>" on the row and the calls on lines under it, the one in flight shimmering', () => {
+test('running: "Thinking… · <latest call> · <elapsed>" on one row, the call in flight with an ellipsis', () => {
   const live = [user(0), call('read', 1), call('bash', 2, { toolResult: null })];
   const html = render(blockFor(live, 'balanced'), 'balanced', {
     running: true,
@@ -82,33 +82,25 @@ test('running: "Thinking… · <elapsed>" on the row and the calls on lines unde
   });
 
   assert.doesNotMatch(html, /Working/);
-  // The row is the phase; a tool in flight is not a phase.
-  const row = html.slice(0, html.indexOf('</button>'));
-  assert.match(row, /Thinking…/);
-  assert.doesNotMatch(row, /Running/);
-  assert.match(row, /0s/);
-  assert.match(row, /animate-pulse/);
-  // The lines: the finished read plain, the running command with the shimmer and an ellipsis.
-  const lines = html.slice(html.indexOf('data-live-calls'));
-  assert.match(lines, /Reading src\/read-1\.ts</);
-  assert.doesNotMatch(lines, /Reading src\/read-1\.ts…/);
-  assert.match(lines, /animate-shimmer[^>]*>Running cmd-2…</);
+  // The phase keeps its place; the latest call sits beside it, one at a time.
+  assert.match(html, /animate-shimmer[^>]*>Thinking…</);
+  assert.match(html, /data-live-call[^>]*>.*Running cmd-2…</);
+  assert.doesNotMatch(html, /Reading src\/read-1\.ts/);
+  assert.match(html, /0s/);
+  assert.match(html, /animate-pulse/);
   assert.match(html, /data-work-block="running"/);
   assert.match(html, /aria-expanded="false"/);
   assert.doesNotMatch(html, /Worked/);
   assert.doesNotMatch(html, /files read/);
 });
 
-test('the lines are the last three calls, a failed one in red; finished blocks have none', () => {
-  const many = [user(0), call('read', 1), call('read', 2), call('bash', 3, { toolResult: { content: 'exit 1', isError: true, timestamp: at(4) } }), call('edit', 5), call('read', 6, { toolResult: null })];
-  const html = render(blockFor(many, 'balanced'), 'balanced', { running: true, liveActivity: { kind: 'thinking' }, runStartedAt: Date.now() });
-  const lines = html.slice(html.indexOf('data-live-calls'));
-  assert.doesNotMatch(lines, /read-1\.ts|read-2\.ts/);
-  assert.match(lines, /text-destructive[^>]*>Running cmd-3</);
-  assert.match(lines, /Editing src\/edit-5\.ts</);
-  assert.match(lines, /Reading src\/read-6\.ts…</);
+test('between calls the row keeps the last call made, without the ellipsis; a finished block shows none', () => {
+  const settled = [user(0), call('read', 1), call('edit', 5)];
+  const html = render(blockFor(settled, 'balanced'), 'balanced', { running: true, liveActivity: { kind: 'thinking' }, runStartedAt: Date.now() });
+  assert.match(html, /data-live-call[^>]*>.*Editing src\/edit-5\.ts</);
+  assert.doesNotMatch(html, /Editing src\/edit-5\.ts…/);
 
-  assert.doesNotMatch(render(blockFor(many, 'balanced'), 'balanced'), /data-live-calls/);
+  assert.doesNotMatch(render(blockFor(settled, 'balanced'), 'balanced'), /data-live-call/);
 });
 
 test('running with nothing derived says Thinking; without a start time the elapsed segment is left out', () => {

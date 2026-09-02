@@ -21,8 +21,8 @@ const SEPARATOR = ' · ';
 /**
  * One line for a run that has no work block to speak for it: the live turn
  * before its first tool call (`Thinking… · 3s`), and every live turn at
- * detailed density, where blocks are off and the open cards above already
- * show each call, so the line is the run's phase there too. It
+ * detailed density, where blocks are off (`Thinking… · Reading src/foo.ts… ·
+ * 12s`, the phase first and the call in flight beside it, as on a block). It
  * sits in the transcript where the block sits, never above the composer, and
  * leaves the chevron's width empty so the pulse lines up with the block that
  * replaces it once a call lands. The label is the live region; the ticking
@@ -32,14 +32,22 @@ export default function RunningActivityRow({ liveActivity, runStartedAt = null, 
   const { t } = useTranslation('chat');
   const elapsedSeconds = useElapsedSeconds(runStartedAt);
   const label = useSteadyLabel(formatLiveActivity(phaseActivity(liveActivity), t));
+  const isCall = liveActivity?.kind === 'tool' || liveActivity?.kind === 'subagent';
+  const callLabel = useSteadyLabel(isCall ? `${formatLiveActivity(liveActivity, t)}…` : '');
 
   return (
     <div className="chat-message tool px-3 sm:px-0" data-run-activity={variant}>
       <div className="flex items-center gap-2 px-1 py-0.5 text-xs">
         <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
-        <span role="status" className="min-w-0 truncate text-muted-foreground">
-          <Shimmer className="max-w-full truncate font-medium">{`${label}…`}</Shimmer>
+        <span role="status" className="flex min-w-0 items-center text-muted-foreground">
+          <Shimmer className="shrink-0 font-medium">{`${label}…`}</Shimmer>
+          {callLabel && (
+            <span className="min-w-0 truncate" data-live-call>
+              <span aria-hidden>{SEPARATOR}</span>
+              {callLabel}
+            </span>
+          )}
         </span>
         {runStartedAt !== null && (
           <span className="shrink-0 text-muted-foreground tabular-nums">

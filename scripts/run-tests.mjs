@@ -2,7 +2,7 @@ import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const TEST_FILE_PATTERN = /\.(?:test|spec)\.(?:js|ts|tsx)$/;
+const TEST_FILE_PATTERN = /\.(?:test|spec)\.(?:js|mjs|ts|tsx)$/;
 // `.tsx` too: component tests that need a DOM run on Bun as well, under
 // `*.dom.bun.test.tsx`.
 const BUN_TEST_FILE_PATTERN = /\.bun\.(?:test|spec)\.tsx?$/;
@@ -107,9 +107,12 @@ function runBunTests(label, files) {
   }
 }
 
-const [serverTestsAll, clientTests] = await Promise.all([
+const [serverTestsAll, clientTests, scriptTests] = await Promise.all([
   collectTests('server'),
   collectTests('src'),
+  // Build and release tooling: plain Node, no tsconfig. This is where the
+  // distribution-exclusion stubs are checked before any payload is built.
+  collectTests('scripts'),
 ]);
 const serverBunTests = serverTestsAll.filter((file) => BUN_TEST_FILE_PATTERN.test(file));
 const serverTests = serverTestsAll.filter((file) => !BUN_TEST_FILE_PATTERN.test(file));
@@ -120,3 +123,4 @@ runTests('server', serverTests, { tsconfig: 'server/tsconfig.json' });
 runBunTests('server-bun', serverBunTests);
 runTests('client', clientNodeTests, { tsconfig: 'tsconfig.json' });
 runBunTests('client-bun', clientBunTests);
+runTests('scripts', scriptTests);

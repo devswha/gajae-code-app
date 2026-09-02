@@ -8,6 +8,8 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
+import { ancestorNodeModules, assertOutOfTree } from './out-of-tree.mjs';
+
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const args = process.argv.slice(2);
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
@@ -18,7 +20,36 @@ function option(name) {
 }
 
 function usage() {
-  throw new Error('Usage: node scripts/release/smoke-packaged-server.mjs --tauri-app <path> [--project-dir <path>] [--data-survival]');
+  throw new Error('Usage: node scripts/release/smoke-packaged-server.mjs --tauri-app <path> [--project-dir <path>] [--data-survival] [--from-copy]');
+}
+
+/**
+ * Where the app is smoked from.
+ *
+ * An app bundle inside this checkout (`src-tauri/target/…`) has the
+ * repository's `node_modules` above it, and Node and Bun resolve anything the
+ * payload lacks from there - so a smoke run in place passes while the same app
+ * copied to /Applications, or mounted from the DMG, fails. Such an app is
+ * copied to the temp directory first; `--from-copy` forces the copy for any
+ * location. A mounted image or an installed app has no such ancestor and runs
+ * where it is.
+ */
+async function smokeLocation(app) {
+  const shadow = await ancestorNodeModules(app);
+  if (!shadow && !args.includes('--from-copy')) return { app, cleanup: async () => {} };
+  const stagingDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-packaged-smoke-app-'));
+  await assertOutOfTree(stagingDir, 'packaged app copy');
+  const copy = path.join(stagingDir, path.basename(app));
+  console.log(shadow
+    ? `App sits below ${shadow}; copying it to ${copy} so the smoke cannot resolve packages from the repository.`
+    : `Copying the app to ${copy} (--from-copy).`);
+  await new Promise((resolve, reject) => {
+    // ditto preserves the bundle exactly: symlinks, permissions, extended attributes.
+    const child = spawn('ditto', [app, copy], { stdio: ['ignore', 'inherit', 'inherit'] });
+    child.once('error', reject);
+    child.once('close', code => code === 0 ? resolve() : reject(new Error(`ditto exited with code ${code}`)));
+  });
+  return { app: copy, cleanup: () => rm(stagingDir, { recursive: true, force: true }) };
 }
 
 function request(url, { headers, method = 'GET', body, redirect = 'manual' } = {}) {
@@ -55,25 +86,19 @@ async function waitForHealth(baseUrl, output) {
   throw new Error(`Packaged server did not become healthy:\n${output.value}`);
 }
 
-function packagedTargets() {
-  const tauriApp = option('--tauri-app');
-  if (!tauriApp) usage();
-
-  if (tauriApp) {
-    const app = path.resolve(tauriApp);
-    // Tauri v2 nests bundle.resources under Contents/Resources/resources/.
-    const candidates = [
-      path.join(app, 'Contents', 'Resources', 'resources', 'server-payload'),
-      path.join(app, 'Contents', 'Resources', 'server-payload'),
-    ];
-    const payload = candidates.find(candidate => existsSync(candidate));
-    if (!payload) throw new Error(`Tauri server-payload not found under ${app}/Contents/Resources (checked resources/server-payload and server-payload)`);
-    return {
-      label: 'Tauri', cwd: payload, command: path.join(app, 'Contents', 'MacOS', 'gajae-app-server'),
-      args: [path.join(payload, 'dist-server', 'server', 'index.js')],
-      extraEnv: {},
-    };
-  }
+function packagedTargets(app) {
+  // Tauri v2 nests bundle.resources under Contents/Resources/resources/.
+  const candidates = [
+    path.join(app, 'Contents', 'Resources', 'resources', 'server-payload'),
+    path.join(app, 'Contents', 'Resources', 'server-payload'),
+  ];
+  const payload = candidates.find(candidate => existsSync(candidate));
+  if (!payload) throw new Error(`Tauri server-payload not found under ${app}/Contents/Resources (checked resources/server-payload and server-payload)`);
+  return {
+    label: 'Tauri', cwd: payload, command: path.join(app, 'Contents', 'MacOS', 'gajae-app-server'),
+    args: [path.join(payload, 'dist-server', 'server', 'index.js')],
+    extraEnv: {},
+  };
 }
 
 function launch(target, dataDirectory, projectDir) {
@@ -293,5 +318,12 @@ async function dataSurvivalSmoke(target) {
   }
 }
 
-const target = packagedTargets();
-await (args.includes('--data-survival') ? dataSurvivalSmoke(target) : smoke(target));
+const tauriApp = option('--tauri-app');
+if (!tauriApp) usage();
+const location = await smokeLocation(path.resolve(tauriApp));
+try {
+  const target = packagedTargets(location.app);
+  await (args.includes('--data-survival') ? dataSurvivalSmoke(target) : smoke(target));
+} finally {
+  await location.cleanup();
+}

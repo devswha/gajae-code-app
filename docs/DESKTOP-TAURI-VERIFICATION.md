@@ -13,9 +13,11 @@
 > cleared.** A Developer ID Application certificate and the `gajae-notary`
 > notarytool profile are on the Mac, and the first signed build was notarized,
 > stapled and accepted by Gatekeeper (record below). Nothing has been tagged or
-> published from it: the packaged smoke run from the mounted image fails
-> because the payload's `elkjs` exclusion breaks worker start-up outside the
-> repository tree (details in the record).
+> published from it: the packaged smoke run from the mounted image failed
+> because the payload's `elkjs` exclusion broke worker start-up outside the
+> repository tree. **Fixed the same day** (record below): a first-party stub
+> now stands in for the removed package, and every packaged smoke runs from a
+> copy outside the checkout. The next signed build starts from that HEAD.
 
 ## Build the artifacts (on the Mac)
 
@@ -107,10 +109,61 @@ repository's own `node_modules/elkjs` and masks the hole. A copy of the same
 app in `/tmp` fails identically, so it is the install location, not the
 read-only mount. The `/Applications` install from 2026-08-31 14:41 predates the
 exclusion and still carries `elkjs`, which is why the desktop kept working.
-Candidate fix: ship a stub `elkjs` package (own code, `layout()` rejects) in
-place of the removed one so the import resolves without EPL code, then rebuild,
-re-notarize and re-run this acceptance from the mounted image. Run the
-acceptance smokes from the mounted image, never from the build tree.
+Run the acceptance smokes from the mounted image, never from the build tree.
+
+### Fix — `elkjs` stub + out-of-tree smokes — **PASSED 2026-09-02 (evening, unsigned)**
+
+What broke, precisely: `beautiful-mermaid/src/elk-instance.ts` has
+`import ELKBundled from 'elkjs/lib/elk.bundled.js'` at module scope, and the
+runtime touches ELK itself only inside `elkLayoutSync()` (`new ELKBundled()`,
+then `instance.worker.worker.{onmessage,postMessage,dispatcher.saveDispatch}`),
+which only the **SVG** layout of flowcharts, class and ER diagrams calls. The
+ASCII renderer that `@gajae-code/utils` exposes never reaches it. `mupdf`, the
+other exclusion, is loaded lazily (`require("mupdf")` / `await import("mupdf")`
+inside `markit-ai`'s PDF converter) and needs nothing.
+
+The fix, in three parts:
+
+- `scripts/release/stubs/elkjs/` — a first-party MIT package (`gajae.stub:
+  true`) exporting a class whose `layout()` rejects and whose fake worker
+  answers every `saveDispatch` with `ElkLayoutUnavailableError` ("ELK layout is
+  not bundled in this distribution"). `distribution-exclusions.mjs` names it as
+  the `stub` of the `elkjs` entry; `removeExcludedDistributionPackages` deletes
+  the real package, copies the stub into its place in **both** builders (the
+  macOS payload and the Linux server bundle) and rewrites its version to the
+  one removed. `npm test` now covers the install and the import surface
+  (`scripts/release/*.test.mjs`).
+- The payload builder and the server-bundle builder smoke the finished tree
+  from a copy under the OS temp directory (`scripts/release/out-of-tree.mjs`),
+  where no ancestor `node_modules` can supply what the artifact lacks.
+- `smoke-packaged-server.mjs` detects an app that sits below a `node_modules`
+  ancestor and copies it (via `ditto`) to the temp directory before smoking;
+  `--from-copy` forces the copy anywhere. A mounted image or an installed app
+  runs where it is.
+
+Evidence, all on this Mac:
+
+- Before the fix, the new smoke run against the 2026-09-02 notarized build in
+  `src-tauri/target/…` (previously "passing" in place) copied the app out and
+  failed with `GJC job creation failed (400): {"error":"GJC worker failed."}`
+  — the same failure the mounted image showed, now reproducible from the tree.
+- `npm run server:payload:macos` with the stub: `Excluded mupdf, elkjs;
+  stubbed elkjs`, then `Smoking the payload from
+  /var/folders/…/T/gajae-out-of-tree-… (outside the repository tree)` → built.
+- The payload copied to `/tmp/gajae-payload-oot-*` (no `node_modules` above
+  it) and the Bun worker driven by hand:
+  `worker.initialize` → `{"ok":true}`, `worker.shutdown` → `{"ok":true}`,
+  empty stderr. From the same copy,
+  `renderMermaidAsciiSafe('graph TD\n A-->B')` renders and
+  `renderMermaid(...)` (SVG) fails with `ElkLayoutUnavailableError` — the
+  feature fails, not the runtime.
+- Ad-hoc `tauri build --bundles app` on the new payload, then
+  `smoke-packaged-server.mjs` (auto-copied to
+  `/var/folders/…/T/gajae-packaged-smoke-app-…`):
+  `{"status":"ok","product":"gajae-app","protocolVersion":1,"version":"2.0.0-beta.7"}`.
+  `--data-survival` on the same copy: `events=1, schemas=idempotent`.
+
+Not done here: the signed build and notarization. They start from this HEAD.
 
 Also found and fixed on this run: the second `finalize-macos-app.mjs` pass that
 `desktop:dmg:macos` used to run unconditionally moved the app's cdhash
@@ -406,9 +459,13 @@ hdiutil detach /tmp/gajae-dmg
 ```
 
 The smokes must run against the *mounted image* (or any copy outside this
-checkout). Run from `src-tauri/target/…` they can pass while the shipped app
-is broken, because Bun resolves missing payload packages from the repository's
-own `node_modules` — exactly what hid the `elkjs` failure recorded above.
+checkout). Run from `src-tauri/target/…` they used to pass while the shipped
+app was broken, because Bun resolves missing payload packages from the
+repository's own `node_modules` — exactly what hid the `elkjs` failure recorded
+above. The script now refuses to be fooled: an app below a `node_modules`
+ancestor is copied to the temp directory first (`--from-copy` forces this
+anywhere), so the mounted image remains the canonical target and the in-tree
+bundle is an honest stand-in during development.
 
 If `notarytool submit` fails, read the reasons — they are specific:
 

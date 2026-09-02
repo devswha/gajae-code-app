@@ -235,6 +235,15 @@
 
   @media (prefers-reduced-motion: reduce) { /* Motion reduction stays global for browser and app-generated elements. */
     *, ::before, ::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+    /*
+     * The status label's shimmer is exempt. Nothing on the page moves: it is
+     * a band of colour crossing one short word, the same kind of change as a
+     * pulsing dot, and it is the run's only sign of life. Cut to a single
+     * frame it froze with the band over the last letters - "Think" dim,
+     * "ing…" lit - which looked broken rather than calm. macOS "Reduce
+     * motion" reaches Chrome and Safari, so this is a common configuration.
+     */
+    .animate-shimmer { animation-duration: 1.6s !important; animation-iteration-count: infinite !important; }
   }
 }
 

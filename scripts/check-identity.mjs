@@ -40,7 +40,7 @@ const PROTECTED_FILE_HASHES = new Map([
 const LEGACY_TOKEN = ['cloud', 'cli'].join('');
 const LEGACY_COORDINATE = ['siteboon', 'claudecodeui'].join('/');
 const STALE_FORK_COORDINATE = ['devswha', 'claudecodeui'].join('/');
-const UPSTREAM_NAME = `Cloud${'CLI'} UI`;
+const UPSTREAM_NAME = 'Claude Code UI';
 const UPSTREAM_URL = `https://github.com/${LEGACY_COORDINATE}`;
 const LEGACY_MATCHERS = [
   {

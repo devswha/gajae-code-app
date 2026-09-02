@@ -98,7 +98,12 @@
         "placeholder": "Комментарий к этой строке…",
         "send": "Отправить комментарий в чат",
         "cancel": "Отменить комментарий"
-      }
+      },
+      "truncated": "Показано {{shown}} из {{total}} файлов; список ограничен.",
+      "moreLines_one": "Показать ещё {{count}} строку",
+      "moreLines_other": "Показать ещё {{count}} строки",
+      "moreLines_few": "Показать ещё {{count}} строки",
+      "moreLines_many": "Показать ещё {{count}} строк"
     },
     "browser": {
       "address": "Веб-адрес",

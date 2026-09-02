@@ -96,7 +96,9 @@
         "placeholder": "对此行的评论…",
         "send": "将评论发送到聊天",
         "cancel": "放弃评论"
-      }
+      },
+      "truncated": "共 {{total}} 个文件，显示 {{shown}} 个；列表已截断。",
+      "moreLines_other": "显示其余 {{count}} 行"
     },
     "browser": {
       "address": "网址",

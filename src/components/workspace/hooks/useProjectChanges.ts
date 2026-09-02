@@ -18,6 +18,9 @@ export type ProjectChanges = {
   branch: string | null;
   hasCommits: boolean;
   files: ProjectChange[];
+  /** The list was capped server-side; how many exist in all. */
+  totalFiles: number;
+  truncated: boolean;
 };
 
 export type ProjectChangesState =
@@ -64,7 +67,13 @@ function readChanges(body: Record<string, unknown>): ProjectChanges {
     }];
   }) : [];
 
-  return { branch, hasCommits: body.hasCommits !== false, files };
+  return {
+    branch,
+    hasCommits: body.hasCommits !== false,
+    files,
+    totalFiles: typeof body.totalFiles === 'number' ? body.totalFiles : files.length,
+    truncated: body.truncated === true,
+  };
 }
 
 export function useProjectChanges(projectId: string | undefined, enabled: boolean) {

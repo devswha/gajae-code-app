@@ -96,7 +96,10 @@
         "placeholder": "Comment on this line…",
         "send": "Send comment to chat",
         "cancel": "Discard comment"
-      }
+      },
+      "truncated": "Showing {{shown}} of {{total}} files; the list is capped.",
+      "moreLines_one": "Show {{count}} more line",
+      "moreLines_other": "Show {{count}} more lines"
     },
     "browser": {
       "address": "Web address",

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { parseUnifiedDiff, type UnifiedDiffRow } from '../utils/unifiedDiff';
@@ -23,11 +23,17 @@ export default function UnifiedDiff({ patch, onLineComment }: UnifiedDiffProps) 
   return <UnifiedDiffRows rows={rows} onLineComment={onLineComment} />;
 }
 
+/** Rows rendered before the remainder hides behind a reveal; a generated
+ * file's patch can be thousands of lines and the tab must not paint them. */
+const ROW_LIMIT = 500;
+
 export function UnifiedDiffRows({ rows, onLineComment }: { rows: UnifiedDiffRow[]; onLineComment?: (row: DiffCommentRow) => void }) {
   const { t } = useTranslation();
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll || rows.length <= ROW_LIMIT ? rows : rows.slice(0, ROW_LIMIT);
   return (
     <div className="overflow-x-auto border-t border-border/60 font-mono text-xs leading-[18px]">
-      {rows.map((row, index) => {
+      {visible.map((row, index) => {
         if (row.kind === 'hunk') {
           return <div key={index} className="px-2 text-muted-foreground">{row.content}</div>;
         }
@@ -56,6 +62,15 @@ export function UnifiedDiffRows({ rows, onLineComment }: { rows: UnifiedDiffRow[
           </div>
         );
       })}
+      {rows.length > ROW_LIMIT && !showAll && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="block w-full px-2 py-1 text-left font-sans text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+        >
+          {t('workspace.changes.moreLines', { count: rows.length - ROW_LIMIT })}
+        </button>
+      )}
     </div>
   );
 }

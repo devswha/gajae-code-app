@@ -96,7 +96,10 @@
         "placeholder": "Kommentar zu dieser Zeile…",
         "send": "Kommentar an den Chat senden",
         "cancel": "Kommentar verwerfen"
-      }
+      },
+      "truncated": "Zeige {{shown}} von {{total}} Dateien; die Liste wurde gekürzt.",
+      "moreLines_one": "{{count}} weitere Zeile anzeigen",
+      "moreLines_other": "{{count}} weitere Zeilen anzeigen"
     },
     "browser": {
       "address": "Webadresse",

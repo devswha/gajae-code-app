@@ -96,7 +96,9 @@
         "placeholder": "この行へのコメント…",
         "send": "コメントをチャットへ送る",
         "cancel": "コメントを破棄"
-      }
+      },
+      "truncated": "{{total}}件中{{shown}}件を表示中（一覧は制限されています）",
+      "moreLines_other": "残り{{count}}行を表示"
     },
     "browser": {
       "address": "Web アドレス。",

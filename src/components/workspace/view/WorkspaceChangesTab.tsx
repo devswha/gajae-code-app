@@ -1,5 +1,5 @@
 import { ExternalLink, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { api } from '../../../utils/api';
@@ -42,13 +42,13 @@ export default function WorkspaceChangesTab({
   const { files: lastTurnFiles, refresh: refreshLastTurn } = useLastTurnChanges(sessionId, active && scope === 'lastTurn');
   const [openPath, setOpenPath] = useState<string | null>(null);
 
-  const openInEditor = (path: string) => {
+  const openInEditor = useCallback((path: string) => {
     if (!projectPath) {
       return;
     }
     const absolutePath = path.startsWith('/') ? path : `${projectPath.replace(/\/$/, '')}/${path}`;
     void api.system.openFile(absolutePath);
-  };
+  }, [projectPath]);
 
   const refresh = () => {
     if (scope === 'workingTree') {
@@ -109,9 +109,10 @@ export default function WorkspaceChangesTab({
                 <LastTurnChangeRow
                   key={`${index}:${file.path}`}
                   file={file}
-                  expanded={openPath === `${index}:${file.path}`}
-                  onToggle={() => setOpenPath((current) => current === `${index}:${file.path}` ? null : `${index}:${file.path}`)}
-                  onOpenInEditor={() => openInEditor(file.path)}
+                  rowKey={`${index}:${file.path}`}
+                  openPath={openPath}
+                  onSetOpenPath={setOpenPath}
+                  onOpenInEditor={openInEditor}
                   onComposerInsert={onComposerInsert}
                   t={t}
                 />
@@ -120,8 +121,11 @@ export default function WorkspaceChangesTab({
           ) : state.kind === 'ready' ? (
             <>
               <div className="truncate border-b border-border/60 px-2.5 py-1.5 text-muted-foreground">
-                {state.changes.branch ?? projectName ?? '—'} · {t('workspace.changes.files', { count: state.changes.files.length })}
+                {state.changes.branch ?? projectName ?? '—'} · {t('workspace.changes.files', { count: state.changes.truncated ? state.changes.totalFiles : state.changes.files.length })}
               </div>
+              {state.changes.truncated && (
+                <p className="border-b border-border/60 px-2.5 py-1.5 text-muted-foreground">{t('workspace.changes.truncated', { shown: state.changes.files.length, total: state.changes.totalFiles })}</p>
+              )}
               {!state.changes.hasCommits && (
                 <p className="border-b border-border/60 px-2.5 py-1.5 text-muted-foreground">{t('workspace.changes.noCommits')}</p>
               )}
@@ -135,9 +139,9 @@ export default function WorkspaceChangesTab({
                   <ChangeRow
                     key={file.path}
                     file={file}
-                    expanded={openPath === file.path}
-                    onToggle={() => setOpenPath((current) => current === file.path ? null : file.path)}
-                    onOpenInEditor={() => openInEditor(file.path)}
+                    openPath={openPath}
+                    onSetOpenPath={setOpenPath}
+                    onOpenInEditor={openInEditor}
                     onComposerInsert={onComposerInsert}
                     t={t}
                   />
@@ -157,22 +161,24 @@ export default function WorkspaceChangesTab({
   );
 }
 
-export function ChangeRow({
+export const ChangeRow = memo(function ChangeRow({
   file,
-  expanded,
-  onToggle,
+  openPath,
+  onSetOpenPath,
   onOpenInEditor,
   onComposerInsert,
   t,
 }: {
   file: ProjectChange;
-  expanded: boolean;
-  onToggle: () => void;
-  onOpenInEditor: () => void;
+  openPath: string | null;
+  onSetOpenPath: (path: string | null) => void;
+  onOpenInEditor: (path: string) => void;
   onComposerInsert?: (text: string) => void;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   const [commentRow, setCommentRow] = useState<DiffCommentRow | null>(null);
+  const expanded = openPath === file.path;
+  const onToggle = () => onSetOpenPath(expanded ? null : file.path);
   const appearance = statusAppearance[file.status];
   return (
     <div className="border-b border-border/60 last:border-b-0">
@@ -194,7 +200,7 @@ export function ChangeRow({
         </button>
         <button
           type="button"
-          onClick={onOpenInEditor}
+          onClick={() => onOpenInEditor(file.path)}
           title={t('workspace.changes.openInEditor')}
           aria-label={t('workspace.changes.openInEditor')}
           className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
@@ -220,7 +226,7 @@ export function ChangeRow({
       )}
     </div>
   );
-}
+});
 
 const lastTurnAppearance: Record<LastTurnFile['kind'], { label: string; className: string }> = {
   edit: { label: 'E', className: 'bg-muted text-muted-foreground' },
@@ -229,22 +235,26 @@ const lastTurnAppearance: Record<LastTurnFile['kind'], { label: string; classNam
   move: { label: 'M', className: 'bg-diff-added text-diff-added-foreground' },
 };
 
-function LastTurnChangeRow({
+const LastTurnChangeRow = memo(function LastTurnChangeRow({
   file,
-  expanded,
-  onToggle,
+  rowKey,
+  openPath,
+  onSetOpenPath,
   onOpenInEditor,
   onComposerInsert,
   t,
 }: {
   file: LastTurnFile;
-  expanded: boolean;
-  onToggle: () => void;
-  onOpenInEditor: () => void;
+  rowKey: string;
+  openPath: string | null;
+  onSetOpenPath: (path: string | null) => void;
+  onOpenInEditor: (path: string) => void;
   onComposerInsert?: (text: string) => void;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   const [commentRow, setCommentRow] = useState<DiffCommentRow | null>(null);
+  const expanded = openPath === rowKey;
+  const onToggle = () => onSetOpenPath(expanded ? null : rowKey);
   const appearance = lastTurnAppearance[file.kind];
   return (
     <div className="border-b border-border/60 last:border-b-0">
@@ -255,7 +265,7 @@ function LastTurnChangeRow({
             {file.oldPath ? <>{file.oldPath} <span className="text-muted-foreground">{t('workspace.changes.renameArrow')}</span> {file.path}</> : file.path}
           </span>
         </button>
-        <button type="button" onClick={onOpenInEditor} title={t('workspace.changes.openInEditor')} aria-label={t('workspace.changes.openInEditor')} className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
+        <button type="button" onClick={() => onOpenInEditor(file.path)} title={t('workspace.changes.openInEditor')} aria-label={t('workspace.changes.openInEditor')} className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
           <ExternalLink className="h-3 w-3" />
         </button>
       </div>
@@ -275,7 +285,7 @@ function LastTurnChangeRow({
       )}
     </div>
   );
-}
+});
 
 
 const COMMENT_MARKER = { added: '+', removed: '-', context: ' ' } as const;

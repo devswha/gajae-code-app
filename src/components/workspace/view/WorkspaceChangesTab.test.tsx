@@ -47,8 +47,8 @@ test('renders the loading state and refresh control before a static render can l
 test('renders a file row with counts, rename, and expanded unified diff', () => {
   const html = renderToStaticMarkup(createElement(ChangeRow, {
     file: changedFile,
-    expanded: true,
-    onToggle: () => {},
+    openPath: changedFile.path,
+    onSetOpenPath: () => {},
     onOpenInEditor: () => {},
     t,
   }));
@@ -64,8 +64,8 @@ test('renders a file row with counts, rename, and expanded unified diff', () => 
 test('a row with an insert target offers a line comment and sends the formatted draft', () => {
   const html = renderToStaticMarkup(createElement(ChangeRow, {
     file: changedFile,
-    expanded: true,
-    onToggle: () => {},
+    openPath: changedFile.path,
+    onSetOpenPath: () => {},
     onOpenInEditor: () => {},
     onComposerInsert: () => {},
     t,
@@ -74,7 +74,7 @@ test('a row with an insert target offers a line comment and sends the formatted 
 
   // Without an insert target the offer is absent.
   const bare = renderToStaticMarkup(createElement(ChangeRow, {
-    file: changedFile, expanded: true, onToggle: () => {}, onOpenInEditor: () => {}, t,
+    file: changedFile, openPath: changedFile.path, onSetOpenPath: () => {}, onOpenInEditor: () => {}, t,
   }));
   assert.doesNotMatch(bare, /comment\.add/);
 });

@@ -323,6 +323,21 @@ export function splitGitDiffPatches(diffOutput) {
   }).filter(({ path: filePath }) => filePath);
 }
 
+/** How many files one response lists, however many the tree holds. */
+const DIFF_FILE_LIMIT = 1000;
+
+/**
+ * Caps the file list and reports the truth of what was held back. Exported
+ * for tests.
+ */
+export function capDiffFiles(files, fileLimit = DIFF_FILE_LIMIT) {
+  return {
+    files: files.slice(0, fileLimit),
+    totalFiles: files.length,
+    truncated: files.length > fileLimit,
+  };
+}
+
 /**
  * Attaches patch text while enforcing the per-file and response-wide limits.
  */
@@ -418,7 +433,9 @@ router.get('/diff', async (req, res) => {
     const { stdout: statusOutput } = await spawnAsync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: projectPath });
 
     if (!hasCommits) {
-      return res.json({ branch, hasCommits, files: buildNoCommitsDiffFiles(statusOutput) });
+      // The cap applies here too: a never-committed workspace directory can
+      // hold every file it contains.
+      return res.json({ branch, hasCommits, ...capDiffFiles(buildNoCommitsDiffFiles(statusOutput)) });
     }
 
     const [{ stdout: numstatOutput }, { stdout: diffOutput }] = await Promise.all([
@@ -474,11 +491,11 @@ router.get('/diff', async (req, res) => {
       ...untrackedFiles,
     ];
 
-    res.json({
-      branch,
-      hasCommits,
-      files: attachDiffPatches(files, patches),
-    });
+    // A whole workspace registered as one project can list tens of thousands
+    // of untracked files; the list is capped so one project cannot freeze the
+    // tab, and the response says what was held back. Tracked changes come
+    // first in `files`, so the cap bites the untracked tail.
+    res.json({ branch, hasCommits, ...capDiffFiles(attachDiffPatches(files, patches)) });
   } catch (error) {
     console.error('Git diff error:', error);
     res.json({

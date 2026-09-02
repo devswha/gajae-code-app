@@ -96,7 +96,10 @@
         "placeholder": "Commentaire sur cette ligne…",
         "send": "Envoyer le commentaire au chat",
         "cancel": "Abandonner le commentaire"
-      }
+      },
+      "truncated": "Affichage de {{shown}} fichiers sur {{total}} ; la liste est tronquée.",
+      "moreLines_one": "Afficher {{count}} ligne de plus",
+      "moreLines_other": "Afficher {{count}} lignes de plus"
     },
     "browser": {
       "address": "Adresse Internet",

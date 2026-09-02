@@ -96,7 +96,10 @@
         "placeholder": "Commento a questa riga…",
         "send": "Invia il commento alla chat",
         "cancel": "Scarta il commento"
-      }
+      },
+      "truncated": "Mostrati {{shown}} file su {{total}}; l’elenco è limitato.",
+      "moreLines_one": "Mostra {{count}} altra riga",
+      "moreLines_other": "Mostra {{count}} altre righe"
     },
     "browser": {
       "address": "Indirizzo web",

@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   attachDiffPatches,
   buildNoCommitsDiffFiles,
+  capDiffFiles,
   parseGitLogWithStats,
   parseGitNumstatOutput,
   parseGitStatusOutput,
@@ -220,4 +221,13 @@ test('parseGitLogWithStats parses commits with parents, refs, and shortstat line
 
 test('parseGitLogWithStats handles empty output', () => {
   assert.deepEqual(parseGitLogWithStats(''), []);
+});
+
+test('capDiffFiles caps the list and reports what was held back', () => {
+  const files = Array.from({ length: 1002 }, (_, index) => ({ path: `f${index}` }));
+  const capped = capDiffFiles(files, 1000);
+  assert.equal(capped.files.length, 1000);
+  assert.equal(capped.totalFiles, 1002);
+  assert.equal(capped.truncated, true);
+  assert.deepEqual(capDiffFiles(files.slice(0, 10)).truncated, false);
 });

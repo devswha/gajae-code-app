@@ -96,7 +96,9 @@
         "placeholder": "이 줄에 대한 코멘트…",
         "send": "코멘트를 채팅으로 보내기",
         "cancel": "코멘트 취소"
-      }
+      },
+      "truncated": "전체 {{total}}개 중 {{shown}}개 표시 중입니다. 목록이 제한되었습니다.",
+      "moreLines_other": "나머지 {{count}}줄 표시"
     },
     "browser": {
       "address": "웹 주소",

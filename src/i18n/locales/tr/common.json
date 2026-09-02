@@ -96,7 +96,10 @@
         "placeholder": "Bu satır hakkında yorum…",
         "send": "Yorumu sohbete gönder",
         "cancel": "Yorumu iptal et"
-      }
+      },
+      "truncated": "{{total}} dosyadan {{shown}} tanesi gösteriliyor; liste sınırlı.",
+      "moreLines_one": "{{count}} satır daha göster",
+      "moreLines_other": "{{count}} satır daha göster"
     },
     "browser": {
       "address": "Web adresi",

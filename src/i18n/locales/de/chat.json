@@ -138,5 +138,43 @@
     "compact": "Kompakt",
     "balanced": "Ausgewogen",
     "detailed": "Ausführlich"
+  },
+  "permissionMode": {
+    "label": "Berechtigungsmodus",
+    "title": "Berechtigungen",
+    "description": "Was der Agent in diesem Projekt ohne Nachfrage tun darf.",
+    "tooltip": "Berechtigungen: {{mode}} ({{shortcut}})",
+    "paletteAction": "Berechtigungen: {{mode}}",
+    "alwaysAllowedSummary": "Immer erlaubt ({{count}}): {{tools}}",
+    "modes": {
+      "ask": {
+        "label": "Fragen",
+        "description": "Befehle und destruktive Dateiänderungen warten auf deine Freigabe."
+      },
+      "auto_edits": {
+        "label": "Bearbeitungen automatisch freigeben",
+        "description": "Dateiänderungen laufen ohne Nachfrage; Befehle warten weiterhin auf Freigabe."
+      },
+      "bypass": {
+        "label": "Umgehen",
+        "description": "Nichts fragt nach. Der Agent führt in diesem Projekt jeden Befehl aus."
+      }
+    },
+    "bypassConfirm": {
+      "title": "Berechtigungsabfragen ausschalten?",
+      "body": "Damit kann der Agent jeden Befehl ohne Nachfrage ausführen.",
+      "scope": "Gilt nur für dieses Projekt. Du kannst jederzeit zu „Fragen“ zurückwechseln.",
+      "cancel": "Abbrechen",
+      "confirm": "Umgehen aktivieren"
+    }
+  },
+  "permissionCard": {
+    "title": "Berechtigung erforderlich",
+    "tool": "Werkzeug:",
+    "viewInput": "Werkzeugeingabe anzeigen",
+    "deny": "Ablehnen",
+    "allow": "Erlauben",
+    "alwaysAllow": "{{tool}} immer erlauben",
+    "alwaysAllowHint": "Dieses Werkzeug in diesem Projekt ab jetzt automatisch freigeben"
   }
 }

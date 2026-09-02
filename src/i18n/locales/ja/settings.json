@@ -46,7 +46,8 @@
     "voice": "音声。",
     "notifications": "通知。",
     "automation": "Automation。",
-    "about": "概要。"
+    "about": "概要。",
+    "permissions": "権限"
   },
   "automation": {
     "title": "ブラウザとネイティブアプリケーション。",
@@ -135,5 +136,18 @@
     "status": {
       "success": "保存しました。"
     }
+  },
+  "permissions": {
+    "title": "権限",
+    "description": "エージェントが確認なしに実行できる内容をプロジェクトごとに定めます。既定のポリシー（確認、常に許可なし）のプロジェクトは表示されません。",
+    "mode": "モード",
+    "alwaysAllowed": "常に許可",
+    "none": "なし",
+    "revoke": "取り消す",
+    "revokeTool": "{{tool}} の常時許可を取り消す",
+    "resetToAsk": "「確認」にリセット",
+    "empty": "すべてのプロジェクトがコマンド実行前に確認します。",
+    "loading": "読み込み中…",
+    "error": "権限を読み込めませんでした。"
   }
 }

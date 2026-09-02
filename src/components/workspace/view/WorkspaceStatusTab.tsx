@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { formatTokens, type SessionStatusSnapshot } from '../../../contexts/sessionStatusSnapshot';
+import type { PermissionMode } from '../../../hooks/useProjectPermissions';
+import { PERMISSION_MODE_ICONS } from '../../chat/utils/permissionMode';
 import { reasoningEffortLabel } from '../../chat/view/reasoningEffort';
 import { useProjectGitSummary } from '../hooks/useProjectGitSummary';
 
@@ -11,6 +13,8 @@ export type WorkspaceStatusTabProps = {
   projectName?: string;
   projectPath?: string;
   projectId?: string;
+  /** The project's permission mode; null while it is still loading. */
+  permissionMode?: PermissionMode | null;
   /** The Status tab is the visible one; git is only read while it is. */
   active: boolean;
 };
@@ -27,12 +31,15 @@ export default function WorkspaceStatusTab({
   projectName,
   projectPath,
   projectId,
+  permissionMode = null,
   active,
 }: WorkspaceStatusTabProps) {
   const { t } = useTranslation();
+  const { t: tChat } = useTranslation('chat');
   const { state: gitState, refresh: refreshGit } = useProjectGitSummary(projectId, active);
 
   const unreported = <span className="text-muted-foreground/70">{t('workspace.statusTab.unreported')}</span>;
+  const PermissionIcon = permissionMode ? PERMISSION_MODE_ICONS[permissionMode] : null;
 
   return (
     <div className="h-full overflow-y-auto px-3 py-3 text-xs">
@@ -99,6 +106,17 @@ export default function WorkspaceStatusTab({
           <span className="font-mono text-[11px] break-all" title={status.cwd ?? projectPath}>
             {status.cwd ?? projectPath ?? unreported}
           </span>
+        </Row>
+        <Row label={t('workspace.statusTab.permissions')}>
+          {permissionMode && PermissionIcon ? (
+            <span
+              data-permission-mode={permissionMode}
+              className={`inline-flex items-center gap-1.5 font-medium ${permissionMode === 'bypass' ? 'text-destructive' : 'text-foreground'}`}
+            >
+              <PermissionIcon className="h-3 w-3" aria-hidden />
+              {tChat(`permissionMode.modes.${permissionMode}.label`)}
+            </span>
+          ) : unreported}
         </Row>
       </Section>
 

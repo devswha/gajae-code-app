@@ -17,7 +17,7 @@ type UseSettingsControllerArgs = { isOpen: boolean; initialTab: string };
 type StoredProjectSettings = { projectSortOrder?: ProjectSortOrder };
 type NotificationPreferencesResponse = { success?: boolean; preferences?: NotificationPreferencesState };
 
-const tabNames: SettingsMainTab[] = ['appearance', 'git', 'voice', 'notifications', 'automation', 'about'];
+const tabNames: SettingsMainTab[] = ['appearance', 'permissions', 'git', 'voice', 'notifications', 'automation', 'about'];
 
 function chooseTab(value: string): SettingsMainTab {
   return tabNames.includes(value as SettingsMainTab) ? value as SettingsMainTab : 'appearance';

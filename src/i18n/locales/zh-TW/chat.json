@@ -138,5 +138,43 @@
     "compact": "精簡",
     "balanced": "均衡",
     "detailed": "詳細"
+  },
+  "permissionMode": {
+    "label": "權限模式",
+    "title": "權限",
+    "description": "代理在此專案中無需詢問即可執行的操作。",
+    "tooltip": "權限：{{mode}}（{{shortcut}}）",
+    "paletteAction": "權限：{{mode}}",
+    "alwaysAllowedSummary": "一律允許（{{count}}）：{{tools}}",
+    "modes": {
+      "ask": {
+        "label": "詢問",
+        "description": "命令與破壞性的檔案變更需等待您的核准。"
+      },
+      "auto_edits": {
+        "label": "自動核准編輯",
+        "description": "檔案編輯無需詢問即可進行；命令仍需等待核准。"
+      },
+      "bypass": {
+        "label": "略過",
+        "description": "不再詢問。代理可在此專案中執行任何命令。"
+      }
+    },
+    "bypassConfirm": {
+      "title": "關閉權限提示？",
+      "body": "這會讓代理在不詢問的情況下執行任何命令。",
+      "scope": "僅適用於此專案。您可以隨時切換回「詢問」。",
+      "cancel": "取消",
+      "confirm": "啟用略過"
+    }
+  },
+  "permissionCard": {
+    "title": "需要權限",
+    "tool": "工具：",
+    "viewInput": "檢視工具輸入",
+    "deny": "拒絕",
+    "allow": "允許",
+    "alwaysAllow": "一律允許 {{tool}}",
+    "alwaysAllowHint": "從現在起在此專案中自動核准此工具"
   }
 }

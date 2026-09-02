@@ -126,7 +126,8 @@
       "refreshGit": "Recharger le statut Git",
       "unreported": "Pas encore de rapport",
       "empty": "Pas de séance ouverte",
-      "emptyHint": "Démarrez ou ouvrez une session pour afficher son activité actuelle."
+      "emptyHint": "Démarrez ou ouvrez une session pour afficher son activité actuelle.",
+      "permissions": "Permissions"
     }
   }
 }

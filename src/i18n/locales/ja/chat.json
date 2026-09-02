@@ -138,5 +138,43 @@
     "compact": "コンパクト",
     "balanced": "標準",
     "detailed": "詳細"
+  },
+  "permissionMode": {
+    "label": "権限モード",
+    "title": "権限",
+    "description": "このプロジェクトでエージェントが確認なしに行えることを決めます。",
+    "tooltip": "権限: {{mode}} ({{shortcut}})",
+    "paletteAction": "権限: {{mode}}",
+    "alwaysAllowedSummary": "常に許可 ({{count}}): {{tools}}",
+    "modes": {
+      "ask": {
+        "label": "確認",
+        "description": "コマンド実行と破壊的なファイル変更は承認を待ちます。"
+      },
+      "auto_edits": {
+        "label": "編集を自動承認",
+        "description": "ファイル編集は確認なしで進み、コマンド実行は承認を待ちます。"
+      },
+      "bypass": {
+        "label": "バイパス",
+        "description": "何も確認しません。エージェントはこのプロジェクトで任意のコマンドを実行します。"
+      }
+    },
+    "bypassConfirm": {
+      "title": "権限の確認をオフにしますか？",
+      "body": "エージェントが確認なしに任意のコマンドを実行できるようになります。",
+      "scope": "このプロジェクトにのみ適用されます。いつでも「確認」に戻せます。",
+      "cancel": "キャンセル",
+      "confirm": "バイパスを有効化"
+    }
+  },
+  "permissionCard": {
+    "title": "権限が必要です",
+    "tool": "ツール:",
+    "viewInput": "ツール入力を表示",
+    "deny": "拒否",
+    "allow": "許可",
+    "alwaysAllow": "{{tool}} を常に許可",
+    "alwaysAllowHint": "このプロジェクトでこのツールを今後自動承認します"
   }
 }

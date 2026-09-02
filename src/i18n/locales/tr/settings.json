@@ -46,7 +46,8 @@
     "voice": "Ses",
     "notifications": "Bildirimler",
     "automation": "Otomasyon",
-    "about": "Hakkında"
+    "about": "Hakkında",
+    "permissions": "İzinler"
   },
   "automation": {
     "title": "Tarayıcı ve yerel uygulamalar",
@@ -135,5 +136,18 @@
     "status": {
       "success": "Kaydetme tamamlandı"
     }
+  },
+  "permissions": {
+    "title": "İzinler",
+    "description": "Ajanın sormadan çalıştırabileceklerine ilişkin proje bazlı kurallar. Varsayılan politikadaki (Sor, her zaman izinli yok) projeler listelenmez.",
+    "mode": "Mod",
+    "alwaysAllowed": "Her zaman izinli",
+    "none": "Yok",
+    "revoke": "Kaldır",
+    "revokeTool": "{{tool}} için her zaman izni kaldır",
+    "resetToAsk": "“Sor” moduna sıfırla",
+    "empty": "Her proje komut çalıştırmadan önce sorar.",
+    "loading": "Yükleniyor…",
+    "error": "İzinler yüklenemedi."
   }
 }

@@ -126,7 +126,8 @@
       "refreshGit": "刷新Git状态",
       "unreported": "暂无报告",
       "empty": "当前无会话打开",
-      "emptyHint": "开始或打开一个会话以查看其当前活动。"
+      "emptyHint": "开始或打开一个会话以查看其当前活动。",
+      "permissions": "权限"
     }
   }
 }

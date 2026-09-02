@@ -138,5 +138,43 @@
     "compact": "紧凑",
     "balanced": "均衡",
     "detailed": "详细"
+  },
+  "permissionMode": {
+    "label": "权限模式",
+    "title": "权限",
+    "description": "代理在此项目中无需询问即可执行的操作。",
+    "tooltip": "权限：{{mode}}（{{shortcut}}）",
+    "paletteAction": "权限：{{mode}}",
+    "alwaysAllowedSummary": "始终允许（{{count}}）：{{tools}}",
+    "modes": {
+      "ask": {
+        "label": "询问",
+        "description": "命令和破坏性文件更改需等待您的批准。"
+      },
+      "auto_edits": {
+        "label": "自动批准编辑",
+        "description": "文件编辑无需询问即可进行；命令仍需等待批准。"
+      },
+      "bypass": {
+        "label": "绕过",
+        "description": "不再询问。代理可在此项目中运行任何命令。"
+      }
+    },
+    "bypassConfirm": {
+      "title": "关闭权限提示？",
+      "body": "这将允许代理在不询问的情况下运行任何命令。",
+      "scope": "仅适用于此项目。您可以随时切换回“询问”。",
+      "cancel": "取消",
+      "confirm": "启用绕过"
+    }
+  },
+  "permissionCard": {
+    "title": "需要权限",
+    "tool": "工具：",
+    "viewInput": "查看工具输入",
+    "deny": "拒绝",
+    "allow": "允许",
+    "alwaysAllow": "始终允许 {{tool}}",
+    "alwaysAllowHint": "从现在起在此项目中自动批准该工具"
   }
 }

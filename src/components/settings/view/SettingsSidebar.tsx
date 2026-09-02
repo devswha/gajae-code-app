@@ -1,4 +1,4 @@
-import { Bell, GitBranch, Info, Mic, MonitorCog, Palette } from 'lucide-react';
+import { Bell, GitBranch, Info, Mic, MonitorCog, Palette, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../utils/cn';
@@ -10,6 +10,7 @@ type NavItem = readonly [SettingsMainTab, string, typeof Bell];
 
 const NAV_ITEMS: NavItem[] = [
   ['appearance', 'mainTabs.appearance', Palette],
+  ['permissions', 'mainTabs.permissions', ShieldCheck],
   ['git', 'mainTabs.git', GitBranch],
   ['voice', 'mainTabs.voice', Mic],
   ['notifications', 'mainTabs.notifications', Bell],

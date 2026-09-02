@@ -139,16 +139,11 @@ test('normal chat submit sends one chat message and never creates a GJC job', as
       type: 'chat.send',
       sessionId: 'session-1',
       content: 'normal message',
+      // No permission fields: the project's stored policy is applied by the
+      // server, so the browser has nothing to say about it here.
       options: {
         model: 'gpt-test',
         effort: 'default',
-        permissionMode: 'default',
-        toolsSettings: {
-          allowedTools: [],
-          disallowedTools: [],
-          skipPermissions: false,
-        },
-        skipPermissions: false,
         sessionSummary: 'normal message',
         images: [],
       },

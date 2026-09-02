@@ -46,7 +46,8 @@
     "voice": "语音",
     "notifications": "通知",
     "automation": "自动化",
-    "about": "关于"
+    "about": "关于",
+    "permissions": "权限"
   },
   "automation": {
     "title": "浏览器和原生应用",
@@ -135,5 +136,18 @@
     "status": {
       "success": "保存完成"
     }
+  },
+  "permissions": {
+    "title": "权限",
+    "description": "按项目设定代理无需询问即可运行的内容。使用默认策略（询问，无始终允许）的项目不会列出。",
+    "mode": "模式",
+    "alwaysAllowed": "始终允许",
+    "none": "无",
+    "revoke": "撤销",
+    "revokeTool": "停止始终允许 {{tool}}",
+    "resetToAsk": "重置为“询问”",
+    "empty": "所有项目在运行命令前都会询问。",
+    "loading": "加载中…",
+    "error": "无法加载权限。"
   }
 }

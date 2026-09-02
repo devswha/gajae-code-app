@@ -46,7 +46,8 @@
     "voice": "Voix",
     "notifications": "Alertes",
     "automation": "Automatisation",
-    "about": "À propos"
+    "about": "À propos",
+    "permissions": "Permissions"
   },
   "automation": {
     "title": "Navigateur et applications natives",
@@ -135,5 +136,18 @@
     "status": {
       "success": "Sauvegarde terminée"
     }
+  },
+  "permissions": {
+    "title": "Permissions",
+    "description": "Règles par projet sur ce que l’agent peut exécuter sans demander. Les projets utilisant la politique par défaut (Demander, rien de toujours autorisé) ne sont pas listés.",
+    "mode": "Mode",
+    "alwaysAllowed": "Toujours autorisés",
+    "none": "Aucun",
+    "revoke": "Révoquer",
+    "revokeTool": "Ne plus toujours autoriser {{tool}}",
+    "resetToAsk": "Revenir à « Demander »",
+    "empty": "Chaque projet demande avant d’exécuter des commandes.",
+    "loading": "Chargement…",
+    "error": "Impossible de charger les permissions."
   }
 }

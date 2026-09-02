@@ -126,7 +126,8 @@
       "refreshGit": "Reload Git status",
       "unreported": "No report yet",
       "empty": "No open session",
-      "emptyHint": "Start or open a session to view its current activity."
+      "emptyHint": "Start or open a session to view its current activity.",
+      "permissions": "Permissions"
     }
   }
 }

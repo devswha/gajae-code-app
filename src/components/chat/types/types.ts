@@ -21,6 +21,8 @@ export interface ChatMessage {
 }
 
 export interface PendingPermissionRequest { requestId: string; toolName: string; input?: unknown; context?: unknown; sessionId?: string | null; receivedAt?: Date; }
+/** The user's answer to a permission card; `always` remembers an allow for the project. */
+export interface PermissionDecision { allow?: boolean; always?: boolean; message?: string; updatedInput?: unknown; }
 interface QuestionOption { label: string; description?: string; }
 export interface Question { options: QuestionOption[]; question: string; header?: string; multiSelect?: boolean; }
 export interface SessionNavigationOptions { replace?: boolean; }

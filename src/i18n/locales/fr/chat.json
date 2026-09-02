@@ -138,5 +138,43 @@
     "compact": "Compact",
     "balanced": "Équilibré",
     "detailed": "Détaillé"
+  },
+  "permissionMode": {
+    "label": "Mode de permissions",
+    "title": "Permissions",
+    "description": "Ce que l’agent peut faire dans ce projet sans demander.",
+    "tooltip": "Permissions : {{mode}} ({{shortcut}})",
+    "paletteAction": "Permissions : {{mode}}",
+    "alwaysAllowedSummary": "Toujours autorisés ({{count}}) : {{tools}}",
+    "modes": {
+      "ask": {
+        "label": "Demander",
+        "description": "Les commandes et les modifications destructrices de fichiers attendent votre approbation."
+      },
+      "auto_edits": {
+        "label": "Approuver les modifications",
+        "description": "Les modifications de fichiers s’exécutent sans demander ; les commandes attendent toujours une approbation."
+      },
+      "bypass": {
+        "label": "Contourner",
+        "description": "Rien ne demande. L’agent exécute n’importe quelle commande dans ce projet."
+      }
+    },
+    "bypassConfirm": {
+      "title": "Désactiver les demandes de permission ?",
+      "body": "L’agent pourra exécuter n’importe quelle commande sans demander.",
+      "scope": "S’applique uniquement à ce projet. Vous pouvez revenir à « Demander » à tout moment.",
+      "cancel": "Annuler",
+      "confirm": "Activer le contournement"
+    }
+  },
+  "permissionCard": {
+    "title": "Permission requise",
+    "tool": "Outil :",
+    "viewInput": "Voir l’entrée de l’outil",
+    "deny": "Refuser",
+    "allow": "Autoriser",
+    "alwaysAllow": "Toujours autoriser {{tool}}",
+    "alwaysAllowHint": "Approuver automatiquement cet outil dans ce projet à partir de maintenant"
   }
 }

@@ -138,5 +138,43 @@
     "compact": "Sıkışık",
     "balanced": "Dengeli",
     "detailed": "Ayrıntılı"
+  },
+  "permissionMode": {
+    "label": "İzin modu",
+    "title": "İzinler",
+    "description": "Ajanın bu projede sormadan yapabilecekleri.",
+    "tooltip": "İzinler: {{mode}} ({{shortcut}})",
+    "paletteAction": "İzinler: {{mode}}",
+    "alwaysAllowedSummary": "Her zaman izinli ({{count}}): {{tools}}",
+    "modes": {
+      "ask": {
+        "label": "Sor",
+        "description": "Komutlar ve yıkıcı dosya değişiklikleri onayınızı bekler."
+      },
+      "auto_edits": {
+        "label": "Düzenlemeleri otomatik onayla",
+        "description": "Dosya düzenlemeleri sormadan yapılır; komutlar yine onay bekler."
+      },
+      "bypass": {
+        "label": "Atla",
+        "description": "Hiçbir şey sorulmaz. Ajan bu projede her komutu çalıştırır."
+      }
+    },
+    "bypassConfirm": {
+      "title": "İzin istemleri kapatılsın mı?",
+      "body": "Ajan sormadan her komutu çalıştırabilecek.",
+      "scope": "Yalnızca bu proje için geçerlidir. İstediğiniz zaman “Sor” moduna dönebilirsiniz.",
+      "cancel": "İptal",
+      "confirm": "Atlamayı etkinleştir"
+    }
+  },
+  "permissionCard": {
+    "title": "İzin gerekli",
+    "tool": "Araç:",
+    "viewInput": "Araç girdisini göster",
+    "deny": "Reddet",
+    "allow": "İzin ver",
+    "alwaysAllow": "{{tool}} için her zaman izin ver",
+    "alwaysAllowHint": "Bu aracı bu projede bundan sonra otomatik onayla"
   }
 }

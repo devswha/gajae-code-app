@@ -5,6 +5,7 @@ import { usePaletteOpsRegister } from '../../../stores/usePaletteOpsStore';
 import { SessionStatusProvider } from '../../../contexts/SessionStatusContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useFileOpenResolver } from '../../../hooks/useFileOpenResolver';
+import { useProjectPermissions } from '../../../hooks/useProjectPermissions';
 import { useWorkspacePanel } from '../../workspace/hooks/useWorkspacePanel';
 import { api } from '../../../utils/api';
 
@@ -39,6 +40,7 @@ function MainContent({
   const { closePanel, containerRef, expanded, handleResizeKeyDown, handleResizeStart, isOpen, resizeHandleRef, setTab, tab, toggleExpanded, togglePanel, width } = panel;
   const [pendingBrowserNavigation, setPendingBrowserNavigation] = useState<{ id: number; url: string } | null>(null);
   const navigationSequence = useRef(0);
+  const { permissions: projectPermissions } = useProjectPermissions(selectedProject?.projectId);
 
   const revealFile = useCallback((path: string) => {
     void api.system.openFile(path).catch((error) => {
@@ -136,6 +138,7 @@ function MainContent({
               projectName={selectedProject.displayName}
               projectPath={selectedProject.path}
               projectId={selectedProject.projectId}
+              permissionMode={projectPermissions?.mode ?? null}
               automationSessionId={selectedSession?.id ?? `project-${selectedProject.projectId}`}
               browserNavigation={pendingBrowserNavigation}
               onBrowserNavigationHandled={() => setPendingBrowserNavigation(null)}

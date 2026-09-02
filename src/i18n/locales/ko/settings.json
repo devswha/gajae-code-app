@@ -46,7 +46,8 @@
     "voice": "음성",
     "notifications": "알림 메시지",
     "automation": "자동화",
-    "about": "소개"
+    "about": "소개",
+    "permissions": "권한"
   },
   "automation": {
     "title": "브라우저와 네이티브 애플리케이션",
@@ -135,5 +136,18 @@
     "status": {
       "success": "저장 완료"
     }
+  },
+  "permissions": {
+    "title": "권한",
+    "description": "에이전트가 묻지 않고 실행할 수 있는 항목을 프로젝트별로 정합니다. 기본 정책(확인, 항상 허용 없음)인 프로젝트는 표시되지 않습니다.",
+    "mode": "모드",
+    "alwaysAllowed": "항상 허용",
+    "none": "없음",
+    "revoke": "해제",
+    "revokeTool": "{{tool}} 항상 허용 해제",
+    "resetToAsk": "확인 모드로 초기화",
+    "empty": "모든 프로젝트가 명령 실행 전에 확인합니다.",
+    "loading": "불러오는 중…",
+    "error": "권한 정보를 불러오지 못했습니다."
   }
 }

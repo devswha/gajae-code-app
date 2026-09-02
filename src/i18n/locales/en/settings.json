@@ -46,7 +46,8 @@
     "voice": "Voice",
     "notifications": "Notifications",
     "automation": "Automation",
-    "about": "About"
+    "about": "About",
+    "permissions": "Permissions"
   },
   "automation": {
     "title": "Browser and native applications",
@@ -135,5 +136,18 @@
     "status": {
       "success": "Save complete"
     }
+  },
+  "permissions": {
+    "title": "Permissions",
+    "description": "Per-project rules for what the agent may run without asking. Projects on the default policy (Ask, nothing always allowed) are not listed.",
+    "mode": "Mode",
+    "alwaysAllowed": "Always allowed",
+    "none": "None",
+    "revoke": "Revoke",
+    "revokeTool": "Stop always allowing {{tool}}",
+    "resetToAsk": "Reset to Ask",
+    "empty": "Every project asks before running commands.",
+    "loading": "Loading…",
+    "error": "Permissions could not be loaded."
   }
 }

@@ -18,8 +18,9 @@ import { useVoiceInput } from '../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../hooks/useVoiceAvailable';
 import type { PendingCommandGate, QueuedDraft } from '../hooks/useChatComposerState';
 import type { SessionActivity } from '../../../hooks/useSessionProtection';
-import type { PendingPermissionRequest } from '../types/types';
+import type { PendingPermissionRequest, PermissionDecision } from '../types/types';
 import type { ProviderModelOption } from '../../../types/app';
+import type { PermissionModeUpdate, ProjectPermissions } from '../../../hooks/useProjectPermissions';
 import {
   PromptInput,
   PromptInputHeader,
@@ -40,6 +41,7 @@ import QueuedMessageCard from './QueuedMessageCard';
 import CommandGateCard from './CommandGateCard';
 import AgentConfigurationPicker from './AgentConfigurationPicker';
 import ModelAndReasoningPicker from './ModelAndReasoningPicker';
+import PermissionModePicker from './PermissionModePicker';
 import ContextUsageBadge from './ContextUsageBadge';
 import type { ReasoningEffort } from './reasoningEffort';
 import SkillPicker from './SkillPicker';
@@ -61,10 +63,7 @@ interface SlashCommand {
 
 interface ChatComposerProps {
   pendingPermissionRequests: PendingPermissionRequest[];
-  handlePermissionDecision: (
-    requestIds: string | string[],
-    decision: { allow?: boolean; message?: string; updatedInput?: unknown },
-  ) => void;
+  handlePermissionDecision: (requestIds: string | string[], decision: PermissionDecision) => void;
   activity: SessionActivity | null;
   isLoading: boolean;
   onAbortSession: () => void;
@@ -130,6 +129,10 @@ interface ChatComposerProps {
   onSelectModelPreset?: (value: string) => Promise<unknown> | unknown;
   reasoningEffort?: ReasoningEffort;
   onSelectReasoningEffort?: (value: ReasoningEffort) => void;
+  /** The selected project's permission policy; null hides the picker. */
+  permissions?: ProjectPermissions | null;
+  onSelectPermissionMode?: (update: PermissionModeUpdate) => Promise<unknown> | unknown;
+  permissionsBusy?: boolean;
 }
 
 export default function ChatComposer({
@@ -193,6 +196,9 @@ export default function ChatComposer({
   onSelectModelPreset = () => {},
   reasoningEffort = 'default',
   onSelectReasoningEffort = () => {},
+  permissions = null,
+  onSelectPermissionMode = () => {},
+  permissionsBusy = false,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const commandMenuPosition = useMemo(() => {
@@ -451,6 +457,14 @@ export default function ChatComposer({
                 openTrigger={modelPickerOpenTrigger}
                 iconOnly
                 onSelect={onSelectModelPreset}
+              />
+            )}
+
+            {permissions && (
+              <PermissionModePicker
+                permissions={permissions}
+                onSelectMode={onSelectPermissionMode}
+                busy={permissionsBusy}
               />
             )}
 

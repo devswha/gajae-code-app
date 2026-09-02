@@ -7,6 +7,7 @@ import PermissionContext from '../../../contexts/PermissionContext';
 import { readSessionFacts, readTokenTotals, type SessionStatusSnapshot } from '../../../contexts/sessionStatusSnapshot';
 import { usePublishSessionStatus } from '../../../contexts/SessionStatusContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
+import { useLegacySkipPermissionsMigration, useProjectPermissions } from '../../../hooks/useProjectPermissions';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import type { ProjectSession } from '../../../types/app';
 import { useChatComposerState } from '../hooks/useChatComposerState';
@@ -72,6 +73,8 @@ function ChatInterface({
     providerModelsLoading, hardRefreshProviderModels, selectProviderModel,
   } = useChatProviderState({ selectedSession, selectedProject });
   const oauthLogin = useOAuthLogin();
+  const projectPermissions = useProjectPermissions(selectedProject?.projectId);
+  useLegacySkipPermissionsMigration(selectedProject?.projectId, projectPermissions.setMode);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>('default');
   const reasoningSessionRef = useRef<string | null>(selectedSession?.id ?? null);
 
@@ -276,6 +279,9 @@ function ChatInterface({
       onSelectModelPreset={(model) => selectProviderModel('gjc', model, session.currentSessionId || selectedSession?.id || null)}
       reasoningEffort={reasoningEffort}
       onSelectReasoningEffort={setReasoningEffort}
+      permissions={projectPermissions.permissions}
+      onSelectPermissionMode={projectPermissions.setMode}
+      permissionsBusy={projectPermissions.isSettingMode}
     />
   );
 

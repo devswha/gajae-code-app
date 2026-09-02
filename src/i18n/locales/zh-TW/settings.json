@@ -46,7 +46,8 @@
     "voice": "語音",
     "notifications": "通知",
     "automation": "自動化",
-    "about": "關於"
+    "about": "關於",
+    "permissions": "權限"
   },
   "automation": {
     "title": "瀏覽器和原生應用程式",
@@ -135,5 +136,18 @@
     "status": {
       "success": "儲存完成"
     }
+  },
+  "permissions": {
+    "title": "權限",
+    "description": "依專案設定代理無需詢問即可執行的內容。使用預設策略（詢問，無一律允許）的專案不會列出。",
+    "mode": "模式",
+    "alwaysAllowed": "一律允許",
+    "none": "無",
+    "revoke": "撤銷",
+    "revokeTool": "停止一律允許 {{tool}}",
+    "resetToAsk": "重設為「詢問」",
+    "empty": "所有專案在執行命令前都會詢問。",
+    "loading": "載入中…",
+    "error": "無法載入權限。"
   }
 }

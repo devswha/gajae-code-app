@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { Bell, GitBranch, Info, Mic, Palette } from 'lucide-react';
+import { Bell, GitBranch, Info, Mic, Palette, ShieldCheck } from 'lucide-react';
 
 import type { SettingsMainTab } from '../types/types';
 
@@ -14,6 +14,7 @@ const makeTab = (
 
 export const SETTINGS_MAIN_TABS = [
   makeTab('appearance', 'Appearance', 'appearance theme dark light language', Palette),
+  makeTab('permissions', 'Permissions', 'permissions bypass always allow approve tools', ShieldCheck),
   makeTab('git', 'Git', 'git github commits', GitBranch),
   makeTab('voice', 'Voice', 'voice speech audio', Mic),
   makeTab('notifications', 'Notifications', 'notifications alerts push', Bell),

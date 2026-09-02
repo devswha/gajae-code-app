@@ -126,7 +126,8 @@
       "refreshGit": "Git-Status neu laden",
       "unreported": "Noch kein Bericht",
       "empty": "Keine offene Sitzung",
-      "emptyHint": "Starten oder öffnen Sie eine Sitzung, um deren aktuelle Aktivität anzuzeigen."
+      "emptyHint": "Starten oder öffnen Sie eine Sitzung, um deren aktuelle Aktivität anzuzeigen.",
+      "permissions": "Berechtigungen"
     }
   }
 }

@@ -126,7 +126,8 @@
       "refreshGit": "Git durumunu yeniden yükle",
       "unreported": "Henüz rapor yok",
       "empty": "Açık oturum yok",
-      "emptyHint": "Mevcut etkinliğini görüntülemek için bir oturum başlatın veya açın."
+      "emptyHint": "Mevcut etkinliğini görüntülemek için bir oturum başlatın veya açın.",
+      "permissions": "İzinler"
     }
   }
 }

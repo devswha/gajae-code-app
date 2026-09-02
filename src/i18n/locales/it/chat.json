@@ -138,5 +138,43 @@
     "compact": "Compatto",
     "balanced": "Bilanciato",
     "detailed": "Dettagliato"
+  },
+  "permissionMode": {
+    "label": "Modalità permessi",
+    "title": "Permessi",
+    "description": "Cosa può fare l’agente in questo progetto senza chiedere.",
+    "tooltip": "Permessi: {{mode}} ({{shortcut}})",
+    "paletteAction": "Permessi: {{mode}}",
+    "alwaysAllowedSummary": "Sempre consentiti ({{count}}): {{tools}}",
+    "modes": {
+      "ask": {
+        "label": "Chiedi",
+        "description": "I comandi e le modifiche distruttive ai file attendono la tua approvazione."
+      },
+      "auto_edits": {
+        "label": "Approva le modifiche",
+        "description": "Le modifiche ai file procedono senza chiedere; i comandi attendono comunque l’approvazione."
+      },
+      "bypass": {
+        "label": "Ignora",
+        "description": "Nessuna richiesta. L’agente esegue qualsiasi comando in questo progetto."
+      }
+    },
+    "bypassConfirm": {
+      "title": "Disattivare le richieste di permesso?",
+      "body": "L’agente potrà eseguire qualsiasi comando senza chiedere.",
+      "scope": "Vale solo per questo progetto. Puoi tornare a « Chiedi » in qualsiasi momento.",
+      "cancel": "Annulla",
+      "confirm": "Attiva ignora"
+    }
+  },
+  "permissionCard": {
+    "title": "Permesso richiesto",
+    "tool": "Strumento:",
+    "viewInput": "Mostra input dello strumento",
+    "deny": "Rifiuta",
+    "allow": "Consenti",
+    "alwaysAllow": "Consenti sempre {{tool}}",
+    "alwaysAllowHint": "Approva automaticamente questo strumento in questo progetto da ora in avanti"
   }
 }

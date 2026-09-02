@@ -126,7 +126,8 @@
       "refreshGit": "Git 상태 다시 로드",
       "unreported": "아직 보고서가 없음",
       "empty": "열린 세션이 없음",
-      "emptyHint": "세션을 시작하거나 열어 현재 활동을 확인하세요."
+      "emptyHint": "세션을 시작하거나 열어 현재 활동을 확인하세요.",
+      "permissions": "권한"
     }
   }
 }

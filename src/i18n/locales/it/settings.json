@@ -46,7 +46,8 @@
     "voice": "Voce",
     "notifications": "Avvisi",
     "automation": "Automazione",
-    "about": "Circa"
+    "about": "Circa",
+    "permissions": "Permessi"
   },
   "automation": {
     "title": "Browser e applicazioni native",
@@ -135,5 +136,18 @@
     "status": {
       "success": "Salvataggio completato"
     }
+  },
+  "permissions": {
+    "title": "Permessi",
+    "description": "Regole per progetto su cosa l’agente può eseguire senza chiedere. I progetti con la politica predefinita (Chiedi, niente sempre consentito) non sono elencati.",
+    "mode": "Modalità",
+    "alwaysAllowed": "Sempre consentiti",
+    "none": "Nessuno",
+    "revoke": "Revoca",
+    "revokeTool": "Non consentire più sempre {{tool}}",
+    "resetToAsk": "Ripristina « Chiedi »",
+    "empty": "Ogni progetto chiede prima di eseguire comandi.",
+    "loading": "Caricamento…",
+    "error": "Impossibile caricare i permessi."
   }
 }

@@ -12,6 +12,7 @@ import AppearanceSettingsTab from './tabs/AppearanceSettingsTab';
 import AutomationSettingsTab from './tabs/AutomationSettingsTab';
 import GitSettingsTab from './tabs/git-settings/GitSettingsTab';
 import NotificationsSettingsTab from './tabs/NotificationsSettingsTab';
+import PermissionsSettingsTab from './tabs/PermissionsSettingsTab';
 import VoiceSettingsTab from './tabs/VoiceSettingsTab';
 
 type DesktopNotificationState = {
@@ -110,6 +111,7 @@ function Settings({ isOpen, onClose, initialTab = 'appearance' }: SettingsProps)
                   onInterfaceFontSizeChange={setInterfaceFontSize}
                 />
               )}
+              {activeTab === 'permissions' && <PermissionsSettingsTab />}
               {activeTab === 'git' && <GitSettingsTab />}
               {activeTab === 'notifications' && (
                 <NotificationsSettingsTab

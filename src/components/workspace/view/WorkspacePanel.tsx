@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 import { PillBar, Pill } from '../../../shared/view/ui';
 import { useSessionStatus } from '../../../contexts/SessionStatusContext';
+import type { PermissionMode } from '../../../hooks/useProjectPermissions';
 import {
   MIN_WORKSPACE_PANEL_WIDTH,
   WORKSPACE_TABS,
@@ -28,6 +29,8 @@ export type WorkspacePanelProps = {
   projectName?: string;
   projectPath?: string;
   projectId?: string;
+  /** The project's permission mode, when the caller has loaded it. */
+  permissionMode?: PermissionMode | null;
   automationSessionId: string;
   browserNavigation?: { id: number; url: string } | null;
   onBrowserNavigationHandled?: () => void;
@@ -55,6 +58,7 @@ export default function WorkspacePanel({
   projectName,
   projectPath,
   projectId,
+  permissionMode = null,
   automationSessionId,
   browserNavigation,
   onBrowserNavigationHandled,
@@ -147,6 +151,7 @@ export default function WorkspacePanel({
             projectName={projectName}
             projectPath={projectPath}
             projectId={projectId}
+            permissionMode={permissionMode}
             active
           />
         )}

@@ -113,6 +113,18 @@ test('with no session the tab explains itself but still locates the project', ()
   assert.doesNotMatch(html, /statusTab\.model/);
 });
 
+test('the permission mode is reported read-only, with bypass marked as the exception', () => {
+  assert.match(render({ permissionMode: 'ask' }), /data-permission-mode="ask"/);
+  assert.doesNotMatch(render({ permissionMode: 'ask' }), /data-permission-mode="ask"[^>]*text-destructive/);
+  assert.match(render({ permissionMode: 'bypass' }), /data-permission-mode="bypass"[^>]*text-destructive/);
+  // The row is a report, not a control.
+  assert.doesNotMatch(render({ permissionMode: 'bypass' }), /<button[^>]*permission/i);
+  // Unknown yet: the gap is stated rather than filled with a default.
+  const pending = render({ permissionMode: null });
+  assert.match(pending, /statusTab\.permissions/);
+  assert.doesNotMatch(pending, /data-permission-mode/);
+});
+
 test('git reports through its own section and never renders a write control', () => {
   const html = render();
 

@@ -46,7 +46,8 @@
     "voice": "Stimme",
     "notifications": "Hinweise",
     "automation": "Automatisierung",
-    "about": "Über"
+    "about": "Über",
+    "permissions": "Berechtigungen"
   },
   "automation": {
     "title": "Browser und native Anwendungen",
@@ -135,5 +136,18 @@
     "status": {
       "success": "Speichern abgeschlossen"
     }
+  },
+  "permissions": {
+    "title": "Berechtigungen",
+    "description": "Projektweise Regeln dafür, was der Agent ohne Nachfrage ausführen darf. Projekte mit der Standardrichtlinie (Fragen, nichts immer erlaubt) werden nicht aufgeführt.",
+    "mode": "Modus",
+    "alwaysAllowed": "Immer erlaubt",
+    "none": "Keine",
+    "revoke": "Entziehen",
+    "revokeTool": "{{tool}} nicht mehr immer erlauben",
+    "resetToAsk": "Auf „Fragen“ zurücksetzen",
+    "empty": "Jedes Projekt fragt, bevor Befehle ausgeführt werden.",
+    "loading": "Wird geladen…",
+    "error": "Berechtigungen konnten nicht geladen werden."
   }
 }

@@ -138,5 +138,43 @@
     "compact": "Compact",
     "balanced": "Balanced",
     "detailed": "Detailed"
+  },
+  "permissionMode": {
+    "label": "Permission mode",
+    "title": "Permissions",
+    "description": "What the agent may do in this project without asking.",
+    "tooltip": "Permissions: {{mode}} ({{shortcut}})",
+    "paletteAction": "Permissions: {{mode}}",
+    "alwaysAllowedSummary": "Always allowed ({{count}}): {{tools}}",
+    "modes": {
+      "ask": {
+        "label": "Ask",
+        "description": "Commands and destructive file changes wait for your approval."
+      },
+      "auto_edits": {
+        "label": "Auto-approve edits",
+        "description": "File edits run without asking; commands still wait for approval."
+      },
+      "bypass": {
+        "label": "Bypass",
+        "description": "Nothing asks. The agent runs any command in this project."
+      }
+    },
+    "bypassConfirm": {
+      "title": "Turn off permission prompts?",
+      "body": "This lets the agent run any command without asking.",
+      "scope": "Applies to this project only. You can switch back to Ask at any time.",
+      "cancel": "Cancel",
+      "confirm": "Enable bypass"
+    }
+  },
+  "permissionCard": {
+    "title": "Permission required",
+    "tool": "Tool:",
+    "viewInput": "View tool input",
+    "deny": "Deny",
+    "allow": "Allow",
+    "alwaysAllow": "Always allow {{tool}}",
+    "alwaysAllowHint": "Approve this tool automatically in this project from now on"
   }
 }

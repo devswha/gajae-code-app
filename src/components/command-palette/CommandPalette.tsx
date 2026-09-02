@@ -18,8 +18,11 @@ import {
 } from 'lucide-react';
 
 import { useTheme } from '../../contexts/ThemeContext';
+import { useProjectPermissions } from '../../hooks/useProjectPermissions';
 import { useUiPreferences } from '../../hooks/useUiPreferences';
+import { PERMISSION_MODE_ICONS, PERMISSION_MODES } from '../chat/utils/permissionMode';
 import { TOOL_OUTPUT_DENSITIES } from '../chat/utils/toolOutputDensity';
+import BypassConfirmDialog from '../chat/view/BypassConfirmDialog';
 import { TOOL_OUTPUT_DENSITY_ICONS } from '../chat/view/ToolOutputDensityPicker';
 import {
   Command,
@@ -155,12 +158,14 @@ export default function CommandPalette({
   onShowTab,
 }: CommandPaletteProps) {
   const [palette, dispatchPalette] = React.useReducer(paletteReducer, { open: false, query: '', history: [] });
+  const [confirmingBypass, setConfirmingBypass] = React.useState(false);
   const { toggleDarkMode } = useTheme();
   const { t } = useTranslation('chat');
   const { preferences, setPreference } = useUiPreferences();
   const { openFile } = usePaletteOps();
   const navigate = useNavigate();
   const projectId = selectedProject?.projectId;
+  const projectPermissions = useProjectPermissions(projectId);
   const currentPage = palette.history[palette.history.length - 1];
   const actionsVisible = shouldRenderGroup('actions', currentPage);
   const sessionsVisible = shouldRenderGroup('sessions', currentPage);
@@ -254,6 +259,25 @@ export default function CommandPalette({
         onSelect: () => runAfterDismissal(() => setPreference('toolOutputDensity', level)),
       };
     }),
+    ...(projectId && projectPermissions.permissions ? PERMISSION_MODES.map((mode): ActionItemProps => {
+      const modeLabel = t(`permissionMode.modes.${mode}.label`);
+      const current = projectPermissions.permissions?.mode === mode;
+      return {
+        icon: PERMISSION_MODE_ICONS[mode],
+        label: t('permissionMode.paletteAction', { mode: modeLabel }),
+        value: `Permissions ${mode} ${modeLabel}`,
+        hint: current ? 'Current' : undefined,
+        onSelect: () => runAfterDismissal(() => {
+          if (current) return;
+          // Bypass keeps its one-time warning even from the palette.
+          if (mode === 'bypass' && !projectPermissions.permissions?.bypassAcknowledged) {
+            setConfirmingBypass(true);
+            return;
+          }
+          void projectPermissions.setMode({ mode }).catch(() => {});
+        }),
+      };
+    }) : []),
   ];
   const gitActions: ActionItemProps[] = [
     {
@@ -278,6 +302,15 @@ export default function CommandPalette({
 
   return (
     <Dialog open={palette.open} onOpenChange={(open) => dispatchPalette({ type: 'change-visibility', open })}>
+      {/* Its own dialog; it opens after the palette has been dismissed. */}
+      <BypassConfirmDialog
+        open={confirmingBypass}
+        onCancel={() => setConfirmingBypass(false)}
+        onConfirm={() => {
+          setConfirmingBypass(false);
+          void projectPermissions.setMode({ mode: 'bypass', acknowledgeBypass: true }).catch(() => {});
+        }}
+      />
       <DialogContent className="max-w-xl overflow-hidden p-0">
         <DialogTitle>Command palette</DialogTitle>
         <Command label="Command palette" onKeyDown={handleKeyDown}>

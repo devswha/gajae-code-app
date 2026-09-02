@@ -1,11 +1,12 @@
+import { DEFAULT_GJC_PERMISSION_MODE, GJC_PERMISSION_MODES } from '@/gjc-engine.js';
 import type { LLMProvider } from '@/shared/types.js';
 
 type ProviderCapabilities = { provider: LLMProvider; permissionModes: string[]; defaultPermissionMode: string; supportsImages: boolean; supportsAbort: boolean; supportsPermissionRequests: boolean; supportsTokenUsage: boolean; supportsEffort: boolean };
 
 const capabilityList: ProviderCapabilities[] = [{
   provider: 'gjc',
-  permissionModes: ['default'],
-  defaultPermissionMode: 'default',
+  permissionModes: [...GJC_PERMISSION_MODES],
+  defaultPermissionMode: DEFAULT_GJC_PERMISSION_MODE,
   supportsImages: false,
   supportsAbort: true,
   supportsPermissionRequests: true,

@@ -14,7 +14,9 @@ import { GjcBunOAuthController, type GjcBunOAuthControllerOptions } from './gjc-
 import { GJC_APP_BUILTIN_COMMAND_NAMES } from './gjc-command-surface.generated.js';
 import type { GjcWorkerOAuthRuntime, GjcWorkerRuntime, GjcWorkerWriter } from './gjc-worker.js';
 import { GjcBunAskController } from './gjc-bun-ask-controller.js';
+import { createGjcPermissionProvider, type GjcPermissionProvider } from './gjc-bun-permission-gate.js';
 import { forwardPromptTerminal, forwardSdkEvent, normalizeBuiltinCommandStdout, type SdkRunState } from './gjc-bun-sdk-events.js';
+import { parseGjcRunPermissions, type GjcRunPermissions } from './gjc-permission-policy.js';
 import { resolveContainedExportCommand } from './gjc-export-path.js';
 import { readSessionSnapshot } from './gjc-session-state.js';
 import {
@@ -40,6 +42,12 @@ export type SdkRunConfig = {
   spawns: string;
   bashPolicy: AppBashPolicy;
   appSessionId?: string;
+  /**
+   * The project's permission policy. Absent means the app did not decide, and
+   * the runtime keeps its own default (guarded tools run unprompted); present
+   * means the session is switched to `prompt` mode and this policy answers.
+   */
+  permissions?: GjcRunPermissions;
 };
 
 export type GjcAgentSessionFactory = typeof createAgentSession;
@@ -61,6 +69,8 @@ type ActiveRun = {
     subscribe(listener: (event: unknown) => void): () => void;
     /** True while a turn is in flight. Absent on runtimes that never stream. */
     readonly isStreaming?: boolean;
+    setSdkPermissionMode?(mode: 'prompt' | 'allow' | 'deny'): void;
+    setSdkPermissionProvider?(provider: GjcPermissionProvider | undefined): void;
   };
   sessionManager: SessionManager;
   unsubscribe: () => void;
@@ -139,7 +149,13 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
       && candidate.bashPolicy.restrictionProfile !== 'read-only')
     || (candidate.appSessionId !== undefined && (typeof candidate.appSessionId !== 'string' || !candidate.appSessionId))
   ) throw new Error(FAILURE);
-  return candidate as unknown as SdkRunConfig;
+  let permissions: GjcRunPermissions | undefined;
+  try {
+    permissions = parseGjcRunPermissions(candidate.permissions);
+  } catch {
+    throw new Error(FAILURE);
+  }
+  return { ...(candidate as unknown as SdkRunConfig), ...(permissions ? { permissions } : {}) };
 }
 
 function modelsForCredential(
@@ -513,6 +529,19 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         writer.setModel?.(model.id);
         if (result.modelFallbackMessage) throw new Error(FAILURE);
         result.setToolUIContext(askController.uiContext, true);
+        if (config.permissions) {
+          // The runtime's SDK permission mode defaults to `allow`, which runs
+          // bash and destructive edits without a word. Switching to `prompt`
+          // routes every gated call through the project's policy instead. A
+          // runtime without the gate cannot honour the policy, so fail closed
+          // rather than run a session the user believes is asking.
+          const session: ActiveRun['session'] = result.session;
+          if (typeof session.setSdkPermissionMode !== 'function' || typeof session.setSdkPermissionProvider !== 'function') {
+            throw new Error(FAILURE);
+          }
+          session.setSdkPermissionMode('prompt');
+          session.setSdkPermissionProvider(createGjcPermissionProvider(config.permissions, askController, writer));
+        }
         const state: SdkRunState = { abortRequested: false, abortPending: false, terminalEmitted: false, finalError: false };
         // The adapter is the only place holding the live session, so the
         // footer snapshot is read here and handed to the event mapper.

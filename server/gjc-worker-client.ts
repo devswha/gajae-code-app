@@ -51,7 +51,7 @@ type RunFailedNotification = {
 
 type RunStoppedNotifier = (notification: RunStoppedNotification) => unknown;
 type RunFailedNotifier = (notification: RunFailedNotification) => unknown;
-export type GjcApprovalDecision = { allow: boolean; updatedInput?: unknown; message?: string; rememberEntry?: unknown };
+export type GjcApprovalDecision = { allow: boolean; always?: boolean; updatedInput?: unknown; message?: string; rememberEntry?: unknown };
 export type GjcWorkerOptions = Record<string, unknown> & {
   sessionId?: string | null;
   cwd?: string;

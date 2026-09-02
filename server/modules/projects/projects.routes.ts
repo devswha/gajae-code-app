@@ -3,6 +3,13 @@ import express from 'express';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { startCloneProject, type CloneProjectOperation } from '@/modules/projects/services/project-clone.service.js';
 import { createProject, promoteProjectOrigin, updateProjectDisplayName } from '@/modules/projects/services/project-management.service.js';
+import {
+  getProjectPermissions,
+  listConfiguredProjectPermissions,
+  resetProjectPermissions,
+  revokeProjectAlwaysAllow,
+  updateProjectPermissionMode,
+} from '@/modules/projects/services/project-permissions.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
@@ -54,6 +61,32 @@ router.get('/archived', asyncHandler(async (request, response) => {
   response.json(createApiSuccessResponse({
     projects: await getArchivedProjectsWithSessions({ sessionsLimit, sessionsOffset }),
   }));
+}));
+
+// Every project whose permission policy deviates from the default; registered
+// before the `/:projectId/...` routes so the literal segment is never read as an id.
+router.get('/permissions', asyncHandler(async (_request, response) => {
+  response.json(createApiSuccessResponse({ projects: listConfiguredProjectPermissions() }));
+}));
+
+router.get('/:projectId/permissions', asyncHandler(async (request, response) => {
+  response.json(createApiSuccessResponse(getProjectPermissions(routeProjectId(request.params.projectId, true))));
+}));
+
+router.put('/:projectId/permissions', asyncHandler(async (request, response) => {
+  const body: Record<string, unknown> = request.body ?? {};
+  response.json(createApiSuccessResponse(updateProjectPermissionMode(routeProjectId(request.params.projectId, true), {
+    mode: body.mode,
+    acknowledgeBypass: body.acknowledgeBypass,
+  })));
+}));
+
+router.delete('/:projectId/permissions/allow/:toolName', asyncHandler(async (request, response) => {
+  response.json(createApiSuccessResponse(revokeProjectAlwaysAllow(routeProjectId(request.params.projectId, true), request.params.toolName)));
+}));
+
+router.delete('/:projectId/permissions', asyncHandler(async (request, response) => {
+  response.json(createApiSuccessResponse(resetProjectPermissions(routeProjectId(request.params.projectId, true))));
 }));
 
 router.post('/:projectId/promote', asyncHandler(async (request, response) => {

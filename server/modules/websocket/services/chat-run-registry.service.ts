@@ -12,12 +12,14 @@ type ChatRun = {
   appSessionId: string; provider: LLMProvider; providerSessionId: string | null;
   status: ChatRunStatus; lastSeq: number; events: NormalizedMessage[];
   writer: ChatSessionWriter; startedAt: number; completedAt: number | null;
-  /** Approval requests the browser has been shown and has not answered yet. */
-  pendingApprovals: Set<string>;
+  /** Approval requests the browser has been shown and has not answered yet, by request id. */
+  pendingApprovals: Map<string, PendingApproval>;
 };
 type AppSessionId = string;
 type RunCompletion = { exitCode: number; aborted?: boolean };
 export type RunningRunSummary = { sessionId: string; provider: LLMProvider; startedAt: number; lastSeq: number; awaitingInput: boolean };
+/** What the server knows about an open approval; the tool name is the one the provider itself reported. */
+export type PendingApproval = { appSessionId: string; toolName: string | null };
 
 type StartRunInput = {
   appSessionId: string;
@@ -55,7 +57,12 @@ function decorateRunEvent(run: ChatRun, event: NormalizedMessage): NormalizedMes
   // can answer "is this run waiting on the user" for the running-sessions poll
   // without reaching into the provider that raised the question.
   const requestId = typeof event.requestId === 'string' ? event.requestId : null;
-  if (requestId && event.kind === 'permission_request') run.pendingApprovals.add(requestId);
+  if (requestId && event.kind === 'permission_request') {
+    run.pendingApprovals.set(requestId, {
+      appSessionId: run.appSessionId,
+      toolName: typeof event.toolName === 'string' && event.toolName ? event.toolName : null,
+    });
+  }
   if (requestId && event.kind === 'permission_cancelled') run.pendingApprovals.delete(requestId);
 
   if (event.kind === 'complete') {
@@ -136,7 +143,7 @@ function createRun(input: StartRunInput): ChatRun {
     writer: null as unknown as ChatSessionWriter,
     startedAt: Date.now(),
     completedAt: null,
-    pendingApprovals: new Set<string>(),
+    pendingApprovals: new Map<string, PendingApproval>(),
   } satisfies ChatRun;
 
   run.writer = new ChatSessionWriter({
@@ -185,9 +192,22 @@ export const chatRunRegistry = {
     return activeRuns;
   },
 
-  /** The browser answered an approval; the run is no longer waiting on it. */
-  resolvePendingApproval(requestId: string): void {
-    for (const run of runsByAppSession.values()) run.pendingApprovals.delete(requestId);
+  /**
+   * The browser answered an approval; the run is no longer waiting on it.
+   * Returns what the server recorded when the request was raised, so a
+   * decision can be persisted against the provider's tool name rather than
+   * whatever the browser claims.
+   */
+  resolvePendingApproval(requestId: string): PendingApproval | null {
+    let resolved: PendingApproval | null = null;
+    for (const run of runsByAppSession.values()) {
+      const pending = run.pendingApprovals.get(requestId);
+      if (pending) {
+        resolved ??= pending;
+        run.pendingApprovals.delete(requestId);
+      }
+    }
+    return resolved;
   },
 
   attachConnection(appSessionId: AppSessionId, connection: RealtimeClientConnection): boolean {

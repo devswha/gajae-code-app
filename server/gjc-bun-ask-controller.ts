@@ -1,16 +1,32 @@
 import { randomUUID } from 'node:crypto';
 
 import type { ExtensionUIContext, ExtensionUIDialogOptions } from '@gajae-code/coding-agent/extensibility/extensions/types';
+import type {
+  ClientBridgePermissionOption,
+  ClientBridgePermissionOptionKind,
+  ClientBridgePermissionOutcome,
+  ClientBridgePermissionToolCall,
+} from '@gajae-code/coding-agent/session/client-bridge';
 
 import type { GjcWorkerWriter } from './gjc-worker.js';
 
 type PendingAsk = {
+  kind: 'ask';
   resolve: (answer: string | undefined) => void;
   reject: (reason: Error) => void;
   cancel: () => void;
 };
 
-type Decision = { allow?: unknown; updatedInput?: unknown; message?: unknown };
+type PendingPermission = {
+  kind: 'permission';
+  options: ClientBridgePermissionOption[];
+  resolve: (outcome: ClientBridgePermissionOutcome) => void;
+  cancel: () => void;
+};
+
+type Pending = PendingAsk | PendingPermission;
+
+type Decision = { allow?: unknown; always?: unknown; updatedInput?: unknown; message?: unknown };
 
 function decisionText(decision: Decision): string | undefined {
   if (typeof decision.message === 'string' && decision.message.trim()) return decision.message.trim();
@@ -24,9 +40,23 @@ function decisionText(decision: Decision): string | undefined {
   return undefined;
 }
 
-/** Bridges the SDK ask extension UI to Protocol v1 permission messages. */
+/**
+ * Picks the runtime's option for a decision. The runtime hands over its own
+ * option list on every call and validates the returned id against it, so the
+ * answer is chosen from that list rather than assumed.
+ */
+export function selectPermissionOption(
+  options: readonly ClientBridgePermissionOption[],
+  kind: ClientBridgePermissionOptionKind,
+): ClientBridgePermissionOutcome | undefined {
+  const fallback: ClientBridgePermissionOptionKind = kind === 'allow_always' ? 'allow_once' : kind === 'reject_always' ? 'reject_once' : kind;
+  const option = options.find((candidate) => candidate.kind === kind) ?? options.find((candidate) => candidate.kind === fallback);
+  return option ? { outcome: 'selected', optionId: option.optionId, kind: option.kind } : undefined;
+}
+
+/** Bridges the SDK ask extension UI and tool permission gate to Protocol v1 permission messages. */
 export class GjcBunAskController {
-  readonly #pending = new Map<string, PendingAsk>();
+  readonly #pending = new Map<string, Pending>();
   #disposed = false;
 
   constructor(private readonly writer: GjcWorkerWriter) {}
@@ -42,6 +72,7 @@ export class GjcBunAskController {
     const pending = this.#pending.get(requestId);
     if (!pending || this.#disposed) return false;
     const decision = value !== null && typeof value === 'object' ? value as Decision : {};
+    if (pending.kind === 'permission') return this.#resolvePermission(requestId, pending, decision);
     const answer = decisionText(decision);
     if (decision.allow === true && !answer) return false;
     this.#pending.delete(requestId);
@@ -56,9 +87,64 @@ export class GjcBunAskController {
     for (const [requestId, pending] of this.#pending) {
       this.#pending.delete(requestId);
       pending.cancel();
-      pending.reject(new Error('GJC ask request cancelled.'));
+      if (pending.kind === 'permission') pending.resolve({ outcome: 'cancelled' });
+      else pending.reject(new Error('GJC ask request cancelled.'));
       this.writer.send({ kind: 'permission_cancelled', requestId });
     }
+  }
+
+  /**
+   * Raises a tool permission card and waits for the host's decision. The
+   * request carries the runtime's own tool name so the browser can offer
+   * "Always allow <tool>", and the raw input so the card can show what would run.
+   */
+  requestPermission(
+    toolCall: ClientBridgePermissionToolCall,
+    options: ClientBridgePermissionOption[],
+    signal?: AbortSignal,
+  ): Promise<ClientBridgePermissionOutcome> {
+    if (this.#disposed || signal?.aborted) return Promise.resolve({ outcome: 'cancelled' });
+    const requestId = `sdk-permission:${randomUUID()}`;
+    return new Promise((resolve) => {
+      const abort = () => {
+        const pending = this.#pending.get(requestId);
+        if (!pending) return;
+        this.#pending.delete(requestId);
+        pending.cancel();
+        resolve({ outcome: 'cancelled' });
+        this.writer.send({ kind: 'permission_cancelled', requestId });
+      };
+      const cancel = () => signal?.removeEventListener('abort', abort);
+      this.#pending.set(requestId, { kind: 'permission', options, resolve, cancel });
+      signal?.addEventListener('abort', abort, { once: true });
+      this.writer.send({
+        kind: 'permission_request',
+        requestId,
+        toolName: toolCall.toolName,
+        input: toolCall.rawInput ?? {},
+        context: {
+          source: 'sdk-permission',
+          toolCallId: toolCall.toolCallId,
+          title: toolCall.title,
+          ...(toolCall.kind ? { kind: toolCall.kind } : {}),
+          ...(toolCall.locations ? { locations: toolCall.locations } : {}),
+          options: options.map((option) => option.kind),
+        },
+      });
+    });
+  }
+
+  #resolvePermission(requestId: string, pending: PendingPermission, decision: Decision): boolean {
+    if (typeof decision.allow !== 'boolean') return false;
+    const kind: ClientBridgePermissionOptionKind = decision.allow
+      ? (decision.always === true ? 'allow_always' : 'allow_once')
+      : 'reject_once';
+    const outcome = selectPermissionOption(pending.options, kind);
+    if (!outcome) return false;
+    this.#pending.delete(requestId);
+    pending.cancel();
+    pending.resolve(outcome);
+    return true;
   }
 
   #present(title: string, options: string[], prefill?: string, dialogOptions?: ExtensionUIDialogOptions): Promise<string | undefined> {
@@ -71,14 +157,14 @@ export class GjcBunAskController {
         if (!pending) return;
         this.#pending.delete(requestId);
         pending.cancel();
-        pending.reject(new Error('GJC ask request cancelled.'));
+        if (pending.kind === 'ask') pending.reject(new Error('GJC ask request cancelled.'));
         this.writer.send({ kind: 'permission_cancelled', requestId });
       };
       const cancel = () => {
         if (timeout) clearTimeout(timeout);
         dialogOptions?.signal?.removeEventListener('abort', abort);
       };
-      this.#pending.set(requestId, { resolve, reject, cancel });
+      this.#pending.set(requestId, { kind: 'ask', resolve, reject, cancel });
       if (dialogOptions?.signal?.aborted) {
         abort();
         return;

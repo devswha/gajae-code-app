@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { WebSocket } from 'ws';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { grantProjectAlwaysAllow, resolveProjectRunPermissions } from '@/modules/projects/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import type { GjcJobProjectionService } from '@/modules/websocket/services/gjc-job-projection.service.js';
@@ -20,9 +21,13 @@ type ChatWebSocketDependencies = {
   spawnFns: Record<LLMProvider, ProviderSpawnFn>;
   abortFns: Record<LLMProvider, (providerSessionId: string) => boolean | Promise<boolean>>;
   steerFns?: Partial<Record<LLMProvider, (providerSessionId: string, message: string) => boolean | Promise<boolean>>>;
-  resolveToolApproval: (requestId: string, payload: { allow: boolean; updatedInput?: unknown; message?: string; rememberEntry?: unknown; }) => void;
+  resolveToolApproval: (requestId: string, payload: { allow: boolean; always?: boolean; updatedInput?: unknown; message?: string; rememberEntry?: unknown; }) => void;
   getPendingApprovalsForSession: (providerSessionId: string) => unknown[];
   resolveSessionModel?: (provider: LLMProvider, sessionId: string, requestedModel?: string | null) => Promise<string | undefined>;
+  /** Test seam; production reads the project's stored policy. */
+  resolveRunPermissions?: (projectPath: string | null | undefined) => Record<string, unknown>;
+  /** Test seam; production persists "Always allow" against the project. */
+  grantAlwaysAllow?: (projectPath: string, toolName: string) => unknown;
   gjcProjection?: GjcJobProjectionService;
   oauthSupervisor?: OAuthSupervisor;
 };
@@ -120,14 +125,18 @@ async function sendChat(ws: WebSocket, userId: string | number | null, data: Any
   const requestOptions = (data.options ?? {}) as AnyRecord;
   const requestedModel = typeof requestOptions.model === 'string' ? requestOptions.model : null;
   const model = await resolveRequestedModel(dependencies, provider, sessionId, requestedModel);
+  // The permission policy is the project's, read here and never taken from the
+  // request: a browser cannot widen it by sending `skipPermissions` or a mode.
+  const { permissions: _clientPermissions, skipPermissions: _legacySkip, ...acceptedOptions } = requestOptions;
   const options: AnyRecord = {
-    ...requestOptions,
+    ...acceptedOptions,
     ...(model ? { model } : {}),
     images: filterImagesToUploadStore(requestOptions.images),
     sessionId: storedSession.provider_session_id ?? undefined,
     resume: Boolean(storedSession.provider_session_id),
     cwd: storedSession.project_path ?? undefined,
     projectPath: storedSession.project_path ?? undefined,
+    permissions: (dependencies.resolveRunPermissions ?? resolveProjectRunPermissions)(storedSession.project_path),
   };
 
   try {
@@ -238,9 +247,24 @@ function subscribeChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSock
 
 function permissionResponse(data: AnyRecord, dependencies: ChatWebSocketDependencies): void {
   if (typeof data.requestId !== 'string' || !data.requestId.length) return;
-  chatRunRegistry.resolvePendingApproval(data.requestId);
+  const pending = chatRunRegistry.resolvePendingApproval(data.requestId);
+  const allow = Boolean(data.allow);
+  const always = allow && data.always === true;
+  if (always && pending?.toolName) {
+    // "Always allow" is remembered for the project before the reply reaches
+    // the worker, so a second device (or the next run) never sees the card.
+    const projectPath = sessionsDb.getSessionById(pending.appSessionId)?.project_path;
+    if (projectPath) {
+      try {
+        (dependencies.grantAlwaysAllow ?? grantProjectAlwaysAllow)(projectPath, pending.toolName);
+      } catch (error) {
+        console.error('[Chat] Failed to persist always-allow', { projectPath, toolName: pending.toolName, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  }
   dependencies.resolveToolApproval(data.requestId, {
-    allow: Boolean(data.allow),
+    allow,
+    ...(always ? { always: true } : {}),
     updatedInput: data.updatedInput,
     message: typeof data.message === 'string' ? data.message : undefined,
     rememberEntry: data.rememberEntry,

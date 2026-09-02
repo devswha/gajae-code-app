@@ -173,6 +173,34 @@ frames, and unknown response IDs. Pending requests fail when the worker exits.
 Diagnostics and protocol errors use fixed safe text; supplied secrets are
 redacted recursively by the serializer.
 
+## Tool permissions
+
+The runtime gates `bash`, `monitor`, `eval`, `delete`, `move` and destructive
+`edit` intents behind `AgentSession.setSdkPermissionMode` /
+`setSdkPermissionProvider`. Its SDK default is `allow`, so a session the app
+does not configure runs those tools unprompted.
+
+The application decides per project and the worker enforces. No protocol
+method or frame changes; the policy travels inside existing payloads:
+
+- `session.start` / `session.resume` options may carry
+  `permissions: { mode: 'ask' | 'auto_edits' | 'bypass', allowAlways: string[] }`
+  (`server/gjc-permission-policy.ts`). When present the adapter switches the
+  session to `prompt` and installs `server/gjc-bun-permission-gate.ts`; when
+  absent the runtime default stands. A malformed block fails the run.
+- A call the policy covers (`bypass`, a tool on `allowAlways`, or a file
+  mutation under `auto_edits`) is approved inside the worker and recorded once
+  per tool per run as a `system_notice` ("Auto-approved bash (always allow)").
+  Nothing crosses to the host, so the run is never reported as awaiting input.
+- Any other gated call is an `ask.presented` event whose message is a
+  `permission_request` with `requestId` prefixed `sdk-permission:`, the
+  runtime's `toolName`, its `rawInput` as `input`, and a `context` naming the
+  runtime option kinds. `ask.reply` answers it with
+  `decision: { allow: boolean, always?: boolean }`; `always` maps to the
+  runtime's `allow_always` option for the rest of that run, and the application
+  persists it to the project's allow-list before forwarding the reply.
+- `ask` questions keep their `sdk-ask:` prefix and answer semantics.
+
 ## Process and terminal lifecycle
 
 - On POSIX (Linux and macOS), the application starts the Rust core as a detached
@@ -207,6 +235,8 @@ Focused coverage is in:
 - `native/gajae-core/src/lib.rs`
 - `server/gjc-worker-protocol.test.ts`
 - `server/gjc-worker.test.ts`
+- `server/gjc-permission-policy.test.ts`
+- `server/gjc-bun-permission-gate.test.ts`
 - `server/gjc-windows-job.test.ts`
 - `server/gjc-worker-client.test.ts`
 - `server/modules/websocket/tests/chat-run-registry.test.ts`

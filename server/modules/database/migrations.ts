@@ -7,6 +7,7 @@ import {
   GJC_TERMINAL_NOTIFICATION_SCAN_CURSORS_TABLE_SCHEMA_SQL,
   LAST_SCANNED_AT_SQL,
   NOTIFICATION_CHANNEL_ENDPOINTS_TABLE_SCHEMA_SQL,
+  PROJECT_PERMISSIONS_TABLE_SCHEMA_SQL,
   PROJECTS_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
@@ -261,6 +262,11 @@ function prepareProjects(database: Database): void {
   upgradeProjectTable(database);
 }
 
+// Runs after the projects rebuild so the foreign key targets the final table.
+function createProjectPermissions(database: Database): void {
+  database.exec(PROJECT_PERMISSIONS_TABLE_SCHEMA_SQL);
+}
+
 function removeLegacyIndexes(database: Database): void {
   const statements = [
     'CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id)',
@@ -293,6 +299,7 @@ const migrationPlan: readonly Migration[] = [
   addProviderMapping,
   addProjectsForSessions,
   removeLegacyIndexes,
+  createProjectPermissions,
 ];
 
 export const runMigrations = (db: Database): void => {

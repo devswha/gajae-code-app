@@ -7,7 +7,7 @@ import test from 'node:test';
 
 import { WebSocket, WebSocketServer } from 'ws';
 
-import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import { closeConnection, initializeDatabase, projectPermissionsDb, sessionsDb } from '@/modules/database/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
 import { connectedClients } from '@/modules/websocket/services/websocket-state.service.js';
@@ -120,6 +120,81 @@ async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promis
     await rm(tempDirectory, { recursive: true, force: true });
   }
 }
+
+test('chat.send carries the project\'s stored permission policy and ignores what the browser sends', async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('policy-session', 'gjc', '/workspace/policy-project');
+    projectPermissionsDb.addAllowAlways('/workspace/policy-project', 'bash');
+    const socket = new FakeWebSocket();
+    let receivedOptions: Record<string, unknown> | undefined;
+
+    handleChatConnection(socket as unknown as WebSocket, { user: { id: 'user-1' } } as never, {
+      spawnFns: {
+        gjc: (_command, options, writer) => {
+          receivedOptions = options;
+          (writer as { sendComplete(options: { exitCode: number }): void }).sendComplete({ exitCode: 0 });
+          return Promise.resolve();
+        },
+      },
+      abortFns: { gjc: async () => false },
+      resolveToolApproval() {},
+      getPendingApprovalsForSession: () => [],
+      resolveSessionModel: async () => undefined,
+    });
+
+    socket.emit('message', JSON.stringify({
+      type: 'chat.send',
+      sessionId: 'policy-session',
+      content: 'run it',
+      // A browser cannot widen the policy from the request.
+      options: { model: 'default', skipPermissions: true, permissions: { mode: 'bypass', allowAlways: ['eval'] } },
+    }));
+    await flushMessages();
+    await flushMessages();
+
+    assert.deepEqual(receivedOptions?.permissions, { mode: 'ask', allowAlways: ['bash'] });
+    assert.equal('skipPermissions' in (receivedOptions ?? {}), false);
+    socket.emit('close');
+  });
+});
+
+test('chat.permission-response with always remembers the provider\'s tool for the project', async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('always-session', 'gjc', '/workspace/always-project');
+    const socket = new FakeWebSocket();
+    const decisions: Array<{ requestId: string; decision: Record<string, unknown> }> = [];
+
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'always-session', provider: 'gjc', providerSessionId: null,
+      connection: socket as unknown as WebSocket, userId: 'user-1',
+    });
+    assert.ok(run);
+    handleChatConnection(socket as unknown as WebSocket, { user: { id: 'user-1' } } as never, {
+      spawnFns: {} as never,
+      abortFns: {} as never,
+      resolveToolApproval: (requestId, decision) => { decisions.push({ requestId, decision }); },
+      getPendingApprovalsForSession: () => [],
+    });
+
+    run.writer.send({ kind: 'permission_request', provider: 'gjc', sessionId: 'always-session', requestId: 'perm-1', toolName: 'bash', input: { command: 'ls' } });
+    run.writer.send({ kind: 'permission_request', provider: 'gjc', sessionId: 'always-session', requestId: 'perm-2', toolName: 'eval', input: {} });
+    assert.equal(chatRunRegistry.listRunningRuns()[0]?.awaitingInput, true);
+
+    // The browser's own tool name is not trusted; the server uses the one it recorded.
+    socket.emit('message', JSON.stringify({ type: 'chat.permission-response', requestId: 'perm-1', allow: true, always: true, toolName: 'rm' }));
+    // "Always" without "allow" is a plain denial and stores nothing.
+    socket.emit('message', JSON.stringify({ type: 'chat.permission-response', requestId: 'perm-2', allow: false, always: true }));
+    await flushMessages();
+
+    assert.deepEqual(projectPermissionsDb.get('/workspace/always-project').allow_always, ['bash']);
+    assert.deepEqual(decisions.map(({ requestId, decision }) => [requestId, decision.allow, decision.always]), [
+      ['perm-1', true, true],
+      ['perm-2', false, undefined],
+    ]);
+    assert.equal(chatRunRegistry.listRunningRuns()[0]?.awaitingInput, false);
+    socket.emit('close');
+  });
+});
 
 test('chat.send prefers the session\'s persisted model choice over the client\'s global default', async () => {
   await withIsolatedDatabase(async () => {

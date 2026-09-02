@@ -156,8 +156,14 @@ class FakeAgentSession {
   readonly fallbackResolutions: Array<{ index: number; skipped: unknown[] }> = [];
   #turnInFlight = false;
 
+  /** Mirrors the SDK gate: `allow` until the host says otherwise. */
+  sdkPermissionMode: 'prompt' | 'allow' | 'deny' = 'allow';
+  sdkPermissionProvider: ((toolCall: unknown, options: unknown, signal?: AbortSignal) => Promise<unknown>) | undefined;
+
   subscribe(listener: Listener): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
   setToolUIContext(context: typeof this.uiContext): void { this.uiContext = context; }
+  setSdkPermissionMode(mode: 'prompt' | 'allow' | 'deny'): void { this.sdkPermissionMode = mode; }
+  setSdkPermissionProvider(provider: typeof this.sdkPermissionProvider): void { this.sdkPermissionProvider = provider; }
   async prompt(message: string, options?: { streamingBehavior?: 'steer' | 'followUp' }): Promise<void> {
     this.promptCalls += 1;
     // Mirrors the SDK: a busy agent refuses a bare prompt and requires the
@@ -1475,6 +1481,67 @@ test('explicit SDK configuration rejects missing fields, unresolvable credential
       providerId: 'contract-provider',
       credentialId: 2,
     });
+  } finally { await f.close(); }
+});
+
+test('a run without a permissions block leaves the SDK gate on its own default', async () => {
+  const f = await fixture();
+  try {
+    const run = f.host.handle(request('session.start', 'no-policy', { message: 'hello', options: f.options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    assert.equal(session.sdkPermissionMode, 'allow');
+    assert.equal(session.sdkPermissionProvider, undefined);
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
+
+test('a permissions block switches the SDK gate to prompt and answers it from the project policy', async () => {
+  const f = await fixture();
+  try {
+    const options = { ...f.options, permissions: { mode: 'ask', allowAlways: ['bash'] } };
+    const run = f.host.handle(request('session.start', 'policy', { message: 'hello', options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    assert.equal(session.sdkPermissionMode, 'prompt');
+    assert.ok(session.sdkPermissionProvider);
+
+    const runtimeOptions = [
+      { optionId: 'allow_once', name: 'Allow once', kind: 'allow_once' },
+      { optionId: 'allow_always', name: 'Always allow', kind: 'allow_always' },
+      { optionId: 'reject_once', name: 'Reject', kind: 'reject_once' },
+    ];
+    // Covered by the allow-list: approved in the worker, noted once in the transcript.
+    const approved = await session.sdkPermissionProvider!({ toolCallId: 'c1', toolName: 'bash', title: 'ls', rawInput: { command: 'ls' } }, runtimeOptions);
+    assert.deepEqual(approved, { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' });
+    const notice = f.frames.find((frame) => frame.kind === 'event' && ((frame.payload as Record<string, unknown>).message as Record<string, unknown> | undefined)?.kind === 'system_notice');
+    assert.equal(((notice!.payload as Record<string, unknown>).message as Record<string, unknown>).content, 'Auto-approved bash (always allow)');
+
+    // Not covered: a permission card crosses the protocol as ask.presented and waits for ask.reply.
+    const pending = session.sdkPermissionProvider!({ toolCallId: 'c2', toolName: 'eval', title: 'eval', rawInput: { cells: [] } }, runtimeOptions);
+    await Promise.resolve();
+    const card = f.frames.at(-1)!;
+    assert.equal(card.method, 'ask.presented');
+    const message = (card.payload as Record<string, unknown>).message as Record<string, unknown>;
+    assert.equal(message.kind, 'permission_request');
+    assert.equal(message.toolName, 'eval');
+    assert.match(message.requestId as string, /^sdk-permission:/);
+    await f.host.handle(request('ask.reply', 'always-reply', { runId: 'policy', requestId: message.requestId, decision: { allow: true, always: true } }));
+    assert.deepEqual((response(f.frames, 'always-reply').payload as Record<string, unknown>).result, { runId: 'policy', accepted: true });
+    assert.deepEqual(await pending, { outcome: 'selected', optionId: 'allow_always', kind: 'allow_always' });
+
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
+
+test('a malformed permissions block fails the run before the factory is invoked', async () => {
+  const f = await fixture();
+  try {
+    await f.host.handle(request('session.start', 'bad-policy', { message: 'x', options: { ...f.options, permissions: { mode: 'yolo' } } }));
+    assert.equal((response(f.frames, 'bad-policy').payload as Record<string, unknown>).ok, false);
+    assert.equal(f.sessions.length, 0);
   } finally { await f.close(); }
 });
 

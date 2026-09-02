@@ -50,6 +50,20 @@ export type {
 // test that keeps the runtime from adding to it, live with the engine.
 export { GJC_AGENT_TOOL_NAMES } from './gjc-agent-tools.js';
 
+// The per-project permission policy a run starts with. The application stores
+// it and sends it in the session options; the worker enforces it against the
+// runtime's permission gate.
+export {
+  DEFAULT_GJC_PERMISSION_MODE,
+  GJC_PERMISSION_MODES,
+  gjcAutoApprovalNotice,
+  gjcAutoApprovalReason,
+  isGjcPermissionMode,
+  isGjcPermissionToolName,
+  parseGjcRunPermissions,
+} from './gjc-permission-policy.js';
+export type { GjcPermissionMode, GjcRunPermissions } from './gjc-permission-policy.js';
+
 // Windows job-object launch, so a worker and its descendants die with the
 // application instead of outliving it.
 export {

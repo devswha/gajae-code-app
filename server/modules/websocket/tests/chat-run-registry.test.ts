@@ -152,7 +152,10 @@ describe('chat run lifecycle', () => {
 
       // The worker re-presents a restored approval under the same id; that is not a second question.
       run.writer.send({ kind: 'permission_request', provider: 'gjc', sessionId: 'native', requestId: 'ask-1', toolName: 'bash' });
-      chatRunRegistry.resolvePendingApproval('ask-1');
+      // Answering hands back what the provider said the request was for, so
+      // "Always allow" can be stored against the real tool name.
+      assert.deepEqual(chatRunRegistry.resolvePendingApproval('ask-1'), { appSessionId: 'approval', toolName: 'bash' });
+      assert.equal(chatRunRegistry.resolvePendingApproval('ask-1'), null, 'an answered request is gone');
       assert.equal(awaiting(), true, 'a second question is still open');
 
       run.writer.send({ kind: 'permission_cancelled', provider: 'gjc', sessionId: 'native', requestId: 'ask-2' });

@@ -18,6 +18,10 @@ import {
   notificationPreferencesDb as notificationPreferences,
 } from '@/modules/database/repositories/notification-preferences.js';
 import {
+  defaultProjectPermissions as projectPermissionsDefault,
+  projectPermissionsDb as projectPermissions,
+} from '@/modules/database/repositories/project-permissions.db.js';
+import {
   isManagedWorktreePath as managedWorktreePath,
   projectsDb as projects,
 } from '@/modules/database/repositories/projects.db.js';
@@ -37,6 +41,8 @@ export {
   managedWorktreePath as isManagedWorktreePath,
   notificationChannelEndpoints as notificationChannelEndpointsDb,
   notificationPreferences as notificationPreferencesDb,
+  projectPermissions as projectPermissionsDb,
+  projectPermissionsDefault as defaultProjectPermissions,
   projects as projectsDb,
   scanState as scanStateDb,
   sessions as sessionsDb,

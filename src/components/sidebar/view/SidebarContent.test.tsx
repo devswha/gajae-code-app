@@ -7,6 +7,7 @@ import { createInstance, type TFunction } from 'i18next';
 import { MemoryRouter } from 'react-router-dom';
 
 import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
+import type { SessionStatus } from '../../../stores/sessionStatusModel';
 
 import SidebarContent from './SidebarContent';
 import { sidebarProjectsFixture } from './SidebarContent.testFixture';
@@ -36,6 +37,22 @@ async function makeT(): Promise<TFunction> {
             noSessions: 'No conversations yet',
             work: 'Work',
           },
+          status: {
+            running: 'Running',
+            needsInput: 'Waiting for your input',
+            ready: 'Finished, not viewed yet',
+            blocked: 'Run failed, not viewed yet',
+            countRunning_one: '{{count}} running',
+            countRunning_other: '{{count}} running',
+            countNeedsInput_one: '{{count}} waiting for input',
+            countNeedsInput_other: '{{count}} waiting for input',
+            countReady_one: '{{count}} ready',
+            countReady_other: '{{count}} ready',
+            countBlocked_one: '{{count}} failed',
+            countBlocked_other: '{{count}} failed',
+            projectAttentionCount_one: '{{count}} conversation needs a look',
+            projectAttentionCount_other: '{{count}} conversations need a look',
+          },
           tooltips: {
             activeSessionIndicator: 'Active session',
             attentionRequiredIndicator: 'Session needs attention',
@@ -54,9 +71,14 @@ async function makeT(): Promise<TFunction> {
   return i18n.getFixedT('en', 'sidebar');
 }
 
+const sessionStatuses: Record<string, SessionStatus> = {
+  'session-running': 'running',
+  'session-attention': 'needs_input',
+};
+
 function sidebarContentProps(t: TFunction): ComponentProps<typeof SidebarContent> {
   const activeSessions: SessionActivityMap = new Map([
-    ['session-running', { statusText: null, canInterrupt: true, startedAt: 1 }],
+    ['session-running', { statusText: null, canInterrupt: true, startedAt: 1, awaitingInput: false }],
   ]);
 
   return {
@@ -100,7 +122,7 @@ function sidebarContentProps(t: TFunction): ComponentProps<typeof SidebarContent
       onLoadMoreSessions: () => {},
       loadingMoreProjects: new Set(),
       activeSessions,
-      attentionSessionIds: new Set(['session-attention']),
+      getSessionStatus: (sessionId) => sessionStatuses[sessionId] ?? 'idle',
       isProjectStarred: () => false,
       onEditingNameChange: () => {},
       onToggleProject: () => {},
@@ -150,8 +172,74 @@ test('baseline renders project rows, nested sessions, and row-level status indic
   assert.match(html, /Implement navigation cleanup/);
   assert.match(html, /Review pending decision/);
   assert.match(html, /lucide-loader-circle/);
-  assert.match(html, /aria-label="Session needs attention"/);
+  assert.match(html, /aria-label="Waiting for your input"/);
   assert.equal(html.match(/src="\/mark\.svg"/g)?.length, 1);
+});
+
+function renderWithStatuses(t: TFunction, statuses: Record<string, SessionStatus>, activeIds: string[] = []): string {
+  const base = sidebarContentProps(t);
+  return renderSidebarContent(t, {
+    projectListProps: {
+      ...base.projectListProps,
+      activeSessions: new Map(activeIds.map((id) => [id, { statusText: null, canInterrupt: true, startedAt: 1, awaitingInput: false }])),
+      getSessionStatus: (sessionId) => statuses[sessionId] ?? 'idle',
+    },
+  });
+}
+
+test('each session status gets its own indicator and accessible label', async () => {
+  const t = await makeT();
+
+  const running = renderWithStatuses(t, { 'session-running': 'running' }, ['session-running']);
+  assert.match(running, /aria-label="Running"[^>]*data-session-status="running"/);
+  assert.match(running, /lucide-loader-circle/);
+
+  const needsInput = renderWithStatuses(t, { 'session-running': 'needs_input' });
+  assert.match(needsInput, /aria-label="Waiting for your input"[^>]*data-session-status="needs_input"[^>]*class="[^"]*bg-primary/);
+  assert.match(needsInput, /lucide-circle-alert/);
+
+  const ready = renderWithStatuses(t, { 'session-running': 'ready' });
+  assert.match(ready, /aria-label="Finished, not viewed yet"[^>]*data-session-status="ready"[^>]*class="[^"]*bg-primary/);
+  assert.doesNotMatch(ready, /data-session-status="ready"[^>]*animate-pulse/, 'a finished run does not pulse');
+  assert.doesNotMatch(ready, /lucide-circle-alert|lucide-triangle-alert|lucide-loader-circle/);
+
+  const blocked = renderWithStatuses(t, { 'session-running': 'blocked' });
+  assert.match(blocked, /aria-label="Run failed, not viewed yet"[^>]*data-session-status="blocked"[^>]*class="[^"]*bg-destructive/);
+  assert.match(blocked, /lucide-triangle-alert/);
+
+  const idle = renderWithStatuses(t, {});
+  assert.doesNotMatch(idle, /data-session-status="(?:running|needs_input|ready|blocked)"/);
+  assert.doesNotMatch(idle, /role="status"/);
+});
+
+test('the Work section lists every non-idle session, most urgent first, with per-state counts', async () => {
+  const t = await makeT();
+  const html = renderWithStatuses(t, { 'session-running': 'running', 'session-attention': 'blocked' }, ['session-running']);
+
+  const work = html.slice(html.indexOf('id="sidebar-work-content"'));
+  const blockedAt = work.indexOf('Review pending decision');
+  const runningAt = work.indexOf('Implement navigation cleanup');
+  assert.ok(blockedAt >= 0 && runningAt >= 0, 'both sessions appear under Work');
+  assert.ok(blockedAt < runningAt, 'a failed run is listed before one that is still working');
+
+  const counts = html.match(/data-testid="sidebar-work-counts"[\s\S]*?<\/div>/)?.[0] ?? '';
+  assert.match(counts, /aria-label="1 failed"/);
+  assert.match(counts, /aria-label="1 running"/);
+  assert.doesNotMatch(counts, /waiting for input|ready/);
+});
+
+test('project rows show an attention badge only when a session needs a look', async () => {
+  const t = await makeT();
+
+  const quiet = renderWithStatuses(t, { 'session-running': 'running' }, ['session-running']);
+  assert.doesNotMatch(quiet, /needs a look/);
+  assert.doesNotMatch(quiet, /aria-label="0 conversations/);
+
+  const attention = renderWithStatuses(t, { 'session-attention': 'ready' });
+  assert.match(attention, /aria-label="1 conversation needs a look"[^>]*class="[^"]*text-primary/);
+
+  const failed = renderWithStatuses(t, { 'session-attention': 'blocked' });
+  assert.match(failed, /aria-label="1 conversation needs a look"[^>]*class="[^"]*text-destructive/);
 });
 
 test('renders the Codex-style New task action with Projects and Work sections', async () => {
@@ -259,7 +347,7 @@ test('renders the empty project state under the Projects and Work sections witho
       expandedProjects: new Set(),
       initialSessionsLoaded: new Set(),
       activeSessions: new Map(),
-      attentionSessionIds: new Set(),
+      getSessionStatus: () => 'idle',
     },
   });
 

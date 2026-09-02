@@ -56,7 +56,21 @@
     "reportIssue": "Sorun bildirme"
   },
   "status": {
-    "thinking": "Muhakeme…"
+    "thinking": "Muhakeme…",
+    "running": "Çalışıyor",
+    "needsInput": "Girdinizi bekliyor",
+    "ready": "Tamamlandı, henüz görüntülenmedi",
+    "blocked": "Çalıştırma başarısız oldu, henüz görüntülenmedi",
+    "countRunning_one": "{{count}} çalışıyor",
+    "countRunning_other": "{{count}} çalışıyor",
+    "countNeedsInput_one": "{{count}} girdi bekliyor",
+    "countNeedsInput_other": "{{count}} girdi bekliyor",
+    "countReady_one": "{{count}} tamamlandı",
+    "countReady_other": "{{count}} tamamlandı",
+    "countBlocked_one": "{{count}} başarısız",
+    "countBlocked_other": "{{count}} başarısız",
+    "projectAttentionCount_one": "{{count}} görüşme ilgi bekliyor",
+    "projectAttentionCount_other": "{{count}} görüşme ilgi bekliyor"
   },
   "messages": {
     "deleteSessionFailed": "Görüşme silinemedi. Tekrar deneyin.",

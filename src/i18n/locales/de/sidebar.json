@@ -56,7 +56,21 @@
     "reportIssue": "Melden Sie ein Problem"
   },
   "status": {
-    "thinking": "Begründung…"
+    "thinking": "Begründung…",
+    "running": "Läuft",
+    "needsInput": "Wartet auf deine Eingabe",
+    "ready": "Abgeschlossen, noch nicht angesehen",
+    "blocked": "Lauf fehlgeschlagen, noch nicht angesehen",
+    "countRunning_one": "{{count}} läuft",
+    "countRunning_other": "{{count}} laufen",
+    "countNeedsInput_one": "{{count}} wartet auf Eingabe",
+    "countNeedsInput_other": "{{count}} warten auf Eingabe",
+    "countReady_one": "{{count}} abgeschlossen",
+    "countReady_other": "{{count}} abgeschlossen",
+    "countBlocked_one": "{{count}} fehlgeschlagen",
+    "countBlocked_other": "{{count}} fehlgeschlagen",
+    "projectAttentionCount_one": "{{count}} Gespräch braucht Aufmerksamkeit",
+    "projectAttentionCount_other": "{{count}} Gespräche brauchen Aufmerksamkeit"
   },
   "messages": {
     "deleteSessionFailed": "Die Konversation konnte nicht gelöscht werden. Versuchen Sie es erneut.",

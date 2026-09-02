@@ -56,7 +56,21 @@
     "reportIssue": "File an issue"
   },
   "status": {
-    "thinking": "Reasoning…"
+    "thinking": "Reasoning…",
+    "running": "Running",
+    "needsInput": "Waiting for your input",
+    "ready": "Finished, not viewed yet",
+    "blocked": "Run failed, not viewed yet",
+    "countRunning_one": "{{count}} running",
+    "countRunning_other": "{{count}} running",
+    "countNeedsInput_one": "{{count}} waiting for input",
+    "countNeedsInput_other": "{{count}} waiting for input",
+    "countReady_one": "{{count}} ready",
+    "countReady_other": "{{count}} ready",
+    "countBlocked_one": "{{count}} failed",
+    "countBlocked_other": "{{count}} failed",
+    "projectAttentionCount_one": "{{count}} conversation needs a look",
+    "projectAttentionCount_other": "{{count}} conversations need a look"
   },
   "messages": {
     "deleteSessionFailed": "Could not delete the conversation. Try again.",

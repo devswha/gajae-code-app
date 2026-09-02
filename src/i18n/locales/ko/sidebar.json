@@ -56,7 +56,21 @@
     "reportIssue": "문제 신고"
   },
   "status": {
-    "thinking": "상황 분석 중…"
+    "thinking": "상황 분석 중…",
+    "running": "실행 중",
+    "needsInput": "입력을 기다리는 중",
+    "ready": "완료됨, 아직 확인하지 않음",
+    "blocked": "실행 실패, 아직 확인하지 않음",
+    "countRunning_one": "실행 중 {{count}}개",
+    "countRunning_other": "실행 중 {{count}}개",
+    "countNeedsInput_one": "입력 대기 {{count}}개",
+    "countNeedsInput_other": "입력 대기 {{count}}개",
+    "countReady_one": "완료 {{count}}개",
+    "countReady_other": "완료 {{count}}개",
+    "countBlocked_one": "실패 {{count}}개",
+    "countBlocked_other": "실패 {{count}}개",
+    "projectAttentionCount_one": "확인이 필요한 대화 {{count}}개",
+    "projectAttentionCount_other": "확인이 필요한 대화 {{count}}개"
   },
   "messages": {
     "deleteSessionFailed": "대화 삭제에 실패했습니다. 다시 시도해주세요.",

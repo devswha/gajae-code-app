@@ -56,7 +56,21 @@
     "reportIssue": "問題を報告。"
   },
   "status": {
-    "thinking": "思考中...。"
+    "thinking": "思考中...。",
+    "running": "実行中",
+    "needsInput": "入力待ち",
+    "ready": "完了、まだ未確認",
+    "blocked": "実行失敗、まだ未確認",
+    "countRunning_one": "実行中 {{count}} 件",
+    "countRunning_other": "実行中 {{count}} 件",
+    "countNeedsInput_one": "入力待ち {{count}} 件",
+    "countNeedsInput_other": "入力待ち {{count}} 件",
+    "countReady_one": "完了 {{count}} 件",
+    "countReady_other": "完了 {{count}} 件",
+    "countBlocked_one": "失敗 {{count}} 件",
+    "countBlocked_other": "失敗 {{count}} 件",
+    "projectAttentionCount_one": "確認が必要な会話 {{count}} 件",
+    "projectAttentionCount_other": "確認が必要な会話 {{count}} 件"
   },
   "messages": {
     "deleteSessionFailed": "セッションの削除に失敗しました。もう一度お試しください。",

@@ -238,6 +238,7 @@ function subscribeChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSock
 
 function permissionResponse(data: AnyRecord, dependencies: ChatWebSocketDependencies): void {
   if (typeof data.requestId !== 'string' || !data.requestId.length) return;
+  chatRunRegistry.resolvePendingApproval(data.requestId);
   dependencies.resolveToolApproval(data.requestId, {
     allow: Boolean(data.allow),
     updatedInput: data.updatedInput,

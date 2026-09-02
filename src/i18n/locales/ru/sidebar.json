@@ -56,7 +56,31 @@
     "reportIssue": "Отправить сообщение об ошибке"
   },
   "status": {
-    "thinking": "Рассуждение…"
+    "thinking": "Рассуждение…",
+    "running": "Выполняется",
+    "needsInput": "Ожидает вашего ответа",
+    "ready": "Завершено, ещё не просмотрено",
+    "blocked": "Запуск не удался, ещё не просмотрено",
+    "countRunning_one": "{{count}} выполняется",
+    "countRunning_few": "{{count}} выполняются",
+    "countRunning_many": "{{count}} выполняются",
+    "countRunning_other": "{{count}} выполняются",
+    "countNeedsInput_one": "{{count}} ожидает ответа",
+    "countNeedsInput_few": "{{count}} ожидают ответа",
+    "countNeedsInput_many": "{{count}} ожидают ответа",
+    "countNeedsInput_other": "{{count}} ожидают ответа",
+    "countReady_one": "{{count}} завершён",
+    "countReady_few": "{{count}} завершены",
+    "countReady_many": "{{count}} завершены",
+    "countReady_other": "{{count}} завершены",
+    "countBlocked_one": "{{count}} не удался",
+    "countBlocked_few": "{{count}} не удались",
+    "countBlocked_many": "{{count}} не удались",
+    "countBlocked_other": "{{count}} не удались",
+    "projectAttentionCount_one": "{{count}} беседа требует внимания",
+    "projectAttentionCount_few": "{{count}} беседы требуют внимания",
+    "projectAttentionCount_many": "{{count}} бесед требуют внимания",
+    "projectAttentionCount_other": "{{count}} бесед требуют внимания"
   },
   "messages": {
     "deleteSessionFailed": "Не удалось удалить беседу. Попробуйте еще раз.",

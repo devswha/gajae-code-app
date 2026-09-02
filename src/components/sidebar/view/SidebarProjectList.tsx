@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
+import type { SessionStatusResolver } from '../hooks/useSessionStatusResolver';
 import type { SessionWithProvider } from '../types/types';
 
 import SidebarProjectItem from './SidebarProjectItem';
@@ -27,7 +28,7 @@ export type SidebarProjectListProps = {
   onLoadMoreSessions: (projectId: string) => void;
   loadingMoreProjects: Set<string>;
   activeSessions: SessionActivityMap;
-  attentionSessionIds: ReadonlySet<string>;
+  getSessionStatus: SessionStatusResolver;
   forceExpanded?: boolean;
   showSessions?: boolean;
   isProjectStarred: (projectName: string) => boolean;
@@ -75,7 +76,7 @@ export default function SidebarProjectList({
   onLoadMoreSessions,
   loadingMoreProjects,
   activeSessions,
-  attentionSessionIds,
+  getSessionStatus,
   forceExpanded = false,
   showSessions = true,
   isProjectStarred,
@@ -155,7 +156,7 @@ export default function SidebarProjectList({
               onDeleteSession={onDeleteSession}
               onLoadMoreSessions={onLoadMoreSessions}
               activeSessions={activeSessions}
-              attentionSessionIds={attentionSessionIds}
+              getSessionStatus={getSessionStatus}
               onNewSession={onNewSession}
               onEditingSessionNameChange={onEditingSessionNameChange}
               onStartEditingSession={onStartEditingSession}

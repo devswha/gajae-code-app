@@ -47,7 +47,7 @@ export const sessionsService = {
     return providerRegistry.listProviders().map(({ id }) => id);
   },
 
-  listRunningSessions(): Array<{ sessionId: string; provider: LLMProvider; startedAt: number; lastSeq: number }> {
+  listRunningSessions(): ReturnType<typeof chatRunRegistry.listRunningRuns> {
     return chatRunRegistry.listRunningRuns();
   },
 

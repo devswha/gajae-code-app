@@ -191,7 +191,7 @@ The system uses Tailwind's 4px spacing scale. Existing values like `p-2`, `gap-2
 
 - **Structure**: desktop and mobile share the same Codex-aligned hierarchy: product wordmark and global search, one `New task` action, then independently collapsible `Projects` and `Work` sections. Project rows are not duplicated as session containers; Work owns the latest-first session list and identifies each row's project in secondary text.
 - **Surface**: `bg-background`, borderless list rows, and restrained tonal hover/selected states.
-- **States**: selected `bg-primary/5 border-primary/20`, running green/emerald indicator, attention amber pulse, starred yellow tint, destructive red actions.
+- **States**: selected `bg-primary/5 border-primary/20`, starred yellow tint, destructive red actions. Each session row carries one derived status (`src/stores/sessionStatusModel.ts`): `running` shows the muted spinner in the age slot; `needs_input` a pulsing `bg-primary` leading dot plus a `text-primary` alert glyph; `blocked` a `bg-destructive` dot plus a `text-destructive` warning glyph; `ready` (finished, not yet opened) a solid `bg-primary` dot with the age left in place. Every indicator has `role="status"` and a translated `aria-label`. The Work heading shows non-zero per-state counts and project rows a `bg-primary/10` (or `bg-destructive/10` when a run failed) count of sessions that need a look; zero counts are never rendered.
 - **Layout**: scroll ownership stays in `ScrollArea`; the wordmark/search header, primary action, and utility footer remain fixed. Archive recovery, refresh, issue reporting, community, and version remain compact footer utilities.
 
 ### Sidebar Primary Navigation

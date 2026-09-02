@@ -1,20 +1,23 @@
 import { useEffect, useRef } from 'react';
-import { Check, Download, Edit2, Loader2, MoreHorizontal, Star, Trash2, X } from 'lucide-react';
+import { Check, Download, Edit2, MoreHorizontal, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Badge, Tooltip, buttonVariants } from '../../../shared/view/ui';
+import { Badge, buttonVariants } from '../../../shared/view/ui';
 import ActionMenu, { type ActionMenuItem } from '../../../shared/view/ui/ActionMenu';
+import type { SessionStatus } from '../../../stores/sessionStatusModel';
 import { cn } from '../../../utils/cn';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionWithProvider } from '../types/types';
 import { createSessionViewModel } from '../utils/utils';
+
+import { SessionStatusDot, SessionStatusGlyph } from './SidebarSessionStatus';
 
 type SidebarSessionItemProps = {
   project: Project;
   session: SessionWithProvider;
   selectedSession: ProjectSession | null;
   isProcessing: boolean;
-  needsAttention: boolean;
+  status: SessionStatus;
   showProjectName?: boolean;
   compact?: boolean;
   currentTime: Date;
@@ -133,7 +136,7 @@ export default function SidebarSessionItem({
   session,
   selectedSession,
   isProcessing,
-  needsAttention,
+  status,
   showProjectName = false,
   compact = false,
   currentTime,
@@ -155,8 +158,10 @@ export default function SidebarSessionItem({
   const isEditing = editingSession === session.id;
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
   const editingContainerRef = useRef<HTMLDivElement>(null);
-  const showAttentionIndicator = needsAttention && !isSelected;
-  const showRecentIndicator = !showAttentionIndicator && !isProcessing && sessionView.isActive;
+  const isBusy = status === 'running' || status === 'needs_input';
+  // The glyph takes the age's slot; `ready` keeps the age and speaks through
+  // the leading dot alone.
+  const showsGlyph = status !== 'idle' && status !== 'ready';
 
   // The rename panel sits inside a group-hover opacity wrapper, so leaving the row
   // would visually hide it. While editing, dismiss only when the user clicks outside
@@ -222,35 +227,15 @@ export default function SidebarSessionItem({
   );
 
   return (
-    <div className="group relative">
-      {(showAttentionIndicator || showRecentIndicator) && (
-        <div className="absolute top-1/2 left-0 -translate-x-1 -translate-y-1/2 transform">
-          <Tooltip
-            content={showAttentionIndicator
-              ? t('tooltips.attentionRequiredIndicator', { defaultValue: 'Session needs attention' })
-              : t('tooltips.activeSessionIndicator')}
-            position="right"
-          >
-            <div
-              role="status"
-              aria-label={showAttentionIndicator
-                ? t('tooltips.attentionRequiredIndicator', { defaultValue: 'Session needs attention' })
-                : t('tooltips.activeSessionIndicator')}
-              className={cn(
-                'h-2 w-2 animate-pulse rounded-full',
-                showAttentionIndicator ? 'bg-destructive' : 'bg-primary',
-              )}
-            />
-          </Tooltip>
-        </div>
-      )}
+    <div className="group relative" data-session-status={status}>
+      <SessionStatusDot status={status} t={t} />
 
       <div className="md:hidden">
         <div
           className={cn(
             'active:scale-0.98 relative mx-0 my-0.5 rounded-lg border border-transparent bg-transparent p-2 transition-all duration-150',
             isSelected ? 'bg-accent text-accent-foreground' : '',
-            !isSelected && isProcessing
+            !isSelected && isBusy
               ? 'bg-muted/30'
               : !isSelected && sessionView.isActive
               ? 'bg-muted/30'
@@ -265,14 +250,8 @@ export default function SidebarSessionItem({
                   {isStarred && <Star className="size-3 shrink-0 fill-current text-primary" aria-label={t('sessions.pin')} />}
                   <span className="truncate">{sessionView.sessionName}</span>
                 </div>
-                {isProcessing ? (
-                  <span className="ml-auto shrink-0">
-                    <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      </span>
-                    </Tooltip>
-                  </span>
+                {showsGlyph ? (
+                  <SessionStatusGlyph status={status} t={t} />
                 ) : compactSessionAge && (
                   <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
                 )}
@@ -301,7 +280,7 @@ export default function SidebarSessionItem({
               ? 'h-8 min-h-8 w-full justify-start rounded-md border border-transparent bg-transparent px-2 py-1 text-left font-normal transition-colors duration-150'
               : 'h-auto min-h-9 w-full justify-start rounded-lg border border-transparent bg-transparent px-2.5 py-2 text-left font-normal transition-all duration-150',
             isSelected ? 'bg-accent text-accent-foreground' : '',
-            !isSelected && isProcessing
+            !isSelected && isBusy
               ? 'bg-muted/30 hover:bg-muted/40'
               : !isSelected && sessionView.isActive
                 ? 'bg-muted/30 hover:bg-muted/40'
@@ -322,19 +301,12 @@ export default function SidebarSessionItem({
                   {isStarred && <Star className="size-3 shrink-0 fill-current text-primary" aria-label={t('sessions.pin')} />}
                   <span className="truncate">{sessionView.sessionName}</span>
                 </div>
-                {isProcessing ? (
-                  <span
-                    className={cn(
-                      'ml-auto shrink-0 transition-opacity duration-200',
-                      isEditing ? 'opacity-0' : 'group-hover:opacity-0',
-                    )}
-                  >
-                    <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      </span>
-                    </Tooltip>
-                  </span>
+                {showsGlyph ? (
+                  <SessionStatusGlyph
+                    status={status}
+                    t={t}
+                    className={cn('transition-opacity duration-200', isEditing ? 'opacity-0' : 'group-hover:opacity-0')}
+                  />
                 ) : compactSessionAge && (
                   <span
                     className={cn(

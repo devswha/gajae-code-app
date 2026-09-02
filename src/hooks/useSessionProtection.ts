@@ -4,10 +4,12 @@ export interface SessionActivity {
   statusText: string | null;
   canInterrupt: boolean;
   startedAt: number;
+  /** The server has an approval or question open for this run that nobody has answered. */
+  awaitingInput: boolean;
 }
 
 export type SessionActivityMap = ReadonlyMap<string, SessionActivity>;
-export type SessionActivitySnapshot = { sessionId: string; statusText?: string | null; canInterrupt?: boolean; startedAt?: number };
+export type SessionActivitySnapshot = { sessionId: string; statusText?: string | null; canInterrupt?: boolean; startedAt?: number; awaitingInput?: boolean };
 export type MarkSessionProcessing = (sessionId?: string | null, activity?: { statusText?: string | null; canInterrupt?: boolean }) => void;
 export type MarkSessionIdle = (sessionId?: string | null, opts?: { ifStartedBefore?: number }) => void;
 export type SyncProcessingSessions = (sessions: readonly SessionActivitySnapshot[]) => void;
@@ -18,7 +20,7 @@ function sameActivityMap(current: ReadonlyMap<string, SessionActivity>, replacem
   if (current.size !== replacement.size) return false;
   for (const [id, activity] of current) {
     const candidate = replacement.get(id);
-    if (!candidate || candidate.statusText !== activity.statusText || candidate.canInterrupt !== activity.canInterrupt || candidate.startedAt !== activity.startedAt) return false;
+    if (!candidate || candidate.statusText !== activity.statusText || candidate.canInterrupt !== activity.canInterrupt || candidate.startedAt !== activity.startedAt || candidate.awaitingInput !== activity.awaitingInput) return false;
   }
   return true;
 }
@@ -32,6 +34,7 @@ function materializeSnapshot(snapshot: SessionActivitySnapshot, previous: Sessio
     statusText: snapshot.statusText === undefined ? previous?.statusText ?? null : snapshot.statusText,
     canInterrupt: snapshot.canInterrupt ?? previous?.canInterrupt ?? true,
     startedAt: validStart(snapshot.startedAt) ? snapshot.startedAt : previous?.startedAt ?? now,
+    awaitingInput: snapshot.awaitingInput ?? previous?.awaitingInput ?? false,
   };
 }
 
@@ -46,6 +49,7 @@ export function useSessionProtection() {
         statusText: update?.statusText === undefined ? before?.statusText ?? null : update.statusText,
         canInterrupt: update?.canInterrupt ?? before?.canInterrupt ?? true,
         startedAt: before?.startedAt ?? Date.now(),
+        awaitingInput: before?.awaitingInput ?? false,
       };
       if (before?.statusText === after.statusText && before.canInterrupt === after.canInterrupt) return current;
       const next = new Map(current);

@@ -140,6 +140,30 @@ describe('chat run lifecycle', () => {
     });
   });
 
+  test('reports a run as awaiting input while an approval it raised is unanswered', async () => {
+    await openDatabase(() => {
+      const { run } = createRun('approval');
+      const awaiting = () => chatRunRegistry.listRunningRuns().find((entry) => entry.sessionId === 'approval')?.awaitingInput;
+      assert.equal(awaiting(), false);
+
+      run.writer.send({ kind: 'permission_request', provider: 'gjc', sessionId: 'native', requestId: 'ask-1', toolName: 'bash' });
+      run.writer.send({ kind: 'permission_request', provider: 'gjc', sessionId: 'native', requestId: 'ask-2', toolName: 'edit' });
+      assert.equal(awaiting(), true);
+
+      // The worker re-presents a restored approval under the same id; that is not a second question.
+      run.writer.send({ kind: 'permission_request', provider: 'gjc', sessionId: 'native', requestId: 'ask-1', toolName: 'bash' });
+      chatRunRegistry.resolvePendingApproval('ask-1');
+      assert.equal(awaiting(), true, 'a second question is still open');
+
+      run.writer.send({ kind: 'permission_cancelled', provider: 'gjc', sessionId: 'native', requestId: 'ask-2' });
+      assert.equal(awaiting(), false);
+
+      run.writer.send({ kind: 'permission_request', provider: 'gjc', sessionId: 'native', requestId: 'ask-3', toolName: 'bash' });
+      chatRunRegistry.completeRun('approval', { exitCode: 0 });
+      assert.equal(awaiting(), undefined, 'a finished run is no longer listed at all');
+    });
+  });
+
   test('moves a live writer to a newly connected socket', async () => {
     await openDatabase(() => {
       const { run, socket: original } = createRun('reconnect');

@@ -56,6 +56,15 @@ function pauseReset(): void {
   waitForReturn();
 }
 
+/**
+ * Drops the "[Done]" prefix at once. The user has just opened a session that
+ * finished while they were elsewhere, so the tab no longer has anything to say.
+ */
+export const clearCompletionTitleIndicator = (): void => {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return;
+  resetTitle();
+};
+
 export const showCompletionTitleIndicator = (): void => {
   if (typeof document === 'undefined' || typeof window === 'undefined') return;
 

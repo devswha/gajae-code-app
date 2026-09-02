@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 import { Button } from '../../../shared/view/ui';
 import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
+import type { SessionStatusResolver } from '../hooks/useSessionStatusResolver';
 import type { SessionWithProvider } from '../types/types';
 
 import SidebarSessionItem from './SidebarSessionItem';
@@ -16,7 +17,7 @@ type SidebarProjectSessionsProps = {
   hasMoreSessions: boolean;
   isLoadingMoreSessions: boolean;
   activeSessions: SessionActivityMap;
-  attentionSessionIds: ReadonlySet<string>;
+  getSessionStatus: SessionStatusResolver;
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
@@ -65,7 +66,7 @@ export default function SidebarProjectSessions({
   hasMoreSessions,
   isLoadingMoreSessions,
   activeSessions,
-  attentionSessionIds,
+  getSessionStatus,
   currentTime,
   editingSession,
   editingSessionName,
@@ -104,7 +105,7 @@ export default function SidebarProjectSessions({
               session={session}
               selectedSession={selectedSession}
               isProcessing={activeSessions.has(session.id)}
-              needsAttention={attentionSessionIds.has(session.id)}
+              status={getSessionStatus(session.id)}
               compact
               currentTime={currentTime}
               editingSession={editingSession}
@@ -130,7 +131,7 @@ export default function SidebarProjectSessions({
               onClick={() => onLoadMoreSessions(project.projectId)}
               disabled={isLoadingMoreSessions}
             >
-              {isLoadingMoreSessions ? t('sessions.loadingSessions') : 'Load more sessions'}
+              {isLoadingMoreSessions ? t('sessions.loadingSessions') : t('sessions.showMore')}
             </Button>
           )}
         </>

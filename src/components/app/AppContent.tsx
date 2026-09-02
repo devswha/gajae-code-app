@@ -12,6 +12,7 @@ import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
 import { useQueuedMessageAutoSend } from '../../hooks/useQueuedMessageAutoSend';
+import { observeOutgoingChatMessage, useSessionAttentionSync } from '../../hooks/useSessionAttentionSync';
 
 import { hiddenKeyboardHeight } from './appContentUtils';
 import { useRunningSessionsSync } from './useRunningSessionsSync';
@@ -70,7 +71,13 @@ export default function AppContent() {
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { t } = useTranslation('common');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
-  const { ws, sendMessage, subscribe } = useWebSocket();
+  const { ws, sendMessage: sendToServer, subscribe } = useWebSocket();
+  // Answering an approval and starting a run are facts the sidebar's status
+  // model needs, and they only ever appear on the outgoing side of the socket.
+  const sendMessage = useCallback((message: unknown) => {
+    observeOutgoingChatMessage(message);
+    sendToServer(message);
+  }, [sendToServer]);
   const {
     processingSessions,
     markSessionProcessing: markProcessing,
@@ -111,6 +118,7 @@ export default function AppContent() {
   });
 
   useRunningSessionsSync(syncProcessingSessions);
+  useSessionAttentionSync({ subscribe, viewedSessionId: activeSessionId, processingSessions });
 
   const showSidebar = useCallback(() => setSidebarOpen(true), [setSidebarOpen]);
   const hideSidebar = useCallback(() => setSidebarOpen(false), [setSidebarOpen]);

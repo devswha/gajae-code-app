@@ -11,6 +11,7 @@ type RunningSessionApiItem = {
   startedAt?: unknown;
   statusText?: unknown;
   canInterrupt?: unknown;
+  awaitingInput?: unknown;
 };
 
 type RunningSessionsApiPayload = {
@@ -60,6 +61,7 @@ export function useRunningSessionsSync(syncProcessingSessions: SyncProcessingSes
             startedAt: parseStartedAt(session.startedAt),
             statusText: typeof session.statusText === 'string' ? session.statusText : undefined,
             canInterrupt: typeof session.canInterrupt === 'boolean' ? session.canInterrupt : undefined,
+            awaitingInput: typeof session.awaitingInput === 'boolean' ? session.awaitingInput : undefined,
           };
         })
         .filter((session): session is SessionActivitySnapshot => session !== null);

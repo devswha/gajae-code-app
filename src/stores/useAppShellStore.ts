@@ -11,7 +11,6 @@ export type AppShellState = {
   sidebarOpen: boolean;
   showSettings: boolean;
   settingsInitialTab: string;
-  attentionSessionIds: Set<string>;
   loadingProgress: LoadingProgress | null;
   setSelectedProject: (next: Updater<Project | null>) => void;
   setSelectedSession: (next: Updater<ProjectSession | null>) => void;
@@ -19,8 +18,6 @@ export type AppShellState = {
   setSidebarOpen: (next: Updater<boolean>) => void;
   openSettings: (tab?: string) => void;
   setShowSettings: (next: Updater<boolean>) => void;
-  markSessionAttention: (sessionId: string, viewedSessionId: string | null) => void;
-  clearSessionAttention: (sessionId: string) => void;
   setLoadingProgress: (next: Updater<LoadingProgress | null>) => void;
 };
 
@@ -54,7 +51,6 @@ const createInitialState = (): AppShellState => ({
   sidebarOpen: false,
   showSettings: false,
   settingsInitialTab: 'agents',
-  attentionSessionIds: new Set(),
   loadingProgress: null,
   setSelectedProject: () => undefined,
   setSelectedSession: () => undefined,
@@ -62,8 +58,6 @@ const createInitialState = (): AppShellState => ({
   setSidebarOpen: () => undefined,
   openSettings: () => undefined,
   setShowSettings: () => undefined,
-  markSessionAttention: () => undefined,
-  clearSessionAttention: () => undefined,
   setLoadingProgress: () => undefined,
 });
 
@@ -94,30 +88,6 @@ export const useAppShellStore = create<AppShellState>()((set) => ({
   setShowSettings: (next) => set((state) => ({
     showSettings: resolve(next, state.showSettings),
   })),
-  markSessionAttention: (sessionId, viewedSessionId) => {
-    if (sessionId === viewedSessionId) {
-      return;
-    }
-
-    set((state) => {
-      if (state.attentionSessionIds.has(sessionId)) {
-        return state;
-      }
-
-      const attentionSessionIds = new Set(state.attentionSessionIds);
-      attentionSessionIds.add(sessionId);
-      return { attentionSessionIds };
-    });
-  },
-  clearSessionAttention: (sessionId) => set((state) => {
-    if (!state.attentionSessionIds.has(sessionId)) {
-      return state;
-    }
-
-    const attentionSessionIds = new Set(state.attentionSessionIds);
-    attentionSessionIds.delete(sessionId);
-    return { attentionSessionIds };
-  }),
   setLoadingProgress: (next) => set((state) => ({
     loadingProgress: resolve(next, state.loadingProgress),
   })),
@@ -132,8 +102,6 @@ export const resetAppShellStore = () => {
     setSidebarOpen: useAppShellStore.getState().setSidebarOpen,
     openSettings: useAppShellStore.getState().openSettings,
     setShowSettings: useAppShellStore.getState().setShowSettings,
-    markSessionAttention: useAppShellStore.getState().markSessionAttention,
-    clearSessionAttention: useAppShellStore.getState().clearSessionAttention,
     setLoadingProgress: useAppShellStore.getState().setLoadingProgress,
   }, true);
 };

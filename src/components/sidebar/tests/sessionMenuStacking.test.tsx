@@ -47,7 +47,7 @@ test('the menu wrapper lifts itself while the menu is open', () => {
       session,
       selectedSession: null,
       isProcessing: false,
-      needsAttention: false,
+      status: 'idle',
       currentTime: new Date(),
       editingSession: null,
       editingSessionName: '',

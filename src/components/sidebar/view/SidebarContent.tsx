@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 
 import { ScrollArea } from '../../../shared/view/ui';
 import type { ArchivedProjectListItem, ArchivedSessionListItem } from '../types/types';
+import { collectWorkRows, countWorkRows } from '../utils/workList';
 
 import SidebarArchiveContent from './SidebarArchiveContent';
 import SidebarFooter from './SidebarFooter';
@@ -10,6 +11,7 @@ import SidebarHeader from './SidebarHeader';
 import SidebarNavigationTabs from './SidebarNavigationTabs';
 import SidebarProjectList, { type SidebarProjectListProps } from './SidebarProjectList';
 import SidebarSection from './SidebarSection';
+import SidebarWorkCounts from './SidebarWorkCounts';
 import SidebarWorkList from './SidebarWorkList';
 
 type SidebarContentProps = {
@@ -70,6 +72,7 @@ export default function SidebarContent({
   const selectedProjectIsAvailable = selectedProject !== null
     && availableProjects.some((project) => project.projectId === selectedProject.projectId);
   const canCreateSession = availableProjects.length > 0;
+  const workCounts = countWorkRows(collectWorkRows(projectListProps));
 
   const createSession = () => {
     const project = selectedProjectIsAvailable ? selectedProject : availableProjects[0];
@@ -133,6 +136,7 @@ export default function SidebarContent({
               title={t('sessions.work')}
               open={workOpen}
               onOpenChange={setWorkOpen}
+              trailing={<SidebarWorkCounts counts={workCounts} t={t} />}
             >
               <SidebarWorkList projectListProps={projectListProps} />
             </SidebarSection>

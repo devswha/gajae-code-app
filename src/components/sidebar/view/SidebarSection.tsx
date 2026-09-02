@@ -10,6 +10,8 @@ type SidebarSectionProps = {
   readonly onOpenChange: (open: boolean) => void;
   readonly actionLabel?: string;
   readonly onAction?: () => void;
+  /** Compact metadata shown after the title, before any action - counts, mostly. */
+  readonly trailing?: ReactNode;
   readonly children: ReactNode;
 };
 
@@ -20,6 +22,7 @@ export default function SidebarSection({
   onOpenChange,
   actionLabel,
   onAction,
+  trailing,
   children,
 }: SidebarSectionProps) {
   return (
@@ -38,6 +41,7 @@ export default function SidebarSection({
             aria-hidden
           />
         </button>
+        {trailing}
         {onAction && actionLabel && (
           <button
             type="button"

@@ -8,6 +8,7 @@ import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useAppShellStore } from '../../../stores/useAppShellStore';
 import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
 import type { LLMProvider, Project } from '../../../types/app';
+import { useSessionStatusResolver } from '../hooks/useSessionStatusResolver';
 import { useSidebarController } from '../hooks/useSidebarController';
 import type { SidebarProps } from '../types/types';
 
@@ -25,7 +26,7 @@ function Sidebar(props: SidebarProps) {
   const projectQuery = useProjectsQuery();
   const selectedProject = useAppShellStore((shell) => shell.selectedProject);
   const selectedSession = useAppShellStore((shell) => shell.selectedSession);
-  const attentionSessionIds = useAppShellStore((shell) => shell.attentionSessionIds);
+  const getSessionStatus = useSessionStatusResolver(activeSessions, selectedSession?.id ?? null);
   const loadingProgress = useAppShellStore((shell) => shell.loadingProgress);
   const showSettings = useAppShellStore((shell) => shell.showSettings);
   const settingsInitialTab = useAppShellStore((shell) => shell.settingsInitialTab);
@@ -76,7 +77,7 @@ function Sidebar(props: SidebarProps) {
     getProjectSessions: controller.getProjectSessions,
     loadingMoreProjects: controller.loadingMoreProjects,
     activeSessions,
-    attentionSessionIds,
+    getSessionStatus,
     isProjectStarred: controller.isProjectStarred,
     onEditingNameChange: controller.setEditingName,
     onToggleProject: controller.toggleProject,

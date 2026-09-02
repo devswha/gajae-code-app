@@ -56,7 +56,21 @@
     "reportIssue": "Segnala un problema"
   },
   "status": {
-    "thinking": "Ragionamento…"
+    "thinking": "Ragionamento…",
+    "running": "In esecuzione",
+    "needsInput": "In attesa della tua risposta",
+    "ready": "Completata, non ancora vista",
+    "blocked": "Esecuzione fallita, non ancora vista",
+    "countRunning_one": "{{count}} in esecuzione",
+    "countRunning_other": "{{count}} in esecuzione",
+    "countNeedsInput_one": "{{count}} in attesa di risposta",
+    "countNeedsInput_other": "{{count}} in attesa di risposta",
+    "countReady_one": "{{count}} completata",
+    "countReady_other": "{{count}} completate",
+    "countBlocked_one": "{{count}} fallita",
+    "countBlocked_other": "{{count}} fallite",
+    "projectAttentionCount_one": "{{count}} conversazione da controllare",
+    "projectAttentionCount_other": "{{count}} conversazioni da controllare"
   },
   "messages": {
     "deleteSessionFailed": "Impossibile eliminare la conversazione. Riprova.",

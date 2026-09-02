@@ -5,6 +5,7 @@ import type { NavigateFunction } from 'react-router-dom';
 import type { ServerEvent } from '../contexts/WebSocketContext';
 import { api } from '../utils/api';
 import { useAppShellStore } from '../stores/useAppShellStore';
+import { useSessionAttentionStore } from '../stores/useSessionAttentionStore';
 import type { LLMProvider, LoadingProgress, Project, ProjectSession } from '../types/app';
 
 import { mergeExpandedSessionPages, PROJECTS_QUERY_KEY, projectsHaveChanges, useProjectsQuery } from './useProjectsQuery';
@@ -131,13 +132,6 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
   viewed.current = selectedSession;
   active.current = activeSessions;
 
-  const clearAttention = useCallback((id?: string | null) => {
-    if (id) useAppShellStore.getState().clearSessionAttention(id);
-  }, []);
-  const markAttention = useCallback((id?: string | null) => {
-    if (!id || id === (viewed.current?.id ?? sessionId ?? null)) return;
-    useAppShellStore.getState().markSessionAttention(id, viewed.current?.id ?? sessionId ?? null);
-  }, [sessionId]);
   const { refetch: queryRefetch } = query;
   const refetch = useCallback(async (_options: FetchProjectsOptions = {}) => { await queryRefetch(); }, [queryRefetch]);
 
@@ -170,17 +164,12 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
         }, 500);
         return;
       }
-      const id = typeof event.sessionId === 'string' && event.sessionId ? event.sessionId : null;
-      const ignored = new Set(['chat_subscribed', 'loading_progress', 'session_upserted', 'status', 'stream_end', 'permission_cancelled', 'websocket_reconnected']);
-      if (id && id !== (viewed.current?.id ?? sessionId ?? null) && !ignored.has(event.kind ?? '')) markAttention(id);
       if (event.kind !== 'session_upserted') return;
       const update = event as SessionUpsert;
       if (!update.sessionId || !update.session) return;
       const current = viewed.current;
       if (current?.id === update.sessionId && !active.current.has(update.sessionId)) {
         void client.invalidateQueries({ queryKey: ['messages', update.sessionId] });
-      } else {
-        markAttention(update.sessionId);
       }
       client.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (cached) => updateProjectCache(cached ?? [], update));
       setSelectedProject((project) => {
@@ -197,10 +186,9 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
       if (sessionId === alias) navigate(`/session/${update.sessionId}`);
     };
     return subscribe(receive);
-  }, [client, markAttention, navigate, sessionId, setSelectedProject, setSelectedSession, subscribe]);
+  }, [client, navigate, sessionId, setSelectedProject, setSelectedSession, subscribe]);
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-  useEffect(() => { clearAttention(selectedSession?.id ?? sessionId ?? null); }, [clearAttention, selectedSession?.id, sessionId]);
 
   useEffect(() => {
     if (!sessionId || !projects.length) return;
@@ -225,12 +213,12 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
   }, [isMobile, navigate, setSelectedProject, setSelectedSession, setSidebarOpen]);
 
   const handleSessionSelect = useCallback((session: ProjectSession) => {
-    clearAttention(session.id);
+    useSessionAttentionStore.getState().markSessionViewed(session.id);
     setSelectedSession(session);
     if (activeTab === 'tasks' || activeTab === 'browser') setActiveTab('chat');
     if (isMobile && session.__projectId !== selectedProject?.projectId) setSidebarOpen(false);
     navigate(`/session/${session.id}`);
-  }, [activeTab, clearAttention, isMobile, navigate, selectedProject?.projectId, setActiveTab, setSelectedSession, setSidebarOpen]);
+  }, [activeTab, isMobile, navigate, selectedProject?.projectId, setActiveTab, setSelectedSession, setSidebarOpen]);
 
   const handleNewSession = useCallback((project: Project) => {
     setSelectedProject(project);
@@ -242,13 +230,13 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
   }, [isMobile, navigate, setActiveTab, setSelectedProject, setSelectedSession, setSidebarOpen]);
 
   const handleSessionDelete = useCallback((id: string) => {
-    clearAttention(id);
+    useSessionAttentionStore.getState().forgetSession(id);
     if (selectedSession?.id === id) {
       setSelectedSession(null);
       navigate('/');
     }
     client.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (cached) => (cached ?? []).map((project) => withoutSession(project, id)));
-  }, [clearAttention, client, navigate, selectedSession?.id, setSelectedSession]);
+  }, [client, navigate, selectedSession?.id, setSelectedSession]);
 
   const handleSidebarRefresh = useCallback(async () => {
     try {

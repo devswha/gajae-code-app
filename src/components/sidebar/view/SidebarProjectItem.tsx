@@ -4,6 +4,8 @@ import type { TFunction } from 'i18next';
 import { cn } from '../../../utils/cn';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
+import { needsAttention } from '../../../stores/sessionStatusModel';
+import type { SessionStatusResolver } from '../hooks/useSessionStatusResolver';
 import type { SessionWithProvider } from '../types/types';
 
 import SidebarProjectSessions from './SidebarProjectSessions';
@@ -36,7 +38,7 @@ type SidebarProjectItemProps = {
   onDeleteSession: (projectName: string, sessionId: string, sessionTitle: string, provider: LLMProvider) => void;
   onLoadMoreSessions: (projectId: string) => void;
   activeSessions: SessionActivityMap;
-  attentionSessionIds: ReadonlySet<string>;
+  getSessionStatus: SessionStatusResolver;
   onNewSession: (project: Project) => void;
   onEditingSessionNameChange: (value: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
@@ -75,7 +77,7 @@ export default function SidebarProjectItem({
   onDeleteSession,
   onLoadMoreSessions,
   activeSessions,
-  attentionSessionIds,
+  getSessionStatus,
   onNewSession,
   onEditingSessionNameChange,
   onStartEditingSession,
@@ -88,6 +90,10 @@ export default function SidebarProjectItem({
   const isSelected = selectedProject?.projectId === project.projectId;
   const isEditing = editingProject === project.projectId;
   const sessionCount = Number(project.sessionMeta?.total ?? sessions.length);
+  const statuses = sessions.map((session) => getSessionStatus(session.id));
+  const attentionCount = statuses.filter(needsAttention).length;
+  const hasBlocked = statuses.includes('blocked');
+  const attentionLabel = t('status.projectAttentionCount', { count: attentionCount });
 
   const selectProject = () => {
     if (!isSelected) onProjectSelect(project);
@@ -134,6 +140,19 @@ export default function SidebarProjectItem({
             >
               <Folder className={cn('stroke-1.7 size-4 shrink-0 text-muted-foreground', isSelected && 'text-foreground')} aria-hidden />
               <span className="min-w-0 flex-1 truncate">{project.displayName}</span>
+              {attentionCount > 0 && (
+                <span
+                  role="status"
+                  aria-label={attentionLabel}
+                  title={attentionLabel}
+                  className={cn(
+                    'inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[0.6875rem] font-medium tabular-nums transition-opacity group-hover/project:opacity-0',
+                    hasBlocked ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary',
+                  )}
+                >
+                  {attentionCount}
+                </span>
+              )}
               <span className="text-[0.6875rem] text-muted-foreground tabular-nums transition-opacity group-hover/project:opacity-0">{sessionCount}</span>
               {showSessions && (
                 <ChevronRight className={cn('size-3.5 shrink-0 text-muted-foreground transition-transform', isExpanded && 'rotate-90')} aria-hidden />
@@ -178,7 +197,7 @@ export default function SidebarProjectItem({
           hasMoreSessions={Boolean(project.sessionMeta?.hasMore)}
           isLoadingMoreSessions={isLoadingMoreSessions}
           activeSessions={activeSessions}
-          attentionSessionIds={attentionSessionIds}
+          getSessionStatus={getSessionStatus}
           currentTime={currentTime}
           editingSession={editingSession}
           editingSessionName={editingSessionName}

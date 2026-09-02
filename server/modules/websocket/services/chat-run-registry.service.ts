@@ -12,9 +12,12 @@ type ChatRun = {
   appSessionId: string; provider: LLMProvider; providerSessionId: string | null;
   status: ChatRunStatus; lastSeq: number; events: NormalizedMessage[];
   writer: ChatSessionWriter; startedAt: number; completedAt: number | null;
+  /** Approval requests the browser has been shown and has not answered yet. */
+  pendingApprovals: Set<string>;
 };
 type AppSessionId = string;
 type RunCompletion = { exitCode: number; aborted?: boolean };
+export type RunningRunSummary = { sessionId: string; provider: LLMProvider; startedAt: number; lastSeq: number; awaitingInput: boolean };
 
 type StartRunInput = {
   appSessionId: string;
@@ -48,8 +51,16 @@ function decorateRunEvent(run: ChatRun, event: NormalizedMessage): NormalizedMes
     seq: sequence,
   };
 
+  // The registry is the one place every approval frame passes through, so it
+  // can answer "is this run waiting on the user" for the running-sessions poll
+  // without reaching into the provider that raised the question.
+  const requestId = typeof event.requestId === 'string' ? event.requestId : null;
+  if (requestId && event.kind === 'permission_request') run.pendingApprovals.add(requestId);
+  if (requestId && event.kind === 'permission_cancelled') run.pendingApprovals.delete(requestId);
+
   if (event.kind === 'complete') {
     publishedEvent.actualSessionId = run.appSessionId;
+    run.pendingApprovals.clear();
     Object.assign(run, { status: 'completed' as ChatRunStatus, completedAt: Date.now() });
     scheduleCompletedRunRemoval(run.appSessionId);
   }
@@ -125,6 +136,7 @@ function createRun(input: StartRunInput): ChatRun {
     writer: null as unknown as ChatSessionWriter,
     startedAt: Date.now(),
     completedAt: null,
+    pendingApprovals: new Set<string>(),
   } satisfies ChatRun;
 
   run.writer = new ChatSessionWriter({
@@ -161,13 +173,21 @@ export const chatRunRegistry = {
     return runsByAppSession.get(appSessionId)?.status === 'running';
   },
 
-  listRunningRuns(): Array<{ sessionId: string; provider: LLMProvider; startedAt: number; lastSeq: number }> {
-    const activeRuns: Array<{ sessionId: string; provider: LLMProvider; startedAt: number; lastSeq: number }> = [];
+  listRunningRuns(): RunningRunSummary[] {
+    const activeRuns: RunningRunSummary[] = [];
     for (const run of runsByAppSession.values()) {
       if (run.status !== 'running') continue;
-      activeRuns.push({ sessionId: run.appSessionId, provider: run.provider, startedAt: run.startedAt, lastSeq: run.lastSeq });
+      activeRuns.push({
+        sessionId: run.appSessionId, provider: run.provider, startedAt: run.startedAt, lastSeq: run.lastSeq,
+        awaitingInput: run.pendingApprovals.size > 0,
+      });
     }
     return activeRuns;
+  },
+
+  /** The browser answered an approval; the run is no longer waiting on it. */
+  resolvePendingApproval(requestId: string): void {
+    for (const run of runsByAppSession.values()) run.pendingApprovals.delete(requestId);
   },
 
   attachConnection(appSessionId: AppSessionId, connection: RealtimeClientConnection): boolean {

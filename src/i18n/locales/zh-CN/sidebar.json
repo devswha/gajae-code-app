@@ -56,7 +56,21 @@
     "reportIssue": "提交问题"
   },
   "status": {
-    "thinking": "原因..."
+    "thinking": "原因...",
+    "running": "运行中",
+    "needsInput": "等待你的输入",
+    "ready": "已完成，尚未查看",
+    "blocked": "运行失败，尚未查看",
+    "countRunning_one": "{{count}} 个运行中",
+    "countRunning_other": "{{count}} 个运行中",
+    "countNeedsInput_one": "{{count}} 个等待输入",
+    "countNeedsInput_other": "{{count}} 个等待输入",
+    "countReady_one": "{{count}} 个已完成",
+    "countReady_other": "{{count}} 个已完成",
+    "countBlocked_one": "{{count}} 个失败",
+    "countBlocked_other": "{{count}} 个失败",
+    "projectAttentionCount_one": "{{count}} 个对话需要查看",
+    "projectAttentionCount_other": "{{count}} 个对话需要查看"
   },
   "messages": {
     "deleteSessionFailed": "无法删除对话，请重试。",

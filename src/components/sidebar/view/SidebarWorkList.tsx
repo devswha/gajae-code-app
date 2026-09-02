@@ -1,4 +1,5 @@
 import { Button } from '../../../shared/view/ui';
+import { collectWorkRows } from '../utils/workList';
 
 import SidebarProjectsState from './SidebarProjectsState';
 import SidebarSessionItem from './SidebarSessionItem';
@@ -7,12 +8,6 @@ import type { SidebarProjectListProps } from './SidebarProjectList';
 type SidebarWorkListProps = {
   readonly projectListProps: SidebarProjectListProps;
 };
-
-function sessionTimestamp(session: { lastActivity?: string; updated_at?: string; createdAt?: string; created_at?: string }): number {
-  const value = session.lastActivity ?? session.updated_at ?? session.createdAt ?? session.created_at;
-  const timestamp = value ? new Date(value).getTime() : 0;
-  return Number.isNaN(timestamp) ? 0 : timestamp;
-}
 
 export default function SidebarWorkList({ projectListProps }: SidebarWorkListProps) {
   const {
@@ -29,7 +24,7 @@ export default function SidebarWorkList({ projectListProps }: SidebarWorkListPro
     onLoadMoreSessions,
     loadingMoreProjects,
     activeSessions,
-    attentionSessionIds,
+    getSessionStatus,
     onProjectSelect,
     onSessionSelect,
     onDeleteSession,
@@ -42,13 +37,7 @@ export default function SidebarWorkList({ projectListProps }: SidebarWorkListPro
     t,
   } = projectListProps;
 
-  const sessionRows = filteredProjects
-    .flatMap((project) => getProjectSessions(project).map((session) => ({ project, session })))
-    .filter(({ session }) => activeSessions.has(session.id) || attentionSessionIds.has(session.id))
-    .sort((a, b) => (
-      Number(Boolean(b.session.isStarred)) - Number(Boolean(a.session.isStarred))
-      || sessionTimestamp(b.session) - sessionTimestamp(a.session)
-    ));
+  const sessionRows = collectWorkRows({ filteredProjects, getProjectSessions, getSessionStatus });
 
   if (isLoading || projects.length === 0) {
     return (
@@ -76,14 +65,14 @@ export default function SidebarWorkList({ projectListProps }: SidebarWorkListPro
 
   return (
     <div className="space-y-0.5 pb-1">
-      {sessionRows.map(({ project, session }) => (
+      {sessionRows.map(({ project, session, status }) => (
         <SidebarSessionItem
           key={`${project.projectId}:${session.id}`}
           project={project}
           session={session}
           selectedSession={selectedSession}
           isProcessing={activeSessions.has(session.id)}
-          needsAttention={attentionSessionIds.has(session.id)}
+          status={status}
           showProjectName
           compact
           currentTime={currentTime}

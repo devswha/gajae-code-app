@@ -76,27 +76,3 @@ test('openSettings defaults to tools and shows the settings modal', () => {
   assert.equal(useAppShellStore.getState().showSettings, true);
   assert.equal(useAppShellStore.getState().settingsInitialTab, 'tools');
 });
-
-test('session attention marks and clears only when the set changes', () => {
-  const store = useAppShellStore.getState();
-
-  store.markSessionAttention('session-1', null);
-  const marked = useAppShellStore.getState().attentionSessionIds;
-  assert.deepEqual([...marked], ['session-1']);
-
-  store.markSessionAttention('session-1', null);
-  assert.equal(useAppShellStore.getState().attentionSessionIds, marked);
-
-  store.clearSessionAttention('session-1');
-  const cleared = useAppShellStore.getState().attentionSessionIds;
-  assert.deepEqual([...cleared], []);
-
-  store.clearSessionAttention('session-1');
-  assert.equal(useAppShellStore.getState().attentionSessionIds, cleared);
-});
-
-test('session attention ignores the currently viewed session', () => {
-  useAppShellStore.getState().markSessionAttention('session-1', 'session-1');
-
-  assert.deepEqual([...useAppShellStore.getState().attentionSessionIds], []);
-});

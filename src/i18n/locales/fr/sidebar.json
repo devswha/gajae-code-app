@@ -56,7 +56,21 @@
     "reportIssue": "Déposer un problème"
   },
   "status": {
-    "thinking": "Raisonnement…"
+    "thinking": "Raisonnement…",
+    "running": "En cours",
+    "needsInput": "En attente de votre réponse",
+    "ready": "Terminé, pas encore consulté",
+    "blocked": "Exécution échouée, pas encore consultée",
+    "countRunning_one": "{{count}} en cours",
+    "countRunning_other": "{{count}} en cours",
+    "countNeedsInput_one": "{{count}} en attente de réponse",
+    "countNeedsInput_other": "{{count}} en attente de réponse",
+    "countReady_one": "{{count}} terminée",
+    "countReady_other": "{{count}} terminées",
+    "countBlocked_one": "{{count}} échouée",
+    "countBlocked_other": "{{count}} échouées",
+    "projectAttentionCount_one": "{{count}} conversation à consulter",
+    "projectAttentionCount_other": "{{count}} conversations à consulter"
   },
   "messages": {
     "deleteSessionFailed": "Impossible de supprimer la conversation. Essayer à nouveau.",

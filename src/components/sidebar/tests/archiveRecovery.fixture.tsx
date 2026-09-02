@@ -130,7 +130,7 @@ function ArchiveFixture() {
           onLoadMoreSessions: controller.loadMoreSessionsForProject,
           loadingMoreProjects: new Set(),
           activeSessions: new Map(),
-          attentionSessionIds: new Set(),
+          getSessionStatus: () => 'idle',
           isProjectStarred: controller.isProjectStarred,
           onEditingNameChange: controller.setEditingName,
           onToggleProject: controller.toggleProject,

@@ -167,15 +167,41 @@ describe('chat run lifecycle', () => {
     });
   });
 
-  test('moves a live writer to a newly connected socket', async () => {
+  test('a second viewer joins the live stream without taking it from the first', async () => {
+    // Two tabs on one session (a desktop and a phone on the LAN) re-subscribe
+    // on every session_upserted. The sender must keep every frame, and the
+    // newcomer gets everything from then on; the same seq reaches both.
     await openDatabase(() => {
-      const { run, socket: original } = createRun('reconnect');
+      const { run, socket: sender } = createRun('fanout');
       run.writer.send({ kind: 'stream_delta', provider: 'gjc', sessionId: 'native', content: 'old' });
-      const replacement = new SocketCapture();
-      assert.equal(chatRunRegistry.attachConnection('reconnect', replacement), true);
+      const viewer = new SocketCapture();
+      assert.equal(chatRunRegistry.attachConnection('fanout', viewer), true);
+      assert.equal(chatRunRegistry.attachConnection('fanout', sender), true, 'the sender re-subscribing is a no-op');
       run.writer.send({ kind: 'stream_delta', provider: 'gjc', sessionId: 'native', content: 'new' });
-      assert.deepEqual(original.messages.map(({ content }) => content), ['old']);
-      assert.deepEqual(replacement.messages.map(({ content }) => content), ['new']);
+      chatRunRegistry.completeRun('fanout', { exitCode: 0 });
+      assert.deepEqual(sender.messages.map(({ kind, content }) => `${kind}:${content ?? ''}`), ['stream_delta:old', 'stream_delta:new', 'complete:']);
+      assert.deepEqual(viewer.messages.map(({ kind, content }) => `${kind}:${content ?? ''}`), ['stream_delta:new', 'complete:']);
+      assert.equal(sender.messages[1].seq, viewer.messages[0].seq);
+    });
+  });
+
+  test('a closed or detached socket stops receiving frames; the others keep them', async () => {
+    await openDatabase(() => {
+      const { run, socket: sender } = createRun('leave');
+      const closing = new SocketCapture();
+      const leaving = new SocketCapture();
+      chatRunRegistry.attachConnection('leave', closing);
+      chatRunRegistry.attachConnection('leave', leaving);
+      assert.equal(run.writer.connectionCount(), 3);
+
+      closing.readyState = 3;
+      chatRunRegistry.detachConnection(leaving);
+      run.writer.send({ kind: 'stream_delta', provider: 'gjc', sessionId: 'native', content: 'after' });
+
+      assert.deepEqual(sender.messages.map(({ content }) => content), ['after']);
+      assert.deepEqual(closing.messages, []);
+      assert.deepEqual(leaving.messages, []);
+      assert.equal(run.writer.connectionCount(), 1);
     });
   });
 });

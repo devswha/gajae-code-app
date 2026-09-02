@@ -210,11 +210,17 @@ export const chatRunRegistry = {
     return resolved;
   },
 
+  /** A viewer of the session joins the live stream; the ones already attached keep it. */
   attachConnection(appSessionId: AppSessionId, connection: RealtimeClientConnection): boolean {
     const run = runsByAppSession.get(appSessionId);
     if (!run) return false;
-    run.writer.updateWebSocket(connection);
+    run.writer.attachConnection(connection);
     return true;
+  },
+
+  /** A socket went away; no run keeps sending to it. */
+  detachConnection(connection: RealtimeClientConnection): void {
+    for (const run of runsByAppSession.values()) run.writer.detachConnection(connection);
   },
 
   replayEvents(appSessionId: AppSessionId, afterSeq: number): NormalizedMessage[] {

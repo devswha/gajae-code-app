@@ -13,15 +13,22 @@ type ChatSessionWriterOptions = {
 };
 
 // Providers speak in native session identifiers; the browser always receives the app session stream.
+//
+// A run has one writer and any number of viewers: the tab that sent the turn,
+// a second tab on the same session, a phone on the LAN. Every frame goes to
+// every attached socket that is still open. A single "current" socket that
+// each `chat.subscribe` replaced was how two viewers used to steal the stream
+// from each other: each `session_upserted` made both re-subscribe, the writer
+// flipped to whichever arrived last, and both saw a shredded answer.
 export class ChatSessionWriter {
-  ws: RealtimeClientConnection;
   userId: SessionOwner;
   isWebSocketWriter = true;
+  private readonly connections = new Set<RealtimeClientConnection>();
   private providerSessionId: ProviderSessionId;
   private abortHandle: ProviderSessionId = null;
 
   constructor(private readonly config: ChatSessionWriterOptions) {
-    this.ws = config.connection;
+    this.connections.add(config.connection);
     this.userId = config.userId;
     this.providerSessionId = config.providerSessionId;
   }
@@ -51,8 +58,18 @@ export class ChatSessionWriter {
     this.publish(this.config.decorateOutboundEvent(event));
   }
 
-  updateWebSocket(connection: RealtimeClientConnection): void {
-    this.ws = connection;
+  attachConnection(connection: RealtimeClientConnection): void {
+    this.connections.add(connection);
+  }
+
+  detachConnection(connection: RealtimeClientConnection): void {
+    this.connections.delete(connection);
+  }
+
+  /** Sockets that would receive the next frame; closed ones are dropped on the way. */
+  connectionCount(): number {
+    this.pruneClosed();
+    return this.connections.size;
   }
 
   setSessionId(sessionId: NonNullable<ProviderSessionId>): void {
@@ -81,7 +98,16 @@ export class ChatSessionWriter {
     this.config.onProviderSessionId(sessionId);
   }
 
+  private pruneClosed(): void {
+    for (const connection of this.connections) {
+      if (connection.readyState !== WS_OPEN_STATE) this.connections.delete(connection);
+    }
+  }
+
   private publish(event: NormalizedMessage | null): void {
-    if (event && this.ws.readyState === WS_OPEN_STATE) this.ws.send(JSON.stringify(event));
+    if (!event) return;
+    this.pruneClosed();
+    const payload = JSON.stringify(event);
+    for (const connection of this.connections) connection.send(payload);
   }
 }

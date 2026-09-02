@@ -353,5 +353,6 @@ export function handleChatConnection(ws: WebSocket, request: AuthenticatedWebSoc
     console.log('[INFO] Chat client disconnected');
     unsubscribe();
     connectedClients.delete(ws);
+    chatRunRegistry.detachConnection(ws);
   });
 }

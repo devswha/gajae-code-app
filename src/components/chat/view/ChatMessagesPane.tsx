@@ -212,7 +212,7 @@ function ChatMessagesPane({
                   key={`work-${density}-${isPendingWorkBlock(item) ? 'pending' : getMessageKey(item.messages[0])}`}
                   block={item}
                   prevMessage={before}
-                  running={isProcessing && item.isLastTurn}
+                  running={isProcessing && item.isTail}
                   liveActivity={liveActivity}
                   runStartedAt={runStartedAt}
                   createDiff={createDiff}

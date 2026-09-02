@@ -19,7 +19,7 @@ import RunningActivityRow from './RunningActivityRow';
 interface TurnWorkBlockProps extends MessageRenderProps {
   block: TurnWorkBlockItem;
   prevMessage: ChatMessage | null;
-  /** The viewed session's run is in flight and this block is the turn it is working on. */
+  /** The viewed session's run is in flight and this block is the one it is working on. */
   running?: boolean;
   /** What the run is doing now; shown in the header while `running`. */
   liveActivity?: LiveActivity | null;
@@ -31,7 +31,8 @@ const SEPARATOR = ' · ';
 const THINKING: LiveActivity = { kind: 'thinking' };
 
 /**
- * One row for a whole turn's tool activity.
+ * One row for a run of tool calls - a turn has one per run, with the prose
+ * the model wrote between runs standing outside them (see `turnWork.ts`).
  *
  * Running: `Reading src/foo.ts… · 12s` - the run's one status line, there is
  * no other, and no "Working" prefix in front of it: the pulse and the shimmer

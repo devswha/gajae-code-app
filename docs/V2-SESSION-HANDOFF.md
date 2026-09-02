@@ -285,9 +285,19 @@ lived on that strip. Now there is one progress surface:
 - Transcript: at compact/balanced the last turn gets a work block from the
   first send — empty `Thinking… · 3s` row (`RunningActivityRow`,
   `variant="pending-block"`) until a tool lands, then
-  `Working · <live activity> · <elapsed>`. A finished turn with no tools
+  `<live activity>… · <elapsed>`. A finished turn with no tools
   has no block. Detailed density still has no block; it shows an inline
   running row instead (`variant="inline"`).
+- Since the 2026-09-02 late-night pass a turn has **one block per run of
+  consecutive calls**, not one per turn: prose the model writes between
+  calls stays outside, in order (`Let me look.` / `Worked for 12s · 3 files
+  read` / `Found it, fixing.` / `Worked for 5s · 2 edits` / answer), the
+  Codex/Cursor layout. While running, prose after a block is followed by a
+  fresh empty block until the next call fills it. `TurnWorkBlockItem` is
+  `{ startedAt, endedAt, isTail }` — each block's `Worked for` is measured
+  from the prose before it, and only the tail block reads the live activity.
+  `updateStreaming` keeps the first delta's timestamp so that duration does
+  not tick while the answer streams.
 - `ActivityIndicator.tsx` and its CSS (`chat-activity-*`) are gone.
 
 Tests: composer static markup (Stop / no strip),

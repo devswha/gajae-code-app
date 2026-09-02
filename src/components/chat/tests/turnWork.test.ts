@@ -10,8 +10,8 @@ import { buildPaneList, foldTurnWork, formatTurnWorkCounts, isPendingWorkBlock, 
 import type { PaneListItem, TurnWorkBlockItem } from '../utils/turnWork';
 
 /*
- * The work block is a pure fold over the message list: where a turn's tool
- * calls start and end, what stays outside, and what the summary row counts.
+ * The work block is a pure fold over the message list: which runs of tool
+ * calls become blocks, what stays outside, and what the summary row counts.
  */
 
 const at = (seconds: number) => new Date(Date.UTC(2026, 8, 2, 0, 0, seconds)).toISOString();
@@ -35,7 +35,7 @@ const label = (item: PaneListItem | ChatMessage | TurnWorkBlockItem | MessageLis
   return `${message.type}:${message.content}`;
 };
 
-test('a turn with tool calls folds them into one block, from the first call to the last', () => {
+test('a turn with tool calls folds each run of consecutive calls into one block', () => {
   const items = foldTurnWork([
     user('go', 0),
     text('Let me look.', 1),
@@ -46,27 +46,33 @@ test('a turn with tool calls folds them into one block, from the first call to t
 
   assert.deepEqual(items.map(label), ['user:go', 'assistant:Let me look.', '[work read bash]', 'assistant:Done.']);
   const block = items[2] as TurnWorkBlockItem;
-  assert.equal(block.turnStartedAt, at(0));
-  assert.equal(block.turnEndedAt, at(4));
-  assert.equal(block.isLastTurn, true);
+  // The block's clock starts at the prose before it, not the user message.
+  assert.equal(block.startedAt, at(1));
+  assert.equal(block.endedAt, at(4));
+  assert.equal(block.isTail, true);
 });
 
-test('narration between calls stays inside the block, in order; the answer after the last call stays out', () => {
-  // The transcript is read in order and the model writes between calls, so the
-  // block cannot know a sentence is "the answer" until nothing follows it.
-  // Everything between the first and last call is scaffolding around the
-  // answer; what comes after the last call is the answer.
+test('prose between calls stays outside, in order, and cuts the work into one block per run of calls', () => {
+  // What the model says is never behind a fold: the turn reads as prose and
+  // work alternating, the way Codex and Cursor lay it out.
   const items = foldTurnWork([
     user('go', 0),
     call('read', 1),
     text('Found it, now checking the tests.', 2),
     call('bash', 3),
-    text('All green.', 4),
+    call('bash', 4),
+    text('All green.', 5),
   ]);
 
-  assert.deepEqual(items.map(label), ['user:go', '[work read assistant:Found it, now checking the tests. bash]', 'assistant:All green.']);
+  assert.deepEqual(items.map(label), [
+    'user:go', '[work read]', 'assistant:Found it, now checking the tests.', '[work bash bash]', 'assistant:All green.',
+  ]);
+  const blocks = items.filter(isTurnWorkBlockItem);
+  assert.deepEqual(blocks.map((block) => [block.startedAt, block.endedAt]), [[at(0), at(2)], [at(2), at(5)]]);
+  // Only the last block can be the one a run is working on.
+  assert.deepEqual(blocks.map((block) => block.isTail), [false, true]);
 
-  // A call arriving after that answer turns it into narration: it moves inside.
+  // A call arriving after that prose does not move it: it opens a new block below.
   const later = foldTurnWork([
     user('go', 0),
     call('read', 1),
@@ -75,13 +81,19 @@ test('narration between calls stays inside the block, in order; the answer after
     text('All green.', 4),
     call('edit', 5),
   ]);
-  assert.deepEqual(later.map(label), ['user:go', '[work read assistant:Found it, now checking the tests. bash assistant:All green. edit]']);
+  assert.deepEqual(later.map(label), [
+    'user:go', '[work read]', 'assistant:Found it, now checking the tests.', '[work bash]', 'assistant:All green.', '[work edit]',
+  ]);
+  assert.deepEqual(later.filter(isTurnWorkBlockItem).map((block) => block.isTail), [false, false, true]);
 });
 
-test('reasoning is not work: a thought inside the span is hoisted ahead of the block', () => {
+test('reasoning is not work: a thought between calls is hoisted ahead of the block and does not split it', () => {
   const items = foldTurnWork([user('go', 0), call('read', 1), thought(2), call('bash', 3)]);
-
   assert.deepEqual(items.map(label), ['user:go', 'thought', '[work read bash]']);
+
+  // A thought after the run's last call falls outside, after the block.
+  const trailing = foldTurnWork([user('go', 0), call('read', 1), thought(2), text('so', 3), thought(4)]);
+  assert.deepEqual(trailing.map(label), ['user:go', '[work read]', 'thought', 'assistant:so', 'thought']);
 });
 
 test('every turn gets its own block, and only the last turn can be the live one', () => {
@@ -97,16 +109,16 @@ test('every turn gets its own block, and only the last turn can be the live one'
     'user:third', '[work bash]',
   ]);
   const blocks = items.filter(isTurnWorkBlockItem);
-  assert.deepEqual(blocks.map((block) => block.isLastTurn), [false, true]);
-  assert.deepEqual(blocks.map((block) => block.turnStartedAt), [at(0), at(5)]);
-  assert.deepEqual(blocks.map((block) => block.turnEndedAt), [at(2), null]);
+  assert.deepEqual(blocks.map((block) => block.isTail), [false, true]);
+  assert.deepEqual(blocks.map((block) => block.startedAt), [at(0), at(5)]);
+  assert.deepEqual(blocks.map((block) => block.endedAt), [at(2), null]);
 });
 
 test('a window that starts mid-turn still folds, without a turn start', () => {
   const items = foldTurnWork([call('read', 1), call('bash', 2), text('done', 3)]);
 
   assert.deepEqual(items.map(label), ['[work read bash]', 'assistant:done']);
-  assert.equal((items[0] as TurnWorkBlockItem).turnStartedAt, null);
+  assert.equal((items[0] as TurnWorkBlockItem).startedAt, null);
 });
 
 test('a lone read is still a block: one rule, no special case', () => {
@@ -119,9 +131,9 @@ test('a live turn has a block before its first tool call: empty, at the end of t
   assert.deepEqual(justSent.map(label), ['user:go', '[work ]']);
   const block = justSent[1] as TurnWorkBlockItem;
   assert.equal(isPendingWorkBlock(block), true);
-  assert.equal(block.isLastTurn, true);
-  assert.equal(block.turnStartedAt, at(0));
-  assert.equal(block.turnEndedAt, null);
+  assert.equal(block.isTail, true);
+  assert.equal(block.startedAt, at(0));
+  assert.equal(block.endedAt, null);
   assert.equal(block.timestamp, at(0));
 
   // Prose before the first call stays above the block, as it does once a call lands.
@@ -133,6 +145,18 @@ test('a live turn has a block before its first tool call: empty, at the end of t
   const started = foldTurnWork([user('go', 0), text('Let me look.', 1), call('read', 2)], 'balanced', { running: true });
   assert.deepEqual(started.map(label), ['user:go', 'assistant:Let me look.', '[work read]']);
   assert.equal(isPendingWorkBlock(started[2] as TurnWorkBlockItem), false);
+  assert.equal((started[2] as TurnWorkBlockItem).isTail, true);
+
+  // Prose after a block closes it - it reads `Worked for` - and a new empty
+  // block follows the prose until the run says what comes next.
+  const narratingAgain = foldTurnWork([user('go', 0), call('read', 1), text('Found it.', 2)], 'balanced', { running: true });
+  assert.deepEqual(narratingAgain.map(label), ['user:go', '[work read]', 'assistant:Found it.', '[work ]']);
+  assert.deepEqual(narratingAgain.filter(isTurnWorkBlockItem).map((block) => block.isTail), [false, true]);
+  assert.equal((narratingAgain[3] as TurnWorkBlockItem).startedAt, at(2));
+  // The next call fills it in place.
+  const secondRun = foldTurnWork([user('go', 0), call('read', 1), text('Found it.', 2), call('edit', 3)], 'balanced', { running: true });
+  assert.deepEqual(secondRun.map(label), ['user:go', '[work read]', 'assistant:Found it.', '[work edit]']);
+  assert.deepEqual(secondRun.filter(isTurnWorkBlockItem).map((block) => [isPendingWorkBlock(block), block.isTail]), [[false, false], [false, true]]);
 
   // Only the last turn can be live: earlier tool-less turns never get one.
   const history = foldTurnWork([user('first', 0), text('no tools', 1), user('second', 2)], 'compact', { running: true });
@@ -153,9 +177,11 @@ test('a turn that finishes with no tool call has no block: the answer stands alo
   // While it streams there is one; when the run ends it is gone.
   assert.deepEqual(buildPaneList(pureText, 'balanced', { running: true }).map(label), ['user:go', 'assistant:Sure, here is the answer.', '[work ]']);
   assert.equal(buildPaneList(pureText, 'balanced', { running: false }).some(isTurnWorkBlockItem), false);
-  // Finished blocks are never pending, whatever the run state says.
+  // A block with calls in it is never pending, whatever the run state says;
+  // while running, the prose after it gets the pending one.
   const finished = buildPaneList([user('go', 0), call('read', 1), text('done', 2)], 'balanced', { running: true });
-  assert.deepEqual(finished.filter(isTurnWorkBlockItem).map(isPendingWorkBlock), [false]);
+  assert.deepEqual(finished.filter(isTurnWorkBlockItem).map(isPendingWorkBlock), [false, true]);
+  assert.deepEqual(buildPaneList([user('go', 0), call('read', 1), text('done', 2)], 'balanced').filter(isTurnWorkBlockItem).map(isPendingWorkBlock), [false]);
 });
 
 test('detailed never folds, live or not: the pane renders a running row of its own instead', () => {
@@ -204,8 +230,8 @@ test('the summary counts calls by category, edits and writes together', () => {
       call('todo_write', 13),
       text('narration is not counted', 14),
     ],
-    turnStartedAt: null,
-    turnEndedAt: null,
+    startedAt: null,
+    endedAt: null,
   });
 
   assert.equal(summary.total, 13);
@@ -217,56 +243,63 @@ test('the summary counts calls by category, edits and writes together', () => {
 });
 
 test('the summary omits zero counts and pluralises the rest', () => {
-  const one = summarizeTurnWork({ messages: [call('read', 1), call('bash', 2)], turnStartedAt: null, turnEndedAt: null });
+  const one = summarizeTurnWork({ messages: [call('read', 1), call('bash', 2)], startedAt: null, endedAt: null });
   assert.deepEqual(formatTurnWorkCounts(one, t), ['1 file read', '1 command']);
 
-  const many = summarizeTurnWork({ messages: [call('edit', 1), call('edit', 2), call('search', 3)], turnStartedAt: null, turnEndedAt: null });
+  const many = summarizeTurnWork({ messages: [call('edit', 1), call('edit', 2), call('search', 3)], startedAt: null, endedAt: null });
   assert.deepEqual(formatTurnWorkCounts(many, t), ['1 search', '2 edits']);
 });
 
 test('failures are counted, whatever the tool', () => {
   const summary = summarizeTurnWork({
     messages: [failedCall('bash', 1), call('read', 2), failedCall('edit', 3), call('bash', 4, { toolResult: null })],
-    turnStartedAt: null,
-    turnEndedAt: null,
+    startedAt: null,
+    endedAt: null,
   });
 
   assert.equal(summary.failed, 2);
   assert.equal(summary.total, 4);
 });
 
-test('the duration runs from the turn start to the last thing the transcript saw', () => {
-  // User message at 0, last result at 42: worked for 42s.
+test('the duration runs from the block start to the last thing the transcript saw', () => {
+  // Block started at 0, last result at 42: worked for 42s.
   const withResults = summarizeTurnWork({
     messages: [
       call('read', 5, { toolResult: { content: '', isError: false, timestamp: at(7) } }),
       call('bash', 10, { toolResult: { content: '', isError: false, timestamp: at(42) } }),
     ],
-    turnStartedAt: at(0),
-    turnEndedAt: null,
+    startedAt: at(0),
+    endedAt: null,
   });
   assert.equal(withResults.durationMs, 42_000);
 
   // The answer's own timestamp extends it when it is later still.
-  const withAnswer = summarizeTurnWork({ messages: [call('read', 5)], turnStartedAt: at(0), turnEndedAt: at(50) });
+  const withAnswer = summarizeTurnWork({ messages: [call('read', 5)], startedAt: at(0), endedAt: at(50) });
   assert.equal(withAnswer.durationMs, 50_000);
 
-  // No turn start in the window: measured from the first call instead.
-  const midWindow = summarizeTurnWork({ messages: [call('read', 5), call('bash', 30)], turnStartedAt: null, turnEndedAt: null });
+  // No start in the window: measured from the first call instead.
+  const midWindow = summarizeTurnWork({ messages: [call('read', 5), call('bash', 30)], startedAt: null, endedAt: null });
   assert.equal(midWindow.durationMs, 25_000);
+
+  // Each block of a turn measures its own run: from the prose before it to the prose after.
+  const [first, second] = foldTurnWork([
+    user('go', 0), call('read', 5), text('Found it.', 12), call('edit', 20), text('Done.', 25),
+  ]).filter(isTurnWorkBlockItem);
+  assert.equal(summarizeTurnWork(first).durationMs, 12_000);
+  assert.equal(summarizeTurnWork(second).durationMs, 13_000);
 });
 
 test('a duration is omitted rather than guessed when the timestamps cannot support one', () => {
   // A single instant is not a duration.
-  assert.equal(summarizeTurnWork({ messages: [call('read', 5)], turnStartedAt: null, turnEndedAt: null }).durationMs, null);
-  assert.equal(summarizeTurnWork({ messages: [call('read', 5)], turnStartedAt: at(5), turnEndedAt: null }).durationMs, null);
+  assert.equal(summarizeTurnWork({ messages: [call('read', 5)], startedAt: null, endedAt: null }).durationMs, null);
+  assert.equal(summarizeTurnWork({ messages: [call('read', 5)], startedAt: at(5), endedAt: null }).durationMs, null);
   // Unparseable timestamps are ignored, not turned into NaN.
   const garbage = summarizeTurnWork({
     messages: [call('read', 1, { timestamp: 'not a date', toolResult: { content: '', isError: false, timestamp: 'nope' } })],
-    turnStartedAt: 'when?',
-    turnEndedAt: null,
+    startedAt: 'when?',
+    endedAt: null,
   });
   assert.equal(garbage.durationMs, null);
   // Out-of-order clocks (end before start) give nothing rather than a negative.
-  assert.equal(summarizeTurnWork({ messages: [call('read', 1)], turnStartedAt: at(9), turnEndedAt: null }).durationMs, null);
+  assert.equal(summarizeTurnWork({ messages: [call('read', 1)], startedAt: at(9), endedAt: null }).durationMs, null);
 });

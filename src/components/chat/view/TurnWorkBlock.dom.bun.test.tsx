@@ -196,3 +196,32 @@ test('a live run: the last turn\'s block says what is happening, earlier turns s
   assert.match(blocks[1].textContent ?? '', /12s/);
   assert.equal(blocks[1].getAttribute('aria-expanded'), 'false');
 });
+
+test('prose between calls stays on the page between its own blocks, and only the last block is live', () => {
+  // The Codex/Cursor layout: read → "Found it, fixing." → edit … while the
+  // run goes on, and the sentence is never folded away when the next call lands.
+  const messages: ChatMessage[] = [
+    { type: 'user', content: 'fix the bug', timestamp: at(0) },
+    call('read', 1, { path: 'src/alpha.ts' }),
+    call('read', 2, { path: 'src/beta.ts' }),
+    { type: 'assistant', content: 'Found it in beta.ts, fixing now.', timestamp: at(8) },
+    { ...call('edit', 9, { path: 'src/beta.ts', edits: [] }), toolResult: null },
+  ];
+  render(createElement(ChatMessagesPane, {
+    ...paneProps('balanced', messages),
+    isProcessing: true,
+    liveActivity: { kind: 'tool', category: 'edit', toolName: 'edit', subject: 'src/beta.ts', moreCount: 0 },
+    runStartedAt: Date.now() - 12_000,
+  }));
+
+  const blocks = screen.getAllByRole('button', { name: enChat.workBlock.toggle });
+  assert.equal(blocks.length, 2);
+  assert.match(blocks[0].textContent ?? '', /Worked for 8s/);
+  assert.match(blocks[0].textContent ?? '', /2 files read/);
+  assert.ok(screen.getByText('Found it in beta.ts, fixing now.'));
+  assert.match(blocks[1].textContent ?? '', /Editing src\/beta\.ts…/);
+  // In document order: block, prose, block.
+  const prose = screen.getByText('Found it in beta.ts, fixing now.');
+  assert.ok(blocks[0].compareDocumentPosition(prose) & Node.DOCUMENT_POSITION_FOLLOWING);
+  assert.ok(prose.compareDocumentPosition(blocks[1]) & Node.DOCUMENT_POSITION_FOLLOWING);
+});

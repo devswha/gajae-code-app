@@ -129,9 +129,9 @@ test('no usable timestamps: "Worked" without a duration rather than a made-up on
     _isWorkBlock: true,
     messages: [call('read', 1, { toolResult: { content: 'ok', isError: false } })],
     timestamp: at(1),
-    turnStartedAt: null,
-    turnEndedAt: null,
-    isLastTurn: true,
+    startedAt: null,
+    endedAt: null,
+    isTail: true,
   };
   const html = render(block, 'balanced');
 

@@ -186,14 +186,15 @@ test('chat.permission-response with always remembers the provider\'s tool for th
 
     // The browser's own tool name is not trusted; the server uses the one it recorded.
     socket.emit('message', JSON.stringify({ type: 'chat.permission-response', requestId: 'perm-1', allow: true, always: true, toolName: 'rm' }));
-    // "Always" without "allow" is a plain denial and stores nothing.
+    // "Always" with a denial stores nothing, but it is forwarded: the runtime
+    // answers reject_always and stops asking for the rest of the run.
     socket.emit('message', JSON.stringify({ type: 'chat.permission-response', requestId: 'perm-2', allow: false, always: true }));
     await flushMessages();
 
     assert.deepEqual(projectPermissionsDb.get('/workspace/always-project').allow_always, ['bash']);
     assert.deepEqual(decisions.map(({ requestId, decision }) => [requestId, decision.allow, decision.always]), [
       ['perm-1', true, true],
-      ['perm-2', false, undefined],
+      ['perm-2', false, true],
     ]);
     assert.equal(chatRunRegistry.listRunningRuns()[0]?.awaitingInput, false);
     const closedFor = (frames: OutboundFrame[]) => frames.filter((frame) => frame.kind === 'permission_cancelled').map((frame) => frame.requestId);

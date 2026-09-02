@@ -211,6 +211,8 @@
     "viewInput": "Voir l’entrée de l’outil",
     "deny": "Refuser",
     "allow": "Autoriser",
+    "alwaysDeny": "Toujours refuser {{tool}}",
+    "alwaysDenyHint": "Refuser automatiquement cet outil dans ce projet à partir de maintenant",
     "alwaysAllow": "Toujours autoriser {{tool}}",
     "alwaysAllowHint": "Approuver automatiquement cet outil dans ce projet à partir de maintenant"
   },

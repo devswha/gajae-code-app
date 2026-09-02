@@ -136,9 +136,12 @@ export class GjcBunAskController {
 
   #resolvePermission(requestId: string, pending: PendingPermission, decision: Decision): boolean {
     if (typeof decision.allow !== 'boolean') return false;
-    const kind: ClientBridgePermissionOptionKind = decision.allow
-      ? (decision.always === true ? 'allow_always' : 'allow_once')
-      : 'reject_once';
+    // "Always" pairs with both answers: allow_always and reject_always. A
+    // reject_always the runtime did not offer falls back to reject_once
+    // inside selectPermissionOption.
+    const kind: ClientBridgePermissionOptionKind = decision.always === true
+      ? (decision.allow ? 'allow_always' : 'reject_always')
+      : (decision.allow ? 'allow_once' : 'reject_once');
     const outcome = selectPermissionOption(pending.options, kind);
     if (!outcome) return false;
     this.#pending.delete(requestId);

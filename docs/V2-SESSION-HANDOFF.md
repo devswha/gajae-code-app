@@ -502,11 +502,17 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
      worker facade at the project root by design (GJC-LIVE-SPEC: branch/PR
      work from managed worktrees is Slice 3). When Slice 3 lands a
      session-worktree option, the app side is only a picker on the run.
-   - Small follow-ups: LLM session titles via a Protocol v1 event plus a
-     title-source DB column (see `6340490`); mobile session rename is
-     missing; no locale key-parity test; the ask-controller's
-     `reject_always` answer is not exposed in the UI; confirm whether
-     project `myjob` being `bypass` + bash always-allow is intentional.
+   - Small follow-ups — 2026-09-03 status: locale key-parity test landed
+     (`scripts/check-locale-parity.test.mjs`, `f2a03de`); mobile session
+     rename landed (`9f6d4eb`); `reject_always` is exposed — the permission
+     card offers Always deny only when the runtime's `context.options`
+     include it, `always` rides a denial to the worker (no project rule
+     stored; the runtime remembers for the run), and the ask controller
+     answers the runtime's own `reject_always` option with a
+     `reject_once` fallback; `myjob`/`shot-demo` bypass + bash
+     always-allow confirmed intentional by the owner. Remaining: LLM
+     session titles via a Protocol v1 event plus a title-source DB column
+     (see `6340490`).
 
 ## Key gotchas
 

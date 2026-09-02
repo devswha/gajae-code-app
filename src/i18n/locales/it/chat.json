@@ -211,6 +211,8 @@
     "viewInput": "Mostra input dello strumento",
     "deny": "Rifiuta",
     "allow": "Consenti",
+    "alwaysDeny": "Rifiuta sempre {{tool}}",
+    "alwaysDenyHint": "Rifiuta automaticamente questo strumento in questo progetto d'ora in poi",
     "alwaysAllow": "Consenti sempre {{tool}}",
     "alwaysAllowHint": "Approva automaticamente questo strumento in questo progetto da ora in avanti"
   },

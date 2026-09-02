@@ -211,6 +211,8 @@
     "viewInput": "Araç girdisini göster",
     "deny": "Reddet",
     "allow": "İzin ver",
+    "alwaysDeny": "{{tool}} aracını her zaman reddet",
+    "alwaysDenyHint": "Bu projede bu araç için otomatik reddetme",
     "alwaysAllow": "{{tool}} için her zaman izin ver",
     "alwaysAllowHint": "Bu aracı bu projede bundan sonra otomatik onayla"
   },

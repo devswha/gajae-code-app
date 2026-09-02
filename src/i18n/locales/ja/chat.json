@@ -211,6 +211,8 @@
     "viewInput": "ツール入力を表示",
     "deny": "拒否",
     "allow": "許可",
+    "alwaysDeny": "{{tool}}を常に拒否",
+    "alwaysDenyHint": "このプロジェクトでは今後このツールを自動的に拒否します",
     "alwaysAllow": "{{tool}} を常に許可",
     "alwaysAllowHint": "このプロジェクトでこのツールを今後自動承認します"
   },

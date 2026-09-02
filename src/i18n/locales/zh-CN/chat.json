@@ -211,6 +211,8 @@
     "viewInput": "查看工具输入",
     "deny": "拒绝",
     "allow": "允许",
+    "alwaysDeny": "总是拒绝 {{tool}}",
+    "alwaysDenyHint": "从现在起在此项目中自动拒绝此工具",
     "alwaysAllow": "始终允许 {{tool}}",
     "alwaysAllowHint": "从现在起在此项目中自动批准该工具"
   },

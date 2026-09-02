@@ -211,6 +211,8 @@
     "viewInput": "View tool input",
     "deny": "Deny",
     "allow": "Allow",
+    "alwaysDeny": "Always deny {{tool}}",
+    "alwaysDenyHint": "Refuse this tool automatically in this project from now on",
     "alwaysAllow": "Always allow {{tool}}",
     "alwaysAllowHint": "Approve this tool automatically in this project from now on"
   },

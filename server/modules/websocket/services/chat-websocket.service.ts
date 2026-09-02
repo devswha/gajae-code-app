@@ -249,8 +249,11 @@ function permissionResponse(data: AnyRecord, dependencies: ChatWebSocketDependen
   if (typeof data.requestId !== 'string' || !data.requestId.length) return;
   const pending = chatRunRegistry.resolvePendingApproval(data.requestId);
   const allow = Boolean(data.allow);
-  const always = allow && data.always === true;
-  if (always && pending?.toolName) {
+  // "Always" rides with both answers: allow_always persists a project rule,
+  // reject_always only tells the run to stop asking - a permanent deny list
+  // is not something the browser gets to write.
+  const always = data.always === true;
+  if (allow && always && pending?.toolName) {
     // "Always allow" is remembered for the project before the reply reaches
     // the worker, so a second device (or the next run) never sees the card.
     const projectPath = sessionsDb.getSessionById(pending.appSessionId)?.project_path;

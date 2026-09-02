@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ShieldAlertIcon } from 'lucide-react';
 
 import type { PendingPermissionRequest, PermissionDecision } from '../types/types';
-import { formatToolInputForDisplay } from '../utils/chatPermissions';
+import { formatToolInputForDisplay, offeredPermissionKinds } from '../utils/chatPermissions';
 import { getPermissionPanel, registerPermissionPanel } from '../tools/configs/permissionPanelRegistry';
 import { AskUserQuestionPanel } from '../tools/components/InteractiveRenderers';
 import {
@@ -72,6 +72,11 @@ export default function PermissionRequestsBanner({
 
         const rawInput = formatToolInputForDisplay(request.input);
         const title = requestTitle(request);
+        // Offer only what the runtime asked for; with no statement, the card
+        // keeps its historical set - everything except always-deny.
+        const offered = offeredPermissionKinds(request.context);
+        const showsAlwaysAllow = offered === null || offered.has('allow_always');
+        const showsAlwaysDeny = offered !== null && offered.has('reject_always');
 
         return (
           <Confirmation key={request.requestId} approval="pending" data-tool={request.toolName}>
@@ -108,14 +113,26 @@ export default function PermissionRequestsBanner({
               >
                 {t('permissionCard.deny')}
               </ConfirmationAction>
-              <ConfirmationAction
-                variant="outline"
-                data-action="always-allow"
-                title={t('permissionCard.alwaysAllowHint')}
-                onClick={() => handlePermissionDecision(request.requestId, { allow: true, always: true })}
-              >
-                {t('permissionCard.alwaysAllow', { tool: request.toolName })}
-              </ConfirmationAction>
+              {showsAlwaysDeny && (
+                <ConfirmationAction
+                  variant="outline"
+                  data-action="always-deny"
+                  title={t('permissionCard.alwaysDenyHint')}
+                  onClick={() => handlePermissionDecision(request.requestId, { allow: false, always: true, message: 'User denied tool use (always)' })}
+                >
+                  {t('permissionCard.alwaysDeny', { tool: request.toolName })}
+                </ConfirmationAction>
+              )}
+              {showsAlwaysAllow && (
+                <ConfirmationAction
+                  variant="outline"
+                  data-action="always-allow"
+                  title={t('permissionCard.alwaysAllowHint')}
+                  onClick={() => handlePermissionDecision(request.requestId, { allow: true, always: true })}
+                >
+                  {t('permissionCard.alwaysAllow', { tool: request.toolName })}
+                </ConfirmationAction>
+              )}
               <ConfirmationAction
                 variant="default"
                 onClick={() => handlePermissionDecision(request.requestId, { allow: true })}

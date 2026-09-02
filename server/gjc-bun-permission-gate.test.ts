@@ -97,10 +97,10 @@ test('allow, deny and malformed decisions map onto the runtime\'s options', asyn
 
   assert.equal(asks.resolve(allowId, { allow: 'yes' }), false, 'allow must be a boolean');
   assert.equal(asks.resolve(allowId, { allow: true }), true);
-  assert.equal(asks.resolve(denyId, { allow: false, always: true }), true, 'always without allow is a plain rejection');
+  assert.equal(asks.resolve(denyId, { allow: false, always: true }), true, 'always with a denial answers reject_always');
 
   assert.deepEqual(await allowed, { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' });
-  assert.deepEqual(await denied, { outcome: 'selected', optionId: 'reject_once', kind: 'reject_once' });
+  assert.deepEqual(await denied, { outcome: 'selected', optionId: 'reject_always', kind: 'reject_always' });
 });
 
 test('an aborted or disposed request is cancelled and the card withdrawn', async () => {

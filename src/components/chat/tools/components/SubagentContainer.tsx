@@ -10,10 +10,12 @@ interface SubagentContainerProps {
   toolInput: unknown;
   toolResult?: { content?: unknown; isError?: boolean } | null;
   subagentState: { childTools: SubagentChildTool[]; currentToolIndex: number; isComplete: boolean };
-  /** Start unfolded, with the tool history unfolded too (detailed level). A failure unfolds regardless. */
+  /** Start unfolded, with the tool history unfolded too (detailed level). */
   defaultOpen?: boolean;
   /** Render the prompt and the tool history at all; compact keeps only the outcome. */
   showHistory?: boolean;
+  /** A failed task unfolds on its own; off (compact), the row's "Failed" outcome is the notice. */
+  openOnFailure?: boolean;
 }
 
 type ToolInput = Record<string, any>;
@@ -55,7 +57,7 @@ function FinalResult({ value }: { value: unknown }) {
   return content ? <pre className="line-clamp-6 font-mono text-xs wrap-break-word whitespace-pre-wrap">{JSON.stringify(content, null, 2)}</pre> : null;
 }
 
-export const SubagentContainer: React.FC<SubagentContainerProps> = ({ toolInput, toolResult, subagentState, defaultOpen = false, showHistory = true }) => {
+export const SubagentContainer: React.FC<SubagentContainerProps> = ({ toolInput, toolResult, subagentState, defaultOpen = false, showHistory = true, openOnFailure = true }) => {
   const input = objectFromInput(toolInput);
   const { childTools, currentToolIndex, isComplete } = subagentState;
   const activeTool = currentToolIndex >= 0 ? childTools[currentToolIndex] : null;
@@ -72,7 +74,7 @@ export const SubagentContainer: React.FC<SubagentContainerProps> = ({ toolInput,
     : undefined;
 
   return <div className="my-1 border-l border-border py-0.5 pl-3">
-    <CollapsibleSection title={input.description || 'Running task'} toolName={`Subagent / ${input.subagent_type || 'Agent'}`} open={defaultOpen || failed} badge={<ToolStatusBadge status={status} />} action={outcomeInRow}>
+    <CollapsibleSection title={input.description || 'Running task'} toolName={`Subagent / ${input.subagent_type || 'Agent'}`} open={defaultOpen || (failed && openOnFailure)} badge={<ToolStatusBadge status={status} />} action={outcomeInRow}>
       {showHistory && input.prompt && <div className="mb-2 line-clamp-4 text-xs wrap-break-word whitespace-pre-wrap text-muted-foreground">{input.prompt}</div>}
       {activeTool && !isComplete && <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
         <ToolStatusBadge status="running" />

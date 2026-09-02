@@ -14,6 +14,8 @@ interface BashCommandDisplayProps {
   isError?: boolean;
   status?: ToolStatus;
   defaultOpen?: boolean;
+  /** A failure unfolds on its own; off (compact), the closed row's error badge is the notice. */
+  openOnError?: boolean;
 }
 
 interface CommandRowProps {
@@ -86,6 +88,7 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
   isError = false,
   status,
   defaultOpen = false,
+  openOnError = true,
 }) => {
   const text = (output || '').replace(/\s+$/, '');
   const hasOutput = text.length > 0;
@@ -93,18 +96,19 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
   // Output that is already here decides the first paint; output that arrives
   // later (a live run) is caught by the effect, once, so a row the reader has
   // since folded by hand is not reopened by every chunk.
-  const startsOpen = hasOutput && (defaultOpen || isError);
+  const unfoldsOnError = isError && openOnError;
+  const startsOpen = hasOutput && (defaultOpen || unfoldsOnError);
   const [open, setOpen] = useState(startsOpen);
   const [copied, setCopied] = useState(false);
   const autoOpenHandled = useRef(startsOpen);
 
   useEffect(() => {
-    const shouldOpen = hasOutput && (defaultOpen || isError);
+    const shouldOpen = hasOutput && (defaultOpen || unfoldsOnError);
     if (!autoOpenHandled.current && shouldOpen) {
       autoOpenHandled.current = true;
       setOpen(true);
     }
-  }, [hasOutput, defaultOpen, isError]);
+  }, [hasOutput, defaultOpen, unfoldsOnError]);
 
   const toggle = () => {
     if (!hasOutput) return;

@@ -10,6 +10,14 @@
  *
  * A card the user opens or closes by hand keeps that state; switching level
  * remounts the cards, which is what resets those overrides.
+ *
+ * Failures are the one place the levels disagree about *when* to open rather
+ * than *what*. Balanced and detailed unfold a failed call on the spot (group
+ * row, shell output, subagent), because a folded failure is a failure nobody
+ * reads. Compact does not: the row still carries the error label or badge, so
+ * the failure is visible, but its body stays folded like every other body. A
+ * session with thirty failed commands must never render *less* compact than
+ * balanced, which is exactly what unconditional unfolding did.
  */
 
 export const TOOL_OUTPUT_DENSITIES = ['compact', 'balanced', 'detailed'] as const;
@@ -21,8 +29,14 @@ export const DEFAULT_TOOL_OUTPUT_DENSITY: ToolOutputDensity = 'balanced';
 export type ToolOutputDensityRules = {
   /** Consecutive same-tool calls at or above this count fold into one row. */
   groupThreshold: number;
-  /** Shell output starts open (a failure always does). */
+  /** Shell output starts open. */
   bashOutputOpen: boolean;
+  /**
+   * A failed call unfolds on its own: the group row containing it, its shell
+   * output, a failed subagent. Off, the row keeps its error label/badge and
+   * the body waits for a click like everything else at that level.
+   */
+  failureOpens: boolean;
   /** Edit/Write diffs start open; closed, the row still carries the file and its +N/-M. */
   diffOpen: boolean;
   /** Other collapsible cards (todo lists, plans, generic parameters) start open. */
@@ -43,6 +57,7 @@ const DENSITY_RULES: Record<ToolOutputDensity, ToolOutputDensityRules> = {
   compact: {
     groupThreshold: 1,
     bashOutputOpen: false,
+    failureOpens: false,
     diffOpen: false,
     collapsibleOpen: false,
     showReasoning: false,
@@ -54,6 +69,7 @@ const DENSITY_RULES: Record<ToolOutputDensity, ToolOutputDensityRules> = {
   balanced: {
     groupThreshold: 2,
     bashOutputOpen: false,
+    failureOpens: true,
     diffOpen: true,
     collapsibleOpen: 'config',
     showReasoning: false,
@@ -65,6 +81,7 @@ const DENSITY_RULES: Record<ToolOutputDensity, ToolOutputDensityRules> = {
   detailed: {
     groupThreshold: Number.POSITIVE_INFINITY,
     bashOutputOpen: true,
+    failureOpens: true,
     diffOpen: true,
     collapsibleOpen: true,
     showReasoning: true,

@@ -80,7 +80,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({ toolName, toolInput,
   }, [displayConfig, onFileOpen, parsedData]);
 
   if (isSubagentContainer && subagentState) {
-    return mode === 'result' ? null : <SubagentContainer toolInput={toolInput} toolResult={toolResult} subagentState={subagentState} defaultOpen={rules.subagentOpen} showHistory={rules.subagentHistory} />;
+    return mode === 'result' ? null : <SubagentContainer toolInput={toolInput} toolResult={toolResult} subagentState={subagentState} defaultOpen={rules.subagentOpen} showHistory={rules.subagentHistory} openOnFailure={rules.failureOpens} />;
   }
   if (!displayConfig) return null;
 
@@ -88,7 +88,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({ toolName, toolInput,
     const objectInput = typeof parsedData === 'object' && parsedData !== null ? parsedData as Record<string, unknown> : null;
     const command = objectInput && 'command' in objectInput ? String(objectInput.command || '') : typeof toolInput === 'string' ? toolInput : typeof rawToolInput === 'string' ? rawToolInput : '';
     const details = objectInput ? String(objectInput.description || (objectInput.cwd ? `in ${objectInput.cwd}` : '') || '') : '';
-    return <BashCommandDisplay command={command} description={details || undefined} output={resultText(toolResult)} isError={Boolean(toolResult?.isError)} status={toolStatus !== 'completed' ? toolStatus : undefined} defaultOpen={rules.bashOutputOpen} />;
+    return <BashCommandDisplay command={command} description={details || undefined} output={resultText(toolResult)} isError={Boolean(toolResult?.isError)} status={toolStatus !== 'completed' ? toolStatus : undefined} defaultOpen={rules.bashOutputOpen} openOnError={rules.failureOpens} />;
   }
 
   if (displayConfig.type === 'one-line') {
@@ -96,7 +96,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({ toolName, toolInput,
     const secondary = displayConfig.getSecondary?.(parsedData);
     const output = resultText(toolResult);
     if (mode === 'input' && rendersResultInline(toolName) && output.trim()) {
-      return <ToolCallRow toolName={toolName} label={displayConfig.label} value={value} secondary={secondary} output={output} isError={Boolean(toolResult?.isError)} status={toolStatus !== 'completed' ? toolStatus : undefined} defaultOpen={rules.bashOutputOpen} />;
+      return <ToolCallRow toolName={toolName} label={displayConfig.label} value={value} secondary={secondary} output={output} isError={Boolean(toolResult?.isError)} status={toolStatus !== 'completed' ? toolStatus : undefined} defaultOpen={rules.bashOutputOpen} openOnError={rules.failureOpens} />;
     }
     return <OneLineDisplay toolName={toolName} icon={displayConfig.icon} label={displayConfig.label} value={value} secondary={secondary} action={displayConfig.action} onAction={handleAction} style={displayConfig.style} wrapText={displayConfig.wrapText} colorScheme={displayConfig.colorScheme} status={toolStatus !== 'completed' ? toolStatus : undefined} />;
   }

@@ -100,6 +100,9 @@ test('the level table: what each level folds and what it opens', () => {
 
   assert.deepEqual([compact.groupThreshold, balanced.groupThreshold, detailed.groupThreshold], [1, 2, Number.POSITIVE_INFINITY]);
   assert.deepEqual([compact.bashOutputOpen, balanced.bashOutputOpen, detailed.bashOutputOpen], [false, false, true]);
+  // A failure unfolds itself at balanced and detailed; compact marks the row
+  // and keeps the body folded, or a failing session would not be compact at all.
+  assert.deepEqual([compact.failureOpens, balanced.failureOpens, detailed.failureOpens], [false, true, true]);
   assert.deepEqual([compact.diffOpen, balanced.diffOpen, detailed.diffOpen], [false, true, true]);
   assert.deepEqual([compact.showReasoning, balanced.showReasoning, detailed.showReasoning], [false, false, true]);
   assert.deepEqual([compact.showRawParameters, balanced.showRawParameters, detailed.showRawParameters], [false, false, true]);
@@ -152,11 +155,19 @@ test('shell output: folded at compact and balanced, open at detailed', () => {
   assert.match(detailed, />Output</);
 });
 
-test('a failed shell command opens at every level', () => {
-  for (const density of TOOL_OUTPUT_DENSITIES) {
-    const html = render(shell({ toolResult: { content: 'exit 1: missing module', isError: true } }), density);
+test('a failed shell command opens at balanced and detailed; compact marks the row and stays folded', () => {
+  const failed = shell({ toolResult: { content: 'exit 1: missing module', isError: true } });
+  for (const density of ['balanced', 'detailed'] as const) {
+    const html = render(failed, density);
     assert.match(html, /<pre[^>]*text-destructive[^>]*>exit 1: missing module<\/pre>/, density);
   }
+
+  const compact = render(failed, 'compact');
+  assert.doesNotMatch(compact, /<pre/);
+  assert.match(compact, /aria-expanded="false"/);
+  // The closed row still says it failed: the error badge, not just a colour.
+  assert.match(compact, /text-destructive[^>]*>.*sr-only">Error</);
+  assert.match(compact, /1 line/);
 });
 
 test('an edit: compact keeps the file and its +N/−M, the other levels open the diff', () => {
@@ -225,35 +236,67 @@ test('a subagent: compact is one row with its outcome, detailed unfolds the hist
   assert.match(detailed, /test\(/);
 });
 
-test('a failed subagent opens at every level', () => {
+test('a failed subagent says so at every level, and opens at balanced and detailed', () => {
   for (const density of TOOL_OUTPUT_DENSITIES) {
-    const html = render(subagent(true), density);
-    assert.match(html, /Failed \(2 tools\)/, density);
-    assert.match(html, /Found three suites/, density);
+    assert.match(render(subagent(true), density), /Failed \(2 tools\)/, density);
   }
+  for (const density of ['balanced', 'detailed'] as const) {
+    const html = render(subagent(true), density);
+    assert.match(html, /Found three suites/, density);
+    assert.match(html, /aria-expanded="true"/, density);
+  }
+
+  // Compact: the outcome sits in the folded row itself; the task card does not
+  // unfold. (The failure's own result text still renders below it, as it does
+  // for every failed tool that is not folded into its call.)
+  const compact = render(subagent(true), 'compact');
+  assert.match(compact, /group\/section[^"]*"[^>]*data-state="closed"|data-state="closed"[^>]*group\/section/);
+  assert.match(compact, /aria-expanded="false"/);
+  assert.doesNotMatch(compact, /aria-expanded="true"/);
 });
+
+const renderGroup = (messages: ChatMessage[], density: ToolOutputDensity) => renderToStaticMarkup(createElement(ToolGroupContainer, {
+  group: { _isGroup: true, toolName: 'bash', messages, timestamp: at },
+  prevMessage: null,
+  createDiff: lineDiff,
+  getMessageKey: (message) => String(message.toolId),
+  provider: 'gjc',
+  density,
+}));
 
 test('a folded group opens itself when one of its calls failed, and says so', () => {
   const ok = shell({ toolId: 'a' });
   const failed = shell({ toolId: 'b', toolResult: { content: 'exit 1', isError: true } });
-  const renderGroup = (messages: ChatMessage[]) => renderToStaticMarkup(createElement(ToolGroupContainer, {
-    group: { _isGroup: true, toolName: 'bash', messages, timestamp: at },
-    prevMessage: null,
-    createDiff: lineDiff,
-    getMessageKey: (message) => String(message.toolId),
-    provider: 'gjc',
-    density: 'balanced',
-  }));
 
-  const quiet = renderGroup([ok, shell({ toolId: 'c' })]);
+  const quiet = renderGroup([ok, shell({ toolId: 'c' })], 'balanced');
   assert.match(quiet, /aria-expanded="false"/);
   assert.match(quiet, /×2/);
   assert.doesNotMatch(quiet, new RegExp(enChat.tools.error));
 
-  const loud = renderGroup([ok, failed]);
+  const loud = renderGroup([ok, failed], 'balanced');
   assert.match(loud, /aria-expanded="true"/);
   assert.ok(loud.includes(enChat.tools.error));
   assert.match(loud, /exit 1/);
+});
+
+test('at compact a failed group keeps its error label but stays folded', () => {
+  // Compact wraps even a lone call in a group, so this is what every failed
+  // command looks like there: one row, marked, closed. Before the rule
+  // existed, a session of failing commands rendered wider at compact than at
+  // balanced.
+  const failed = shell({ toolId: 'b', toolResult: { content: 'exit 1: missing module', isError: true } });
+
+  const lone = renderGroup([failed], 'compact');
+  assert.ok(lone.includes(enChat.tools.error));
+  assert.match(lone, /aria-expanded="false"/);
+  assert.doesNotMatch(lone, /aria-expanded="true"/);
+  assert.doesNotMatch(lone, /exit 1: missing module/);
+
+  const run = renderGroup([shell({ toolId: 'a' }), failed, shell({ toolId: 'c' })], 'compact');
+  assert.ok(run.includes(enChat.tools.error));
+  assert.match(run, /×3/);
+  assert.match(run, /aria-expanded="false"/);
+  assert.doesNotMatch(run, /exit 1: missing module/);
 });
 
 test('a group of one, as compact makes them, carries no count', () => {

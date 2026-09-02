@@ -6,6 +6,7 @@ import type { ChatMessage, Provider, CodeEditorDiffInfo  } from '../types/types'
 import type { Project } from '../../../types/app';
 import { hasFailedResult } from '../utils/toolGrouping';
 import type { ToolGroupItem } from '../utils/toolGrouping';
+import { toolOutputDensityRules } from '../utils/toolOutputDensity';
 import type { ToolOutputDensity } from '../utils/toolOutputDensity';
 import { getToolConfig, rendersCommandRow } from '../tools';
 
@@ -76,13 +77,15 @@ export default function ToolGroupContainer({
   selectedProject,
   provider,
 }: ToolGroupContainerProps) {
-  // A failure never hides behind a count, whatever the level folds.
+  // A failure never hides behind a count: the row says so at every level.
+  // Whether it also unfolds is the level's call - compact keeps it folded.
   const containsFailure = group.messages.some(hasFailedResult);
-  const [isExpanded, setIsExpanded] = useState(containsFailure);
+  const opensForFailure = containsFailure && toolOutputDensityRules(density).failureOpens;
+  const [isExpanded, setIsExpanded] = useState(opensForFailure);
   useEffect(() => {
     // A run that fails while streaming unfolds at that moment, not on remount.
-    if (containsFailure) setIsExpanded(true);
-  }, [containsFailure]);
+    if (opensForFailure) setIsExpanded(true);
+  }, [opensForFailure]);
   const { t } = useTranslation('chat');
   const config = getToolConfig(group.toolName).input;
   const label = config.label || group.toolName;

@@ -12,8 +12,10 @@ interface ToolCallRowProps {
   output: string;
   isError?: boolean;
   status?: ToolStatus;
-  /** Start unfolded (the detailed density level); a failure unfolds regardless. */
+  /** Start unfolded (the detailed density level). */
   defaultOpen?: boolean;
+  /** A failure unfolds on its own; off (compact), the row's error badge is the notice. */
+  openOnError?: boolean;
 }
 
 /**
@@ -27,7 +29,8 @@ interface ToolCallRowProps {
  * size of the result was invisible until you opened it.
  *
  * A failure opens by itself and stays red, because a folded failure is a
- * failure nobody reads.
+ * failure nobody reads - except at the compact level, which keeps the badge
+ * and folds the body (see `toolOutputDensity.ts`).
  */
 export const ToolCallRow: React.FC<ToolCallRowProps> = ({
   toolName,
@@ -38,6 +41,7 @@ export const ToolCallRow: React.FC<ToolCallRowProps> = ({
   isError = false,
   status,
   defaultOpen = false,
+  openOnError = true,
 }) => {
   const trimmedOutput = output.trim();
   const lineCount = trimmedOutput.split('\n').length;
@@ -47,7 +51,7 @@ export const ToolCallRow: React.FC<ToolCallRowProps> = ({
       <CollapsibleSection
         toolName={label || toolName}
         title={value}
-        open={isError || defaultOpen}
+        open={(isError && openOnError) || defaultOpen}
         outputLabel="Output"
         badge={status ? <ToolStatusBadge status={status} /> : undefined}
         action={(

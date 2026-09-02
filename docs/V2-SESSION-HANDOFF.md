@@ -13,7 +13,9 @@ Last updated: 2026-09-02. Supersedes the 2026-07-18 handoff.
   landed in `b37bec7` (`src/components/workspace/view/BrowserPanel.tsx` and
   `server/modules/automation/browser-sidecar.ts`); context/token controls
   landed in `ac9b819`
-  (`src/components/chat/view/subcomponents/ContextUsageBadge.tsx`).
+  (`src/components/chat/view/subcomponents/ContextUsageBadge.tsx`). The
+  2026-09-02 session-UI pass (tool output density, four-state session status,
+  sidebar search, concise titles, per-project permissions) is recorded below.
 - **Notarization remains human-gated, not the only repository work.** It still
   requires the Developer ID certificate + notarization credentials on the Mac;
   see `docs/DESKTOP-TAURI-VERIFICATION.md` § "Remaining human gate".
@@ -157,6 +159,85 @@ green throughout.
 - Residual overlap: `node scripts/measure-upstream-derivation.mjs` → 84 of
   91,711 lines (0.1%), `package.json` only. Unchanged by this work.
 
+### 2026-09-02 afternoon: session UI and permissions
+
+Prioritized from a comparison of session UIs (Cursor 3.x, Codex, Claude Code
+and others) kept in the Cursor canvas `session-ui-comparison.canvas.tsx`,
+outside the repo. Ten commits, `1825fb2`..`a4773ff`, all on `main`.
+
+- `1825fb2` — chat: one three-level tool output density preference
+  (compact / balanced / detailed, `toolOutputDensity.ts`) replaces the
+  "Display reasoning" and "raw parameters" switches, which never reached the
+  folds that decide a card's height. Compact folds every call into a row,
+  detailed opens everything and never groups. Settings radio group, a header
+  icon button that cycles it (⌘⇧D), three palette actions. `useUiPreferences`
+  migrates v2→v3 once (either old switch on → detailed, else balanced; old
+  keys kept for a release). Also fixed the bash group row showing "+N more"
+  instead of the commands.
+- `f7d2f3e` — found by browser smoke: a group containing a failed call
+  unfolded itself at every level, so a session with many non-zero exits
+  rendered the same wall of tracebacks in compact as in balanced. New
+  `failureOpens` rule in the density table: only balanced/detailed unfold
+  failures; compact keeps the error label/badge on the row and waits for a
+  click.
+- `ea285ba` — sidebar: four-state session status (running / needs_input /
+  ready / blocked) derived by a pure function (`sessionStatusModel.ts`) from
+  the run registry, open approval requests and the held last-run outcome;
+  outcomes and last-viewed times persist in localStorage
+  (`useSessionAttentionStore.ts`, `useSessionAttentionSync.ts` tracks
+  approvals for every session, not just the visible one). Server:
+  `/api/providers/sessions/running` gains `awaitingInput`, tracked by the run
+  registry from the approval frames it already decorates. Work aggregates
+  non-idle sessions needs_input > blocked > ready > running with per-state
+  counts in the heading.
+- `2f00b40` — sidebar: inline session search beneath New task, by title,
+  project and message body (`useConversationMessageSearch`, the palette's
+  server-side body search made callable across projects). 150 ms debounce,
+  matching projects force-expanded while a query is active, `/` focuses the
+  field from anywhere that is not a text field.
+- `6340490` — sessions: `deriveSessionTitle` (`server/shared/utils.ts`) strips
+  slash commands, @mentions, code fences and markdown, keeps the first
+  sentence when it stands alone, cuts at 40 chars on a word boundary; the gjc
+  indexer uses it for new transcripts and still never overwrites a stored
+  name. "Regenerate title" (`POST /sessions/:id/regenerate-title`) is the one
+  place a hand-written name is replaced. Finding: the runtime's
+  `generateSessionTitle` (`utils/title-generator`, writes `header_patch
+  {title, titleSource:'auto'}`) is wired only into the TUI input controller;
+  the SDK session the worker drives never calls it. LLM titling would need a
+  Protocol v1 event to carry the title back plus a title-source column in the
+  DB. Deferred as a runtime capability to request.
+- `558f05e` — an accessibility-tree smoke reported rows without a status
+  attribute and a menu that did not open; neither reproduces (the tree cannot
+  see `data-*`, an idle row has no indicator by design). Locked in
+  `SidebarSessionItem.menu.dom.bun.test.tsx`: status marker, ActionMenu on
+  click, keyboard and coordinate click.
+- `858f1a3`, `a74dedf`, `aab0dd0` — permissions: per-project mode
+  (ask / auto_edits / bypass) plus an "always allow" tool list in SQLite
+  (`project_permissions`, `/api/projects/:id/permissions`), sent with every
+  run inside the existing worker `run` payload (no new frames, see
+  `GJC-LIVE-SPEC.md`). The Bun adapter calls `setSdkPermissionMode('prompt')`
+  and `setSdkPermissionProvider(...)`; covered calls are approved in the
+  worker with one transcript notice per tool per run, everything else becomes
+  a permission card whose new third action "Always allow <tool>" is persisted
+  before it reaches the worker. UI: composer picker (⌘⇧P), palette actions,
+  read-only Status row, Settings → Permissions tab (projects deviating from
+  default, revoke/reset), bypass drawn destructive and confirmed once per
+  project. The localStorage `skipPermissions` flag is migrated to bypass for
+  the open project and removed.
+  **Important finding — goes into the beta.7 release notes:** the runtime's
+  SDK permission gate defaulted to `"allow"`, so GJC sessions had never
+  prompted for bash, eval or delete; `skipPermissions` was a dead flag. The
+  default `ask` now really prompts, which existing users will notice.
+- `a4773ff` — gjc: `worker.initialize` was bounded at 5 s, but the Bun worker
+  bootstraps the SDK inside that request (model registry + online discovery,
+  measured 4–8 s here). After a server restart every reconnecting tab's
+  `oauth.status` started the worker, the bound SIGKILLed it mid-bootstrap,
+  and tabs saw only "GJC worker failed." with an empty worker log. Now
+  `DEFAULT_INITIALIZE_TIMEOUT_MS = 60_000`, shutdown has its own 5 s bound,
+  initialization failures are diagnosed in both logs, and a malformed
+  `permissions` block is answered with `invalid_permissions` → "Invalid GJC
+  run permissions." on the client.
+
 ## How to resume (next session)
 
 1. **Notarization + DMG (needs the user):** requires the Developer ID
@@ -168,7 +249,19 @@ green throughout.
    `"license": "MIT"`; the tag does not exist yet. This is the first MIT
    distribution. CI runs `npm run verify` on Linux for Node 22 and 24 on every
    push; the release job verifies the `linux-x64` native closure when it
-   builds the server bundle.
+   builds the server bundle. The release notes must call out the permission
+   default change (`858f1a3`, above): sessions that never asked now ask.
+3. **Session-UI roadmap, remaining items in priority order** (items 1–3 of the
+   comparison — density, status/search, permissions — landed 2026-09-02):
+   - (4) Changes tab: a diff review pane for the session's edits with line
+     comments that turn into an agent reply.
+   - (5) Worktree isolation + run-location picker. Investigate GJC runtime
+     worktree support first; do not build it app-side if the runtime owns it.
+   - Small follow-ups: LLM session titles via a Protocol v1 event (see
+     `6340490`); the sidebar renders its mobile and desktop trees together —
+     branch on `isMobile`; hardcoded strings left in `SkillPicker`,
+     `CommandPalette`, `PermissionRequestsBanner`, `PlanDisplay`; the
+     ask-controller's `reject_always` answer is not exposed in the UI.
 
 ## Key gotchas
 

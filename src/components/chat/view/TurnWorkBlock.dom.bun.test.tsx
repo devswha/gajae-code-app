@@ -191,7 +191,7 @@ test('a live run: the last turn\'s block says what is happening, earlier turns s
   const blocks = screen.getAllByRole('button', { name: enChat.workBlock.toggle });
   assert.equal(blocks.length, 2);
   assert.match(blocks[0].textContent ?? '', /Worked for 10s/);
-  assert.match(blocks[1].textContent ?? '', /Working/);
+  assert.doesNotMatch(blocks[1].textContent ?? '', /Working/);
   assert.match(blocks[1].textContent ?? '', /Running npm run lint…/);
   assert.match(blocks[1].textContent ?? '', /12s/);
   assert.equal(blocks[1].getAttribute('aria-expanded'), 'false');

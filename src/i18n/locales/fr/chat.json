@@ -136,7 +136,6 @@
     "more": "+{{count}} autres"
   },
   "workBlock": {
-    "working": "En cours",
     "worked": "Terminé",
     "workedFor": "A travaillé {{duration}}",
     "toggle": "Afficher ou masquer l'activité des outils de ce tour",

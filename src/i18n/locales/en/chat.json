@@ -136,7 +136,6 @@
     "more": "+{{count}} more"
   },
   "workBlock": {
-    "working": "Working",
     "worked": "Worked",
     "workedFor": "Worked for {{duration}}",
     "toggle": "Show or hide this turn's tool activity",

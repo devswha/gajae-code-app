@@ -85,7 +85,7 @@ test('no tool in flight means the model is generating', () => {
 });
 
 test('text streaming in with no tool in flight is the answer being written', () => {
-  // After the tools: the block header reads "Working · Writing answer · 40s"
+  // After the tools: the block header reads "Writing answer… · 40s"
   // rather than "Thinking", because the run is producing, not deciding.
   const afterTools = [user('go'), done(call('read', { path: 'a' })), streaming('Here is what I found', 3)];
   assert.deepEqual(deriveLiveActivity(afterTools), { kind: 'responding' });

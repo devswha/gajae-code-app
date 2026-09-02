@@ -136,7 +136,6 @@
     "more": "+{{count}} weitere"
   },
   "workBlock": {
-    "working": "Arbeitet",
     "worked": "Erledigt",
     "workedFor": "{{duration}} gearbeitet",
     "toggle": "Werkzeugaktivität dieses Zugs ein- oder ausblenden",

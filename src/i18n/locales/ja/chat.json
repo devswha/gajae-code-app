@@ -136,7 +136,6 @@
     "more": "他 {{count}} 件"
   },
   "workBlock": {
-    "working": "作業中",
     "worked": "作業完了",
     "workedFor": "{{duration}} 作業",
     "toggle": "このターンのツール操作を表示/非表示",

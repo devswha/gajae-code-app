@@ -74,7 +74,7 @@ test('detailed has no block at all: the rule is off and the pane list is the mes
   assert.equal(buildPaneList(finishedTurn, 'detailed').some(isTurnWorkBlockItem), false);
 });
 
-test('running: "Working · <live activity> · <elapsed>", with the pulse, folded', () => {
+test('running: "<live activity>… · <elapsed>" with the pulse and no "Working" prefix, folded', () => {
   const live = [user(0), call('read', 1), call('bash', 2, { toolResult: null })];
   const html = render(blockFor(live, 'balanced'), 'balanced', {
     running: true,
@@ -82,7 +82,7 @@ test('running: "Working · <live activity> · <elapsed>", with the pulse, folded
     runStartedAt: Date.now(),
   });
 
-  assert.match(html, /Working/);
+  assert.doesNotMatch(html, /Working/);
   assert.match(html, /Running npm test…/);
   assert.match(html, /0s/);
   assert.match(html, /animate-pulse/);
@@ -96,7 +96,7 @@ test('running with nothing derived says Thinking; without a start time the elaps
   const live = [user(0), call('read', 1)];
   const html = render(blockFor(live, 'compact'), 'compact', { running: true });
 
-  assert.match(html, /Working/);
+  assert.doesNotMatch(html, /Working/);
   assert.match(html, /Thinking…/);
   assert.doesNotMatch(html, /\d+s</);
 });

@@ -21,7 +21,7 @@
  *
  * Above the cards sits one more fold, the turn's work block (`workBlock`,
  * `turnWork.ts`): every tool call between a user message and the answer,
- * folded into one row that reads `Working · Reading src/foo.ts · 12s` while the
+ * folded into one row that reads `Reading src/foo.ts… · 12s` while the
  * run is going and `Worked for 42s · 5 files read · 3 commands · 2 edits` once
  * it is done. Compact and balanced fold; detailed shows the cards as they are.
  * The block never unfolds itself, not even for a failure: the row carries the

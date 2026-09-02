@@ -136,7 +136,6 @@
     "more": "+{{count}}개 더"
   },
   "workBlock": {
-    "working": "작업 중",
     "worked": "작업 완료",
     "workedFor": "{{duration}} 동안 작업",
     "toggle": "이 턴의 도구 활동 펼치기/접기",

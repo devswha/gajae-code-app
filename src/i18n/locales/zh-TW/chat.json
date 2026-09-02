@@ -136,7 +136,6 @@
     "more": "還有 {{count}} 項"
   },
   "workBlock": {
-    "working": "工作中",
     "worked": "已完成",
     "workedFor": "工作了 {{duration}}",
     "toggle": "顯示或隱藏本輪的工具活動",

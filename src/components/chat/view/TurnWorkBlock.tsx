@@ -33,9 +33,11 @@ const THINKING: LiveActivity = { kind: 'thinking' };
 /**
  * One row for a whole turn's tool activity.
  *
- * Running: `Working · Reading src/foo.ts · 12s` - the run's one status line,
- * there is no other. Before the first call the block is empty and the row is
- * just `Thinking… · 3s` with the pulse, nothing to open. Finished: `Worked
+ * Running: `Reading src/foo.ts… · 12s` - the run's one status line, there is
+ * no other, and no "Working" prefix in front of it: the pulse and the shimmer
+ * already say the run is going, and the activity is the status. Before the
+ * first call the block is empty and the row is the same line without a
+ * chevron (`Thinking… · 3s`), nothing to open. Finished: `Worked
  * for 42s · 5 files read · 3 commands · 2 edits`, counts by category, the
  * duration omitted when the transcript's timestamps cannot support one. A
  * failure is never hidden: the row carries the error label and how many calls
@@ -61,18 +63,10 @@ function FoldedTurnWork({ block, prevMessage, running = false, liveActivity, run
   const summary = summarizeTurnWork(block);
   const items = groupConsecutiveTools(block.messages, renderProps.density);
 
-  let leading: string;
-  let detail: string[];
-  if (running) {
-    leading = t('workBlock.working', { defaultValue: 'Working' });
-    detail = [formatLiveActivity(liveActivity ?? THINKING, t)];
-    if (runStartedAt !== null) detail.push(formatElapsed(elapsedSeconds, t));
-  } else {
-    leading = summary.durationMs === null
-      ? t('workBlock.worked', { defaultValue: 'Worked' })
-      : t('workBlock.workedFor', { duration: formatElapsed(summary.durationMs / 1000, t), defaultValue: 'Worked for {{duration}}' });
-    detail = formatTurnWorkCounts(summary, t);
-  }
+  const finishedLeading = summary.durationMs === null
+    ? t('workBlock.worked', { defaultValue: 'Worked' })
+    : t('workBlock.workedFor', { duration: formatElapsed(summary.durationMs / 1000, t), defaultValue: 'Worked for {{duration}}' });
+  const finishedDetail = formatTurnWorkCounts(summary, t);
 
   return (
     <div className="chat-message tool px-3 sm:px-0" data-message-timestamp={block.timestamp || undefined} data-work-block={running ? 'running' : 'finished'}>
@@ -89,21 +83,28 @@ function FoldedTurnWork({ block, prevMessage, running = false, liveActivity, run
           aria-hidden
         />
         {running ? (
-          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
-        ) : null}
-        <span className="shrink-0 font-medium text-foreground">{leading}</span>
-        {detail.length > 0 && (
-          <span className="min-w-0 truncate text-muted-foreground">
-            <span aria-hidden>{SEPARATOR}</span>
-            {running ? (
-              <>
-                <Shimmer className="max-w-full truncate">{`${detail[0]}…`}</Shimmer>
-                {detail.slice(1).map((segment) => (
-                  <span key={segment} className="tabular-nums"><span aria-hidden>{SEPARATOR}</span>{segment}</span>
-                ))}
-              </>
-            ) : detail.join(SEPARATOR)}
-          </span>
+          <>
+            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
+            <span role="status" className="min-w-0 truncate text-muted-foreground">
+              <Shimmer className="max-w-full truncate font-medium">{`${formatLiveActivity(liveActivity ?? THINKING, t)}…`}</Shimmer>
+            </span>
+            {runStartedAt !== null && (
+              <span className="shrink-0 text-muted-foreground tabular-nums">
+                <span aria-hidden>{SEPARATOR}</span>
+                {formatElapsed(elapsedSeconds, t)}
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="shrink-0 font-medium text-foreground">{finishedLeading}</span>
+            {finishedDetail.length > 0 && (
+              <span className="min-w-0 truncate text-muted-foreground">
+                <span aria-hidden>{SEPARATOR}</span>
+                {finishedDetail.join(SEPARATOR)}
+              </span>
+            )}
+          </>
         )}
         {summary.failed > 0 && (
           <span className="shrink-0 text-[11px] text-destructive">

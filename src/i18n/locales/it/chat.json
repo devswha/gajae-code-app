@@ -136,7 +136,6 @@
     "more": "+{{count}} altri"
   },
   "workBlock": {
-    "working": "In corso",
     "worked": "Completato",
     "workedFor": "Ha lavorato per {{duration}}",
     "toggle": "Mostra o nascondi l'attività degli strumenti di questo turno",

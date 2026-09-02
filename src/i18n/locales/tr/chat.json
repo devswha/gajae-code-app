@@ -136,7 +136,6 @@
     "more": "+{{count}} daha"
   },
   "workBlock": {
-    "working": "Çalışıyor",
     "worked": "Tamamlandı",
     "workedFor": "{{duration}} çalıştı",
     "toggle": "Bu turun araç etkinliğini göster veya gizle",

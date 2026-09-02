@@ -90,7 +90,13 @@
       "files_other": "{{count}}개 파일",
       "refreshLabel": "변경 사항 새로 고침",
       "openInEditor": "편집기에서 열기",
-      "renameArrow": "→"
+      "renameArrow": "→",
+      "comment": {
+        "add": "이 줄에 코멘트",
+        "placeholder": "이 줄에 대한 코멘트…",
+        "send": "코멘트를 채팅으로 보내기",
+        "cancel": "코멘트 취소"
+      }
     },
     "browser": {
       "address": "웹 주소",

@@ -484,9 +484,12 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
      scope toggle `Working tree | Last turn` (last turn = the viewed
      session's edit/write/delete/move calls after its last user row, rows
      from the chat's own line differ). No staging/revert UI — git ops stay
-     the agent's. Remaining from the original item: line comments that
-     become the next agent message (deliberately deferred, with a `/review`
-     command rejected as a canned prompt not worth the command surface).
+     the agent's. Line comments shipped too (same night): hover a diff row
+     in either scope, press `+`, write, Enter — the comment lands in the
+     chat composer as `comment\n\npath:line\n> <the line>` (the composer
+     gained `insertAtEnd`; MainContent wires it to the tab through a ref,
+     `composerInsertRef`). With that, item (4) is complete; a `/review`
+     command stays rejected (a canned prompt not worth the command surface).
    - (5) Worktree isolation + run-location picker. Investigate GJC runtime
      support first (`.gjc-worktrees/` is gitignored); do not build it
      app-side if the runtime owns it. Large.

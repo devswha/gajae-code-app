@@ -52,7 +52,7 @@ function ChatInterface({
   selectedProject, selectedSession, ws, sendMessage, onFileOpen, onInputFocusChange,
   onSessionProcessing, onSessionIdle, processingSessions, onNavigateToSession,
   onSessionEstablished, onShowSettings, toolOutputDensity,
-  showImagePreviews, sendByCtrlEnter, newSessionTrigger,
+  showImagePreviews, sendByCtrlEnter, newSessionTrigger, composerInsertRef,
 }: ChatInterfaceProps) {
   const { subscribe } = useWebSocket();
   const { t } = useTranslation('chat');
@@ -172,6 +172,15 @@ function ChatInterface({
     pendingPermissionRequests,
     handlePermissionDecision: composer.handlePermissionDecision,
   }), [composer.handlePermissionDecision, pendingPermissionRequests]);
+
+  // The Changes tab calls into the composer through this ref so its line
+  // comments land as the next message's draft; a stable ref keeps the panel
+  // from re-rendering the chat for it.
+  useEffect(() => {
+    if (!composerInsertRef) return undefined;
+    composerInsertRef.current = composer.insertAtEnd;
+    return () => { composerInsertRef.current = null; };
+  }, [composer.insertAtEnd, composerInsertRef]);
 
   const sessionStatusSnapshot = useMemo<SessionStatusSnapshot>(() => {
     const reported = readSessionFacts(session.sessionState);

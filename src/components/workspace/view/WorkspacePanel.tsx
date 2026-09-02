@@ -32,6 +32,8 @@ export type WorkspacePanelProps = {
   projectPath?: string;
   projectId?: string;
   sessionId?: string;
+  /** Appends a line comment as the composer's draft; the Changes tab's rows call it. */
+  onComposerInsert?: (text: string) => void;
   /** The project's permission mode, when the caller has loaded it. */
   permissionMode?: PermissionMode | null;
   automationSessionId: string;
@@ -62,6 +64,7 @@ export default function WorkspacePanel({
   projectPath,
   projectId,
   sessionId,
+  onComposerInsert,
   permissionMode = null,
   automationSessionId,
   browserNavigation,
@@ -165,6 +168,7 @@ export default function WorkspacePanel({
             projectPath={projectPath}
             projectName={projectName}
             sessionId={sessionId}
+            onComposerInsert={onComposerInsert}
             active={tab === 'changes'}
           />
         )}

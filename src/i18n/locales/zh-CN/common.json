@@ -90,7 +90,13 @@
       "files_other": "{{count}} 个文件",
       "refreshLabel": "刷新更改",
       "openInEditor": "在编辑器中打开",
-      "renameArrow": "→"
+      "renameArrow": "→",
+      "comment": {
+        "add": "评论此行",
+        "placeholder": "对此行的评论…",
+        "send": "将评论发送到聊天",
+        "cancel": "放弃评论"
+      }
     },
     "browser": {
       "address": "网址",

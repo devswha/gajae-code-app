@@ -92,7 +92,13 @@
       "files_other": "{{count}} файла",
       "refreshLabel": "Обновить изменения",
       "openInEditor": "Открыть в редакторе",
-      "renameArrow": "→"
+      "renameArrow": "→",
+      "comment": {
+        "add": "Комментировать эту строку",
+        "placeholder": "Комментарий к этой строке…",
+        "send": "Отправить комментарий в чат",
+        "cancel": "Отменить комментарий"
+      }
     },
     "browser": {
       "address": "Веб-адрес",

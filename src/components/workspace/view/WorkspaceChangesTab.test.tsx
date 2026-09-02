@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import type { ProjectChange } from '../hooks/useProjectChanges';
 
-import WorkspaceChangesTab, { ChangeRow, type WorkspaceChangesTabProps } from './WorkspaceChangesTab';
+import WorkspaceChangesTab, { ChangeRow, LineCommentBox, type WorkspaceChangesTabProps } from './WorkspaceChangesTab';
 
 const t = (key: string) => key;
 const changedFile: ProjectChange = {
@@ -59,4 +59,36 @@ test('renders a file row with counts, rename, and expanded unified diff', () => 
   assert.match(html, /-1/);
   assert.match(html, /old/);
   assert.match(html, /another/);
+});
+
+test('a row with an insert target offers a line comment and sends the formatted draft', () => {
+  const html = renderToStaticMarkup(createElement(ChangeRow, {
+    file: changedFile,
+    expanded: true,
+    onToggle: () => {},
+    onOpenInEditor: () => {},
+    onComposerInsert: () => {},
+    t,
+  }));
+  assert.match(html, /aria-label="workspace\.changes\.comment\.add"/);
+
+  // Without an insert target the offer is absent.
+  const bare = renderToStaticMarkup(createElement(ChangeRow, {
+    file: changedFile, expanded: true, onToggle: () => {}, onOpenInEditor: () => {}, t,
+  }));
+  assert.doesNotMatch(bare, /comment\.add/);
+});
+
+test('the comment box shows its reference and placeholder, disabled until typed', () => {
+  const html = renderToStaticMarkup(createElement(LineCommentBox, {
+    path: 'src/foo.ts',
+    row: { oldLine: null, newLine: 42, kind: 'added', content: 'const x = 1;' },
+    onSubmit: () => {},
+    onCancel: () => {},
+    t,
+  }));
+  assert.match(html, /data-line-comment="src\/foo\.ts:42"/);
+  assert.match(html, /placeholder="workspace\.changes\.comment\.placeholder"/);
+  assert.match(html, /disabled/);
+  assert.match(html, /aria-label="workspace\.changes\.comment\.send"/);
 });

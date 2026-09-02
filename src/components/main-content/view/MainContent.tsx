@@ -37,6 +37,8 @@ function MainContent({
 }: MainContentProps) {
   const { showImagePreviews, toolOutputDensity, sendByCtrlEnter } = useUiPreferences().preferences;
   const panel = useWorkspacePanel({ isMobile });
+  const composerInsertRef = useRef<((text: string) => void) | null>(null);
+  const handleComposerInsert = useCallback((text: string) => composerInsertRef.current?.(text), []);
   const { closePanel, containerRef, expanded, handleResizeKeyDown, handleResizeStart, isOpen, resizeHandleRef, setTab, tab, toggleExpanded, togglePanel, width } = panel;
   const [pendingBrowserNavigation, setPendingBrowserNavigation] = useState<{ id: number; url: string } | null>(null);
   const navigationSequence = useRef(0);
@@ -106,6 +108,7 @@ function MainContent({
             <ErrorBoundary showDetails>
               <Suspense fallback={null}>
                 <ChatInterface
+                  composerInsertRef={composerInsertRef}
                   selectedProject={selectedProject}
                   selectedSession={selectedSession}
                   ws={ws}
@@ -139,6 +142,7 @@ function MainContent({
               projectPath={selectedProject.path}
               projectId={selectedProject.projectId}
               sessionId={selectedSession?.id}
+              onComposerInsert={handleComposerInsert}
               permissionMode={projectPermissions?.mode ?? null}
               automationSessionId={selectedSession?.id ?? `project-${selectedProject.projectId}`}
               browserNavigation={pendingBrowserNavigation}

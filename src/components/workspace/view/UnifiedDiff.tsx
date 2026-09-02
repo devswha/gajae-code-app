@@ -1,18 +1,30 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { parseUnifiedDiff, type UnifiedDiffRow } from '../utils/unifiedDiff';
 
-export type UnifiedDiffProps = {
-  patch: string;
+/** What a row hands to the tab when its comment button is pressed. */
+export type DiffCommentRow = {
+  oldLine: number | null;
+  newLine: number | null;
+  kind: 'context' | 'added' | 'removed';
+  content: string;
 };
 
-export default function UnifiedDiff({ patch }: UnifiedDiffProps) {
+export type UnifiedDiffProps = {
+  patch: string;
+  /** Offered per row when present: press to start a comment on that line. */
+  onLineComment?: (row: DiffCommentRow) => void;
+};
+
+export default function UnifiedDiff({ patch, onLineComment }: UnifiedDiffProps) {
   const rows = useMemo(() => parseUnifiedDiff(patch), [patch]);
 
-  return <UnifiedDiffRows rows={rows} />;
+  return <UnifiedDiffRows rows={rows} onLineComment={onLineComment} />;
 }
 
-export function UnifiedDiffRows({ rows }: { rows: UnifiedDiffRow[] }) {
+export function UnifiedDiffRows({ rows, onLineComment }: { rows: UnifiedDiffRow[]; onLineComment?: (row: DiffCommentRow) => void }) {
+  const { t } = useTranslation();
   return (
     <div className="overflow-x-auto border-t border-border/60 font-mono text-xs leading-[18px]">
       {rows.map((row, index) => {
@@ -25,11 +37,22 @@ export function UnifiedDiffRows({ rows }: { rows: UnifiedDiffRow[] }) {
             ? { className: 'bg-diff-removed text-diff-removed-foreground', marker: '-' }
             : { className: 'text-muted-foreground', marker: ' ' };
         return (
-          <div key={index} className={`flex min-w-0 ${appearance.className}`}>
+          <div key={index} className={`group/line flex min-w-0 ${appearance.className}`}>
             <span className="w-6 shrink-0 text-center select-none">{appearance.marker}</span>
             <span className="w-10 shrink-0 px-1 text-right text-muted-foreground/70 select-none">{row.oldLine ?? ''}</span>
             <span className="w-10 shrink-0 px-1 text-right text-muted-foreground/70 select-none">{row.newLine ?? ''}</span>
             <span className="min-w-0 flex-1 px-2 break-all whitespace-pre-wrap">{row.content}</span>
+            {onLineComment && (
+              <button
+                type="button"
+                onClick={() => onLineComment({ oldLine: row.oldLine, newLine: row.newLine, kind: row.kind, content: row.content })}
+                aria-label={t('workspace.changes.comment.add')}
+                title={t('workspace.changes.comment.add')}
+                className="mr-1 shrink-0 self-center rounded px-1 text-muted-foreground opacity-0 transition-opacity group-hover/line:opacity-100 hover:bg-muted/60 hover:text-foreground focus-visible:opacity-100"
+              >
+                <span aria-hidden className="font-sans">+</span>
+              </button>
+            )}
           </div>
         );
       })}

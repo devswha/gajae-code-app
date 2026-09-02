@@ -90,7 +90,13 @@
       "files_other": "{{count}} Dateien",
       "refreshLabel": "Änderungen aktualisieren",
       "openInEditor": "Im Editor öffnen",
-      "renameArrow": "→"
+      "renameArrow": "→",
+      "comment": {
+        "add": "Diese Zeile kommentieren",
+        "placeholder": "Kommentar zu dieser Zeile…",
+        "send": "Kommentar an den Chat senden",
+        "cancel": "Kommentar verwerfen"
+      }
     },
     "browser": {
       "address": "Webadresse",

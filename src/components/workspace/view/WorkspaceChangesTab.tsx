@@ -5,14 +5,18 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../../../utils/api';
 import { useLastTurnChanges, type LastTurnFile } from '../hooks/useLastTurnChanges';
 import { useProjectChanges, type ProjectChange } from '../hooks/useProjectChanges';
+import { formatDiffComment } from '../utils/diffComment';
 
 import UnifiedDiff, { UnifiedDiffRows } from './UnifiedDiff';
+import type { DiffCommentRow } from './UnifiedDiff';
 
 export type WorkspaceChangesTabProps = {
   projectId?: string;
   projectPath?: string;
   projectName?: string;
   sessionId?: string;
+  /** Appends a line comment to the chat composer as the next message's draft. */
+  onComposerInsert?: (text: string) => void;
   active: boolean;
 };
 
@@ -29,6 +33,7 @@ export default function WorkspaceChangesTab({
   projectPath,
   projectName,
   sessionId,
+  onComposerInsert,
   active,
 }: WorkspaceChangesTabProps) {
   const { t } = useTranslation();
@@ -107,6 +112,7 @@ export default function WorkspaceChangesTab({
                   expanded={openPath === `${index}:${file.path}`}
                   onToggle={() => setOpenPath((current) => current === `${index}:${file.path}` ? null : `${index}:${file.path}`)}
                   onOpenInEditor={() => openInEditor(file.path)}
+                  onComposerInsert={onComposerInsert}
                   t={t}
                 />
               ))
@@ -132,6 +138,7 @@ export default function WorkspaceChangesTab({
                     expanded={openPath === file.path}
                     onToggle={() => setOpenPath((current) => current === file.path ? null : file.path)}
                     onOpenInEditor={() => openInEditor(file.path)}
+                    onComposerInsert={onComposerInsert}
                     t={t}
                   />
                 ))
@@ -155,14 +162,17 @@ export function ChangeRow({
   expanded,
   onToggle,
   onOpenInEditor,
+  onComposerInsert,
   t,
 }: {
   file: ProjectChange;
   expanded: boolean;
   onToggle: () => void;
   onOpenInEditor: () => void;
+  onComposerInsert?: (text: string) => void;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
+  const [commentRow, setCommentRow] = useState<DiffCommentRow | null>(null);
   const appearance = statusAppearance[file.status];
   return (
     <div className="border-b border-border/60 last:border-b-0">
@@ -194,7 +204,18 @@ export function ChangeRow({
       </div>
       {expanded && (
         file.patch !== null
-          ? <UnifiedDiff patch={file.patch} />
+          ? <>
+              <UnifiedDiff patch={file.patch} onLineComment={onComposerInsert ? setCommentRow : undefined} />
+              {commentRow && (
+                <LineCommentBox
+                  path={file.path}
+                  row={commentRow}
+                  onSubmit={(text) => { onComposerInsert?.(formatDiffComment(toLocation(file.path, commentRow), text)); setCommentRow(null); }}
+                  onCancel={() => setCommentRow(null)}
+                  t={t}
+                />
+              )}
+            </>
           : <p className="border-t border-border/60 px-2.5 py-1.5 text-muted-foreground">{file.binary ? t('workspace.changes.binary') : t('workspace.changes.tooLarge')}</p>
       )}
     </div>
@@ -213,14 +234,17 @@ function LastTurnChangeRow({
   expanded,
   onToggle,
   onOpenInEditor,
+  onComposerInsert,
   t,
 }: {
   file: LastTurnFile;
   expanded: boolean;
   onToggle: () => void;
   onOpenInEditor: () => void;
+  onComposerInsert?: (text: string) => void;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
+  const [commentRow, setCommentRow] = useState<DiffCommentRow | null>(null);
   const appearance = lastTurnAppearance[file.kind];
   return (
     <div className="border-b border-border/60 last:border-b-0">
@@ -235,7 +259,91 @@ function LastTurnChangeRow({
           <ExternalLink className="h-3 w-3" />
         </button>
       </div>
-      {expanded && file.rows !== null && <UnifiedDiffRows rows={file.rows} />}
+      {expanded && file.rows !== null && (
+        <>
+          <UnifiedDiffRows rows={file.rows} onLineComment={onComposerInsert ? setCommentRow : undefined} />
+          {commentRow && (
+            <LineCommentBox
+              path={file.path}
+              row={commentRow}
+              onSubmit={(text) => { onComposerInsert?.(formatDiffComment(toLocation(file.path, commentRow), text)); setCommentRow(null); }}
+              onCancel={() => setCommentRow(null)}
+              t={t}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+
+const COMMENT_MARKER = { added: '+', removed: '-', context: ' ' } as const;
+
+function toLocation(path: string, row: DiffCommentRow) {
+  return { path, oldLine: row.oldLine, newLine: row.newLine, marker: COMMENT_MARKER[row.kind], content: row.content };
+}
+
+/**
+ * One line's comment: a path:line reference, an input, Enter to send. Sending
+ * hands the formatted comment to the composer and closes; Escape closes
+ * without sending. The draft is intentionally not kept across lines.
+ */
+export function LineCommentBox({
+  path,
+  row,
+  onSubmit,
+  onCancel,
+  t,
+}: {
+  path: string;
+  row: DiffCommentRow;
+  onSubmit: (text: string) => void;
+  onCancel: () => void;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}) {
+  const [draft, setDraft] = useState('');
+  const line = row.oldLine ?? row.newLine;
+  const reference = line === null ? path : `${path}:${line}`;
+  const send = () => {
+    if (!draft.trim()) return;
+    onSubmit(draft);
+  };
+  return (
+    <div className="border-t border-border/60 px-2.5 py-1.5" data-line-comment={reference}>
+      <p className="truncate font-mono text-[10px] text-muted-foreground">{reference}</p>
+      <div className="mt-1 flex items-center gap-1.5">
+        <input
+          type="text"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
+            if (event.key === 'Enter') { event.preventDefault(); send(); }
+            if (event.key === 'Escape') { event.preventDefault(); onCancel(); }
+          }}
+          placeholder={t('workspace.changes.comment.placeholder')}
+          aria-label={t('workspace.changes.comment.placeholder')}
+          className="min-w-0 flex-1 rounded border border-border bg-card px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/70 focus:border-ring focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={send}
+          disabled={!draft.trim()}
+          aria-label={t('workspace.changes.comment.send')}
+          className="rounded px-1.5 py-1 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:opacity-40"
+        >
+          <span aria-hidden className="font-sans text-xs">↵</span>
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          aria-label={t('workspace.changes.comment.cancel')}
+          className="rounded px-1.5 py-1 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+        >
+          <span aria-hidden className="font-sans text-xs">✕</span>
+        </button>
+      </div>
     </div>
   );
 }

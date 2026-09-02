@@ -90,7 +90,13 @@
       "files_other": "{{count}} file",
       "refreshLabel": "Aggiorna modifiche",
       "openInEditor": "Apri nell'editor",
-      "renameArrow": "→"
+      "renameArrow": "→",
+      "comment": {
+        "add": "Commenta questa riga",
+        "placeholder": "Commento a questa riga…",
+        "send": "Invia il commento alla chat",
+        "cancel": "Scarta il commento"
+      }
     },
     "browser": {
       "address": "Indirizzo web",

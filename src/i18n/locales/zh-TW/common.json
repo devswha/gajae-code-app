@@ -90,7 +90,13 @@
       "files_other": "{{count}} 個檔案",
       "refreshLabel": "重新整理變更",
       "openInEditor": "在編輯器中開啟",
-      "renameArrow": "→"
+      "renameArrow": "→",
+      "comment": {
+        "add": "評論此行",
+        "placeholder": "對此行的評論…",
+        "send": "將評論傳送到聊天",
+        "cancel": "捨棄評論"
+      }
     },
     "browser": {
       "address": "網址",

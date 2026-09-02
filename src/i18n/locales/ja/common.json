@@ -90,7 +90,13 @@
       "files_other": "{{count}} ファイル",
       "refreshLabel": "変更を更新",
       "openInEditor": "エディターで開く",
-      "renameArrow": "→"
+      "renameArrow": "→",
+      "comment": {
+        "add": "この行にコメントする",
+        "placeholder": "この行へのコメント…",
+        "send": "コメントをチャットへ送る",
+        "cancel": "コメントを破棄"
+      }
     },
     "browser": {
       "address": "Web アドレス。",

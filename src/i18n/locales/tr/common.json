@@ -90,7 +90,13 @@
       "files_other": "{{count}} dosya",
       "refreshLabel": "Değişiklikleri yenile",
       "openInEditor": "Düzenleyicide aç",
-      "renameArrow": "→"
+      "renameArrow": "→",
+      "comment": {
+        "add": "Bu satıra yorum ekle",
+        "placeholder": "Bu satır hakkında yorum…",
+        "send": "Yorumu sohbete gönder",
+        "cancel": "Yorumu iptal et"
+      }
     },
     "browser": {
       "address": "Web adresi",

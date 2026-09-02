@@ -87,7 +87,7 @@ test('running: "Thinking… · <latest call> · <elapsed>" on one row, the call 
   assert.match(html, /data-live-call[^>]*>.*Running cmd-2…</);
   assert.doesNotMatch(html, /Reading src\/read-1\.ts/);
   assert.match(html, /0s/);
-  assert.match(html, /animate-pulse/);
+  assert.match(html, /bg-primary/);
   assert.match(html, /data-work-block="running"/);
   assert.match(html, /aria-expanded="false"/);
   assert.doesNotMatch(html, /Worked/);

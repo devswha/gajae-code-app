@@ -24,7 +24,7 @@ const SEPARATOR = ' · ';
  * detailed density, where blocks are off (`Thinking… · Reading src/foo.ts… ·
  * 12s`, the phase first and the call in flight beside it, as on a block). It
  * sits in the transcript where the block sits, never above the composer, and
- * leaves the chevron's width empty so the pulse lines up with the block that
+ * leaves the chevron's width empty so the dot lines up with the block that
  * replaces it once a call lands. The label is the live region; the ticking
  * timer beside it is not.
  */
@@ -39,7 +39,7 @@ export default function RunningActivityRow({ liveActivity, runStartedAt = null, 
     <div className="chat-message tool px-3 sm:px-0" data-run-activity={variant}>
       <div className="flex items-center gap-2 px-1 py-0.5 text-xs">
         <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
         <span role="status" className="flex min-w-0 items-center text-muted-foreground">
           <Shimmer className="shrink-0 font-medium">{`${label}…`}</Shimmer>
           {callLabel && (

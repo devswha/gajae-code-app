@@ -55,17 +55,25 @@
   --spacing-safe-area-inset-bottom: env(safe-area-inset-bottom);
   --spacing-mobile-nav: var(--mobile-nav-total);
   --container-chat: var(--chat-column-width);
-  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
   --animate-dialog-overlay-show: dialog-overlay-show 150ms ease-out;
   --animate-dialog-content-show: dialog-content-show 150ms ease-out;
 
+  /*
+   * A band of light crossing the label, always in motion: with the image
+   * twice the element's width and the band 30% of the image, these positions
+   * carry the band from just off the left edge to just off the right, so it
+   * is on the text for the whole cycle and re-enters as it leaves. The old
+   * 200% -> -200% sweep over a 250% image crossed the text in a third of a
+   * second and left it flat for the rest, which read as a blink, not a glow.
+   */
   @keyframes shimmer {
     0% {
-      background-position: 200% 0;
+      background-position: 130% 0;
     }
 
     100% {
-      background-position: -200% 0;
+      background-position: -30% 0;
     }
   }
 

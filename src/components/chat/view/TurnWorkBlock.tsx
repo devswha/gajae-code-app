@@ -39,7 +39,7 @@ const SEPARATOR = ' · ';
  * one in flight with an ellipsis, or the last one made while the model
  * decides its next move. The phase never gives its place to a call, which
  * is what made the row flicker; both halves are held long enough to read.
- * No "Working" prefix: the pulse and the shimmer already say the run is
+ * No "Working" prefix: the dot and the shimmer already say the run is
  * going. Before the first call the block is empty and the row is the same
  * line without a chevron (`Thinking… · 3s`), nothing to open. Finished: `Worked
  * for 42s · 5 files read · 3 commands · 2 edits`, counts by category, the
@@ -114,7 +114,7 @@ function FoldedTurnWork({ block, prevMessage, running = false, liveActivity, run
         />
         {running ? (
           <>
-            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
             <span role="status" className="flex min-w-0 items-center text-muted-foreground">
               <Shimmer className="shrink-0 font-medium">{`${runningLabel}…`}</Shimmer>
               {callLabel && (

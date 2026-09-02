@@ -229,7 +229,7 @@ The system uses Tailwind's 4px spacing scale. Existing values like `p-2`, `gap-2
 | Modal/dropdown | 200ms ease-in-out / standard bezier | Modal opacity/transform transitions |
 | Sidebar overlay | 150ms ease-out mobile, 300ms sidebar utility | Mobile drawer and sidebar transitions |
 | Message | 300ms | Chat message affordances |
-| Shimmer | 2s linear infinite | Loading shimmer |
+| Shimmer | 1.6s linear infinite | The run's status label: a band of foreground light crossing muted text, on the text for the whole cycle |
 | Spinner | 1s linear infinite | Loading spinners |
 
 ### Rules

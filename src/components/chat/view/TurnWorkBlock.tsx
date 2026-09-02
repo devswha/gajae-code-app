@@ -5,6 +5,7 @@ import { ChevronRight } from 'lucide-react';
 import { Shimmer } from '../../../shared/view/ui';
 import type { ChatMessage } from '../types/types';
 import { useElapsedSeconds } from '../hooks/useElapsedSeconds';
+import { useSteadyLabel } from '../hooks/useSteadyLabel';
 import { formatElapsed } from '../utils/elapsed';
 import { formatLiveActivity } from '../utils/toolActivity';
 import type { LiveActivity } from '../utils/toolActivity';
@@ -82,6 +83,7 @@ function FoldedTurnWork({ block, prevMessage, running = false, liveActivity, run
   const [isExpanded, setIsExpanded] = useState(false);
   const bodyId = useId();
   const elapsedSeconds = useElapsedSeconds(running ? runStartedAt : null);
+  const runningLabel = useSteadyLabel(formatLiveActivity(liveActivity ?? THINKING, t));
   const summary = summarizeTurnWork(block);
   // The body is grouped only when it is on screen: a long session has dozens
   // of folded blocks, and every streamed delta re-renders them all.
@@ -110,7 +112,7 @@ function FoldedTurnWork({ block, prevMessage, running = false, liveActivity, run
           <>
             <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
             <span role="status" className="min-w-0 truncate text-muted-foreground">
-              <Shimmer className="max-w-full truncate font-medium">{`${formatLiveActivity(liveActivity ?? THINKING, t)}…`}</Shimmer>
+              <Shimmer className="max-w-full truncate font-medium">{`${runningLabel}…`}</Shimmer>
             </span>
             {runStartedAt !== null && (
               <span className="shrink-0 text-muted-foreground tabular-nums">

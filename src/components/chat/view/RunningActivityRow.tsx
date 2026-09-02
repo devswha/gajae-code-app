@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Shimmer } from '../../../shared/view/ui';
 import { useElapsedSeconds } from '../hooks/useElapsedSeconds';
+import { useSteadyLabel } from '../hooks/useSteadyLabel';
 import { formatElapsed } from '../utils/elapsed';
 import { formatLiveActivity } from '../utils/toolActivity';
 import type { LiveActivity } from '../utils/toolActivity';
@@ -30,7 +31,7 @@ const THINKING: LiveActivity = { kind: 'thinking' };
 export default function RunningActivityRow({ liveActivity, runStartedAt = null, variant = 'inline' }: RunningActivityRowProps) {
   const { t } = useTranslation('chat');
   const elapsedSeconds = useElapsedSeconds(runStartedAt);
-  const label = formatLiveActivity(liveActivity ?? THINKING, t);
+  const label = useSteadyLabel(formatLiveActivity(liveActivity ?? THINKING, t));
 
   return (
     <div className="chat-message tool px-3 sm:px-0" data-run-activity={variant}>

@@ -1,6 +1,6 @@
 # gajae-app v2 — Session Handoff (resume state)
 
-Last updated: 2026-08-31. Supersedes the 2026-07-18 handoff.
+Last updated: 2026-09-02. Supersedes the 2026-07-18 handoff.
 
 ## TL;DR
 
@@ -120,23 +120,55 @@ The website (`https://devswha.github.io/gajae-code-app/`) deploys from `main`
 and its advertised version is now asserted against the app's own, so a release
 bump that forgets it fails the gate.
 
+## 2026-09-02 dead-code and relicensing follow-up
+
+A dead-code pass landed on `main`, then two fixes, then an unused-export
+sweep. Net: ~7,760 lines removed, 4 dependencies dropped, `npm run verify`
+green throughout.
+
+- `7389741` — client: modules nothing imported after the workspace retirement
+  and the wizard clone-flow removal (`SettingsMainTabs`, the GitHub-token hook
+  with its clone API/types/url helpers, `HomeDirInput`, the empty-shell project
+  constant, the time-ago formatter, legacy `useLocalStorage`), plus 407 locale
+  keys per language no `t()` call could reach.
+- `3663296` — server: `commandParser.js`, `frontmatter.ts`,
+  `websocket-writer.service.ts`, `scripts/audit-policy.mjs`, a dead Playwright
+  config entry.
+- `c87a875` — server: the git endpoints orphaned by the git panel retirement.
+- `8a23d70` — dependencies: `jszip`, `auto-changelog`, `autoprefixer`,
+  `node-gyp` removed. `f71ed5b` — `browserslist` moved past two fresh high
+  advisories.
+- Browser smoke after the pass: the app came up clean; the one finding was the
+  sidebar still polling a stale release repository for its version badge,
+  fixed in `5de6248` (badge now reads `package.json` directly).
+- `48ec3b6` — docs: `docs/UPSTREAM.md` names the upstream correctly
+  ("Claude Code UI"); `docs/LICENSING.md` package count corrected to the
+  measured 550. That rename tripped `check:identity`, which pinned the old
+  provenance string — `36e1230` repoints the pin.
+- `bb880e2` — unused-export sweep from knip (`npx knip --include exports,types`),
+  every finding cross-checked with ripgrep across `src/`, `server/`,
+  `shared/`, `scripts/`, `website/` and the bun test files: 59 files, ~80
+  exports; locally-used symbols lost the `export` keyword, fully unreferenced
+  symbols were deleted. Left alone on purpose: the `server/gjc-engine.ts`
+  published surface, the `server/modules/*/index.ts` barrels (the boundary
+  rule routes cross-module imports through them), `shared/productIdentity.js`
+  (asserted by `check:identity`), exports referenced only by tests, and
+  `DialogTrigger` (owns the Dialog focus-return plumbing).
+- Residual overlap: `node scripts/measure-upstream-derivation.mjs` → 84 of
+  91,711 lines (0.1%), `package.json` only. Unchanged by this work.
+
 ## How to resume (next session)
 
-1. `gjc ultragoal status` in this checkout — the 2026-07-19/20 run is
-   terminal; start a fresh plan for new work.
-2. **Notarization + DMG (needs the user):** when public distribution is
-   approved, install the Developer ID certificate + notarytool credentials,
-   then follow `docs/DESKTOP-TAURI-VERIFICATION.md` § "Remaining human gate",
-   rebuild, and re-run the packaged smokes + `spctl` (should flip to accepted).
-   Every shipped DMG so far is ad-hoc signed and Gatekeeper-blocked.
-3. Start a fresh plan for the intended post-v2 work; the active browser surface
-   is `src/components/workspace/view/BrowserPanel.tsx`, not an outstanding v2
-   slice.
-4. CI now runs `npm run verify` on Linux for Node 22 and 24 on every push, so
-   the both-OS gate no longer needs a manual Linux pass. The `linux-x64`
-   native closure in `server/gjc-runtime-manifest.json` is still computed from
-   the published tarball rather than on Linux; the release job verifies it
-   there when it builds the server bundle.
+1. **Notarization + DMG (needs the user):** requires the Developer ID
+   certificate + notarytool credentials on the Mac. Follow
+   `docs/DESKTOP-TAURI-VERIFICATION.md` § "Remaining human gate", rebuild,
+   and re-run the packaged smokes + `spctl` (should flip to accepted). Every
+   shipped DMG so far is ad-hoc signed and Gatekeeper-blocked.
+2. **Cut `v2.0.0-beta.7`:** `package.json` already carries `2.0.0-beta.7` and
+   `"license": "MIT"`; the tag does not exist yet. This is the first MIT
+   distribution. CI runs `npm run verify` on Linux for Node 22 and 24 on every
+   push; the release job verifies the `linux-x64` native closure when it
+   builds the server bundle.
 
 ## Key gotchas
 

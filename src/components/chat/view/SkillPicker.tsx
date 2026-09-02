@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { Search, Sparkles } from 'lucide-react';
 
 type SelectableSkill = {
@@ -19,6 +20,7 @@ const displayName = (skill: SelectableSkill): string =>
   String(skill.metadata?.skillName ?? skill.name.replace(/^\/skill:/, ''));
 
 export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
+  const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
@@ -62,9 +64,9 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
         onClick={() => setOpen((current) => !current)}
         disabled={skills.length === 0}
         className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
-        aria-label="스킬 선택"
+        aria-label={t('input.skills.label')}
         aria-expanded={open}
-        title="스킬 선택"
+        title={t('input.skills.label')}
       >
         <Sparkles className="size-4" />
         {skills.length > 0 && (
@@ -81,8 +83,8 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
           style={{ bottom: popupPosition.bottom, left: popupPosition.left }}
         >
           <div className="px-2 pt-1 pb-1.5">
-            <p className="text-xs font-semibold">스킬</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">현재 프로젝트에서 사용할 스킬을 선택합니다.</p>
+            <p className="text-xs font-semibold">{t('input.skills.title')}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{t('input.skills.description')}</p>
           </div>
           <div className="relative px-1 pb-1.5">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-3 -translate-y-1/2 text-muted-foreground" />
@@ -90,8 +92,8 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
               ref={searchRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="스킬 검색"
-              aria-label="스킬 검색"
+              placeholder={t('input.skills.search')}
+              aria-label={t('input.skills.search')}
               className="h-7 w-full rounded-md border border-input bg-background pr-2 pl-7 text-xs outline-hidden placeholder:text-muted-foreground focus:border-ring"
             />
           </div>
@@ -118,7 +120,7 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
               );
             }) : (
               <p className="px-2.5 py-6 text-center text-[11px] text-muted-foreground">
-                일치하는 스킬이 없습니다.
+                {t('input.skills.noMatches')}
               </p>
             )}
           </div>

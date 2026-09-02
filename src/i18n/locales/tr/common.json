@@ -129,5 +129,50 @@
       "emptyHint": "Mevcut etkinliğini görüntülemek için bir oturum başlatın veya açın.",
       "permissions": "İzinler"
     }
+  },
+  "commandPalette": {
+    "title": "Komut paleti",
+    "pages": {
+      "actions": "Eylemler",
+      "files": "Dosyalar",
+      "sessions": "Oturumlar",
+      "commits": "Commit'ler",
+      "branches": "Dallar"
+    },
+    "search": {
+      "actions": "Eylem ara…",
+      "files": "Dosya ara…",
+      "sessions": "Oturum ara…",
+      "commits": "Commit ara…",
+      "branches": "Dal ara…",
+      "anything": "Aramak için yazın…"
+    },
+    "backToAll": "Tümüne dön",
+    "backspaceHint": "Geri dönmek için Backspace",
+    "noResults": "Sonuç yok.",
+    "current": "Geçerli",
+    "groups": {
+      "navigate": "Gezin",
+      "git": "Git",
+      "settings": "Ayarlar"
+    },
+    "actions": {
+      "startNewChat": "Yeni sohbet başlat",
+      "selectProjectFirst": "Önce bir proje seçin",
+      "openSettings": "Ayarları aç",
+      "toggleTheme": "Temayı değiştir",
+      "goToChat": "Sohbete git",
+      "gitFetch": "Git: Fetch",
+      "gitPull": "Git: Pull",
+      "gitPush": "Git: Push",
+      "settingsTab": "Ayarlar: {{tab}}",
+      "switchToBranch": "Geç: {{branch}}"
+    },
+    "browseAll": {
+      "sessions": "Tüm oturumlara göz at ({{total}})",
+      "files": "Tüm dosyalara göz at ({{total}})",
+      "commits": "Tüm commit'lere göz at ({{total}})",
+      "branches": "Tüm dallara göz at ({{total}})"
+    }
   }
 }

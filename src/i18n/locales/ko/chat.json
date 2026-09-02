@@ -23,7 +23,8 @@
     }
   },
   "tools": {
-    "error": "도구 문제"
+    "error": "도구 문제",
+    "rawParams": "원본 매개변수"
   },
   "search": {
     "in": "에서:"
@@ -81,6 +82,13 @@
       "images_one": "{{count}} 개의 이미지 추가됨",
       "images_other": "{{count}} 개의 이미지 추가됨",
       "steerNow": "현재 턴을 조종"
+    },
+    "skills": {
+      "label": "스킬 선택",
+      "title": "스킬",
+      "description": "현재 프로젝트에서 사용할 스킬을 선택합니다.",
+      "search": "스킬 검색",
+      "noMatches": "일치하는 스킬이 없습니다."
     }
   },
   "session": {
@@ -176,5 +184,11 @@
     "allow": "허용",
     "alwaysAllow": "{{tool}} 항상 허용",
     "alwaysAllowHint": "이 프로젝트에서 이 도구를 앞으로 자동 승인합니다"
+  },
+  "plan": {
+    "toggle": "계획 펼치기/접기",
+    "generating": "계획 생성 중...",
+    "revise": "수정",
+    "build": "진행"
   }
 }

@@ -129,5 +129,50 @@
       "emptyHint": "Starten oder öffnen Sie eine Sitzung, um deren aktuelle Aktivität anzuzeigen.",
       "permissions": "Berechtigungen"
     }
+  },
+  "commandPalette": {
+    "title": "Befehlspalette",
+    "pages": {
+      "actions": "Aktionen",
+      "files": "Dateien",
+      "sessions": "Sitzungen",
+      "commits": "Commits",
+      "branches": "Branches"
+    },
+    "search": {
+      "actions": "Aktionen suchen…",
+      "files": "Dateien suchen…",
+      "sessions": "Sitzungen suchen…",
+      "commits": "Commits suchen…",
+      "branches": "Branches suchen…",
+      "anything": "Tippen, um alles zu durchsuchen…"
+    },
+    "backToAll": "Zurück zu allen",
+    "backspaceHint": "Rücktaste zum Zurückgehen",
+    "noResults": "Keine Ergebnisse.",
+    "current": "Aktuell",
+    "groups": {
+      "navigate": "Navigieren",
+      "git": "Git",
+      "settings": "Einstellungen"
+    },
+    "actions": {
+      "startNewChat": "Neuen Chat starten",
+      "selectProjectFirst": "Zuerst ein Projekt auswählen",
+      "openSettings": "Einstellungen öffnen",
+      "toggleTheme": "Design wechseln",
+      "goToChat": "Zum Chat",
+      "gitFetch": "Git: Fetch",
+      "gitPull": "Git: Pull",
+      "gitPush": "Git: Push",
+      "settingsTab": "Einstellungen: {{tab}}",
+      "switchToBranch": "Wechseln zu: {{branch}}"
+    },
+    "browseAll": {
+      "sessions": "Alle Sitzungen durchsuchen ({{total}})",
+      "files": "Alle Dateien durchsuchen ({{total}})",
+      "commits": "Alle Commits durchsuchen ({{total}})",
+      "branches": "Alle Branches durchsuchen ({{total}})"
+    }
   }
 }

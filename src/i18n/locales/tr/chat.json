@@ -23,7 +23,8 @@
     }
   },
   "tools": {
-    "error": "Takım sorunu"
+    "error": "Takım sorunu",
+    "rawParams": "ham parametreler"
   },
   "search": {
     "in": "konum:"
@@ -81,6 +82,13 @@
       "images_one": "{{count}} resim eklendi",
       "images_other": "{{count}} resim eklendi",
       "steerNow": "Aktif dönüşü yönlendirin"
+    },
+    "skills": {
+      "label": "Beceri seç",
+      "title": "Beceriler",
+      "description": "Geçerli projede kullanılacak beceriyi seçin.",
+      "search": "Beceri ara",
+      "noMatches": "Eşleşen beceri yok."
     }
   },
   "session": {
@@ -176,5 +184,11 @@
     "allow": "İzin ver",
     "alwaysAllow": "{{tool}} için her zaman izin ver",
     "alwaysAllowHint": "Bu aracı bu projede bundan sonra otomatik onayla"
+  },
+  "plan": {
+    "toggle": "Planı aç/kapat",
+    "generating": "Plan oluşturuluyor...",
+    "revise": "Gözden geçir",
+    "build": "Uygula"
   }
 }

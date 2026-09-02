@@ -129,5 +129,50 @@
       "emptyHint": "Démarrez ou ouvrez une session pour afficher son activité actuelle.",
       "permissions": "Permissions"
     }
+  },
+  "commandPalette": {
+    "title": "Palette de commandes",
+    "pages": {
+      "actions": "Actions",
+      "files": "Fichiers",
+      "sessions": "Sessions",
+      "commits": "Commits",
+      "branches": "Branches"
+    },
+    "search": {
+      "actions": "Rechercher des actions…",
+      "files": "Rechercher des fichiers…",
+      "sessions": "Rechercher des sessions…",
+      "commits": "Rechercher des commits…",
+      "branches": "Rechercher des branches…",
+      "anything": "Tapez pour tout rechercher…"
+    },
+    "backToAll": "Retour à tout",
+    "backspaceHint": "Retour arrière pour revenir",
+    "noResults": "Aucun résultat.",
+    "current": "Actuel",
+    "groups": {
+      "navigate": "Naviguer",
+      "git": "Git",
+      "settings": "Paramètres"
+    },
+    "actions": {
+      "startNewChat": "Nouvelle discussion",
+      "selectProjectFirst": "Sélectionnez d'abord un projet",
+      "openSettings": "Ouvrir les paramètres",
+      "toggleTheme": "Changer de thème",
+      "goToChat": "Aller à la discussion",
+      "gitFetch": "Git : Fetch",
+      "gitPull": "Git : Pull",
+      "gitPush": "Git : Push",
+      "settingsTab": "Paramètres : {{tab}}",
+      "switchToBranch": "Basculer vers : {{branch}}"
+    },
+    "browseAll": {
+      "sessions": "Parcourir toutes les sessions ({{total}})",
+      "files": "Parcourir tous les fichiers ({{total}})",
+      "commits": "Parcourir tous les commits ({{total}})",
+      "branches": "Parcourir toutes les branches ({{total}})"
+    }
   }
 }

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../../shared/view/ui';
 
@@ -19,13 +20,14 @@ interface CollapsibleDisplayProps {
 }
 
 function ParameterDisclosure({ rawContent }: { rawContent: string }) {
+  const { t } = useTranslation('chat');
   return (
     <Collapsible className="mt-2">
       <CollapsibleTrigger className="flex items-center gap-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground">
         <svg className="h-2.5 w-2.5 shrink-0 transition-transform duration-150 data-[state=open]:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
-        raw params
+        {t('tools.rawParams')}
       </CollapsibleTrigger>
       <CollapsibleContent>
         <pre className="mt-1 overflow-hidden rounded border border-border/40 bg-muted p-2 font-mono text-[11px] wrap-break-word whitespace-pre-wrap text-muted-foreground">{rawContent}</pre>

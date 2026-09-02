@@ -23,7 +23,8 @@
     }
   },
   "tools": {
-    "error": "Problème d'outil"
+    "error": "Problème d'outil",
+    "rawParams": "paramètres bruts"
   },
   "search": {
     "in": "dans :"
@@ -81,6 +82,13 @@
       "images_one": "Image {{count}} ajoutée",
       "images_other": "Images {{count}} ajoutées",
       "steerNow": "Piloter le virage actif"
+    },
+    "skills": {
+      "label": "Choisir une compétence",
+      "title": "Compétences",
+      "description": "Choisissez une compétence à utiliser dans le projet actuel.",
+      "search": "Rechercher des compétences",
+      "noMatches": "Aucune compétence ne correspond."
     }
   },
   "session": {
@@ -176,5 +184,11 @@
     "allow": "Autoriser",
     "alwaysAllow": "Toujours autoriser {{tool}}",
     "alwaysAllowHint": "Approuver automatiquement cet outil dans ce projet à partir de maintenant"
+  },
+  "plan": {
+    "toggle": "Afficher/masquer le plan",
+    "generating": "Génération du plan...",
+    "revise": "Réviser",
+    "build": "Construire"
   }
 }

@@ -129,5 +129,50 @@
       "emptyHint": "开始或打开一个会话以查看其当前活动。",
       "permissions": "权限"
     }
+  },
+  "commandPalette": {
+    "title": "命令面板",
+    "pages": {
+      "actions": "操作",
+      "files": "文件",
+      "sessions": "会话",
+      "commits": "提交",
+      "branches": "分支"
+    },
+    "search": {
+      "actions": "搜索操作…",
+      "files": "搜索文件…",
+      "sessions": "搜索会话…",
+      "commits": "搜索提交…",
+      "branches": "搜索分支…",
+      "anything": "输入以搜索任何内容…"
+    },
+    "backToAll": "返回全部",
+    "backspaceHint": "按 Backspace 返回",
+    "noResults": "没有结果。",
+    "current": "当前",
+    "groups": {
+      "navigate": "导航",
+      "git": "Git",
+      "settings": "设置"
+    },
+    "actions": {
+      "startNewChat": "开始新对话",
+      "selectProjectFirst": "请先选择一个项目",
+      "openSettings": "打开设置",
+      "toggleTheme": "切换主题",
+      "goToChat": "转到聊天",
+      "gitFetch": "Git: Fetch",
+      "gitPull": "Git: Pull",
+      "gitPush": "Git: Push",
+      "settingsTab": "设置：{{tab}}",
+      "switchToBranch": "切换到：{{branch}}"
+    },
+    "browseAll": {
+      "sessions": "浏览所有会话 ({{total}})",
+      "files": "浏览所有文件 ({{total}})",
+      "commits": "浏览所有提交 ({{total}})",
+      "branches": "浏览所有分支 ({{total}})"
+    }
   }
 }

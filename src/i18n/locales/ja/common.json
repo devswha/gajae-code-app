@@ -129,5 +129,50 @@
       "emptyHint": "セッションを開くか開始すると、実行内容がここに表示されます。",
       "permissions": "権限"
     }
+  },
+  "commandPalette": {
+    "title": "コマンドパレット",
+    "pages": {
+      "actions": "アクション",
+      "files": "ファイル",
+      "sessions": "セッション",
+      "commits": "コミット",
+      "branches": "ブランチ"
+    },
+    "search": {
+      "actions": "アクションを検索…",
+      "files": "ファイルを検索…",
+      "sessions": "セッションを検索…",
+      "commits": "コミットを検索…",
+      "branches": "ブランチを検索…",
+      "anything": "入力して何でも検索…"
+    },
+    "backToAll": "すべてに戻る",
+    "backspaceHint": "Backspaceで戻る",
+    "noResults": "結果がありません。",
+    "current": "現在",
+    "groups": {
+      "navigate": "移動",
+      "git": "Git",
+      "settings": "設定"
+    },
+    "actions": {
+      "startNewChat": "新しいチャットを開始",
+      "selectProjectFirst": "まずプロジェクトを選択してください",
+      "openSettings": "設定を開く",
+      "toggleTheme": "テーマを切り替え",
+      "goToChat": "チャットへ移動",
+      "gitFetch": "Git: Fetch",
+      "gitPull": "Git: Pull",
+      "gitPush": "Git: Push",
+      "settingsTab": "設定: {{tab}}",
+      "switchToBranch": "切り替え: {{branch}}"
+    },
+    "browseAll": {
+      "sessions": "すべてのセッションを表示 ({{total}})",
+      "files": "すべてのファイルを表示 ({{total}})",
+      "commits": "すべてのコミットを表示 ({{total}})",
+      "branches": "すべてのブランチを表示 ({{total}})"
+    }
   }
 }

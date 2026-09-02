@@ -23,7 +23,8 @@
     }
   },
   "tools": {
-    "error": "工具問題"
+    "error": "工具問題",
+    "rawParams": "原始參數"
   },
   "search": {
     "in": "於："
@@ -81,6 +82,13 @@
       "images_one": "{{count}} 張圖片已加入",
       "images_other": "{{count}} 張圖片已加入",
       "steerNow": "操控當前輪次"
+    },
+    "skills": {
+      "label": "選擇技能",
+      "title": "技能",
+      "description": "選擇要在目前專案中使用的技能。",
+      "search": "搜尋技能",
+      "noMatches": "沒有符合的技能。"
     }
   },
   "session": {
@@ -176,5 +184,11 @@
     "allow": "允許",
     "alwaysAllow": "一律允許 {{tool}}",
     "alwaysAllowHint": "從現在起在此專案中自動核准此工具"
+  },
+  "plan": {
+    "toggle": "展開/收合計畫",
+    "generating": "正在產生計畫...",
+    "revise": "修改",
+    "build": "執行"
   }
 }

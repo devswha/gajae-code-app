@@ -23,7 +23,8 @@
     }
   },
   "tools": {
-    "error": "Werkzeugproblem"
+    "error": "Werkzeugproblem",
+    "rawParams": "Rohparameter"
   },
   "search": {
     "in": "in:"
@@ -81,6 +82,13 @@
       "images_one": "{{count}}-Bild hinzugefügt",
       "images_other": "{{count}}-Bilder hinzugefügt",
       "steerNow": "Steuern Sie den aktuellen Durchlauf"
+    },
+    "skills": {
+      "label": "Skill auswählen",
+      "title": "Skills",
+      "description": "Wähle einen Skill für das aktuelle Projekt.",
+      "search": "Skills suchen",
+      "noMatches": "Keine passenden Skills."
     }
   },
   "session": {
@@ -176,5 +184,11 @@
     "allow": "Erlauben",
     "alwaysAllow": "{{tool}} immer erlauben",
     "alwaysAllowHint": "Dieses Werkzeug in diesem Projekt ab jetzt automatisch freigeben"
+  },
+  "plan": {
+    "toggle": "Plan ein-/ausklappen",
+    "generating": "Plan wird erstellt...",
+    "revise": "Überarbeiten",
+    "build": "Umsetzen"
   }
 }

@@ -129,5 +129,50 @@
       "emptyHint": "Запустите или откройте сеанс, чтобы просмотреть его текущую активность.",
       "permissions": "Разрешения"
     }
+  },
+  "commandPalette": {
+    "title": "Палитра команд",
+    "pages": {
+      "actions": "Действия",
+      "files": "Файлы",
+      "sessions": "Сессии",
+      "commits": "Коммиты",
+      "branches": "Ветки"
+    },
+    "search": {
+      "actions": "Поиск действий…",
+      "files": "Поиск файлов…",
+      "sessions": "Поиск сессий…",
+      "commits": "Поиск коммитов…",
+      "branches": "Поиск веток…",
+      "anything": "Введите текст для поиска…"
+    },
+    "backToAll": "Назад ко всем",
+    "backspaceHint": "Backspace — назад",
+    "noResults": "Ничего не найдено.",
+    "current": "Текущий",
+    "groups": {
+      "navigate": "Навигация",
+      "git": "Git",
+      "settings": "Настройки"
+    },
+    "actions": {
+      "startNewChat": "Начать новый чат",
+      "selectProjectFirst": "Сначала выберите проект",
+      "openSettings": "Открыть настройки",
+      "toggleTheme": "Переключить тему",
+      "goToChat": "Перейти к чату",
+      "gitFetch": "Git: Fetch",
+      "gitPull": "Git: Pull",
+      "gitPush": "Git: Push",
+      "settingsTab": "Настройки: {{tab}}",
+      "switchToBranch": "Переключиться на: {{branch}}"
+    },
+    "browseAll": {
+      "sessions": "Все сессии ({{total}})",
+      "files": "Все файлы ({{total}})",
+      "commits": "Все коммиты ({{total}})",
+      "branches": "Все ветки ({{total}})"
+    }
   }
 }

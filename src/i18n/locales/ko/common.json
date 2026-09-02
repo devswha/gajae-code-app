@@ -129,5 +129,50 @@
       "emptyHint": "세션을 시작하거나 열어 현재 활동을 확인하세요.",
       "permissions": "권한"
     }
+  },
+  "commandPalette": {
+    "title": "명령 팔레트",
+    "pages": {
+      "actions": "작업",
+      "files": "파일",
+      "sessions": "세션",
+      "commits": "커밋",
+      "branches": "브랜치"
+    },
+    "search": {
+      "actions": "작업 검색…",
+      "files": "파일 검색…",
+      "sessions": "세션 검색…",
+      "commits": "커밋 검색…",
+      "branches": "브랜치 검색…",
+      "anything": "무엇이든 입력해 검색…"
+    },
+    "backToAll": "전체로 돌아가기",
+    "backspaceHint": "Backspace로 뒤로 가기",
+    "noResults": "결과가 없습니다.",
+    "current": "현재",
+    "groups": {
+      "navigate": "이동",
+      "git": "Git",
+      "settings": "설정"
+    },
+    "actions": {
+      "startNewChat": "새 대화 시작",
+      "selectProjectFirst": "먼저 프로젝트를 선택하세요",
+      "openSettings": "설정 열기",
+      "toggleTheme": "테마 전환",
+      "goToChat": "채팅으로 이동",
+      "gitFetch": "Git: Fetch",
+      "gitPull": "Git: Pull",
+      "gitPush": "Git: Push",
+      "settingsTab": "설정: {{tab}}",
+      "switchToBranch": "전환: {{branch}}"
+    },
+    "browseAll": {
+      "sessions": "모든 세션 보기 ({{total}})",
+      "files": "모든 파일 보기 ({{total}})",
+      "commits": "모든 커밋 보기 ({{total}})",
+      "branches": "모든 브랜치 보기 ({{total}})"
+    }
   }
 }

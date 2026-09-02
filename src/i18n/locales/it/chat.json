@@ -23,7 +23,8 @@
     }
   },
   "tools": {
-    "error": "Problema con lo strumento"
+    "error": "Problema con lo strumento",
+    "rawParams": "parametri grezzi"
   },
   "search": {
     "in": "in:"
@@ -81,6 +82,13 @@
       "images_one": "Aggiunta immagine {{count}}",
       "images_other": "Aggiunte immagini {{count}}",
       "steerNow": "Orienta il turno attivo"
+    },
+    "skills": {
+      "label": "Scegli una skill",
+      "title": "Skill",
+      "description": "Scegli una skill da usare nel progetto corrente.",
+      "search": "Cerca skill",
+      "noMatches": "Nessuna skill corrisponde."
     }
   },
   "session": {
@@ -176,5 +184,11 @@
     "allow": "Consenti",
     "alwaysAllow": "Consenti sempre {{tool}}",
     "alwaysAllowHint": "Approva automaticamente questo strumento in questo progetto da ora in avanti"
+  },
+  "plan": {
+    "toggle": "Mostra/nascondi piano",
+    "generating": "Generazione del piano...",
+    "revise": "Rivedi",
+    "build": "Procedi"
   }
 }

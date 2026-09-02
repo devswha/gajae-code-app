@@ -23,7 +23,8 @@
     }
   },
   "tools": {
-    "error": "工具问题"
+    "error": "工具问题",
+    "rawParams": "原始参数"
   },
   "search": {
     "in": "于："
@@ -81,6 +82,13 @@
       "images_one": "添加{{count}}张图片",
       "images_other": "{{count}}张图片已添加",
       "steerNow": "操控当前转弯"
+    },
+    "skills": {
+      "label": "选择技能",
+      "title": "技能",
+      "description": "选择要在当前项目中使用的技能。",
+      "search": "搜索技能",
+      "noMatches": "没有匹配的技能。"
     }
   },
   "session": {
@@ -176,5 +184,11 @@
     "allow": "允许",
     "alwaysAllow": "始终允许 {{tool}}",
     "alwaysAllowHint": "从现在起在此项目中自动批准该工具"
+  },
+  "plan": {
+    "toggle": "展开/收起计划",
+    "generating": "正在生成计划...",
+    "revise": "修改",
+    "build": "执行"
   }
 }

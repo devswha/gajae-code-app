@@ -23,7 +23,8 @@
     }
   },
   "tools": {
-    "error": "Tool problem"
+    "error": "Tool problem",
+    "rawParams": "raw params"
   },
   "search": {
     "in": "in:"
@@ -81,6 +82,13 @@
       "images_one": "{{count}} image added",
       "images_other": "{{count}} images added",
       "steerNow": "Steer the active turn"
+    },
+    "skills": {
+      "label": "Choose a skill",
+      "title": "Skills",
+      "description": "Pick a skill to use in the current project.",
+      "search": "Search skills",
+      "noMatches": "No skills match."
     }
   },
   "session": {
@@ -176,5 +184,11 @@
     "allow": "Allow",
     "alwaysAllow": "Always allow {{tool}}",
     "alwaysAllowHint": "Approve this tool automatically in this project from now on"
+  },
+  "plan": {
+    "toggle": "Toggle plan",
+    "generating": "Generating plan...",
+    "revise": "Revise",
+    "build": "Build"
   }
 }

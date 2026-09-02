@@ -23,7 +23,8 @@
     }
   },
   "tools": {
-    "error": "ツールエラー。"
+    "error": "ツールエラー。",
+    "rawParams": "生パラメータ"
   },
   "search": {
     "in": "場所:。"
@@ -81,6 +82,13 @@
       "images_one": "画像を {{count}} 件追加。",
       "images_other": "画像 {{count}} 件を添付。",
       "steerNow": "実行中の処理にそのまま送信。"
+    },
+    "skills": {
+      "label": "スキルを選択",
+      "title": "スキル",
+      "description": "現在のプロジェクトで使うスキルを選びます。",
+      "search": "スキルを検索",
+      "noMatches": "一致するスキルはありません。"
     }
   },
   "session": {
@@ -176,5 +184,11 @@
     "allow": "許可",
     "alwaysAllow": "{{tool}} を常に許可",
     "alwaysAllowHint": "このプロジェクトでこのツールを今後自動承認します"
+  },
+  "plan": {
+    "toggle": "計画の表示を切り替え",
+    "generating": "計画を生成中...",
+    "revise": "修正",
+    "build": "実行"
   }
 }

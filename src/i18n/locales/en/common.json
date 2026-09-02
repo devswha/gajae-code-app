@@ -129,5 +129,50 @@
       "emptyHint": "Start or open a session to view its current activity.",
       "permissions": "Permissions"
     }
+  },
+  "commandPalette": {
+    "title": "Command palette",
+    "pages": {
+      "actions": "Actions",
+      "files": "Files",
+      "sessions": "Sessions",
+      "commits": "Commits",
+      "branches": "Branches"
+    },
+    "search": {
+      "actions": "Search actions…",
+      "files": "Search files…",
+      "sessions": "Search sessions…",
+      "commits": "Search commits…",
+      "branches": "Search branches…",
+      "anything": "Type to search anything…"
+    },
+    "backToAll": "Back to all",
+    "backspaceHint": "Backspace to go back",
+    "noResults": "No results.",
+    "current": "Current",
+    "groups": {
+      "navigate": "Navigate",
+      "git": "Git",
+      "settings": "Settings"
+    },
+    "actions": {
+      "startNewChat": "Start new chat",
+      "selectProjectFirst": "Select a project first",
+      "openSettings": "Open settings",
+      "toggleTheme": "Toggle theme",
+      "goToChat": "Go to Chat",
+      "gitFetch": "Git: Fetch",
+      "gitPull": "Git: Pull",
+      "gitPush": "Git: Push",
+      "settingsTab": "Settings: {{tab}}",
+      "switchToBranch": "Switch to: {{branch}}"
+    },
+    "browseAll": {
+      "sessions": "Browse all sessions ({{total}})",
+      "files": "Browse all files ({{total}})",
+      "commits": "Browse all commits ({{total}})",
+      "branches": "Browse all branches ({{total}})"
+    }
   }
 }

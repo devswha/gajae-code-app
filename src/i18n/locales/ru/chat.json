@@ -115,19 +115,27 @@
     "loading": "Запуск терминала…"
   },
   "claudeStatus": {
-    "actions": {
-      "thinking": "мышление",
-      "processing": "Обработка",
-      "analyzing": "Анализируя",
-      "working": "Работаю",
-      "computing": "Вычисление",
-      "reasoning": "Рассуждение"
-    },
     "elapsed": {
       "seconds": "{{count}} с",
       "minutesSeconds": " м  с {{minutes}} {{seconds}}"
     },
     "stop": "Стоп"
+  },
+  "activity": {
+    "thinking": "Думает",
+    "awaitingApproval": "Ожидает вашего подтверждения",
+    "reading": "Читает {{subject}}",
+    "searching": "Ищет {{subject}}",
+    "running": "Выполняет {{subject}}",
+    "editing": "Редактирует {{subject}}",
+    "writing": "Записывает {{subject}}",
+    "searchingWeb": "Ищет в интернете {{subject}}",
+    "browsing": "Открывает {{subject}}",
+    "using": "Использует {{tool}}",
+    "usingWith": "{{tool}}: {{subject}}",
+    "subagent": "Субагент: {{description}}",
+    "subagentRunning": "Субагент работает",
+    "more": "+{{count}} ещё"
   },
   "projectSelection": {
     "startChatWithProvider": "Прежде чем общаться с {{provider}}, выберите проект."

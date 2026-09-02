@@ -113,19 +113,27 @@
     "loading": "启动终端……"
   },
   "claudeStatus": {
-    "actions": {
-      "thinking": "思考中",
-      "processing": "处理中",
-      "analyzing": "分析中",
-      "working": "处理中",
-      "computing": "计算中",
-      "reasoning": "推理中"
-    },
     "elapsed": {
       "seconds": "{{count}}次",
       "minutesSeconds": "{{minutes}} 分 {{seconds}} 秒"
     },
     "stop": "停止"
+  },
+  "activity": {
+    "thinking": "思考中",
+    "awaitingApproval": "等待您的批准",
+    "reading": "正在读取 {{subject}}",
+    "searching": "正在搜索 {{subject}}",
+    "running": "正在运行 {{subject}}",
+    "editing": "正在编辑 {{subject}}",
+    "writing": "正在写入 {{subject}}",
+    "searchingWeb": "正在联网搜索 {{subject}}",
+    "browsing": "正在浏览 {{subject}}",
+    "using": "正在使用 {{tool}}",
+    "usingWith": "{{tool}}：{{subject}}",
+    "subagent": "子代理：{{description}}",
+    "subagentRunning": "子代理运行中",
+    "more": "还有 {{count}} 项"
   },
   "projectSelection": {
     "startChatWithProvider": "在与{{provider}}聊天前，请先选择一个项目"

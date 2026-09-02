@@ -113,19 +113,27 @@
     "loading": "Startterminal…"
   },
   "claudeStatus": {
-    "actions": {
-      "thinking": "Denken",
-      "processing": "Verarbeitung",
-      "analyzing": "Analysieren",
-      "working": "Arbeiten",
-      "computing": "Computer",
-      "reasoning": "Begründung"
-    },
     "elapsed": {
       "seconds": "{{count}}s",
       "minutesSeconds": "{{minutes}}m {{seconds}}s"
     },
     "stop": "Stopp"
+  },
+  "activity": {
+    "thinking": "Denkt nach",
+    "awaitingApproval": "Wartet auf deine Freigabe",
+    "reading": "Liest {{subject}}",
+    "searching": "Sucht {{subject}}",
+    "running": "Führt {{subject}} aus",
+    "editing": "Bearbeitet {{subject}}",
+    "writing": "Schreibt {{subject}}",
+    "searchingWeb": "Sucht im Web nach {{subject}}",
+    "browsing": "Öffnet {{subject}}",
+    "using": "Verwendet {{tool}}",
+    "usingWith": "{{tool}}: {{subject}}",
+    "subagent": "Subagent: {{description}}",
+    "subagentRunning": "Subagent läuft",
+    "more": "+{{count}} weitere"
   },
   "projectSelection": {
     "startChatWithProvider": "Wählen Sie ein Projekt aus, bevor Sie mit {{provider}} chatten"

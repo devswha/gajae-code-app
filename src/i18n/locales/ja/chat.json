@@ -113,19 +113,27 @@
     "loading": "ターミナルを読み込んでいます...。"
   },
   "claudeStatus": {
-    "actions": {
-      "thinking": "Thinking。",
-      "processing": "Processing。",
-      "analyzing": "Analyzing。",
-      "working": "Working。",
-      "computing": "Computing。",
-      "reasoning": "Reasoning。"
-    },
     "elapsed": {
       "seconds": "{{count}}s。",
       "minutesSeconds": "{{minutes}}m {{seconds}}s。"
     },
     "stop": "停止。"
+  },
+  "activity": {
+    "thinking": "思考中",
+    "awaitingApproval": "承認を待っています",
+    "reading": "{{subject}} を読み込み中",
+    "searching": "{{subject}} を検索中",
+    "running": "{{subject}} を実行中",
+    "editing": "{{subject}} を編集中",
+    "writing": "{{subject}} を作成中",
+    "searchingWeb": "ウェブで {{subject}} を検索中",
+    "browsing": "{{subject}} を閲覧中",
+    "using": "{{tool}} を使用中",
+    "usingWith": "{{tool}}: {{subject}}",
+    "subagent": "サブエージェント: {{description}}",
+    "subagentRunning": "サブエージェント実行中",
+    "more": "他 {{count}} 件"
   },
   "projectSelection": {
     "startChatWithProvider": "{{provider}} と会話する前にプロジェクトを選択してください。"

@@ -113,19 +113,27 @@
     "loading": "터미널 시작 중..."
   },
   "claudeStatus": {
-    "actions": {
-      "thinking": "생각 중...",
-      "processing": "처리 중...",
-      "analyzing": "분석 중...",
-      "working": "작업 중...",
-      "computing": "계산 중...",
-      "reasoning": "추론 중..."
-    },
     "elapsed": {
       "seconds": "{{count}}초",
       "minutesSeconds": "{{minutes}}분 {{seconds}}초"
     },
     "stop": "중단"
+  },
+  "activity": {
+    "thinking": "생각 중",
+    "awaitingApproval": "승인 대기 중",
+    "reading": "{{subject}} 읽는 중",
+    "searching": "{{subject}} 검색 중",
+    "running": "{{subject}} 실행 중",
+    "editing": "{{subject}} 편집 중",
+    "writing": "{{subject}} 작성 중",
+    "searchingWeb": "웹에서 {{subject}} 검색 중",
+    "browsing": "{{subject}} 탐색 중",
+    "using": "{{tool}} 사용 중",
+    "usingWith": "{{tool}}: {{subject}}",
+    "subagent": "서브에이전트: {{description}}",
+    "subagentRunning": "서브에이전트 실행 중",
+    "more": "+{{count}}개 더"
   },
   "projectSelection": {
     "startChatWithProvider": "{{provider}}와 대화하기 전에 프로젝트를 선택하세요."

@@ -16,6 +16,7 @@ import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useOAuthLogin } from '../hooks/useOAuthLogin';
 import type { ChatInterfaceProps } from '../types/types';
+import { deriveLiveActivity } from '../utils/toolActivity';
 import OAuthLoginDialog from '../OAuthLoginDialog';
 
 import ChatComposer from './ChatComposer';
@@ -209,6 +210,14 @@ function ChatInterface({
     && !session.currentSessionId
     && session.chatMessages.length === 0;
   const showActivity = Boolean(session.sessionActivity && pendingPermissionRequests.length === 0);
+  // One derivation feeds both the composer's indicator and the running turn's
+  // work block, so the two never describe the same moment differently.
+  const liveActivity = session.isProcessing
+    ? deriveLiveActivity(session.chatMessages, {
+      statusText: session.sessionActivity?.statusText,
+      awaitingInput: Boolean(session.sessionActivity?.awaitingInput) || pendingPermissionRequests.length > 0,
+    })
+    : null;
 
   if (!selectedProject) {
     return <ProjectSelectionNotice text={t('projectSelection.startChatWithProvider', {
@@ -222,6 +231,7 @@ function ChatInterface({
       pendingPermissionRequests={pendingPermissionRequests}
       handlePermissionDecision={composer.handlePermissionDecision}
       activity={session.sessionActivity}
+      liveActivity={liveActivity}
       isLoading={session.isProcessing}
       onAbortSession={composer.handleAbortSession}
       sessionState={session.sessionState}

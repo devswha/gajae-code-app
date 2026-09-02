@@ -19,6 +19,7 @@ import { useVoiceAvailable } from '../hooks/useVoiceAvailable';
 import type { PendingCommandGate, QueuedDraft } from '../hooks/useChatComposerState';
 import type { SessionActivity } from '../../../hooks/useSessionProtection';
 import type { PendingPermissionRequest, PermissionDecision } from '../types/types';
+import type { LiveActivity } from '../utils/toolActivity';
 import type { ProviderModelOption } from '../../../types/app';
 import type { PermissionModeUpdate, ProjectPermissions } from '../../../hooks/useProjectPermissions';
 import {
@@ -65,6 +66,8 @@ interface ChatComposerProps {
   pendingPermissionRequests: PendingPermissionRequest[];
   handlePermissionDecision: (requestIds: string | string[], decision: PermissionDecision) => void;
   activity: SessionActivity | null;
+  /** The run's current activity, derived from the transcript; drives the indicator's label. */
+  liveActivity?: LiveActivity | null;
   isLoading: boolean;
   onAbortSession: () => void;
   sessionState: Record<string, unknown> | null;
@@ -139,6 +142,7 @@ export default function ChatComposer({
   pendingPermissionRequests,
   handlePermissionDecision,
   activity,
+  liveActivity = null,
   isLoading,
   onAbortSession,
   sessionState,
@@ -272,7 +276,7 @@ export default function ChatComposer({
     <div className="chat-composer-shell relative shrink-0 px-2 pt-0 pb-2 sm:px-4 sm:pb-4 md:px-4 md:pb-6">
       {!hasPendingPermissions && (
         <div className="pointer-events-none absolute bottom-full left-1/2 z-10 w-[calc(100%-1rem)] max-w-chat -translate-x-1/2 translate-y-px bg-transparent sm:w-[calc(100%-2rem)]">
-          <ActivityIndicator activity={activity} onAbort={onAbortSession} isInputFocused={isInputFocused} />
+          <ActivityIndicator activity={activity} liveActivity={liveActivity} onAbort={onAbortSession} isInputFocused={isInputFocused} />
         </div>
       )}
 

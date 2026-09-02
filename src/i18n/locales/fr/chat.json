@@ -113,19 +113,27 @@
     "loading": "Borne de démarrage…"
   },
   "claudeStatus": {
-    "actions": {
-      "thinking": "Penser",
-      "processing": "Traitement",
-      "analyzing": "Analyser",
-      "working": "Travailler",
-      "computing": "Informatique",
-      "reasoning": "Raisonnement"
-    },
     "elapsed": {
       "seconds": "{{count}}",
       "minutesSeconds": "{{minutes}}m {{seconds}}s"
     },
     "stop": "Arrêter"
+  },
+  "activity": {
+    "thinking": "Réflexion",
+    "awaitingApproval": "En attente de votre approbation",
+    "reading": "Lecture de {{subject}}",
+    "searching": "Recherche de {{subject}}",
+    "running": "Exécution de {{subject}}",
+    "editing": "Modification de {{subject}}",
+    "writing": "Écriture de {{subject}}",
+    "searchingWeb": "Recherche web : {{subject}}",
+    "browsing": "Navigation : {{subject}}",
+    "using": "Utilisation de {{tool}}",
+    "usingWith": "{{tool}} : {{subject}}",
+    "subagent": "Sous-agent : {{description}}",
+    "subagentRunning": "Sous-agent en cours",
+    "more": "+{{count}} autres"
   },
   "projectSelection": {
     "startChatWithProvider": "Choisissez un projet avant de discuter avec {{provider}}"

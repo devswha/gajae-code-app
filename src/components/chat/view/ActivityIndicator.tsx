@@ -3,23 +3,21 @@ import { useTranslation } from 'react-i18next';
 
 import { Shimmer } from '../../../shared/view/ui';
 import type { SessionActivity } from '../../../hooks/useSessionProtection';
+import { useElapsedSeconds } from '../hooks/useElapsedSeconds';
+import { formatElapsed } from '../utils/elapsed';
+import { formatLiveActivity } from '../utils/toolActivity';
+import type { LiveActivity } from '../utils/toolActivity';
 
 type ActivityIndicatorProps = {
   activity: SessionActivity | null;
+  /** What the run is doing now, derived from the transcript (`deriveLiveActivity`). */
+  liveActivity?: LiveActivity | null;
   onAbort?: () => void;
   isInputFocused?: boolean;
 };
 
-const ACTION_KEYS = [
-  'claudeStatus.actions.thinking',
-  'claudeStatus.actions.processing',
-  'claudeStatus.actions.analyzing',
-  'claudeStatus.actions.working',
-  'claudeStatus.actions.computing',
-  'claudeStatus.actions.reasoning',
-];
-const DEFAULT_ACTION_WORDS = ['Thinking', 'Processing', 'Analyzing', 'Working', 'Computing', 'Reasoning'];
 const EXIT_ANIMATION_MS = 220;
+const THINKING: LiveActivity = { kind: 'thinking' };
 
 /**
  * Minimal response-in-progress indicator, in the spirit of the inline status
@@ -27,13 +25,18 @@ const EXIT_ANIMATION_MS = 220;
  * elapsed time, and an interrupt affordance. Rendered only while the viewed
  * session has an entry in the processing map; it disappears the instant that
  * entry is removed.
+ *
+ * The label is the run's actual activity - the running tool and its subject,
+ * a pending approval, or "Thinking" while the model generates - rather than a
+ * rotation of decorative verbs. A server status line, when there is one,
+ * still takes precedence.
  */
-export default function ActivityIndicator({ activity, onAbort, isInputFocused = false }: ActivityIndicatorProps) {
+export default function ActivityIndicator({ activity, liveActivity, onAbort, isInputFocused = false }: ActivityIndicatorProps) {
   const { t } = useTranslation('chat');
   const [renderedActivity, setRenderedActivity] = useState<SessionActivity | null>(activity);
   const [isExiting, setIsExiting] = useState(false);
   const startedAt = renderedActivity?.startedAt ?? null;
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const elapsedSeconds = useElapsedSeconds(startedAt);
 
   useEffect(() => {
     if (activity) {
@@ -53,25 +56,10 @@ export default function ActivityIndicator({ activity, onAbort, isInputFocused = 
     return () => clearTimeout(timer);
   }, [activity, renderedActivity]);
 
-  useEffect(() => {
-    if (startedAt === null) return;
-    const update = () => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
-    update();
-    const timer = setInterval(update, 1000);
-    return () => clearInterval(timer);
-  }, [startedAt]);
-
   if (!renderedActivity) return null;
 
-  const actionWords = ACTION_KEYS.map((key, i) => t(key, { defaultValue: DEFAULT_ACTION_WORDS[i] }));
-  const label = (renderedActivity.statusText || actionWords[Math.floor(elapsedSeconds / 4) % actionWords.length])
-    .replace(/\.+$/, '');
-
-  const minutes = Math.floor(elapsedSeconds / 60);
-  const seconds = elapsedSeconds % 60;
-  const elapsedLabel = minutes < 1
-    ? t('claudeStatus.elapsed.seconds', { count: seconds, defaultValue: '{{count}}s' })
-    : t('claudeStatus.elapsed.minutesSeconds', { minutes, seconds, defaultValue: '{{minutes}}m {{seconds}}s' });
+  const label = formatLiveActivity(liveActivity ?? THINKING, t);
+  const elapsedLabel = formatElapsed(elapsedSeconds, t);
   const tabSurfaceClassName = [
     'chat-activity-tab inline-flex h-8 items-center rounded-b-none rounded-t-lg border border-b-0 bg-card px-3 text-xs transition-all duration-200',
     isInputFocused
@@ -86,17 +74,20 @@ export default function ActivityIndicator({ activity, onAbort, isInputFocused = 
       }`}
     >
       <div className="flex items-end justify-between gap-2">
-        <div className={`${tabSurfaceClassName} gap-2`}>
+        <div className={`${tabSurfaceClassName} min-w-0 gap-2`}>
           <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
-          <Shimmer className="font-medium">{`${label}…`}</Shimmer>
-          <span className="text-muted-foreground/60 tabular-nums">{elapsedLabel}</span>
+          {/* The label is the live region; the ticking timer beside it is not. */}
+          <span role="status" className="min-w-0 truncate">
+            <Shimmer className="max-w-full truncate font-medium">{`${label}…`}</Shimmer>
+          </span>
+          <span className="shrink-0 text-muted-foreground/60 tabular-nums">{elapsedLabel}</span>
         </div>
 
         {renderedActivity.canInterrupt && onAbort && (
           <button
             type="button"
             onClick={onAbort}
-            className={`${tabSurfaceClassName} pointer-events-auto gap-1.5 text-muted-foreground hover:bg-card hover:text-destructive`}
+            className={`${tabSurfaceClassName} pointer-events-auto shrink-0 gap-1.5 text-muted-foreground hover:bg-card hover:text-destructive`}
             aria-label={t('claudeStatus.stop', { defaultValue: 'Stop' })}
           >
             <svg className="h-2.5 w-2.5 fill-current" viewBox="0 0 24 24" aria-hidden>

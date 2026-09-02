@@ -113,19 +113,27 @@
     "loading": "Starting terminal…"
   },
   "claudeStatus": {
-    "actions": {
-      "thinking": "Thinking",
-      "processing": "Processing",
-      "analyzing": "Analyzing",
-      "working": "Working",
-      "computing": "Computing",
-      "reasoning": "Reasoning"
-    },
     "elapsed": {
       "seconds": "{{count}}s",
       "minutesSeconds": "{{minutes}}m {{seconds}}s"
     },
     "stop": "Stop"
+  },
+  "activity": {
+    "thinking": "Thinking",
+    "awaitingApproval": "Waiting for your approval",
+    "reading": "Reading {{subject}}",
+    "searching": "Searching {{subject}}",
+    "running": "Running {{subject}}",
+    "editing": "Editing {{subject}}",
+    "writing": "Writing {{subject}}",
+    "searchingWeb": "Searching the web for {{subject}}",
+    "browsing": "Browsing {{subject}}",
+    "using": "Using {{tool}}",
+    "usingWith": "{{tool}}: {{subject}}",
+    "subagent": "Subagent: {{description}}",
+    "subagentRunning": "Subagent running",
+    "more": "+{{count}} more"
   },
   "projectSelection": {
     "startChatWithProvider": "Choose a project before chatting with {{provider}}"

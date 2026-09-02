@@ -113,19 +113,27 @@
     "loading": "Terminal başlatılıyor…"
   },
   "claudeStatus": {
-    "actions": {
-      "thinking": "Düşünme",
-      "processing": "İşleme",
-      "analyzing": "Analiz ediliyor",
-      "working": "Çalışma",
-      "computing": "bilgisayar",
-      "reasoning": "muhakeme"
-    },
     "elapsed": {
       "seconds": "{{count}} sn",
       "minutesSeconds": "m sn {{minutes}} {{seconds}}"
     },
     "stop": "Durdur"
+  },
+  "activity": {
+    "thinking": "Düşünüyor",
+    "awaitingApproval": "Onayınız bekleniyor",
+    "reading": "{{subject}} okunuyor",
+    "searching": "{{subject}} aranıyor",
+    "running": "{{subject}} çalıştırılıyor",
+    "editing": "{{subject}} düzenleniyor",
+    "writing": "{{subject}} yazılıyor",
+    "searchingWeb": "Web'de {{subject}} aranıyor",
+    "browsing": "{{subject}} açılıyor",
+    "using": "{{tool}} kullanılıyor",
+    "usingWith": "{{tool}}: {{subject}}",
+    "subagent": "Alt ajan: {{description}}",
+    "subagentRunning": "Alt ajan çalışıyor",
+    "more": "+{{count}} daha"
   },
   "projectSelection": {
     "startChatWithProvider": "{{provider}} ile sohbet etmeden önce bir proje seçin"

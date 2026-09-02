@@ -113,19 +113,27 @@
     "loading": "正在啟動終端機…"
   },
   "claudeStatus": {
-    "actions": {
-      "thinking": "思考中",
-      "processing": "處理中",
-      "analyzing": "分析中",
-      "working": "工作中",
-      "computing": "計算中",
-      "reasoning": "推理中"
-    },
     "elapsed": {
       "seconds": "{{count}}秒",
       "minutesSeconds": "{{minutes}}分 {{seconds}}秒"
     },
     "stop": "停止"
+  },
+  "activity": {
+    "thinking": "思考中",
+    "awaitingApproval": "等待您的核准",
+    "reading": "正在讀取 {{subject}}",
+    "searching": "正在搜尋 {{subject}}",
+    "running": "正在執行 {{subject}}",
+    "editing": "正在編輯 {{subject}}",
+    "writing": "正在寫入 {{subject}}",
+    "searchingWeb": "正在上網搜尋 {{subject}}",
+    "browsing": "正在瀏覽 {{subject}}",
+    "using": "正在使用 {{tool}}",
+    "usingWith": "{{tool}}：{{subject}}",
+    "subagent": "子代理：{{description}}",
+    "subagentRunning": "子代理執行中",
+    "more": "還有 {{count}} 項"
   },
   "projectSelection": {
     "startChatWithProvider": "請先選擇一個專案再與 {{provider}} 聊天"

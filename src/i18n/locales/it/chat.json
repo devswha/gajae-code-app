@@ -113,19 +113,27 @@
     "loading": "Terminale di avvio..."
   },
   "claudeStatus": {
-    "actions": {
-      "thinking": "Pensare",
-      "processing": "Elaborazione",
-      "analyzing": "Analizzando",
-      "working": "Funzionante",
-      "computing": "Informatica",
-      "reasoning": "Ragionamento"
-    },
     "elapsed": {
       "seconds": "{{count}}",
       "minutesSeconds": "{{minutes}}m {{seconds}}s"
     },
     "stop": "Fermati"
+  },
+  "activity": {
+    "thinking": "Sta pensando",
+    "awaitingApproval": "In attesa della tua approvazione",
+    "reading": "Lettura di {{subject}}",
+    "searching": "Ricerca di {{subject}}",
+    "running": "Esecuzione di {{subject}}",
+    "editing": "Modifica di {{subject}}",
+    "writing": "Scrittura di {{subject}}",
+    "searchingWeb": "Ricerca sul web: {{subject}}",
+    "browsing": "Navigazione: {{subject}}",
+    "using": "Uso di {{tool}}",
+    "usingWith": "{{tool}}: {{subject}}",
+    "subagent": "Sub-agente: {{description}}",
+    "subagentRunning": "Sub-agente in esecuzione",
+    "more": "+{{count}} altri"
   },
   "projectSelection": {
     "startChatWithProvider": "Scegli un progetto prima di chattare con {{provider}}"

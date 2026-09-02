@@ -4,10 +4,11 @@ Gajae Code App accepts upstream changes only through a deliberate, reviewable
 intake. There is no scheduled mirror, automatic synchronization, bulk merge,
 or automatic source rewrite.
 
-The historical upstream repository, `CloudCLI UI`, is
-`https://github.com/siteboon/claudecodeui`. Both identifiers are provenance
-only; it is not a Gajae Code App release source. Gajae Code App server artifacts are
-published only through [GitHub Releases](https://github.com/devswha/gajae-code-app/releases).
+The historical upstream repository, `claudecodeui` ("Claude Code UI" by
+Siteboon), is `https://github.com/siteboon/claudecodeui`. Both identifiers
+are provenance only; it is not a Gajae Code App release source. Gajae Code App
+server artifacts are published only through
+[GitHub Releases](https://github.com/devswha/gajae-code-app/releases).
 
 ## Intake record
 

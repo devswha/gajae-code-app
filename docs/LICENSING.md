@@ -97,7 +97,7 @@ dependency is not an option a permissive product has.
 
 ## Third-party notices
 
-Redistributing a dependency carries its notice obligations, and most of the 582
+Redistributing a dependency carries its notice obligations, and most of the 550
 packages in a distribution require their license text to travel with them.
 
 `THIRD-PARTY-NOTICES.md` is generated from the dependency tree by

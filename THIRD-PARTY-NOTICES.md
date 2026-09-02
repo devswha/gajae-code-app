@@ -15,6 +15,9 @@ Development-only dependencies are excluded because they do not.
 
 Deliberately absent: `mupdf`, `elkjs`. The build removes them from every distribution, so this project does not
 redistribute them. See `scripts/release/distribution-exclusions.mjs`.
+A package directory named `elkjs` does exist in a distribution:
+it is a first-party stub written for this project and covered by its MIT licence,
+not a copy of the package it stands in for (`scripts/release/stubs/`).
 
 ## Packages that ship no license file
 

@@ -6,7 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { removeExcludedDistributionPackages } from './distribution-exclusions.mjs';
+import { describeDistributionExclusions, removeExcludedDistributionPackages } from './distribution-exclusions.mjs';
+import { withOutOfTreeCopy } from './out-of-tree.mjs';
 
 const NODE_VERSION = '22.22.2';
 const NODE_ARCHIVE_SHA256 = 'db4b275b83736df67533529a18cc55de2549a8329ace6c7bcc68f8d22d3c9000';
@@ -188,12 +189,12 @@ async function smoke(payloadNode) {
     await new Promise((resolve, reject) => {
       const worker = spawn(bun, [path.join(process.cwd(), 'dist-server/server/gjc-bun-worker.js')], { env: { ...process.env, GJC_WORKER_AGENT_DIR: agentDir }, stdio: ['pipe', 'pipe', 'pipe'] });
       let buffered = ''; let initialized = false; let shutdown = false; let stderr = '';
-      const timer = setTimeout(() => { worker.kill(); reject(new Error('Bun worker timed out: ' + stderr + buffered)); }, 10000);
+      const timer = setTimeout(() => { worker.kill(); reject(new Error('Bun worker timed out: ' + stderr + buffered)); }, 30000);
       const fail = (error) => { clearTimeout(timer); worker.kill(); reject(error); };
       worker.stdout.setEncoding('utf8'); worker.stderr.setEncoding('utf8');
       worker.stderr.on('data', chunk => { stderr += chunk; });
-      worker.stdout.on('data', chunk => { buffered += chunk; const lines = buffered.split('\\n'); buffered = lines.pop(); try { for (const line of lines) { if (!line) continue; const frame = JSON.parse(line); if (frame.id === 'init' && frame.payload?.ok === true) { initialized = true; worker.stdin.write(JSON.stringify({ protocolVersion: 1, kind: 'request', id: 'shutdown', method: 'worker.shutdown', payload: {} }) + '\\n'); worker.stdin.end(); } else if (frame.id === 'shutdown' && frame.payload?.ok === true) shutdown = true; } } catch (error) { fail(error); } });
-      worker.once('error', fail); worker.once('close', code => { clearTimeout(timer); code === 0 && initialized && shutdown && !stderr ? resolve() : reject(new Error('Bun worker handshake failed: ' + stderr)); });
+      worker.stdout.on('data', chunk => { buffered += chunk; const lines = buffered.split('\\n'); buffered = lines.pop(); try { for (const line of lines) { if (!line) continue; const frame = JSON.parse(line); if (frame.id === 'init') { if (frame.payload?.ok !== true) throw new Error('Bun worker rejected initialization: ' + JSON.stringify(frame.payload)); initialized = true; worker.stdin.write(JSON.stringify({ protocolVersion: 1, kind: 'request', id: 'shutdown', method: 'worker.shutdown', payload: {} }) + '\\n'); worker.stdin.end(); } else if (frame.id === 'shutdown' && frame.payload?.ok === true) shutdown = true; } } catch (error) { fail(error); } });
+      worker.once('error', fail); worker.once('close', code => { clearTimeout(timer); code === 0 && initialized && shutdown && !stderr ? resolve() : reject(new Error('Bun worker handshake failed (exit ' + code + '): ' + stderr)); });
       setTimeout(() => worker.stdin.write(JSON.stringify({ protocolVersion: 1, kind: 'request', id: 'init', method: 'worker.initialize', payload: {} }) + '\\n'), 25);
     });
     await rm(agentDir, { recursive: true, force: true });
@@ -202,7 +203,16 @@ async function smoke(payloadNode) {
     let output = ''; server.stdout.setEncoding('utf8'); server.stderr.setEncoding('utf8'); server.stdout.on('data', chunk => { output += chunk; }); server.stderr.on('data', chunk => { output += chunk; });
     try { let health; for (let attempt = 0; attempt < 50; attempt += 1) { try { health = await fetch('http://127.0.0.1:' + port + '/health'); if (health.ok) break; } catch {} await new Promise(resolve => setTimeout(resolve, 100)); } if (!health?.ok) throw new Error('Payload health check failed: ' + output); } finally { server.kill('SIGTERM'); await new Promise(resolve => server.once('close', resolve)); }
   `;
-  await run(payloadNode, ['--input-type=module', '--eval', smoke], { cwd: payloadDir, env: { ...process.env, PATH: `${path.dirname(payloadNode)}:/usr/bin:/bin` } });
+  // The payload is smoked from a copy outside this checkout. In place, under
+  // src-tauri/, Bun and Node would fall back on the repository's node_modules
+  // for anything the payload lacks and the run would prove nothing about the
+  // shipped tree - that is how the `elkjs` exclusion broke the worker in a
+  // notarized DMG while every in-tree smoke passed.
+  const buildOnlyNode = path.join(payloadDir, 'node');
+  await withOutOfTreeCopy(payloadDir, 'macOS server payload', async (copyDir) => {
+    console.log(`Smoking the payload from ${copyDir} (outside the repository tree).`);
+    await run(payloadNode, ['--input-type=module', '--eval', smoke], { cwd: copyDir, env: { ...process.env, PATH: `${path.dirname(payloadNode)}:/usr/bin:/bin` } });
+  }, { filter: (source) => source !== buildOnlyNode && !source.startsWith(`${buildOnlyNode}${path.sep}`) });
 }
 
 if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error(`macOS payload requires darwin-arm64; received ${process.platform}-${process.arch}.`);
@@ -230,11 +240,11 @@ try {
   await run(payloadNode, [path.join(payloadDir, 'scripts', 'fix-node-pty.js')], { cwd: payloadDir, env: npmEnvironment });
   await verifyManifest();
   // Nothing upstream is patched: the packages install normally and are deleted
-  // from this payload, so a runtime bump re-applies the decision without anyone
-  // remembering to. `npm run check:dependency-licenses` is what notices when the
-  // tree grows a new one.
-  const excluded = await removeExcludedDistributionPackages(fs, path, path.join(payloadDir, 'node_modules'));
-  console.log(`Excluded ${excluded.join(', ')} from the payload (see scripts/release/distribution-exclusions.mjs).`);
+  // from this payload (a first-party stub takes the place of any that is
+  // imported at module scope), so a runtime bump re-applies the decision
+  // without anyone remembering to. `npm run check:licenses` is what notices
+  // when the tree grows a new one.
+  console.log(describeDistributionExclusions(await removeExcludedDistributionPackages(fs, path, path.join(payloadDir, 'node_modules'))));
   const prunedMetadataFiles = await pruneNonRuntimeMetadata(path.join(payloadDir, 'node_modules'))
     + await pruneNonRuntimeMetadata(path.join(payloadDir, 'dist-server'));
   await codesignNativeClosure(payloadDir);

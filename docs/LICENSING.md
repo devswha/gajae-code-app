@@ -54,12 +54,45 @@ re-applies the decision with no manual step.
 | Package | Terms | Reached through | Cost of excluding it |
 | --- | --- | --- | --- |
 | `mupdf` | AGPL-3.0-or-later | `@gajae-code/coding-agent` → `markit-ai` | The `read` tool stops converting **PDFs** |
-| `elkjs` | EPL-2.0 | `@gajae-code/coding-agent` → `@gajae-code/utils` → `beautiful-mermaid` | Mermaid layout, which nothing reaches |
+| `elkjs` | EPL-2.0 | `@gajae-code/coding-agent` → `@gajae-code/utils` → `beautiful-mermaid` | SVG layout of Mermaid flowcharts, class and ER diagrams, which nothing reaches; ASCII rendering does not use ELK |
 
 `npm run check:licenses` runs inside `npm run verify` and fails when a shipped
 package carries terms this product cannot distribute and is not on that list.
 It fails in the other direction too: an exclusion for a package no longer in the
 tree is a rule guarding nothing.
+
+### Stubs: when deletion alone would break the runtime
+
+Deleting a package is only harmless when nothing imports it at module scope.
+`elkjs` is not in that position: `beautiful-mermaid` imports
+`elkjs/lib/elk.bundled.js` at the top of `src/elk-instance.ts`, and the GJC
+runtime loads `beautiful-mermaid` while loading itself, so with the package
+simply gone the Bun worker died at `worker.initialize` with
+`Cannot find package 'elkjs'` and every job reported `GJC worker failed.`
+That reached a notarized DMG on 2026-09-02 because every smoke had run with
+the artifact inside this checkout, where Bun walks up to the repository's own
+`node_modules/elkjs` and hides the hole.
+
+The fix is a **stub**: an exclusion may name a first-party package under
+`scripts/release/stubs/` that the builders install where the deleted one was.
+The `elkjs` stub is a few dozen lines of MIT code that satisfy the import
+surface `beautiful-mermaid` touches - a default-exported class, its
+`worker.worker` with `postMessage`/`onmessage`/`dispatcher.saveDispatch`, and
+`layout()` - and answer every layout request with
+`ElkLayoutUnavailableError` ("ELK layout is not bundled in this
+distribution"). Loading succeeds; only an SVG render of a diagram that needs
+ELK fails, and it fails in the caller rather than in the worker. Its
+`package.json` says what it is (`gajae.stub: true`) and its version is
+rewritten at build time to the version it replaces, so a tree listing still
+reads correctly. Nothing in it derives from `elkjs`.
+
+The stub is not a dependency and is not counted as one: `check:licenses` and
+the notices generator read `package-lock.json`, where the real `elkjs` still
+appears and is still excluded. `npm test` covers the stub's install and its
+import surface (`scripts/release/distribution-exclusions.test.mjs`), and both
+builders smoke the finished tree from a copy **outside the repository** so a
+resolution hole cannot hide again (see
+[DESKTOP-TAURI-VERIFICATION.md](./DESKTOP-TAURI-VERIFICATION.md)).
 
 ### Why PDF was given up
 
@@ -88,12 +121,17 @@ Two ways to get PDF back, neither urgent:
 
 ### One thing to watch
 
-The exclusion works because the `mupdf` load is lazy. If upstream ever makes it
-a module-scope import, deleting the package would break the runtime instead of
-degrading it. The payload builder's smoke step runs the packaged server, so that
-change fails the build rather than reaching users. If it happens, the choice is
-between forking `markit-ai` and dropping the feature another way; carrying the
-dependency is not an option a permissive product has.
+The exclusion works because the `mupdf` load is lazy: `markit-ai`'s PDF
+converter reaches it through `require("mupdf")` and `await import("mupdf")`
+inside functions (`dist/converters/pdf/extract.js`), and nothing else in the
+tree imports it (`@gajae-code/coding-agent` only names it in a compile-time
+externals list). If upstream ever makes it a module-scope import, deleting the
+package would break the runtime instead of degrading it - the `elkjs` failure
+above, exactly. Both builders now smoke the packaged runtime from a copy outside
+the repository, so that change fails the build rather than reaching users. If it
+happens, the options are a stub like the `elkjs` one, forking `markit-ai`, or
+dropping the feature another way; carrying the dependency is not an option a
+permissive product has.
 
 ## Third-party notices
 
@@ -120,7 +158,10 @@ It closes the two obligations that were being missed outright:
 
 Excluded packages are deliberately absent from the notices: the build removes
 them, so this project does not redistribute them, and a notice for something
-that does not ship makes the real entries harder to trust.
+that does not ship makes the real entries harder to trust. Where a stub stands
+in for a removed package the file says so, because a reader who finds
+`node_modules/elkjs` in a distribution should not have to guess whether it is
+the EPL package; it is this project's own code under its own licence.
 
 ## The engine boundary
 

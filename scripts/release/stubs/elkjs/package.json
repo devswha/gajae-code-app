@@ -1,0 +1,13 @@
+{
+  "name": "elkjs",
+  "version": "0.0.0-gajae-stub",
+  "description": "Gajae Code App stub - ELK layout excluded from distribution (EPL-2.0). Satisfies beautiful-mermaid's static import; every layout call fails with a clear error.",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/main.js",
+  "gajae": {
+    "stub": true,
+    "replaces": "elkjs",
+    "see": "scripts/release/distribution-exclusions.mjs"
+  }
+}

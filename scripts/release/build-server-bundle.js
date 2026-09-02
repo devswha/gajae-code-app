@@ -6,7 +6,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { removeExcludedDistributionPackages } from './distribution-exclusions.mjs';
+import { describeDistributionExclusions, removeExcludedDistributionPackages } from './distribution-exclusions.mjs';
+import { withOutOfTreeCopy } from './out-of-tree.mjs';
 
 const TARGET_NODE_MAJOR = 22;
 const TARGET_NODE_VERSION = [22, 22, 2];
@@ -364,8 +365,8 @@ async function smokeNativeRuntime(stageDir) {
       let shutdownResponses = 0;
       const timeout = setTimeout(() => {
         worker.kill();
-        reject(new Error('staged Bun worker timed out.'));
-      }, 10_000);
+        reject(new Error('staged Bun worker timed out: ' + stderr));
+      }, 30_000);
       const fail = (error) => {
         clearTimeout(timeout);
         worker.kill();
@@ -439,7 +440,15 @@ async function smokeNativeRuntime(stageDir) {
       });
     });
   `;
-  await execute(process.execPath, ['--input-type=module', '--eval', smokeSource], { cwd: stageDir });
+  // Smoked from a copy outside the checkout: under release/server/ the stage
+  // would resolve anything it lacks from the repository's node_modules, and a
+  // package the build removed (see distribution-exclusions.mjs) would pass
+  // here and fail on the user's machine. The copy also keeps the smoke's
+  // `.gjc-smoke-agent` scratch directory out of the archive.
+  await withOutOfTreeCopy(stageDir, 'server bundle stage', async (copyDir) => {
+    console.log(`Smoking the staged runtime from ${copyDir} (outside the repository tree).`);
+    await execute(process.execPath, ['--input-type=module', '--eval', smokeSource], { cwd: copyDir });
+  });
 }
 
 async function createDeterministicArchive(stageDir, archivePath, epoch) {
@@ -540,12 +549,12 @@ async function installStageDependencies(stageDir) {
 async function excludeDistributionPackages(stageDir) {
   // This applies the shared distribution policy after npm has resolved the
   // complete production tree. The desktop payload follows the same policy.
-  const excluded = await removeExcludedDistributionPackages(
+  const exclusions = await removeExcludedDistributionPackages(
     fs,
     path,
     path.join(stageDir, 'node_modules'),
   );
-  console.log(`Excluded ${excluded.join(', ')} from the bundle (see scripts/release/distribution-exclusions.mjs).`);
+  console.log(describeDistributionExclusions(exclusions));
 }
 
 async function rebuildStageNatives(stageDir) {

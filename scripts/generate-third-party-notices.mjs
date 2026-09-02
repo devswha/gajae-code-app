@@ -26,6 +26,7 @@ import { EXCLUDED_FROM_DISTRIBUTION } from './release/distribution-exclusions.mj
 const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT_PATH = join(REPOSITORY_ROOT, 'THIRD-PARTY-NOTICES.md');
 const excluded = new Set(EXCLUDED_FROM_DISTRIBUTION.map((entry) => entry.package));
+const stubbed = EXCLUDED_FROM_DISTRIBUTION.filter((entry) => entry.stub).map((entry) => entry.package);
 
 /** Where license text hides. Package root first, then the directories that ship assets. */
 const LICENSE_DIRECTORIES = ['', 'dist', 'lib', 'src'];
@@ -144,8 +145,15 @@ function render(entries) {
       + [...excluded].map((name) => `\`${name}\``).join(', ')
       + '. The build removes them from every distribution, so this project does not',
       'redistribute them. See `scripts/release/distribution-exclusions.mjs`.',
-      '',
     );
+    if (stubbed.length > 0) {
+      lines.push(
+        `A package directory named ${stubbed.map((name) => `\`${name}\``).join(', ')} does exist in a distribution:`,
+        'it is a first-party stub written for this project and covered by its MIT licence,',
+        'not a copy of the package it stands in for (`scripts/release/stubs/`).',
+      );
+    }
+    lines.push('');
   }
 
   if (withoutText.length > 0) {

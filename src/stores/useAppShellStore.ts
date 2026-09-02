@@ -41,6 +41,33 @@ const readPersistedTab = (): AppTab => {
   return 'chat';
 };
 
+const SELECTED_PROJECT_KEY = 'selectedProjectId';
+
+/**
+ * The project the user last worked in. `/session/:id` restores its own
+ * context from the URL; this is what lets `/` come back to the same project
+ * after a reload instead of the empty "pick a project" state.
+ */
+export const readPersistedProjectId = (): string | null => {
+  try {
+    return localStorage.getItem(SELECTED_PROJECT_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const persistProjectId = (projectId: string | null) => {
+  try {
+    if (projectId) {
+      localStorage.setItem(SELECTED_PROJECT_KEY, projectId);
+    } else {
+      localStorage.removeItem(SELECTED_PROJECT_KEY);
+    }
+  } catch {
+    // Silently ignore storage errors
+  }
+};
+
 const resolve = <T,>(next: T | ((prev: T) => T), prev: T): T =>
   typeof next === 'function' ? (next as (prev: T) => T)(prev) : next;
 
@@ -63,9 +90,14 @@ const createInitialState = (): AppShellState => ({
 
 export const useAppShellStore = create<AppShellState>()((set) => ({
   ...createInitialState(),
-  setSelectedProject: (next) => set((state) => ({
-    selectedProject: resolve(next, state.selectedProject),
-  })),
+  setSelectedProject: (next) => set((state) => {
+    const selectedProject = resolve(next, state.selectedProject);
+    // Reconciliation re-sets the same project on every fetch; only a change
+    // of project is worth a storage write.
+    const projectId = selectedProject?.projectId ?? null;
+    if (projectId !== (state.selectedProject?.projectId ?? null)) persistProjectId(projectId);
+    return { selectedProject };
+  }),
   setSelectedSession: (next) => set((state) => ({
     selectedSession: resolve(next, state.selectedSession),
   })),

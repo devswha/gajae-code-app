@@ -4,7 +4,7 @@ import type { NavigateFunction } from 'react-router-dom';
 
 import type { ServerEvent } from '../contexts/WebSocketContext';
 import { api } from '../utils/api';
-import { useAppShellStore } from '../stores/useAppShellStore';
+import { readPersistedProjectId, useAppShellStore } from '../stores/useAppShellStore';
 import { useSessionAttentionStore } from '../stores/useSessionAttentionStore';
 import type { LLMProvider, LoadingProgress, Project, ProjectSession } from '../types/app';
 
@@ -149,8 +149,19 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
     setSelectedProject((current) => reconcileSelectedProject(current, query.data ?? []));
   }, [query.data, setSelectedProject]);
 
+  // On `/` with nothing selected: a lone project selects itself, otherwise the
+  // project the user last worked in comes back - but only if it still exists,
+  // so a remembered id for a deleted project leaves the choice to the user.
+  // `/session/:id` restores its context from the URL and is left alone.
   useEffect(() => {
-    if (!query.isLoading && projects.length === 1 && !selectedProject && !sessionId) setSelectedProject(projects[0]);
+    if (query.isLoading || selectedProject || sessionId) return;
+    if (projects.length === 1) {
+      setSelectedProject(projects[0]);
+      return;
+    }
+    const rememberedId = readPersistedProjectId();
+    const remembered = rememberedId ? projects.find((project) => project.projectId === rememberedId) : undefined;
+    if (remembered) setSelectedProject(remembered);
   }, [projects, query.isLoading, selectedProject, sessionId, setSelectedProject]);
 
   useEffect(() => {

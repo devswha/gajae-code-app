@@ -70,6 +70,19 @@ test('invalid persisted tabs fall back to chat and tab updates persist', () => {
   assert.equal(localStorage.getItem('activeTab'), 'tasks');
 });
 
+test('the selected project id is remembered, and forgotten when the selection clears', () => {
+  const project = { projectId: 'project-1', displayName: 'One' } as Project;
+  useAppShellStore.getState().setSelectedProject(project);
+  assert.equal(localStorage.getItem('selectedProjectId'), 'project-1');
+
+  // Reconciling the same project with fresh data is not a new choice.
+  useAppShellStore.getState().setSelectedProject((previous) => previous ? { ...previous, displayName: 'One (renamed)' } : previous);
+  assert.equal(localStorage.getItem('selectedProjectId'), 'project-1');
+
+  useAppShellStore.getState().setSelectedProject(null);
+  assert.equal(localStorage.getItem('selectedProjectId'), null);
+});
+
 test('openSettings defaults to tools and shows the settings modal', () => {
   useAppShellStore.getState().openSettings();
 

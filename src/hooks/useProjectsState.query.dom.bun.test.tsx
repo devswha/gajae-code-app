@@ -99,6 +99,8 @@ const installFetch = (responses: Array<{ status?: number; body: unknown }>) => {
 
 afterEach(() => {
   cleanup();
+  // The lone project selects itself and is remembered; do not hand that to the next suite.
+  localStorage.clear();
   resetAppShellStore();
 });
 

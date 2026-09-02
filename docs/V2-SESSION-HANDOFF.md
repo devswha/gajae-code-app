@@ -268,7 +268,7 @@ HEAD at the start of this evening was `3ce6106`. After this evening:
 | `279bc17` | `refactor(chat): move run state into the transcript and the stop button` |
 | `bc36b20` | `fix(release): ship an elkjs stub so the packaged worker can boot without EPL code` |
 | `2b47932` | `test(release): run the packaged smoke from outside the repo tree` |
-| *(this file)* | `docs: record the 2026-09-02 evening UI and elkjs-stub state` |
+| `9fa9c82` | `docs: record the 2026-09-02 evening UI and elkjs-stub state` |
 
 No leftover dirty tree is expected after these four land. Do not commit
 `dist-native/`, `src-tauri/{target,binaries,resources/server-payload}`,

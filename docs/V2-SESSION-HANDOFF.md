@@ -1,6 +1,6 @@
 # gajae-app v2 — Session Handoff (resume state)
 
-Last updated: 2026-09-02. Supersedes the 2026-07-18 handoff.
+Last updated: 2026-09-02 evening. Supersedes the 2026-07-18 handoff.
 
 ## TL;DR
 
@@ -15,12 +15,17 @@ Last updated: 2026-09-02. Supersedes the 2026-07-18 handoff.
   landed in `ac9b819`
   (`src/components/chat/view/subcomponents/ContextUsageBadge.tsx`). The
   2026-09-02 session-UI pass (tool output density, four-state session status,
-  sidebar search, concise titles, per-project permissions) is recorded below.
-- **Developer ID signing + notarization is cleared (2026-09-02).** The Mac has
-  the certificate and the `gajae-notary` notarytool profile; the first signed
-  build was notarized, stapled and Gatekeeper-accepted. See
-  `docs/DESKTOP-TAURI-VERIFICATION.md` § "Signed release procedure". No
-  notarized build has been tagged or published yet.
+  sidebar search, concise titles, per-project permissions, turn work block,
+  composer Stop / Esc) is recorded below.
+- **Developer ID signing + notarization is proven, but nothing is shippable
+  yet (2026-09-02).** The Mac has the certificate and the `gajae-notary`
+  notarytool profile; the first signed build (`a4773ff`) was notarized,
+  stapled and Gatekeeper-accepted — then failed packaged acceptance on the
+  mounted image (`GJC worker failed` / missing `elkjs`). An unsigned payload
+  + ad-hoc `.app` with the first-party stub now pass out-of-tree smokes.
+  **The next session rebuilds, re-notarizes and accepts from the mounted
+  image.** See `docs/DESKTOP-TAURI-VERIFICATION.md` § "Signed release
+  procedure". No notarized build has been tagged or published.
 - v1 users are served by the frozen snapshot repo **`devswha/gajae-app-v1`**
   (cut at v1.0.0, release assets mirrored). Maintenance flows one way:
   this repo → cherry-pick to the snapshot.
@@ -30,12 +35,19 @@ Last updated: 2026-09-02. Supersedes the 2026-07-18 handoff.
 - **This checkout is** `~/workspace/gajae-code-app` (repository guidance:
   `AGENTS.md`). Node via nvm
   (`. "$HOME/.nvm/nvm.sh" && nvm use 22`
-  → 22.23.1 — `npm test` refuses other majors), cargo 1.85.1
-  (`. "$HOME/.cargo/env"`). `env -u CI npm run tauri -- build` (the wrapper
-  chokes on `CI=1`).
+  → 22.23.1 — `npm test` refuses other majors). Bun **exactly 1.4.0**
+  (`dist-native/bun` or `node scripts/fetch-bun.mjs`). cargo 1.85.1
+  (`. "$HOME/.cargo/env"`). Unset `CARGO_TARGET_DIR` if it points at a
+  sandbox cache. `env -u CI npm run tauri -- build` (the wrapper chokes on
+  `CI=1`).
+- Server binds loopback; `SERVER_PORT` defaults to 3001, Vite to 5173.
+  **Do not export `SERVER_PORT=0`.** The 2026-09-02 session used
+  `SERVER_PORT=3101 VITE_PORT=5273`.
 - Origin: `https://github.com/devswha/gajae-code-app`. The independent public
   history begins from the verified `2.0.0-beta.1` baseline.
 - Commits use the repository hooks and must also pass `npm run verify`.
+  Packaged smokes must run out of tree; an in-place smoke under
+  `src-tauri/target/…` can resolve the repository's `node_modules` and lie.
 
 ## 2026-07-19/20 session record (this run)
 
@@ -240,46 +252,163 @@ outside the repo. Ten commits, `1825fb2`..`a4773ff`, all on `main`.
   `permissions` block is answered with `invalid_permissions` → "Invalid GJC
   run permissions." on the client.
 
+### 2026-09-02 evening: run-state UI + elkjs stub
+
+Worktree at start of the evening was dirty with two streams mixed. They were
+committed separately on `main` (this file last). `npm run verify` was green
+on the dirty tree before the commits; out-of-tree packaged smokes were green
+on an ad-hoc `.app` built from the stubbed payload. Signed rebuild /
+notarization was **not** run this evening.
+
+**Checkout.** Branch `main`, origin `https://github.com/devswha/gajae-code-app`.
+HEAD at the start of this evening was `3ce6106`. After this evening:
+
+| Commit | Message |
+|---|---|
+| `279bc17` | `refactor(chat): move run state into the transcript and the stop button` |
+| `bc36b20` | `fix(release): ship an elkjs stub so the packaged worker can boot without EPL code` |
+| `2b47932` | `test(release): run the packaged smoke from outside the repo tree` |
+| *(this file)* | `docs: record the 2026-09-02 evening UI and elkjs-stub state` |
+
+No leftover dirty tree is expected after these four land. Do not commit
+`dist-native/`, `src-tauri/{target,binaries,resources/server-payload}`,
+`.gjc-worktrees/`, `dist/`, `dist-server/`, or `release/`.
+
+**Run-state UI (`279bc17`).** Feedback on `c37ebc1` / `5a0d1a3`: the transcript
+work block said Working while the composer strip said Thinking, and Stop
+lived on that strip. Now there is one progress surface:
+
+- Composer: no ActivityIndicator. While `isLoading`, the send button is
+  Stop (`data-run-control="stop"`, Square, `bg-foreground`); a typed draft
+  gets a separate queue arrow (`data-run-control="queue"`); Enter still
+  queues. Escape aborts from anywhere (`useEscapeToAbort`, capture listener).
+- Transcript: at compact/balanced the last turn gets a work block from the
+  first send — empty `Thinking… · 3s` row (`RunningActivityRow`,
+  `variant="pending-block"`) until a tool lands, then
+  `Working · <live activity> · <elapsed>`. A finished turn with no tools
+  has no block. Detailed density still has no block; it shows an inline
+  running row instead (`variant="inline"`).
+- `ActivityIndicator.tsx` and its CSS (`chat-activity-*`) are gone.
+
+Tests: composer static markup (Stop / no strip),
+`useEscapeToAbort.dom.bun.test.tsx`, pending/zero-tool/detailed cases in
+`TurnWorkBlock.dom.bun.test.tsx` and `turnWork.test.ts`.
+
+**elkjs stub (`bc36b20`, `2b47932`) — the DMG blocker.** `b15492a` excludes
+`elkjs` (EPL-2.0) and `mupdf` (AGPL) from every distribution. That is still
+the right license call. The hole: `beautiful-mermaid/src/elk-instance.ts`
+has `import ELKBundled from 'elkjs/lib/elk.bundled.js'` at module scope, and
+the GJC runtime loads `beautiful-mermaid` while loading itself. With the
+package simply gone, `worker.initialize` dies
+(`Cannot find package 'elkjs'`) and every job reports `GJC worker failed.`
+Every smoke until this evening ran inside the checkout, where Bun walks up
+to the repository's `node_modules/elkjs` and hides it. The 2026-09-02
+notarized DMG (app zip `c923fd4d-…` Accepted, DMG `037874c4-…` Accepted,
+`spctl` Notarized Developer ID) therefore **must not ship**. The
+`/Applications` install from 2026-08-31 predates the exclusion and still
+carries real `elkjs`.
+
+What the stub is, exactly:
+
+- First-party MIT package at `scripts/release/stubs/elkjs/` (`gajae.stub:
+  true`, name `elkjs`). Surface: default-exported class, `worker.worker`
+  with `onmessage` / `postMessage` / `dispatcher.saveDispatch`, `layout()`
+  that rejects with `ElkLayoutUnavailableError` ("ELK layout is not bundled
+  in this distribution"). Construction does not throw; only layout fails.
+- `distribution-exclusions.mjs` sets `stub: 'elkjs'` (and `stub: null` for
+  `mupdf`). `removeExcludedDistributionPackages` deletes the real package,
+  copies the stub into its place, rewrites `version` to the one removed
+  (payload currently `0.11.1`). Both builders call it: macOS payload
+  (`build-macos-server-payload.mjs`) and Linux server bundle
+  (`build-server-bundle.js`).
+- `mupdf` needs no stub: `markit-ai` loads it lazily
+  (`require("mupdf")` / `await import("mupdf")` inside the PDF converter).
+- ASCII mermaid (`renderMermaidAsciiSafe`) never reaches ELK; SVG
+  flowchart / class / ER layout is what fails, and `render_mermaid` is
+  already withheld in `server/gjc-agent-tools.ts`.
+- License gates still read `package-lock.json`: real `elkjs` is excluded,
+  the stub is not counted as a third-party package.
+  `THIRD-PARTY-NOTICES.md` says a directory named `elkjs` in a distribution
+  is this project's own code.
+
+Out-of-tree smokes (the test that would have caught this):
+
+- `scripts/release/out-of-tree.mjs` copies an artifact under `$TMPDIR` and
+  refuses to run if any ancestor has `node_modules`. Both builders smoke
+  from that copy. `smoke-packaged-server.mjs` auto-copies a `.app` that
+  sits below this checkout (`--from-copy` forces it); a mounted DMG or
+  `/Applications` install runs in place.
+- Evidence this evening, unsigned:
+  - Old notarized `.app` smoked via the new auto-copy → `GJC worker failed`
+    (the hole is now visible from the tree).
+  - `npm run server:payload:macos` → `Excluded mupdf, elkjs; stubbed elkjs`,
+    then smoked from `/var/folders/…/T/gajae-out-of-tree-…`.
+  - Payload copied to `/tmp/gajae-payload-oot-*`: `worker.initialize` →
+    `{"ok":true}`, `worker.shutdown` → `{"ok":true}`.
+  - Ad-hoc `env -u CI npm run tauri -- build --bundles app`, then
+    `smoke-packaged-server.mjs` (auto-copied) →
+    `{"status":"ok","product":"gajae-app","version":"2.0.0-beta.7"}`;
+    `--data-survival` → `events=1, schemas=idempotent`.
+- `npm run verify` (audit, licenses, notices, typecheck, check:core, test,
+  lint, identity, build) passed on this tree before the commits landed.
+
+**Notary / signing facts (do not re-run unless cutting a shippable DMG).**
+
+- Cert: `Developer ID Application: sangwoo ha (5987KT43TJ)`, Team ID
+  `5987KT43TJ`.
+- notarytool profile: `gajae-notary` (`xcrun notarytool history
+  --keychain-profile gajae-notary`).
+- Procedure: `docs/DESKTOP-TAURI-VERIFICATION.md` § "Signed release
+  procedure". `export APPLE_SIGNING_IDENTITY="Developer ID Application:
+  sangwoo ha (5987KT43TJ)"`, `env -u CI`, unset `CARGO_TARGET_DIR` if it
+  points at a sandbox cache. Acceptance smokes run from the **mounted
+  image**, never from `src-tauri/target/…`.
+- First notarization of HEAD `a4773ff` took ~73 min (app zip) + ~3.5 min
+  (DMG). A second submission is usually minutes. `03b7fbf` stopped the DMG
+  packager from re-signing a stapled app (that had been changing the
+  cdhash).
+
 ## How to resume (next session)
 
-1. **Fix the payload before publishing a notarized DMG.** The 2026-09-02
-   record in `docs/DESKTOP-TAURI-VERIFICATION.md` shows the packaged smoke
-   failing from the mounted image: `b15492a` drops `elkjs` from the payload,
-   but `beautiful-mermaid` imports it at load time, so the GJC worker never
-   initializes anywhere outside this checkout (inside it Bun resolves the
-   repository's `node_modules/elkjs` and hides the hole). Ship a stub in its
-   place (or another resolution), rebuild, re-notarize, and run the acceptance
-   smokes from the mounted image.
-2. **Publish a notarized DMG:** the signing/notarization pipeline is proven
-   (§ "Signed release procedure" and the 2026-09-02 record). Every DMG shipped
-   *so far* is still ad-hoc signed and Gatekeeper-blocked; the first notarized
-   artifact goes out with the next tag. Export `APPLE_SIGNING_IDENTITY` and
-   `GITHUB_TOKEN` before building, and expect `notarytool submit --wait` to
-   take an hour or more.
-3. **Cut `v2.0.0-beta.7`:** `package.json` already carries `2.0.0-beta.7` and
-   `"license": "MIT"`; the tag does not exist yet. This is the first MIT
-   distribution. CI runs `npm run verify` on Linux for Node 22 and 24 on every
-   push; the release job verifies the `linux-x64` native closure when it
-   builds the server bundle. The release notes must call out the permission
-   default change (`858f1a3`, above): sessions that never asked now ask.
-4. **Session-UI roadmap, remaining items in priority order** (items 1–3 of the
-   comparison — density, status/search, permissions — landed 2026-09-02):
+1. **Rebuild a signed + notarized DMG from this HEAD and accept it from
+   the mounted image.** That is the only remaining blocker before a
+   publishable desktop build. Follow `docs/DESKTOP-TAURI-VERIFICATION.md`
+   § "Signed release procedure". Do not ship the 2026-09-02 notarized DMG
+   (SHA-256 `15adf60e2431502b6efe3c42cd16eb5f985e52394ad1fc20dee8ba302af3cd02`);
+   it predates the stub. Do not tag or upload a GitHub Release unless asked.
+2. **Cut `v2.0.0-beta.7` (user decision):** `package.json` already carries
+   `2.0.0-beta.7` and `"license": "MIT"`; the tag does not exist yet. This
+   is the first MIT distribution (beta.6 and earlier stay AGPL). Rebuild
+   and re-notarize at the cut HEAD. `release-it` generates CHANGELOG.
+   Release notes must include:
+   - MIT relicensing (earlier betas remain AGPL).
+   - Permission default `ask` now actually prompts for bash / eval / delete
+     (`858f1a3`); the SDK gate used to default to `"allow"`.
+   - File tree, git GUI and in-app editor are gone.
+   - Session UI: four-state status, sidebar search, tool-output density,
+     per-project permissions, turn work block, composer Stop / Esc.
+3. **Session-UI roadmap, remaining items** (1–3.5 landed 2026-09-02):
    - (4) Changes tab: a diff review pane for the session's edits with line
-     comments that turn into an agent reply.
+     comments that turn into the next agent message. Medium–large.
    - (5) Worktree isolation + run-location picker. Investigate GJC runtime
-     worktree support first; do not build it app-side if the runtime owns it.
-   - Small follow-ups: LLM session titles via a Protocol v1 event (see
-     `6340490`); the sidebar renders its mobile and desktop trees together —
-     branch on `isMobile`; hardcoded strings left in `SkillPicker`,
-     `CommandPalette`, `PermissionRequestsBanner`, `PlanDisplay`; the
-     ask-controller's `reject_always` answer is not exposed in the UI.
+     support first (`.gjc-worktrees/` is gitignored); do not build it
+     app-side if the runtime owns it. Large.
+   - Small follow-ups: LLM session titles via a Protocol v1 event plus a
+     title-source DB column (see `6340490`); mobile session rename is
+     missing; no locale key-parity test; the ask-controller's
+     `reject_always` answer is not exposed in the UI; confirm whether
+     project `myjob` being `bypass` + bash always-allow is intentional.
 
 ## Key gotchas
 
-- `dist-native/`, `src-tauri/{target,binaries,resources/server-payload}`,
-  `.gjc-worktrees/` are gitignored platform/runtime artifacts — never commit.
-- Tauri cleans the bundled `.app` after building the DMG; install from the DMG
-  (or use `npm run desktop:dmg:macos` for the headless variant).
+- Never commit platform/runtime artifacts: `dist-native/`,
+  `src-tauri/{target,binaries,resources/server-payload}`,
+  `.gjc-worktrees/`, `dist/`, `dist-server/`, `release/`.
+- Tauri cleans the bundled `.app` after building the DMG; install from the
+  DMG (or use `npm run desktop:dmg:macos` for the headless variant).
 - The packaged smoke isolates HOME/DB; it is safe to run while the installed
   app is running.
 - `test:e2e:gjc` (7 wire tests) is a separate script from `npm test`.
+- `check:identity` pins exact provenance strings; renaming upstream in a
+  doc without updating `scripts/check-identity.mjs` fails verify
+  (`36e1230`).

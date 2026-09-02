@@ -2,10 +2,12 @@ import { useState } from 'react';
 import type { TFunction } from 'i18next';
 
 import { ScrollArea } from '../../../shared/view/ui';
+import { useSidebarFilter } from '../hooks/useSidebarFilter';
 import type { ArchivedProjectListItem, ArchivedSessionListItem } from '../types/types';
 import { collectWorkRows, countWorkRows } from '../utils/workList';
 
 import SidebarArchiveContent from './SidebarArchiveContent';
+import SidebarFilterInput from './SidebarFilterInput';
 import SidebarFooter from './SidebarFooter';
 import SidebarHeader from './SidebarHeader';
 import SidebarNavigationTabs from './SidebarNavigationTabs';
@@ -72,7 +74,12 @@ export default function SidebarContent({
   const selectedProjectIsAvailable = selectedProject !== null
     && availableProjects.some((project) => project.projectId === selectedProject.projectId);
   const canCreateSession = availableProjects.length > 0;
+  const filter = useSidebarFilter(projectListProps);
+  const listProps = filter.listProps;
+  // Counts describe the whole workspace, not the filtered view: the heading is
+  // a status line, and hiding a failed run behind a filter would be a lie.
   const workCounts = countWorkRows(collectWorkRows(projectListProps));
+  const showsFilterEmptyState = filter.active && filter.matchCount === 0 && !projectListProps.isLoading;
 
   const createSession = () => {
     const project = selectedProjectIsAvailable ? selectedProject : availableProjects[0];
@@ -96,11 +103,14 @@ export default function SidebarContent({
       />
 
       {!isArchiveOpen && (
-        <SidebarNavigationTabs
-          canCreateSession={canCreateSession}
-          onCreateSession={createSession}
-          t={t}
-        />
+        <>
+          <SidebarNavigationTabs
+            canCreateSession={canCreateSession}
+            onCreateSession={createSession}
+            t={t}
+          />
+          <SidebarFilterInput value={filter.query} onChange={filter.setQuery} inputRef={filter.inputRef} t={t} />
+        </>
       )}
 
       <ScrollArea className="flex-1 overflow-y-auto overscroll-contain px-1.5 pb-2">
@@ -121,6 +131,11 @@ export default function SidebarContent({
           />
         ) : (
           <div className="space-y-2">
+            {showsFilterEmptyState && (
+              <p className="px-3 py-2 text-sm text-muted-foreground" role="status" data-testid="sidebar-filter-empty">
+                {t('filter.noMatches', { query: filter.query.trim() })}
+              </p>
+            )}
             <SidebarSection
               id="sidebar-projects"
               title={t('projects.title')}
@@ -129,7 +144,7 @@ export default function SidebarContent({
               actionLabel={t('tooltips.createProject')}
               onAction={onCreateProject}
             >
-              <SidebarProjectList {...projectListProps} showSessions />
+              <SidebarProjectList {...listProps} showSessions />
             </SidebarSection>
             <SidebarSection
               id="sidebar-work"
@@ -138,7 +153,7 @@ export default function SidebarContent({
               onOpenChange={setWorkOpen}
               trailing={<SidebarWorkCounts counts={workCounts} t={t} />}
             >
-              <SidebarWorkList projectListProps={projectListProps} />
+              <SidebarWorkList projectListProps={listProps} quietWhenEmpty={filter.active} />
             </SidebarSection>
           </div>
         )}

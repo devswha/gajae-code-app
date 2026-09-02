@@ -47,6 +47,11 @@
     "cancel": "Vorgang abbrechen",
     "attentionRequiredIndicator": "Gespräche brauchen Aufmerksamkeit"
   },
+  "filter": {
+    "placeholder": "Gespräche filtern",
+    "clear": "Filter löschen",
+    "noMatches": "Keine Gespräche passen zu „{{query}}“"
+  },
   "actions": {
     "search": "Suche starten",
     "settings": "Optionen",

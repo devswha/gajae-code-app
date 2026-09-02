@@ -47,6 +47,11 @@
     "cancel": "Отменить действие",
     "attentionRequiredIndicator": "Разговор требует внимания"
   },
+  "filter": {
+    "placeholder": "Фильтр бесед",
+    "clear": "Сбросить фильтр",
+    "noMatches": "Нет бесед, соответствующих «{{query}}»"
+  },
   "actions": {
     "search": "Найти в проекте",
     "settings": "Открыть настройки",

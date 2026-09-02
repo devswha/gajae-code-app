@@ -47,6 +47,11 @@
     "cancel": "キャンセル。",
     "attentionRequiredIndicator": "会話に対応が必要です。"
   },
+  "filter": {
+    "placeholder": "会話を絞り込む",
+    "clear": "フィルターを消去",
+    "noMatches": "「{{query}}」に一致する会話はありません"
+  },
   "actions": {
     "search": "検索。",
     "settings": "設定。",

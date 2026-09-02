@@ -47,6 +47,11 @@
     "cancel": "İşlemi iptal et",
     "attentionRequiredIndicator": "Konuşmaya dikkat edilmesi gerekiyor"
   },
+  "filter": {
+    "placeholder": "Görüşmeleri filtrele",
+    "clear": "Filtreyi temizle",
+    "noMatches": "“{{query}}” ile eşleşen görüşme yok"
+  },
   "actions": {
     "search": "Projede ara",
     "settings": "Ayarları aç",

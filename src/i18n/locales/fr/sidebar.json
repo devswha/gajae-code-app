@@ -47,6 +47,11 @@
     "cancel": "Abandonner",
     "attentionRequiredIndicator": "La conversation a besoin d’attention"
   },
+  "filter": {
+    "placeholder": "Filtrer les conversations",
+    "clear": "Effacer le filtre",
+    "noMatches": "Aucune conversation ne correspond à « {{query}} »"
+  },
   "actions": {
     "search": "Lancer une recherche",
     "settings": "Options",

@@ -7,9 +7,11 @@ import type { SidebarProjectListProps } from './SidebarProjectList';
 
 type SidebarWorkListProps = {
   readonly projectListProps: SidebarProjectListProps;
+  /** Render nothing when empty; the host is already explaining why (an active filter). */
+  readonly quietWhenEmpty?: boolean;
 };
 
-export default function SidebarWorkList({ projectListProps }: SidebarWorkListProps) {
+export default function SidebarWorkList({ projectListProps, quietWhenEmpty = false }: SidebarWorkListProps) {
   const {
     projects,
     filteredProjects,
@@ -52,6 +54,7 @@ export default function SidebarWorkList({ projectListProps }: SidebarWorkListPro
   }
 
   if (sessionRows.length === 0) {
+    if (quietWhenEmpty) return null;
     const isLoadingSessions = filteredProjects.some((project) => !initialSessionsLoaded.has(project.projectId));
     return (
       <div className="px-3 py-4 text-left">

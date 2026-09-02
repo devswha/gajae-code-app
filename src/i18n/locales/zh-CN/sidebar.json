@@ -47,6 +47,11 @@
     "cancel": "取消操作",
     "attentionRequiredIndicator": "对话需要关注"
   },
+  "filter": {
+    "placeholder": "筛选对话",
+    "clear": "清除筛选",
+    "noMatches": "没有与“{{query}}”匹配的对话"
+  },
   "actions": {
     "search": "检索",
     "settings": "配置",

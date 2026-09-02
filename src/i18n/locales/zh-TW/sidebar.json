@@ -47,6 +47,11 @@
     "cancel": "取消",
     "attentionRequiredIndicator": "對話需要注意"
   },
+  "filter": {
+    "placeholder": "篩選對話",
+    "clear": "清除篩選",
+    "noMatches": "沒有與「{{query}}」相符的對話"
+  },
   "actions": {
     "search": "搜尋",
     "settings": "設定",

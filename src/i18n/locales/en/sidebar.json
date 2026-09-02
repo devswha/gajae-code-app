@@ -47,6 +47,11 @@
     "cancel": "Cancel",
     "attentionRequiredIndicator": "Conversation needs attention"
   },
+  "filter": {
+    "placeholder": "Filter conversations",
+    "clear": "Clear filter",
+    "noMatches": "No conversations match “{{query}}”"
+  },
   "actions": {
     "search": "Search",
     "settings": "Settings",

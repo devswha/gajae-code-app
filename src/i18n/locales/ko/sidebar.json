@@ -47,6 +47,11 @@
     "cancel": "취소하기",
     "attentionRequiredIndicator": "대화에 주의가 필요합니다"
   },
+  "filter": {
+    "placeholder": "대화 필터",
+    "clear": "필터 지우기",
+    "noMatches": "“{{query}}”와 일치하는 대화가 없습니다"
+  },
   "actions": {
     "search": "찾기",
     "settings": "환경설정",

@@ -3,147 +3,14 @@ import test from 'node:test';
 
 import { createElement, type ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { createInstance, type TFunction } from 'i18next';
+import type { TFunction } from 'i18next';
 import { MemoryRouter } from 'react-router-dom';
 
-import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
 import type { SessionStatus } from '../../../stores/sessionStatusModel';
 
 import SidebarContent from './SidebarContent';
-import { sidebarProjectsFixture } from './SidebarContent.testFixture';
+import { makeSidebarT as makeT, sidebarContentPropsFixture as sidebarContentProps } from './SidebarContent.testFixture';
 import SidebarHeader from './SidebarHeader';
-
-async function makeT(): Promise<TFunction> {
-  const i18n = createInstance();
-  await i18n.init({
-    lng: 'en',
-    fallbackLng: 'en',
-    interpolation: { escapeValue: false },
-    resources: {
-      en: {
-        sidebar: {
-          archived: {
-            emptyDescription: 'Archived workspaces and sessions will appear here when you hide them.',
-            emptyTitle: 'No archived items',
-            openArchive: 'Open archive',
-          },
-          projects: {
-            createProjectHint: 'Create a workspace to start.',
-            noProjects: 'No projects yet',
-            searchPlaceholder: 'Search projects',
-            title: 'Projects',
-          },
-          sessions: {
-            noSessions: 'No conversations yet',
-            work: 'Work',
-          },
-          status: {
-            running: 'Running',
-            needsInput: 'Waiting for your input',
-            ready: 'Finished, not viewed yet',
-            blocked: 'Run failed, not viewed yet',
-            countRunning_one: '{{count}} running',
-            countRunning_other: '{{count}} running',
-            countNeedsInput_one: '{{count}} waiting for input',
-            countNeedsInput_other: '{{count}} waiting for input',
-            countReady_one: '{{count}} ready',
-            countReady_other: '{{count}} ready',
-            countBlocked_one: '{{count}} failed',
-            countBlocked_other: '{{count}} failed',
-            projectAttentionCount_one: '{{count}} conversation needs a look',
-            projectAttentionCount_other: '{{count}} conversations need a look',
-          },
-          tooltips: {
-            activeSessionIndicator: 'Active session',
-            attentionRequiredIndicator: 'Session needs attention',
-            createProject: 'Create project',
-            createSession: 'Create new session',
-            hideSidebar: 'Hide sidebar',
-            processingSessionIndicator: 'Processing session',
-            refresh: 'Refresh',
-            selectProjectToCreateSession: 'Select a project before creating a session',
-          },
-        },
-      },
-    },
-  });
-
-  return i18n.getFixedT('en', 'sidebar');
-}
-
-const sessionStatuses: Record<string, SessionStatus> = {
-  'session-running': 'running',
-  'session-attention': 'needs_input',
-};
-
-function sidebarContentProps(t: TFunction): ComponentProps<typeof SidebarContent> {
-  const activeSessions: SessionActivityMap = new Map([
-    ['session-running', { statusText: null, canInterrupt: true, startedAt: 1, awaitingInput: false }],
-  ]);
-
-  return {
-    isPWA: false,
-    isMobile: false,
-    isArchiveOpen: false,
-    archivedProjects: [],
-    archivedSessions: [],
-    archivedSessionsCount: 0,
-    isArchivedSessionsLoading: false,
-    archiveLoadError: null,
-    onOpenArchive: () => {},
-    onCloseArchive: () => {},
-    onRestoreArchivedProject: () => {},
-    onArchivedSessionClick: () => {},
-    onRestoreArchivedSession: () => {},
-    onDeleteArchivedSession: () => {},
-    onRefresh: () => {},
-    isRefreshing: false,
-    onSearch: () => {},
-    onCreateProject: () => {},
-    onCollapseSidebar: () => {},
-    currentVersion: '0.0.0-test',
-    onShowSettings: () => {},
-    projectListProps: {
-      projects: sidebarProjectsFixture,
-      filteredProjects: sidebarProjectsFixture,
-      selectedProject: null,
-      selectedSession: null,
-      isLoading: false,
-      loadingProgress: null,
-      expandedProjects: new Set(['project-alpha', 'project-beta']),
-      editingProject: null,
-      editingName: '',
-      initialSessionsLoaded: new Set(['project-alpha', 'project-beta']),
-      currentTime: new Date('2026-07-21T10:20:00.000Z'),
-      editingSession: null,
-      editingSessionName: '',
-      deletingProjects: new Set(),
-      getProjectSessions: (project) => project.sessions?.map((session) => ({ ...session, __provider: session.__provider ?? 'gjc' })) ?? [],
-      onLoadMoreSessions: () => {},
-      loadingMoreProjects: new Set(),
-      activeSessions,
-      getSessionStatus: (sessionId) => sessionStatuses[sessionId] ?? 'idle',
-      isProjectStarred: () => false,
-      onEditingNameChange: () => {},
-      onToggleProject: () => {},
-      onProjectSelect: () => {},
-      onToggleStarProject: () => {},
-      onStartEditingProject: () => {},
-      onCancelEditingProject: () => {},
-      onSaveProjectName: () => {},
-      onDeleteProject: () => {},
-      onSessionSelect: () => {},
-      onDeleteSession: () => {},
-      onNewSession: () => {},
-      onEditingSessionNameChange: () => {},
-      onStartEditingSession: () => {},
-      onCancelEditingSession: () => {},
-      onSaveEditingSession: () => {},
-      t,
-    },
-    t,
-  };
-}
 
 function renderSidebarContent(t: TFunction, overrides: Partial<ComponentProps<typeof SidebarContent>> = {}): string {
   return renderToStaticMarkup(createElement(
@@ -261,6 +128,24 @@ test('renders the Codex-style New task action with Projects and Work sections', 
   assert.doesNotMatch(html, /type="text"/);
   assert.doesNotMatch(html, />Conversations<|Running sessions|Archive only/);
   assert.doesNotMatch(html, /data-job-sidebar|data-job-inbox|New job|Jobs/);
+});
+
+test('an inline filter sits beneath New task and stays out of the archive view', async () => {
+  const t = await makeT();
+  const html = renderSidebarContent(t);
+
+  const filter = html.match(/<input[^>]*data-sidebar-filter[^>]*>/)?.[0];
+  assert.ok(filter, 'the filter input renders');
+  assert.match(filter, /type="search"/);
+  assert.match(filter, /aria-label="Filter conversations"/);
+  assert.match(filter, /title="Filter conversations \(\/\)"/);
+  assert.ok(html.indexOf('aria-label="New task"') < html.indexOf('data-sidebar-filter'), 'it follows the primary action');
+  assert.ok(html.indexOf('data-sidebar-filter') < html.indexOf('id="sidebar-projects-heading"'), 'and precedes the sections');
+  assert.doesNotMatch(html, /aria-label="Clear filter"/, 'no clear control while empty');
+  assert.doesNotMatch(html, /data-testid="sidebar-filter-empty"/);
+
+  const archive = renderSidebarContent(t, { isArchiveOpen: true });
+  assert.doesNotMatch(archive, /data-sidebar-filter/);
 });
 
 test('keeps search as the primary header utility', async () => {

@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { memo, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight } from 'lucide-react';
 
@@ -49,12 +49,33 @@ const THINKING: LiveActivity = { kind: 'thinking' };
  * groups, cards, subagent containers - so nothing is lost, and every card
  * keeps its own fold.
  */
-export default function TurnWorkBlock({ block, prevMessage, running = false, liveActivity, runStartedAt = null, ...renderProps }: TurnWorkBlockProps) {
+function TurnWorkBlock({ block, prevMessage, running = false, liveActivity, runStartedAt = null, ...renderProps }: TurnWorkBlockProps) {
   if (isPendingWorkBlock(block)) {
     return <RunningActivityRow liveActivity={liveActivity} runStartedAt={running ? runStartedAt : null} variant="pending-block" />;
   }
   return <FoldedTurnWork block={block} prevMessage={prevMessage} running={running} liveActivity={liveActivity} runStartedAt={runStartedAt} {...renderProps} />;
 }
+
+const sameBlock = (a: TurnWorkBlockItem, b: TurnWorkBlockItem): boolean =>
+  a.startedAt === b.startedAt && a.endedAt === b.endedAt && a.isTail === b.isTail && a.timestamp === b.timestamp
+  && a.messages.length === b.messages.length && a.messages.every((message, index) => message === b.messages[index]);
+
+/**
+ * The fold is rebuilt on every store update, so `block` is a new object each
+ * time even when nothing in it changed; a block is the same when it covers
+ * the same messages with the same bounds. Without this every folded block in
+ * a long session re-rendered for each delta of an answer streaming below it.
+ */
+const sameProps = (prev: TurnWorkBlockProps, next: TurnWorkBlockProps): boolean => {
+  const keys = new Set([...Object.keys(prev), ...Object.keys(next)]) as Set<keyof TurnWorkBlockProps>;
+  for (const key of keys) {
+    if (key === 'block') continue;
+    if (prev[key] !== next[key]) return false;
+  }
+  return sameBlock(prev.block, next.block);
+};
+
+export default memo(TurnWorkBlock, sameProps);
 
 function FoldedTurnWork({ block, prevMessage, running = false, liveActivity, runStartedAt = null, ...renderProps }: TurnWorkBlockProps) {
   const { t } = useTranslation('chat');
@@ -62,7 +83,9 @@ function FoldedTurnWork({ block, prevMessage, running = false, liveActivity, run
   const bodyId = useId();
   const elapsedSeconds = useElapsedSeconds(running ? runStartedAt : null);
   const summary = summarizeTurnWork(block);
-  const items = groupConsecutiveTools(block.messages, renderProps.density);
+  // The body is grouped only when it is on screen: a long session has dozens
+  // of folded blocks, and every streamed delta re-renders them all.
+  const items = isExpanded ? groupConsecutiveTools(block.messages, renderProps.density) : null;
 
   const finishedLeading = summary.durationMs === null
     ? t('workBlock.worked', { defaultValue: 'Worked' })
@@ -116,7 +139,7 @@ function FoldedTurnWork({ block, prevMessage, running = false, liveActivity, run
         )}
       </button>
 
-      {isExpanded && (
+      {items && (
         <div id={bodyId} className="mt-2 ml-1.5 space-y-3 border-l border-border/60 pl-3 sm:space-y-4">
           <GroupedMessageList items={items} prevMessage={prevMessage} {...renderProps} />
         </div>

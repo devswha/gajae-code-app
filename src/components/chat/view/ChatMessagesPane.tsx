@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import type { RefObject } from 'react';
 
 import type { ChatMessage, CodeEditorDiffInfo  } from '../types/types';
@@ -8,7 +8,7 @@ import type {
   ProjectSession,
   LLMProvider,
 } from '../../../types/app';
-import { getIntrinsicMessageKey } from '../utils/messageKeys';
+import { assignMessageKeys } from '../utils/messageKeys';
 import type { LiveActivity } from '../utils/toolActivity';
 import { isToolGroupItem } from '../utils/toolGrouping';
 import { DEFAULT_TOOL_OUTPUT_DENSITY, toolOutputDensityRules } from '../utils/toolOutputDensity';
@@ -105,35 +105,11 @@ function ChatMessagesPane({
   );
   const showInlineRunningRow = isProcessing && !toolOutputDensityRules(density).workBlock;
 
-  // Stable, deterministic keys for the messages rendered this pass.
-  //
-  // `normalizedToChatMessages` rebuilds fresh ChatMessage objects on every store
-  // update, so caching keys by object identity (or via a cross-render allocation
-  // Set) minted a brand-new key for the *same* logical message on each prepend —
-  // remounting the whole list, which disconnects the scroll-restore anchor and
-  // reflows heights, jumping the viewport to the bottom. Deriving keys purely
-  // from this render's ordered messages (intrinsic key, disambiguated by
-  // occurrence index on collision) yields the same key for the same message
-  // order, so React preserves existing DOM nodes and component state on prepend.
-  const messageKeyMap = useMemo(() => {
-    const keys = new WeakMap<ChatMessage, string>();
-    const occurrences = new Map<string, number>();
-    const assign = (message: ChatMessage) => {
-      const intrinsicKey = getIntrinsicMessageKey(message) ?? 'message-generated';
-      const seen = occurrences.get(intrinsicKey) ?? 0;
-      occurrences.set(intrinsicKey, seen + 1);
-      keys.set(message, seen === 0 ? intrinsicKey : `${intrinsicKey}__${seen}`);
-    };
-    // Walked in transcript order, which is also the order inside every fold.
-    visibleMessages.forEach(assign);
-    return keys;
-  }, [visibleMessages]);
-
-  const getMessageKey = useCallback(
-    (message: ChatMessage) =>
-      messageKeyMap.get(message) ?? getIntrinsicMessageKey(message) ?? 'message-generated',
-    [messageKeyMap],
-  );
+  // Keys for the top-level items; each fold assigns its own inside. The key
+  // function is not handed down: it is new whenever the list changes, which
+  // is every streamed delta, and a prop that changes every delta would make
+  // every folded block below re-render for an answer streaming above it.
+  const getMessageKey = useMemo(() => assignMessageKeys(visibleMessages), [visibleMessages]);
 
   return (
     <div
@@ -216,7 +192,6 @@ function ChatMessagesPane({
                   liveActivity={liveActivity}
                   runStartedAt={runStartedAt}
                   createDiff={createDiff}
-                  getMessageKey={getMessageKey}
                   onFileOpen={onFileOpen}
                   onShowSettings={onShowSettings}
                   density={density}
@@ -232,7 +207,6 @@ function ChatMessagesPane({
                 items={[item]}
                 prevMessage={before}
                 createDiff={createDiff}
-                getMessageKey={getMessageKey}
                 onFileOpen={onFileOpen}
                 onShowSettings={onShowSettings}
                 density={density}

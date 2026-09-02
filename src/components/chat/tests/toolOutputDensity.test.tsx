@@ -262,7 +262,6 @@ const renderGroup = (messages: ChatMessage[], density: ToolOutputDensity) => ren
   group: { _isGroup: true, toolName: 'bash', messages, timestamp: at },
   prevMessage: null,
   createDiff: lineDiff,
-  getMessageKey: (message) => String(message.toolId),
   provider: 'gjc',
   density,
 }));
@@ -307,7 +306,6 @@ test('a group of one, as compact makes them, carries no count', () => {
     group: { _isGroup: true, toolName: 'bash', messages: [shell()], timestamp: at },
     prevMessage: null,
     createDiff: lineDiff,
-    getMessageKey: (message) => String(message.toolId),
     provider: 'gjc',
     density: 'compact',
   }));

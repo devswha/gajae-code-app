@@ -298,6 +298,19 @@ lived on that strip. Now there is one progress surface:
   from the prose before it, and only the tail block reads the live activity.
   `updateStreaming` keeps the first delta's timestamp so that duration does
   not tick while the answer streams.
+- **Streaming stutter (same night).** Measured with a happy-dom bench (30
+  turns / 181 messages, one delta tick): React spent ~59 ms per tick because
+  `normalizedToChatMessages` rebuilt every `ChatMessage` on every store
+  update, so every memoised row and every folded block re-rendered for an
+  answer streaming below them; on top, deltas were painted on a fixed 100 ms
+  timer (10 steps/s). Now: conversions are cached per row object (WeakMap,
+  keyed on the row and the result it pairs with — `useChatMessages.test.ts`
+  pins the identity contract); message keys are assigned per list
+  (`assignMessageKeys`) instead of a per-render `getMessageKey` prop;
+  `TurnWorkBlock` is memoised on block contents and groups its body only
+  when open; deltas flush on `requestAnimationFrame`. Same bench after:
+  ~7.5 ms per tick, flat in session length (the remainder is the streaming
+  message's own markdown).
 - `ActivityIndicator.tsx` and its CSS (`chat-activity-*`) are gone.
 
 Tests: composer static markup (Stop / no strip),

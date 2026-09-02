@@ -37,7 +37,6 @@ const render = (block: TurnWorkBlockItem, density: ToolOutputDensity, extra: Rec
   block,
   prevMessage: null,
   createDiff: () => [],
-  getMessageKey: (message) => String(message.toolId ?? message.timestamp),
   provider: 'gjc',
   density,
   ...extra,

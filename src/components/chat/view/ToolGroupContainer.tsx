@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react';
 
 import type { ChatMessage, Provider, CodeEditorDiffInfo  } from '../types/types';
 import type { Project } from '../../../types/app';
+import { assignMessageKeys } from '../utils/messageKeys';
 import { hasFailedResult } from '../utils/toolGrouping';
 import type { ToolGroupItem } from '../utils/toolGrouping';
 import { toolOutputDensityRules } from '../utils/toolOutputDensity';
@@ -22,7 +23,6 @@ interface ToolGroupContainerProps {
   group: ToolGroupItem;
   prevMessage: ChatMessage | null;
   createDiff: (oldStr: string, newStr: string) => DiffLine[];
-  getMessageKey: (message: ChatMessage) => string;
   onFileOpen?: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void;
   onShowSettings?: () => void;
   density?: ToolOutputDensity;
@@ -69,7 +69,6 @@ export default function ToolGroupContainer({
   group,
   prevMessage,
   createDiff,
-  getMessageKey,
   onFileOpen,
   onShowSettings,
   density,
@@ -77,6 +76,7 @@ export default function ToolGroupContainer({
   selectedProject,
   provider,
 }: ToolGroupContainerProps) {
+  const keyOf = assignMessageKeys(group.messages);
   // A failure never hides behind a count: the row says so at every level.
   // Whether it also unfolds is the level's call - compact keeps it folded.
   const containsFailure = group.messages.some(hasFailedResult);
@@ -142,7 +142,7 @@ export default function ToolGroupContainer({
         <div className="mt-2 space-y-3 sm:space-y-4">
           {group.messages.map((message, index) => (
             <MessageComponent
-              key={getMessageKey(message)}
+              key={keyOf(message)}
               message={message}
               prevMessage={index > 0 ? group.messages[index - 1] : prevMessage}
               createDiff={createDiff}

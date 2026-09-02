@@ -64,7 +64,7 @@ function ChatInterface({
 
   const clearStreaming = useCallback(() => {
     const timer = streamTimerRef.current;
-    if (timer) clearTimeout(timer);
+    if (timer) cancelAnimationFrame(timer);
     streamTimerRef.current = null;
     accumulatedStreamRef.current = '';
   }, []);

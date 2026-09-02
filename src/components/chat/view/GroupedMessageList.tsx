@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import type { ChatMessage, CodeEditorDiffInfo, Provider } from '../types/types';
 import type { Project } from '../../../types/app';
+import { assignMessageKeys } from '../utils/messageKeys';
 import { isToolGroupItem } from '../utils/toolGrouping';
 import type { MessageListItem } from '../utils/toolGrouping';
 import type { ToolOutputDensity } from '../utils/toolOutputDensity';
@@ -13,7 +14,6 @@ type DiffLine = { type: string; content: string; lineNum: number };
 
 export interface MessageRenderProps {
   createDiff: (oldStr: string, newStr: string) => DiffLine[];
-  getMessageKey: (message: ChatMessage) => string;
   onFileOpen?: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void;
   onShowSettings?: () => void;
   density?: ToolOutputDensity;
@@ -35,7 +35,8 @@ interface GroupedMessageListProps extends MessageRenderProps {
  * cards inside a folded turn are exactly the cards the pane would have shown.
  */
 export default function GroupedMessageList({ items, prevMessage, ...renderProps }: GroupedMessageListProps) {
-  const { density, getMessageKey } = renderProps;
+  const { density } = renderProps;
+  const getMessageKey = assignMessageKeys(items.flatMap((item) => (isToolGroupItem(item) ? item.messages : [item])));
   const rendered: ReactNode[] = [];
   let previous = prevMessage;
 

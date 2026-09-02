@@ -49,7 +49,7 @@ export function useChatRealtimeHandlers({
   useEffect(() => {
     const stopStreamTimer = () => {
       if (streamTimerRef.current) {
-        clearTimeout(streamTimerRef.current);
+        cancelAnimationFrame(streamTimerRef.current);
         streamTimerRef.current = null;
       }
     };
@@ -122,11 +122,15 @@ export function useChatRealtimeHandlers({
         const content = (event.content as string) || '';
         if (!content) return;
         accumulatedStreamRef.current += content;
+        // Deltas land many times a frame; one paint per frame carries them
+        // all. A fixed 100 ms timer painted the answer in ten steps a second,
+        // which read as stutter, and a hidden tab paints nothing until it
+        // is looked at again (`stream_end` flushes regardless).
         if (!streamTimerRef.current) {
-          streamTimerRef.current = window.setTimeout(() => {
+          streamTimerRef.current = requestAnimationFrame(() => {
             streamTimerRef.current = null;
             if (sessionId) sessionStore.updateStreaming(sessionId, accumulatedStreamRef.current, provider);
-          }, 100);
+          });
         }
         if (sessionId && sessionId !== visible) sessionStore.appendRealtime(sessionId, event as unknown as NormalizedMessage);
         return;

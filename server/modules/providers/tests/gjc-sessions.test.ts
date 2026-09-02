@@ -156,6 +156,64 @@ test('gjc synchronizer indexes sessions and derives the title from the first use
   }
 });
 
+test('gjc titles are concise: the first message loses its command and mentions and is cut at a sentence', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'gjc-session-title-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreLiveSessionDir = patchLiveSessionDir(path.join(tempRoot, 'live-sessions'));
+
+  try {
+    const filePath = await writeGjcTranscript(tempRoot, 'gjc-titled', workspacePath, {
+      firstUserMessage: '/plan @src/server/index.ts Fix the boot order so the watcher starts after the database. Right now it races and the first scan is lost.',
+      withConversation: true,
+    });
+    await withIsolatedDatabase(async () => {
+      const synchronizer = new GjcSessionSynchronizer();
+      await synchronizer.reconcile();
+      assert.equal(sessionsDb.getSessionById('gjc-titled')?.custom_name, 'Fix the boot order so the watcher…');
+
+      // A hand-written name survives every later sync...
+      sessionsDb.updateSessionCustomName('gjc-titled', 'Boot order race');
+      await synchronizer.synchronizeFile(filePath);
+      assert.equal(sessionsDb.getSessionById('gjc-titled')?.custom_name, 'Boot order race');
+
+      // ...until the user explicitly asks for the derived title back.
+      const regenerated = await sessionsService.regenerateSessionTitle('gjc-titled');
+      assert.deepEqual(regenerated, { sessionId: 'gjc-titled', summary: 'Fix the boot order so the watcher…' });
+      assert.equal(sessionsDb.getSessionById('gjc-titled')?.custom_name, 'Fix the boot order so the watcher…');
+    });
+  } finally {
+    restoreLiveSessionDir();
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('regenerating a title needs a transcript with a user message behind it', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'gjc-session-title-empty-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreLiveSessionDir = patchLiveSessionDir(path.join(tempRoot, 'live-sessions'));
+
+  try {
+    await writeGjcTranscript(tempRoot, 'gjc-no-prompt', workspacePath);
+    await withIsolatedDatabase(async () => {
+      await new GjcSessionSynchronizer().reconcile();
+      await assert.rejects(sessionsService.regenerateSessionTitle('gjc-no-prompt'), { code: 'SESSION_TITLE_UNAVAILABLE' });
+
+      sessionsDb.createAppSession('app-only', 'gjc', workspacePath);
+      await assert.rejects(sessionsService.regenerateSessionTitle('app-only'), { code: 'SESSION_TITLE_UNAVAILABLE' }, 'no transcript yet');
+      await assert.rejects(sessionsService.regenerateSessionTitle('missing'), { code: 'SESSION_NOT_FOUND' });
+    });
+  } finally {
+    restoreLiveSessionDir();
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('gjc reconciliation includes transcripts modified after the shared scan cursor', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'gjc-session-reconcile-'));
   const workspacePath = path.join(tempRoot, 'workspace');

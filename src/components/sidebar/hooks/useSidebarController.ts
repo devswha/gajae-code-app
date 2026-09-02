@@ -255,6 +255,13 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
     } catch (error) { console.error('[Sidebar] Error renaming session:', error); alert(t('messages.renameSessionError')); }
     finally { setEditingSession(null); setEditingSessionName(''); }
   }, [onRefresh, t]);
+  const regenerateSessionTitle = useCallback(async (sessionId: string) => {
+    try {
+      const response = await api.regenerateSessionTitle(sessionId);
+      if (!response.ok) { console.error('[Sidebar] Failed to regenerate session title:', response.status); alert(t('messages.regenerateTitleFailed')); return; }
+      await onRefresh();
+    } catch (error) { console.error('[Sidebar] Error regenerating session title:', error); alert(t('messages.regenerateTitleFailed')); }
+  }, [onRefresh, t]);
   const toggleSessionStar = useCallback(async (sessionId: string) => {
     try {
       const response = await api.toggleSessionStar(sessionId);
@@ -272,5 +279,5 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
   const collapseSidebar = useCallback(() => setSidebarVisible(false), [setSidebarVisible]);
   const expandSidebar = useCallback(() => setSidebarVisible(true), [setSidebarVisible]);
 
-  return { isSidebarCollapsed: !isMobile && !sidebarVisible, expandedProjects, editingProject, showNewProject, editingName, initialSessionsLoaded, currentTime, projectSortOrder, isRefreshing, editingSession, editingSessionName, deletingProjects, loadingMoreProjects, deleteConfirmation, sessionDeleteConfirmation, filteredProjects, isArchiveOpen, archiveLoadError, archivedProjects, archivedSessions, archivedSessionsCount: archivedProjects.length + archivedSessions.length, isArchivedSessionsLoading, toggleProject, handleSessionClick, toggleStarProject, isProjectStarred, getProjectSessions, loadMoreSessionsForProject, startEditing, cancelEditing, saveProjectName, showDeleteSessionConfirmation, confirmDeleteSession, requestProjectDelete, confirmDeleteProject, handleProjectSelect, openArchivedSession, restoreArchivedProject, restoreArchivedSession, openArchive, closeArchive, refreshProjects, updateSessionSummary, toggleSessionStar, exportSession, collapseSidebar, expandSidebar, setShowNewProject, setEditingName, setEditingSession, setEditingSessionName, setDeleteConfirmation, setSessionDeleteConfirmation };
+  return { isSidebarCollapsed: !isMobile && !sidebarVisible, expandedProjects, editingProject, showNewProject, editingName, initialSessionsLoaded, currentTime, projectSortOrder, isRefreshing, editingSession, editingSessionName, deletingProjects, loadingMoreProjects, deleteConfirmation, sessionDeleteConfirmation, filteredProjects, isArchiveOpen, archiveLoadError, archivedProjects, archivedSessions, archivedSessionsCount: archivedProjects.length + archivedSessions.length, isArchivedSessionsLoading, toggleProject, handleSessionClick, toggleStarProject, isProjectStarred, getProjectSessions, loadMoreSessionsForProject, startEditing, cancelEditing, saveProjectName, showDeleteSessionConfirmation, confirmDeleteSession, requestProjectDelete, confirmDeleteProject, handleProjectSelect, openArchivedSession, restoreArchivedProject, restoreArchivedSession, openArchive, closeArchive, refreshProjects, updateSessionSummary, regenerateSessionTitle, toggleSessionStar, exportSession, collapseSidebar, expandSidebar, setShowNewProject, setEditingName, setEditingSession, setEditingSessionName, setDeleteConfirmation, setSessionDeleteConfirmation };
 }

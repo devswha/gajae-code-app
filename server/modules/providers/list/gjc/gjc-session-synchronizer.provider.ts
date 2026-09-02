@@ -6,6 +6,7 @@ import { createInterface } from 'node:readline';
 
 import { appConfigDb, sessionsDb } from '@/modules/database/index.js';
 import {
+  deriveSessionTitle,
   extractFirstValidJsonlData,
   findFilesRecursivelyCreatedAfter,
   getGjcLiveSessionRoot,
@@ -437,8 +438,20 @@ export class GjcSessionSynchronizer implements IProviderSessionSynchronizer {
     signal?.throwIfAborted();
     return {
       ...parsed,
-      sessionName: normalizeSessionName(firstUserMessage, UNTITLED_GJC_SESSION),
+      sessionName: deriveSessionTitle(firstUserMessage, UNTITLED_GJC_SESSION),
     };
+  }
+
+  /**
+   * Re-derives the title from the transcript on request, ignoring whatever
+   * name the database holds. Returns null when the transcript has no user
+   * message to derive from.
+   */
+  async deriveSessionTitle(filePath: string, signal?: AbortSignal): Promise<string | null> {
+    const firstUserMessage = await this.extractFirstUserMessageFromStart(filePath, signal);
+    signal?.throwIfAborted();
+    if (!firstUserMessage?.trim()) return null;
+    return deriveSessionTitle(firstUserMessage, UNTITLED_GJC_SESSION);
   }
 
   /**

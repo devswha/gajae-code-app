@@ -176,4 +176,23 @@ export const sessionsService = {
     sessionsDb.updateSessionCustomName(sessionId, summary);
     return { sessionId, summary };
   },
+
+  /**
+   * Replaces the stored title with one derived afresh from the transcript. The
+   * user asked for it explicitly, so a hand-written name is overwritten here
+   * and nowhere else; the indexer never touches a name it did not set.
+   */
+  async regenerateSessionTitle(sessionId: string): Promise<{ sessionId: string; summary: string }> {
+    const row = requiredSession(sessionId);
+    const synchronizer = providerRegistry.resolveProvider(row.provider as LLMProvider).sessionSynchronizer;
+    if (!row.jsonl_path || !synchronizer.deriveSessionTitle) {
+      throw new AppError('This session has no transcript to derive a title from yet.', { code: 'SESSION_TITLE_UNAVAILABLE', statusCode: 409 });
+    }
+    const summary = await synchronizer.deriveSessionTitle(row.jsonl_path);
+    if (!summary) {
+      throw new AppError('This session has no message to derive a title from yet.', { code: 'SESSION_TITLE_UNAVAILABLE', statusCode: 409 });
+    }
+    sessionsDb.updateSessionCustomName(sessionId, summary);
+    return { sessionId, summary };
+  },
 };

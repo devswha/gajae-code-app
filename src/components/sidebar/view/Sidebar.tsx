@@ -101,6 +101,7 @@ function Sidebar(props: SidebarProps) {
       controller.setEditingSessionName('');
     },
     onSaveEditingSession: (projectId: string, sessionId: string, summary: string, provider: LLMProvider) => { void controller.updateSessionSummary(projectId, sessionId, summary, provider); },
+    onRegenerateTitle: (sessionId) => { void controller.regenerateSessionTitle(sessionId); },
     onToggleSessionStar: (sessionId) => { void controller.toggleSessionStar(sessionId); },
     onExportSession: (sessionId) => { void controller.exportSession(sessionId); },
     t,

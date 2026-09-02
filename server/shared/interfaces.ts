@@ -54,4 +54,6 @@ export interface IProviderSessionSynchronizer {
   synchronize(since?: Date): Promise<number>;
   reconcile?(since?: Date, signal?: AbortSignal): Promise<{ processed: number; sessionIds: string[] }>;
   synchronizeFile(filePath: string, signal?: AbortSignal): Promise<string | null>;
+  /** Derives a fresh title from the provider's transcript; null when it holds nothing to derive from. */
+  deriveSessionTitle?(filePath: string, signal?: AbortSignal): Promise<string | null>;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, Download, Edit2, MoreHorizontal, Star, Trash2, X } from 'lucide-react';
+import { Check, Download, Edit2, MoreHorizontal, RefreshCw, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, buttonVariants } from '../../../shared/view/ui';
@@ -28,6 +28,7 @@ type SidebarSessionItemProps = {
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onToggleSessionStar?: (sessionId: string) => void;
+  onRegenerateTitle?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
@@ -75,6 +76,7 @@ type SessionActionOptions = {
   isProcessing: boolean;
   t: TFunction;
   onToggleSessionStar?: (sessionId: string) => void;
+  onRegenerateTitle?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onDeleteSession: () => void;
@@ -95,6 +97,7 @@ export function buildSessionActions({
   isProcessing,
   t,
   onToggleSessionStar,
+  onRegenerateTitle,
   onExportSession,
   onStartEditingSession,
   onDeleteSession,
@@ -112,6 +115,13 @@ export function buildSessionActions({
       icon: Edit2,
       onSelect: () => onStartEditingSession(sessionId, sessionName),
     },
+    // Sits next to Rename because it is Rename's undo: the derived title, back.
+    ...(onRegenerateTitle ? [{
+      key: 'regenerate-title',
+      label: t('sessions.regenerateTitle'),
+      icon: RefreshCw,
+      onSelect: () => onRegenerateTitle(sessionId),
+    }] : []),
     ...(onExportSession ? [{
       key: 'export',
       label: t('sessions.exportSession'),
@@ -147,6 +157,7 @@ export default function SidebarSessionItem({
   onCancelEditingSession,
   onSaveEditingSession,
   onToggleSessionStar,
+  onRegenerateTitle,
   onExportSession,
   onProjectSelect,
   onSessionSelect,
@@ -204,6 +215,7 @@ export default function SidebarSessionItem({
     isProcessing,
     t,
     onToggleSessionStar,
+    onRegenerateTitle,
     onExportSession,
     onStartEditingSession,
     onDeleteSession: requestDeleteSession,

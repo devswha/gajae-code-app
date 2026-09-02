@@ -180,6 +180,10 @@ router.put('/sessions/:sessionId', asyncHandler(async (req: Request, res: Respon
   res.json(createApiSuccessResponse(sessionsService.renameSessionById(sessionFrom(req.params.sessionId), renamedSummary(req.body))));
 }));
 
+router.post('/sessions/:sessionId/regenerate-title', asyncHandler(async (req: Request, res: Response) => {
+  res.json(createApiSuccessResponse(await sessionsService.regenerateSessionTitle(sessionFrom(req.params.sessionId))));
+}));
+
 router.get('/sessions/:sessionId/export', asyncHandler(async (req: Request, res: Response) => {
   const transcript = await exportSessionTranscript(sessionFrom(req.params.sessionId));
   res.setHeader('Content-Type', transcript.contentType);

@@ -26,6 +26,7 @@ type SidebarProjectSessionsProps = {
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onToggleSessionStar?: (sessionId: string) => void;
+  onRegenerateTitle?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
@@ -75,6 +76,7 @@ export default function SidebarProjectSessions({
   onCancelEditingSession,
   onSaveEditingSession,
   onToggleSessionStar,
+  onRegenerateTitle,
   onExportSession,
   onProjectSelect,
   onSessionSelect,
@@ -115,6 +117,7 @@ export default function SidebarProjectSessions({
               onCancelEditingSession={onCancelEditingSession}
               onSaveEditingSession={onSaveEditingSession}
               onToggleSessionStar={onToggleSessionStar}
+              onRegenerateTitle={onRegenerateTitle}
               onExportSession={onExportSession}
               onProjectSelect={onProjectSelect}
               onSessionSelect={onSessionSelect}

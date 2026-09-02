@@ -295,6 +295,79 @@ export function normalizeSessionName(rawValue: string | undefined, fallback: str
   return title ? title.slice(0, 120) : fallback;
 }
 
+export const SESSION_TITLE_MAX_LENGTH = 40;
+
+/** A sentence must be at least this long to stand alone as the title; "Hi." does not. */
+const SESSION_TITLE_MIN_SENTENCE = 12;
+const SENTENCE_END = /[.!?。！？](?=\s|$)/g;
+/** "e.g." / "i.e." / "U.S." - a dot closing a run of single letters is not a sentence end. */
+const ABBREVIATION_BEFORE_DOT = /(?:^|\s)(?:\p{L}\.)*\p{L}$/u;
+const TRAILING_PUNCTUATION = /[\s.!?…:;,。！？、，]+$/u;
+
+function firstSentenceEnd(text: string): number | null {
+  for (const match of text.matchAll(SENTENCE_END)) {
+    if (match[0] === '.' && ABBREVIATION_BEFORE_DOT.test(text.slice(0, match.index))) continue;
+    return match.index;
+  }
+  return null;
+}
+const LEADING_COMMAND = /^\/([\w:.-]+)(?:\s+|$)/;
+
+function humanizeCommandName(command: string): string {
+  return command.replace(/[-_:.]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function capitalize(text: string): string {
+  return text ? text.charAt(0).toLocaleUpperCase() + text.slice(1) : text;
+}
+
+/**
+ * Turns the first user message into a short sidebar title.
+ *
+ * The raw message tends to open with a slash command, `@file` mentions, or a
+ * pasted code block, none of which say what the conversation is about, so they
+ * go first. What remains is cut at the first sentence boundary when that leaves
+ * something substantial, then to `maxLength` at a word boundary with an
+ * ellipsis. A message that was nothing but a command is titled by the command.
+ */
+export function deriveSessionTitle(rawValue: string | undefined, fallback: string, maxLength = SESSION_TITLE_MAX_LENGTH): string {
+  let text = (rawValue ?? '').replace(/\r\n?/g, '\n');
+  const command = LEADING_COMMAND.exec(text.trimStart())?.[1] ?? null;
+
+  text = text
+    .replace(/```[\s\S]*?(?:```|$)/g, ' ')
+    .replace(/`([^`\n]*)`/g, '$1')
+    .trimStart()
+    .replace(LEADING_COMMAND, '')
+    .replace(/(^|[\s(])@[^\s)]+/g, '$1')
+    .replace(/^\s{0,3}(?:#{1,6}\s+|[-*+]\s+|\d+[.)]\s+|>\s*)/gm, '')
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/<\/?[a-zA-Z][^>\n]*>/g, ' ')
+    .replace(/(\*{1,3}|_{1,3}|~{1,2})(\S(?:[^*_~\n]*\S)?)\1/g, '$2')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!text) {
+    return command ? capitalize(humanizeCommandName(command)) || fallback : fallback;
+  }
+
+  const boundary = firstSentenceEnd(text);
+  if (boundary !== null && boundary + 1 >= SESSION_TITLE_MIN_SENTENCE) {
+    text = text.slice(0, boundary + 1);
+  }
+  text = text.replace(TRAILING_PUNCTUATION, '');
+
+  if (text.length > maxLength) {
+    const room = Math.max(1, maxLength - 1);
+    let cut = text.slice(0, room);
+    const lastGap = cut.lastIndexOf(' ');
+    if (lastGap >= Math.ceil(room / 2)) cut = cut.slice(0, lastGap);
+    text = `${cut.replace(TRAILING_PUNCTUATION, '')}…`;
+  }
+
+  return capitalize(text) || fallback;
+}
+
 function normalizeProviderTimestamp(value: unknown): string {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
     const epochMs = value < 1_000_000_000_000 ? value * 1000 : value;

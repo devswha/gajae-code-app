@@ -65,6 +65,20 @@ test('the export entry appears only when a host wired the handler', async () => 
   assert.deepEqual(exported, ['session-1'], 'it exports the row it belongs to');
 });
 
+test('regenerate title follows rename and appears only when a host wired it', async () => {
+  const t = await makeT();
+
+  assert.equal(actions(t).some((item) => item.key === 'regenerate-title'), false);
+
+  const regenerated: string[] = [];
+  const wired = actions(t, { onRegenerateTitle: (sessionId) => regenerated.push(sessionId), onExportSession: () => undefined });
+  const keys = wired.map((item) => item.key);
+  assert.equal(keys.indexOf('regenerate-title'), keys.indexOf('rename') + 1, 'it is Rename\'s neighbour, not buried below export');
+
+  wired.find((entry) => entry.key === 'regenerate-title')!.onSelect();
+  assert.deepEqual(regenerated, ['session-1']);
+});
+
 test('a running session keeps delete out of reach, and export within it', async () => {
   const t = await makeT();
   const running = actions(t, { isProcessing: true, onExportSession: () => undefined });

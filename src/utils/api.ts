@@ -156,6 +156,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ summary }),
     }),
+  // Replaces the stored title with one derived afresh from the transcript.
+  regenerateSessionTitle: (sessionId: string) =>
+    authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(sessionId)}/regenerate-title`, {
+      method: 'POST',
+    }),
   toggleSessionStar: (sessionId: string) =>
     authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(sessionId)}/toggle-star`, {
       method: 'POST',

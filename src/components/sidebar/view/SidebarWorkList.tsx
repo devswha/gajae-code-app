@@ -35,6 +35,7 @@ export default function SidebarWorkList({ projectListProps, quietWhenEmpty = fal
     onCancelEditingSession,
     onSaveEditingSession,
     onToggleSessionStar,
+    onRegenerateTitle,
     onExportSession,
     t,
   } = projectListProps;
@@ -86,6 +87,7 @@ export default function SidebarWorkList({ projectListProps, quietWhenEmpty = fal
           onCancelEditingSession={onCancelEditingSession}
           onSaveEditingSession={onSaveEditingSession}
           onToggleSessionStar={onToggleSessionStar}
+          onRegenerateTitle={onRegenerateTitle}
           onExportSession={onExportSession}
           onProjectSelect={onProjectSelect}
           onSessionSelect={onSessionSelect}

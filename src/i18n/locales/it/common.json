@@ -73,6 +73,13 @@
       "refresh": "Aggiorna modifiche",
       "empty": "Nessuna modifica",
       "emptyHint": "L'albero di lavoro è pulito.",
+      "scope": {
+        "workingTree": "Albero di lavoro",
+        "lastTurn": "Ultimo turno"
+      },
+      "emptyTurn": "Nessuna modifica nell’ultimo turno",
+      "emptyTurnHint": "L’ultimo turno non ha modificato file.",
+      "noSession": "Seleziona una sessione per visualizzare le ultime modifiche.",
       "loading": "Caricamento delle modifiche…",
       "notRepo": "Questa cartella non è un repository Git",
       "unavailable": "Impossibile leggere le modifiche Git",

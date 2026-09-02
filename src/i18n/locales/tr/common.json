@@ -73,6 +73,13 @@
       "refresh": "Değişiklikleri yenile",
       "empty": "Değişiklik yok",
       "emptyHint": "Çalışma ağacınız temiz.",
+      "scope": {
+        "workingTree": "Çalışma ağacı",
+        "lastTurn": "Son tur"
+      },
+      "emptyTurn": "Son turda değişiklik yok",
+      "emptyTurnHint": "Son turda hiçbir dosya değişmedi.",
+      "noSession": "En son değişiklikleri görmek için bir oturum seçin.",
       "loading": "Değişiklikler yükleniyor…",
       "notRepo": "Bu klasör bir Git deposu değil",
       "unavailable": "Git değişiklikleri okunamadı",

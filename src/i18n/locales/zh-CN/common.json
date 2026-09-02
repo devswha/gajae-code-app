@@ -73,6 +73,13 @@
       "refresh": "刷新更改",
       "empty": "没有更改",
       "emptyHint": "工作树是干净的。",
+      "scope": {
+        "workingTree": "工作树",
+        "lastTurn": "上一轮"
+      },
+      "emptyTurn": "上一轮没有更改",
+      "emptyTurnHint": "上一轮没有更改任何文件。",
+      "noSession": "选择一个会话以查看其最新更改。",
       "loading": "正在加载变更…",
       "notRepo": "此文件夹不是 Git 仓库",
       "unavailable": "无法读取 Git 更改",

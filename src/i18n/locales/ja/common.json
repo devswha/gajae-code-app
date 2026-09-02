@@ -73,6 +73,13 @@
       "refresh": "変更を更新",
       "empty": "変更はありません",
       "emptyHint": "作業ツリーはクリーンです。",
+      "scope": {
+        "workingTree": "作業ツリー",
+        "lastTurn": "直前のターン"
+      },
+      "emptyTurn": "直前のターンに変更はありません",
+      "emptyTurnHint": "直前のターンではファイルは変更されませんでした。",
+      "noSession": "最新の変更を表示するにはセッションを選択してください。",
       "loading": "変更を読み込み中…",
       "notRepo": "このフォルダーは Git リポジトリではありません",
       "unavailable": "Git の変更を読み取れませんでした",

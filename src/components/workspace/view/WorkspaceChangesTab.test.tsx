@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import type { ProjectChange } from '../hooks/useProjectChanges';
 
@@ -22,13 +23,16 @@ const changedFile: ProjectChange = {
 };
 
 function render(overrides: Partial<WorkspaceChangesTabProps> = {}): string {
-  return renderToStaticMarkup(createElement(WorkspaceChangesTab, {
-    projectId: 'project-alpha',
-    projectPath: '/work/alpha',
-    projectName: 'Alpha Workspace',
-    active: true,
-    ...overrides,
-  }));
+  const client = new QueryClient();
+  return renderToStaticMarkup(createElement(QueryClientProvider, { client },
+    createElement(WorkspaceChangesTab, {
+      projectId: 'project-alpha',
+      projectPath: '/work/alpha',
+      projectName: 'Alpha Workspace',
+      active: true,
+      ...overrides,
+    }),
+  ));
 }
 
 test('renders the loading state and refresh control before a static render can load changes', () => {
@@ -36,6 +40,8 @@ test('renders the loading state and refresh control before a static render can l
 
   assert.match(html, /workspace\.changes\.loading/);
   assert.match(html, /aria-label="workspace\.changes\.refreshLabel"/);
+  assert.match(html, /workspace\.changes\.scope\.workingTree/);
+  assert.match(html, /workspace\.changes\.scope\.lastTurn/);
 });
 
 test('renders a file row with counts, rename, and expanded unified diff', () => {

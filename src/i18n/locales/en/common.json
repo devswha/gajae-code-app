@@ -73,6 +73,13 @@
       "refresh": "Refresh changes",
       "empty": "No changes",
       "emptyHint": "Your working tree is clean.",
+      "scope": {
+        "workingTree": "Working tree",
+        "lastTurn": "Last turn"
+      },
+      "emptyTurn": "No changes in the last turn",
+      "emptyTurnHint": "The last turn did not change any files.",
+      "noSession": "Select a session to view its latest changes.",
       "loading": "Loading changes…",
       "notRepo": "This folder is not a Git repository",
       "unavailable": "Could not read Git changes",

@@ -31,6 +31,7 @@ export type WorkspacePanelProps = {
   projectName?: string;
   projectPath?: string;
   projectId?: string;
+  sessionId?: string;
   /** The project's permission mode, when the caller has loaded it. */
   permissionMode?: PermissionMode | null;
   automationSessionId: string;
@@ -60,6 +61,7 @@ export default function WorkspacePanel({
   projectName,
   projectPath,
   projectId,
+  sessionId,
   permissionMode = null,
   automationSessionId,
   browserNavigation,
@@ -162,6 +164,7 @@ export default function WorkspacePanel({
             projectId={projectId}
             projectPath={projectPath}
             projectName={projectName}
+            sessionId={sessionId}
             active={tab === 'changes'}
           />
         )}

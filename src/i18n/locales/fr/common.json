@@ -73,6 +73,13 @@
       "refresh": "Actualiser les modifications",
       "empty": "Aucune modification",
       "emptyHint": "Votre arbre de travail est propre.",
+      "scope": {
+        "workingTree": "Arbre de travail",
+        "lastTurn": "Dernier tour"
+      },
+      "emptyTurn": "Aucun changement au dernier tour",
+      "emptyTurnHint": "Le dernier tour n’a modifié aucun fichier.",
+      "noSession": "Sélectionnez une session pour voir ses dernières modifications.",
       "loading": "Chargement des modifications…",
       "notRepo": "Ce dossier n’est pas un dépôt Git",
       "unavailable": "Impossible de lire les modifications Git",

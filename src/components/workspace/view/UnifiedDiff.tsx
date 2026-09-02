@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import { parseUnifiedDiff } from '../utils/unifiedDiff';
+import { parseUnifiedDiff, type UnifiedDiffRow } from '../utils/unifiedDiff';
 
 export type UnifiedDiffProps = {
   patch: string;
@@ -9,6 +9,10 @@ export type UnifiedDiffProps = {
 export default function UnifiedDiff({ patch }: UnifiedDiffProps) {
   const rows = useMemo(() => parseUnifiedDiff(patch), [patch]);
 
+  return <UnifiedDiffRows rows={rows} />;
+}
+
+export function UnifiedDiffRows({ rows }: { rows: UnifiedDiffRow[] }) {
   return (
     <div className="overflow-x-auto border-t border-border/60 font-mono text-xs leading-[18px]">
       {rows.map((row, index) => {

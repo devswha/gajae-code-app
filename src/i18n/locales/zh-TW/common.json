@@ -73,6 +73,13 @@
       "refresh": "重新整理變更",
       "empty": "沒有變更",
       "emptyHint": "工作樹是乾淨的。",
+      "scope": {
+        "workingTree": "工作樹",
+        "lastTurn": "上一輪"
+      },
+      "emptyTurn": "上一輪沒有變更",
+      "emptyTurnHint": "上一輪沒有變更任何檔案。",
+      "noSession": "選取工作階段以檢視最新變更。",
       "loading": "正在載入變更…",
       "notRepo": "此資料夾不是 Git 儲存庫",
       "unavailable": "無法讀取 Git 變更",

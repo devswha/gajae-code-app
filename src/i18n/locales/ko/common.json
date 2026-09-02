@@ -73,6 +73,13 @@
       "refresh": "변경 사항 새로 고침",
       "empty": "변경 사항 없음",
       "emptyHint": "작업 트리가 깨끗합니다.",
+      "scope": {
+        "workingTree": "작업 트리",
+        "lastTurn": "최근 턴"
+      },
+      "emptyTurn": "최근 턴에 변경 사항이 없습니다",
+      "emptyTurnHint": "최근 턴에서 변경된 파일이 없습니다.",
+      "noSession": "최신 변경 사항을 보려면 세션을 선택하세요.",
       "loading": "변경 사항을 불러오는 중…",
       "notRepo": "이 폴더는 Git 저장소가 아닙니다",
       "unavailable": "Git 변경 사항을 읽을 수 없습니다",

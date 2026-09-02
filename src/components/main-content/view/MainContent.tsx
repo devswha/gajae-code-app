@@ -138,6 +138,7 @@ function MainContent({
               projectName={selectedProject.displayName}
               projectPath={selectedProject.path}
               projectId={selectedProject.projectId}
+              sessionId={selectedSession?.id}
               permissionMode={projectPermissions?.mode ?? null}
               automationSessionId={selectedSession?.id ?? `project-${selectedProject.projectId}`}
               browserNavigation={pendingBrowserNavigation}

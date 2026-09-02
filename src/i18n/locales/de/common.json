@@ -73,6 +73,13 @@
       "refresh": "Änderungen aktualisieren",
       "empty": "Keine Änderungen",
       "emptyHint": "Ihr Arbeitsverzeichnis ist sauber.",
+      "scope": {
+        "workingTree": "Arbeitsbaum",
+        "lastTurn": "Letzte Runde"
+      },
+      "emptyTurn": "Keine Änderungen in der letzten Runde",
+      "emptyTurnHint": "Die letzte Runde hat keine Dateien geändert.",
+      "noSession": "Wählen Sie eine Sitzung aus, um deren letzte Änderungen zu sehen.",
       "loading": "Änderungen werden geladen…",
       "notRepo": "Dieser Ordner ist kein Git-Repository",
       "unavailable": "Git-Änderungen konnten nicht gelesen werden",

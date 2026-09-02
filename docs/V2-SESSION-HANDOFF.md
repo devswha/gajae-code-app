@@ -475,8 +475,18 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
    - Session UI: four-state status, sidebar search, tool-output density,
      per-project permissions, turn work block, composer Stop / Esc.
 3. **Session-UI roadmap, remaining items** (1–3.5 landed 2026-09-02):
-   - (4) Changes tab: a diff review pane for the session's edits with line
-     comments that turn into the next agent message. Medium–large.
+   - (4) Changes tab — **shipped 2026-09-03** (`253cd21` server,
+     `3df9ba6` tab, last-turn scope after): third workspace tab between
+     Status and Browser. `GET /api/git/diff` reads the working tree vs HEAD
+     (+ untracked, patches capped 50k/file, 400k/response, 100 untracked
+     `--no-index` processes); the tab lists files with status/renames/+-
+     counts, rows expand to unified diffs, per-row open-in-editor, and a
+     scope toggle `Working tree | Last turn` (last turn = the viewed
+     session's edit/write/delete/move calls after its last user row, rows
+     from the chat's own line differ). No staging/revert UI — git ops stay
+     the agent's. Remaining from the original item: line comments that
+     become the next agent message (deliberately deferred, with a `/review`
+     command rejected as a canned prompt not worth the command surface).
    - (5) Worktree isolation + run-location picker. Investigate GJC runtime
      support first (`.gjc-worktrees/` is gitignored); do not build it
      app-side if the runtime owns it. Large.

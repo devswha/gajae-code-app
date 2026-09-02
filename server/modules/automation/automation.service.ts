@@ -108,7 +108,7 @@ const COMPUTER_DISCOVERY_TOOLS = new Set<CuaSafeTool>([
  * the Workspace Browser window fails as "unresolvable" even though the target
  * is the app's own browser.
  */
-export const WORKSPACE_BROWSER_APPLICATION_ID = 'app.gajae.workspace-browser';
+const WORKSPACE_BROWSER_APPLICATION_ID = 'app.gajae.workspace-browser';
 const WORKSPACE_BROWSER_LABEL = 'Workspace Browser';
 
 export class AutomationService {

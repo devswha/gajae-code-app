@@ -1,5 +1,5 @@
-export const DRAFT_KEY_PREFIX = 'draft_input_';
-export const QUEUE_KEY_PREFIX = 'queued_message_';
+const DRAFT_KEY_PREFIX = 'draft_input_';
+const QUEUE_KEY_PREFIX = 'queued_message_';
 
 const matchingKeys = (prefix: string, retained: string) => Object.keys(localStorage).filter((key) => key.startsWith(prefix) && key !== retained);
 const removeKeys = (keys: string[]) => { keys.forEach((key) => localStorage.removeItem(key)); return keys.length; };

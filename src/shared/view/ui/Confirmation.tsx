@@ -53,18 +53,6 @@ export const ConfirmationRequest: React.FC<ConfirmationRequestProps> = ({ childr
 );
 ConfirmationRequest.displayName = 'ConfirmationRequest';
 
-export interface ConfirmationAcceptedProps { children?: React.ReactNode; }
-export const ConfirmationAccepted: React.FC<ConfirmationAcceptedProps> = ({ children }) => (
-  <ConfirmationState approval="approved">{children}</ConfirmationState>
-);
-ConfirmationAccepted.displayName = 'ConfirmationAccepted';
-
-export interface ConfirmationRejectedProps { children?: React.ReactNode; }
-export const ConfirmationRejected: React.FC<ConfirmationRejectedProps> = ({ children }) => (
-  <ConfirmationState approval="rejected">{children}</ConfirmationState>
-);
-ConfirmationRejected.displayName = 'ConfirmationRejected';
-
 export type ConfirmationActionsProps = React.HTMLAttributes<HTMLDivElement>;
 
 export const ConfirmationActions: React.FC<ConfirmationActionsProps> = ({ className, ...props }) => {
@@ -86,5 +74,3 @@ export const ConfirmationAction: React.FC<ConfirmationActionProps> = ({ variant 
   <Button className="h-8 px-3 text-sm" variant={variant} type="button" {...props} />
 );
 ConfirmationAction.displayName = 'ConfirmationAction';
-
-export { useConfirmation };

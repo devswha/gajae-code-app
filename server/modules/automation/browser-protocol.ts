@@ -44,26 +44,6 @@ export type BrowserSessionState = {
   tabs: BrowserTabState[];
 };
 
-export type BrowserAutomationStatus = {
-  supported: boolean;
-  platform: NodeJS.Platform;
-  architecture: string;
-  browser: {
-    state: 'idle' | 'starting' | 'ready' | 'error';
-    installed: boolean;
-    buildId: string;
-    error?: string;
-  };
-  cua: {
-    installed: boolean;
-    version?: string;
-    daemon: 'running' | 'stopped' | 'unknown';
-    accessibility?: boolean;
-    screenRecording?: boolean;
-    error?: string;
-  };
-};
-
 export type BrowserRequestMethod =
   | 'initialize'
   | 'status'
@@ -143,7 +123,7 @@ export class BrowserNdjsonDecoder {
   }
 }
 
-export function isBrowserProtocolFrame(value: unknown): value is BrowserProtocolFrame {
+function isBrowserProtocolFrame(value: unknown): value is BrowserProtocolFrame {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const frame = value as Record<string, unknown>;
   return frame.protocolVersion === BROWSER_PROTOCOL_VERSION

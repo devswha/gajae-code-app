@@ -16,7 +16,7 @@ import { readdir, realpath } from 'node:fs/promises';
  * containment and returns [].
  */
 
-export const MAX_DIR_SUGGESTIONS = 20;
+const MAX_DIR_SUGGESTIONS = 20;
 
 /** Absolute HOME path — clients join it with home-relative picks. */
 export function getHomeDir(): string {

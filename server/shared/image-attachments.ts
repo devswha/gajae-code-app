@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 export type ImageAttachmentDescriptor = { path: string; name?: string; mimeType?: string };
-export type ParsedImageAttachment = { path: string; name?: string };
+type ParsedImageAttachment = { path: string; name?: string };
 export type ParsedImagesInput = {
   text: string;
   imagePaths: string[];
@@ -48,11 +48,6 @@ export function normalizeImageDescriptors(images: unknown): ImageAttachmentDescr
 
 export function toPosixPath(value: string): string {
   return value.replaceAll('\\', '/');
-}
-
-export function resolveImageAbsolutePath(cwd: string | undefined, imagePath: string): string {
-  if (path.isAbsolute(imagePath)) return imagePath;
-  return path.resolve(cwd ? cwd : process.cwd(), imagePath);
 }
 
 function directoryAliases(directory: string): string[] {

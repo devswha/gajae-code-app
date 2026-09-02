@@ -16,7 +16,7 @@ const USER_TABLE_SCHEMA_SQL = table(`
   );
 `);
 
-export const API_KEYS_TABLE_SCHEMA_SQL = table(`
+const API_KEYS_TABLE_SCHEMA_SQL = table(`
   CREATE TABLE IF NOT EXISTS api_keys (
       id INTEGER PRIMARY KEY AUTOINCREMENT, -- row identity
       user_id INTEGER NOT NULL, -- owning account
@@ -29,7 +29,7 @@ export const API_KEYS_TABLE_SCHEMA_SQL = table(`
   );
 `);
 
-export const USER_CREDENTIALS_TABLE_SCHEMA_SQL = table(`
+const USER_CREDENTIALS_TABLE_SCHEMA_SQL = table(`
   CREATE TABLE IF NOT EXISTS user_credentials (
       id INTEGER PRIMARY KEY AUTOINCREMENT, -- row identity
       user_id INTEGER NOT NULL, -- owning account

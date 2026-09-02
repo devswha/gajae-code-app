@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { constants, existsSync } from 'node:fs';
+import { constants } from 'node:fs';
 import { access } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -243,8 +243,4 @@ export class CuaDriverClient {
 
 export function isCuaSafeTool(value: unknown): value is CuaSafeTool {
   return typeof value === 'string' && (CUA_SAFE_TOOLS as readonly string[]).includes(value);
-}
-
-export function cuaDriverMayBeInstalled(): boolean {
-  return executableCandidates().some((candidate) => existsSync(candidate));
 }

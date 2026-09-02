@@ -18,7 +18,7 @@
  * plain prompts.
  */
 
-export type AppUiCommandActionId =
+type AppUiCommandActionId =
   | 'open-session-picker'
   | 'start-new-chat'
   | 'open-settings'
@@ -204,7 +204,7 @@ export const APP_UNSUPPORTED_COMMAND_HINTS: Readonly<Record<string, string>> = {
   '/transcript': 'Use the current chat and session history; the runtime transcript browser is TUI-only.',
 };
 
-export function getAppUnsupportedCommandNotice(commandForm: string): string | null {
+function getAppUnsupportedCommandNotice(commandForm: string): string | null {
   const hint = APP_UNSUPPORTED_COMMAND_HINTS[commandForm];
   if (hint === undefined) return null;
   const base = `\`${commandForm}\` is not available in the app.`;

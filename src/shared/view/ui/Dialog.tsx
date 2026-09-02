@@ -190,4 +190,4 @@ const DialogTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HT
 );
 DialogTitle.displayName = 'DialogTitle';
 
-export { Dialog, DialogTrigger, DialogContent, DialogTitle, useDialog };
+export { Dialog, DialogTrigger, DialogContent, DialogTitle };

@@ -62,8 +62,6 @@ function shouldAutoOpenUrlFromOutput(value = '') {
 }
 
 export {
-    ANSI_ESCAPE_SEQUENCE_REGEX,
-    TRAILING_URL_PUNCTUATION_REGEX,
     stripAnsiSequences,
     normalizeDetectedUrl,
     extractUrlsFromText,

@@ -40,9 +40,4 @@ const CommandItem = React.forwardRef<React.ElementRef<typeof CommandPrimitive.It
 });
 CommandItem.displayName = CommandPrimitive.Item.displayName;
 
-const CommandSeparator = React.forwardRef<React.ElementRef<typeof CommandPrimitive.Separator>, React.ComponentPropsWithoutRef<typeof CommandPrimitive.Separator>>(function CommandSeparator({ className, ...attributes }, ref) {
-  return <CommandPrimitive.Separator ref={ref} className={cn('-mx-1 h-px bg-border', className)} {...attributes} />;
-});
-CommandSeparator.displayName = CommandPrimitive.Separator.displayName;
-
-export { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandSeparator };
+export { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem };

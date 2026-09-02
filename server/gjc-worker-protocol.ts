@@ -1,7 +1,7 @@
 export const GJC_WORKER_PROTOCOL_VERSION = 1 as const;
 export const GJC_WORKER_MAX_FRAME_BYTES = 64 * 1024 * 1024;
 
-export type JsonPrimitive = string | number | boolean | null;
+type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
 
@@ -40,16 +40,15 @@ export const GJC_WORKER_EVENT_METHODS = [
 
 export type GjcWorkerRequestMethod = typeof GJC_WORKER_REQUEST_METHODS[number];
 export type GjcWorkerEventMethod = typeof GJC_WORKER_EVENT_METHODS[number];
-export type GjcWorkerGlobalRequestMethod = Extract<GjcWorkerRequestMethod, 'worker.initialize' | 'worker.shutdown' | 'models.catalog' | `oauth.${string}`>;
+type GjcWorkerGlobalRequestMethod = Extract<GjcWorkerRequestMethod, 'worker.initialize' | 'worker.shutdown' | 'models.catalog' | `oauth.${string}`>;
 export type GjcWorkerGlobalEventMethod = Extract<GjcWorkerEventMethod, 'oauth.phase' | 'oauth.providers.updated' | 'provider.auth.updated'>;
-export type GjcWorkerResponseMethod = GjcWorkerRequestMethod;
 
-export type GjcWorkerSuccess = {
+type GjcWorkerSuccess = {
   ok: true;
   result?: JsonValue;
 };
 
-export type GjcWorkerFailure = {
+type GjcWorkerFailure = {
   ok: false;
   error: {
     code: string;
@@ -63,7 +62,7 @@ export type GjcWorkerResponsePayload = GjcWorkerSuccess | GjcWorkerFailure;
 type GlobalRequestMethod = GjcWorkerGlobalRequestMethod;
 type ScopedRequestMethod = Exclude<GjcWorkerRequestMethod, GlobalRequestMethod>;
 
-export type GjcWorkerGlobalRequestFrame = {
+type GjcWorkerGlobalRequestFrame = {
   protocolVersion: typeof GJC_WORKER_PROTOCOL_VERSION;
   kind: 'request';
   id: string;
@@ -71,7 +70,7 @@ export type GjcWorkerGlobalRequestFrame = {
   payload: JsonObject;
 };
 
-export type GjcWorkerScopedRequestFrame = {
+type GjcWorkerScopedRequestFrame = {
   protocolVersion: typeof GJC_WORKER_PROTOCOL_VERSION;
   kind: 'request';
   id: string;
@@ -82,7 +81,7 @@ export type GjcWorkerScopedRequestFrame = {
 
 export type GjcWorkerRequestFrame = GjcWorkerGlobalRequestFrame | GjcWorkerScopedRequestFrame;
 
-export type GjcWorkerGlobalResponseFrame = {
+type GjcWorkerGlobalResponseFrame = {
   protocolVersion: typeof GJC_WORKER_PROTOCOL_VERSION;
   kind: 'response';
   id: string;
@@ -90,7 +89,7 @@ export type GjcWorkerGlobalResponseFrame = {
   payload: GjcWorkerResponsePayload;
 };
 
-export type GjcWorkerScopedResponseFrame = {
+type GjcWorkerScopedResponseFrame = {
   protocolVersion: typeof GJC_WORKER_PROTOCOL_VERSION;
   kind: 'response';
   id: string;
@@ -101,7 +100,7 @@ export type GjcWorkerScopedResponseFrame = {
 
 export type GjcWorkerResponseFrame = GjcWorkerGlobalResponseFrame | GjcWorkerScopedResponseFrame;
 
-export type GjcWorkerStatusEventFrame = {
+type GjcWorkerStatusEventFrame = {
   protocolVersion: typeof GJC_WORKER_PROTOCOL_VERSION;
   kind: 'event';
   id: string;
@@ -109,7 +108,7 @@ export type GjcWorkerStatusEventFrame = {
   sessionId?: string;
   payload: JsonObject;
 };
-export type GjcWorkerGlobalEventFrame = {
+type GjcWorkerGlobalEventFrame = {
   protocolVersion: typeof GJC_WORKER_PROTOCOL_VERSION;
   kind: 'event';
   id: string;
@@ -118,7 +117,7 @@ export type GjcWorkerGlobalEventFrame = {
 };
 
 
-export type GjcWorkerScopedEventFrame = {
+type GjcWorkerScopedEventFrame = {
   protocolVersion: typeof GJC_WORKER_PROTOCOL_VERSION;
   kind: 'event';
   id: string;

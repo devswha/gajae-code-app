@@ -15,7 +15,7 @@ export const RELEASE = {
   publishedLabel: '2026-08-31',
 };
 
-export function releaseDownloadBase(tag = RELEASE.tag) {
+function releaseDownloadBase(tag = RELEASE.tag) {
   return `${RELEASES_URL}/download/${tag}`;
 }
 

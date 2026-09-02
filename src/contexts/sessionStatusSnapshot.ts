@@ -15,7 +15,7 @@ export type SessionTokenTotals = {
   cache?: number;
 };
 
-export type SessionActivity = {
+type SessionActivity = {
   running: boolean;
   /** Provider phase such as "Compacting" — null when it is just running. */
   statusText: string | null;

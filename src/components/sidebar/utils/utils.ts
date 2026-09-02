@@ -40,11 +40,11 @@ export const clearLegacyStarredProjectIds = () => {
   }
 };
 
-export const getSessionTime = (session: SessionWithProvider): string => sessionTimestamp(session);
+const getSessionTime = (session: SessionWithProvider): string => sessionTimestamp(session);
 
-export const getSessionDate = (session: SessionWithProvider): Date => new Date(sessionTimestamp(session) || 0);
+const getSessionDate = (session: SessionWithProvider): Date => new Date(sessionTimestamp(session) || 0);
 
-export const getSessionName = (session: SessionWithProvider, t: TFunction): string => session.summary || session.name || t('projects.newSession');
+const getSessionName = (session: SessionWithProvider, t: TFunction): string => session.summary || session.name || t('projects.newSession');
 
 export const createSessionViewModel = (session: SessionWithProvider, currentTime: Date, t: TFunction): SessionViewModel => ({
   isActive: Math.floor((currentTime.getTime() - getSessionDate(session).getTime()) / 60_000) < 10,
@@ -58,7 +58,7 @@ export const getAllSessions = (project: Project): SessionWithProvider[] => {
   return entries.map((entry) => ({ ...entry, __provider: providerFor(entry) })).sort((first, second) => getSessionDate(second).getTime() - getSessionDate(first).getTime());
 };
 
-export const getProjectLastActivity = (project: Project): Date => {
+const getProjectLastActivity = (project: Project): Date => {
   let newest = new Date(0);
   for (const session of getAllSessions(project)) {
     const timestamp = getSessionDate(session);

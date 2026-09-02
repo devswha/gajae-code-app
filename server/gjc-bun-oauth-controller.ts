@@ -4,8 +4,8 @@ import { getOAuthProviders } from '@gajae-code/ai/utils/oauth';
 import { ModelRegistry } from '@gajae-code/coding-agent/config/model-registry';
 import { AuthStorage } from '@gajae-code/coding-agent/session/auth-storage';
 
-export const GJC_OAUTH_SUBMIT_MAX_LENGTH = 16 * 1024;
-export const GJC_OAUTH_ATTEMPT_TIMEOUT_MS = 10 * 60 * 1000;
+const GJC_OAUTH_SUBMIT_MAX_LENGTH = 16 * 1024;
+const GJC_OAUTH_ATTEMPT_TIMEOUT_MS = 10 * 60 * 1000;
 const GJC_OAUTH_AUTHORIZATION_URL_MAX_LENGTH = 4_096;
 type OAuthAuthInfo = { url: string; instructions?: string };
 type OAuthPrompt = { message: string; placeholder?: string; allowEmpty?: boolean };
@@ -65,7 +65,7 @@ type AttemptState = GjcOAuthAttempt & {
 const terminalPhases = new Set<GjcOAuthAttemptPhase>(['completed', 'cancelled', 'timed_out', 'failed']);
 const passwordPrompt = /\b(?:password|passphrase|secret|token|(?:api|access)[\s_-]?(?:key|token))\b/i;
 
-export class GjcOAuthControllerError extends Error {
+class GjcOAuthControllerError extends Error {
   readonly code: string;
 
   constructor(code: string) {

@@ -2,8 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { voiceId, voicePlayer, type VoiceSnapshot } from '../../../utils/voicePlayer';
 
-export type TtsState = VoiceSnapshot['state'];
-
 function sameSnapshot(left: VoiceSnapshot, right: VoiceSnapshot): boolean {
   return left.state === right.state && left.error === right.error;
 }

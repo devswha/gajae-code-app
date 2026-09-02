@@ -6,7 +6,7 @@ import { synthesizeVoice, voiceConfigSignature } from './voiceApi';
 // out from under it (the cause of mid-play cutoffs). v1 plays one message at a time
 // (a new play replaces the current one); the design leaves room for a queue later.
 
-export type VoicePlayState = 'idle' | 'loading' | 'playing';
+type VoicePlayState = 'idle' | 'loading' | 'playing';
 
 export type VoiceSnapshot = { state: VoicePlayState; error: string | null };
 

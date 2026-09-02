@@ -7,7 +7,7 @@ import { authenticatedFetch } from '../utils/api';
 
 import { buildRefreshMessagesUrl } from './sessionMessageFetch';
 
-export type MessageKind = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'stream_delta' | 'stream_end' | 'error' | 'complete' | 'status' | 'permission_request' | 'permission_cancelled' | 'session_created' | 'interactive_prompt' | 'task_notification' | 'system_notice';
+type MessageKind = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'stream_delta' | 'stream_end' | 'error' | 'complete' | 'status' | 'permission_request' | 'permission_cancelled' | 'session_created' | 'interactive_prompt' | 'task_notification' | 'system_notice';
 export interface NormalizedMessage {
   id: string; sessionId: string; timestamp: string; provider: LLMProvider; kind: MessageKind; seq?: number;
   role?: 'user' | 'assistant'; content?: string; displayText?: string; commandName?: string; commandMessage?: string; commandArgs?: string;

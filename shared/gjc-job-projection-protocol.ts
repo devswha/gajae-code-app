@@ -1,6 +1,6 @@
 export const GJC_JOB_PROJECTION_PROTOCOL_VERSION = 1 as const;
 
-export type JobSequence = number;
+type JobSequence = number;
 export type JobState = 'reserved' | 'queued' | 'running' | 'aborting' | 'ready' | 'succeeded' | 'failed' | 'aborted' | 'interrupted';
 export type JobProjectionEvent = { eventId: string; sequence: JobSequence; payload: unknown };
 export type JobSnapshot = {
@@ -48,8 +48,8 @@ const TERMINAL_STATES = new Set<JobTerminalOutcome>(['succeeded', 'failed', 'abo
 const ERROR_CODES = new Set<JobProjectionErrorCode>(['invalid_request', 'not_found', 'cursor_ahead', 'cursor_mismatch', 'authority_unavailable', 'storage_failure', 'buffer_overflow', 'protocol_violation']);
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
-export function isJobSequence(value: unknown): value is JobSequence { return Number.isSafeInteger(value) && (value as number) >= 0; }
-export function isJobIdentifier(value: unknown): value is string { return typeof value === 'string' && IDENTIFIER.test(value); }
+function isJobSequence(value: unknown): value is JobSequence { return Number.isSafeInteger(value) && (value as number) >= 0; }
+function isJobIdentifier(value: unknown): value is string { return typeof value === 'string' && IDENTIFIER.test(value); }
 export function isJobProjectionEvent(value: unknown): value is JobProjectionEvent {
   return object(value) && isJobIdentifier(value.eventId) && isJobSequence(value.sequence) && value.sequence >= 1 && 'payload' in value;
 }

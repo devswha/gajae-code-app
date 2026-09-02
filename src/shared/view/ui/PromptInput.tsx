@@ -13,14 +13,6 @@ type PromptInputContextValue = { status: PromptInputStatus };
 
 const promptInputContext = React.createContext<PromptInputContextValue | null>(null);
 
-const usePromptInput = () => {
-  const state = React.useContext(promptInputContext);
-  if (state === null) {
-    throw new Error('PromptInput components must be used within PromptInput');
-  }
-  return state;
-};
-
 export interface PromptInputProps extends React.FormHTMLAttributes<HTMLFormElement> { status?: PromptInputStatus; }
 
 export const PromptInput = React.forwardRef<HTMLFormElement, PromptInputProps>(function PromptInput(
@@ -155,5 +147,3 @@ export const PromptInputSubmit = React.forwardRef<HTMLButtonElement, PromptInput
   );
 });
 PromptInputSubmit.displayName = 'PromptInputSubmit';
-
-export { usePromptInput };

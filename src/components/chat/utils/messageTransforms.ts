@@ -1,4 +1,4 @@
-export interface DiffLine { type: 'added' | 'removed'; content: string; lineNum: number; }
+interface DiffLine { type: 'added' | 'removed'; content: string; lineNum: number; }
 
 export type DiffCalculator = (oldStr: string, newStr: string) => DiffLine[];
 
@@ -20,7 +20,7 @@ const buildAlignment = (before: string[], after: string[]) => {
   return { scores, columns };
 };
 
-export const calculateDiff = (oldStr: string, newStr: string): DiffLine[] => {
+const calculateDiff = (oldStr: string, newStr: string): DiffLine[] => {
   const removed = lineSequence(oldStr);
   const added = lineSequence(newStr);
   const alignment = buildAlignment(removed, added);

@@ -1,6 +1,6 @@
 export const WEBSOCKET_DRAIN_CLOSE_CODE = 1001;
 export const WEBSOCKET_DRAIN_REASON = 'server-draining';
-export const WEBSOCKET_DRAIN_TIMEOUT_MS = 250;
+const WEBSOCKET_DRAIN_TIMEOUT_MS = 250;
 
 type DrainableWebSocket = {
   readyState: number;

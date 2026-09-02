@@ -245,7 +245,7 @@ export async function resolveGjcResumeSessionRoot(
   return undefined;
 }
 
-export async function enrichGjcSdkRunOptions(options: GjcWorkerOptions): Promise<GjcWorkerOptions> {
+async function enrichGjcSdkRunOptions(options: GjcWorkerOptions): Promise<GjcWorkerOptions> {
   let modelId = options.modelId ?? options.model;
   let modelProfile = typeof options.modelProfile === 'string' ? options.modelProfile.trim() : '';
   if (typeof modelId === 'string' && modelId.startsWith('profile:')) {
@@ -1180,7 +1180,6 @@ const supervisor = new GjcWorkerSupervisor({ enrichOptions: enrichGjcSdkRunOptio
 registerGjcRuntimeModelCatalogLoader(() => supervisor.modelCatalog());
 export function getGjcWorkerSupervisor(): GjcWorkerSupervisor { return supervisor; }
 export function isGjcSessionActive(alias: string) { return supervisor.isActive(alias); }
-export function getActiveGjcSessions() { return supervisor.active(); }
 export function resolveGjcToolApproval(requestId: string, decision: GjcApprovalDecision) { return supervisor.resolveApproval(requestId, decision); }
 export function getPendingGjcApprovalsForSession(appSessionId: string) { return supervisor.pendingApprovals(appSessionId); }
 export function shutdownGjcWorker() { return supervisor.shutdown(); }

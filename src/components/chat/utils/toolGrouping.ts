@@ -1,6 +1,6 @@
 import type { ChatMessage } from '../types/types';
 
-export const TOOL_GROUP_THRESHOLD = 2;
+const TOOL_GROUP_THRESHOLD = 2;
 
 export interface ToolGroupItem { _isGroup: true; toolName: string; messages: ChatMessage[]; timestamp: ChatMessage['timestamp']; }
 

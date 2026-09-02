@@ -18,4 +18,4 @@ const c = {
     dim: (text) => `${colors.dim}${text}${colors.reset}`,
 };
 
-export { colors, c };
+export { c };

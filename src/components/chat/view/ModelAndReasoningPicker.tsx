@@ -13,7 +13,7 @@ import {
   type ReasoningEffort,
 } from './reasoningEffort';
 
-export const DEFAULT_MODEL_VALUE = 'default';
+const DEFAULT_MODEL_VALUE = 'default';
 
 type ModelAndReasoningPickerProps = {
   /** Session-scoped selection: raw model id, `profile:*` preset, or `default`. */

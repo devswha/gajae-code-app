@@ -14,7 +14,7 @@ type ConversationMatch = { role: string; snippet: string; highlights: Highlight[
 type SessionResult = { sessionId: string; provider: Provider; sessionSummary: string; matches: ConversationMatch[] };
 type ProjectResult = { projectId: string | null; projectName: string; projectDisplayName: string; sessions: SessionResult[] };
 
-export type SessionConversationSearchProgressUpdate = { projectResult: ProjectResult | null; totalMatches: number; scannedProjects: number; totalProjects: number };
+type SessionConversationSearchProgressUpdate = { projectResult: ProjectResult | null; totalMatches: number; scannedProjects: number; totalProjects: number };
 type SearchSessionConversationsInput = { query: string; limit: number; signal?: AbortSignal; onProgress?: (update: SessionConversationSearchProgressUpdate) => void };
 type SessionRow = ReturnType<typeof sessionsDb.getAllSessions>[number];
 type Candidate = SessionRow & { provider: Provider; jsonl_path: string };
@@ -231,7 +231,7 @@ class TranscriptSearch {
   }
 }
 
-export async function searchConversations(query: string, limit = 50, onProjectResult: ((update: SessionConversationSearchProgressUpdate) => void) | null = null, signal: AbortSignal | null = null): Promise<{ results: ProjectResult[]; totalMatches: number; query: string }> {
+async function searchConversations(query: string, limit = 50, onProjectResult: ((update: SessionConversationSearchProgressUpdate) => void) | null = null, signal: AbortSignal | null = null): Promise<{ results: ProjectResult[]; totalMatches: number; query: string }> {
   const clean = typeof query === 'string' ? query.trim() : ''; const cap = Math.max(1, Math.min(Number.isFinite(limit) ? limit : 50, 200)); const words = clean.toLowerCase().split(/\s+/).filter(Boolean); const stopped = () => signal?.aborted === true;
   if (!words.length || stopped()) return { results: [], totalMatches: 0, query: clean };
   const rows = candidates(); if (!rows.length) return { results: [], totalMatches: 0, query: clean };

@@ -9,5 +9,4 @@ export type DeleteProjectConfirmation = { project: Project; sessionCount: number
 export type SessionDeleteConfirmation = { projectId: string | null; sessionId: string; sessionTitle: string; provider: LLMProvider; isArchived: boolean };
 export type SidebarProps = { activeSessions: SessionActivityMap; onProjectSelect: (project: Project) => void; onSessionSelect: (session: ProjectSession) => void; onNewSession: (project: Project) => void; onSessionDelete?: (sessionId: string) => void; onLoadMoreSessions?: (projectId: string) => Promise<void> | void; onProjectDelete?: (projectId: string) => void; onRefresh: () => Promise<void> | void; isMobile: boolean };
 export type SessionViewModel = { isActive: boolean; sessionName: string; sessionTime: string; messageCount: number };
-export type MCPServerStatus = { hasMCPServer?: boolean; isConfigured?: boolean } | null;
 export type SettingsProject = { name: string; displayName: string; fullPath: string; path?: string };

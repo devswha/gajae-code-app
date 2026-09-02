@@ -67,7 +67,7 @@ export class AppError extends Error {
 }
 
 export const WORKSPACES_ROOT = process.env.WORKSPACES_ROOT || os.homedir();
-export const FORBIDDEN_WORKSPACE_PATHS = [
+const FORBIDDEN_WORKSPACE_PATHS = [
   '/', '/etc', '/bin', '/sbin', '/usr', '/dev', '/proc', '/sys', '/var', '/boot', '/root', '/lib', '/lib64', '/opt', '/tmp', '/run',
   'C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)', 'C:\\ProgramData', 'C:\\System Volume Information', 'C:\\$Recycle.Bin',
 ];
@@ -205,31 +205,11 @@ export const readObjectRecord = (value: any): AnyRecord | null => (
   value && typeof value === 'object' && !Array.isArray(value) ? value as AnyRecord : null
 );
 
-export function readOptionalString(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  return trimmed.length ? trimmed : undefined;
-}
-
-export const readStringArray = (value: unknown): string[] | undefined => (
-  Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : undefined
-);
-
-export function readStringRecord(value: unknown): Record<string, string> | undefined {
-  const source = readObjectRecord(value);
-  if (!source) return undefined;
-  const strings: Record<string, string> = {};
-  for (const [key, entry] of Object.entries(source)) {
-    if (typeof entry === 'string') strings[key] = entry;
-  }
-  return Object.keys(strings).length ? strings : undefined;
-}
-
 export function buildDefaultProviderCurrentActiveModel(models: ProviderModelsDefinition): ProviderCurrentActiveModel {
   return { model: models.DEFAULT };
 }
 
-export function getProviderSessionActiveModelChangesPath(): string {
+function getProviderSessionActiveModelChangesPath(): string {
   return path.join(os.homedir(), '.gajae-app', 'provider-session-active-model-changes.json');
 }
 
@@ -310,48 +290,12 @@ export function parseIncomingJsonObject(payload: unknown): AnyRecord | null {
   try { return readObjectRecord(JSON.parse(text)); } catch { return null; }
 }
 
-export async function readJsonConfig(filePath: string): Promise<Record<string, unknown>> {
-  let raw: string;
-  try {
-    raw = await readFile(filePath, 'utf8');
-  } catch (error) {
-    // A config that was never written is an empty config, not a failure.
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};
-    throw error;
-  }
-  return readObjectRecord(JSON.parse(raw)) ?? {};
-}
-
-export async function writeJsonConfig(filePath: string, data: Record<string, unknown>): Promise<void> {
-  const serialized = JSON.stringify(data, null, 2);
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${serialized}\n`, 'utf8');
-}
-
-async function containsGitMarker(directory: string): Promise<boolean> {
-  // `.git` may be a directory (a checkout) or a file (a worktree or submodule
-  // pointer); either one marks a repository boundary.
-  const marker = await stat(path.join(directory, '.git')).catch(() => null);
-  return marker !== null && (marker.isDirectory() || marker.isFile());
-}
-
-export async function findTopmostGitRoot(startPath: string): Promise<string | null> {
-  let cursor = path.resolve(startPath);
-  let result: string | null = null;
-  for (;;) {
-    if (await containsGitMarker(cursor)) result = cursor;
-    const parent = path.dirname(cursor);
-    if (parent === cursor) return result;
-    cursor = parent;
-  }
-}
-
 export function normalizeSessionName(rawValue: string | undefined, fallback: string): string {
   const title = (rawValue ?? '').replace(/\s+/g, ' ').trim();
   return title ? title.slice(0, 120) : fallback;
 }
 
-export function normalizeProviderTimestamp(value: unknown): string {
+function normalizeProviderTimestamp(value: unknown): string {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
     const epochMs = value < 1_000_000_000_000 ? value * 1000 : value;
     return new Date(epochMs).toISOString();
@@ -365,36 +309,8 @@ export function normalizeProviderTimestamp(value: unknown): string {
   return new Date().toISOString();
 }
 
-export function readJsonRecord(value: unknown): AnyRecord | null {
-  if (typeof value !== 'string') return readObjectRecord(value);
-  try { return readObjectRecord(JSON.parse(value)); } catch { return null; }
-}
-
 export function getOpenCodeDatabasePath(): string {
   return path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
-}
-
-export function unwrapJsonStringLiteral(value: string): string {
-  const candidate = value.trim();
-  const looksQuoted = candidate.startsWith('"') && candidate.endsWith('"');
-  if (!looksQuoted) return value;
-  try {
-    const decoded: unknown = JSON.parse(candidate);
-    return typeof decoded === 'string' ? decoded : value;
-  } catch {
-    return value;
-  }
-}
-
-export function sanitizeLeafDirectoryName(inputName: string, label = 'directory name'): string {
-  const name = inputName.trim();
-  if (!name) throw new Error(`${label} is required.`);
-  const escapesLeaf = name.includes('..')
-    || name.includes(path.posix.sep)
-    || name.includes(path.win32.sep)
-    || name !== path.basename(name);
-  if (escapesLeaf) throw new Error(`Invalid ${label} "${inputName}".`);
-  return name;
 }
 
 export async function findFilesRecursivelyCreatedAfter(rootDir: string, extension: string, lastScanAt: Date | null, fileList: string[] = []): Promise<string[]> {
@@ -424,25 +340,6 @@ export async function readFileTimestamps(filePath: string): Promise<{ createdAt?
   return { createdAt: metadata.birthtime.toISOString(), updatedAt: metadata.mtime.toISOString() };
 }
 
-export async function buildLookupMap(filePath: string, keyField: string, valueField: string): Promise<Map<string, string>> {
-  const output = new Map<string, string>();
-  try {
-    const rows = readline.createInterface({ input: fs.createReadStream(filePath), crlfDelay: Infinity });
-    for await (const row of rows) {
-      const source = row.trim();
-      if (!source) continue;
-      const document = JSON.parse(source) as Record<string, unknown>;
-      const key = document[keyField];
-      const value = document[valueField];
-      if (typeof key !== 'string' || typeof value !== 'string') continue;
-      if (!output.has(key)) output.set(key, value);
-    }
-  } catch {
-    // Lookup files are optional during synchronization.
-  }
-  return output;
-}
-
 export async function extractFirstValidJsonlData<T>(filePath: string, extractor: (parsedJson: unknown) => T | null | undefined, signal?: AbortSignal): Promise<T | null> {
   try {
     const stream = fs.createReadStream(filePath, { signal });
@@ -461,9 +358,4 @@ export async function extractFirstValidJsonlData<T>(filePath: string, extractor:
     if (signal?.aborted) throw error;
   }
   return null;
-}
-
-export function flattenPromptForWindowsShell(prompt: string): string {
-  if (process.platform !== 'win32' || typeof prompt !== 'string') return prompt;
-  return prompt.replace(/\s*\r?\n\s*/g, ' ').trim();
 }

@@ -13,8 +13,6 @@ const languageDetails = [
 
 export const languages = languageDetails.map(([value, label, nativeName]) => ({ value, label, nativeName }));
 
-export const getLanguage = (value) => languages.find(({ value: code }) => code === value);
-
-export const getLanguageValues = () => languages.map(({ value }) => value);
+const getLanguage = (value) => languages.find(({ value: code }) => code === value);
 
 export const isLanguageSupported = (value) => getLanguage(value) !== undefined;

@@ -1,6 +1,6 @@
 import net from 'node:net';
 
-export const COMMON_DEVELOPMENT_PORTS = [3000, 4173, 5173, 5174, 8000, 8080] as const;
+const COMMON_DEVELOPMENT_PORTS = [3000, 4173, 5173, 5174, 8000, 8080] as const;
 
 type PortProbe = (port: number) => Promise<boolean>;
 

@@ -5,7 +5,7 @@ import { useWebSocket } from '../../../contexts/WebSocketContext';
 
 type UnknownRecord = Record<string, unknown>;
 
-export type OAuthLoginPhase =
+type OAuthLoginPhase =
   | 'starting'
   | 'awaiting_browser'
   | 'awaiting_input'

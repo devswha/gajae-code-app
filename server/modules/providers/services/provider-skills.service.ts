@@ -9,7 +9,7 @@ type ProviderSkillsServiceDependencies = {
   resolveProjectPath?: (projectId: string) => string | null;
 };
 
-export const createProviderSkillsService = (dependencies: ProviderSkillsServiceDependencies = {}) => {
+const createProviderSkillsService = (dependencies: ProviderSkillsServiceDependencies = {}) => {
   const resolveProvider = dependencies.resolveProvider ?? providerRegistry.resolveProvider;
   const resolveProjectPath = dependencies.resolveProjectPath ?? projectsDb.getProjectPathById;
 

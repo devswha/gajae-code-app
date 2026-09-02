@@ -15,20 +15,10 @@ const alertVariants = cva('relative grid w-full grid-cols-[0_1fr] items-start ga
 
 type AlertProps = React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>;
 
-function alertChild(slot: 'alert-title' | 'alert-description', baseClass: string) {
-  return React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(function AlertChild({ className, ...attributes }, ref) {
-    return React.createElement('div', { ref, 'data-slot': slot, className: cn(baseClass, className), ...attributes });
-  });
-}
-
 const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert({ className, variant, ...attributes }, ref) {
   return <div ref={ref} role="alert" data-slot="alert" className={cn(alertVariants({ variant }), className)} {...attributes} />;
 });
-const AlertTitle = alertChild('alert-title', 'col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight');
-const AlertDescription = alertChild('alert-description', 'col-start-2 grid justify-items-start gap-1 text-sm text-muted-foreground [&_p]:leading-relaxed');
 
 Alert.displayName = 'Alert';
-AlertTitle.displayName = 'AlertTitle';
-AlertDescription.displayName = 'AlertDescription';
 
-export { Alert, AlertTitle, AlertDescription, alertVariants };
+export { Alert };

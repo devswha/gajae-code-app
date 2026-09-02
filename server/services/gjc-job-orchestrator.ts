@@ -10,7 +10,6 @@ import { getDatabasePath } from '../modules/database/connection.js';
 import { GjcGitClient } from './gjc-git-client.js';
 import { GjcJobsClient, GjcJobsClientError } from './gjc-jobs-client.js';
 
-export type JobState = 'reserved' | 'queued' | 'running' | 'aborting' | 'ready' | 'succeeded' | 'failed' | 'aborted' | 'interrupted';
 type Lease = { owner: string; generation: number };
 type RunSnapshot = { runId: string; appSessionId?: string | null; providerSessionId?: string | null };
 type JobSnapshot = { jobId: string; provider?: string; state: string; lease?: Lease | null; worktreeId?: string | null; branch?: string | null; repositoryRoot?: string | null; baseCommit?: string | null; currentRun?: RunSnapshot | null; dispatchCheckpoint?: unknown; lastSequence?: number };

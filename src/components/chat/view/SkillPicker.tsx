@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Sparkles } from 'lucide-react';
 
-export type SelectableSkill = {
+type SelectableSkill = {
   name: string;
   description?: string;
   path?: string;

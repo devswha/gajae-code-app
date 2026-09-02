@@ -20,7 +20,7 @@ export interface ChatMessage {
 }
 
 export interface PendingPermissionRequest { requestId: string; toolName: string; input?: unknown; context?: unknown; sessionId?: string | null; receivedAt?: Date; }
-export interface QuestionOption { label: string; description?: string; }
+interface QuestionOption { label: string; description?: string; }
 export interface Question { options: QuestionOption[]; question: string; header?: string; multiSelect?: boolean; }
 export interface SessionNavigationOptions { replace?: boolean; }
 export interface SessionEstablishedContext { project: Project; provider: LLMProvider; summary?: string | null; }

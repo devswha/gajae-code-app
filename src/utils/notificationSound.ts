@@ -8,8 +8,6 @@ let sharedContext: AudioContext | null = null;
 const preferenceAllowsSound = (): boolean => typeof localStorage === 'undefined'
   || localStorage.getItem(SOUND_PREFERENCE) !== 'false';
 
-export const isNotificationSoundEnabled = (): boolean => preferenceAllowsSound();
-
 export const setNotificationSoundEnabled = (enabled: boolean): void => {
   if (typeof localStorage !== 'undefined') localStorage.setItem(SOUND_PREFERENCE, `${enabled}`);
 };

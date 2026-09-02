@@ -40,7 +40,7 @@ export type TranscriptTurnRecord = {
 };
 
 /** How a turn ended, or `running` while it has not. */
-export type TurnStatus = 'running' | 'completed' | 'failed' | 'aborted';
+type TurnStatus = 'running' | 'completed' | 'failed' | 'aborted';
 
 export type TurnAssignment = {
   /** Id of the `user` record that began the turn. */

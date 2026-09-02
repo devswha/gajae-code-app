@@ -1,6 +1,6 @@
 import { GjcNativeClient, GjcNativeRequestError, type GjcNativeClientOptions } from './gjc-git-client.js';
 
-export type GjcArchivedFilter = 'exclude' | 'include' | 'only';
+type GjcArchivedFilter = 'exclude' | 'include' | 'only';
 export type GjcJobListParams = Record<string, unknown> & { archived?: GjcArchivedFilter };
 export type GjcJobReferenceParams = Record<string, unknown> & { jobId: string };
 export type GjcJobsClientOptions = GjcNativeClientOptions & { database: string };

@@ -25,7 +25,7 @@ import {
 } from './gjc-automation-tools.js';
 type Model = ReturnType<ModelRegistry['getAll']>[number];
 
-export type ExactCredentialRef =
+type ExactCredentialRef =
   | { kind: 'stored'; providerId?: string; credentialId?: number }
   | { kind: 'runtime-env'; envVar: string };
 type AppBashPolicy = { allowedPrefixes: string[]; restrictionProfile?: 'workflow' | 'read-only' };

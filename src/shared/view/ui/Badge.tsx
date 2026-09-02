@@ -34,4 +34,4 @@ function Badge(attributes: BadgeProps) {
   return <div className={classes} {...elementAttributes} />;
 }
 
-export { Badge, badgeVariants };
+export { Badge };

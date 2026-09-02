@@ -873,9 +873,6 @@ export function spawnGjcWithRuntime(message, options = {}, writer, runtime = {})
   return Object.assign(runPromise, { abortHandle: processKey, processId });
 }
 
-function spawnGjc(message, options = {}, writer) {
-  return spawnGjcWithRuntime(message, options, writer);
-}
 function scheduleGjcAbortEscalation(gjcProcess) {
   if (gjcProcess.hasClosed || gjcProcess.gjcAbortEscalationTimer) {
     return;
@@ -974,18 +971,7 @@ async function abortGjcSession(sessionId) {
   return gjcProcess ? abortGjcProcess(gjcProcess) : false;
 }
 
-function isGjcSessionActive(sessionId) {
-  return activeGjcProcesses.has(sessionId);
-}
-
-function getActiveGjcSessions() {
-  return Array.from(activeGjcProcesses.keys());
-}
-
 export {
-  spawnGjc,
   abortGjcSession,
   abortGjcProcess,
-  isGjcSessionActive,
-  getActiveGjcSessions,
 };

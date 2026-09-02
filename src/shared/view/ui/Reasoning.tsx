@@ -20,7 +20,7 @@ const reasoningContext = React.createContext<ReasoningContextValue | null>(null)
 const AUTO_CLOSE_DELAY = 1000;
 const MILLISECONDS_PER_SECOND = 1000;
 
-export const useReasoning = () => {
+const useReasoning = () => {
   const state = React.useContext(reasoningContext);
   if (state === null) {
     throw new Error('Reasoning components must be used within Reasoning');

@@ -17,7 +17,7 @@ import {
 
 import { primaryModelSelector } from '../../../../../shared/model-selectors.js';
 
-export const GJC_FALLBACK_MODELS: ProviderModelsDefinition = {
+const GJC_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
     { value: 'default', label: 'Default' },
   ],

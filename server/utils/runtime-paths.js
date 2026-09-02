@@ -5,7 +5,7 @@ export function getModuleDir(importMetaUrl) {
   return path.dirname(fileURLToPath(importMetaUrl));
 }
 
-export function findServerRoot(startDir) {
+function findServerRoot(startDir) {
   // Source files live under /server, while compiled files live under /dist-server/server.
   // Walking up to the nearest "server" folder gives every backend module one stable anchor
   // that works in both layouts instead of relying on fragile "../.." assumptions.

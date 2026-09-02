@@ -21,7 +21,7 @@ type RunningSessionsApiPayload = {
 
 const RUNNING_SESSIONS_QUERY_KEY = ['running-sessions'] as const;
 
-export const RUNNING_SESSIONS_REFETCH_MS = 5000;
+const RUNNING_SESSIONS_REFETCH_MS = 5000;
 
 /**
  * Polls `/api/providers/sessions/running` on a declared interval and feeds

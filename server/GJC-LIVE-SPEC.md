@@ -187,7 +187,11 @@ method or frame changes; the policy travels inside existing payloads:
   `permissions: { mode: 'ask' | 'auto_edits' | 'bypass', allowAlways: string[] }`
   (`server/gjc-permission-policy.ts`). When present the adapter switches the
   session to `prompt` and installs `server/gjc-bun-permission-gate.ts`; when
-  absent the runtime default stands. A malformed block fails the run.
+  absent the runtime default stands. A malformed block fails the run with the
+  application error code `invalid_permissions` — the one start failure whose
+  cause the app itself produced — and the application relays the fixed text
+  "Invalid GJC run permissions." to the client instead of the generic
+  "GJC worker failed.".
 - A call the policy covers (`bypass`, a tool on `allowAlways`, or a file
   mutation under `auto_edits`) is approved inside the worker and recorded once
   per tool per run as a `system_notice` ("Auto-approved bash (always allow)").
@@ -210,6 +214,13 @@ method or frame changes; the policy travels inside existing payloads:
   verified desktop machine are unavailable. No `taskkill /T /F` fallback is
   part of the v2 contract. Windows cleanup is fail-closed as `unconfirmed`, so
   it cannot release a lease or admit a replacement generation.
+- `worker.initialize` covers the whole SDK bootstrap (runtime manifest check,
+  model registry build, online model discovery), which takes several seconds on
+  a loaded machine. The application bounds it at 60 s
+  (`DEFAULT_INITIALIZE_TIMEOUT_MS`), separately from the 5 s `worker.shutdown`
+  bound; a worker that misses it is reaped and the reason is written to
+  `~/.gajae-app/logs/gjc-worker.log` and the server output, while callers see
+  the sanitized failure.
 - A start/resume response remains pending until the GJC run settles and all
   earlier worker events have been emitted.
 - `turn.abort` targets `runId`; the worker time-bounds the SDK attempt before

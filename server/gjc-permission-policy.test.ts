@@ -3,9 +3,13 @@ import test from 'node:test';
 
 import {
   GJC_AUTO_EDIT_TOOLS,
+  GJC_INVALID_PERMISSIONS_CODE,
+  GJC_INVALID_PERMISSIONS_MESSAGE,
+  GjcRunPermissionsError,
   gjcAutoApprovalNotice,
   gjcAutoApprovalReason,
   isGjcPermissionToolName,
+  isGjcRunPermissionsError,
   parseGjcRunPermissions,
 } from './gjc-permission-policy.js';
 
@@ -31,6 +35,20 @@ test('a permissions block is validated field by field', () => {
   ]) {
     assert.throws(() => parseGjcRunPermissions(malformed), /Invalid GJC run permissions/, JSON.stringify(malformed));
   }
+});
+
+test('a malformed block fails with a stable code the worker can answer with', () => {
+  let thrown: unknown;
+  try {
+    parseGjcRunPermissions({ mode: 'yolo' });
+  } catch (error) {
+    thrown = error;
+  }
+  assert.ok(thrown instanceof GjcRunPermissionsError);
+  assert.equal(thrown.code, GJC_INVALID_PERMISSIONS_CODE);
+  assert.equal(thrown.message, GJC_INVALID_PERMISSIONS_MESSAGE);
+  assert.equal(isGjcRunPermissionsError(thrown), true);
+  assert.equal(isGjcRunPermissionsError(new Error(GJC_INVALID_PERMISSIONS_MESSAGE)), false);
 });
 
 test('tool names are the runtime\'s own lowercase identifiers', () => {

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
+import { parseGjcRunPermissions } from '@/gjc-engine.js';
 import { closeConnection, initializeDatabase, projectPermissionsDb, projectsDb } from '@/modules/database/index.js';
 import {
   getProjectPermissions,
@@ -49,6 +50,24 @@ test('a project starts in ask mode with an empty allow-list and no stored row', 
     assert.deepEqual(listConfiguredProjectPermissions(), []);
     assert.deepEqual(resolveRunPermissions(alpha.path), { mode: 'ask', allowAlways: [] });
     assert.deepEqual(resolveRunPermissions(null), { mode: 'ask', allowAlways: [] });
+  });
+});
+
+test('every policy block the app emits is one the worker accepts', async () => {
+  await withDatabase(() => {
+    const alpha = project('/work/alpha');
+    const beta = project('/work/beta');
+    updateProjectPermissionMode(beta.id, { mode: 'auto_edits' });
+    grantProjectAlwaysAllow(beta.path, 'bash');
+    grantProjectAlwaysAllow(beta.path, 'todo_write');
+
+    // The block crosses the worker protocol as JSON, so the round trip is what
+    // the worker-side validator actually sees.
+    for (const projectPath of [null, undefined, '/work/never-registered', alpha.path, beta.path]) {
+      const emitted = JSON.parse(JSON.stringify(resolveRunPermissions(projectPath))) as unknown;
+      assert.deepEqual(parseGjcRunPermissions(emitted), resolveRunPermissions(projectPath), String(projectPath));
+    }
+    assert.deepEqual(resolveRunPermissions(beta.path), { mode: 'auto_edits', allowAlways: ['bash', 'todo_write'] });
   });
 });
 

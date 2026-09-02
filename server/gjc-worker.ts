@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Readable, Writable } from 'node:stream';
 import { pathToFileURL } from 'node:url';
 
+import { GJC_INVALID_PERMISSIONS_CODE, GJC_INVALID_PERMISSIONS_MESSAGE, isGjcRunPermissionsError } from './gjc-permission-policy.js';
 import {
   GJC_WORKER_PROTOCOL_VERSION,
   GjcWorkerNdjsonDecoder,
@@ -353,6 +354,7 @@ export class GjcWorkerHost {
       setModel: (model) => { if (run.active) run.model = model; },
     };
     let completed = false;
+    let invalidPermissions = false;
     try {
       const spawned = this.#runtime!.spawnGjc(input.message, {
         ...options(input.options)!,
@@ -369,6 +371,9 @@ export class GjcWorkerHost {
       completed = true;
     } catch (error) {
       // Keep the safe default failure response; report the cause on stderr only.
+      // A malformed permissions block is the one exception: the app sent it, so
+      // the app gets a fixed code back that names the problem.
+      invalidPermissions = isGjcRunPermissionsError(error);
       this.#diagnose(`run ${run.runId} failed`, error);
     } finally {
       if (run.abortPromise) {
@@ -390,7 +395,10 @@ export class GjcWorkerHost {
         ...(run.aborted ? { aborted: true } : {}),
       };
       this.#event(run, 'worker.status', { processId: null });
-      this.#response(request, completed ? success(result) : failure('run_failed', 'GJC run failed.'));
+      const failed = invalidPermissions
+        ? failure(GJC_INVALID_PERMISSIONS_CODE, GJC_INVALID_PERMISSIONS_MESSAGE)
+        : failure('run_failed', 'GJC run failed.');
+      this.#response(request, completed ? success(result) : failed);
       run.active = false;
       if (this.#runs.get(run.runId) === run) this.#runs.delete(run.runId);
       run.resolveCompletion();

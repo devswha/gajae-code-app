@@ -12,6 +12,7 @@ import {
   type GjcWorkerEventFrame,
   type GjcWorkerRequestFrame,
 } from './gjc-worker-protocol.js';
+import { GjcRunPermissionsError } from './gjc-permission-policy.js';
 import { claimProtocolStdout, GjcWorkerHost, runGjcWorkerEntrypoint, type GjcWorkerRuntime, type GjcWorkerWriter } from './gjc-worker.js';
 
 const request = (method: string, id: string, payload: Record<string, unknown> = {}, sessionId = 'scope-1') => ({ protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'request' as const, id, method, payload, ...(['worker.initialize', 'worker.shutdown'].includes(method) ? {} : { sessionId }) }) as GjcWorkerRequestFrame;
@@ -146,6 +147,20 @@ test('returns safe run failures without raw runtime text', async () => {
   fake.runs[0].run.reject(new Error('super-secret stderr /cwd argv')); await pending;
   const text = JSON.stringify(frames);
   assert.ok(text.includes('GJC run failed.') && !text.includes('super-secret'));
+});
+
+test('a malformed permissions block is answered with its own code instead of the generic failure', async () => {
+  const fake = fakeRuntime();
+  const diagnostics: string[] = [];
+  fake.runtime.spawnGjc = () => { throw new GjcRunPermissionsError(); };
+  const frames: unknown[] = [];
+  const host = new GjcWorkerHost({ runtime: async () => fake.runtime, emit: (frame) => frames.push(frame), diagnostic: (message) => diagnostics.push(message) });
+  await host.handle(request('worker.initialize', 'init'));
+  await host.handle(request('session.start', 'bad-policy', { message: 'hello', options: { permissions: { mode: 'yolo' } } }));
+  const response = frames.at(-1) as { payload: { ok: boolean; error: { code: string; message: string } } };
+  assert.equal(response.payload.ok, false);
+  assert.deepEqual(response.payload.error, { code: 'invalid_permissions', message: 'Invalid GJC run permissions.' });
+  assert.ok(diagnostics.some((line) => line.startsWith('run bad-policy failed')));
 });
 
 test('entrypoint fails closed on malformed input and emits protocol-only stdout', async () => {

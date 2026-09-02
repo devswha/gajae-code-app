@@ -1540,7 +1540,11 @@ test('a malformed permissions block fails the run before the factory is invoked'
   const f = await fixture();
   try {
     await f.host.handle(request('session.start', 'bad-policy', { message: 'x', options: { ...f.options, permissions: { mode: 'yolo' } } }));
-    assert.equal((response(f.frames, 'bad-policy').payload as Record<string, unknown>).ok, false);
+    const payload = response(f.frames, 'bad-policy').payload as Record<string, unknown>;
+    assert.equal(payload.ok, false);
+    // The app sent the block, so the app is told which part of the run was
+    // refused rather than the sanitized "GJC run failed.".
+    assert.deepEqual(payload.error, { code: 'invalid_permissions', message: 'Invalid GJC run permissions.' });
     assert.equal(f.sessions.length, 0);
   } finally { await f.close(); }
 });

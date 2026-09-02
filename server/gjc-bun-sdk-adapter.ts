@@ -149,12 +149,10 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
       && candidate.bashPolicy.restrictionProfile !== 'read-only')
     || (candidate.appSessionId !== undefined && (typeof candidate.appSessionId !== 'string' || !candidate.appSessionId))
   ) throw new Error(FAILURE);
-  let permissions: GjcRunPermissions | undefined;
-  try {
-    permissions = parseGjcRunPermissions(candidate.permissions);
-  } catch {
-    throw new Error(FAILURE);
-  }
+  // A malformed policy block throws GjcRunPermissionsError, which keeps its
+  // `invalid_permissions` code so the worker can answer with that code and the
+  // app can tell the user why the run never started.
+  const permissions = parseGjcRunPermissions(candidate.permissions);
   return { ...(candidate as unknown as SdkRunConfig), ...(permissions ? { permissions } : {}) };
 }
 

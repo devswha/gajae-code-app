@@ -30,6 +30,24 @@ export const GJC_AUTO_EDIT_TOOLS: ReadonlySet<string> = new Set(['edit', 'write'
 
 const TOOL_NAME = /^[a-z][a-z0-9_-]{0,63}$/;
 
+/** Application error code a worker answers a run with when its policy block is malformed. */
+export const GJC_INVALID_PERMISSIONS_CODE = 'invalid_permissions';
+/** Fixed text for that failure; safe to relay to a browser because it carries no frame content. */
+export const GJC_INVALID_PERMISSIONS_MESSAGE = 'Invalid GJC run permissions.';
+
+export class GjcRunPermissionsError extends Error {
+  readonly code = GJC_INVALID_PERMISSIONS_CODE;
+
+  constructor() {
+    super(GJC_INVALID_PERMISSIONS_MESSAGE);
+    this.name = 'GjcRunPermissionsError';
+  }
+}
+
+export function isGjcRunPermissionsError(error: unknown): boolean {
+  return error instanceof Error && (error as { code?: unknown }).code === GJC_INVALID_PERMISSIONS_CODE;
+}
+
 export function isGjcPermissionMode(value: unknown): value is GjcPermissionMode {
   return typeof value === 'string' && (GJC_PERMISSION_MODES as readonly string[]).includes(value);
 }
@@ -47,16 +65,16 @@ export function isGjcPermissionToolName(value: unknown): value is string {
 export function parseGjcRunPermissions(value: unknown): GjcRunPermissions | undefined {
   if (value === undefined) return undefined;
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('Invalid GJC run permissions.');
+    throw new GjcRunPermissionsError();
   }
   const record = value as Record<string, unknown>;
   if (!Object.keys(record).every((key) => key === 'mode' || key === 'allowAlways')) {
-    throw new Error('Invalid GJC run permissions.');
+    throw new GjcRunPermissionsError();
   }
-  if (!isGjcPermissionMode(record.mode)) throw new Error('Invalid GJC run permissions.');
+  if (!isGjcPermissionMode(record.mode)) throw new GjcRunPermissionsError();
   const allowAlways = record.allowAlways ?? [];
   if (!Array.isArray(allowAlways) || !allowAlways.every(isGjcPermissionToolName)) {
-    throw new Error('Invalid GJC run permissions.');
+    throw new GjcRunPermissionsError();
   }
   return { mode: record.mode, allowAlways: [...new Set(allowAlways)] };
 }

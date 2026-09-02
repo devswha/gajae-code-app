@@ -7,7 +7,13 @@ import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { after, test } from 'node:test';
 
-import { GjcWorkerSupervisor, killWorkerTree, resolveGjcResumeSessionRoot } from './gjc-worker-client.js';
+import {
+  DEFAULT_INITIALIZE_TIMEOUT_MS,
+  DEFAULT_SHUTDOWN_TIMEOUT_MS,
+  GjcWorkerSupervisor,
+  killWorkerTree,
+  resolveGjcResumeSessionRoot,
+} from './gjc-worker-client.js';
 import {
   GJC_WINDOWS_JOB_GUARD_ACK,
   GJC_WINDOWS_JOB_GUARD_READY,
@@ -1031,4 +1037,123 @@ test('OAuth requests and chat runs share one supervised worker process', async (
     'oauth.providers',
     'session.start',
   ]);
+});
+
+// Regression: three browser tabs reconnecting after a server restart each send
+// `oauth.status`, which starts the worker. Its SDK bootstrap (model registry +
+// online discovery) takes 4-8 s on a loaded machine, and a 5 s initialize bound
+// killed the healthy worker, so every tab logged only "GJC worker failed.".
+test('worker initialization survives a bootstrap slower than the former 5 s bound', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const child = new FakeChild();
+  const peer = new FakePeer(child);
+  const diagnostics: string[] = [];
+  peer.handle((request) => {
+    if (request.method === 'oauth.status') peer.respond(request, { ok: true, result: { providers: [] } });
+  });
+  const supervisor = new GjcWorkerSupervisor({
+    ...runtime(child),
+    diagnostic: (message) => diagnostics.push(message),
+  });
+
+  const reconnectingTabs = [supervisor.oauthStatus(), supervisor.oauthStatus(), supervisor.oauthStatus()];
+  const initialize = await peer.waitFor('worker.initialize');
+  t.mock.timers.tick(8_000);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(child.killed, false, 'a worker still bootstrapping must not be reaped');
+  assert.deepEqual(diagnostics, []);
+
+  peer.respond(initialize);
+  await peer.waitFor('oauth.status', 3);
+  assert.deepEqual(await Promise.all(reconnectingTabs), Array(3).fill({ ok: true, result: { providers: [] } }));
+  assert.equal(DEFAULT_INITIALIZE_TIMEOUT_MS >= 30_000, true);
+});
+
+test('a worker that never initializes fails every waiter once and says why in the diagnostics', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const child = new FakeChild();
+  const peer = new FakePeer(child);
+  const diagnostics: string[] = [];
+  const supervisor = new GjcWorkerSupervisor({
+    ...runtime(child),
+    diagnostic: (message) => diagnostics.push(message),
+  });
+
+  const waiters = [supervisor.oauthStatus(), supervisor.oauthStatus()];
+  const settled = waiters.map((waiter) => waiter.then(() => 'fulfilled', (error: Error) => error.message));
+  await peer.waitFor('worker.initialize');
+  t.mock.timers.tick(DEFAULT_INITIALIZE_TIMEOUT_MS);
+  assert.deepEqual(await Promise.all(settled), ['GJC worker failed.', 'GJC worker failed.']);
+  assert.equal(child.killed, true);
+  assert.deepEqual(diagnostics, [
+    `GJC worker initialization failed after ${DEFAULT_INITIALIZE_TIMEOUT_MS}ms bound: GJC worker request timed out.`,
+  ]);
+});
+
+test('a rejected initialize response records the worker\'s code', async () => {
+  const child = new FakeChild();
+  const peer = new FakePeer(child);
+  const diagnostics: string[] = [];
+  peer.handle((request) => peer.respond(request, { ok: false, error: { code: 'initialization_failed', message: 'Worker initialization failed.' } }));
+  const supervisor = new GjcWorkerSupervisor({
+    ...runtime(child),
+    diagnostic: (message) => diagnostics.push(message),
+  });
+
+  await assert.rejects(supervisor.oauthStatus(), /GJC worker failed/);
+  assert.deepEqual(diagnostics, [
+    `GJC worker initialization failed after ${DEFAULT_INITIALIZE_TIMEOUT_MS}ms bound: worker.initialize was rejected (initialization_failed)`,
+  ]);
+});
+
+test('shutdown of an unresponsive worker is bounded separately from initialization', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const child = new FakeChild();
+  const peer = new FakePeer(child);
+  peer.handle((request) => {
+    if (request.method !== 'worker.shutdown') peer.respond(request);
+  });
+  const supervisor = new GjcWorkerSupervisor(runtime(child));
+  assert.deepEqual(await supervisor.oauthStatus(), { ok: true });
+
+  const shutdown = supervisor.shutdown();
+  await peer.waitFor('worker.shutdown');
+  t.mock.timers.tick(DEFAULT_SHUTDOWN_TIMEOUT_MS);
+  await shutdown;
+  assert.equal(child.killed, true);
+  assert.equal(DEFAULT_SHUTDOWN_TIMEOUT_MS < DEFAULT_INITIALIZE_TIMEOUT_MS, true);
+});
+
+test('a start refused for a malformed permissions block tells the client why', async () => {
+  const child = new FakeChild();
+  const peer = new FakePeer(child);
+  peer.handle((request) => {
+    if (request.method === 'worker.initialize') peer.respond(request);
+    else if (request.method === 'session.start') {
+      const options = (request.payload as { options: Record<string, unknown> }).options;
+      peer.respond(request, options.permissions
+        ? { ok: false, error: { code: 'invalid_permissions', message: 'Invalid GJC run permissions.' } }
+        : { ok: false, error: { code: 'run_failed', message: 'GJC run failed.' } });
+    }
+  });
+  const failures: string[] = [];
+  const supervisor = new GjcWorkerSupervisor({
+    ...runtime(child),
+    notifyRunFailed: ({ error }) => { failures.push(error); },
+  });
+
+  const sent: Array<Record<string, unknown>> = [];
+  await assert.rejects(
+    spawn(supervisor, 'hello', { permissions: { mode: 'yolo' } }, { send(value) { sent.push(value as Record<string, unknown>); } }),
+    /Invalid GJC run permissions\./,
+  );
+  assert.deepEqual(sent.map((message) => [message.kind, message.content ?? message.exitCode]), [
+    ['error', 'Invalid GJC run permissions.'],
+    ['complete', 1],
+  ]);
+
+  // Every other worker-side failure stays behind the sanitized text.
+  await assert.rejects(spawn(supervisor, 'hello', {}, { send(value) { sent.push(value as Record<string, unknown>); } }), /^Error: GJC worker failed\.$/);
+  assert.deepEqual(sent.at(-2)?.content, 'GJC worker failed.');
+  assert.deepEqual(failures, ['Invalid GJC run permissions.', 'GJC worker failed.']);
 });

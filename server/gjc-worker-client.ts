@@ -9,6 +9,8 @@ import type { Writable } from 'node:stream';
 
 import {
   GJC_AGENT_TOOL_NAMES,
+  GJC_INVALID_PERMISSIONS_CODE,
+  GJC_INVALID_PERMISSIONS_MESSAGE,
   GJC_WORKER_PROTOCOL_VERSION,
   GJC_WINDOWS_JOB_GUARD_ACK,
   GJC_WINDOWS_JOB_GUARD_READY,
@@ -112,7 +114,15 @@ export type GjcWorkerSupervisorRuntime = {
   bunPath?: string;
   /** Allows PATH lookup only for uncompiled development workers. */
   allowDevelopmentBun?: boolean;
+  /**
+   * Bound on `worker.initialize` (and the Windows launch guard). The Bun worker
+   * bootstraps the SDK inside this request — model registry build plus online
+   * model discovery — which has been measured at 4-8 s on a loaded developer
+   * machine, so the bound has to sit well above a single network round trip.
+   */
   initializeTimeoutMs?: number;
+  /** Bound on `worker.shutdown` before the process tree is reaped regardless. */
+  shutdownTimeoutMs?: number;
   requestTimeoutMs?: number;
   notifyRunStopped?: RunStoppedNotifier;
   notifyRunFailed?: RunFailedNotifier;
@@ -167,7 +177,26 @@ const GJC_OAUTH_SUBMIT_MAX_LENGTH = 16 * 1024;
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const SAFE_FAILURE = 'GJC worker failed.';
+const REQUEST_TIMEOUT = 'GJC worker request timed out.';
+/**
+ * `worker.initialize` covers the whole SDK bootstrap (model registry build and
+ * online model discovery), measured at 4-8 s on a loaded developer machine. The
+ * previous 5 s bound killed a healthy worker mid-bootstrap, and every tab that
+ * had reconnected saw only "GJC worker failed.".
+ */
+export const DEFAULT_INITIALIZE_TIMEOUT_MS = 60_000;
+export const DEFAULT_SHUTDOWN_TIMEOUT_MS = 5_000;
 class GjcConfigurationError extends Error {}
+
+/**
+ * Fixed client-facing text for a failed start/resume response. Worker responses
+ * are sanitized, so only codes the app itself can cause map to something more
+ * specific than the generic failure.
+ */
+function runFailureMessage(response: GjcWorkerResponsePayload): string {
+  if (!response.ok && response.error.code === GJC_INVALID_PERMISSIONS_CODE) return GJC_INVALID_PERMISSIONS_MESSAGE;
+  return SAFE_FAILURE;
+}
 
 function oauthIdentifier(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 256;
@@ -369,7 +398,7 @@ export function killWorkerTree(
 
 /** Supervises the private Protocol v1 worker while preserving app-owned lifecycle state. */
 export class GjcWorkerSupervisor {
-  private readonly runtime: Required<Pick<GjcWorkerSupervisorRuntime, 'spawn' | 'initializeTimeoutMs' | 'requestTimeoutMs' | 'createScope' | 'diagnostic' | 'notifyRunStopped' | 'notifyRunFailed' | 'killTree' | 'killProcessTree' | 'platform' | 'environment' | 'enrichOptions'>> & Pick<GjcWorkerSupervisorRuntime, 'corePath' | 'workerPath' | 'compiled' | 'bunPath' | 'allowDevelopmentBun'>;
+  private readonly runtime: Required<Pick<GjcWorkerSupervisorRuntime, 'spawn' | 'initializeTimeoutMs' | 'shutdownTimeoutMs' | 'requestTimeoutMs' | 'createScope' | 'diagnostic' | 'notifyRunStopped' | 'notifyRunFailed' | 'killTree' | 'killProcessTree' | 'platform' | 'environment' | 'enrichOptions'>> & Pick<GjcWorkerSupervisorRuntime, 'corePath' | 'workerPath' | 'compiled' | 'bunPath' | 'allowDevelopmentBun'>;
   private child?: Child;
   private ready = false;
   private starting?: Promise<void>;
@@ -395,7 +424,8 @@ export class GjcWorkerSupervisor {
       bunPath: runtime.bunPath,
       allowDevelopmentBun: runtime.allowDevelopmentBun ?? process.env.GAJAE_ALLOW_DEVELOPMENT_BUN === '1',
       enrichOptions: runtime.enrichOptions ?? (async (options) => options),
-      initializeTimeoutMs: runtime.initializeTimeoutMs ?? 5_000,
+      initializeTimeoutMs: runtime.initializeTimeoutMs ?? DEFAULT_INITIALIZE_TIMEOUT_MS,
+      shutdownTimeoutMs: runtime.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS,
       requestTimeoutMs: runtime.requestTimeoutMs ?? 30_000,
       createScope: runtime.createScope ?? (() => `gjc-${randomUUID()}`),
       diagnostic: runtime.diagnostic ?? (() => {}),
@@ -558,7 +588,7 @@ export class GjcWorkerSupervisor {
           run.resolveStarted();
         },
       );
-      this.finish(run, run.terminalFailed || !response.ok);
+      this.finish(run, run.terminalFailed || !response.ok, runFailureMessage(response));
     } catch (error) {
       // workerFailed owns terminal settlement and must first prove the reap barrier.
       if (this.terminating || (this.terminationFailure && run.phase === 'request_issued')) return;
@@ -694,10 +724,19 @@ export class GjcWorkerSupervisor {
         this.runtime.initializeTimeoutMs,
       ))
       .then((response) => {
-        if (child !== this.child || !response.ok) throw new Error(SAFE_FAILURE);
+        if (child !== this.child) throw new Error('worker generation was replaced during initialization');
+        if (!response.ok) throw new Error(`worker.initialize was rejected (${response.error.code})`);
         this.ready = true;
       })
-      .catch(() => { this.workerFailed(child); throw new Error(SAFE_FAILURE); })
+      .catch((error: unknown) => {
+        // Callers only ever see the sanitized failure; this line is the one
+        // record of why a worker never came up (typically the bootstrap
+        // outlasting initializeTimeoutMs).
+        const reason = error instanceof Error ? error.message : String(error);
+        this.diagnose(`GJC worker initialization failed after ${this.runtime.initializeTimeoutMs}ms bound: ${reason}`);
+        this.workerFailed(child);
+        throw new Error(SAFE_FAILURE);
+      })
       .finally(() => {
         if (this.starting === starting) this.starting = undefined;
       });
@@ -741,7 +780,7 @@ export class GjcWorkerSupervisor {
       const timer = setTimeout(() => {
         if (this.tracker.reject(
           request.id,
-          new Error('GJC worker request timed out.'),
+          new Error(REQUEST_TIMEOUT),
         )) {
           this.expiredRequests.set(request.id, {
             method: request.method,
@@ -1145,7 +1184,7 @@ export class GjcWorkerSupervisor {
         'worker.shutdown',
         undefined,
         {},
-        this.runtime.initializeTimeoutMs,
+        this.runtime.shutdownTimeoutMs,
       );
     } catch {
       // Tree termination below remains the shutdown fallback.
@@ -1176,7 +1215,19 @@ function appendWorkerDiagnostic(message: string): void {
   }
 }
 
-const supervisor = new GjcWorkerSupervisor({ enrichOptions: enrichGjcSdkRunOptions, diagnostic: appendWorkerDiagnostic });
+const INITIALIZATION_DIAGNOSTIC = /^GJC worker initialization failed/u;
+
+/**
+ * Worker stderr is file-only (it is noisy: terminal bells, SDK chatter), but a
+ * worker that never initialized is an app-level event operators must be able
+ * to see in the server output, not just in the log file.
+ */
+function reportWorkerDiagnostic(message: string): void {
+  appendWorkerDiagnostic(message);
+  if (INITIALIZATION_DIAGNOSTIC.test(message)) console.error(`[GJC] ${message.trimEnd()}`);
+}
+
+const supervisor = new GjcWorkerSupervisor({ enrichOptions: enrichGjcSdkRunOptions, diagnostic: reportWorkerDiagnostic });
 registerGjcRuntimeModelCatalogLoader(() => supervisor.modelCatalog());
 export function getGjcWorkerSupervisor(): GjcWorkerSupervisor { return supervisor; }
 export function isGjcSessionActive(alias: string) { return supervisor.isActive(alias); }

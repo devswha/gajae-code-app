@@ -55,7 +55,10 @@ export { GJC_AGENT_TOOL_NAMES } from './gjc-agent-tools.js';
 // runtime's permission gate.
 export {
   DEFAULT_GJC_PERMISSION_MODE,
+  GJC_INVALID_PERMISSIONS_CODE,
+  GJC_INVALID_PERMISSIONS_MESSAGE,
   GJC_PERMISSION_MODES,
+  GjcRunPermissionsError,
   gjcAutoApprovalNotice,
   gjcAutoApprovalReason,
   isGjcPermissionMode,

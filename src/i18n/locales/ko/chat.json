@@ -116,11 +116,11 @@
     "elapsed": {
       "seconds": "{{count}}초",
       "minutesSeconds": "{{minutes}}분 {{seconds}}초"
-    },
-    "stop": "중단"
+    }
   },
   "activity": {
     "thinking": "생각 중",
+    "responding": "답변 작성 중",
     "awaitingApproval": "승인 대기 중",
     "reading": "{{subject}} 읽는 중",
     "searching": "{{subject}} 검색 중",

@@ -6,7 +6,7 @@ import type { ChatMessage } from '../types/types';
 import { groupConsecutiveTools, isToolGroupItem } from '../utils/toolGrouping';
 import type { MessageListItem } from '../utils/toolGrouping';
 import { TOOL_OUTPUT_DENSITIES } from '../utils/toolOutputDensity';
-import { buildPaneList, foldTurnWork, formatTurnWorkCounts, isTurnWorkBlockItem, summarizeTurnWork } from '../utils/turnWork';
+import { buildPaneList, foldTurnWork, formatTurnWorkCounts, isPendingWorkBlock, isTurnWorkBlockItem, summarizeTurnWork } from '../utils/turnWork';
 import type { PaneListItem, TurnWorkBlockItem } from '../utils/turnWork';
 
 /*
@@ -111,6 +111,58 @@ test('a window that starts mid-turn still folds, without a turn start', () => {
 
 test('a lone read is still a block: one rule, no special case', () => {
   assert.deepEqual(foldTurnWork([user('go', 0), call('read', 1)]).map(label), ['user:go', '[work read]']);
+});
+
+test('a live turn has a block before its first tool call: empty, at the end of the turn', () => {
+  // The moment the user message is sent there is a block to say "Thinking".
+  const justSent = foldTurnWork([user('go', 0)], 'balanced', { running: true });
+  assert.deepEqual(justSent.map(label), ['user:go', '[work ]']);
+  const block = justSent[1] as TurnWorkBlockItem;
+  assert.equal(isPendingWorkBlock(block), true);
+  assert.equal(block.isLastTurn, true);
+  assert.equal(block.turnStartedAt, at(0));
+  assert.equal(block.turnEndedAt, null);
+  assert.equal(block.timestamp, at(0));
+
+  // Prose before the first call stays above the block, as it does once a call lands.
+  const narrating = foldTurnWork([user('go', 0), text('Let me look.', 1)], 'balanced', { running: true });
+  assert.deepEqual(narrating.map(label), ['user:go', 'assistant:Let me look.', '[work ]']);
+  assert.equal((narrating[2] as TurnWorkBlockItem).timestamp, at(1));
+
+  // The first call takes the block's place; nothing is pending any more.
+  const started = foldTurnWork([user('go', 0), text('Let me look.', 1), call('read', 2)], 'balanced', { running: true });
+  assert.deepEqual(started.map(label), ['user:go', 'assistant:Let me look.', '[work read]']);
+  assert.equal(isPendingWorkBlock(started[2] as TurnWorkBlockItem), false);
+
+  // Only the last turn can be live: earlier tool-less turns never get one.
+  const history = foldTurnWork([user('first', 0), text('no tools', 1), user('second', 2)], 'compact', { running: true });
+  assert.deepEqual(history.map(label), ['user:first', 'assistant:no tools', 'user:second', '[work ]']);
+
+  // The pane list carries it through, after whatever was grouped before it.
+  assert.deepEqual(buildPaneList([user('go', 0)], 'compact', { running: true }).map(label), ['user:go', '[work ]']);
+  // Even a window with nothing in it yet has the row while a run is going.
+  assert.deepEqual(buildPaneList([], 'balanced', { running: true }).map(label), ['[work ]']);
+});
+
+test('a turn that finishes with no tool call has no block: the answer stands alone', () => {
+  const pureText = [user('go', 0), text('Sure, here is the answer.', 1)];
+  for (const density of TOOL_OUTPUT_DENSITIES) {
+    assert.deepEqual(buildPaneList(pureText, density).map(label), ['user:go', 'assistant:Sure, here is the answer.'], density);
+    assert.deepEqual(buildPaneList(pureText, density, { running: false }).map(label), ['user:go', 'assistant:Sure, here is the answer.'], density);
+  }
+  // While it streams there is one; when the run ends it is gone.
+  assert.deepEqual(buildPaneList(pureText, 'balanced', { running: true }).map(label), ['user:go', 'assistant:Sure, here is the answer.', '[work ]']);
+  assert.equal(buildPaneList(pureText, 'balanced', { running: false }).some(isTurnWorkBlockItem), false);
+  // Finished blocks are never pending, whatever the run state says.
+  const finished = buildPaneList([user('go', 0), call('read', 1), text('done', 2)], 'balanced', { running: true });
+  assert.deepEqual(finished.filter(isTurnWorkBlockItem).map(isPendingWorkBlock), [false]);
+});
+
+test('detailed never folds, live or not: the pane renders a running row of its own instead', () => {
+  const live = [user('go', 0), call('read', 1, { toolResult: null })];
+  assert.deepEqual(buildPaneList(live, 'detailed', { running: true }).map(label), ['user:go', 'read']);
+  assert.deepEqual(buildPaneList([user('go', 0)], 'detailed', { running: true }).map(label), ['user:go']);
+  assert.equal(buildPaneList([], 'detailed', { running: true }).length, 0);
 });
 
 test('the block is on at compact and balanced and off at detailed', () => {

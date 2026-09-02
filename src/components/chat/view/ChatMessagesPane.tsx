@@ -11,19 +11,20 @@ import type {
 import { getIntrinsicMessageKey } from '../utils/messageKeys';
 import type { LiveActivity } from '../utils/toolActivity';
 import { isToolGroupItem } from '../utils/toolGrouping';
-import { DEFAULT_TOOL_OUTPUT_DENSITY } from '../utils/toolOutputDensity';
+import { DEFAULT_TOOL_OUTPUT_DENSITY, toolOutputDensityRules } from '../utils/toolOutputDensity';
 import type { ToolOutputDensity } from '../utils/toolOutputDensity';
-import { buildPaneList, isTurnWorkBlockItem } from '../utils/turnWork';
+import { buildPaneList, isPendingWorkBlock, isTurnWorkBlockItem } from '../utils/turnWork';
 import type { PaneListItem } from '../utils/turnWork';
 
 import GroupedMessageList from './GroupedMessageList';
 import ProviderSelectionEmptyState from './ProviderSelectionEmptyState';
+import RunningActivityRow from './RunningActivityRow';
 import TurnWorkBlock from './TurnWorkBlock';
 import LoadAllMessagesOverlay from './LoadAllMessagesOverlay';
 
-/** The transcript message a list item ends with, so the next row knows what preceded it. */
-function lastMessageOf(item: PaneListItem): ChatMessage {
-  if (isTurnWorkBlockItem(item) || isToolGroupItem(item)) return item.messages[item.messages.length - 1];
+/** The transcript message a list item ends with, so the next row knows what preceded it; null for an empty block. */
+function lastMessageOf(item: PaneListItem): ChatMessage | null {
+  if (isTurnWorkBlockItem(item) || isToolGroupItem(item)) return item.messages[item.messages.length - 1] ?? null;
   return item;
 }
 
@@ -34,11 +35,9 @@ interface ChatMessagesPaneProps {
   isLoadingSessionMessages: boolean;
   /** True while the viewed session has an active provider run in flight. */
   isProcessing?: boolean;
-  /** True while ChatComposer's floating activity/stop tab is rendered above the input. */
-  hasActivityIndicator?: boolean;
-  /** What the in-flight run is doing now; the running turn's work block shows it. */
+  /** What the in-flight run is doing now; the running turn's work block (or bare running row) shows it. */
   liveActivity?: LiveActivity | null;
-  /** When the in-flight run started (client clock), for the work block's elapsed time. */
+  /** When the in-flight run started (client clock), for the running row's elapsed time. */
   runStartedAt?: number | null;
   chatMessages: ChatMessage[];
   selectedSession: ProjectSession | null;
@@ -70,7 +69,6 @@ function ChatMessagesPane({
   onTouchMove,
   isLoadingSessionMessages,
   isProcessing = false,
-  hasActivityIndicator = false,
   liveActivity = null,
   runStartedAt = null,
   chatMessages,
@@ -98,10 +96,14 @@ function ChatMessagesPane({
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
   const displayProvider = selectedSession?.provider ?? selectedSession?.__provider ?? provider;
+  // The live turn has a block from the moment it starts (empty until its first
+  // call), so the run's status has one place in the transcript. Where blocks
+  // are off, a bare running row stands in that place instead.
   const paneItems = useMemo(
-    () => buildPaneList(visibleMessages, density),
-    [visibleMessages, density],
+    () => buildPaneList(visibleMessages, density, { running: isProcessing }),
+    [visibleMessages, density, isProcessing],
   );
+  const showInlineRunningRow = isProcessing && !toolOutputDensityRules(density).workBlock;
 
   // Stable, deterministic keys for the messages rendered this pass.
   //
@@ -138,9 +140,7 @@ function ChatMessagesPane({
       ref={scrollContainerRef}
       onWheel={onWheel}
       onTouchMove={onTouchMove}
-      className={`chat-messages-pane relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-3 sm:pt-4 ${
-        hasActivityIndicator ? 'pb-12 sm:pb-14' : 'pb-3 sm:pb-4'
-      }`}
+      className="chat-messages-pane relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-3 pb-3 sm:pt-4 sm:pb-4"
     >
       <div className="mx-auto w-full max-w-chat space-y-3 px-4 sm:space-y-4">
       {(isLoadingSessionMessages || isProcessing) && chatMessages.length === 0 ? (
@@ -209,7 +209,7 @@ function ChatMessagesPane({
             if (isTurnWorkBlockItem(item)) {
               return (
                 <TurnWorkBlock
-                  key={`work-${density}-${getMessageKey(item.messages[0])}`}
+                  key={`work-${density}-${isPendingWorkBlock(item) ? 'pending' : getMessageKey(item.messages[0])}`}
                   block={item}
                   prevMessage={before}
                   running={isProcessing && item.isLastTurn}
@@ -242,6 +242,10 @@ function ChatMessagesPane({
               />
             );
           })}
+
+          {showInlineRunningRow && (
+            <RunningActivityRow liveActivity={liveActivity} runStartedAt={runStartedAt} variant="inline" />
+          )}
         </>
       )}
       </div>

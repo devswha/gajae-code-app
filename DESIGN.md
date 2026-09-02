@@ -228,7 +228,7 @@ The system uses Tailwind's 4px spacing scale. Existing values like `p-2`, `gap-2
 | Theme color | 200ms ease-in-out | Background, border, color transitions for non-interactive structural elements |
 | Modal/dropdown | 200ms ease-in-out / standard bezier | Modal opacity/transform transitions |
 | Sidebar overlay | 150ms ease-out mobile, 300ms sidebar utility | Mobile drawer and sidebar transitions |
-| Message/activity | 300ms message, 320ms enter, 220ms exit | Chat message/activity affordances |
+| Message | 300ms | Chat message affordances |
 | Shimmer | 2s linear infinite | Loading shimmer |
 | Spinner | 1s linear infinite | Loading spinners |
 

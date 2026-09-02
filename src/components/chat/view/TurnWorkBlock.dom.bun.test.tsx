@@ -128,6 +128,52 @@ test('switching to detailed removes the block and puts the cards back at the top
   assert.equal(screen.queryByText('alpha.ts'), null);
 });
 
+test('a live turn before its first tool call is a Thinking row, not a finished block', () => {
+  const messages: ChatMessage[] = [{ type: 'user', content: 'hello', timestamp: at(0) }];
+  render(createElement(ChatMessagesPane, {
+    ...paneProps('balanced', messages),
+    isProcessing: true,
+    liveActivity: { kind: 'thinking' },
+    runStartedAt: Date.now() - 3_000,
+  }));
+
+  assert.equal(screen.queryByRole('button', { name: enChat.workBlock.toggle }), null);
+  const row = document.querySelector('[data-run-activity="pending-block"]');
+  assert.ok(row);
+  assert.match(row.textContent ?? '', /Thinking/);
+  assert.match(row.textContent ?? '', /3s/);
+});
+
+test('a finished turn with no tools has no block', () => {
+  const messages: ChatMessage[] = [
+    { type: 'user', content: 'hello', timestamp: at(0) },
+    { type: 'assistant', content: 'Hi there.', timestamp: at(2) },
+  ];
+  render(createElement(ChatMessagesPane, paneProps('balanced', messages)));
+  assert.equal(screen.queryByRole('button', { name: enChat.workBlock.toggle }), null);
+  assert.ok(screen.getByText('Hi there.'));
+  assert.equal(document.querySelector('[data-run-activity]'), null);
+});
+
+test('detailed density shows an inline running row and no work block', () => {
+  const messages: ChatMessage[] = [
+    { type: 'user', content: 'now fix it', timestamp: at(20) },
+    call('bash', 22, { command: 'npm run lint' }),
+  ];
+  messages[1] = { ...messages[1], toolResult: null };
+  render(createElement(ChatMessagesPane, {
+    ...paneProps('detailed', messages),
+    isProcessing: true,
+    liveActivity: { kind: 'tool', category: 'command', toolName: 'bash', subject: 'npm run lint', moreCount: 0 },
+    runStartedAt: Date.now() - 12_000,
+  }));
+
+  assert.equal(screen.queryByRole('button', { name: enChat.workBlock.toggle }), null);
+  const row = document.querySelector('[data-run-activity="inline"]');
+  assert.ok(row);
+  assert.match(row.textContent ?? '', /Running npm run lint/);
+});
+
 test('a live run: the last turn\'s block says what is happening, earlier turns stay finished', () => {
   const messages: ChatMessage[] = [
     ...transcript,

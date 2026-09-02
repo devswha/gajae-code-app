@@ -9,11 +9,12 @@ import { formatElapsed } from '../utils/elapsed';
 import { formatLiveActivity } from '../utils/toolActivity';
 import type { LiveActivity } from '../utils/toolActivity';
 import { groupConsecutiveTools } from '../utils/toolGrouping';
-import { formatTurnWorkCounts, summarizeTurnWork } from '../utils/turnWork';
+import { formatTurnWorkCounts, isPendingWorkBlock, summarizeTurnWork } from '../utils/turnWork';
 import type { TurnWorkBlockItem } from '../utils/turnWork';
 
 import GroupedMessageList from './GroupedMessageList';
 import type { MessageRenderProps } from './GroupedMessageList';
+import RunningActivityRow from './RunningActivityRow';
 
 interface TurnWorkBlockProps extends MessageRenderProps {
   block: TurnWorkBlockItem;
@@ -32,19 +33,27 @@ const THINKING: LiveActivity = { kind: 'thinking' };
 /**
  * One row for a whole turn's tool activity.
  *
- * Running: `Working · Reading src/foo.ts · 12s`, the same activity line the
- * composer shows, so the two never disagree. Finished: `Worked for 42s ·
- * 5 files read · 3 commands · 2 edits`, counts by category, the duration
- * omitted when the transcript's timestamps cannot support one. A failure is
- * never hidden: the row carries the error label and how many calls failed,
- * but the body stays folded at every level that has a block - unfolding a
- * turn's whole work for one non-zero exit would undo the fold.
+ * Running: `Working · Reading src/foo.ts · 12s` - the run's one status line,
+ * there is no other. Before the first call the block is empty and the row is
+ * just `Thinking… · 3s` with the pulse, nothing to open. Finished: `Worked
+ * for 42s · 5 files read · 3 commands · 2 edits`, counts by category, the
+ * duration omitted when the transcript's timestamps cannot support one. A
+ * failure is never hidden: the row carries the error label and how many calls
+ * failed, but the body stays folded at every level that has a block -
+ * unfolding a turn's whole work for one non-zero exit would undo the fold.
  *
  * Open, the body is exactly what the pane would have rendered - same-tool
  * groups, cards, subagent containers - so nothing is lost, and every card
  * keeps its own fold.
  */
 export default function TurnWorkBlock({ block, prevMessage, running = false, liveActivity, runStartedAt = null, ...renderProps }: TurnWorkBlockProps) {
+  if (isPendingWorkBlock(block)) {
+    return <RunningActivityRow liveActivity={liveActivity} runStartedAt={running ? runStartedAt : null} variant="pending-block" />;
+  }
+  return <FoldedTurnWork block={block} prevMessage={prevMessage} running={running} liveActivity={liveActivity} runStartedAt={runStartedAt} {...renderProps} />;
+}
+
+function FoldedTurnWork({ block, prevMessage, running = false, liveActivity, runStartedAt = null, ...renderProps }: TurnWorkBlockProps) {
   const { t } = useTranslation('chat');
   const [isExpanded, setIsExpanded] = useState(false);
   const bodyId = useId();

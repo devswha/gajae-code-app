@@ -17,9 +17,7 @@ import { classifyCommandInput, isAutoSendable } from '../commandDispatchPolicy';
 import { useVoiceInput } from '../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../hooks/useVoiceAvailable';
 import type { PendingCommandGate, QueuedDraft } from '../hooks/useChatComposerState';
-import type { SessionActivity } from '../../../hooks/useSessionProtection';
 import type { PendingPermissionRequest, PermissionDecision } from '../types/types';
-import type { LiveActivity } from '../utils/toolActivity';
 import type { ProviderModelOption } from '../../../types/app';
 import type { PermissionModeUpdate, ProjectPermissions } from '../../../hooks/useProjectPermissions';
 import {
@@ -31,10 +29,10 @@ import {
   PromptInputTools,
   PromptInputButton,
   PromptInputSubmit,
+  Tooltip,
 } from '../../../shared/view/ui';
 
 import CommandMenu from './CommandMenu';
-import ActivityIndicator from './ActivityIndicator';
 import ImageAttachment from './ImageAttachment';
 import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
@@ -65,9 +63,7 @@ interface SlashCommand {
 interface ChatComposerProps {
   pendingPermissionRequests: PendingPermissionRequest[];
   handlePermissionDecision: (requestIds: string | string[], decision: PermissionDecision) => void;
-  activity: SessionActivity | null;
-  /** The run's current activity, derived from the transcript; drives the indicator's label. */
-  liveActivity?: LiveActivity | null;
+  /** A run is in flight for the viewed session: the primary button is Stop, Enter queues. */
   isLoading: boolean;
   onAbortSession: () => void;
   sessionState: Record<string, unknown> | null;
@@ -118,7 +114,6 @@ interface ChatComposerProps {
   onTextareaPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
   onTextareaScrollSync: (target: HTMLTextAreaElement) => void;
   onTextareaInput: (event: FormEvent<HTMLTextAreaElement>) => void;
-  isInputFocused?: boolean;
   onInputFocusChange?: (focused: boolean) => void;
   placeholder: string;
   isTextareaExpanded: boolean;
@@ -141,8 +136,6 @@ interface ChatComposerProps {
 export default function ChatComposer({
   pendingPermissionRequests,
   handlePermissionDecision,
-  activity,
-  liveActivity = null,
   isLoading,
   onAbortSession,
   sessionState,
@@ -187,7 +180,6 @@ export default function ChatComposer({
   onTextareaPaste,
   onTextareaScrollSync,
   onTextareaInput,
-  isInputFocused = false,
   onInputFocusChange,
   placeholder,
   isTextareaExpanded,
@@ -243,9 +235,6 @@ export default function ChatComposer({
     (r) => r.toolName === 'AskUserQuestion' || r.toolName === 'ask'
   );
 
-  // Hide the thinking/status bar while any permission request is pending
-  const hasPendingPermissions = pendingPermissionRequests.length > 0;
-  const hasActivityIndicator = Boolean(activity && !hasPendingPermissions);
   const handleFormSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
     onSubmit(event);
   }, [onSubmit]);
@@ -266,20 +255,19 @@ export default function ChatComposer({
     : sendByCtrlEnter
       ? t('input.hintText.ctrlEnter')
       : t('input.hintText.enter');
-  const submitAriaLabel = canQueueDraft
-    ? t('input.queue.sendNext')
-    : isLoading
-      ? t('input.stop')
-      : t('input.send');
+  // While a run is in flight the primary button is Stop, as in Codex and
+  // Cursor: there is no status strip above the composer, the run's progress
+  // lives in the transcript, and Escape does the same thing as this button.
+  // A typed draft does not take the button back: Enter queues it, and the
+  // arrow beside Stop does the same for a click.
+  const stopLabel = `${t('input.stop')} · Esc`;
+  const queueDraft = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    onSubmit(event);
+  };
 
   return (
     <div className="chat-composer-shell relative shrink-0 px-2 pt-0 pb-2 sm:px-4 sm:pb-4 md:px-4 md:pb-6">
-      {!hasPendingPermissions && (
-        <div className="pointer-events-none absolute bottom-full left-1/2 z-10 w-[calc(100%-1rem)] max-w-chat -translate-x-1/2 translate-y-px bg-transparent sm:w-[calc(100%-2rem)]">
-          <ActivityIndicator activity={activity} liveActivity={liveActivity} onAbort={onAbortSession} isInputFocused={isInputFocused} />
-        </div>
-      )}
-
       {pendingPermissionRequests.length > 0 && (
         <div className="mx-auto mb-3 max-w-chat">
           <PermissionRequestsBanner
@@ -354,10 +342,7 @@ export default function ChatComposer({
         <PromptInput
           onSubmit={handleFormSubmit}
           status={isLoading ? 'streaming' : 'ready'}
-          className={[
-            isTextareaExpanded ? 'chat-input-expanded' : '',
-            hasActivityIndicator ? 'rounded-t-none' : '',
-          ].filter(Boolean).join(' ')}
+          className={isTextareaExpanded ? 'chat-input-expanded' : undefined}
           {...getRootProps()}
         >
           {isDragActive && (
@@ -501,33 +486,60 @@ export default function ChatComposer({
                 <ForwardIcon />
               </PromptInputButton>
             )}
-            <PromptInputSubmit
-              onClick={
-                canQueueDraft
-                  ? (e: MouseEvent<HTMLButtonElement>) => {
-                      e.preventDefault();
-                      onSubmit(e);
-                    }
-                    : isLoading
-                    ? onAbortSession
-                    : isRecording
-                      ? (e: MouseEvent<HTMLButtonElement>) => {
-                          e.preventDefault();
-                          voiceStop({ send: true });
-                        }
-                      : undefined
-              }
-              disabled={isLoading ? false : isRecording ? false : isTranscribing ? true : !input.trim()}
-              aria-label={submitAriaLabel}
-              title={submitAriaLabel}
-              className="h-10 w-10 sm:h-10 sm:w-10"
-            >
-              {isTranscribing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ArrowUpIcon className="h-4 w-4" />
-              )}
-            </PromptInputSubmit>
+            {canQueueDraft && (
+              <PromptInputButton
+                onClick={queueDraft}
+                tooltip={{ content: t('input.queue.sendNext') }}
+                aria-label={t('input.queue.sendNext')}
+                data-run-control="queue"
+                className="shrink-0 rounded-full border border-border/70 bg-background/70 text-muted-foreground hover:border-primary/30 hover:text-foreground"
+              >
+                <ArrowUpIcon />
+              </PromptInputButton>
+            )}
+            {isLoading ? (
+              <Tooltip
+                content={(
+                  <span className="flex items-center gap-1.5">
+                    {t('input.stop')}
+                    <kbd className="rounded border border-border px-1 text-[10px]">Esc</kbd>
+                  </span>
+                )}
+                position="top"
+              >
+                <PromptInputSubmit
+                  status="streaming"
+                  onClick={onAbortSession}
+                  aria-label={stopLabel}
+                  title={stopLabel}
+                  data-run-control="stop"
+                  className="h-10 w-10 bg-foreground text-background shadow-sm hover:bg-foreground/90 active:bg-foreground/80 sm:h-10 sm:w-10"
+                />
+              </Tooltip>
+            ) : (
+              <PromptInputSubmit
+                status="ready"
+                onClick={
+                  isRecording
+                    ? (e: MouseEvent<HTMLButtonElement>) => {
+                        e.preventDefault();
+                        voiceStop({ send: true });
+                      }
+                    : undefined
+                }
+                disabled={isRecording ? false : isTranscribing ? true : !input.trim()}
+                aria-label={t('input.send')}
+                title={t('input.send')}
+                data-run-control="send"
+                className="h-10 w-10 sm:h-10 sm:w-10"
+              >
+                {isTranscribing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowUpIcon className="h-4 w-4" />
+                )}
+              </PromptInputSubmit>
+            )}
           </div>
         </PromptInputFooter>
       </PromptInput>

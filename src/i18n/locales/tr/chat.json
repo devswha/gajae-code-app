@@ -116,11 +116,11 @@
     "elapsed": {
       "seconds": "{{count}} sn",
       "minutesSeconds": "m sn {{minutes}} {{seconds}}"
-    },
-    "stop": "Durdur"
+    }
   },
   "activity": {
     "thinking": "Düşünüyor",
+    "responding": "Yanıt yazıyor",
     "awaitingApproval": "Onayınız bekleniyor",
     "reading": "{{subject}} okunuyor",
     "searching": "{{subject}} aranıyor",

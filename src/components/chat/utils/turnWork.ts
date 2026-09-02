@@ -27,11 +27,17 @@ import type { ToolOutputDensity } from './toolOutputDensity';
  * Reasoning is left out of the block: it follows the density rules on its own
  * (hidden below detailed, and detailed has no block), so a thought that fell
  * inside the span is hoisted ahead of the block rather than counted as work.
+ *
+ * A live turn has a block from its first moment, not its first tool call: an
+ * empty one at the end of the turn that reads `Thinking…` until a call
+ * arrives, when the block takes the same place with that call inside. A turn
+ * that ends without a call ends without a block - the pure text answer stands
+ * alone - which is why the empty block exists only while `running`.
  */
 
 export interface TurnWorkBlockItem {
   _isWorkBlock: true;
-  /** From the turn's first tool call to its last, in order; reasoning excluded. */
+  /** From the turn's first tool call to its last, in order; reasoning excluded. Empty while a live turn has no call yet. */
   messages: ChatMessage[];
   timestamp: ChatMessage['timestamp'];
   /** When the user message that began this turn was sent, if it is in the window. */
@@ -51,10 +57,28 @@ export function isTurnWorkBlockItem(item: PaneListItem): item is TurnWorkBlockIt
 const startsTurn = (message: ChatMessage): boolean => message.type === 'user' && !message.isSystemNotice;
 const isToolCall = (message: ChatMessage): boolean => Boolean(message.isToolUse);
 
-function foldTurn(turn: ChatMessage[], turnStartedAt: ChatMessage['timestamp'] | null, isLastTurn: boolean, out: TurnListItem[]): void {
+export interface FoldOptions {
+  /** A run is in flight for the last turn: it gets a block even before its first tool call. */
+  running?: boolean;
+}
+
+/** The live turn's block before any call: nothing inside, so nothing to open. */
+export const isPendingWorkBlock = (block: TurnWorkBlockItem): boolean => block.messages.length === 0;
+
+function foldTurn(turn: ChatMessage[], turnStartedAt: ChatMessage['timestamp'] | null, isLastTurn: boolean, running: boolean, out: TurnListItem[]): void {
   const first = turn.findIndex(isToolCall);
   if (first < 0) {
     out.push(...turn);
+    if (isLastTurn && running) {
+      out.push({
+        _isWorkBlock: true,
+        messages: [],
+        timestamp: turn[turn.length - 1]?.timestamp ?? turnStartedAt ?? '',
+        turnStartedAt,
+        turnEndedAt: null,
+        isLastTurn: true,
+      });
+    }
     return;
   }
   let last = turn.length - 1;
@@ -79,9 +103,10 @@ function foldTurn(turn: ChatMessage[], turnStartedAt: ChatMessage['timestamp'] |
  * Folds each turn's tool calls into one `TurnWorkBlockItem` at levels whose
  * `workBlock` rule is on; returns the list untouched otherwise. Any turn with
  * at least one tool call gets a block - one rule, no special case for a lone
- * read, so a reader always knows where the tool activity is.
+ * read, so a reader always knows where the tool activity is. While `running`,
+ * the last turn gets one even with no call yet.
  */
-export function foldTurnWork(messages: ChatMessage[], density: ToolOutputDensity = 'balanced'): TurnListItem[] {
+export function foldTurnWork(messages: ChatMessage[], density: ToolOutputDensity = 'balanced', { running = false }: FoldOptions = {}): TurnListItem[] {
   if (!toolOutputDensityRules(density).workBlock) return messages;
 
   const out: TurnListItem[] = [];
@@ -89,7 +114,7 @@ export function foldTurnWork(messages: ChatMessage[], density: ToolOutputDensity
   let turnStartedAt: ChatMessage['timestamp'] | null = null;
 
   const flush = (isLastTurn: boolean) => {
-    if (turn.length) foldTurn(turn, turnStartedAt, isLastTurn, out);
+    if (turn.length || (isLastTurn && running)) foldTurn(turn, turnStartedAt, isLastTurn, running, out);
     turn = [];
   };
 
@@ -114,7 +139,7 @@ export type PaneListItem = MessageListItem | TurnWorkBlockItem;
  * block's own contents are grouped when it is opened, so a folded turn holds
  * the same rows the pane would have shown.
  */
-export function buildPaneList(messages: ChatMessage[], density: ToolOutputDensity = 'balanced'): PaneListItem[] {
+export function buildPaneList(messages: ChatMessage[], density: ToolOutputDensity = 'balanced', options: FoldOptions = {}): PaneListItem[] {
   const out: PaneListItem[] = [];
   let pending: ChatMessage[] = [];
   const flush = () => {
@@ -122,7 +147,7 @@ export function buildPaneList(messages: ChatMessage[], density: ToolOutputDensit
     pending = [];
   };
 
-  for (const item of foldTurnWork(messages, density)) {
+  for (const item of foldTurnWork(messages, density, options)) {
     if (isTurnWorkBlockItem(item)) {
       flush();
       out.push(item);

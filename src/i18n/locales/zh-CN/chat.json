@@ -116,11 +116,11 @@
     "elapsed": {
       "seconds": "{{count}}次",
       "minutesSeconds": "{{minutes}} 分 {{seconds}} 秒"
-    },
-    "stop": "停止"
+    }
   },
   "activity": {
     "thinking": "思考中",
+    "responding": "正在撰写回答",
     "awaitingApproval": "等待您的批准",
     "reading": "正在读取 {{subject}}",
     "searching": "正在搜索 {{subject}}",

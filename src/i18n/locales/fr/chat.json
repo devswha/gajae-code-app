@@ -116,11 +116,11 @@
     "elapsed": {
       "seconds": "{{count}}",
       "minutesSeconds": "{{minutes}}m {{seconds}}s"
-    },
-    "stop": "Arrêter"
+    }
   },
   "activity": {
     "thinking": "Réflexion",
+    "responding": "Rédaction de la réponse",
     "awaitingApproval": "En attente de votre approbation",
     "reading": "Lecture de {{subject}}",
     "searching": "Recherche de {{subject}}",

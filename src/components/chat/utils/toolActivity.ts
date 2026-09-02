@@ -9,8 +9,8 @@ import { getToolConfig } from '../tools/configs/toolConfigs';
  * as it lands, so the line can say what is actually happening: the running
  * tool and its subject, the pending approval, or - with no tool in flight -
  * that the model is generating. Everything here is a pure function of the
- * message list so it can be tested on synthetic sequences and shared by the
- * composer's indicator and the turn's work block.
+ * message list so it can be tested on synthetic sequences; the turn's work
+ * block (and the bare running row at detailed density) renders it.
  */
 
 export type ToolCategory = 'read' | 'search' | 'command' | 'edit' | 'write' | 'web' | 'subagent' | 'other';
@@ -93,6 +93,8 @@ export type LiveActivity =
   | { kind: 'status'; text: string }
   | { kind: 'awaiting_input' }
   | { kind: 'thinking' }
+  /** No tool in flight and the answer's text is streaming in. */
+  | { kind: 'responding' }
   | { kind: 'tool'; category: Exclude<ToolCategory, 'subagent'>; toolName: string; subject: string; moreCount: number }
   | { kind: 'subagent'; description: string; moreCount: number };
 
@@ -127,19 +129,25 @@ export function runningToolCalls(messages: ChatMessage[]): ChatMessage[] {
   return messages.filter(isToolCallRunning);
 }
 
+/** Prose still arriving: the model is writing its answer rather than deciding what to do. */
+const isStreamingAnswer = (message: ChatMessage | undefined): boolean =>
+  Boolean(message && message.type === 'assistant' && message.isStreaming && !message.isToolUse && !message.isThinking);
+
 /**
  * Precedence: what the server says outranks what the transcript implies, and
  * a pending approval outranks a running tool, because the run is stopped on
  * it. Otherwise the most recently started tool speaks for the run, with a
- * count of the others still going.
+ * count of the others still going. With nothing in flight, the run is either
+ * writing its answer (text is streaming in) or thinking about its next move.
  */
 export function deriveLiveActivity(messages: ChatMessage[], context: LiveActivityContext = {}): LiveActivity {
   const statusText = context.statusText?.trim();
   if (statusText) return { kind: 'status', text: statusText.replace(/\.+$/, '') };
   if (context.awaitingInput) return { kind: 'awaiting_input' };
 
-  const running = runningToolCalls(currentTurnMessages(messages));
-  if (running.length === 0) return { kind: 'thinking' };
+  const turn = currentTurnMessages(messages);
+  const running = runningToolCalls(turn);
+  if (running.length === 0) return isStreamingAnswer(turn[turn.length - 1]) ? { kind: 'responding' } : { kind: 'thinking' };
 
   const latest = running[running.length - 1];
   const moreCount = running.length - 1;
@@ -185,6 +193,8 @@ export function formatLiveActivity(activity: LiveActivity, t: Translate): string
       return t('activity.awaitingApproval', { defaultValue: 'Waiting for your approval' });
     case 'thinking':
       return t('activity.thinking', { defaultValue: 'Thinking' });
+    case 'responding':
+      return t('activity.responding', { defaultValue: 'Writing answer' });
     case 'subagent': {
       const base = activity.description
         ? t('activity.subagent', { description: activity.description, defaultValue: 'Subagent: {{description}}' })

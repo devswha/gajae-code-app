@@ -38,7 +38,6 @@ const submitEvent: FormEvent<HTMLFormElement> = {
 const baseComposerProps = {
   pendingPermissionRequests: [],
   handlePermissionDecision: () => undefined,
-  activity: null,
   isLoading: false,
   onAbortSession: () => undefined,
   sessionState: null,
@@ -252,6 +251,23 @@ test('a running composer queues by default and offers steering as a separate act
   assert.match(html, /aria-label="input\.queue\.sendNext"/);
   assert.match(html, /aria-label="input\.queue\.steerNow"/);
   assert.match(html, /lucide-forward/);
+});
+
+test('a running composer turns the send button into Stop and keeps the strip gone', () => {
+  const idle = renderToStaticMarkup(createElement(ChatComposer, baseComposerProps));
+  assert.match(idle, /data-run-control="send"/);
+  assert.doesNotMatch(idle, /data-run-control="stop"/);
+  assert.doesNotMatch(idle, /ActivityIndicator|chat-activity-/);
+
+  const running = renderToStaticMarkup(createElement(ChatComposer, {
+    ...baseComposerProps,
+    isLoading: true,
+    input: '',
+  }));
+  assert.match(running, /data-run-control="stop"/);
+  assert.match(running, /aria-label="input\.stop · Esc"/);
+  assert.doesNotMatch(running, /data-run-control="send"/);
+  assert.doesNotMatch(running, /ActivityIndicator|chat-activity-/);
 });
 
 test('commands cannot bypass their normal pipeline through the steering action', () => {

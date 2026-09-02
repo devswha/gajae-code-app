@@ -118,11 +118,11 @@
     "elapsed": {
       "seconds": "{{count}} с",
       "minutesSeconds": " м  с {{minutes}} {{seconds}}"
-    },
-    "stop": "Стоп"
+    }
   },
   "activity": {
     "thinking": "Думает",
+    "responding": "Пишет ответ",
     "awaitingApproval": "Ожидает вашего подтверждения",
     "reading": "Читает {{subject}}",
     "searching": "Ищет {{subject}}",

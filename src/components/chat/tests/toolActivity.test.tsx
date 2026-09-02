@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-
 import i18n from '../../../i18n/config';
 import type { ChatMessage } from '../types/types';
 import {
@@ -15,11 +12,11 @@ import {
   formatLiveActivity,
   runningToolCalls,
 } from '../utils/toolActivity';
-import ActivityIndicator from '../view/ActivityIndicator';
 
 /*
  * The activity line is a pure function of the transcript, so it is tested on
- * synthetic message sequences: what the composer shows is what these say.
+ * synthetic message sequences: what the work block's header shows is what
+ * these say.
  */
 
 const at = (seconds: number) => new Date(Date.UTC(2026, 8, 2, 0, 0, seconds));
@@ -27,6 +24,7 @@ const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 
 
 const user = (content: string, seconds = 0): ChatMessage => ({ type: 'user', content, timestamp: at(seconds) });
 const text = (content: string, seconds = 0): ChatMessage => ({ type: 'assistant', content, timestamp: at(seconds) });
+const streaming = (content: string, seconds = 0): ChatMessage => ({ ...text(content, seconds), isStreaming: true });
 const call = (toolName: string, toolInput: unknown, overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   type: 'assistant', content: '', timestamp: at(1), isToolUse: true, toolName, toolInput, toolId: `${toolName}-${Math.random()}`, ...overrides,
 });
@@ -83,6 +81,24 @@ test('only the current turn is read, and a call runs until its result lands', ()
 test('no tool in flight means the model is generating', () => {
   assert.deepEqual(deriveLiveActivity([]), { kind: 'thinking' });
   assert.deepEqual(deriveLiveActivity([user('go'), done(call('read', { path: 'a' })), text('Here is', 3)]), { kind: 'thinking' });
+  assert.equal(formatLiveActivity({ kind: 'thinking' }, t), 'Thinking');
+});
+
+test('text streaming in with no tool in flight is the answer being written', () => {
+  // After the tools: the block header reads "Working · Writing answer · 40s"
+  // rather than "Thinking", because the run is producing, not deciding.
+  const afterTools = [user('go'), done(call('read', { path: 'a' })), streaming('Here is what I found', 3)];
+  assert.deepEqual(deriveLiveActivity(afterTools), { kind: 'responding' });
+  assert.equal(formatLiveActivity({ kind: 'responding' }, t), 'Writing answer');
+
+  // A pure text answer streams the same way, with no tool at all.
+  assert.deepEqual(deriveLiveActivity([user('go'), streaming('Sure -', 1)]), { kind: 'responding' });
+  // Once the text has landed (no longer streaming) the model is between moves again.
+  assert.deepEqual(deriveLiveActivity([user('go'), text('Sure -', 1)]), { kind: 'thinking' });
+  // Streaming reasoning is thinking, not answering.
+  assert.deepEqual(deriveLiveActivity([user('go'), { ...streaming('hmm', 1), isThinking: true }]), { kind: 'thinking' });
+  // A running tool still outranks the prose that came before it.
+  assert.equal(deriveLiveActivity([user('go'), streaming('Let me check', 1), call('read', { path: 'a' })]).kind, 'tool');
 });
 
 test('the running tool names itself and its subject', () => {
@@ -144,27 +160,6 @@ test('an open approval outranks the running tool, and a server status line outra
   assert.deepEqual(status, { kind: 'status', text: 'Compacting context' });
   // Blank status text is no status at all.
   assert.equal(deriveLiveActivity(messages, { statusText: '   ' }).kind, 'tool');
-});
-
-test('the indicator shows the live activity and the elapsed time, with no decorative rotation', () => {
-  const html = renderToStaticMarkup(createElement(ActivityIndicator, {
-    activity: { statusText: null, canInterrupt: true, startedAt: Date.now(), awaitingInput: false },
-    liveActivity: { kind: 'tool', category: 'read', toolName: 'read', subject: 'src/foo.ts', moreCount: 1 },
-    onAbort: () => {},
-  }));
-
-  assert.match(html, /Reading src\/foo\.ts \+1 more…/);
-  assert.match(html, /role="status"/);
-  assert.match(html, /0s/);
-  assert.match(html, /aria-label="Stop"/);
-  assert.doesNotMatch(html, /Processing|Analyzing|Computing/);
-
-  const idle = renderToStaticMarkup(createElement(ActivityIndicator, {
-    activity: { statusText: null, canInterrupt: false, startedAt: Date.now(), awaitingInput: false },
-    liveActivity: null,
-  }));
-  assert.match(idle, /Thinking…/);
-  assert.doesNotMatch(idle, /aria-label="Stop"/);
-
-  assert.equal(renderToStaticMarkup(createElement(ActivityIndicator, { activity: null })), '');
+  // The server line also outranks the answer streaming in.
+  assert.deepEqual(deriveLiveActivity([user('go'), streaming('...', 1)], { statusText: 'Retrying' }), { kind: 'status', text: 'Retrying' });
 });

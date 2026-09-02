@@ -14,6 +14,7 @@ import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatSessionState } from '../hooks/useChatSessionState';
+import { useEscapeToAbort } from '../hooks/useEscapeToAbort';
 import { useOAuthLogin } from '../hooks/useOAuthLogin';
 import type { ChatInterfaceProps } from '../types/types';
 import { deriveLiveActivity } from '../utils/toolActivity';
@@ -163,17 +164,7 @@ function ChatInterface({
     sessionStore,
   });
 
-  const { handleAbortSession } = composer;
-  useEffect(() => {
-    if (!session.canAbortSession) return undefined;
-    const interceptEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) return;
-      event.preventDefault();
-      handleAbortSession();
-    };
-    document.addEventListener('keydown', interceptEscape, { capture: true });
-    return () => document.removeEventListener('keydown', interceptEscape, { capture: true });
-  }, [handleAbortSession, session.canAbortSession]);
+  useEscapeToAbort(session.canAbortSession, composer.handleAbortSession);
 
   useEffect(() => clearStreaming, [clearStreaming]);
 
@@ -209,9 +200,8 @@ function ChatInterface({
     && !selectedSession
     && !session.currentSessionId
     && session.chatMessages.length === 0;
-  const showActivity = Boolean(session.sessionActivity && pendingPermissionRequests.length === 0);
-  // One derivation feeds both the composer's indicator and the running turn's
-  // work block, so the two never describe the same moment differently.
+  // The run's progress has one home, the transcript: the running turn's work
+  // block (or, at detailed density, a bare running row) reads this.
   const liveActivity = session.isProcessing
     ? deriveLiveActivity(session.chatMessages, {
       statusText: session.sessionActivity?.statusText,
@@ -230,8 +220,6 @@ function ChatInterface({
     <ComposerSurface
       pendingPermissionRequests={pendingPermissionRequests}
       handlePermissionDecision={composer.handlePermissionDecision}
-      activity={session.sessionActivity}
-      liveActivity={liveActivity}
       isLoading={session.isProcessing}
       onAbortSession={composer.handleAbortSession}
       sessionState={session.sessionState}
@@ -276,7 +264,6 @@ function ChatInterface({
       onTextareaPaste={composer.handlePaste}
       onTextareaScrollSync={composer.syncInputOverlayScroll}
       onTextareaInput={composer.handleTextareaInput}
-      isInputFocused={composer.isInputFocused}
       onInputFocusChange={composer.handleInputFocusChange}
       placeholder={t('input.placeholder', { provider: 'Gajae Code' })}
       isTextareaExpanded={composer.isTextareaExpanded}
@@ -318,7 +305,6 @@ function ChatInterface({
               onTouchMove={session.handleScroll}
               isLoadingSessionMessages={session.isLoadingSessionMessages}
               isProcessing={session.isProcessing}
-              hasActivityIndicator={showActivity}
               liveActivity={liveActivity}
               runStartedAt={session.sessionActivity?.startedAt ?? null}
               chatMessages={session.chatMessages}

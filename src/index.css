@@ -461,40 +461,6 @@
     }
   }
 
-  @keyframes chat-activity-enter {
-    0% {
-      opacity: 0;
-      filter: blur(3px);
-      transform: translateY(18px) scaleY(0.92);
-    }
-
-    65% {
-      opacity: 1;
-      filter: blur(0);
-      transform: translateY(-2px) scaleY(1.01);
-    }
-
-    100% {
-      opacity: 1;
-      filter: blur(0);
-      transform: translateY(0) scaleY(1);
-    }
-  }
-
-  @keyframes chat-activity-exit {
-    0% {
-      opacity: 1;
-      filter: blur(0);
-      transform: translateY(0) scaleY(1);
-    }
-
-    100% {
-      opacity: 0;
-      filter: blur(2px);
-      transform: translateY(14px) scaleY(0.96);
-    }
-  }
-
   @keyframes search-flash {
     0%,
     50% {
@@ -569,9 +535,6 @@
 @layer utilities {
   .chat-messages-pane { contain: layout style paint; }
   .chat-composer-shell { contain: layout style; }
-  .chat-activity-enter { will-change: transform, opacity, filter; transform-origin: bottom center; animation: chat-activity-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-  .chat-activity-exit { will-change: transform, opacity, filter; transform-origin: bottom center; animation: chat-activity-exit 220ms cubic-bezier(0.4, 0, 1, 1) both; }
-  .chat-activity-tab { clip-path: inset(-8px -8px 0 -8px); }
 
   .chat-message {
     hyphens: auto; overflow-wrap: break-word; word-wrap: break-word;

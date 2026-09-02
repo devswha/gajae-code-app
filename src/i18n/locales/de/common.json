@@ -65,7 +65,25 @@
     "resize": "Ändern Sie die Größe des Arbeitsbereichs durch Ziehen",
     "tabs": {
       "status": "Status",
+      "changes": "Änderungen",
       "browser": "Browser"
+    },
+    "changes": {
+      "title": "Änderungen",
+      "refresh": "Änderungen aktualisieren",
+      "empty": "Keine Änderungen",
+      "emptyHint": "Ihr Arbeitsverzeichnis ist sauber.",
+      "loading": "Änderungen werden geladen…",
+      "notRepo": "Dieser Ordner ist kein Git-Repository",
+      "unavailable": "Git-Änderungen konnten nicht gelesen werden",
+      "noCommits": "Es wurde noch nichts committet.",
+      "binary": "Binärdatei; kein Text-Diff verfügbar.",
+      "tooLarge": "Diff ausgelassen, weil diese Datei zu groß ist.",
+      "files_one": "{{count}} Datei",
+      "files_other": "{{count}} Dateien",
+      "refreshLabel": "Änderungen aktualisieren",
+      "openInEditor": "Im Editor öffnen",
+      "renameArrow": "→"
     },
     "browser": {
       "address": "Webadresse",

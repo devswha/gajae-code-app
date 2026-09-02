@@ -65,7 +65,25 @@
     "resize": "Sürükleyerek çalışma alanı panelini yeniden boyutlandırın",
     "tabs": {
       "status": "Durum",
+      "changes": "Değişiklikler",
       "browser": "Tarayıcı"
+    },
+    "changes": {
+      "title": "Değişiklikler",
+      "refresh": "Değişiklikleri yenile",
+      "empty": "Değişiklik yok",
+      "emptyHint": "Çalışma ağacınız temiz.",
+      "loading": "Değişiklikler yükleniyor…",
+      "notRepo": "Bu klasör bir Git deposu değil",
+      "unavailable": "Git değişiklikleri okunamadı",
+      "noCommits": "Henüz hiçbir şey işlenmedi.",
+      "binary": "İkili dosya; metin farkı kullanılamıyor.",
+      "tooLarge": "Dosya çok büyük olduğu için fark gösterilmedi.",
+      "files_one": "{{count}} dosya",
+      "files_other": "{{count}} dosya",
+      "refreshLabel": "Değişiklikleri yenile",
+      "openInEditor": "Düzenleyicide aç",
+      "renameArrow": "→"
     },
     "browser": {
       "address": "Web adresi",

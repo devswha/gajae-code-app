@@ -65,7 +65,25 @@
     "resize": "通过拖动来调整工作区面板大小",
     "tabs": {
       "status": "状态",
+      "changes": "更改",
       "browser": "浏览器"
+    },
+    "changes": {
+      "title": "更改",
+      "refresh": "刷新更改",
+      "empty": "没有更改",
+      "emptyHint": "工作树是干净的。",
+      "loading": "正在加载变更…",
+      "notRepo": "此文件夹不是 Git 仓库",
+      "unavailable": "无法读取 Git 更改",
+      "noCommits": "尚未提交任何内容。",
+      "binary": "二进制文件；没有可用的文本差异。",
+      "tooLarge": "文件过大，已省略差异。",
+      "files_one": "{{count}} 个文件",
+      "files_other": "{{count}} 个文件",
+      "refreshLabel": "刷新更改",
+      "openInEditor": "在编辑器中打开",
+      "renameArrow": "→"
     },
     "browser": {
       "address": "网址",

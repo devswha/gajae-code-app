@@ -65,7 +65,25 @@
     "resize": "拖曳以改變工作區面板尺寸",
     "tabs": {
       "status": "狀況",
+      "changes": "變更",
       "browser": "瀏覽器"
+    },
+    "changes": {
+      "title": "變更",
+      "refresh": "重新整理變更",
+      "empty": "沒有變更",
+      "emptyHint": "工作樹是乾淨的。",
+      "loading": "正在載入變更…",
+      "notRepo": "此資料夾不是 Git 儲存庫",
+      "unavailable": "無法讀取 Git 變更",
+      "noCommits": "尚未提交任何內容。",
+      "binary": "二進位檔案；沒有可用的文字差異。",
+      "tooLarge": "檔案太大，已略過差異。",
+      "files_one": "{{count}} 個檔案",
+      "files_other": "{{count}} 個檔案",
+      "refreshLabel": "重新整理變更",
+      "openInEditor": "在編輯器中開啟",
+      "renameArrow": "→"
     },
     "browser": {
       "address": "網址",

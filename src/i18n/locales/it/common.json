@@ -65,7 +65,25 @@
     "resize": "Ridimensiona il pannello dell'area di lavoro trascinandolo",
     "tabs": {
       "status": "Stato",
+      "changes": "Modifiche",
       "browser": "Navigatore"
+    },
+    "changes": {
+      "title": "Modifiche",
+      "refresh": "Aggiorna modifiche",
+      "empty": "Nessuna modifica",
+      "emptyHint": "L'albero di lavoro è pulito.",
+      "loading": "Caricamento delle modifiche…",
+      "notRepo": "Questa cartella non è un repository Git",
+      "unavailable": "Impossibile leggere le modifiche Git",
+      "noCommits": "Non è stato ancora effettuato alcun commit.",
+      "binary": "File binario; diff di testo non disponibile.",
+      "tooLarge": "Diff omesso perché il file è troppo grande.",
+      "files_one": "{{count}} file",
+      "files_other": "{{count}} file",
+      "refreshLabel": "Aggiorna modifiche",
+      "openInEditor": "Apri nell'editor",
+      "renameArrow": "→"
     },
     "browser": {
       "address": "Indirizzo web",

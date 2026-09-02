@@ -65,7 +65,25 @@
     "resize": "워크스페이스 패널 크기를 드래그하여 조정",
     "tabs": {
       "status": "상태",
+      "changes": "변경 사항",
       "browser": "브라우저"
+    },
+    "changes": {
+      "title": "변경 사항",
+      "refresh": "변경 사항 새로 고침",
+      "empty": "변경 사항 없음",
+      "emptyHint": "작업 트리가 깨끗합니다.",
+      "loading": "변경 사항을 불러오는 중…",
+      "notRepo": "이 폴더는 Git 저장소가 아닙니다",
+      "unavailable": "Git 변경 사항을 읽을 수 없습니다",
+      "noCommits": "아직 커밋된 내용이 없습니다.",
+      "binary": "바이너리 파일이라 텍스트 diff를 표시할 수 없습니다.",
+      "tooLarge": "파일이 너무 커서 diff를 생략했습니다.",
+      "files_one": "{{count}}개 파일",
+      "files_other": "{{count}}개 파일",
+      "refreshLabel": "변경 사항 새로 고침",
+      "openInEditor": "편집기에서 열기",
+      "renameArrow": "→"
     },
     "browser": {
       "address": "웹 주소",

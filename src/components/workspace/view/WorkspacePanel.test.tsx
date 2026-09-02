@@ -33,6 +33,7 @@ test('the tab strip is a tablist whose selected tab owns the rendered panel', ()
 
   assert.match(html, /role="tablist"/);
   assert.match(html, /id="workspace-tab-status"[^>]*role="tab"[^>]*aria-selected="false"/);
+  assert.match(html, /id="workspace-tab-changes"[^>]*role="tab"[^>]*aria-selected="false"/);
   assert.match(html, /id="workspace-tab-browser"[^>]*role="tab"[^>]*aria-selected="true"/);
   assert.match(html, /role="tabpanel" id="workspace-tabpanel-browser" aria-labelledby="workspace-tab-browser"/);
 });
@@ -42,6 +43,13 @@ test('the status tab owns its own panel region', () => {
 
   assert.match(html, /id="workspace-tab-status"[^>]*aria-selected="true"/);
   assert.match(html, /role="tabpanel" id="workspace-tabpanel-status" aria-labelledby="workspace-tab-status"/);
+});
+
+test('the changes tab owns its own panel region', () => {
+  const html = render({ tab: 'changes' });
+
+  assert.match(html, /id="workspace-tab-changes"[^>]*aria-selected="true"/);
+  assert.match(html, /role="tabpanel" id="workspace-tabpanel-changes" aria-labelledby="workspace-tab-changes"/);
 });
 
 test('the panel offers only the surfaces the app still owns', () => {
@@ -55,6 +63,7 @@ test('only the selected tab is reachable with Tab, the rest with arrow keys', ()
   const html = render({ tab: 'status' });
 
   assert.match(html, /id="workspace-tab-status"[^>]*tabindex="0"/);
+  assert.match(html, /id="workspace-tab-changes"[^>]*tabindex="-1"/);
   assert.match(html, /id="workspace-tab-browser"[^>]*tabindex="-1"/);
 });
 

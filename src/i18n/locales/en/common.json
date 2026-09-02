@@ -65,7 +65,25 @@
     "resize": "Resize the workspace panel by dragging",
     "tabs": {
       "status": "Status",
+      "changes": "Changes",
       "browser": "Browser"
+    },
+    "changes": {
+      "title": "Changes",
+      "refresh": "Refresh changes",
+      "empty": "No changes",
+      "emptyHint": "Your working tree is clean.",
+      "loading": "Loading changes…",
+      "notRepo": "This folder is not a Git repository",
+      "unavailable": "Could not read Git changes",
+      "noCommits": "Nothing has been committed yet.",
+      "binary": "Binary file; no text diff available.",
+      "tooLarge": "Diff omitted because this file is too large.",
+      "files_one": "{{count}} file",
+      "files_other": "{{count}} files",
+      "refreshLabel": "Refresh changes",
+      "openInEditor": "Open in editor",
+      "renameArrow": "→"
     },
     "browser": {
       "address": "Web address",

@@ -46,6 +46,7 @@ test('a non-finite width falls back to the default rather than styling NaN', () 
 
 test('only the declared tabs are accepted', () => {
   assert.equal(normalizeWorkspaceTab('status'), 'status');
+  assert.equal(normalizeWorkspaceTab('changes'), 'changes');
   assert.equal(normalizeWorkspaceTab('browser'), 'browser');
   assert.equal(normalizeWorkspaceTab('shell'), null);
   assert.equal(normalizeWorkspaceTab(undefined), null);
@@ -57,9 +58,11 @@ test('a tab retired with its panel degrades to the default instead of sticking',
 });
 
 test('tablist keys move across tabs and wrap in both directions', () => {
-  assert.equal(workspaceTabForKey('status', 'ArrowRight'), 'browser');
+  assert.equal(workspaceTabForKey('status', 'ArrowRight'), 'changes');
+  assert.equal(workspaceTabForKey('changes', 'ArrowRight'), 'browser');
   assert.equal(workspaceTabForKey('browser', 'ArrowRight'), 'status');
   assert.equal(workspaceTabForKey('status', 'ArrowLeft'), 'browser');
+  assert.equal(workspaceTabForKey('browser', 'ArrowLeft'), 'changes');
   assert.equal(workspaceTabForKey('browser', 'Home'), 'status');
   assert.equal(workspaceTabForKey('status', 'End'), 'browser');
 });

@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useRef } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject } from 'react';
-import { Activity, Globe2, PanelRightClose, X, type LucideIcon } from 'lucide-react';
+import { Activity, FileDiff, Globe2, PanelRightClose, X, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { PillBar, Pill } from '../../../shared/view/ui';
@@ -14,10 +14,12 @@ import {
 } from '../workspacePanelState';
 
 const WorkspaceStatusTab = lazy(() => import('./WorkspaceStatusTab'));
+const WorkspaceChangesTab = lazy(() => import('./WorkspaceChangesTab'));
 const BrowserPanel = lazy(() => import('./BrowserPanel'));
 
 const TAB_ICONS: Record<WorkspaceTab, LucideIcon> = {
   status: Activity,
+  changes: FileDiff,
   browser: Globe2,
 };
 
@@ -153,6 +155,14 @@ export default function WorkspacePanel({
             projectId={projectId}
             permissionMode={permissionMode}
             active
+          />
+        )}
+        {tab === 'changes' && (
+          <WorkspaceChangesTab
+            projectId={projectId}
+            projectPath={projectPath}
+            projectName={projectName}
+            active={tab === 'changes'}
           />
         )}
         {tab === 'browser' && (

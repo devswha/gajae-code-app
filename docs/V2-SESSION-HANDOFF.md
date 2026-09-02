@@ -400,6 +400,19 @@ Tailscale link). Four commits on `main`, `npm run verify` green at
   `workBlock.working` locale key removed from all ten languages.
 - Verified live with two instrumented tabs: identical frame sequences,
   `Thinking… → Writing answer… → done` with the answer kept in both.
+- GJC model credential fix (post-abort follow-up, same night): a run whose
+  model lands on a provider with no stored credential row (the default role
+  pointed at `glm-zcode53`, a `models.yml` `apiKeyEnv: GLM53_KEY` provider)
+  failed as the sanitized "GJC worker failed." — the cause only in
+  `~/.gajae-app/logs/gjc-worker.log`. Eligibility and the run now use the auth
+  layer's own resolution (`peekApiKey`: models.yml `apiKey`/`apiKeyEnv`, env
+  fallback; no `credentialSelector` installed for such providers, matching the
+  CLI), and when nothing resolves the run answers the fixed
+  `model_unresolved` code/text instead of the generic failure
+  (`server/gjc-model-resolution.ts`). NOTE: the dev server's shell still needs
+  `GLM53_KEY` exported for that provider to resolve there, or switch the
+  default role to a signed-in provider (`glm-zcode/glm-5.3:xhigh` works — the
+  built-in ZCode catalog carries glm-5.3 and its OAuth row is healthy).
 
 Seen but left alone: a viewer that did not send the turn learns of the
 run ~2 s late (from `session_upserted`, not from the sender's optimistic

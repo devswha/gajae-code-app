@@ -75,6 +75,14 @@ export {
   GJC_WINDOWS_JOB_GUARD_READY,
 } from './gjc-windows-job.js';
 
+// The fixed failure surface for a run whose model cannot be paired with a
+// credential the runtime can use. The worker answers with the code and fixed
+// text; the application relays that text instead of the generic failure.
+export {
+  GJC_MODEL_UNRESOLVED_CODE,
+  GJC_MODEL_UNRESOLVED_MESSAGE,
+} from './gjc-model-resolution.js';
+
 // The command and skill surface the runtime advertises, generated from the
 // installed runtime rather than hand-listed.
 export { GJC_APP_BUILTIN_COMMANDS, GJC_BUNDLED_SKILLS } from './gjc-command-surface.generated.js';

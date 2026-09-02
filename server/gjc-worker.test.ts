@@ -13,6 +13,7 @@ import {
   type GjcWorkerRequestFrame,
 } from './gjc-worker-protocol.js';
 import { GjcRunPermissionsError } from './gjc-permission-policy.js';
+import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE, GjcModelResolutionError } from './gjc-model-resolution.js';
 import { claimProtocolStdout, GjcWorkerHost, runGjcWorkerEntrypoint, type GjcWorkerRuntime, type GjcWorkerWriter } from './gjc-worker.js';
 
 const request = (method: string, id: string, payload: Record<string, unknown> = {}, sessionId = 'scope-1') => ({ protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'request' as const, id, method, payload, ...(['worker.initialize', 'worker.shutdown'].includes(method) ? {} : { sessionId }) }) as GjcWorkerRequestFrame;
@@ -161,6 +162,19 @@ test('a malformed permissions block is answered with its own code instead of the
   assert.equal(response.payload.ok, false);
   assert.deepEqual(response.payload.error, { code: 'invalid_permissions', message: 'Invalid GJC run permissions.' });
   assert.ok(diagnostics.some((line) => line.startsWith('run bad-policy failed')));
+});
+test('an unresolvable model is answered with its own code instead of the generic failure', async () => {
+  const fake = fakeRuntime();
+  const diagnostics: string[] = [];
+  fake.runtime.spawnGjc = () => { throw new GjcModelResolutionError(); };
+  const frames: unknown[] = [];
+  const host = new GjcWorkerHost({ runtime: async () => fake.runtime, emit: (frame) => frames.push(frame), diagnostic: (message) => diagnostics.push(message) });
+  await host.handle(request('worker.initialize', 'init'));
+  await host.handle(request('session.start', 'no-model', { message: 'hello', options: {} }));
+  const response = frames.at(-1) as { payload: { ok: boolean; error: { code: string; message: string } } };
+  assert.equal(response.payload.ok, false);
+  assert.deepEqual(response.payload.error, { code: GJC_MODEL_UNRESOLVED_CODE, message: GJC_MODEL_UNRESOLVED_MESSAGE });
+  assert.ok(diagnostics.some((line) => line.startsWith('run no-model failed')));
 });
 
 test('entrypoint fails closed on malformed input and emits protocol-only stdout', async () => {

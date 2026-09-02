@@ -11,6 +11,8 @@ import {
   GJC_AGENT_TOOL_NAMES,
   GJC_INVALID_PERMISSIONS_CODE,
   GJC_INVALID_PERMISSIONS_MESSAGE,
+  GJC_MODEL_UNRESOLVED_CODE,
+  GJC_MODEL_UNRESOLVED_MESSAGE,
   GJC_WORKER_PROTOCOL_VERSION,
   GJC_WINDOWS_JOB_GUARD_ACK,
   GJC_WINDOWS_JOB_GUARD_READY,
@@ -195,6 +197,7 @@ class GjcConfigurationError extends Error {}
  */
 function runFailureMessage(response: GjcWorkerResponsePayload): string {
   if (!response.ok && response.error.code === GJC_INVALID_PERMISSIONS_CODE) return GJC_INVALID_PERMISSIONS_MESSAGE;
+  if (!response.ok && response.error.code === GJC_MODEL_UNRESOLVED_CODE) return GJC_MODEL_UNRESOLVED_MESSAGE;
   return SAFE_FAILURE;
 }
 

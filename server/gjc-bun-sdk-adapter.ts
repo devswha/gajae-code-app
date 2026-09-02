@@ -17,6 +17,7 @@ import { GjcBunAskController } from './gjc-bun-ask-controller.js';
 import { createGjcPermissionProvider, type GjcPermissionProvider } from './gjc-bun-permission-gate.js';
 import { forwardPromptTerminal, forwardSdkEvent, normalizeBuiltinCommandStdout, type SdkRunState } from './gjc-bun-sdk-events.js';
 import { parseGjcRunPermissions, type GjcRunPermissions } from './gjc-permission-policy.js';
+import { GjcModelResolutionError } from './gjc-model-resolution.js';
 import { resolveContainedExportCommand } from './gjc-export-path.js';
 import { readSessionSnapshot } from './gjc-session-state.js';
 import {
@@ -156,11 +157,11 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
   return { ...(candidate as unknown as SdkRunConfig), ...(permissions ? { permissions } : {}) };
 }
 
-function modelsForCredential(
+async function modelsForCredential(
   authStorage: AuthStorage,
   modelRegistry: ModelRegistry,
   credential: ExactCredentialRef,
-): Model[] {
+): Promise<Model[]> {
   const available = modelRegistry.getAvailable();
   if (credential.kind === 'runtime-env') return available;
 
@@ -171,18 +172,31 @@ function modelsForCredential(
       .filter((row) => credential.credentialId === undefined || row.id === credential.credentialId)
       .map((row) => row.provider),
   );
+  // A provider with no stored row can still be usable when the auth layer can
+  // resolve a credential another way - a `models.yml` `apiKey`/`apiKeyEnv` pin,
+  // or the env fallback. `peekApiKey` answers exactly that question without
+  // resolving anything, so probing each row-less provider once keeps default
+  // role resolution aligned with what the run could actually authenticate. A
+  // pinned providerId/credentialId is an assertion, not a search: no probe.
+  if (credential.providerId === undefined && credential.credentialId === undefined) {
+    for (const provider of new Set(available.map((model) => model.provider))) {
+      if (!eligibleProviders.has(provider) && await authStorage.peekApiKey(provider) !== undefined) {
+        eligibleProviders.add(provider);
+      }
+    }
+  }
   return available.filter((model) => eligibleProviders.has(model.provider));
 }
 
-function configuredDefaultModelId(
+async function configuredDefaultModelId(
   settings: Settings,
   authStorage: AuthStorage,
   modelRegistry: ModelRegistry,
   credential: ExactCredentialRef,
   modelProfile?: string,
-): string {
-  const resolveConfigured = (selector: Parameters<typeof resolveModelRoleValue>[0]): string | undefined => {
-    const resolved = resolveModelRoleValue(selector, modelsForCredential(authStorage, modelRegistry, credential), {
+): Promise<string> {
+  const resolveConfigured = async (selector: Parameters<typeof resolveModelRoleValue>[0]): Promise<string | undefined> => {
+    const resolved = resolveModelRoleValue(selector, await modelsForCredential(authStorage, modelRegistry, credential), {
       settings,
       modelRegistry,
     });
@@ -191,22 +205,22 @@ function configuredDefaultModelId(
   if (modelProfile) {
     const profile = modelRegistry.getModelProfile(modelProfile) ?? mergeModelProfiles().get(modelProfile);
     const selector = profile && resolveProfileBindings(profile).defaultSelector;
-    const resolved = resolveConfigured(selector);
-    if (!resolved) throw new Error(FAILURE);
+    const resolved = await resolveConfigured(selector);
+    if (!resolved) throw new GjcModelResolutionError();
     return resolved;
   }
   const roleValue = settings.getModelRole('default');
-  const roleModelId = resolveConfigured(roleValue);
+  const roleModelId = await resolveConfigured(roleValue);
   if (roleModelId) return roleModelId;
 
   const profileName = settings.get('modelProfile.default');
-  if (typeof profileName !== 'string' || !profileName) throw new Error(FAILURE);
+  if (typeof profileName !== 'string' || !profileName) throw new GjcModelResolutionError();
 
   // ModelRegistry loads models.yml user profiles and merges them with builtins.
   const profile = modelRegistry.getModelProfile(profileName) ?? mergeModelProfiles().get(profileName);
   const selector = profile && resolveProfileBindings(profile).defaultSelector;
-  const resolved = resolveConfigured(selector);
-  if (!resolved) throw new Error(FAILURE);
+  const resolved = await resolveConfigured(selector);
+  if (!resolved) throw new GjcModelResolutionError();
   return resolved;
 }
 
@@ -230,11 +244,11 @@ async function modelForWithRefresh(registry: ModelRegistry, modelId: string): Pr
   }
 }
 
-function credentialFor(
+async function credentialFor(
   authStorage: AuthStorage,
   credential: ExactCredentialRef,
   model: ReturnType<ModelRegistry['getAll']>[number],
-): { credentialSelector?: { provider: string; selector: { kind: 'id'; value: string }; raw: string }; credential?: { kind: 'stored'; providerId: string; credentialId: number }; dispose(): void } {
+): Promise<{ credentialSelector?: { provider: string; selector: { kind: 'id'; value: string }; raw: string }; credential?: { kind: 'stored'; providerId: string; credentialId: number }; dispose(): void }> {
   if (credential.kind === 'stored') {
     // The provider is derived deterministically from the pinned model; an
     // explicit providerId is an assertion that must agree with it.
@@ -243,7 +257,15 @@ function credentialFor(
     const rows = snapshotRows
       .filter((row) => row.provider === model.provider)
       .sort((left, right) => left.id - right.id);
-    if (rows.length === 0) throw new Error(FAILURE);
+    if (rows.length === 0) {
+      // No stored row to pin. The runtime still authenticates the provider
+      // itself when no selector is installed - a `models.yml` `apiKey`/
+      // `apiKeyEnv` pin or the env fallback, which is how the CLI runs these
+      // providers. When nothing resolves either, name the model problem
+      // instead of failing as a generic worker error.
+      if (await authStorage.peekApiKey(model.provider) === undefined) throw new GjcModelResolutionError();
+      return { dispose() {} };
+    }
     // Deterministic selection: explicit credentialId wins; otherwise the lowest
     // stored row id. Installing a selector also blocks the env-var fallback.
     const row = credential.credentialId !== undefined
@@ -300,10 +322,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
     };
   }
 
-  modelCatalog() {
+  async modelCatalog() {
     const seen = new Set<string>();
     const models = [];
-    const candidates = modelsForCredential(this.authStorage, this.modelRegistry, { kind: 'stored' });
+    const candidates = await modelsForCredential(this.authStorage, this.modelRegistry, { kind: 'stored' });
+
     const selections = this.modelRegistry.getCanonicalModelSelections({
       availableOnly: true,
       candidates,
@@ -448,7 +471,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           process.env.GJC_WORKER_AGENT_DIR ? { agentDir: process.env.GJC_WORKER_AGENT_DIR } : {},
         );
       const configuredModelId = config.modelId === 'default'
-        ? configuredDefaultModelId(
+        ? await configuredDefaultModelId(
           globalSettings,
           this.authStorage,
           this.modelRegistry,
@@ -463,7 +486,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       applyGjcToolSettingsPolicy(settings);
       const askController = new GjcBunAskController(writer);
       const model = await modelForWithRefresh(this.modelRegistry, configuredModelId);
-      const resolvedCredential = credentialFor(this.authStorage, config.credential, model);
+      const resolvedCredential = await credentialFor(this.authStorage, config.credential, model);
       try {
         const result = await (this.options.createSessionFactory ?? createAgentSession)({
           cwd: config.cwd,

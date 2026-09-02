@@ -22,14 +22,15 @@
     "server/gjc-cli.js",
     "server/gjc-command-surface.generated.ts",
     "server/gjc-export-path.ts",
+    "server/gjc-model-resolution.ts",
     "server/gjc-permission-policy.ts",
     "server/gjc-runtime-manifest.ts",
     "server/gjc-sdk-bridge.ts",
     "server/gjc-sdk-client.ts",
     "server/gjc-session-state.ts",
     "server/gjc-windows-job.ts",
-    "server/gjc-worker.ts",
     "server/gjc-worker-node-runtime.ts",
+    "server/gjc-worker.ts",
     "server/gjc-worker-protocol.ts"
   ],
   "engineTests": [

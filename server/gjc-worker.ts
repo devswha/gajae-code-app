@@ -15,6 +15,7 @@ import {
   type JsonObject,
   type JsonValue,
 } from './gjc-worker-protocol.js';
+import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE, isGjcModelResolutionError } from './gjc-model-resolution.js';
 
 export type GjcWorkerWriter = {
   send(value: unknown): void;
@@ -46,7 +47,7 @@ export type GjcWorkerRuntime = {
    */
   steerGjcSession?(runHandle: string, message: string): Promise<boolean>;
   resolveGjcToolApproval(requestId: string, decision: unknown): boolean;
-  modelCatalog?(): JsonObject;
+  modelCatalog?(): Promise<JsonObject>;
   oauth?: GjcWorkerOAuthRuntime;
 };
 export type GjcWorkerHostOptions = {
@@ -258,12 +259,12 @@ export class GjcWorkerHost {
   #oauthRuntime(): GjcWorkerOAuthRuntime | undefined {
     return this.#runtime?.oauth;
   }
-  #modelCatalog(request: GjcWorkerRequestFrame): void {
+  async #modelCatalog(request: GjcWorkerRequestFrame): Promise<void> {
     if (!payload(request, [])) return this.#response(request, failure('invalid_payload', 'Request payload is invalid.'));
     const runtime = this.#runtime;
     if (!runtime?.modelCatalog) return this.#response(request, failure('model_catalog_unavailable', 'Model catalog is not available in this worker.'));
     try {
-      this.#response(request, success(runtime.modelCatalog()));
+      this.#response(request, success(await runtime.modelCatalog()));
     } catch (error) {
       this.#diagnose('model catalog failed', error);
       this.#response(request, failure('model_catalog_failed', 'Model catalog is unavailable.'));
@@ -355,6 +356,7 @@ export class GjcWorkerHost {
     };
     let completed = false;
     let invalidPermissions = false;
+    let modelUnresolved = false;
     try {
       const spawned = this.#runtime!.spawnGjc(input.message, {
         ...options(input.options)!,
@@ -371,9 +373,11 @@ export class GjcWorkerHost {
       completed = true;
     } catch (error) {
       // Keep the safe default failure response; report the cause on stderr only.
-      // A malformed permissions block is the one exception: the app sent it, so
-      // the app gets a fixed code back that names the problem.
+      // Two exceptions carry a fixed code: a malformed permissions block (the
+      // app sent it) and a model the run cannot pair with a credential (the
+      // app's model selection or the runtime's default role did it).
       invalidPermissions = isGjcRunPermissionsError(error);
+      modelUnresolved = isGjcModelResolutionError(error);
       this.#diagnose(`run ${run.runId} failed`, error);
     } finally {
       if (run.abortPromise) {
@@ -397,7 +401,9 @@ export class GjcWorkerHost {
       this.#event(run, 'worker.status', { processId: null });
       const failed = invalidPermissions
         ? failure(GJC_INVALID_PERMISSIONS_CODE, GJC_INVALID_PERMISSIONS_MESSAGE)
-        : failure('run_failed', 'GJC run failed.');
+        : modelUnresolved
+          ? failure(GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE)
+          : failure('run_failed', 'GJC run failed.');
       this.#response(request, completed ? success(result) : failed);
       run.active = false;
       if (this.#runs.get(run.runId) === run) this.#runs.delete(run.runId);

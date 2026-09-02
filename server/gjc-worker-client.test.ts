@@ -14,6 +14,7 @@ import {
   killWorkerTree,
   resolveGjcResumeSessionRoot,
 } from './gjc-worker-client.js';
+import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE } from './gjc-model-resolution.js';
 import {
   GJC_WINDOWS_JOB_GUARD_ACK,
   GJC_WINDOWS_JOB_GUARD_READY,
@@ -1156,4 +1157,30 @@ test('a start refused for a malformed permissions block tells the client why', a
   await assert.rejects(spawn(supervisor, 'hello', {}, { send(value) { sent.push(value as Record<string, unknown>); } }), /^Error: GJC worker failed\.$/);
   assert.deepEqual(sent.at(-2)?.content, 'GJC worker failed.');
   assert.deepEqual(failures, ['Invalid GJC run permissions.', 'GJC worker failed.']);
+});
+test('a start refused for an unresolvable model tells the client why', async () => {
+  const child = new FakeChild();
+  const peer = new FakePeer(child);
+  peer.handle((request) => {
+    if (request.method === 'worker.initialize') peer.respond(request);
+    else if (request.method === 'session.start') {
+      peer.respond(request, { ok: false, error: { code: GJC_MODEL_UNRESOLVED_CODE, message: GJC_MODEL_UNRESOLVED_MESSAGE } });
+    }
+  });
+  const failures: string[] = [];
+  const supervisor = new GjcWorkerSupervisor({
+    ...runtime(child),
+    notifyRunFailed: ({ error }) => { failures.push(error); },
+  });
+
+  const sent: Array<Record<string, unknown>> = [];
+  await assert.rejects(
+    spawn(supervisor, 'hello', {}, { send(value) { sent.push(value as Record<string, unknown>); } }),
+    (error: unknown) => error instanceof Error && error.message === GJC_MODEL_UNRESOLVED_MESSAGE,
+  );
+  assert.deepEqual(sent.map((message) => [message.kind, message.content ?? message.exitCode]), [
+    ['error', GJC_MODEL_UNRESOLVED_MESSAGE],
+    ['complete', 1],
+  ]);
+  assert.deepEqual(failures, [GJC_MODEL_UNRESOLVED_MESSAGE]);
 });

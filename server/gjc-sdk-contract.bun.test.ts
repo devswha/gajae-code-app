@@ -27,6 +27,7 @@ import {
   type GjcWorkerRequestFrame,
 } from './gjc-worker-protocol.js';
 import { GjcWorkerHost } from './gjc-worker.js';
+import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE } from './gjc-model-resolution.js';
 
 type Listener = (event: unknown) => void;
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: Error): void };
@@ -240,7 +241,10 @@ async function fixture(
   const trace: string[] = [];
   const authStorage = {
     credentials: [] as Array<{ id: number; provider: string }>,
+    /** Providers `peekApiKey` reports a key for (models.yml apiKey/apiKeyEnv, env fallback). */
+    resolvableProviders: new Set<string>(),
     exportSnapshot() { return { credentials: this.credentials }; },
+    async peekApiKey(provider: string) { return this.resolvableProviders.has(provider) ? 'peeked-key' : undefined; },
     async login(provider: string, callbacks: OAuthCallbacks) {
       await oauthLogin?.(provider, callbacks);
       this.credentials.push({ id: this.credentials.length + 1, provider });
@@ -1235,6 +1239,50 @@ test('default model role fails closed when settings do not configure it', async 
     }));
     assert.equal((response(f.frames, 'missing-default-model').payload as Record<string, unknown>).ok, false);
     assert.equal(f.sessions.length, 0);
+  } finally { await f.close(); }
+});
+test('default model role resolves through a provider only the auth layer can sign in', async () => {
+  const f = await fixture(['glm-zcode53/glm-5.3:high'], undefined, [{ id: 'glm-5.3', provider: 'glm-zcode53' }]);
+  f.authStorage.resolvableProviders.add('glm-zcode53');
+  try {
+    const run = f.host.handle(request('session.start', 'default-model-auth-layer', {
+      message: 'hello',
+      options: { ...f.options, modelId: 'default', credential: { kind: 'stored' } },
+    }));
+    const session = await firstSession(f.sessions);
+    session.complete();
+    await run;
+    assert.equal((f.factoryOptions[0]!.model as { provider: string }).provider, 'glm-zcode53');
+    // No stored row exists to pin, so no selector is installed and the runtime
+    // resolves the provider's own credential (models.yml apiKey/apiKeyEnv).
+    assert.equal(f.factoryOptions[0]!.credentialSelector, undefined);
+  } finally { await f.close(); }
+});
+test('unresolvable default model answers with the model_unresolved code', async () => {
+  const f = await fixture(['glm-zcode53/glm-5.3:high'], undefined, [{ id: 'glm-5.3', provider: 'glm-zcode53' }]);
+  try {
+    await f.host.handle(request('session.start', 'default-model-unresolved', {
+      message: 'hello',
+      options: { ...f.options, modelId: 'default', credential: { kind: 'stored' } },
+    }));
+    const payload = response(f.frames, 'default-model-unresolved').payload as Record<string, unknown>;
+    assert.equal(payload.ok, false);
+    assert.deepEqual(payload.error, { code: GJC_MODEL_UNRESOLVED_CODE, message: GJC_MODEL_UNRESOLVED_MESSAGE });
+    assert.equal(f.sessions.length, 0);
+  } finally { await f.close(); }
+});
+test('a pinned model on a provider with no stored row runs without a credential selector', async () => {
+  const f = await fixture('glm-zcode53/glm-5.3:high', undefined, [{ id: 'glm-5.3', provider: 'glm-zcode53' }]);
+  f.authStorage.resolvableProviders.add('glm-zcode53');
+  try {
+    const run = f.host.handle(request('session.start', 'pinned-model-auth-layer', {
+      message: 'hello',
+      options: { ...f.options, modelId: 'glm-zcode53/glm-5.3', credential: { kind: 'stored' } },
+    }));
+    const session = await firstSession(f.sessions);
+    session.complete();
+    await run;
+    assert.equal(f.factoryOptions[0]!.credentialSelector, undefined);
   } finally { await f.close(); }
 });
 test('resume fails closed when multiple files claim the provider session id', async () => {

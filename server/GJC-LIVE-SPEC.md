@@ -188,10 +188,21 @@ method or frame changes; the policy travels inside existing payloads:
   (`server/gjc-permission-policy.ts`). When present the adapter switches the
   session to `prompt` and installs `server/gjc-bun-permission-gate.ts`; when
   absent the runtime default stands. A malformed block fails the run with the
-  application error code `invalid_permissions` — the one start failure whose
-  cause the app itself produced — and the application relays the fixed text
+  application error code `invalid_permissions` — a start failure whose cause
+  the app itself produced — and the application relays the fixed text
   "Invalid GJC run permissions." to the client instead of the generic
   "GJC worker failed.".
+- A run's model must pair with a credential the runtime can use. Stored rows
+  pin deterministically as before; a provider with **no** stored row is still
+  eligible when the auth layer can resolve a key for it (`models.yml`
+  `apiKey`/`apiKeyEnv`, env fallback — probed via `peekApiKey`, which resolves
+  nothing), and such a run starts with no `credentialSelector` so the runtime
+  authenticates the provider itself, exactly as the CLI does. When nothing
+  resolves — a default role pointing at a provider nobody can sign in to, or a
+  pinned model on one — the run fails with the application error code
+  `model_unresolved` (`server/gjc-model-resolution.ts`) and the application
+  relays the fixed text "The GJC model could not be resolved. Check the model
+  selection and provider sign-in, then try again.".
 - A call the policy covers (`bypass`, a tool on `allowAlways`, or a file
   mutation under `auto_edits`) is approved inside the worker and recorded once
   per tool per run as a `system_notice` ("Auto-approved bash (always allow)").

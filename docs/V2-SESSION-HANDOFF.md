@@ -16,9 +16,11 @@ Last updated: 2026-09-02. Supersedes the 2026-07-18 handoff.
   (`src/components/chat/view/subcomponents/ContextUsageBadge.tsx`). The
   2026-09-02 session-UI pass (tool output density, four-state session status,
   sidebar search, concise titles, per-project permissions) is recorded below.
-- **Notarization remains human-gated, not the only repository work.** It still
-  requires the Developer ID certificate + notarization credentials on the Mac;
-  see `docs/DESKTOP-TAURI-VERIFICATION.md` § "Remaining human gate".
+- **Developer ID signing + notarization is cleared (2026-09-02).** The Mac has
+  the certificate and the `gajae-notary` notarytool profile; the first signed
+  build was notarized, stapled and Gatekeeper-accepted. See
+  `docs/DESKTOP-TAURI-VERIFICATION.md` § "Signed release procedure". No
+  notarized build has been tagged or published yet.
 - v1 users are served by the frozen snapshot repo **`devswha/gajae-app-v1`**
   (cut at v1.0.0, release assets mirrored). Maintenance flows one way:
   this repo → cherry-pick to the snapshot.
@@ -240,18 +242,27 @@ outside the repo. Ten commits, `1825fb2`..`a4773ff`, all on `main`.
 
 ## How to resume (next session)
 
-1. **Notarization + DMG (needs the user):** requires the Developer ID
-   certificate + notarytool credentials on the Mac. Follow
-   `docs/DESKTOP-TAURI-VERIFICATION.md` § "Remaining human gate", rebuild,
-   and re-run the packaged smokes + `spctl` (should flip to accepted). Every
-   shipped DMG so far is ad-hoc signed and Gatekeeper-blocked.
-2. **Cut `v2.0.0-beta.7`:** `package.json` already carries `2.0.0-beta.7` and
+1. **Fix the payload before publishing a notarized DMG.** The 2026-09-02
+   record in `docs/DESKTOP-TAURI-VERIFICATION.md` shows the packaged smoke
+   failing from the mounted image: `b15492a` drops `elkjs` from the payload,
+   but `beautiful-mermaid` imports it at load time, so the GJC worker never
+   initializes anywhere outside this checkout (inside it Bun resolves the
+   repository's `node_modules/elkjs` and hides the hole). Ship a stub in its
+   place (or another resolution), rebuild, re-notarize, and run the acceptance
+   smokes from the mounted image.
+2. **Publish a notarized DMG:** the signing/notarization pipeline is proven
+   (§ "Signed release procedure" and the 2026-09-02 record). Every DMG shipped
+   *so far* is still ad-hoc signed and Gatekeeper-blocked; the first notarized
+   artifact goes out with the next tag. Export `APPLE_SIGNING_IDENTITY` and
+   `GITHUB_TOKEN` before building, and expect `notarytool submit --wait` to
+   take an hour or more.
+3. **Cut `v2.0.0-beta.7`:** `package.json` already carries `2.0.0-beta.7` and
    `"license": "MIT"`; the tag does not exist yet. This is the first MIT
    distribution. CI runs `npm run verify` on Linux for Node 22 and 24 on every
    push; the release job verifies the `linux-x64` native closure when it
    builds the server bundle. The release notes must call out the permission
    default change (`858f1a3`, above): sessions that never asked now ask.
-3. **Session-UI roadmap, remaining items in priority order** (items 1–3 of the
+4. **Session-UI roadmap, remaining items in priority order** (items 1–3 of the
    comparison — density, status/search, permissions — landed 2026-09-02):
    - (4) Changes tab: a diff review pane for the session's edits with line
      comments that turn into an agent reply.

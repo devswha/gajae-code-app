@@ -12,6 +12,7 @@ export type ProjectChange = {
   patch: string | null;
   binary: boolean;
   tooLarge: boolean;
+  patchOmitted: boolean;
 };
 
 export type ProjectChanges = {
@@ -64,6 +65,7 @@ function readChanges(body: Record<string, unknown>): ProjectChanges {
       patch,
       binary: file.binary === true,
       tooLarge: file.tooLarge === true,
+      patchOmitted: file.patchOmitted === true,
     }];
   }) : [];
 

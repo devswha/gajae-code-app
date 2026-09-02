@@ -4,12 +4,14 @@ import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import type { SessionStore } from '../../../stores/useSessionStore';
 import { MIN_WORKSPACE_PANEL_WIDTH } from '../workspacePanelState';
 
 import WorkspacePanel, { type WorkspacePanelProps } from './WorkspacePanel';
 
 function render(overrides: Partial<WorkspacePanelProps> = {}): string {
   const props: WorkspacePanelProps = {
+    sessionStore: {} as SessionStore,
     tab: 'status',
     width: 420,
     expanded: false,

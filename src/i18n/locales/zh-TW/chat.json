@@ -212,7 +212,7 @@
     "deny": "拒絕",
     "allow": "允許",
     "alwaysDeny": "總是拒絕 {{tool}}",
-    "alwaysDenyHint": "從現在起在此專案中自動拒絕此工具",
+    "alwaysDenyHint": "在目前執行結束前自動拒絕此工具",
     "alwaysAllow": "一律允許 {{tool}}",
     "alwaysAllowHint": "從現在起在此專案中自動核准此工具"
   },

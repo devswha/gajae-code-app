@@ -260,7 +260,7 @@ export function forwardSdkEvent(
       // error flag. Results are keyed by `toolId`, so each update supersedes the
       // last.
       const content = stringifyToolOutput(event.partialResult);
-      if (content) writer.send({ kind: 'tool_result', toolId: str(event.toolCallId), content, isError: false });
+      if (content) writer.send({ kind: 'tool_result', toolId: str(event.toolCallId), content, isError: false, isFinal: false });
       return;
     }
     case 'tool_execution_end': {
@@ -270,6 +270,7 @@ export function forwardSdkEvent(
         toolId: str(event.toolCallId),
         content: stringifyToolOutput(event.result),
         isError: event.isError === true,
+        isFinal: true,
         // The runtime returns `{ content, details }`, where `details` is the
         // typed per-tool record (a read's resolvedPath and truncation, a
         // bash run's exit status, and so on). Only `content` used to survive

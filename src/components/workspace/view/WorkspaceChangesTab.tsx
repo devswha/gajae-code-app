@@ -3,9 +3,10 @@ import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { api } from '../../../utils/api';
+import type { SessionStore } from '../../../stores/useSessionStore';
 import { useLastTurnChanges, type LastTurnFile } from '../hooks/useLastTurnChanges';
 import { useProjectChanges, type ProjectChange } from '../hooks/useProjectChanges';
-import { formatDiffComment } from '../utils/diffComment';
+import { diffCommentLine, formatDiffComment } from '../utils/diffComment';
 
 import UnifiedDiff, { UnifiedDiffRows } from './UnifiedDiff';
 import type { DiffCommentRow } from './UnifiedDiff';
@@ -15,8 +16,10 @@ export type WorkspaceChangesTabProps = {
   projectPath?: string;
   projectName?: string;
   sessionId?: string;
+  sessionStore: SessionStore;
+  lastTurnRunning?: boolean;
   /** Appends a line comment to the chat composer as the next message's draft. */
-  onComposerInsert?: (text: string) => void;
+  onComposerInsert?: (text: string) => boolean;
   active: boolean;
 };
 
@@ -33,13 +36,15 @@ export default function WorkspaceChangesTab({
   projectPath,
   projectName,
   sessionId,
+  sessionStore,
+  lastTurnRunning = false,
   onComposerInsert,
   active,
 }: WorkspaceChangesTabProps) {
   const { t } = useTranslation();
   const [scope, setScope] = useState<'workingTree' | 'lastTurn'>('workingTree');
   const { state, refresh: refreshWorkingTree } = useProjectChanges(projectId, active && scope === 'workingTree');
-  const { files: lastTurnFiles, refresh: refreshLastTurn } = useLastTurnChanges(sessionId, active && scope === 'lastTurn');
+  const { files: lastTurnFiles, pending: lastTurnPending, refresh: refreshLastTurn, status: lastTurnStatus } = useLastTurnChanges(sessionStore, sessionId, active && scope === 'lastTurn');
   const [openPath, setOpenPath] = useState<string | null>(null);
 
   const openInEditor = useCallback((path: string) => {
@@ -99,6 +104,10 @@ export default function WorkspaceChangesTab({
               <div className="m-2 rounded-md border border-dashed border-border/70 px-3 py-4 text-center text-muted-foreground">
                 {t('workspace.changes.noSession')}
               </div>
+            ) : lastTurnStatus === 'loading' || (lastTurnRunning && lastTurnPending) ? (
+              <p className="px-2.5 py-2 text-muted-foreground">{t('workspace.changes.loading')}</p>
+            ) : lastTurnStatus === 'error' ? (
+              <p className="px-2.5 py-2 text-muted-foreground">{t('workspace.changes.unavailable')}</p>
             ) : lastTurnFiles.length === 0 ? (
               <div className="m-2 rounded-md border border-dashed border-border/70 px-3 py-4 text-center">
                 <p className="font-medium text-foreground">{t('workspace.changes.emptyTurn')}</p>
@@ -173,7 +182,7 @@ export const ChangeRow = memo(function ChangeRow({
   openPath: string | null;
   onSetOpenPath: (path: string | null) => void;
   onOpenInEditor: (path: string) => void;
-  onComposerInsert?: (text: string) => void;
+  onComposerInsert?: (text: string) => boolean;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   const [commentRow, setCommentRow] = useState<DiffCommentRow | null>(null);
@@ -214,15 +223,26 @@ export const ChangeRow = memo(function ChangeRow({
               <UnifiedDiff patch={file.patch} onLineComment={onComposerInsert ? setCommentRow : undefined} />
               {commentRow && (
                 <LineCommentBox
+                  key={commentRow.rowIndex}
                   path={file.path}
                   row={commentRow}
-                  onSubmit={(text) => { onComposerInsert?.(formatDiffComment(toLocation(file.path, commentRow), text)); setCommentRow(null); }}
+                  onSubmit={(text) => {
+                    if (onComposerInsert?.(formatDiffComment(toLocation(file.path, commentRow), text))) {
+                      setCommentRow(null);
+                    }
+                  }}
                   onCancel={() => setCommentRow(null)}
                   t={t}
                 />
               )}
             </>
-          : <p className="border-t border-border/60 px-2.5 py-1.5 text-muted-foreground">{file.binary ? t('workspace.changes.binary') : t('workspace.changes.tooLarge')}</p>
+          : <p className="border-t border-border/60 px-2.5 py-1.5 text-muted-foreground">
+              {file.binary
+                ? t('workspace.changes.binary')
+                : file.tooLarge
+                  ? t('workspace.changes.tooLarge')
+                  : t('workspace.changes.unavailable')}
+            </p>
       )}
     </div>
   );
@@ -249,17 +269,20 @@ const LastTurnChangeRow = memo(function LastTurnChangeRow({
   openPath: string | null;
   onSetOpenPath: (path: string | null) => void;
   onOpenInEditor: (path: string) => void;
-  onComposerInsert?: (text: string) => void;
+  onComposerInsert?: (text: string) => boolean;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   const [commentRow, setCommentRow] = useState<DiffCommentRow | null>(null);
   const expanded = openPath === rowKey;
-  const onToggle = () => onSetOpenPath(expanded ? null : rowKey);
+  const canExpand = file.rows !== null || file.tooLarge;
+  const onToggle = () => {
+    if (canExpand) onSetOpenPath(expanded ? null : rowKey);
+  };
   const appearance = lastTurnAppearance[file.kind];
   return (
     <div className="border-b border-border/60 last:border-b-0">
       <div className="flex min-w-0 items-center gap-2 px-2.5 py-1.5">
-        <button type="button" onClick={onToggle} aria-expanded={expanded} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+        <button type="button" onClick={onToggle} aria-expanded={canExpand ? expanded : undefined} disabled={!canExpand} className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-default">
           <span className={`rounded px-1 font-mono text-[10px] font-medium ${appearance.className}`}>{appearance.label}</span>
           <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground">
             {file.oldPath ? <>{file.oldPath} <span className="text-muted-foreground">{t('workspace.changes.renameArrow')}</span> {file.path}</> : file.path}
@@ -274,14 +297,22 @@ const LastTurnChangeRow = memo(function LastTurnChangeRow({
           <UnifiedDiffRows rows={file.rows} onLineComment={onComposerInsert ? setCommentRow : undefined} />
           {commentRow && (
             <LineCommentBox
+              key={commentRow.rowIndex}
               path={file.path}
               row={commentRow}
-              onSubmit={(text) => { onComposerInsert?.(formatDiffComment(toLocation(file.path, commentRow), text)); setCommentRow(null); }}
+              onSubmit={(text) => {
+                if (onComposerInsert?.(formatDiffComment(toLocation(file.path, commentRow), text))) {
+                  setCommentRow(null);
+                }
+              }}
               onCancel={() => setCommentRow(null)}
               t={t}
             />
           )}
         </>
+      )}
+      {expanded && file.tooLarge && (
+        <p className="border-t border-border/60 px-2.5 py-1.5 text-muted-foreground">{t('workspace.changes.tooLarge')}</p>
       )}
     </div>
   );
@@ -313,7 +344,11 @@ export function LineCommentBox({
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   const [draft, setDraft] = useState('');
-  const line = row.oldLine ?? row.newLine;
+  const line = diffCommentLine({
+    marker: COMMENT_MARKER[row.kind],
+    oldLine: row.oldLine,
+    newLine: row.newLine,
+  });
   const reference = line === null ? path : `${path}:${line}`;
   const send = () => {
     if (!draft.trim()) return;
@@ -334,6 +369,7 @@ export function LineCommentBox({
           }}
           placeholder={t('workspace.changes.comment.placeholder')}
           aria-label={t('workspace.changes.comment.placeholder')}
+          autoFocus
           className="min-w-0 flex-1 rounded border border-border bg-card px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/70 focus:border-ring focus:outline-none"
         />
         <button

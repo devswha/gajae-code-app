@@ -107,6 +107,7 @@ test('tool_execution_update forwards late output such as a backgrounded job resu
   assert.equal(results[1].toolId, 'bg-1', 'the later result replaces the earlier one under the same id');
   assert.equal(results[1].content, 'done');
   assert.equal(results[1].isError, false);
+  assert.equal(results[1].isFinal, false);
 });
 
 test('an empty tool_execution_update emits nothing', () => {

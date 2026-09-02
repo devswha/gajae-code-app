@@ -6,6 +6,7 @@ import { SessionStatusProvider } from '../../../contexts/SessionStatusContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useFileOpenResolver } from '../../../hooks/useFileOpenResolver';
 import { useProjectPermissions } from '../../../hooks/useProjectPermissions';
+import { useSessionStore } from '../../../stores/useSessionStore';
 import { useWorkspacePanel } from '../../workspace/hooks/useWorkspacePanel';
 import { api } from '../../../utils/api';
 
@@ -36,9 +37,15 @@ function MainContent({
   newSessionTrigger,
 }: MainContentProps) {
   const { showImagePreviews, toolOutputDensity, sendByCtrlEnter } = useUiPreferences().preferences;
+  const sessionStore = useSessionStore();
   const panel = useWorkspacePanel({ isMobile });
   const composerInsertRef = useRef<((text: string) => void) | null>(null);
-  const handleComposerInsert = useCallback((text: string) => composerInsertRef.current?.(text), []);
+  const handleComposerInsert = useCallback((text: string) => {
+    const insert = composerInsertRef.current;
+    if (!insert) return false;
+    insert(text);
+    return true;
+  }, []);
   const { closePanel, containerRef, expanded, handleResizeKeyDown, handleResizeStart, isOpen, resizeHandleRef, setTab, tab, toggleExpanded, togglePanel, width } = panel;
   const [pendingBrowserNavigation, setPendingBrowserNavigation] = useState<{ id: number; url: string } | null>(null);
   const navigationSequence = useRef(0);
@@ -108,6 +115,7 @@ function MainContent({
             <ErrorBoundary showDetails>
               <Suspense fallback={null}>
                 <ChatInterface
+                  sessionStore={sessionStore}
                   composerInsertRef={composerInsertRef}
                   selectedProject={selectedProject}
                   selectedSession={selectedSession}
@@ -134,6 +142,7 @@ function MainContent({
         {isOpen && (
           <Suspense fallback={null}>
             <WorkspacePanel
+              sessionStore={sessionStore}
               tab={tab}
               width={width}
               expanded={expanded}

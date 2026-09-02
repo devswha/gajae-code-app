@@ -1,3 +1,5 @@
+import type { PermissionDecision } from '../types/types';
+
 export function formatToolInputForDisplay(input: unknown) {
   switch (typeof input) {
     case 'undefined':
@@ -14,6 +16,17 @@ export function formatToolInputForDisplay(input: unknown) {
   } catch {
     return String(input);
   }
+}
+
+export function permissionResponseMessage(requestId: string, decision: PermissionDecision) {
+  return {
+    type: 'chat.permission-response',
+    requestId,
+    allow: Boolean(decision.allow),
+    ...(decision.always === true ? { always: true } : {}),
+    updatedInput: decision.updatedInput,
+    message: decision.message,
+  };
 }
 
 /**

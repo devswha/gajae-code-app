@@ -8,7 +8,6 @@ import { readSessionFacts, readTokenTotals, type SessionStatusSnapshot } from '.
 import { usePublishSessionStatus } from '../../../contexts/SessionStatusContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import { useLegacySkipPermissionsMigration, useProjectPermissions } from '../../../hooks/useProjectPermissions';
-import { useSessionStore } from '../../../stores/useSessionStore';
 import type { ProjectSession } from '../../../types/app';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useChatProviderState } from '../hooks/useChatProviderState';
@@ -52,11 +51,10 @@ function ChatInterface({
   selectedProject, selectedSession, ws, sendMessage, onFileOpen, onInputFocusChange,
   onSessionProcessing, onSessionIdle, processingSessions, onNavigateToSession,
   onSessionEstablished, onShowSettings, toolOutputDensity,
-  showImagePreviews, sendByCtrlEnter, newSessionTrigger, composerInsertRef,
+  showImagePreviews, sendByCtrlEnter, newSessionTrigger, composerInsertRef, sessionStore,
 }: ChatInterfaceProps) {
   const { subscribe } = useWebSocket();
   const { t } = useTranslation('chat');
-  const sessionStore = useSessionStore();
   const streamTimerRef = useRef<number | null>(null);
   const accumulatedStreamRef = useRef('');
   const statusCheckSentAtRef = useRef(new Map<string, number>());
@@ -178,9 +176,13 @@ function ChatInterface({
   // from re-rendering the chat for it.
   useEffect(() => {
     if (!composerInsertRef) return undefined;
+    if (isHistoricalNonGjcReadOnlySession(selectedSession)) {
+      composerInsertRef.current = null;
+      return undefined;
+    }
     composerInsertRef.current = composer.insertAtEnd;
     return () => { composerInsertRef.current = null; };
-  }, [composer.insertAtEnd, composerInsertRef]);
+  }, [composer.insertAtEnd, composerInsertRef, selectedSession]);
 
   const sessionStatusSnapshot = useMemo<SessionStatusSnapshot>(() => {
     const reported = readSessionFacts(session.sessionState);

@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, render } from '@testing-library/react';
 import { createElement } from 'react';
 
+import { useLastTurnChanges, type LastTurnFile } from '../components/workspace/hooks/useLastTurnChanges';
+
 import { useSessionStore, type SessionSlot, type SessionStore } from './useSessionStore';
 
 type PendingRequest = {
@@ -35,6 +37,31 @@ function createStore(): SessionStore {
 }
 
 afterEach(cleanup);
+
+test('a shared session store exposes completed mutations to the Last turn hook', () => {
+  let store: SessionStore | undefined;
+  let files: LastTurnFile[] = [];
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+  function SharedStoreHarness() {
+    store = useSessionStore();
+    files = useLastTurnChanges(store, 'session', true).files;
+    return null;
+  }
+
+  render(createElement(QueryClientProvider, { client: queryClient }, createElement(SharedStoreHarness)));
+  assert.ok(store);
+  act(() => {
+    store!.setActiveSession('session');
+    store!.appendRealtimeBatch('session', [
+      { id: 'user', sessionId: 'session', timestamp: '2026-01-01T00:00:00Z', provider: 'gjc', kind: 'text', role: 'user', content: 'write it' },
+      { id: 'write', sessionId: 'session', timestamp: '2026-01-01T00:00:01Z', provider: 'gjc', kind: 'tool_use', toolId: 'write-1', toolName: 'write', toolInput: { path: 'done.ts', content: 'done' } },
+      { id: 'result', sessionId: 'session', timestamp: '2026-01-01T00:00:02Z', provider: 'gjc', kind: 'tool_result', toolId: 'write-1', content: 'ok', isError: false, isFinal: true },
+    ]);
+  });
+
+  assert.deepEqual(files.map((file) => file.path), ['done.ts']);
+});
 
 test('settled server windows live in the query cache with referentially stable slot reads', async () => {
   const originalFetch = globalThis.fetch;

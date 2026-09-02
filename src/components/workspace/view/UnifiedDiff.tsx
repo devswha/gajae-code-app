@@ -5,6 +5,7 @@ import { parseUnifiedDiff, type UnifiedDiffRow } from '../utils/unifiedDiff';
 
 /** What a row hands to the tab when its comment button is pressed. */
 export type DiffCommentRow = {
+  rowIndex: number;
   oldLine: number | null;
   newLine: number | null;
   kind: 'context' | 'added' | 'removed';
@@ -51,10 +52,10 @@ export function UnifiedDiffRows({ rows, onLineComment }: { rows: UnifiedDiffRow[
             {onLineComment && (
               <button
                 type="button"
-                onClick={() => onLineComment({ oldLine: row.oldLine, newLine: row.newLine, kind: row.kind, content: row.content })}
+                onClick={() => onLineComment({ rowIndex: index, oldLine: row.oldLine, newLine: row.newLine, kind: row.kind, content: row.content })}
                 aria-label={t('workspace.changes.comment.add')}
                 title={t('workspace.changes.comment.add')}
-                className="mr-1 shrink-0 self-center rounded px-1 text-muted-foreground opacity-0 transition-opacity group-hover/line:opacity-100 hover:bg-muted/60 hover:text-foreground focus-visible:opacity-100"
+                className="mr-1 shrink-0 self-center rounded px-1 text-muted-foreground opacity-60 transition-opacity group-hover/line:opacity-100 hover:bg-muted/60 hover:text-foreground focus-visible:opacity-100"
               >
                 <span aria-hidden className="font-sans">+</span>
               </button>

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { PillBar, Pill } from '../../../shared/view/ui';
 import { useSessionStatus } from '../../../contexts/SessionStatusContext';
 import type { PermissionMode } from '../../../hooks/useProjectPermissions';
+import type { SessionStore } from '../../../stores/useSessionStore';
 import {
   MIN_WORKSPACE_PANEL_WIDTH,
   WORKSPACE_TABS,
@@ -32,8 +33,9 @@ export type WorkspacePanelProps = {
   projectPath?: string;
   projectId?: string;
   sessionId?: string;
+  sessionStore: SessionStore;
   /** Appends a line comment as the composer's draft; the Changes tab's rows call it. */
-  onComposerInsert?: (text: string) => void;
+  onComposerInsert?: (text: string) => boolean;
   /** The project's permission mode, when the caller has loaded it. */
   permissionMode?: PermissionMode | null;
   automationSessionId: string;
@@ -64,6 +66,7 @@ export default function WorkspacePanel({
   projectPath,
   projectId,
   sessionId,
+  sessionStore,
   onComposerInsert,
   permissionMode = null,
   automationSessionId,
@@ -164,10 +167,13 @@ export default function WorkspacePanel({
         )}
         {tab === 'changes' && (
           <WorkspaceChangesTab
+            key={`${projectId ?? ''}:${sessionId ?? ''}`}
             projectId={projectId}
             projectPath={projectPath}
             projectName={projectName}
             sessionId={sessionId}
+            sessionStore={sessionStore}
+            lastTurnRunning={sessionStatus.activity.running}
             onComposerInsert={onComposerInsert}
             active={tab === 'changes'}
           />

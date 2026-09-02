@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 
 import type { MarkSessionIdle, MarkSessionProcessing, SessionActivityMap } from '../../../hooks/useSessionProtection';
+import type { SessionStore } from '../../../stores/useSessionStore';
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type { ToolOutputDensity } from '../utils/toolOutputDensity';
 
@@ -23,7 +24,7 @@ export interface ChatMessage {
 }
 
 export interface PendingPermissionRequest { requestId: string; toolName: string; input?: unknown; context?: unknown; sessionId?: string | null; receivedAt?: Date; }
-/** The user's answer to a permission card; `always` remembers an allow for the project. */
+/** The user's answer to a permission card; `always` selects the runtime's matching persistent option. */
 export interface PermissionDecision { allow?: boolean; always?: boolean; message?: string; updatedInput?: unknown; }
 interface QuestionOption { label: string; description?: string; }
 export interface Question { options: QuestionOption[]; question: string; header?: string; multiSelect?: boolean; }
@@ -33,6 +34,7 @@ export interface SessionEstablishedContext { project: Project; provider: LLMProv
 
 export interface ChatInterfaceProps {
   selectedProject: Project | null; selectedSession: ProjectSession | null; ws: WebSocket | null; sendMessage: (message: unknown) => void;
+  sessionStore: SessionStore;
   onFileOpen?: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void; onInputFocusChange?: (focused: boolean) => void; onSessionProcessing?: MarkSessionProcessing; onSessionIdle?: MarkSessionIdle; processingSessions?: SessionActivityMap; onNavigateToSession?: (targetSessionId: string, options?: SessionNavigationOptions) => void; onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void; onShowSettings?: () => void;
   toolOutputDensity?: ToolOutputDensity; showImagePreviews?: boolean; sendByCtrlEnter?: boolean; newSessionTrigger?: number; onTaskClick?: (...args: unknown[]) => void;
   /** Set to the composer-append function while mounted; the Changes tab's line comments flow through it. */

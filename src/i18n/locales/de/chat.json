@@ -212,7 +212,7 @@
     "deny": "Ablehnen",
     "allow": "Erlauben",
     "alwaysDeny": "{{tool}} immer ablehnen",
-    "alwaysDenyHint": "Dieses Werkzeug in diesem Projekt von nun an automatisch ablehnen",
+    "alwaysDenyHint": "Dieses Werkzeug für den Rest dieses Laufs automatisch ablehnen",
     "alwaysAllow": "{{tool}} immer erlauben",
     "alwaysAllowHint": "Dieses Werkzeug in diesem Projekt ab jetzt automatisch freigeben"
   },

@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import type { NormalizedMessage } from '../../../stores/useSessionStore';
 
-import { lastTurnFiles } from './useLastTurnChanges';
+import { hasPendingLastTurnMutation, lastTurnFiles } from './useLastTurnChanges';
 
 function message(overrides: Partial<NormalizedMessage>): NormalizedMessage {
   return {
@@ -19,10 +19,10 @@ function message(overrides: Partial<NormalizedMessage>): NormalizedMessage {
 test('maps last-turn edit pairs, writes, deletes, and moves in call order', () => {
   const files = lastTurnFiles([
     message({ kind: 'text', role: 'user', content: 'Change files' }),
-    message({ toolName: 'edit', toolInput: JSON.stringify({ path: 'src/a.ts', edits: [{ old_text: 'before', new_text: 'after' }, { old_text: 'one', new_text: 'two' }] }) }),
-    message({ toolName: 'write', toolInput: { path: 'src/b.ts', content: 'first\nsecond' } }),
-    message({ toolName: 'delete', toolInput: { path: 'src/c.ts' } }),
-    message({ toolName: 'move', toolInput: { from: 'src/old.ts', to: 'src/new.ts' } }),
+    message({ toolName: 'edit', toolInput: JSON.stringify({ path: 'src/a.ts', edits: [{ old_text: 'before', new_text: 'after' }, { old_text: 'one', new_text: 'two' }] }), toolResult: { content: 'ok', isError: false } }),
+    message({ toolName: 'write', toolInput: { path: 'src/b.ts', content: 'first\nsecond' }, toolResult: { content: 'ok', isError: false } }),
+    message({ toolName: 'delete', toolInput: { path: 'src/c.ts' }, toolResult: { content: 'ok', isError: false } }),
+    message({ toolName: 'move', toolInput: { from: 'src/old.ts', to: 'src/new.ts' }, toolResult: { content: 'ok', isError: false } }),
   ]);
 
   assert.deepEqual(files.map((file) => [file.path, file.kind, file.oldPath]), [
@@ -55,4 +55,72 @@ test('excludes edits before the last user message and ignores a turn without edi
   ]);
 
   assert.deepEqual(files, []);
+});
+
+test('includes only mutation calls with a successful result', () => {
+  const messages = [
+    message({ kind: 'text', role: 'user', content: 'Change files' }),
+    message({ toolName: 'write', toolInput: { path: 'pending.ts', content: 'pending' } }),
+    message({ toolName: 'edit', toolInput: { path: 'failed.ts', edits: [] }, toolResult: { content: 'not found', isError: true } }),
+    message({ toolName: 'write', toolId: 'streaming', toolInput: { path: 'streaming.ts', content: 'partial' } }),
+    message({ kind: 'tool_result', toolId: 'streaming', content: 'partial', isError: false, isFinal: false }),
+    message({ toolName: 'write', toolId: 'successful', toolInput: { path: 'done.ts', content: 'done' } }),
+    message({ kind: 'tool_result', toolId: 'successful', content: 'ok', isError: false, isFinal: true }),
+  ];
+  const files = lastTurnFiles(messages);
+
+  assert.deepEqual(files.map((file) => file.path), ['done.ts']);
+  assert.equal(hasPendingLastTurnMutation(messages), true);
+});
+
+test('omits quadratic edit previews above the bounded diff budget', () => {
+  const content = Array.from({ length: 600 }, (_, index) => `line ${index}`).join('\n');
+  const [file] = lastTurnFiles([
+    message({ kind: 'text', role: 'user', content: 'Replace it' }),
+    message({
+      toolName: 'edit',
+      toolInput: { path: 'large.ts', edits: [{ old_text: content, new_text: content.split('line').join('row') }] },
+      toolResult: { content: 'ok', isError: false },
+    }),
+  ]);
+
+  assert.equal(file.rows, null);
+  assert.equal(file.tooLarge, true);
+});
+
+test('shares the diff budget across every replacement in one turn', () => {
+  const before = Array.from({ length: 400 }, (_, index) => `before ${index}`).join('\n');
+  const after = Array.from({ length: 400 }, (_, index) => `after ${index}`).join('\n');
+  const [file] = lastTurnFiles([
+    message({ kind: 'text', role: 'user', content: 'Replace both' }),
+    message({
+      toolName: 'edit',
+      toolInput: {
+        path: 'aggregate.ts',
+        edits: [
+          { old_text: before, new_text: after },
+          { old_text: before, new_text: after },
+        ],
+      },
+      toolResult: { content: 'ok', isError: false },
+    }),
+  ]);
+
+  assert.equal(file.rows, null);
+  assert.equal(file.tooLarge, true);
+});
+
+test('charges separator rows to the shared output-row budget', () => {
+  const edits = Array.from({ length: 700 }, () => ({ old_text: 'before', new_text: 'after' }));
+  const [file] = lastTurnFiles([
+    message({ kind: 'text', role: 'user', content: 'Replace many fragments' }),
+    message({
+      toolName: 'edit',
+      toolInput: { path: 'many.ts', edits },
+      toolResult: { content: 'ok', isError: false },
+    }),
+  ]);
+
+  assert.equal(file.rows, null);
+  assert.equal(file.tooLarge, true);
 });

@@ -212,7 +212,7 @@
     "deny": "Deny",
     "allow": "Allow",
     "alwaysDeny": "Always deny {{tool}}",
-    "alwaysDenyHint": "Refuse this tool automatically in this project from now on",
+    "alwaysDenyHint": "Refuse this tool automatically for the rest of the current run",
     "alwaysAllow": "Always allow {{tool}}",
     "alwaysAllowHint": "Approve this tool automatically in this project from now on"
   },

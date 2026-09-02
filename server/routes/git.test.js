@@ -1,19 +1,37 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdir, mkdtemp, rm, symlink as fsSymlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import {
-  attachDiffPatches,
-  buildNoCommitsDiffFiles,
-  capDiffFiles,
+  isBinaryContent,
+  inspectUntrackedFile,
   parseGitLogWithStats,
   parseGitNumstatOutput,
+  parseGitStatusEntries,
   parseGitStatusOutput,
-  splitGitDiffPatches,
+  projectRelativeGitPath,
+  readProjectDiff,
 } from './git.js';
 
 // Builds `git status --porcelain=v1 -z` output: NUL-separated entries with a
 // trailing NUL, exactly as git emits it.
 const porcelain = (...entries) => entries.join('\0') + '\0';
+
+async function temporaryRepository(t) {
+  const directory = await mkdtemp(path.join(tmpdir(), 'gajae-git-diff-'));
+  t.after(() => rm(directory, { force: true, recursive: true }));
+  execFileSync('git', ['init', '-q'], { cwd: directory });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: directory });
+  execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: directory });
+  return directory;
+}
+
+function git(directory, ...args) {
+  execFileSync('git', args, { cwd: directory });
+}
 
 test('parseGitStatusOutput buckets files and reports index-side staging', () => {
   const output = porcelain(
@@ -57,6 +75,15 @@ test('parseGitStatusOutput tracks the post-rename path and skips the original', 
   assert.equal(JSON.stringify(result).includes('renamed-from.ts'), false);
 });
 
+test('parseGitStatusEntries consumes the old path for worktree renames', () => {
+  assert.deepEqual(parseGitStatusEntries(porcelain(' R renamed-to.ts', 'renamed-from.ts')), [{
+    path: 'renamed-to.ts',
+    oldPath: 'renamed-from.ts',
+    status: 'renamed',
+    staged: false,
+  }]);
+});
+
 test('parseGitStatusOutput never reports merge conflicts as staged', () => {
   const output = porcelain('UU conflicted.ts', 'AA both-added.ts', 'DD both-deleted.ts');
   const result = parseGitStatusOutput(output);
@@ -84,7 +111,7 @@ test('parseGitNumstatOutput parses modified, added, deleted, binary, and renamed
     '1\t1\t',
     'old-name.ts',
     'new-name.ts',
-    '2\t1\told-display.ts => new-display.ts',
+    '2\t1\tliteral => arrow.ts',
   ].join('\0') + '\0';
 
   assert.deepEqual(parseGitNumstatOutput(output), [
@@ -93,96 +120,18 @@ test('parseGitNumstatOutput parses modified, added, deleted, binary, and renamed
     { path: 'deleted.ts', oldPath: null, status: 'deleted', additions: 0, deletions: 4, binary: false },
     { path: 'binary.png', oldPath: null, status: 'modified', additions: 0, deletions: 0, binary: true },
     { path: 'new-name.ts', oldPath: 'old-name.ts', status: 'renamed', additions: 1, deletions: 1, binary: false },
-    { path: 'new-display.ts', oldPath: 'old-display.ts', status: 'renamed', additions: 2, deletions: 1, binary: false },
+    { path: 'literal => arrow.ts', oldPath: null, status: 'modified', additions: 2, deletions: 1, binary: false },
   ]);
 });
 
-test('splitGitDiffPatches preserves file hunks and recognizes rename segments', () => {
-  const output = [
-    'diff --git a/one.ts b/one.ts',
-    'index 111..222 100644',
-    '--- a/one.ts',
-    '+++ b/one.ts',
-    '@@ -1 +1 @@',
-    '-old',
-    '+new',
-    'diff --git a/two.ts b/two.ts',
-    'index 333..444 100644',
-    '--- a/two.ts',
-    '+++ b/two.ts',
-    '@@ -1 +1 @@',
-    '-before',
-    '+after',
-    'diff --git "a/a file.ts" "b/a file.ts"',
-    '--- "a/a file.ts"',
-    '+++ "b/a file.ts"',
-    '@@ -1 +1 @@',
-    '-one',
-    '+two',
-    'diff --git a/old-name.ts b/new-name.ts',
-    'similarity index 100%',
-    'rename from old-name.ts',
-    'rename to new-name.ts',
-  ].join('\n');
-
-  const patches = splitGitDiffPatches(output);
-  assert.equal(patches.length, 4);
-  assert.equal(patches[0].path, 'one.ts');
-  assert.match(patches[0].patch, /@@ -1 \+1 @@\n-old\n\+new/);
-  assert.equal(patches[1].path, 'two.ts');
-  assert.match(patches[1].patch, /-before\n\+after/);
-  assert.equal(patches[2].path, 'a file.ts');
-  assert.match(patches[2].patch, /-one\n\+two/);
-  assert.equal(patches[3].path, 'new-name.ts');
-  assert.match(patches[3].patch, /rename from old-name\.ts\nrename to new-name\.ts/);
+test('isBinaryContent identifies NUL bytes in untracked file content', () => {
+  assert.equal(isBinaryContent(Buffer.from('plain text')), false);
+  assert.equal(isBinaryContent(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0])), true);
 });
 
-test('attachDiffPatches enforces per-file and total patch size caps', () => {
-  const files = [
-    { path: 'first.ts', binary: false },
-    { path: 'oversized.ts', binary: false },
-    { path: 'second.ts', binary: false },
-    { path: 'third.ts', binary: false },
-  ];
-  const patches = [
-    { path: 'first.ts', patch: '1234' },
-    { path: 'oversized.ts', patch: '123456' },
-    { path: 'second.ts', patch: '5678' },
-    { path: 'third.ts', patch: '9' },
-  ];
-
-  const result = attachDiffPatches(files, patches, 5, 8);
-  assert.equal(result[0].patch, '1234');
-  assert.equal(result[0].tooLarge, false);
-  assert.equal(result[1].patch, null);
-  assert.equal(result[1].tooLarge, true);
-  assert.equal(result[2].patch, '5678');
-  assert.equal(result[2].tooLarge, false);
-  assert.equal(result[3].patch, null);
-  assert.equal(result[3].tooLarge, true);
-});
-
-test('buildNoCommitsDiffFiles lists tracked and untracked porcelain changes without patches', () => {
-  const files = buildNoCommitsDiffFiles(porcelain(
-    'A  staged.ts',
-    ' M modified.ts',
-    '?? untracked.ts',
-  ));
-
-  assert.deepEqual(files, [
-    {
-      path: 'staged.ts', oldPath: null, status: 'added', staged: true,
-      additions: 0, deletions: 0, patch: null, binary: false, tooLarge: false,
-    },
-    {
-      path: 'modified.ts', oldPath: null, status: 'modified', staged: false,
-      additions: 0, deletions: 0, patch: null, binary: false, tooLarge: false,
-    },
-    {
-      path: 'untracked.ts', oldPath: null, status: 'untracked', staged: false,
-      additions: 0, deletions: 0, patch: null, binary: false, tooLarge: false,
-    },
-  ]);
+test('inspectUntrackedFile isolates deletion and permission races', async (t) => {
+  const repository = await temporaryRepository(t);
+  assert.deepEqual(await inspectUntrackedFile(repository, 'already-gone.txt'), { previewUnsupported: true });
 });
 
 // Builds one `git log --pretty=format:%H%x1f%P%x1f%D%x1f%an%x1f%ae%x1f%ad%x1f%s` line.
@@ -223,11 +172,110 @@ test('parseGitLogWithStats handles empty output', () => {
   assert.deepEqual(parseGitLogWithStats(''), []);
 });
 
-test('capDiffFiles caps the list and reports what was held back', () => {
-  const files = Array.from({ length: 1002 }, (_, index) => ({ path: `f${index}` }));
-  const capped = capDiffFiles(files, 1000);
-  assert.equal(capped.files.length, 1000);
-  assert.equal(capped.totalFiles, 1002);
-  assert.equal(capped.truncated, true);
-  assert.deepEqual(capDiffFiles(files.slice(0, 10)).truncated, false);
+test('projectRelativeGitPath removes only the registered project prefix', () => {
+  assert.equal(projectRelativeGitPath('apps/editor/src/file.ts', 'apps/editor'), 'src/file.ts');
+  assert.equal(projectRelativeGitPath('apps/other/file.ts', 'apps/editor'), null);
+  assert.equal(projectRelativeGitPath('root-file.ts', ''), 'root-file.ts');
+});
+
+test('readProjectDiff scopes nested projects and returns project-relative paths', async (t) => {
+  const repository = await temporaryRepository(t);
+  await mkdir(path.join(repository, 'apps/editor'), { recursive: true });
+  await writeFile(path.join(repository, 'apps/editor/tracked.txt'), 'before\n');
+  await writeFile(path.join(repository, 'outside.txt'), 'before\n');
+  git(repository, 'add', '.');
+  git(repository, 'commit', '-qm', 'initial');
+
+  await writeFile(path.join(repository, 'apps/editor/tracked.txt'), 'after\n');
+  await writeFile(path.join(repository, 'apps/editor/new.txt'), 'new\n');
+  await writeFile(path.join(repository, 'outside.txt'), 'private\n');
+
+  const result = await readProjectDiff(path.join(repository, 'apps/editor'));
+  assert.deepEqual(result.files.map((file) => file.path).sort(), ['new.txt', 'tracked.txt']);
+  assert.equal(JSON.stringify(result).includes('outside.txt'), false);
+  assert.match(result.files.find((file) => file.path === 'new.txt').patch, /\+new/);
+});
+
+test('readProjectDiff previews unborn text files and identifies binary files', async (t) => {
+  const repository = await temporaryRepository(t);
+  await writeFile(path.join(repository, 'draft.txt'), '++first\n--second\n');
+  await writeFile(path.join(repository, 'image.bin'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0]));
+
+  const result = await readProjectDiff(repository);
+  assert.equal(result.hasCommits, false);
+  const text = result.files.find((file) => file.path === 'draft.txt');
+  assert.equal(text.additions, 2);
+  assert.match(text.patch, /\+\+\+first\n\+--second/);
+  const binary = result.files.find((file) => file.path === 'image.bin');
+  assert.equal(binary.binary, true);
+  assert.equal(binary.patch, null);
+});
+
+test('readProjectDiff bounds large patches and keeps totals above the patch budget', async (t) => {
+  const repository = await temporaryRepository(t);
+  await Promise.all(Array.from({ length: 1001 }, (_, index) =>
+    writeFile(path.join(repository, `file-${String(index).padStart(4, '0')}.txt`), `${index}\n`)));
+  await writeFile(path.join(repository, 'file-0000.txt'), `${'x'.repeat(60000)}\n`);
+
+  const result = await readProjectDiff(repository);
+  assert.equal(result.files.length, 1000);
+  assert.equal(result.totalFiles, 1001);
+  assert.equal(result.truncated, true);
+  const oversized = result.files.find((file) => file.path === 'file-0000.txt');
+  assert.equal(oversized.patch, null);
+  assert.equal(oversized.tooLarge, true);
+  assert.equal(result.files.at(-1).patchOmitted, true);
+});
+
+test('readProjectDiff treats Git pathspec magic as a literal nested-project filename', async (t) => {
+  const repository = await temporaryRepository(t);
+  const project = path.join(repository, 'nested');
+  await mkdir(project);
+  await writeFile(path.join(project, ':(top)**'), 'before\n');
+  await writeFile(path.join(repository, 'outside.txt'), 'before\n');
+  git(repository, 'add', '.');
+  git(repository, 'commit', '-qm', 'initial');
+
+  await writeFile(path.join(project, ':(top)**'), 'after\n');
+  await writeFile(path.join(repository, 'outside.txt'), 'private\n');
+
+  const result = await readProjectDiff(project);
+  assert.deepEqual(result.files.map((file) => file.path), [':(top)**']);
+  assert.match(result.files[0].patch, /\+after/);
+  assert.doesNotMatch(result.files[0].patch, /private/);
+});
+
+test('readProjectDiff keeps pure rename counts and source metadata', async (t) => {
+  const repository = await temporaryRepository(t);
+  await writeFile(path.join(repository, 'before.txt'), 'unchanged\n');
+  git(repository, 'add', '.');
+  git(repository, 'commit', '-qm', 'initial');
+  git(repository, 'mv', 'before.txt', 'after.txt');
+
+  const result = await readProjectDiff(repository);
+  assert.deepEqual(result.files.map((file) => ({
+    path: file.path,
+    oldPath: file.oldPath,
+    status: file.status,
+    additions: file.additions,
+    deletions: file.deletions,
+  })), [{
+    path: 'after.txt',
+    oldPath: 'before.txt',
+    status: 'renamed',
+    additions: 0,
+    deletions: 0,
+  }]);
+});
+
+test('readProjectDiff previews dangling symlinks without following their targets', {
+  skip: process.platform === 'win32',
+}, async (t) => {
+  const repository = await temporaryRepository(t);
+  await fsSymlink('missing\ntarget', path.join(repository, 'link'));
+
+  const result = await readProjectDiff(repository);
+  const link = result.files.find((file) => file.path === 'link');
+  assert.match(link.patch, /\+missing\n\+target/);
+  assert.equal(link.binary, false);
 });

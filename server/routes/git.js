@@ -46,6 +46,129 @@ function spawnAsync(command, args, options = {}) {
   });
 }
 
+/**
+ * Runs a command while retaining at most `stdoutLimit` characters. This is
+ * deliberately separate from spawnAsync: other git routes still need their
+ * complete command output, while diff patches must never be fully buffered.
+ */
+function spawnBounded(command, args, {
+  stdoutLimit,
+  allowedExitCodes = [0],
+  timeoutMs = 15000,
+  ...options
+}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { ...options, shell: false });
+    const stdoutChunks = [];
+    const stderrChunks = [];
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    let truncated = false;
+    let killedForLimit = false;
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, timeoutMs);
+
+    child.stdout.on('data', (data) => {
+      if (truncated) return;
+      const remaining = stdoutLimit - stdoutBytes;
+      if (remaining > 0) {
+        const retained = data.subarray(0, remaining);
+        stdoutChunks.push(retained);
+        stdoutBytes += retained.length;
+      }
+      if (data.length > remaining) {
+        truncated = true;
+        killedForLimit = true;
+        child.kill();
+      }
+    });
+    child.stderr.on('data', (data) => {
+      const remaining = 8192 - stderrBytes;
+      if (remaining <= 0) return;
+      const retained = data.subarray(0, remaining);
+      stderrChunks.push(retained);
+      stderrBytes += retained.length;
+    });
+    child.on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timeout);
+      const stdout = Buffer.concat(stdoutChunks, stdoutBytes).toString('utf8');
+      const stderr = Buffer.concat(stderrChunks, stderrBytes).toString('utf8');
+      if (timedOut) {
+        const error = new Error(`Command timed out: ${command} ${args.join(' ')}`);
+        error.code = 'ETIMEDOUT';
+        error.stdout = stdout;
+        error.stderr = stderr;
+        reject(error);
+        return;
+      }
+      if (killedForLimit) {
+        resolve({ stdout, stderr, truncated: true });
+        return;
+      }
+      if (allowedExitCodes.includes(code)) {
+        resolve({ stdout, stderr, truncated: false });
+        return;
+      }
+      const error = new Error(`Command failed: ${command} ${args.join(' ')}`);
+      error.code = code;
+      error.stdout = stdout;
+      error.stderr = stderr;
+      reject(error);
+    });
+  });
+}
+
+function streamNullRecords(command, args, { cwd, onRecord, timeoutMs = 15000 }) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd, shell: false });
+    const decoder = new TextDecoder();
+    let pending = '';
+    let stderr = '';
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, timeoutMs);
+
+    child.stdout.on('data', (data) => {
+      const records = `${pending}${decoder.decode(data, { stream: true })}`.split('\0');
+      pending = records.pop() ?? '';
+      for (const record of records) {
+        if (record) onRecord(record);
+      }
+    });
+    child.stderr.on('data', (data) => {
+      if (stderr.length < 8192) stderr += data.toString('utf8', 0, 8192 - stderr.length);
+    });
+    child.on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timeout);
+      pending += decoder.decode();
+      if (pending) onRecord(pending);
+      if (timedOut) {
+        reject(new Error(`Command timed out: ${command} ${args.join(' ')}`));
+      } else if (code === 0) {
+        resolve();
+      } else {
+        const error = new Error(`Command failed: ${command} ${args.join(' ')}`);
+        error.code = code;
+        error.stderr = stderr;
+        reject(error);
+      }
+    });
+  });
+}
+
 // Input validation helpers (defense-in-depth)
 function validateBranchName(branch) {
   if (!/^[a-zA-Z0-9._\/-]+$/.test(branch)) {
@@ -118,6 +241,146 @@ async function validateGitRepository(projectPath) {
   }
 }
 
+async function getGitProjectContext(projectPath) {
+  const resolvedProjectPath = await fs.realpath(projectPath);
+  const { stdout } = await spawnAsync('git', ['rev-parse', '--show-toplevel'], { cwd: resolvedProjectPath });
+  const repositoryRoot = path.resolve(stdout.trim());
+  const relativePath = path.relative(repositoryRoot, resolvedProjectPath);
+  if (relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
+    throw new Error('Project path is outside its git work tree');
+  }
+  return {
+    repositoryRoot,
+    projectPath: resolvedProjectPath,
+    projectPrefix: relativePath.split(path.sep).join('/'),
+  };
+}
+
+function gitPathspec(projectPrefix) {
+  return projectPrefix || '.';
+}
+
+export function projectRelativeGitPath(filePath, projectPrefix) {
+  if (!projectPrefix) return filePath;
+  if (filePath === projectPrefix) return '';
+  const prefix = `${projectPrefix}/`;
+  return filePath.startsWith(prefix) ? filePath.slice(prefix.length) : null;
+}
+
+function projectRelativeStatusEntries(statusOutput, projectPrefix) {
+  return parseGitStatusEntries(statusOutput).flatMap((entry) => {
+    const relative = projectRelativeStatusEntry(entry, projectPrefix);
+    return relative ? [relative] : [];
+  });
+}
+
+function projectRelativeStatusEntry(entry, projectPrefix) {
+  const filePath = projectRelativeGitPath(entry.path, projectPrefix);
+  if (!filePath) return null;
+  const oldPath = entry.oldPath ? projectRelativeGitPath(entry.oldPath, projectPrefix) : null;
+  return { ...entry, path: filePath, oldPath };
+}
+
+async function readBoundedProjectStatusEntries(repositoryRoot, projectPrefix) {
+  const trackedEntries = [];
+  const untrackedEntries = [];
+  let trackedCount = 0;
+  let untrackedCount = 0;
+  let renameRecord = null;
+
+  const retain = (entry) => {
+    const relative = projectRelativeStatusEntry(entry, projectPrefix);
+    if (!relative) return;
+    if (relative.status === 'untracked') {
+      untrackedCount += 1;
+      if (untrackedEntries.length < DIFF_FILE_LIMIT) untrackedEntries.push(relative);
+    } else {
+      trackedCount += 1;
+      if (trackedEntries.length < DIFF_FILE_LIMIT) trackedEntries.push(relative);
+    }
+  };
+  const parseRecord = (record, oldPath = null) => {
+    const suffix = oldPath === null ? '\0' : `\0${oldPath}\0`;
+    const [entry] = parseGitStatusEntries(`${record}${suffix}`);
+    if (entry) retain(entry);
+  };
+
+  await streamNullRecords('git', [
+    '--literal-pathspecs',
+    'status', '--porcelain=v1', '-z', '--untracked-files=all',
+    '--', gitPathspec(projectPrefix),
+  ], {
+    cwd: repositoryRoot,
+    onRecord: (record) => {
+      if (renameRecord !== null) {
+        parseRecord(renameRecord, record);
+        renameRecord = null;
+        return;
+      }
+      if (record.length >= 2 && (record[0] === 'R' || record[0] === 'C' || record[1] === 'R' || record[1] === 'C')) {
+        renameRecord = record;
+        return;
+      }
+      parseRecord(record);
+    },
+  });
+  if (renameRecord !== null) parseRecord(renameRecord);
+
+  return {
+    trackedEntries,
+    untrackedEntries,
+    totalFiles: trackedCount + untrackedCount,
+  };
+}
+
+async function readSelectedNumstatFiles(repositoryRoot, projectPrefix, hasCommits, statusByPath) {
+  const files = [];
+  let renameRecords = null;
+  const retain = (records) => {
+    const [file] = parseGitNumstatOutput(`${records.join('\0')}\0`);
+    if (!file) return;
+    const filePath = projectRelativeGitPath(file.path, projectPrefix);
+    if (!filePath || !statusByPath.has(filePath)) return;
+    const oldPath = file.oldPath ? projectRelativeGitPath(file.oldPath, projectPrefix) : null;
+    const status = statusByPath.get(filePath);
+    files.push({
+      ...file,
+      path: filePath,
+      oldPath: status.oldPath || oldPath,
+      status: status.status,
+      staged: status.staged,
+    });
+  };
+
+  await streamNullRecords('git', [
+    '-c', 'core.quotepath=false',
+    '-c', 'diff.renames=true',
+    '--literal-pathspecs',
+    'diff', hasCommits ? 'HEAD' : EMPTY_TREE_HASH,
+    '--no-color', '--numstat', '-z', '--', gitPathspec(projectPrefix),
+  ], {
+    cwd: repositoryRoot,
+    onRecord: (record) => {
+      if (renameRecords !== null) {
+        renameRecords.push(record);
+        if (renameRecords.length === 3) {
+          retain(renameRecords);
+          renameRecords = null;
+        }
+        return;
+      }
+      const fields = record.split('\t');
+      if (fields.length >= 3 && fields.slice(2).join('\t') === '') {
+        renameRecords = [record];
+      } else {
+        retain([record]);
+      }
+    },
+  });
+
+  return files;
+}
+
 function getGitErrorDetails(error) {
   return `${error?.message || ''} ${error?.stderr || ''} ${error?.stdout || ''}`;
 }
@@ -186,7 +449,7 @@ export function parseGitStatusEntries(statusOutput) {
 
     // Renames/copies carry the original path as the following NUL entry;
     // the UI tracks the post-rename path only.
-    if (indexStatus === 'R' || indexStatus === 'C') {
+    if (indexStatus === 'R' || indexStatus === 'C' || worktreeStatus === 'R' || worktreeStatus === 'C') {
       oldPath = statusEntries[++entryIndex] || null;
     }
 
@@ -209,7 +472,7 @@ export function parseGitStatusEntries(statusOutput) {
       continue;
     }
 
-    const status = indexStatus === 'R' || indexStatus === 'C'
+    const status = indexStatus === 'R' || indexStatus === 'C' || worktreeStatus === 'R' || worktreeStatus === 'C'
       ? 'renamed'
       : indexStatus === 'D' || worktreeStatus === 'D'
         ? 'deleted'
@@ -223,13 +486,17 @@ export function parseGitStatusEntries(statusOutput) {
 }
 
 export function parseGitStatusOutput(statusOutput) {
+  return summarizeGitStatusEntries(parseGitStatusEntries(statusOutput));
+}
+
+function summarizeGitStatusEntries(entries) {
   const modified = [];
   const added = [];
   const deleted = [];
   const untracked = [];
   const staged = [];
 
-  for (const entry of parseGitStatusEntries(statusOutput)) {
+  for (const entry of entries) {
     if (entry.status === 'untracked') {
       untracked.push(entry.path);
       continue;
@@ -255,8 +522,8 @@ function statusFromNumstat(additions, deletions) {
 
 /**
  * Parses NUL-delimited `git diff --numstat -z` output. Renames use an empty
- * path field followed by the old and new paths; accepting `old => new` too
- * keeps this parser useful for the human-readable numstat variant.
+ * path field followed by the old and new paths. NUL-delimited paths are
+ * literal and may themselves contain strings such as ` => `.
  */
 export function parseGitNumstatOutput(numstatOutput) {
   const files = [];
@@ -273,8 +540,6 @@ export function parseGitNumstatOutput(numstatOutput) {
     if (!filePath) {
       oldPath = entries[++index] || null;
       filePath = entries[++index] || '';
-    } else if (filePath.includes(' => ')) {
-      [oldPath, filePath] = filePath.split(' => ', 2);
     }
     if (!filePath) continue;
 
@@ -293,85 +558,142 @@ export function parseGitNumstatOutput(numstatOutput) {
   return files;
 }
 
-function diffPath(line, prefix) {
-  if (line.startsWith(prefix)) return line.slice(prefix.length);
-  const separator = prefix.indexOf(' ');
-  const quotedPrefix = `${prefix.slice(0, separator + 1)}"${prefix.slice(separator + 1)}`;
-  return line.startsWith(quotedPrefix) && line.endsWith('"')
-    ? line.slice(quotedPrefix.length, -1)
-    : null;
-}
-
-/**
- * Splits a unified git diff into its file-level segments.
- */
-export function splitGitDiffPatches(diffOutput) {
-  const segments = diffOutput.split(/(?=^diff --git )/m).filter(Boolean);
-  return segments.map((patch) => {
-    const lines = patch.split('\n');
-    let filePath = null;
-    for (const line of lines) {
-      if (line.startsWith('rename to ')) {
-        filePath = line.slice('rename to '.length);
-      } else if (line.startsWith('+++ ')) {
-        filePath = diffPath(line, '+++ b/') || filePath;
-      } else if (!filePath && line.startsWith('--- ')) {
-        filePath = diffPath(line, '--- a/');
-      }
-    }
-    return { path: filePath, patch };
-  }).filter(({ path: filePath }) => filePath);
-}
-
 /** How many files one response lists, however many the tree holds. */
 const DIFF_FILE_LIMIT = 1000;
+const DIFF_PER_FILE_LIMIT = 50000;
+const DIFF_TOTAL_LIMIT = 400000;
+const DIFF_PATCH_FILE_LIMIT = 100;
+const FILE_METADATA_CONCURRENCY = 8;
+const EMPTY_TREE_HASH = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 
-/**
- * Caps the file list and reports the truth of what was held back. Exported
- * for tests.
- */
-export function capDiffFiles(files, fileLimit = DIFF_FILE_LIMIT) {
-  return {
-    files: files.slice(0, fileLimit),
-    totalFiles: files.length,
-    truncated: files.length > fileLimit,
-  };
-}
-
-/**
- * Attaches patch text while enforcing the per-file and response-wide limits.
- */
-export function attachDiffPatches(files, patches, perFileLimit = 50000, totalLimit = 400000) {
-  const patchesByPath = new Map(patches.map(({ path: filePath, patch }) => [filePath, patch]));
-  let attachedChars = 0;
-  let exhausted = false;
-
-  return files.map((file) => {
-    const patch = patchesByPath.get(file.path);
-    if (file.binary || !patch) return { ...file, patch: null, tooLarge: false };
-    if (exhausted || patch.length > perFileLimit || attachedChars + patch.length > totalLimit) {
-      if (attachedChars + patch.length > totalLimit && patch.length <= perFileLimit) {
-        exhausted = true;
-      }
-      return { ...file, patch: null, tooLarge: true };
+async function mapWithConcurrency(values, limit, mapper) {
+  const result = new Array(values.length);
+  let nextIndex = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, values.length) }, async () => {
+    while (nextIndex < values.length) {
+      const index = nextIndex++;
+      result[index] = await mapper(values[index], index);
     }
-    attachedChars += patch.length;
-    return { ...file, patch, tooLarge: false };
-  });
+  }));
+  return result;
 }
 
-export function buildNoCommitsDiffFiles(statusOutput) {
-  return parseGitStatusEntries(statusOutput).map(({ path: filePath, oldPath, status, staged }) => ({
-    path: filePath,
-    oldPath,
-    status,
-    staged,
-    additions: 0,
-    deletions: 0,
-    patch: null,
-    binary: false,
-    tooLarge: false,
-  }));
+export function isBinaryContent(buffer) {
+  return buffer.includes(0);
+}
+
+export async function inspectUntrackedFile(projectPath, filePath) {
+  const absolutePath = path.join(projectPath, filePath);
+  try {
+    const stat = await fs.lstat(absolutePath);
+    if (stat.isSymbolicLink()) {
+      return { binary: false, symlinkTarget: await fs.readlink(absolutePath) };
+    }
+    if (!stat.isFile()) {
+      return { previewUnsupported: true };
+    }
+
+    const file = await fs.open(absolutePath, 'r');
+    try {
+      const buffer = Buffer.alloc(8192);
+      const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
+      return { binary: isBinaryContent(buffer.subarray(0, bytesRead)) };
+    } finally {
+      await file.close();
+    }
+  } catch {
+    return { previewUnsupported: true };
+  }
+}
+
+function patchLineCounts(patch) {
+  let additions = 0;
+  let deletions = 0;
+  let inHunk = false;
+  for (const line of patch.split('\n')) {
+    if (line.startsWith('@@ ')) {
+      inHunk = true;
+      continue;
+    }
+    if (!inHunk || line === '\\ No newline at end of file') continue;
+    if (line.startsWith('+')) additions++;
+    if (line.startsWith('-')) deletions++;
+  }
+  return { additions, deletions };
+}
+
+async function readFilePatch({ projectPath, file, hasCommits, stdoutLimit }) {
+  if (typeof file.symlinkTarget === 'string') {
+    const targetLines = file.symlinkTarget.split('\n');
+    const patch = [
+      `diff --git a/${file.path} b/${file.path}`,
+      'new file mode 120000',
+      '--- /dev/null',
+      `+++ b/${file.path}`,
+      `@@ -0,0 +1,${targetLines.length} @@`,
+      ...targetLines.map((line) => `+${line}`),
+      '\\ No newline at end of file',
+      '',
+    ].join('\n');
+    return { stdout: patch.slice(0, stdoutLimit), stderr: '', truncated: patch.length > stdoutLimit };
+  }
+  const args = file.status === 'untracked'
+    ? ['-c', 'core.quotepath=false', '--literal-pathspecs', 'diff', '--no-color', '--no-ext-diff', '--no-index', '--src-prefix=a/', '--dst-prefix=b/', '--', '/dev/null', file.path]
+    : [
+      '-c', 'core.quotepath=false',
+      '--literal-pathspecs',
+      'diff', '--no-color', '--no-ext-diff', '--no-textconv', '--src-prefix=a/', '--dst-prefix=b/',
+      hasCommits ? 'HEAD' : EMPTY_TREE_HASH,
+      '--', file.path,
+    ];
+  const result = await spawnBounded('git', args, {
+    cwd: projectPath,
+    stdoutLimit,
+    allowedExitCodes: file.status === 'untracked' ? [0, 1] : [0],
+  });
+  // --no-index returns 1 when files differ, but also for errors such as a
+  // disappeared file. Only the former is an expected patch result.
+  if (file.status === 'untracked' && result.stderr && !result.stdout && !result.truncated) {
+    const error = new Error(`Unable to diff untracked file: ${file.path}`);
+    error.stderr = result.stderr;
+    throw error;
+  }
+  return result;
+}
+
+async function attachBoundedFilePatches(files, context, hasCommits) {
+  let remaining = DIFF_TOTAL_LIMIT;
+  const output = [];
+  // This is intentionally sequential. It caps both child-process concurrency
+  // and aggregate retained patch text, rather than merely limiting each child.
+  for (const [index, file] of files.entries()) {
+    if (file.binary) {
+      output.push({ ...file, patch: null, tooLarge: false, patchOmitted: false });
+      continue;
+    }
+    if (file.previewUnsupported) {
+      output.push({ ...file, patch: null, tooLarge: false, patchOmitted: true });
+      continue;
+    }
+    if (index >= DIFF_PATCH_FILE_LIMIT || remaining <= 0) {
+      output.push({ ...file, patch: null, tooLarge: false, patchOmitted: true });
+      continue;
+    }
+    const { stdout, truncated } = await readFilePatch({
+      ...context,
+      file,
+      hasCommits,
+      stdoutLimit: Math.min(DIFF_PER_FILE_LIMIT, remaining) + 1,
+    });
+    if (truncated || stdout.length > DIFF_PER_FILE_LIMIT || stdout.length > remaining) {
+      output.push({ ...file, patch: null, tooLarge: true, patchOmitted: false });
+      continue;
+    }
+    remaining -= stdout.length;
+    const counts = file.status === 'untracked' || !hasCommits ? patchLineCounts(stdout) : {};
+    output.push({ ...file, ...counts, patch: stdout || null, tooLarge: false, patchOmitted: false });
+  }
+  return output;
 }
 
 router.get('/status', async (req, res) => {
@@ -387,11 +709,18 @@ router.get('/status', async (req, res) => {
     // Validate git repository
     await validateGitRepository(projectPath);
 
-    const branch = await getCurrentBranchName(projectPath);
-    const hasCommits = await repositoryHasCommits(projectPath);
+    const { repositoryRoot, projectPrefix } = await getGitProjectContext(projectPath);
+    const branch = await getCurrentBranchName(repositoryRoot);
+    const hasCommits = await repositoryHasCommits(repositoryRoot);
 
-    const { stdout: statusOutput } = await spawnAsync('git', ['status', '--porcelain=v1', '-z'], { cwd: projectPath });
-    const { modified, added, deleted, untracked, staged } = parseGitStatusOutput(statusOutput);
+    const { stdout: statusOutput } = await spawnAsync(
+      'git',
+      ['--literal-pathspecs', 'status', '--porcelain=v1', '-z', '--', gitPathspec(projectPrefix)],
+      { cwd: repositoryRoot },
+    );
+    const { modified, added, deleted, untracked, staged } = summarizeGitStatusEntries(
+      projectRelativeStatusEntries(statusOutput, projectPrefix),
+    );
 
     res.json({
       branch,
@@ -415,6 +744,54 @@ router.get('/status', async (req, res) => {
   }
 });
 
+export async function readProjectDiff(projectPath) {
+  await validateGitRepository(projectPath);
+
+  const { repositoryRoot, projectPath: projectBasePath, projectPrefix } = await getGitProjectContext(projectPath);
+  const branch = await getCurrentBranchName(repositoryRoot);
+  const hasCommits = await repositoryHasCommits(repositoryRoot);
+  const { trackedEntries, untrackedEntries, totalFiles } =
+    await readBoundedProjectStatusEntries(repositoryRoot, projectPrefix);
+  const statusEntries = [...trackedEntries, ...untrackedEntries].slice(0, DIFF_FILE_LIMIT);
+  const statusByPath = new Map(statusEntries.map((entry) => [entry.path, entry]));
+  const numstatFiles = trackedEntries.length > 0
+    ? await readSelectedNumstatFiles(repositoryRoot, projectPrefix, hasCommits, statusByPath)
+    : [];
+
+  const numstatByPath = new Map(numstatFiles.map((file) => [file.path, file]));
+  const trackedFiles = statusEntries
+    .filter((entry) => entry.status !== 'untracked')
+    .map((entry) => numstatByPath.get(entry.path) || ({
+      path: entry.path,
+      oldPath: entry.oldPath,
+      status: entry.status,
+      staged: entry.staged,
+      additions: 0,
+      deletions: 0,
+      binary: false,
+    }));
+  const selectedUntrackedEntries = statusEntries.filter((entry) => entry.status === 'untracked');
+  const untrackedFiles = selectedUntrackedEntries.map((entry) => ({
+    path: entry.path,
+    oldPath: null,
+    status: 'untracked',
+    staged: false,
+    additions: 0,
+    deletions: 0,
+    binary: false,
+  }));
+
+  const filesWithBinaryMetadata = await mapWithConcurrency(
+    [...trackedFiles, ...untrackedFiles],
+    FILE_METADATA_CONCURRENCY,
+    async (file, index) => file.status === 'untracked' && index < DIFF_PATCH_FILE_LIMIT
+      ? { ...file, ...await inspectUntrackedFile(projectBasePath, file.path) }
+      : file,
+  );
+  const files = await attachBoundedFilePatches(filesWithBinaryMetadata, { projectPath: projectBasePath }, hasCommits);
+  return { branch, hasCommits, files, totalFiles, truncated: totalFiles > files.length };
+}
+
 router.get('/diff', async (req, res) => {
   const { project } = req.query;
 
@@ -424,78 +801,7 @@ router.get('/diff', async (req, res) => {
 
   try {
     const projectPath = await getActualProjectPath(project);
-    await validateGitRepository(projectPath);
-
-    const branch = await getCurrentBranchName(projectPath);
-    const hasCommits = await repositoryHasCommits(projectPath);
-    // --untracked-files=all: porcelain collapses a wholly-new directory to
-    // `dir/`, and the diff tab wants files, each with its own patch.
-    const { stdout: statusOutput } = await spawnAsync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: projectPath });
-
-    if (!hasCommits) {
-      // The cap applies here too: a never-committed workspace directory can
-      // hold every file it contains.
-      return res.json({ branch, hasCommits, ...capDiffFiles(buildNoCommitsDiffFiles(statusOutput)) });
-    }
-
-    const [{ stdout: numstatOutput }, { stdout: diffOutput }] = await Promise.all([
-      spawnAsync('git', [
-        '-c', 'core.quotepath=false',
-        '-c', 'diff.renames=true',
-        'diff', 'HEAD', '--no-color', '--numstat', '-z',
-      ], { cwd: projectPath }),
-      spawnAsync('git', [
-        '-c', 'core.quotepath=false',
-        'diff', 'HEAD', '--no-color', '--find-renames',
-      ], { cwd: projectPath }),
-    ]);
-
-    const statusByPath = new Map(parseGitStatusEntries(statusOutput).map((entry) => [entry.path, entry]));
-    const trackedFiles = parseGitNumstatOutput(numstatOutput).map((file) => {
-      const status = statusByPath.get(file.path);
-      return status
-        ? { ...file, oldPath: status.oldPath || file.oldPath, status: status.status, staged: status.staged }
-        : { ...file, staged: false };
-    });
-
-    // An untracked file costs one git process; a generated or vendored
-    // directory can list hundreds. Patches are read for the first hundred
-    // only; the rest are listed with their patch omitted.
-    const untrackedPatchLimit = 100;
-    const untrackedEntries = parseGitStatusEntries(statusOutput)
-      .filter((entry) => entry.status === 'untracked');
-    const untrackedFiles = await Promise.all(untrackedEntries.slice(0, untrackedPatchLimit).map(async ({ path: filePath }) => {
-      try {
-        const { stdout } = await spawnAsync('git', ['diff', '--no-color', '--no-index', '--', '/dev/null', filePath], { cwd: projectPath });
-        return { path: filePath, patch: stdout };
-      } catch (error) {
-        return { path: filePath, patch: error.stdout || '' };
-      }
-    }));
-
-    const files = [
-      ...trackedFiles,
-      ...untrackedFiles.map(({ path: filePath }) => ({
-        path: filePath,
-        oldPath: null,
-        status: 'untracked',
-        staged: false,
-        additions: 0,
-        deletions: 0,
-        binary: false,
-        tooLarge: untrackedEntries.length > untrackedPatchLimit,
-      })),
-    ];
-    const patches = [
-      ...splitGitDiffPatches(diffOutput),
-      ...untrackedFiles,
-    ];
-
-    // A whole workspace registered as one project can list tens of thousands
-    // of untracked files; the list is capped so one project cannot freeze the
-    // tab, and the response says what was held back. Tracked changes come
-    // first in `files`, so the cap bites the untracked tail.
-    res.json({ branch, hasCommits, ...capDiffFiles(attachDiffPatches(files, patches)) });
+    res.json(await readProjectDiff(projectPath));
   } catch (error) {
     console.error('Git diff error:', error);
     res.json({

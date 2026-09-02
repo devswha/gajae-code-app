@@ -21,8 +21,8 @@ test('an added line comments by its new number and quotes with the + marker', ()
 test('a removed line comments by its old number; context carries no marker', () => {
   const removed = { path: 'a.ts', oldLine: 7, newLine: null, marker: '-' as const, content: 'old();' };
   assert.equal(formatDiffComment(removed, 'why'), 'why\n\na.ts:7\n> -old();');
-  const context = { path: 'a.ts', oldLine: 7, newLine: 7, marker: ' ' as const, content: 'keep();' };
-  assert.equal(formatDiffComment(context, 'why'), 'why\n\na.ts:7\n> keep();');
+  const context = { path: 'a.ts', oldLine: 7, newLine: 9, marker: ' ' as const, content: 'keep();' };
+  assert.equal(formatDiffComment(context, 'why'), 'why\n\na.ts:9\n> keep();');
 });
 
 test('a row with no numbers references the file alone; the comment is trimmed', () => {

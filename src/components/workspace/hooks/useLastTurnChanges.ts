@@ -1,8 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 
 import { createCachedDiffCalculator } from '../../chat/utils/messageTransforms';
-import type { NormalizedMessage } from '../../../stores/useSessionStore';
-import { useSessionStore } from '../../../stores/useSessionStore';
+import type { NormalizedMessage, SessionStore } from '../../../stores/useSessionStore';
 import type { UnifiedDiffRow } from '../utils/unifiedDiff';
 
 export type LastTurnFile = {
@@ -10,6 +9,7 @@ export type LastTurnFile = {
   kind: 'edit' | 'write' | 'delete' | 'move';
   oldPath: string | null;
   rows: UnifiedDiffRow[] | null;
+  tooLarge: boolean;
 };
 
 type ToolInput = {
@@ -39,19 +39,58 @@ function pathValue(value: unknown): string | null {
   return typeof value === 'string' && value ? value : null;
 }
 
-function editRows(edits: unknown): UnifiedDiffRow[] {
+function isMutationTool(message: NormalizedMessage): boolean {
+  if (message.kind !== 'tool_use' || !message.toolName) return false;
+  return ['edit', 'write', 'delete', 'move'].includes(message.toolName.toLowerCase());
+}
+
+export function hasPendingLastTurnMutation(messages: NormalizedMessage[]): boolean {
+  const lastUser = messages.reduce((last, message, index) =>
+    message.kind === 'text' && message.role === 'user' ? index : last, -1);
+  const turn = messages.slice(lastUser + 1);
+  const results = new Map(turn
+    .filter((message) => message.kind === 'tool_result' && message.toolId)
+    .map((message) => [message.toolId!, message]));
+  return turn.some((message) => {
+    if (!isMutationTool(message)) return false;
+    const result = message.toolResult ?? (message.toolId ? results.get(message.toolId) : null);
+    return !result || ('isFinal' in result && result.isFinal === false);
+  });
+}
+
+const MAX_DIFF_CHARACTERS = 200000;
+const MAX_DIFF_CELLS = 250000;
+const MAX_DIFF_ROWS = 2000;
+
+type DiffBudget = { characters: number; cells: number; rows: number };
+
+function editRows(edits: unknown, budget: DiffBudget): UnifiedDiffRow[] | null {
   if (!Array.isArray(edits)) return [];
   const rows: UnifiedDiffRow[] = [];
   for (const edit of edits) {
     if (!edit || typeof edit !== 'object') continue;
     const { old_text: oldText, new_text: newText } = edit as { old_text?: unknown; new_text?: unknown };
-    const pairRows = diff(String(oldText ?? ''), String(newText ?? '')).map((line) => ({
+    const oldValue = String(oldText ?? '');
+    const newValue = String(newText ?? '');
+    const oldLines = oldValue.split('\n').length;
+    const newLines = newValue.split('\n').length;
+    const characters = oldValue.length + newValue.length;
+    const cells = oldLines * newLines;
+    if (characters > budget.characters || cells > budget.cells) {
+      return null;
+    }
+    budget.characters -= characters;
+    budget.cells -= cells;
+    const pairRows = diff(oldValue, newValue).map((line) => ({
       kind: line.type,
       content: line.content,
       oldLine: null,
       newLine: null,
     }));
-    if (rows.length > 0 && pairRows.length > 0) {
+    const separatorRows = rows.length > 0 && pairRows.length > 0 ? 1 : 0;
+    if (pairRows.length + separatorRows > budget.rows) return null;
+    budget.rows -= pairRows.length + separatorRows;
+    if (separatorRows > 0) {
       rows.push({ kind: 'context', content: '', oldLine: null, newLine: null });
     }
     rows.push(...pairRows);
@@ -63,38 +102,60 @@ export function lastTurnFiles(messages: NormalizedMessage[]): LastTurnFile[] {
   const lastUser = messages.reduce((last, message, index) =>
     message.kind === 'text' && message.role === 'user' ? index : last, -1);
 
-  return messages.slice(lastUser + 1).flatMap((message): LastTurnFile[] => {
+  const turn = messages.slice(lastUser + 1);
+  const budget: DiffBudget = {
+    characters: MAX_DIFF_CHARACTERS,
+    cells: MAX_DIFF_CELLS,
+    rows: MAX_DIFF_ROWS,
+  };
+  const results = new Map<string, NormalizedMessage>();
+  for (const message of turn) {
+    if (message.kind === 'tool_result' && message.toolId) results.set(message.toolId, message);
+  }
+
+  return turn.flatMap((message): LastTurnFile[] => {
     if (message.kind !== 'tool_use' || !message.toolName) return [];
     const kind = message.toolName.toLowerCase();
     if (kind !== 'edit' && kind !== 'write' && kind !== 'delete' && kind !== 'move') return [];
 
     const input = parseToolInput(message.toolInput);
     if (!input) return [];
+    const result = message.toolResult ?? (message.toolId ? results.get(message.toolId) : null);
+    if (!result || result.isError === true || ('isFinal' in result && result.isFinal === false)) return [];
 
     if (kind === 'move') {
       const oldPath = pathValue(input.from) ?? pathValue(input.path);
       const path = pathValue(input.to) ?? pathValue(input.new_path);
-      return oldPath && path ? [{ path, kind, oldPath, rows: null }] : [];
+      return oldPath && path ? [{ path, kind, oldPath, rows: null, tooLarge: false }] : [];
     }
 
     const path = pathValue(input.path);
     if (!path) return [];
-    if (kind === 'edit') return [{ path, kind, oldPath: null, rows: editRows(input.edits) }];
+    if (kind === 'edit') {
+      const rows = editRows(input.edits, budget);
+      return [{ path, kind, oldPath: null, rows, tooLarge: rows === null }];
+    }
     if (kind === 'write') {
       const content = typeof input.content === 'string' ? input.content : '';
+      const lineCount = content.split('\n').length;
+      if (content.length > budget.characters || lineCount > budget.rows) {
+        return [{ path, kind, oldPath: null, rows: null, tooLarge: true }];
+      }
+      budget.characters -= content.length;
+      budget.rows -= lineCount;
       return [{ path, kind, oldPath: null, rows: content.split('\n').map((line) => ({
         kind: 'added',
         content: line,
         oldLine: null,
         newLine: null,
-      })) }];
+      })), tooLarge: false }];
     }
-    return [{ path, kind, oldPath: null, rows: null }];
+    return [{ path, kind, oldPath: null, rows: null, tooLarge: false }];
   });
 }
 
-export function useLastTurnChanges(sessionId: string | undefined, enabled: boolean) {
-  const { getMessages } = useSessionStore();
+export function useLastTurnChanges(sessionStore: SessionStore, sessionId: string | undefined, enabled: boolean) {
+  const { getMessages, getSessionSlot } = sessionStore;
   const [refreshVersion, setRefreshVersion] = useState(0);
   const messages = sessionId ? getMessages(sessionId) : EMPTY_MESSAGES;
   const snapshot = useMemo(() => ({ messages, refreshVersion }), [messages, refreshVersion]);
@@ -102,7 +163,12 @@ export function useLastTurnChanges(sessionId: string | undefined, enabled: boole
     () => enabled && sessionId ? lastTurnFiles(snapshot.messages) : [],
     [enabled, sessionId, snapshot],
   );
+  const pending = useMemo(
+    () => enabled && sessionId ? hasPendingLastTurnMutation(snapshot.messages) : false,
+    [enabled, sessionId, snapshot],
+  );
   const refresh = useCallback(() => setRefreshVersion((version) => version + 1), []);
 
-  return { files, refresh };
+  const status = sessionId ? getSessionSlot(sessionId)?.status ?? 'loading' : 'idle';
+  return { files, pending, refresh, status };
 }

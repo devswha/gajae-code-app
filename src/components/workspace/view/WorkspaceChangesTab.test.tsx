@@ -5,6 +5,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import { useSessionStore } from '../../../stores/useSessionStore';
 import type { ProjectChange } from '../hooks/useProjectChanges';
 
 import WorkspaceChangesTab, { ChangeRow, LineCommentBox, type WorkspaceChangesTabProps } from './WorkspaceChangesTab';
@@ -20,18 +21,25 @@ const changedFile: ProjectChange = {
   patch: '@@ -1 +1,2 @@\n-old\n+new\n+another',
   binary: false,
   tooLarge: false,
+  patchOmitted: false,
 };
+
+function WorkspaceChangesHarness({ overrides }: { overrides: Partial<WorkspaceChangesTabProps> }) {
+  const sessionStore = useSessionStore();
+  return createElement(WorkspaceChangesTab, {
+    projectId: 'project-alpha',
+    projectPath: '/work/alpha',
+    projectName: 'Alpha Workspace',
+    active: true,
+    ...overrides,
+    sessionStore: overrides.sessionStore ?? sessionStore,
+  });
+}
 
 function render(overrides: Partial<WorkspaceChangesTabProps> = {}): string {
   const client = new QueryClient();
   return renderToStaticMarkup(createElement(QueryClientProvider, { client },
-    createElement(WorkspaceChangesTab, {
-      projectId: 'project-alpha',
-      projectPath: '/work/alpha',
-      projectName: 'Alpha Workspace',
-      active: true,
-      ...overrides,
-    }),
+    createElement(WorkspaceChangesHarness, { overrides }),
   ));
 }
 
@@ -67,7 +75,7 @@ test('a row with an insert target offers a line comment and sends the formatted 
     openPath: changedFile.path,
     onSetOpenPath: () => {},
     onOpenInEditor: () => {},
-    onComposerInsert: () => {},
+    onComposerInsert: () => true,
     t,
   }));
   assert.match(html, /aria-label="workspace\.changes\.comment\.add"/);
@@ -79,10 +87,23 @@ test('a row with an insert target offers a line comment and sends the formatted 
   assert.doesNotMatch(bare, /comment\.add/);
 });
 
+test('a missing preview is not mislabeled as an oversized diff', () => {
+  const html = renderToStaticMarkup(createElement(ChangeRow, {
+    file: { ...changedFile, patch: null, tooLarge: false, patchOmitted: true },
+    openPath: changedFile.path,
+    onSetOpenPath: () => {},
+    onOpenInEditor: () => {},
+    t,
+  }));
+
+  assert.match(html, /workspace\.changes\.unavailable/);
+  assert.doesNotMatch(html, /workspace\.changes\.tooLarge/);
+});
+
 test('the comment box shows its reference and placeholder, disabled until typed', () => {
   const html = renderToStaticMarkup(createElement(LineCommentBox, {
     path: 'src/foo.ts',
-    row: { oldLine: null, newLine: 42, kind: 'added', content: 'const x = 1;' },
+    row: { rowIndex: 0, oldLine: null, newLine: 42, kind: 'added', content: 'const x = 1;' },
     onSubmit: () => {},
     onCancel: () => {},
     t,
@@ -91,4 +112,15 @@ test('the comment box shows its reference and placeholder, disabled until typed'
   assert.match(html, /placeholder="workspace\.changes\.comment\.placeholder"/);
   assert.match(html, /disabled/);
   assert.match(html, /aria-label="workspace\.changes\.comment\.send"/);
+});
+
+test('the comment box displays the current-file line for shifted context', () => {
+  const html = renderToStaticMarkup(createElement(LineCommentBox, {
+    path: 'src/foo.ts',
+    row: { rowIndex: 2, oldLine: 7, newLine: 9, kind: 'context', content: 'keep();' },
+    onSubmit: () => {},
+    onCancel: () => {},
+    t,
+  }));
+  assert.match(html, /data-line-comment="src\/foo\.ts:9"/);
 });

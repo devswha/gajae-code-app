@@ -212,7 +212,7 @@
     "deny": "Refuser",
     "allow": "Autoriser",
     "alwaysDeny": "Toujours refuser {{tool}}",
-    "alwaysDenyHint": "Refuser automatiquement cet outil dans ce projet à partir de maintenant",
+    "alwaysDenyHint": "Refuser automatiquement cet outil jusqu’à la fin de cette exécution",
     "alwaysAllow": "Toujours autoriser {{tool}}",
     "alwaysAllowHint": "Approuver automatiquement cet outil dans ce projet à partir de maintenant"
   },

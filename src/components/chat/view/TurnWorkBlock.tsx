@@ -7,9 +7,9 @@ import type { ChatMessage } from '../types/types';
 import { useElapsedSeconds } from '../hooks/useElapsedSeconds';
 import { useSteadyLabel } from '../hooks/useSteadyLabel';
 import { formatElapsed } from '../utils/elapsed';
-import { formatLiveActivity } from '../utils/toolActivity';
+import { formatLiveActivity, isToolCallRunning, phaseActivity, toolCallActivity } from '../utils/toolActivity';
 import type { LiveActivity } from '../utils/toolActivity';
-import { groupConsecutiveTools } from '../utils/toolGrouping';
+import { groupConsecutiveTools, hasFailedResult } from '../utils/toolGrouping';
 import { formatTurnWorkCounts, isPendingWorkBlock, summarizeTurnWork } from '../utils/turnWork';
 import type { TurnWorkBlockItem } from '../utils/turnWork';
 
@@ -29,17 +29,21 @@ interface TurnWorkBlockProps extends MessageRenderProps {
 }
 
 const SEPARATOR = ' · ';
-const THINKING: LiveActivity = { kind: 'thinking' };
+/** Calls listed under the status line while the block runs; older ones are behind the fold. */
+const LIVE_LINES = 3;
 
 /**
  * One row for a run of tool calls - a turn has one per run, with the prose
  * the model wrote between runs standing outside them (see `turnWork.ts`).
  *
- * Running: `Reading src/foo.ts… · 12s` - the run's one status line, there is
- * no other, and no "Working" prefix in front of it: the pulse and the shimmer
- * already say the run is going, and the activity is the status. Before the
- * first call the block is empty and the row is the same line without a
- * chevron (`Thinking… · 3s`), nothing to open. Finished: `Worked
+ * Running: `Thinking… · 12s` on the row - the run's phase, held steady - and
+ * under it the last few calls on lines of their own, in the order they were
+ * made: `Reading src/foo.ts` / `Running npm test…`, the one in flight
+ * shimmering. A new call is a new line after the others, never a swap of
+ * the row's text, which is what made the row flicker. No "Working" prefix:
+ * the pulse and the shimmer already say the run is going. Before the first
+ * call the block is empty and the row is the same line without a chevron
+ * (`Thinking… · 3s`), nothing to open. Finished: `Worked
  * for 42s · 5 files read · 3 commands · 2 edits`, counts by category, the
  * duration omitted when the transcript's timestamps cannot support one. A
  * failure is never hidden: the row carries the error label and how many calls
@@ -83,7 +87,7 @@ function FoldedTurnWork({ block, prevMessage, running = false, liveActivity, run
   const [isExpanded, setIsExpanded] = useState(false);
   const bodyId = useId();
   const elapsedSeconds = useElapsedSeconds(running ? runStartedAt : null);
-  const runningLabel = useSteadyLabel(formatLiveActivity(liveActivity ?? THINKING, t));
+  const runningLabel = useSteadyLabel(formatLiveActivity(phaseActivity(liveActivity), t));
   const summary = summarizeTurnWork(block);
   // The body is grouped only when it is on screen: a long session has dozens
   // of folded blocks, and every streamed delta re-renders them all.
@@ -141,11 +145,38 @@ function FoldedTurnWork({ block, prevMessage, running = false, liveActivity, run
         )}
       </button>
 
+      {running && !items && <LiveCallLines messages={block.messages} />}
+
       {items && (
         <div id={bodyId} className="mt-2 ml-1.5 space-y-3 border-l border-border/60 pl-3 sm:space-y-4">
           <GroupedMessageList items={items} prevMessage={prevMessage} {...renderProps} />
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The block's last few calls, one line each under the status row, aligned
+ * with its label. A finished call is a plain line, a failed one is red, the
+ * one still running shimmers with an ellipsis. Nothing here replaces
+ * anything: a call appends a line, and the earlier lines stay until the
+ * block finishes and folds to its summary.
+ */
+function LiveCallLines({ messages }: { messages: ChatMessage[] }) {
+  const { t } = useTranslation('chat');
+  const calls = messages.filter((message) => message.isToolUse).slice(-LIVE_LINES);
+  if (calls.length === 0) return null;
+  return (
+    <ol className="mt-0.5 space-y-0.5 pl-10 text-xs" data-live-calls>
+      {calls.map((call) => {
+        const label = formatLiveActivity(toolCallActivity(call), t);
+        const key = String(call.toolId ?? call.timestamp);
+        if (isToolCallRunning(call)) {
+          return <li key={key} className="truncate text-muted-foreground"><Shimmer className="max-w-full truncate">{`${label}…`}</Shimmer></li>;
+        }
+        return <li key={key} className={`truncate ${hasFailedResult(call) ? 'text-destructive' : 'text-muted-foreground'}`}>{label}</li>;
+      })}
+    </ol>
   );
 }

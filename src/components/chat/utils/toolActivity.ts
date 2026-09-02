@@ -157,14 +157,28 @@ export function deriveLiveActivity(messages: ChatMessage[], context: LiveActivit
   const running = runningToolCalls(turn);
   if (running.length === 0) return isAnswerProse(turn[turn.length - 1]) ? { kind: 'responding' } : { kind: 'thinking' };
 
-  const latest = running[running.length - 1];
-  const moreCount = running.length - 1;
-  const toolName = latest.toolName || 'UnknownTool';
-  const category = categorizeTool(latest);
+  return toolCallActivity(running[running.length - 1], running.length - 1);
+}
+
+/** What one call is doing, as an activity: `Reading src/foo.ts`, `Subagent: Look`. */
+export function toolCallActivity(call: ChatMessage, moreCount = 0): LiveActivity {
+  const toolName = call.toolName || 'UnknownTool';
+  const category = categorizeTool(call);
   if (category === 'subagent') {
-    return { kind: 'subagent', description: describeSubagent(latest.toolInput), moreCount };
+    return { kind: 'subagent', description: describeSubagent(call.toolInput), moreCount };
   }
-  return { kind: 'tool', category, toolName, subject: describeToolSubject(toolName, latest.toolInput), moreCount };
+  return { kind: 'tool', category, toolName, subject: describeToolSubject(toolName, call.toolInput), moreCount };
+}
+
+/**
+ * The run's phase for the status line: a server status, a pending approval,
+ * writing, or thinking. A tool in flight is not a phase - the work block lists
+ * calls on lines of their own under the status line, in the order they were
+ * made - so it reads as `Thinking` here, the same as before the call was made.
+ */
+export function phaseActivity(activity: LiveActivity | null | undefined): LiveActivity {
+  if (!activity || activity.kind === 'tool' || activity.kind === 'subagent') return { kind: 'thinking' };
+  return activity;
 }
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;

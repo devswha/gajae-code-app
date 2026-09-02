@@ -298,6 +298,18 @@ lived on that strip. Now there is one progress surface:
   from the prose before it, and only the tail block reads the live activity.
   `updateStreaming` keeps the first delta's timestamp so that duration does
   not tick while the answer streams.
+- **Status line, later the same night.** The row's label is held ≥ 900 ms
+  (`useSteadyLabel`; dev builds log every requested switch as
+  `[chat] status "A" -> "B"`) after a phase flashed through `Thinking…`
+  too fast to read. And a tool in flight no longer swaps the row's text:
+  the row is the run's *phase* (`Thinking…` / `Writing answer…` / a server
+  status / awaiting approval, `phaseActivity`), and the block lists its
+  last three calls on lines under the row (`LiveCallLines`,
+  `data-live-calls`): finished plain, failed red, running shimmering with
+  an ellipsis. Detailed density's inline row is the phase too (the open
+  cards show the calls). Dark-mode `--destructive` is now the TUI's
+  `dangerRed` `#ff4d5e` (`354 100% 65%`, foreground `0 0% 8%`): the shadcn
+  maroon was unreadable as text on the dark surface.
 - **Streaming stutter (same night).** Measured with a happy-dom bench (30
   turns / 181 messages, one delta tick): React spent ~59 ms per tick because
   `normalizedToChatMessages` rebuilt every `ChatMessage` on every store

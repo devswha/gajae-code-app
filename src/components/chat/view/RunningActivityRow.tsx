@@ -4,7 +4,7 @@ import { Shimmer } from '../../../shared/view/ui';
 import { useElapsedSeconds } from '../hooks/useElapsedSeconds';
 import { useSteadyLabel } from '../hooks/useSteadyLabel';
 import { formatElapsed } from '../utils/elapsed';
-import { formatLiveActivity } from '../utils/toolActivity';
+import { formatLiveActivity, phaseActivity } from '../utils/toolActivity';
 import type { LiveActivity } from '../utils/toolActivity';
 
 interface RunningActivityRowProps {
@@ -17,12 +17,12 @@ interface RunningActivityRowProps {
 }
 
 const SEPARATOR = ' · ';
-const THINKING: LiveActivity = { kind: 'thinking' };
 
 /**
  * One line for a run that has no work block to speak for it: the live turn
  * before its first tool call (`Thinking… · 3s`), and every live turn at
- * detailed density, where blocks are off (`Reading src/foo.ts… · 12s`). It
+ * detailed density, where blocks are off and the open cards above already
+ * show each call, so the line is the run's phase there too. It
  * sits in the transcript where the block sits, never above the composer, and
  * leaves the chevron's width empty so the pulse lines up with the block that
  * replaces it once a call lands. The label is the live region; the ticking
@@ -31,7 +31,7 @@ const THINKING: LiveActivity = { kind: 'thinking' };
 export default function RunningActivityRow({ liveActivity, runStartedAt = null, variant = 'inline' }: RunningActivityRowProps) {
   const { t } = useTranslation('chat');
   const elapsedSeconds = useElapsedSeconds(runStartedAt);
-  const label = useSteadyLabel(formatLiveActivity(liveActivity ?? THINKING, t));
+  const label = useSteadyLabel(formatLiveActivity(phaseActivity(liveActivity), t));
 
   return (
     <div className="chat-message tool px-3 sm:px-0" data-run-activity={variant}>

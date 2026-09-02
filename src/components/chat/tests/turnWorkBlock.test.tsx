@@ -73,22 +73,42 @@ test('detailed has no block at all: the rule is off and the pane list is the mes
   assert.equal(buildPaneList(finishedTurn, 'detailed').some(isTurnWorkBlockItem), false);
 });
 
-test('running: "<live activity>… · <elapsed>" with the pulse and no "Working" prefix, folded', () => {
+test('running: "Thinking… · <elapsed>" on the row and the calls on lines under it, the one in flight shimmering', () => {
   const live = [user(0), call('read', 1), call('bash', 2, { toolResult: null })];
   const html = render(blockFor(live, 'balanced'), 'balanced', {
     running: true,
-    liveActivity: { kind: 'tool', category: 'command', toolName: 'bash', subject: 'npm test', moreCount: 0 },
+    liveActivity: { kind: 'tool', category: 'command', toolName: 'bash', subject: 'cmd-2', moreCount: 0 },
     runStartedAt: Date.now(),
   });
 
   assert.doesNotMatch(html, /Working/);
-  assert.match(html, /Running npm test…/);
-  assert.match(html, /0s/);
-  assert.match(html, /animate-pulse/);
+  // The row is the phase; a tool in flight is not a phase.
+  const row = html.slice(0, html.indexOf('</button>'));
+  assert.match(row, /Thinking…/);
+  assert.doesNotMatch(row, /Running/);
+  assert.match(row, /0s/);
+  assert.match(row, /animate-pulse/);
+  // The lines: the finished read plain, the running command with the shimmer and an ellipsis.
+  const lines = html.slice(html.indexOf('data-live-calls'));
+  assert.match(lines, /Reading src\/read-1\.ts</);
+  assert.doesNotMatch(lines, /Reading src\/read-1\.ts…/);
+  assert.match(lines, /animate-shimmer[^>]*>Running cmd-2…</);
   assert.match(html, /data-work-block="running"/);
   assert.match(html, /aria-expanded="false"/);
   assert.doesNotMatch(html, /Worked/);
   assert.doesNotMatch(html, /files read/);
+});
+
+test('the lines are the last three calls, a failed one in red; finished blocks have none', () => {
+  const many = [user(0), call('read', 1), call('read', 2), call('bash', 3, { toolResult: { content: 'exit 1', isError: true, timestamp: at(4) } }), call('edit', 5), call('read', 6, { toolResult: null })];
+  const html = render(blockFor(many, 'balanced'), 'balanced', { running: true, liveActivity: { kind: 'thinking' }, runStartedAt: Date.now() });
+  const lines = html.slice(html.indexOf('data-live-calls'));
+  assert.doesNotMatch(lines, /read-1\.ts|read-2\.ts/);
+  assert.match(lines, /text-destructive[^>]*>Running cmd-3</);
+  assert.match(lines, /Editing src\/edit-5\.ts</);
+  assert.match(lines, /Reading src\/read-6\.ts…</);
+
+  assert.doesNotMatch(render(blockFor(many, 'balanced'), 'balanced'), /data-live-calls/);
 });
 
 test('running with nothing derived says Thinking; without a start time the elapsed segment is left out', () => {

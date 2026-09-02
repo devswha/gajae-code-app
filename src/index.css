@@ -131,7 +131,7 @@
     --chat-bubble: 16 90% 40%; --chat-bubble-foreground: 0 0% 100%;
     --secondary: 0 0% 17%; --secondary-foreground: 40 8% 93%; --muted: 0 0% 17%;
     --muted-foreground: 0 0% 60%; --accent: 0 0% 17%; --accent-foreground: 40 8% 93%;
-    --destructive: 0 62.8% 30.6%; --destructive-foreground: 40 8% 93%;
+    --destructive: 354 100% 65%; --destructive-foreground: 0 0% 8%;
     --diff-added: 142 30% 16%; --diff-added-foreground: 142 45% 70%;
     --diff-removed: 0 35% 18%; --diff-removed-foreground: 0 60% 72%;
     --border: 0 0% 17%; --input: 0 0% 23%; --ring: 16 90% 57%;

@@ -34,8 +34,8 @@ All new product colors must route through semantic CSS variables in `src/index.c
 | Muted text | `--muted-foreground` | `40 5% 44%` | `0 0% 60%` | Captions, timestamps, hints, secondary metadata |
 | Accent surface | `--accent` / `bg-accent` | `44 15% 91%` | `0 0% 17%` | Hover rows, ghost-button hover, selected command item |
 | Accent text | `--accent-foreground` | `36 15% 18%` | `40 8% 93%` | Text on accent surfaces |
-| Destructive | `--destructive` / `text-destructive` | `0 84.2% 60.2%` | `0 62.8% 30.6%` | Error text, destructive alerts, delete affordances when tokenized |
-| Destructive text | `--destructive-foreground` | `210 40% 98%` | `40 8% 93%` | Text/icons on destructive surfaces |
+| Destructive | `--destructive` / `text-destructive` | `0 84.2% 60.2%` | `354 100% 65%` | Error text, destructive alerts, delete affordances when tokenized. Dark is the GJC TUI's `dangerRed` (`#ff4d5e`): the shadcn maroon read as text on a dark surface failed contrast |
+| Destructive text | `--destructive-foreground` | `210 40% 98%` | `0 0% 8%` | Text/icons on destructive surfaces; dark on the light dark-mode red, as primary does |
 | Border | `--border` / `border-border` | `44 14% 87%` | `0 0% 17%` | Dividers, card outlines, default borders |
 | Input border | `--input` / `border-input` | `44 14% 87%` | `0 0% 23%` | Inputs and outline buttons |
 | Focus ring | `--ring` / `ring-ring` | `14 89% 52%` | `16 90% 57%` | Focus rings and checkbox focus outline |

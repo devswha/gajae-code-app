@@ -171,7 +171,9 @@ test('detailed density shows an inline running row and no work block', () => {
   assert.equal(screen.queryByRole('button', { name: enChat.workBlock.toggle }), null);
   const row = document.querySelector('[data-run-activity="inline"]');
   assert.ok(row);
-  assert.match(row.textContent ?? '', /Running npm run lint/);
+  // The open card above already shows the command; the row is the phase.
+  assert.match(row.textContent ?? '', /Thinking…/);
+  assert.doesNotMatch(row.textContent ?? '', /Running npm run lint/);
 });
 
 test('a live run: the last turn\'s block says what is happening, earlier turns stay finished', () => {
@@ -192,9 +194,14 @@ test('a live run: the last turn\'s block says what is happening, earlier turns s
   assert.equal(blocks.length, 2);
   assert.match(blocks[0].textContent ?? '', /Worked for 10s/);
   assert.doesNotMatch(blocks[1].textContent ?? '', /Working/);
-  assert.match(blocks[1].textContent ?? '', /Running npm run lint…/);
+  assert.match(blocks[1].textContent ?? '', /Thinking…/);
   assert.match(blocks[1].textContent ?? '', /12s/);
   assert.equal(blocks[1].getAttribute('aria-expanded'), 'false');
+  // The calls follow the row on their own lines, in order, the running one last.
+  const lines = Array.from(document.querySelectorAll('[data-live-calls] li')).map((line) => line.textContent);
+  assert.deepEqual(lines, ['Editing src/alpha.ts', 'Running npm run lint…']);
+  // The finished block above has no lines.
+  assert.equal(document.querySelectorAll('[data-live-calls]').length, 1);
 });
 
 test('prose between calls stays on the page between its own blocks, and only the last block is live', () => {
@@ -219,7 +226,8 @@ test('prose between calls stays on the page between its own blocks, and only the
   assert.match(blocks[0].textContent ?? '', /Worked for 8s/);
   assert.match(blocks[0].textContent ?? '', /2 files read/);
   assert.ok(screen.getByText('Found it in beta.ts, fixing now.'));
-  assert.match(blocks[1].textContent ?? '', /Editing src\/beta\.ts…/);
+  assert.match(blocks[1].textContent ?? '', /Thinking…/);
+  assert.deepEqual(Array.from(document.querySelectorAll('[data-live-calls] li')).map((line) => line.textContent), ['Editing src/beta.ts…']);
   // In document order: block, prose, block.
   const prose = screen.getByText('Found it in beta.ts, fixing now.');
   assert.ok(blocks[0].compareDocumentPosition(prose) & Node.DOCUMENT_POSITION_FOLLOWING);

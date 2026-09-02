@@ -176,6 +176,10 @@ test('chat.permission-response with always remembers the provider\'s tool for th
       getPendingApprovalsForSession: () => [],
     });
 
+    // A second tab on the same session sees the cards too and must see them close.
+    const viewer = new FakeWebSocket();
+    chatRunRegistry.attachConnection('always-session', viewer as unknown as WebSocket);
+
     run.writer.send({ kind: 'permission_request', provider: 'gjc', sessionId: 'always-session', requestId: 'perm-1', toolName: 'bash', input: { command: 'ls' } });
     run.writer.send({ kind: 'permission_request', provider: 'gjc', sessionId: 'always-session', requestId: 'perm-2', toolName: 'eval', input: {} });
     assert.equal(chatRunRegistry.listRunningRuns()[0]?.awaitingInput, true);
@@ -192,6 +196,9 @@ test('chat.permission-response with always remembers the provider\'s tool for th
       ['perm-2', false, undefined],
     ]);
     assert.equal(chatRunRegistry.listRunningRuns()[0]?.awaitingInput, false);
+    const closedFor = (frames: OutboundFrame[]) => frames.filter((frame) => frame.kind === 'permission_cancelled').map((frame) => frame.requestId);
+    assert.deepEqual(closedFor(viewer.sent), ['perm-1', 'perm-2']);
+    assert.deepEqual(closedFor(socket.sent), ['perm-1', 'perm-2']);
     socket.emit('close');
   });
 });

@@ -269,6 +269,9 @@ function permissionResponse(data: AnyRecord, dependencies: ChatWebSocketDependen
     message: typeof data.message === 'string' ? data.message : undefined,
     rememberEntry: data.rememberEntry,
   });
+  // The answering tab drops its card itself; every other viewer of the run
+  // learns here that the question is closed, or it would keep asking.
+  if (pending) chatRunRegistry.getRun(pending.appSessionId)?.writer.send({ kind: 'permission_cancelled', requestId: data.requestId });
 }
 
 function responseAttemptId(response: unknown): string | null {

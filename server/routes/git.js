@@ -171,13 +171,8 @@ async function repositoryHasCommits(projectPath) {
  *
  * Exported for tests.
  */
-export function parseGitStatusOutput(statusOutput) {
-  const modified = [];
-  const added = [];
-  const deleted = [];
-  const untracked = [];
-  const staged = [];
-
+export function parseGitStatusEntries(statusOutput) {
+  const entries = [];
   const statusEntries = statusOutput.split('\0');
   for (let entryIndex = 0; entryIndex < statusEntries.length; entryIndex++) {
     const entry = statusEntries[entryIndex];
@@ -186,16 +181,17 @@ export function parseGitStatusOutput(statusOutput) {
     // Porcelain v1: X = index (staged) status, Y = worktree (unstaged) status.
     const indexStatus = entry[0];
     const worktreeStatus = entry[1];
-    const file = entry.slice(3);
+    const path = entry.slice(3);
+    let oldPath = null;
 
     // Renames/copies carry the original path as the following NUL entry;
     // the UI tracks the post-rename path only.
     if (indexStatus === 'R' || indexStatus === 'C') {
-      entryIndex += 1;
+      oldPath = statusEntries[++entryIndex] || null;
     }
 
     if (indexStatus === '?') {
-      untracked.push(file);
+      entries.push({ path, oldPath: null, status: 'untracked', staged: false });
       continue;
     }
     if (indexStatus === '!') {
@@ -209,24 +205,158 @@ export function parseGitStatusOutput(statusOutput) {
     if (isConflict) {
       // Merge conflicts must be resolved in the worktree first; surface them
       // as modified and never as staged.
-      modified.push(file);
+      entries.push({ path, oldPath, status: 'modified', staged: false });
       continue;
     }
 
-    if (indexStatus !== ' ') {
-      staged.push(file);
-    }
+    const status = indexStatus === 'R' || indexStatus === 'C'
+      ? 'renamed'
+      : indexStatus === 'D' || worktreeStatus === 'D'
+        ? 'deleted'
+        : indexStatus === 'A' || worktreeStatus === 'A'
+          ? 'added'
+          : 'modified';
+    entries.push({ path, oldPath, status, staged: indexStatus !== ' ' });
+  }
 
-    if (indexStatus === 'D' || worktreeStatus === 'D') {
-      deleted.push(file);
-    } else if (indexStatus === 'A' || worktreeStatus === 'A') {
-      added.push(file);
+  return entries;
+}
+
+export function parseGitStatusOutput(statusOutput) {
+  const modified = [];
+  const added = [];
+  const deleted = [];
+  const untracked = [];
+  const staged = [];
+
+  for (const entry of parseGitStatusEntries(statusOutput)) {
+    if (entry.status === 'untracked') {
+      untracked.push(entry.path);
+      continue;
+    }
+    if (entry.staged) staged.push(entry.path);
+    if (entry.status === 'deleted') {
+      deleted.push(entry.path);
+    } else if (entry.status === 'added') {
+      added.push(entry.path);
     } else {
-      modified.push(file);
+      modified.push(entry.path);
     }
   }
 
   return { modified, added, deleted, untracked, staged };
+}
+
+function statusFromNumstat(additions, deletions) {
+  if (additions > 0 && deletions === 0) return 'added';
+  if (additions === 0 && deletions > 0) return 'deleted';
+  return 'modified';
+}
+
+/**
+ * Parses NUL-delimited `git diff --numstat -z` output. Renames use an empty
+ * path field followed by the old and new paths; accepting `old => new` too
+ * keeps this parser useful for the human-readable numstat variant.
+ */
+export function parseGitNumstatOutput(numstatOutput) {
+  const files = [];
+  const entries = numstatOutput.split('\0');
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index];
+    if (!entry) continue;
+    const fields = entry.split('\t');
+    if (fields.length < 3) continue;
+
+    const [additionsText, deletionsText, ...pathFields] = fields;
+    let filePath = pathFields.join('\t');
+    let oldPath = null;
+    if (!filePath) {
+      oldPath = entries[++index] || null;
+      filePath = entries[++index] || '';
+    } else if (filePath.includes(' => ')) {
+      [oldPath, filePath] = filePath.split(' => ', 2);
+    }
+    if (!filePath) continue;
+
+    const binary = additionsText === '-' || deletionsText === '-';
+    const additions = binary ? 0 : Number.parseInt(additionsText, 10);
+    const deletions = binary ? 0 : Number.parseInt(deletionsText, 10);
+    files.push({
+      path: filePath,
+      oldPath,
+      status: oldPath ? 'renamed' : statusFromNumstat(additions, deletions),
+      additions: Number.isNaN(additions) ? 0 : additions,
+      deletions: Number.isNaN(deletions) ? 0 : deletions,
+      binary,
+    });
+  }
+  return files;
+}
+
+function diffPath(line, prefix) {
+  if (line.startsWith(prefix)) return line.slice(prefix.length);
+  const separator = prefix.indexOf(' ');
+  const quotedPrefix = `${prefix.slice(0, separator + 1)}"${prefix.slice(separator + 1)}`;
+  return line.startsWith(quotedPrefix) && line.endsWith('"')
+    ? line.slice(quotedPrefix.length, -1)
+    : null;
+}
+
+/**
+ * Splits a unified git diff into its file-level segments.
+ */
+export function splitGitDiffPatches(diffOutput) {
+  const segments = diffOutput.split(/(?=^diff --git )/m).filter(Boolean);
+  return segments.map((patch) => {
+    const lines = patch.split('\n');
+    let filePath = null;
+    for (const line of lines) {
+      if (line.startsWith('rename to ')) {
+        filePath = line.slice('rename to '.length);
+      } else if (line.startsWith('+++ ')) {
+        filePath = diffPath(line, '+++ b/') || filePath;
+      } else if (!filePath && line.startsWith('--- ')) {
+        filePath = diffPath(line, '--- a/');
+      }
+    }
+    return { path: filePath, patch };
+  }).filter(({ path: filePath }) => filePath);
+}
+
+/**
+ * Attaches patch text while enforcing the per-file and response-wide limits.
+ */
+export function attachDiffPatches(files, patches, perFileLimit = 50000, totalLimit = 400000) {
+  const patchesByPath = new Map(patches.map(({ path: filePath, patch }) => [filePath, patch]));
+  let attachedChars = 0;
+  let exhausted = false;
+
+  return files.map((file) => {
+    const patch = patchesByPath.get(file.path);
+    if (file.binary || !patch) return { ...file, patch: null, tooLarge: false };
+    if (exhausted || patch.length > perFileLimit || attachedChars + patch.length > totalLimit) {
+      if (attachedChars + patch.length > totalLimit && patch.length <= perFileLimit) {
+        exhausted = true;
+      }
+      return { ...file, patch: null, tooLarge: true };
+    }
+    attachedChars += patch.length;
+    return { ...file, patch, tooLarge: false };
+  });
+}
+
+export function buildNoCommitsDiffFiles(statusOutput) {
+  return parseGitStatusEntries(statusOutput).map(({ path: filePath, oldPath, status, staged }) => ({
+    path: filePath,
+    oldPath,
+    status,
+    staged,
+    additions: 0,
+    deletions: 0,
+    patch: null,
+    binary: false,
+    tooLarge: false,
+  }));
 }
 
 router.get('/status', async (req, res) => {
@@ -266,6 +396,98 @@ router.get('/status', async (req, res) => {
       details: error.message.includes('not a git repository') || error.message.includes('Project directory is not a git repository')
         ? error.message
         : `Failed to get git status: ${error.message}`
+    });
+  }
+});
+
+router.get('/diff', async (req, res) => {
+  const { project } = req.query;
+
+  if (!project) {
+    return res.status(400).json({ error: 'Project id is required' });
+  }
+
+  try {
+    const projectPath = await getActualProjectPath(project);
+    await validateGitRepository(projectPath);
+
+    const branch = await getCurrentBranchName(projectPath);
+    const hasCommits = await repositoryHasCommits(projectPath);
+    // --untracked-files=all: porcelain collapses a wholly-new directory to
+    // `dir/`, and the diff tab wants files, each with its own patch.
+    const { stdout: statusOutput } = await spawnAsync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: projectPath });
+
+    if (!hasCommits) {
+      return res.json({ branch, hasCommits, files: buildNoCommitsDiffFiles(statusOutput) });
+    }
+
+    const [{ stdout: numstatOutput }, { stdout: diffOutput }] = await Promise.all([
+      spawnAsync('git', [
+        '-c', 'core.quotepath=false',
+        '-c', 'diff.renames=true',
+        'diff', 'HEAD', '--no-color', '--numstat', '-z',
+      ], { cwd: projectPath }),
+      spawnAsync('git', [
+        '-c', 'core.quotepath=false',
+        'diff', 'HEAD', '--no-color', '--find-renames',
+      ], { cwd: projectPath }),
+    ]);
+
+    const statusByPath = new Map(parseGitStatusEntries(statusOutput).map((entry) => [entry.path, entry]));
+    const trackedFiles = parseGitNumstatOutput(numstatOutput).map((file) => {
+      const status = statusByPath.get(file.path);
+      return status
+        ? { ...file, oldPath: status.oldPath || file.oldPath, status: status.status, staged: status.staged }
+        : { ...file, staged: false };
+    });
+
+    // An untracked file costs one git process; a generated or vendored
+    // directory can list hundreds. Patches are read for the first hundred
+    // only; the rest are listed with their patch omitted.
+    const untrackedPatchLimit = 100;
+    const untrackedEntries = parseGitStatusEntries(statusOutput)
+      .filter((entry) => entry.status === 'untracked');
+    const untrackedFiles = await Promise.all(untrackedEntries.slice(0, untrackedPatchLimit).map(async ({ path: filePath }) => {
+      try {
+        const { stdout } = await spawnAsync('git', ['diff', '--no-color', '--no-index', '--', '/dev/null', filePath], { cwd: projectPath });
+        return { path: filePath, patch: stdout };
+      } catch (error) {
+        return { path: filePath, patch: error.stdout || '' };
+      }
+    }));
+
+    const files = [
+      ...trackedFiles,
+      ...untrackedFiles.map(({ path: filePath }) => ({
+        path: filePath,
+        oldPath: null,
+        status: 'untracked',
+        staged: false,
+        additions: 0,
+        deletions: 0,
+        binary: false,
+        tooLarge: untrackedEntries.length > untrackedPatchLimit,
+      })),
+    ];
+    const patches = [
+      ...splitGitDiffPatches(diffOutput),
+      ...untrackedFiles,
+    ];
+
+    res.json({
+      branch,
+      hasCommits,
+      files: attachDiffPatches(files, patches),
+    });
+  } catch (error) {
+    console.error('Git diff error:', error);
+    res.json({
+      error: error.message.includes('not a git repository') || error.message.includes('Project directory is not a git repository')
+        ? error.message
+        : 'Git operation failed',
+      details: error.message.includes('not a git repository') || error.message.includes('Project directory is not a git repository')
+        ? error.message
+        : `Failed to get git diff: ${error.message}`,
     });
   }
 });

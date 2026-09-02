@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseGitLogWithStats, parseGitStatusOutput } from './git.js';
+import {
+  attachDiffPatches,
+  buildNoCommitsDiffFiles,
+  parseGitLogWithStats,
+  parseGitNumstatOutput,
+  parseGitStatusOutput,
+  splitGitDiffPatches,
+} from './git.js';
 
 // Builds `git status --porcelain=v1 -z` output: NUL-separated entries with a
 // trailing NUL, exactly as git emits it.
@@ -67,8 +74,118 @@ test('parseGitStatusOutput handles empty output', () => {
   });
 });
 
+test('parseGitNumstatOutput parses modified, added, deleted, binary, and renamed files', () => {
+  const output = [
+    '3\t2\tmodified.ts',
+    '5\t0\tadded.ts',
+    '0\t4\tdeleted.ts',
+    '-\t-\tbinary.png',
+    '1\t1\t',
+    'old-name.ts',
+    'new-name.ts',
+    '2\t1\told-display.ts => new-display.ts',
+  ].join('\0') + '\0';
+
+  assert.deepEqual(parseGitNumstatOutput(output), [
+    { path: 'modified.ts', oldPath: null, status: 'modified', additions: 3, deletions: 2, binary: false },
+    { path: 'added.ts', oldPath: null, status: 'added', additions: 5, deletions: 0, binary: false },
+    { path: 'deleted.ts', oldPath: null, status: 'deleted', additions: 0, deletions: 4, binary: false },
+    { path: 'binary.png', oldPath: null, status: 'modified', additions: 0, deletions: 0, binary: true },
+    { path: 'new-name.ts', oldPath: 'old-name.ts', status: 'renamed', additions: 1, deletions: 1, binary: false },
+    { path: 'new-display.ts', oldPath: 'old-display.ts', status: 'renamed', additions: 2, deletions: 1, binary: false },
+  ]);
+});
+
+test('splitGitDiffPatches preserves file hunks and recognizes rename segments', () => {
+  const output = [
+    'diff --git a/one.ts b/one.ts',
+    'index 111..222 100644',
+    '--- a/one.ts',
+    '+++ b/one.ts',
+    '@@ -1 +1 @@',
+    '-old',
+    '+new',
+    'diff --git a/two.ts b/two.ts',
+    'index 333..444 100644',
+    '--- a/two.ts',
+    '+++ b/two.ts',
+    '@@ -1 +1 @@',
+    '-before',
+    '+after',
+    'diff --git "a/a file.ts" "b/a file.ts"',
+    '--- "a/a file.ts"',
+    '+++ "b/a file.ts"',
+    '@@ -1 +1 @@',
+    '-one',
+    '+two',
+    'diff --git a/old-name.ts b/new-name.ts',
+    'similarity index 100%',
+    'rename from old-name.ts',
+    'rename to new-name.ts',
+  ].join('\n');
+
+  const patches = splitGitDiffPatches(output);
+  assert.equal(patches.length, 4);
+  assert.equal(patches[0].path, 'one.ts');
+  assert.match(patches[0].patch, /@@ -1 \+1 @@\n-old\n\+new/);
+  assert.equal(patches[1].path, 'two.ts');
+  assert.match(patches[1].patch, /-before\n\+after/);
+  assert.equal(patches[2].path, 'a file.ts');
+  assert.match(patches[2].patch, /-one\n\+two/);
+  assert.equal(patches[3].path, 'new-name.ts');
+  assert.match(patches[3].patch, /rename from old-name\.ts\nrename to new-name\.ts/);
+});
+
+test('attachDiffPatches enforces per-file and total patch size caps', () => {
+  const files = [
+    { path: 'first.ts', binary: false },
+    { path: 'oversized.ts', binary: false },
+    { path: 'second.ts', binary: false },
+    { path: 'third.ts', binary: false },
+  ];
+  const patches = [
+    { path: 'first.ts', patch: '1234' },
+    { path: 'oversized.ts', patch: '123456' },
+    { path: 'second.ts', patch: '5678' },
+    { path: 'third.ts', patch: '9' },
+  ];
+
+  const result = attachDiffPatches(files, patches, 5, 8);
+  assert.equal(result[0].patch, '1234');
+  assert.equal(result[0].tooLarge, false);
+  assert.equal(result[1].patch, null);
+  assert.equal(result[1].tooLarge, true);
+  assert.equal(result[2].patch, '5678');
+  assert.equal(result[2].tooLarge, false);
+  assert.equal(result[3].patch, null);
+  assert.equal(result[3].tooLarge, true);
+});
+
+test('buildNoCommitsDiffFiles lists tracked and untracked porcelain changes without patches', () => {
+  const files = buildNoCommitsDiffFiles(porcelain(
+    'A  staged.ts',
+    ' M modified.ts',
+    '?? untracked.ts',
+  ));
+
+  assert.deepEqual(files, [
+    {
+      path: 'staged.ts', oldPath: null, status: 'added', staged: true,
+      additions: 0, deletions: 0, patch: null, binary: false, tooLarge: false,
+    },
+    {
+      path: 'modified.ts', oldPath: null, status: 'modified', staged: false,
+      additions: 0, deletions: 0, patch: null, binary: false, tooLarge: false,
+    },
+    {
+      path: 'untracked.ts', oldPath: null, status: 'untracked', staged: false,
+      additions: 0, deletions: 0, patch: null, binary: false, tooLarge: false,
+    },
+  ]);
+});
+
 // Builds one `git log --pretty=format:%H%x1f%P%x1f%D%x1f%an%x1f%ae%x1f%ad%x1f%s` line.
-const US = '';
+const US = '\u001f';
 const logLine = (hash, parents, refs, subject) =>
   [hash, parents, refs, 'Alice', 'a@x.com', '2026-07-06T10:00:00+03:00', subject].join(US);
 

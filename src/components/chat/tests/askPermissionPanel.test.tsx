@@ -5,7 +5,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { getPermissionPanel } from '../tools/configs/permissionPanelRegistry';
-import type { PendingPermissionRequest } from '../types/types';
+import type { PendingPermissionRequest, PermissionDecision } from '../types/types';
 import PermissionRequestsBanner from '../view/PermissionRequestsBanner';
 
 /*
@@ -35,7 +35,7 @@ const workerAskRequest: PendingPermissionRequest = {
 
 const renderBanner = (
   requests: PendingPermissionRequest[],
-  onDecision: (id: string | string[], decision: Record<string, unknown>) => void = () => undefined,
+  onDecision: (id: string | string[], decision: PermissionDecision) => void = () => undefined,
 ) => renderToStaticMarkup(
   createElement(PermissionRequestsBanner, {
     pendingPermissionRequests: requests,
@@ -70,10 +70,32 @@ test('a worker question renders its text and options, not a permission prompt', 
 
 test('a tool with no panel still gets the generic confirmation', () => {
   // The fallback has to keep working for everything that is not a question.
+  // Without an i18n instance the keys render verbatim, which is what is asserted.
   const html = renderBanner([{ requestId: 'r1', toolName: 'bash', input: { command: 'ls' } }]);
 
-  assert.match(html, /Permission required/);
-  assert.match(html, /bash/);
+  assert.match(html, /permissionCard\.title/);
+  assert.match(html, /data-tool="bash"/);
+  assert.match(html, /<code[^>]*>bash<\/code>/);
+});
+
+test('a tool permission card offers deny, allow, and always allow for the tool', () => {
+  const html = renderBanner([{
+    requestId: 'sdk-permission:1',
+    toolName: 'bash',
+    input: { command: 'npm test' },
+    context: { source: 'sdk-permission', title: 'npm test', options: ['allow_once', 'allow_always', 'reject_once'] },
+  }]);
+
+  assert.match(html, /permissionCard\.deny/);
+  assert.match(html, /permissionCard\.allow</);
+  assert.match(html, /data-action="always-allow"/);
+  // The runtime's own summary of the call is shown, not only the raw JSON.
+  assert.match(html, /<code[^>]*title="npm test"[^>]*>npm test<\/code>/);
+});
+
+test('a question panel never shows the always-allow action', () => {
+  const html = renderBanner([workerAskRequest]);
+  assert.doesNotMatch(html, /always-allow/);
 });
 
 test('plan-mode requests stay out of the banner', () => {

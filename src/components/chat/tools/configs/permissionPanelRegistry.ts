@@ -1,13 +1,10 @@
 import type { ComponentType } from 'react';
 
-import type { PendingPermissionRequest } from '../../types/types';
+import type { PendingPermissionRequest, PermissionDecision } from '../../types/types';
 
 export interface PermissionPanelProps {
   request: PendingPermissionRequest;
-  onDecision: (
-    requestIds: string | string[],
-    decision: { allow?: boolean; message?: string; updatedInput?: unknown },
-  ) => void;
+  onDecision: (requestIds: string | string[], decision: PermissionDecision) => void;
 }
 
 const panelsByTool = new Map<string, ComponentType<PermissionPanelProps>>();

@@ -1,7 +1,8 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { ShieldAlertIcon } from 'lucide-react';
 
-import type { PendingPermissionRequest } from '../types/types';
+import type { PendingPermissionRequest, PermissionDecision } from '../types/types';
 import { formatToolInputForDisplay } from '../utils/chatPermissions';
 import { getPermissionPanel, registerPermissionPanel } from '../tools/configs/permissionPanelRegistry';
 import { AskUserQuestionPanel } from '../tools/components/InteractiveRenderers';
@@ -30,16 +31,22 @@ for (const toolName of ['ask', 'AskUserQuestion']) {
 
 interface PermissionRequestsBannerProps {
   pendingPermissionRequests: PendingPermissionRequest[];
-  handlePermissionDecision: (
-    requestIds: string | string[],
-    decision: { allow?: boolean; message?: string; updatedInput?: unknown },
-  ) => void;
+  handlePermissionDecision: (requestIds: string | string[], decision: PermissionDecision) => void;
+}
+
+/** The runtime's own summary of the call (the command for bash, "Delete x" for edits), when it sent one. */
+function requestTitle(request: PendingPermissionRequest): string | null {
+  const context = request.context;
+  if (!context || typeof context !== 'object') return null;
+  const title = (context as { title?: unknown }).title;
+  return typeof title === 'string' && title.trim() ? title.trim() : null;
 }
 
 export default function PermissionRequestsBanner({
   pendingPermissionRequests,
   handlePermissionDecision,
 }: PermissionRequestsBannerProps) {
+  const { t } = useTranslation('chat');
   // Filter out plan tool requests — they are handled inline by PlanDisplay
   const filteredRequests = pendingPermissionRequests.filter(
     (r) => r.toolName !== 'ExitPlanMode' && r.toolName !== 'exit_plan_mode'
@@ -64,17 +71,21 @@ export default function PermissionRequestsBanner({
         }
 
         const rawInput = formatToolInputForDisplay(request.input);
+        const title = requestTitle(request);
 
         return (
-          <Confirmation key={request.requestId} approval="pending">
+          <Confirmation key={request.requestId} approval="pending" data-tool={request.toolName}>
             <ConfirmationTitle className="flex items-start gap-3">
               <ShieldAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <ConfirmationRequest>
-                <div>
-                  <span className="font-medium text-foreground">Permission required</span>
+                <div className="min-w-0">
+                  <span className="font-medium text-foreground">{t('permissionCard.title')}</span>
                   <span className="ml-2 text-muted-foreground">
-                    Tool: <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{request.toolName}</code>
+                    {t('permissionCard.tool')} <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{request.toolName}</code>
                   </span>
+                  {title && (
+                    <code className="mt-1 block truncate font-mono text-xs text-foreground/80" title={title}>{title}</code>
+                  )}
                 </div>
               </ConfirmationRequest>
             </ConfirmationTitle>
@@ -82,7 +93,7 @@ export default function PermissionRequestsBanner({
             {rawInput && (
               <details className="mt-2">
                 <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
-                  View tool input
+                  {t('permissionCard.viewInput')}
                 </summary>
                 <pre className="mt-2 max-h-40 overflow-auto rounded-md border bg-muted/50 p-2 text-xs whitespace-pre-wrap text-muted-foreground">
                   {rawInput}
@@ -90,18 +101,26 @@ export default function PermissionRequestsBanner({
               </details>
             )}
 
-            <ConfirmationActions>
+            <ConfirmationActions className="flex-wrap">
               <ConfirmationAction
                 variant="outline"
                 onClick={() => handlePermissionDecision(request.requestId, { allow: false, message: 'User denied tool use' })}
               >
-                Deny
+                {t('permissionCard.deny')}
+              </ConfirmationAction>
+              <ConfirmationAction
+                variant="outline"
+                data-action="always-allow"
+                title={t('permissionCard.alwaysAllowHint')}
+                onClick={() => handlePermissionDecision(request.requestId, { allow: true, always: true })}
+              >
+                {t('permissionCard.alwaysAllow', { tool: request.toolName })}
               </ConfirmationAction>
               <ConfirmationAction
                 variant="default"
                 onClick={() => handlePermissionDecision(request.requestId, { allow: true })}
               >
-                Allow
+                {t('permissionCard.allow')}
               </ConfirmationAction>
             </ConfirmationActions>
           </Confirmation>

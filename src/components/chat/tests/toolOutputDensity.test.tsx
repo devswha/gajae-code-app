@@ -107,6 +107,9 @@ test('the level table: what each level folds and what it opens', () => {
   assert.deepEqual([compact.showReasoning, balanced.showReasoning, detailed.showReasoning], [false, false, true]);
   assert.deepEqual([compact.showRawParameters, balanced.showRawParameters, detailed.showRawParameters], [false, false, true]);
   assert.deepEqual([compact.subagentOpen, balanced.subagentOpen, detailed.subagentOpen], [false, false, true]);
+  // A turn's tool calls fold into one work block at the two folding levels;
+  // detailed shows the cards at the top level as before.
+  assert.deepEqual([compact.workBlock, balanced.workBlock, detailed.workBlock], [true, true, false]);
   // Balanced defers to each tool's own default for the remaining cards; the
   // outer levels override it in their direction.
   assert.equal(collapsibleStartsOpen(balanced, true), true);

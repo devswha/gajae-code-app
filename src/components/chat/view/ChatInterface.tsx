@@ -319,6 +319,8 @@ function ChatInterface({
               isLoadingSessionMessages={session.isLoadingSessionMessages}
               isProcessing={session.isProcessing}
               hasActivityIndicator={showActivity}
+              liveActivity={liveActivity}
+              runStartedAt={session.sessionActivity?.startedAt ?? null}
               chatMessages={session.chatMessages}
               selectedSession={selectedSession}
               currentSessionId={session.currentSessionId}

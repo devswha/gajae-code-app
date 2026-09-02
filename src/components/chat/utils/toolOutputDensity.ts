@@ -18,6 +18,16 @@
  * the failure is visible, but its body stays folded like every other body. A
  * session with thirty failed commands must never render *less* compact than
  * balanced, which is exactly what unconditional unfolding did.
+ *
+ * Above the cards sits one more fold, the turn's work block (`workBlock`,
+ * `turnWork.ts`): every tool call between a user message and the answer,
+ * folded into one row that reads `Working · Reading src/foo.ts · 12s` while the
+ * run is going and `Worked for 42s · 5 files read · 3 commands · 2 edits` once
+ * it is done. Compact and balanced fold; detailed shows the cards as they are.
+ * The block never unfolds itself, not even for a failure: the row carries the
+ * error label and the failed count, and `failureOpens` applies to the rows
+ * inside once the reader opens it. Unfolding the whole turn's work because one
+ * command exited non-zero would undo the fold the level exists for.
  */
 
 export const TOOL_OUTPUT_DENSITIES = ['compact', 'balanced', 'detailed'] as const;
@@ -51,6 +61,11 @@ export type ToolOutputDensityRules = {
   subagentOpen: boolean;
   /** A subagent container shows its prompt and tool history at all. */
   subagentHistory: boolean;
+  /**
+   * A turn's tool calls fold into one work block with a summary row. Off, the
+   * cards and same-tool groups render at the top level as they always did.
+   */
+  workBlock: boolean;
 };
 
 const DENSITY_RULES: Record<ToolOutputDensity, ToolOutputDensityRules> = {
@@ -65,6 +80,7 @@ const DENSITY_RULES: Record<ToolOutputDensity, ToolOutputDensityRules> = {
     showRawParameters: false,
     subagentOpen: false,
     subagentHistory: false,
+    workBlock: true,
   },
   balanced: {
     groupThreshold: 2,
@@ -77,6 +93,7 @@ const DENSITY_RULES: Record<ToolOutputDensity, ToolOutputDensityRules> = {
     showRawParameters: false,
     subagentOpen: false,
     subagentHistory: true,
+    workBlock: true,
   },
   detailed: {
     groupThreshold: Number.POSITIVE_INFINITY,
@@ -89,6 +106,7 @@ const DENSITY_RULES: Record<ToolOutputDensity, ToolOutputDensityRules> = {
     showRawParameters: true,
     subagentOpen: true,
     subagentHistory: true,
+    workBlock: false,
   },
 };
 

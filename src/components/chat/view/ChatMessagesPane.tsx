@@ -9,14 +9,23 @@ import type {
   LLMProvider,
 } from '../../../types/app';
 import { getIntrinsicMessageKey } from '../utils/messageKeys';
-import { groupConsecutiveTools, isToolGroupItem } from '../utils/toolGrouping';
+import type { LiveActivity } from '../utils/toolActivity';
+import { isToolGroupItem } from '../utils/toolGrouping';
 import { DEFAULT_TOOL_OUTPUT_DENSITY } from '../utils/toolOutputDensity';
 import type { ToolOutputDensity } from '../utils/toolOutputDensity';
+import { buildPaneList, isTurnWorkBlockItem } from '../utils/turnWork';
+import type { PaneListItem } from '../utils/turnWork';
 
-import MessageComponent from './MessageComponent';
+import GroupedMessageList from './GroupedMessageList';
 import ProviderSelectionEmptyState from './ProviderSelectionEmptyState';
-import ToolGroupContainer from './ToolGroupContainer';
+import TurnWorkBlock from './TurnWorkBlock';
 import LoadAllMessagesOverlay from './LoadAllMessagesOverlay';
+
+/** The transcript message a list item ends with, so the next row knows what preceded it. */
+function lastMessageOf(item: PaneListItem): ChatMessage {
+  if (isTurnWorkBlockItem(item) || isToolGroupItem(item)) return item.messages[item.messages.length - 1];
+  return item;
+}
 
 interface ChatMessagesPaneProps {
   scrollContainerRef: RefObject<HTMLDivElement | null>;
@@ -27,6 +36,10 @@ interface ChatMessagesPaneProps {
   isProcessing?: boolean;
   /** True while ChatComposer's floating activity/stop tab is rendered above the input. */
   hasActivityIndicator?: boolean;
+  /** What the in-flight run is doing now; the running turn's work block shows it. */
+  liveActivity?: LiveActivity | null;
+  /** When the in-flight run started (client clock), for the work block's elapsed time. */
+  runStartedAt?: number | null;
   chatMessages: ChatMessage[];
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
@@ -58,6 +71,8 @@ function ChatMessagesPane({
   isLoadingSessionMessages,
   isProcessing = false,
   hasActivityIndicator = false,
+  liveActivity = null,
+  runStartedAt = null,
   chatMessages,
   selectedSession,
   currentSessionId,
@@ -83,8 +98,8 @@ function ChatMessagesPane({
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
   const displayProvider = selectedSession?.provider ?? selectedSession?.__provider ?? provider;
-  const groupedVisibleMessages = useMemo(
-    () => groupConsecutiveTools(visibleMessages, density),
+  const paneItems = useMemo(
+    () => buildPaneList(visibleMessages, density),
     [visibleMessages, density],
   );
 
@@ -107,15 +122,10 @@ function ChatMessagesPane({
       occurrences.set(intrinsicKey, seen + 1);
       keys.set(message, seen === 0 ? intrinsicKey : `${intrinsicKey}__${seen}`);
     };
-    for (const item of groupedVisibleMessages) {
-      if (isToolGroupItem(item)) {
-        item.messages.forEach(assign);
-      } else {
-        assign(item);
-      }
-    }
+    // Walked in transcript order, which is also the order inside every fold.
+    visibleMessages.forEach(assign);
     return keys;
-  }, [groupedVisibleMessages]);
+  }, [visibleMessages]);
 
   const getMessageKey = useCallback(
     (message: ChatMessage) =>
@@ -194,40 +204,19 @@ function ChatMessagesPane({
             </div>
           )}
 
-          {(() => {
-            let prevMessage: ChatMessage | null = null;
-
-            return groupedVisibleMessages.map((item) => {
-              if (isToolGroupItem(item)) {
-                const groupPrevMessage = prevMessage;
-                prevMessage = item.messages[item.messages.length - 1] || prevMessage;
-
-                return (
-                  <ToolGroupContainer
-                    key={`tool-group-${density}-${getMessageKey(item.messages[0])}`}
-                    group={item}
-                    prevMessage={groupPrevMessage}
-                    createDiff={createDiff}
-                    getMessageKey={getMessageKey}
-                    onFileOpen={onFileOpen}
-                    onShowSettings={onShowSettings}
-                    density={density}
-                    showImagePreviews={showImagePreviews}
-                    selectedProject={selectedProject}
-                    provider={displayProvider}
-                  />
-                );
-              }
-
-              const messagePrevMessage = prevMessage;
-              prevMessage = item;
-
+          {paneItems.map((item, index) => {
+            const before = index > 0 ? lastMessageOf(paneItems[index - 1]) : null;
+            if (isTurnWorkBlockItem(item)) {
               return (
-                <MessageComponent
-                  key={getMessageKey(item)}
-                  message={item}
-                  prevMessage={messagePrevMessage}
+                <TurnWorkBlock
+                  key={`work-${density}-${getMessageKey(item.messages[0])}`}
+                  block={item}
+                  prevMessage={before}
+                  running={isProcessing && item.isLastTurn}
+                  liveActivity={liveActivity}
+                  runStartedAt={runStartedAt}
                   createDiff={createDiff}
+                  getMessageKey={getMessageKey}
                   onFileOpen={onFileOpen}
                   onShowSettings={onShowSettings}
                   density={density}
@@ -236,8 +225,23 @@ function ChatMessagesPane({
                   provider={displayProvider}
                 />
               );
-            });
-          })()}
+            }
+            return (
+              <GroupedMessageList
+                key={isToolGroupItem(item) ? `tool-group-${density}-${getMessageKey(item.messages[0])}` : getMessageKey(item)}
+                items={[item]}
+                prevMessage={before}
+                createDiff={createDiff}
+                getMessageKey={getMessageKey}
+                onFileOpen={onFileOpen}
+                onShowSettings={onShowSettings}
+                density={density}
+                showImagePreviews={showImagePreviews}
+                selectedProject={selectedProject}
+                provider={displayProvider}
+              />
+            );
+          })}
         </>
       )}
       </div>

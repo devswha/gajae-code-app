@@ -135,6 +135,28 @@
     "subagentRunning": "Subagent läuft",
     "more": "+{{count}} weitere"
   },
+  "workBlock": {
+    "working": "Arbeitet",
+    "worked": "Erledigt",
+    "workedFor": "{{duration}} gearbeitet",
+    "toggle": "Werkzeugaktivität dieses Zugs ein- oder ausblenden",
+    "failed_one": "{{count}} fehlgeschlagen",
+    "failed_other": "{{count}} fehlgeschlagen",
+    "filesRead_one": "{{count}} Datei gelesen",
+    "filesRead_other": "{{count}} Dateien gelesen",
+    "searches_one": "{{count}} Suche",
+    "searches_other": "{{count}} Suchen",
+    "commands_one": "{{count}} Befehl",
+    "commands_other": "{{count}} Befehle",
+    "edits_one": "{{count}} Änderung",
+    "edits_other": "{{count}} Änderungen",
+    "webLookups_one": "{{count}} Webabfrage",
+    "webLookups_other": "{{count}} Webabfragen",
+    "subagents_one": "{{count}} Subagent",
+    "subagents_other": "{{count}} Subagenten",
+    "otherTools_one": "{{count}} weiteres Werkzeug",
+    "otherTools_other": "{{count}} weitere Werkzeuge"
+  },
   "projectSelection": {
     "startChatWithProvider": "Wählen Sie ein Projekt aus, bevor Sie mit {{provider}} chatten"
   },

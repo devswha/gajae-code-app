@@ -135,6 +135,28 @@
     "subagentRunning": "サブエージェント実行中",
     "more": "他 {{count}} 件"
   },
+  "workBlock": {
+    "working": "作業中",
+    "worked": "作業完了",
+    "workedFor": "{{duration}} 作業",
+    "toggle": "このターンのツール操作を表示/非表示",
+    "failed_one": "{{count}} 件失敗",
+    "failed_other": "{{count}} 件失敗",
+    "filesRead_one": "ファイル {{count}} 件を読み取り",
+    "filesRead_other": "ファイル {{count}} 件を読み取り",
+    "searches_one": "検索 {{count}} 回",
+    "searches_other": "検索 {{count}} 回",
+    "commands_one": "コマンド {{count}} 件",
+    "commands_other": "コマンド {{count}} 件",
+    "edits_one": "編集 {{count}} 件",
+    "edits_other": "編集 {{count}} 件",
+    "webLookups_one": "ウェブ検索 {{count}} 回",
+    "webLookups_other": "ウェブ検索 {{count}} 回",
+    "subagents_one": "サブエージェント {{count}} 件",
+    "subagents_other": "サブエージェント {{count}} 件",
+    "otherTools_one": "その他のツール {{count}} 件",
+    "otherTools_other": "その他のツール {{count}} 件"
+  },
   "projectSelection": {
     "startChatWithProvider": "{{provider}} と会話する前にプロジェクトを選択してください。"
   },

@@ -135,6 +135,28 @@
     "subagentRunning": "Sub-agente in esecuzione",
     "more": "+{{count}} altri"
   },
+  "workBlock": {
+    "working": "In corso",
+    "worked": "Completato",
+    "workedFor": "Ha lavorato per {{duration}}",
+    "toggle": "Mostra o nascondi l'attività degli strumenti di questo turno",
+    "failed_one": "{{count}} fallito",
+    "failed_other": "{{count}} falliti",
+    "filesRead_one": "{{count}} file letto",
+    "filesRead_other": "{{count}} file letti",
+    "searches_one": "{{count}} ricerca",
+    "searches_other": "{{count}} ricerche",
+    "commands_one": "{{count}} comando",
+    "commands_other": "{{count}} comandi",
+    "edits_one": "{{count}} modifica",
+    "edits_other": "{{count}} modifiche",
+    "webLookups_one": "{{count}} ricerca web",
+    "webLookups_other": "{{count}} ricerche web",
+    "subagents_one": "{{count}} sub-agente",
+    "subagents_other": "{{count}} sub-agenti",
+    "otherTools_one": "{{count}} altro strumento",
+    "otherTools_other": "{{count}} altri strumenti"
+  },
   "projectSelection": {
     "startChatWithProvider": "Scegli un progetto prima di chattare con {{provider}}"
   },

@@ -135,6 +135,28 @@
     "subagentRunning": "子代理运行中",
     "more": "还有 {{count}} 项"
   },
+  "workBlock": {
+    "working": "工作中",
+    "worked": "已完成",
+    "workedFor": "工作了 {{duration}}",
+    "toggle": "显示或隐藏本轮的工具活动",
+    "failed_one": "{{count}} 项失败",
+    "failed_other": "{{count}} 项失败",
+    "filesRead_one": "读取 {{count}} 个文件",
+    "filesRead_other": "读取 {{count}} 个文件",
+    "searches_one": "搜索 {{count}} 次",
+    "searches_other": "搜索 {{count}} 次",
+    "commands_one": "{{count}} 条命令",
+    "commands_other": "{{count}} 条命令",
+    "edits_one": "{{count}} 处编辑",
+    "edits_other": "{{count}} 处编辑",
+    "webLookups_one": "联网查询 {{count}} 次",
+    "webLookups_other": "联网查询 {{count}} 次",
+    "subagents_one": "{{count}} 个子代理",
+    "subagents_other": "{{count}} 个子代理",
+    "otherTools_one": "{{count}} 个其他工具",
+    "otherTools_other": "{{count}} 个其他工具"
+  },
   "projectSelection": {
     "startChatWithProvider": "在与{{provider}}聊天前，请先选择一个项目"
   },

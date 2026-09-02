@@ -135,6 +135,28 @@
     "subagentRunning": "子代理執行中",
     "more": "還有 {{count}} 項"
   },
+  "workBlock": {
+    "working": "工作中",
+    "worked": "已完成",
+    "workedFor": "工作了 {{duration}}",
+    "toggle": "顯示或隱藏本輪的工具活動",
+    "failed_one": "{{count}} 項失敗",
+    "failed_other": "{{count}} 項失敗",
+    "filesRead_one": "讀取 {{count}} 個檔案",
+    "filesRead_other": "讀取 {{count}} 個檔案",
+    "searches_one": "搜尋 {{count}} 次",
+    "searches_other": "搜尋 {{count}} 次",
+    "commands_one": "{{count}} 條命令",
+    "commands_other": "{{count}} 條命令",
+    "edits_one": "{{count}} 處編輯",
+    "edits_other": "{{count}} 處編輯",
+    "webLookups_one": "上網查詢 {{count}} 次",
+    "webLookups_other": "上網查詢 {{count}} 次",
+    "subagents_one": "{{count}} 個子代理",
+    "subagents_other": "{{count}} 個子代理",
+    "otherTools_one": "{{count}} 個其他工具",
+    "otherTools_other": "{{count}} 個其他工具"
+  },
   "projectSelection": {
     "startChatWithProvider": "請先選擇一個專案再與 {{provider}} 聊天"
   },

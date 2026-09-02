@@ -135,6 +135,28 @@
     "subagentRunning": "Alt ajan çalışıyor",
     "more": "+{{count}} daha"
   },
+  "workBlock": {
+    "working": "Çalışıyor",
+    "worked": "Tamamlandı",
+    "workedFor": "{{duration}} çalıştı",
+    "toggle": "Bu turun araç etkinliğini göster veya gizle",
+    "failed_one": "{{count}} başarısız",
+    "failed_other": "{{count}} başarısız",
+    "filesRead_one": "{{count}} dosya okundu",
+    "filesRead_other": "{{count}} dosya okundu",
+    "searches_one": "{{count}} arama",
+    "searches_other": "{{count}} arama",
+    "commands_one": "{{count}} komut",
+    "commands_other": "{{count}} komut",
+    "edits_one": "{{count}} düzenleme",
+    "edits_other": "{{count}} düzenleme",
+    "webLookups_one": "{{count}} web sorgusu",
+    "webLookups_other": "{{count}} web sorgusu",
+    "subagents_one": "{{count}} alt ajan",
+    "subagents_other": "{{count}} alt ajan",
+    "otherTools_one": "{{count}} diğer araç",
+    "otherTools_other": "{{count}} diğer araç"
+  },
   "projectSelection": {
     "startChatWithProvider": "{{provider}} ile sohbet etmeden önce bir proje seçin"
   },

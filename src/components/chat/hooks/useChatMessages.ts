@@ -95,6 +95,8 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
         content: toolOutputText(attachedResult.content),
         isError: Boolean(attachedResult.isError),
         toolUseResult: (attachedResult as any).toolUseResult,
+        // When the result landed, so a finished turn can say how long it worked.
+        timestamp: (attachedResult as { timestamp?: string }).timestamp,
       } : null;
 
       output.push({

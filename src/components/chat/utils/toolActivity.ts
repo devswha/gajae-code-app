@@ -129,16 +129,24 @@ export function runningToolCalls(messages: ChatMessage[]): ChatMessage[] {
   return messages.filter(isToolCallRunning);
 }
 
-/** Prose still arriving: the model is writing its answer rather than deciding what to do. */
-const isStreamingAnswer = (message: ChatMessage | undefined): boolean =>
-  Boolean(message && message.type === 'assistant' && message.isStreaming && !message.isToolUse && !message.isThinking);
+/**
+ * Prose is the latest thing in the turn - still arriving, or landed a moment
+ * ago: the model is writing its answer rather than deciding what to do. A
+ * landed answer counts too, because the turn ends a few frames after its
+ * text does (`stream_end`, then `complete`), and flipping to Thinking for
+ * those milliseconds made the label flicker at the end of every turn. When
+ * the model really does go on, the next reasoning block or tool call replaces
+ * the label as soon as it exists.
+ */
+const isAnswerProse = (message: ChatMessage | undefined): boolean =>
+  Boolean(message && message.type === 'assistant' && !message.isToolUse && !message.isThinking && !message.isSystemNotice);
 
 /**
  * Precedence: what the server says outranks what the transcript implies, and
  * a pending approval outranks a running tool, because the run is stopped on
  * it. Otherwise the most recently started tool speaks for the run, with a
  * count of the others still going. With nothing in flight, the run is either
- * writing its answer (text is streaming in) or thinking about its next move.
+ * writing its answer (prose is the latest thing) or thinking about its next move.
  */
 export function deriveLiveActivity(messages: ChatMessage[], context: LiveActivityContext = {}): LiveActivity {
   const statusText = context.statusText?.trim();
@@ -147,7 +155,7 @@ export function deriveLiveActivity(messages: ChatMessage[], context: LiveActivit
 
   const turn = currentTurnMessages(messages);
   const running = runningToolCalls(turn);
-  if (running.length === 0) return isStreamingAnswer(turn[turn.length - 1]) ? { kind: 'responding' } : { kind: 'thinking' };
+  if (running.length === 0) return isAnswerProse(turn[turn.length - 1]) ? { kind: 'responding' } : { kind: 'thinking' };
 
   const latest = running[running.length - 1];
   const moreCount = running.length - 1;

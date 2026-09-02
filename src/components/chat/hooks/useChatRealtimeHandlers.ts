@@ -132,6 +132,12 @@ export function useChatRealtimeHandlers({
         return;
       }
       if (event.kind === 'stream_end') {
+        // The frame carries the whole answer. It outranks the deltas: a viewer
+        // that joined mid-turn holds only the tail of them, and a turn the SDK
+        // did not stream has none at all - without this the answer stayed on
+        // disk until the next full reload.
+        const content = typeof event.content === 'string' ? event.content : '';
+        if (content) accumulatedStreamRef.current = content;
         flushStreaming(sessionId, true);
         return;
       }

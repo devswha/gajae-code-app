@@ -78,9 +78,10 @@ test('only the current turn is read, and a call runs until its result lands', ()
   assert.equal(currentTurnMessages([running]).length, 1);
 });
 
-test('no tool in flight means the model is generating', () => {
+test('no tool in flight and no prose yet means the model is thinking', () => {
   assert.deepEqual(deriveLiveActivity([]), { kind: 'thinking' });
-  assert.deepEqual(deriveLiveActivity([user('go'), done(call('read', { path: 'a' })), text('Here is', 3)]), { kind: 'thinking' });
+  assert.deepEqual(deriveLiveActivity([user('go')]), { kind: 'thinking' });
+  assert.deepEqual(deriveLiveActivity([user('go'), done(call('read', { path: 'a' }))]), { kind: 'thinking' });
   assert.equal(formatLiveActivity({ kind: 'thinking' }, t), 'Thinking');
 });
 
@@ -93,10 +94,15 @@ test('text streaming in with no tool in flight is the answer being written', () 
 
   // A pure text answer streams the same way, with no tool at all.
   assert.deepEqual(deriveLiveActivity([user('go'), streaming('Sure -', 1)]), { kind: 'responding' });
-  // Once the text has landed (no longer streaming) the model is between moves again.
-  assert.deepEqual(deriveLiveActivity([user('go'), text('Sure -', 1)]), { kind: 'thinking' });
-  // Streaming reasoning is thinking, not answering.
+  // Landed text is still the answer: `complete` follows `stream_end` by a few
+  // frames, and a Thinking flash in between was visible at the end of every turn.
+  assert.deepEqual(deriveLiveActivity([user('go'), text('Sure -', 1)]), { kind: 'responding' });
+  assert.deepEqual(deriveLiveActivity([user('go'), done(call('read', { path: 'a' })), text('Here is', 3)]), { kind: 'responding' });
+  // Reasoning is thinking, not answering - streaming or landed after the prose.
   assert.deepEqual(deriveLiveActivity([user('go'), { ...streaming('hmm', 1), isThinking: true }]), { kind: 'thinking' });
+  assert.deepEqual(deriveLiveActivity([user('go'), text('Let me look.', 1), { ...text('hmm', 2), isThinking: true }]), { kind: 'thinking' });
+  // A warning notice is not the model's prose.
+  assert.deepEqual(deriveLiveActivity([user('go'), { ...text('Fast mode rejected', 1), isSystemNotice: true }]), { kind: 'thinking' });
   // A running tool still outranks the prose that came before it.
   assert.equal(deriveLiveActivity([user('go'), streaming('Let me check', 1), call('read', { path: 'a' })]).kind, 'tool');
 });

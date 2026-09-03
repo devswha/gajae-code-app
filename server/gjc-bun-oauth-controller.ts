@@ -271,11 +271,18 @@ export class GjcBunOAuthController {
         },
         signal: attempt.abortController.signal,
       });
-    } catch {
+    } catch (error) {
       if (!this.#isActive(attempt)) return;
       clearTimeout(attempt.timeout);
       this.#active = undefined;
-      this.#transition(attempt, 'failed', { errorCode: 'oauth_login_failed' });
+      // The runtime's callback listener rejects a callback whose `state` is
+      // not this attempt's: the browser finished a link from an earlier
+      // attempt (a retry issues a new one). Named so the dialog can say
+      // "use the newest link" instead of a generic "try again"; the raw
+      // message never crosses the protocol.
+      const message = error instanceof Error ? error.message : String(error);
+      const errorCode = /state mismatch/i.test(message) ? 'oauth_state_mismatch' : 'oauth_login_failed';
+      this.#transition(attempt, 'failed', { errorCode });
       return;
     }
 

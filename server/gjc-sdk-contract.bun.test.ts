@@ -825,6 +825,31 @@ test('OAuth refresh failure preserves persisted auth state and reports a distinc
   }
 });
 
+test('a callback from an earlier attempt fails as a state mismatch, named but never quoted', async () => {
+  const f = await fixture(
+    'contract-model',
+    undefined,
+    { id: 'contract-model', provider: 'contract-provider' },
+    undefined,
+    async () => { throw new Error('State mismatch - possible CSRF attack (canary)'); },
+  );
+  try {
+    await f.host.handle(request('oauth.start', 'oauth-state-mismatch', { providerId: 'openai-codex' }));
+    const start = ((response(f.frames, 'oauth-state-mismatch').payload as Record<string, unknown>).result ?? {}) as Record<string, unknown>;
+    const attemptId = start.attemptId as string;
+    const failed = await waitFor(() => f.frames
+      .filter((frame) => frame.method === 'oauth.phase')
+      .map((frame) => frame.payload as Record<string, unknown>)
+      .find((phase) => phase.attemptId === attemptId && phase.phase === 'failed'));
+
+    assert.equal(failed.errorCode, 'oauth_state_mismatch');
+    assert.equal(JSON.stringify(f.frames).includes('canary'), false);
+    assert.equal(JSON.stringify(f.frames).includes('CSRF'), false);
+  } finally {
+    await f.close();
+  }
+});
+
 test('OAuth automatic callback flow completes without a manual submit', async () => {
   const f = await fixture(
     'contract-model',

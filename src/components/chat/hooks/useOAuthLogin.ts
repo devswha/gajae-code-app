@@ -194,6 +194,8 @@ const safeFailure = (code: string): OAuthLoginFailure => {
       return { code, message: 'Connection lost. Reconnect before continuing sign-in.' };
     case 'oauth_model_refresh_failed':
       return { code, message: 'Sign-in was saved, but available models could not be refreshed.' };
+    case 'oauth_state_mismatch':
+      return { code, message: 'The link you opened belongs to an earlier sign-in attempt. Each attempt issues a new link: start again and open the link shown now.' };
     default:
       return { code: 'oauth_failed', message: 'Sign-in could not be completed. Try again.' };
   }

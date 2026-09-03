@@ -79,6 +79,13 @@ test('OAuth failure messages distinguish disconnect and persisted-login refresh 
   assert.equal(oauthFailureForCode('raw-provider-error').code, 'oauth_failed');
 });
 
+test('a state mismatch tells the person to use the newest link', () => {
+  const failure = oauthFailureForCode('oauth_state_mismatch');
+  assert.equal(failure.code, 'oauth_state_mismatch');
+  assert.match(failure.message, /earlier sign-in attempt/);
+  assert.match(failure.message, /link shown now/);
+});
+
 test('OAuth terminal failures expose safe retry messages without raw provider errors', () => {
   for (const code of ['oauth_login_failed', 'oauth_timed_out', 'raw-provider-error']) {
     const failure = oauthFailureForCode(code);

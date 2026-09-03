@@ -1,116 +1,106 @@
-# Gajae Code App
+<p align="center">
+  <img src="public/mark.svg" alt="Gajae Code App mark" width="140">
+</p>
 
-A self-hosted web and desktop interface for [Gajae Code](https://github.com/devswha/gajae-code).
-Run the agent from a browser tab or a native window, follow what it does turn by
-turn, review the changes it makes, and keep every project and credential on your
-own machine.
+<h1 align="center">Gajae Code App</h1>
 
-[Download](https://github.com/devswha/gajae-code-app/releases) ·
-[Website](https://devswha.github.io/gajae-code-app/) ·
-[Changelog](CHANGELOG.md) ·
-[Self-hosting](docs/SELF-HOST.md) ·
-[Contributing](CONTRIBUTING.md)
+<p align="center">
+  <strong>Run the agent. Watch the work. Keep everything on your machine.</strong>
+</p>
 
-![A coding session in Gajae Code App: the request, the code search, the patch and the browser check in one timeline](website/public/screenshots/workflow-build-light.jpg)
+<p align="center">
+  <a href="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/devswha/gajae-code-app/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
+  <a href="CHANGELOG.md"><img alt="Version 2.0.0-beta.7" src="https://img.shields.io/badge/version-2.0.0--beta.7-blue"></a>
+  <a href="#quick-start"><img alt="Platforms: macOS arm64 | Linux server | Source" src="https://img.shields.io/badge/Platforms-macOS%20arm64%20%7C%20Linux%20server%20%7C%20Source-green"></a>
+  <a href="https://github.com/devswha/gajae-code"><img alt="Runtime: Gajae Code SDK 0.15.6" src="https://img.shields.io/badge/Runtime-Gajae%20Code%20SDK%200.15.6-blueviolet"></a>
+</p>
 
-## What you get
+<p align="center">
+  <a href="https://github.com/devswha/gajae-code-app/releases/latest"><b>Download for Mac — signed and notarized</b></a> ·
+  <a href="https://devswha.github.io/gajae-code-app/"><b>Website</b></a>
+</p>
 
-- **Sessions, not transcripts.** Each project keeps its conversations; the
-  sidebar shows which ones are running, waiting for your answer, finished but
-  unread, or failed, and a Work section lists everything that needs a look
-  across projects. New sessions are titled by the model from the first message.
-- **The work, folded.** A turn's tool calls collapse into one block with a live
-  status row; pick compact, balanced or detailed tool output. Stop or Esc ends
-  a turn; a message sent mid-turn steers it.
-- **Permissions that ask.** Commands and destructive file changes wait for
-  approval by default. Each project can be set to Ask, Auto-approve edits or
-  Bypass, with an always-allow list, from the composer or Settings.
-- **Changes tab.** The project's working tree as a diff, a Last-turn scope for
-  what the session just edited, and line comments that collect into one review
-  message for the next turn. No staging or revert buttons: git stays the
-  agent's job, and files open in your own editor.
-- **Shared browser.** The agent verifies in a built-in Chromium tab; you can
-  expand the same live page and continue from there.
-- **Model and reasoning per session.** Choose the model and reasoning depth
-  for the next turn without leaving the session. Context usage is shown as
-  you go.
-- **More than one viewer.** A second tab, or a phone on the LAN, sees the same
-  live run. The layout adapts down to a phone-sized screen.
+<p align="center">
+  <a href="https://devswha.github.io/gajae-code-app/">
+    <img src="website/public/demos/gajae-build-process-poster.jpg" alt="Gajae Code App building a dashboard: the request, the code search, the patch and the browser verification in one session timeline" width="960">
+  </a>
+</p>
 
-The app bundles the GJC runtime (SDK 0.15.6 on Bun 1.4.0) and drives it in an
-isolated worker. It uses the models, presets, skills and credentials of the
-Gajae Code installation in `~/.gjc`; you can also sign in to providers from
-inside the app.
+<p align="center"><em>One session, start to finish: the request, the search, the patch, and the agent checking its own result in the built-in browser. The <a href="https://devswha.github.io/gajae-code-app/">website</a> plays the recording.</em></p>
 
-## Get it
 
-Everything is published on
-[GitHub Releases](https://github.com/devswha/gajae-code-app/releases) with a
-`.sha256` beside each artifact.
+Gajae Code App is a self-hosted web and desktop interface for [Gajae Code](https://github.com/devswha/gajae-code). It drives the agent through the runtime's own SDK in an isolated worker, shows every turn as it happens, and puts a review loop between the agent's edits and your next message — on a machine you control, with credentials that never leave it.
 
-**macOS (Apple Silicon, macOS 11+)** — `gajae-app-desktop-<version>-macos-arm64.dmg`.
-Since v2.0.0-beta.7 the image is signed with a Developer ID and notarized by
-Apple, so it opens like any other app. Verify it first:
+- **Sessions with a state** — running, waiting for your answer, finished unread, or failed; a Work section lists what needs a look across every project, and the model titles each session from its first message.
+- **The work, folded** — a turn's tool calls collapse into one block with a live status row; three output densities; Stop or Esc ends a turn, a message sent mid-turn steers it.
+- **Permissions that ask** — commands and destructive edits wait for approval by default; each project picks Ask, Auto-approve edits or Bypass, plus an always-allow list.
+- **A Changes tab, not a git GUI** — the working tree as a diff, a Last-turn scope for what the session just edited, and line comments that become the next message. Git stays the agent's job.
+- **A shared browser** — the agent verifies in a built-in Chromium tab; you can expand the same live page and keep going.
+- **Every viewer** — a second tab or a phone on the LAN sees the same live run; the layout goes down to a phone screen.
 
-```sh
+## Quick Start
+
+**macOS (Apple Silicon, macOS 11+) — the desktop app.** Download the DMG from [Releases](https://github.com/devswha/gajae-code-app/releases/latest), verify it, drag it to Applications, open it. Since v2.0.0-beta.7 the image is signed with a Developer ID and notarized by Apple; Gatekeeper opens it like any other app.
+
+```bash
 cd ~/Downloads
-shasum -a 256 -c gajae-app-desktop-<version>-macos-arm64.dmg.sha256
+shasum -a 256 -c gajae-app-desktop-2.0.0-beta.7-macos-arm64.dmg.sha256
 ```
 
-**Linux server (x86_64, glibc 2.35+, Node.js 22)** —
-`gajae-app-server-<version>-linux-x64-node22.tar.gz`, run as a per-user
-systemd service and reached through a browser. Install and upgrade steps:
-[docs/INSTALL.md](docs/INSTALL.md), [docs/SELF-HOST.md](docs/SELF-HOST.md).
+**Linux server (x86_64, glibc 2.35+, Node.js 22) — self-host the web UI.** Unpack the server archive, run it as a per-user systemd service, reach it through a browser over an SSH tunnel or VPN.
 
-Intel Mac, Windows and Linux desktop builds are not available yet.
+```bash
+sha256sum --check gajae-app-server-2.0.0-beta.7-linux-x64-node22.tar.gz.sha256
+```
 
-## Run from source
+Install, upgrade and rollback steps: [docs/INSTALL.md](docs/INSTALL.md) · [docs/SELF-HOST.md](docs/SELF-HOST.md).
 
-Requirements: Node.js 22.22.2+ (or 24.15.0+), Rust/cargo, and Bun **exactly**
-1.4.0 for the GJC worker (`node scripts/fetch-bun.mjs` fetches the pinned
-build into `dist-native/`).
+**From source — Node.js 22, Rust, Bun 1.4.0.**
 
-```sh
+```bash
 git clone https://github.com/devswha/gajae-code-app.git
 cd gajae-code-app
 npm ci
-node scripts/fetch-bun.mjs
-npm run dev          # server on http://localhost:3001, Vite client on http://localhost:5173
+node scripts/fetch-bun.mjs          # the pinned Bun the GJC worker runs on
+npm run dev                         # server :3001, client :5173
+npm run desktop:dev                 # the same, inside the Tauri desktop shell
 ```
 
-`npm run desktop:dev` opens the Tauri desktop shell around the same server.
-`npm run verify` is the promotion gate (audit, typecheck, Rust core, tests,
-lint, identity check, build); `npm test` runs the test suites alone. See
-[AGENTS.md](AGENTS.md) for the repository map and conventions.
+The app uses the models, presets, skills and credentials of the Gajae Code installation in `~/.gjc`, and you can sign in to providers from inside the app. Intel Mac, Windows and Linux desktop builds are not available yet.
 
-## Security posture
+## Permission Modes
 
-- The server binds to loopback by default and fails closed if asked to do
-  otherwise. It can run shell commands; reach it remotely through an SSH tunnel
-  or a VPN, not a public port.
-- Cross-origin callers are rejected on both HTTP and WebSocket.
-- Project files, execution state and the SQLite database live under
-  `~/.gajae-app` on the host that runs the server. Transcripts stay in the
-  runtime's own session files; the app never copies them into its database.
-- Prompts reach the worker through an owner-readable temp file, never on a
-  process command line.
+The runtime's own gate defaults to *allow*; the app does not. Every project has a persisted mode, set from the composer or Settings → Permissions, and an always-allow list that the permission card's **Always allow** fills.
 
-## Docs
+| Mode | Runs without asking | Waits for approval |
+|---|---|---|
+| **Ask** (default) | Reads, searches, and file writes and edits the runtime does not gate | Commands (`bash`, `eval`), file deletes and moves — everything the runtime gates |
+| **Auto-approve edits** | The above, plus every file mutation (`edit`, `write`, `delete`, `move`) | Commands |
+| **Bypass** | Everything | Nothing — for a scratch project you trust the agent with |
 
-| Topic | Where |
+A card answered in one tab closes in every other viewer. Always deny is offered when the runtime offers it and holds for the run.
+
+## Facts
+
+|  |  |
 |---|---|
-| Install and upgrade the server release | [docs/INSTALL.md](docs/INSTALL.md), [docs/SELF-HOST.md](docs/SELF-HOST.md) |
-| Desktop packaging, signing and notarization | [docs/DESKTOP-TAURI-VERIFICATION.md](docs/DESKTOP-TAURI-VERIFICATION.md) |
-| GJC provider and worker contract | [server/GJC-LIVE-SPEC.md](server/GJC-LIVE-SPEC.md), [docs/GJC-WORKER-PROTOCOL.md](docs/GJC-WORKER-PROTOCOL.md) |
-| Design system | [DESIGN.md](DESIGN.md) |
-| Licensing and provenance | [docs/LICENSING.md](docs/LICENSING.md), [docs/RELICENSING.md](docs/RELICENSING.md), [docs/UPSTREAM.md](docs/UPSTREAM.md) |
+| **Runtime** | Gajae Code SDK 0.15.6 on Bun 1.4.0, bundled, driven in an isolated worker; prompts pass through an owner-readable temp file, never a process argument |
+| **Where things live** | Database, assets and cache under `~/.gajae-app`; transcripts stay in the runtime's own session files and are never copied into the app's database |
+| **Network** | Loopback by default and fail-closed (it can run shell commands); cross-origin callers are rejected on HTTP and WebSocket |
+| **Stack** | React 19 · Vite 7 · Tailwind 4 · Express · SQLite · a Rust core · Tauri 2 for the desktop shell |
+| **Gate** | `npm run verify` — audit, typecheck, Rust core, tests, lint, identity check, build |
+| **License** | MIT since v2.0.0-beta.7 (earlier betas AGPL-3.0) |
 
-## Contributing
+## Documentation
 
-Issues and pull requests are welcome; read [CONTRIBUTING.md](CONTRIBUTING.md)
-first. Contributions are accepted under the terms in [CLA.md](CLA.md).
+- [Self-hosting](docs/SELF-HOST.md) · [Install the server release](docs/INSTALL.md) · [Changelog](CHANGELOG.md)
+- [Desktop packaging, signing and notarization](docs/DESKTOP-TAURI-VERIFICATION.md)
+- [GJC provider and worker contract](server/GJC-LIVE-SPEC.md) · [Worker protocol](docs/GJC-WORKER-PROTOCOL.md)
+- [Design system](DESIGN.md) · [Repository guide for agents](AGENTS.md)
+- [Licensing](docs/LICENSING.md) · [Relicensing record](docs/RELICENSING.md) · [Upstream intake](docs/UPSTREAM.md)
+- [Contributing](CONTRIBUTING.md) · [Contributor terms](CLA.md)
 
 ## License
 
-[MIT](LICENSE) since v2.0.0-beta.7. Earlier releases were AGPL-3.0. Notices
-for bundled dependencies are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+MIT. See [LICENSE](LICENSE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The project began as a fork of [claudecodeui](https://github.com/siteboon/claudecodeui) and was rewritten file by file before relicensing; [docs/RELICENSING.md](docs/RELICENSING.md) records the method and the measured residual.

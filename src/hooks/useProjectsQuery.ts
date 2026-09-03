@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '../utils/api';
 import type { Project, ProjectSession } from '../types/app';
@@ -116,22 +116,28 @@ export const mergeExpandedSessionPages = (previousProjects: Project[], incomingP
 };
 
 export function useProjectsQuery() {
+  const client = useQueryClient();
   return useQuery({
     queryKey: PROJECTS_QUERY_KEY,
+    // A refetch returns the first page of each project's sessions; pages the
+    // user expanded are merged back here, on the fetch path only. Doing it in
+    // `structuralSharing` applied the same union to every cache write, so a
+    // session removed with `setQueryData` (delete, archive) came straight
+    // back from the previous list until the next reload.
     queryFn: async () => {
       const data = await readProjectsResponse(await api.projects(), 'fetching');
       if (data === null) {
         throw new Error('projects fetch degraded');
       }
-      return data;
+      return mergeExpandedSessionPages(client.getQueryData<Project[]>(PROJECTS_QUERY_KEY) ?? [], data);
     },
     structuralSharing: (oldData, newData) => {
       const previous = (oldData as Project[] | undefined) ?? [];
-      const merged = mergeExpandedSessionPages(previous, newData as Project[]);
+      const next = newData as Project[];
       if (previous.length === 0) {
-        return merged;
+        return next;
       }
-      return projectsHaveChanges(previous, merged) ? merged : previous;
+      return projectsHaveChanges(previous, next) ? next : previous;
     },
   });
 }

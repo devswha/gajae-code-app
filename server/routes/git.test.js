@@ -196,6 +196,20 @@ test('readProjectDiff scopes nested projects and returns project-relative paths'
   assert.match(result.files.find((file) => file.path === 'new.txt').patch, /\+new/);
 });
 
+test('readProjectDiff hides the runtime session scratch but not the rest of .gjc', async (t) => {
+  const repository = await temporaryRepository(t);
+  await mkdir(path.join(repository, '.gjc/_session-01a0/runtime'), { recursive: true });
+  await mkdir(path.join(repository, '.gjc/skills/review'), { recursive: true });
+  await writeFile(path.join(repository, '.gjc/_session-01a0/runtime/runtime-state.json'), '{}\n');
+  await writeFile(path.join(repository, '.gjc/_session-01a0/state.json'), '{}\n');
+  await writeFile(path.join(repository, '.gjc/skills/review/SKILL.md'), '# review\n');
+  await writeFile(path.join(repository, 'src.txt'), 'real\n');
+
+  const result = await readProjectDiff(repository);
+  assert.deepEqual(result.files.map((file) => file.path).sort(), ['.gjc/skills/review/SKILL.md', 'src.txt']);
+  assert.equal(result.totalFiles, 2);
+});
+
 test('readProjectDiff previews unborn text files and identifies binary files', async (t) => {
   const repository = await temporaryRepository(t);
   await writeFile(path.join(repository, 'draft.txt'), '++first\n--second\n');

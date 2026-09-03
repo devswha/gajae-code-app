@@ -489,10 +489,15 @@ export class GjcWorkerHost {
         run.abortDeadlineExceeded = true;
         this.#response(request, failure('abort_failed', 'Unable to abort the run.'));
       } else {
+        // A refused abort (the runtime had nothing to stop, or its abort threw)
+        // is not the run's final word: the next Stop must ask again rather than
+        // replay this answer for the rest of the run.
+        if (!aborted) run.abortPromise = undefined;
         run.aborted = aborted;
         this.#response(request, success({ runId: run.runId, aborted }));
       }
     } catch {
+      run.abortPromise = undefined;
       this.#response(request, failure('abort_failed', 'Unable to abort the run.'));
     }
   }

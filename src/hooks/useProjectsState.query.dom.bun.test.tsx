@@ -209,6 +209,28 @@ test('an upsert for the viewed session renames it where the header reads it, not
   }
 });
 
+test('deleting a session removes its row and the row stays removed', async () => {
+  const sessions = [
+    { id: 'session-a', summary: 'Keep me', __provider: 'gjc' as const },
+    { id: 'session-b', summary: 'Delete me', __provider: 'gjc' as const },
+  ];
+  const fetch = installFetch([{ body: [project(sessions)] }]);
+  try {
+    const harness = renderHarness();
+    await waitFor(() => assert.deepEqual(harness.getState().projects[0]?.sessions?.map((session) => session.id), ['session-a', 'session-b']));
+
+    act(() => { harness.getState().handleSessionDelete('session-b'); });
+
+    // Not just on the next tick: the cache merge used to bring the row back.
+    await waitFor(() => assert.deepEqual(harness.getState().projects[0]?.sessions?.map((session) => session.id), ['session-a']));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.deepEqual(harness.getState().projects[0]?.sessions?.map((session) => session.id), ['session-a']);
+    assert.equal(harness.getState().projects[0]?.sessionMeta?.total, 1);
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('optimistic sessions survive a shorter refetch page', async () => {
   const fetch = installFetch([{ body: [project()] }, { body: [project()] }]);
   try {

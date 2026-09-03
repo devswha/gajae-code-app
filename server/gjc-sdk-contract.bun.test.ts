@@ -1434,6 +1434,47 @@ test('failed SDK abort rolls back suppression and allows subsequent terminal eve
     assert.equal((response(f.frames, 'abort-throws').payload as Record<string, unknown>).ok, true);
   } finally { await f.close(); }
 });
+test('Stop pressed while the session is still being built ends the run before its prompt', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const f = await fixture();
+  const inner = f.adapter['options'].createSessionFactory as GjcAgentSessionFactory;
+  f.adapter['options'].createSessionFactory = (async (input: never) => { await gate; return inner(input); }) as GjcAgentSessionFactory;
+  try {
+    const run = f.host.handle(request('session.start', 'abort-early', { message: 'hello', options: f.options }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(f.sessions.length, 0, 'the session must still be under construction');
+    await f.host.handle(request('turn.abort', 'abort-early-request', { runId: 'abort-early' }));
+    assert.deepEqual((response(f.frames, 'abort-early-request').payload as Record<string, unknown>).result, { runId: 'abort-early', aborted: true });
+
+    release();
+    await run;
+    const session = await firstSession(f.sessions);
+    assert.equal(session.promptCalls, 0, 'an aborted run must not prompt');
+    assert.equal(session.disposed, true);
+    assert.equal((response(f.frames, 'abort-early').payload as Record<string, unknown>).ok, true);
+    // No session id was announced: nothing was written that a later turn could resume.
+    assert.equal(methods(f.frames).includes('session.created'), false);
+    assert.equal(methods(f.frames).includes('turn.completed'), false);
+    assert.equal(methods(f.frames).includes('turn.failed'), false);
+  } finally { await f.close(); }
+});
+test('a refused abort does not answer for the next one', async () => {
+  const f = await fixture();
+  try {
+    const run = f.host.handle(request('session.start', 'abort-retry', { message: 'hello', options: f.options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    session.abortError = new Error('abort failed');
+    await f.host.handle(request('turn.abort', 'abort-retry-1', { runId: 'abort-retry' }));
+    assert.deepEqual((response(f.frames, 'abort-retry-1').payload as Record<string, unknown>).result, { runId: 'abort-retry', aborted: false });
+
+    session.abortError = undefined;
+    await f.host.handle(request('turn.abort', 'abort-retry-2', { runId: 'abort-retry' }));
+    assert.deepEqual((response(f.frames, 'abort-retry-2').payload as Record<string, unknown>).result, { runId: 'abort-retry', aborted: true });
+    await run;
+  } finally { await f.close(); }
+});
 test('failed SDK abort keeps pending and subsequent asks available', async () => {
   const f = await fixture();
   try {

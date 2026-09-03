@@ -95,6 +95,23 @@ test('the Work section lists every non-idle session, most urgent first, with per
   assert.doesNotMatch(counts, /waiting for input|ready/);
 });
 
+test('the Work section pages every project with more through one control, not one button per project', async () => {
+  const t = await makeT();
+  const base = sidebarContentProps(t);
+  const paged = base.projectListProps.projects.map((project) => ({ ...project, sessionMeta: { total: 30, hasMore: true } }));
+  const html = renderSidebarContent(t, {
+    projectListProps: {
+      ...base.projectListProps,
+      projects: paged,
+      filteredProjects: paged,
+      getSessionStatus: (sessionId) => sessionId === 'session-running' ? 'running' : 'idle',
+    },
+  });
+
+  const work = html.slice(html.indexOf('id="sidebar-work-content"'));
+  assert.equal(work.match(/sessions\.showMore/g)?.length, 1, 'expected exactly one paging control under Work');
+});
+
 test('project rows show an attention badge only when a session needs a look', async () => {
   const t = await makeT();
 

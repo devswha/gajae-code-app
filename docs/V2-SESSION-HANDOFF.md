@@ -457,6 +457,16 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
 
 ## How to resume (next session)
 
+0. **Pre-release e2e drill done 2026-09-03 (`docs/plans/beta7-e2e-drill.md`).**
+   14 chat-surface scenarios against the live dev stack; four failed and
+   were fixed the same afternoon: early Stop refused and poisoned later
+   aborts (adapter `#starting` + worker abort-promise reset), session delete/
+   archive not leaving the sidebar (`useProjectsQuery` merge moved to
+   `queryFn`), three identical `Show more conversations` under Work (one
+   control), and the Changes tab buried under `.gjc/_session-*` runtime
+   scratch (hidden server-side). Plus write-row line numbers in Last turn.
+   The stack is clear for packaging.
+
 1. **Rebuild a signed + notarized DMG from this HEAD and accept it from
    the mounted image.** That is the only remaining blocker before a
    publishable desktop build. Follow `docs/DESKTOP-TAURI-VERIFICATION.md`

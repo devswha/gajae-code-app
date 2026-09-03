@@ -38,12 +38,22 @@ test('maps last-turn edit pairs, writes, deletes, and moves in call order', () =
     ['removed', 'one'],
     ['added', 'two'],
   ]);
-  assert.deepEqual(files[1].rows?.map((row) => [row.kind, row.content]), [
-    ['added', 'first'],
-    ['added', 'second'],
+  assert.deepEqual(files[1].rows?.map((row) => [row.kind, row.content, row.kind === 'hunk' ? null : row.newLine]), [
+    ['added', 'first', 1],
+    ['added', 'second', 2],
   ]);
   assert.equal(files[2].rows, null);
   assert.equal(files[3].rows, null);
+});
+
+test('a written file that ends in a newline shows no phantom empty last line', () => {
+  const files = lastTurnFiles([
+    message({ kind: 'text', role: 'user', content: 'Write' }),
+    message({ toolName: 'write', toolInput: { path: 'note.md', content: 'hello\n' }, toolResult: { content: 'ok', isError: false } }),
+    message({ toolName: 'write', toolInput: { path: 'blank.md', content: '\n' }, toolResult: { content: 'ok', isError: false } }),
+    message({ toolName: 'write', toolInput: { path: 'gap.md', content: 'a\n\n' }, toolResult: { content: 'ok', isError: false } }),
+  ]);
+  assert.deepEqual(files.map((file) => file.rows?.map((row) => row.content)), [['hello'], [''], ['a', '']]);
 });
 
 test('excludes edits before the last user message and ignores a turn without edits', () => {

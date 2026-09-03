@@ -348,6 +348,8 @@ async function resumeManager(providerSessionId: string, sessionRoot: string): Pr
 /** In-process, serial-only SDK runtime. AuthStorage and ModelRegistry are app-owned singleton inputs. */
 export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   readonly #runs = new Map<string, ActiveRun>();
+  /** Runs accepted but not yet holding a session; an abort can still reach them. */
+  readonly #starting = new Map<string, { abortRequested: boolean }>();
   readonly oauth: GjcWorkerOAuthRuntime;
 
   constructor(
@@ -405,8 +407,9 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
     if (isAppOAuthCommand(message)) throw new Error(FAILURE);
     const runId = typeof options.runHandle === 'string' && options.runHandle ? options.runHandle : '';
     const config = configFromOptions(options);
-    if (!runId || this.#runs.has(runId)) throw new Error(FAILURE);
-    const task = this.#run(runId, message, options, config, writer);
+    if (!runId || this.#runs.has(runId) || this.#starting.has(runId)) throw new Error(FAILURE);
+    this.#starting.set(runId, { abortRequested: false });
+    const task = this.#run(runId, message, options, config, writer).finally(() => this.#starting.delete(runId));
     return Object.assign(task, { abortHandle: runId });
   }
 
@@ -440,7 +443,17 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
 
   async abortGjcSession(sessionId: string): Promise<boolean> {
     const run = this.#runs.get(sessionId);
-    if (!run || run.abortState !== 'idle') return false;
+    if (!run) {
+      // Stop pressed while the session is still being built (model and
+      // credential resolution, createAgentSession): there is nothing to abort
+      // yet, but there will be. Record it so the run ends before its prompt
+      // instead of refusing the user and letting the turn go ahead.
+      const starting = this.#starting.get(sessionId);
+      if (!starting || starting.abortRequested) return false;
+      starting.abortRequested = true;
+      return true;
+    }
+    if (run.abortState !== 'idle') return false;
     run.abortState = 'aborting';
     // Set before awaiting: the SDK emits its aborted `message_end` while
     // `session.abort()` is still in flight, and that turn must not be reported
@@ -629,6 +642,16 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         };
         setActive(activeRun);
         this.#runs.set(runId, activeRun);
+        if (this.#starting.get(runId)?.abortRequested) {
+          // Aborted before it had a session. No prompt, no terminal frame
+          // (the app already completed the run as aborted when the abort was
+          // accepted), and no session id: an empty transcript that the next
+          // turn would try to resume does not exist on disk.
+          activeRun.abortState = 'aborted';
+          state.abortPending = true;
+          state.abortRequested = true;
+          return;
+        }
         if (!resumedId) writer.setSessionId?.(sessionManager.getSessionId());
         let promptMessage: string | null = message;
         const commandMatch = /^\/([^\s]+)(?:\s+(.*))?$/.exec(message.trim());

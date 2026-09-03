@@ -137,17 +137,22 @@ export function lastTurnFiles(messages: NormalizedMessage[]): LastTurnFile[] {
     }
     if (kind === 'write') {
       const content = typeof input.content === 'string' ? input.content : '';
-      const lineCount = content.split('\n').length;
-      if (content.length > budget.characters || lineCount > budget.rows) {
+      const lines = content.split('\n');
+      // A file that ends in a newline has no extra empty last line, as git
+      // would agree; the split alone would show one.
+      if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+      if (content.length > budget.characters || lines.length > budget.rows) {
         return [{ path, kind, oldPath: null, rows: null, tooLarge: true }];
       }
       budget.characters -= content.length;
-      budget.rows -= lineCount;
-      return [{ path, kind, oldPath: null, rows: content.split('\n').map((line) => ({
+      budget.rows -= lines.length;
+      // The whole file is new, so every row has a real line in the file: a
+      // comment on it lands as `path:line`, same as a working-tree diff.
+      return [{ path, kind, oldPath: null, rows: lines.map((line, index) => ({
         kind: 'added',
         content: line,
         oldLine: null,
-        newLine: null,
+        newLine: index + 1,
       })), tooLarge: false }];
     }
     return [{ path, kind, oldPath: null, rows: null, tooLarge: false }];

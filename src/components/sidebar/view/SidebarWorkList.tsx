@@ -42,6 +42,11 @@ export default function SidebarWorkList({ projectListProps, quietWhenEmpty = fal
   } = projectListProps;
 
   const sessionRows = collectWorkRows({ filteredProjects, getProjectSessions, getSessionStatus });
+  // The rows here come from every project at once, so paging is one control
+  // that pulls the next page of each project with more; one anonymous button
+  // per project read as the same button repeated.
+  const moreProjects = filteredProjects.filter((project) => project.sessionMeta?.hasMore);
+  const loadingMore = moreProjects.some((project) => loadingMoreProjects.has(project.projectId));
 
   if (isLoading || projects.length === 0) {
     return (
@@ -98,20 +103,17 @@ export default function SidebarWorkList({ projectListProps, quietWhenEmpty = fal
         />
       ))}
 
-      {filteredProjects.filter((project) => project.sessionMeta?.hasMore).map((project) => (
+      {moreProjects.length > 0 && (
         <Button
-          key={project.projectId}
           variant="ghost"
           size="sm"
           className="h-8 w-full justify-center text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => onLoadMoreSessions(project.projectId)}
-          disabled={loadingMoreProjects.has(project.projectId)}
+          onClick={() => moreProjects.forEach((project) => onLoadMoreSessions(project.projectId))}
+          disabled={loadingMore}
         >
-          {loadingMoreProjects.has(project.projectId)
-            ? t('sessions.loadingSessions')
-            : t('sessions.showMore')}
+          {loadingMore ? t('sessions.loadingSessions') : t('sessions.showMore')}
         </Button>
-      ))}
+      )}
     </div>
   );
 }

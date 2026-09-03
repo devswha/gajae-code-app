@@ -274,9 +274,18 @@ function projectRelativeStatusEntries(statusOutput, projectPrefix) {
   });
 }
 
+/**
+ * The runtime keeps each session's scratch (runtime state, workflow gates,
+ * lock files) under `.gjc/_session-<id>/` inside the project. It is never
+ * something to review or commit, and a project without a `.gitignore` for it
+ * shows hundreds of those rows before its first real change. `.gjc/` itself
+ * stays: skills and rules there are the user's.
+ */
+const RUNTIME_SESSION_SCRATCH = /^\.gjc\/_session-[^/]+\//;
+
 function projectRelativeStatusEntry(entry, projectPrefix) {
   const filePath = projectRelativeGitPath(entry.path, projectPrefix);
-  if (!filePath) return null;
+  if (!filePath || RUNTIME_SESSION_SCRATCH.test(filePath)) return null;
   const oldPath = entry.oldPath ? projectRelativeGitPath(entry.oldPath, projectPrefix) : null;
   return { ...entry, path: filePath, oldPath };
 }

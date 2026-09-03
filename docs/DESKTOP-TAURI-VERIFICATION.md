@@ -45,6 +45,28 @@ Final local beta.3 candidate:
 - Installed bundle: `/Applications/Gajae Code App.app`, desktop version `0.2.2`
 - Deep code-signature verification and packaged native/Bun loading smoke: pass
 
+## beta.8 — signed + notarized, accepted from the copy-out — **PASSED 2026-09-03 (23:45 KST)**
+
+Built at `2f58f27` (package version `2.0.0-beta.8`) following the signed
+release procedure. First release workflow run (33766237655) failed in the
+Linux job's Verify source: the debug-bundle test assumed the sessions table
+exists — on CI's fresh HOME it does not, and the lookup threw. Fixed in
+`2f58f27` (bundle assembles without a row) and the DMG was rebuilt from that
+commit, not the stale first build.
+
+- App notarization `5870d421-e0ba-4a03-ba69-719753392b63` → Accepted in
+  3 min, stapled. DMG (APFS) notarization `54376a0d-413f-4162-9fcf-85afa66745d6`
+  → Accepted in 3 min, stapled.
+- Final image `223877660` bytes, SHA-256
+  `d4484b203846ffac92dd870c63aa0c7d7124c1130ac10499b8eb9730bcbad2d8`.
+- Acceptance: stapler validate on image and app OK; `spctl -t open/-t exec`
+  → `accepted`, `source=Notarized Developer ID`; the quarantined
+  `ditto` copy verifies deep+strict and Gatekeeper-accepts; packaged smoke
+  `{"status":"ok","version":"2.0.0-beta.8"}`; `--data-survival`
+  `events=1, schemas=idempotent`.
+- Workflow rerun 33767561239 succeeded; the notarized image replaced the
+  runner's ad-hoc asset and the download re-verified (checksum, staple).
+
 ## beta.7 — second image: “damaged” after install, fixed — **PASSED 2026-09-03 (19:18 KST)**
 
 The 16:15 image below passed every check on its mount and was published;

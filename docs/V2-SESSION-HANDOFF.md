@@ -17,6 +17,13 @@ Last updated: 2026-09-02 night. Supersedes the 2026-07-18 handoff.
   2026-09-02 session-UI pass (tool output density, four-state session status,
   sidebar search, concise titles, per-project permissions, turn work block,
   composer Stop / Esc) is recorded below.
+- **`v2.0.0-beta.8` is published (2026-09-03 23:50 KST).** Same-day
+  follow-up carrying the fresh-account test fixes: desktop sign-in links
+  (sidecar open-url), the damaged-image root cause, model picker
+  availability/search, first-turn model pin, stream-delta merge, Tasks tab,
+  Copy debug info, Chromium download card, empty-workspace sidebar, composer
+  focus on New work item. Cut `5cdbfbc`+`2f58f27`; notarized DMG
+  (SHA-256 `d4484b20…bad2d8`) replaced the CI asset; notes hand-written.
 - **`v2.0.0-beta.7` is published (2026-09-03) as the first MIT release and
   the first notarized macOS image — and its DMG was replaced once at 19:15
   KST.** The 16:20 image said “damaged” after install: a Hangul bin link
@@ -506,7 +513,11 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
 
 1. ~~Rebuild a signed + notarized DMG and accept it from the mounted image~~
    — done 2026-09-03, see TL;DR.
-2. ~~Cut `v2.0.0-beta.7`~~ — published 2026-09-03. **The release
+2. ~~Cut `v2.0.0-beta.7`~~ — published 2026-09-03; **beta.8 cut the same
+   evening.** Next: **scratch-workspace quick start** — empty workspace gets
+   "Start in a scratch workspace" (creates ~/gajae-scratch, registers it as a
+   project, opens a conversation) so a first run is one click while the
+   project stays the sandbox boundary. Then the CI signing lane. **The release
    workflow now signs and notarizes on the runner once the `release`
    environment holds five secrets** (`APPLE_CERTIFICATE_P12`,
    `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`,

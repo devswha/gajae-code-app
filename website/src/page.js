@@ -77,7 +77,7 @@ export function renderLandingPage() {
           <a class="quiet-link all-downloads" href="#download">All download options</a>
           <p class="release-meta" id="macos-beta-notice">
             <span>Public beta</span>
-            Apple Silicon · macOS 11+ · Not notarized
+            Apple Silicon · macOS 11+ · Notarized by Apple
             <a href="#macos-install">First-launch instructions</a>
           </p>
         </section>
@@ -174,16 +174,17 @@ export function renderLandingPage() {
             <p class="eyebrow">Current macOS beta</p>
             <h2>Opening the app for the first time</h2>
             <p>
-              This build is ad-hoc signed and has not been notarized by Apple.
-              Verify the download before opening it.
+              Since v2.0.0-beta.7 the DMG is signed with a Developer ID and
+              notarized by Apple, so macOS opens it like any other app. Verify the
+              download anyway; the checksum is published beside it.
             </p>
           </div>
           <div class="install-layout">
             <ol class="install-steps">
               <li><span>1</span><p>Download the DMG and its SHA-256 file.</p></li>
               <li><span>2</span><p>Open the DMG and drag Gajae Code App to Applications.</p></li>
-              <li><span>3</span><p>Try to open the app once.</p></li>
-              <li><span>4</span><p>If macOS blocks it, open <strong>System Settings → Privacy &amp; Security</strong> and choose <strong>Open Anyway</strong>.</p></li>
+              <li><span>3</span><p>Open the app. Gatekeeper checks the notarization ticket and lets it run.</p></li>
+              <li><span>4</span><p>Only a build older than beta.7 needs <strong>System Settings → Privacy &amp; Security</strong> → <strong>Open Anyway</strong>.</p></li>
             </ol>
             <div class="verify-block">
               <p>Verify in Terminal</p>

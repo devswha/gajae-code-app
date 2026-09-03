@@ -16,10 +16,12 @@ test('landing page exposes the pinned GitHub download buttons', () => {
   assert.match(html, new RegExp(RELEASE.tag.replace('.', '\\.')));
 });
 
-test('explains the unnotarized macOS beta before download', () => {
+test('states that the macOS beta is notarized and keeps the legacy Gatekeeper path for older builds', () => {
   const html = renderLandingPage();
   assert.match(html, /Public beta/);
-  assert.match(html, /Apple Silicon · macOS 11\+ · Not notarized/);
+  assert.match(html, /Apple Silicon · macOS 11\+ · Notarized by Apple/);
+  assert.equal(html.includes('Not notarized'), false);
+  assert.equal(html.includes('has not been notarized'), false);
   assert.match(html, /System Settings → Privacy &amp; Security/);
   assert.match(html, /Open Anyway/);
   assert.match(html, new RegExp(APPLE_GATEKEEPER_HELP_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));

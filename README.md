@@ -103,4 +103,4 @@ A card answered in one tab closes in every other viewer. Always deny is offered 
 
 ## License
 
-MIT. See [LICENSE](LICENSE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The project began as a fork of [claudecodeui](https://github.com/siteboon/claudecodeui) and was rewritten file by file before relicensing; [docs/RELICENSING.md](docs/RELICENSING.md) records the method and the measured residual.
+MIT. See [LICENSE](LICENSE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The project began as a fork and was rewritten file by file before relicensing; [docs/UPSTREAM.md](docs/UPSTREAM.md) names the origin and [docs/RELICENSING.md](docs/RELICENSING.md) records the method and the measured residual.

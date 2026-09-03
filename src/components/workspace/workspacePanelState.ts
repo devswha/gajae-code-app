@@ -8,7 +8,7 @@
  * panel component only has to render what these functions return.
  */
 
-export const WORKSPACE_TABS = ['status', 'changes', 'browser'] as const;
+export const WORKSPACE_TABS = ['status', 'changes', 'tasks', 'browser'] as const;
 
 export type WorkspaceTab = (typeof WORKSPACE_TABS)[number];
 

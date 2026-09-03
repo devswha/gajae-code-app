@@ -59,10 +59,11 @@ test('a tab retired with its panel degrades to the default instead of sticking',
 
 test('tablist keys move across tabs and wrap in both directions', () => {
   assert.equal(workspaceTabForKey('status', 'ArrowRight'), 'changes');
-  assert.equal(workspaceTabForKey('changes', 'ArrowRight'), 'browser');
+  assert.equal(workspaceTabForKey('changes', 'ArrowRight'), 'tasks');
+  assert.equal(workspaceTabForKey('tasks', 'ArrowRight'), 'browser');
   assert.equal(workspaceTabForKey('browser', 'ArrowRight'), 'status');
   assert.equal(workspaceTabForKey('status', 'ArrowLeft'), 'browser');
-  assert.equal(workspaceTabForKey('browser', 'ArrowLeft'), 'changes');
+  assert.equal(workspaceTabForKey('browser', 'ArrowLeft'), 'tasks');
   assert.equal(workspaceTabForKey('browser', 'Home'), 'status');
   assert.equal(workspaceTabForKey('status', 'End'), 'browser');
 });

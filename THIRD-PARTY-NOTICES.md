@@ -10,7 +10,7 @@ Gajae Code App redistributes the packages below. Their licenses are reproduced
 here because most of them require it, and because a user who receives a build
 has no other way to find out what is inside it.
 
-This file describes 550 packages that ship in a distribution.
+This file describes 548 packages that ship in a distribution.
 Development-only dependencies are excluded because they do not.
 
 Deliberately absent: `mupdf`, `elkjs`. The build removes them from every distribution, so this project does not
@@ -42,7 +42,6 @@ standard text of the named license.
 | `@gajae-code/utils` | 0.15.6 | MIT | Yeachan-Heo |
 | `@nodable/entities` | 3.0.0 | MIT | Amit Gupta (https://solothought.com) |
 | `@puppeteer/browsers` | 2.13.2 | Apache-2.0 | The Chromium Authors |
-| `@tauri-apps/api` | 2.11.1 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
 | `@tokenizer/token` | 0.3.0 | MIT | Borewit |
 | `@xterm/headless` | 6.0.0 | MIT | (not stated) |
 | `cookie-signature` | 1.0.6 | MIT | TJ Holowaychuk <tj@learnboost.com> |
@@ -1944,42 +1943,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-```
-
-### @tauri-apps/api 2.11.1
-
-License: Apache-2.0 OR MIT
-Copyright holder: Tauri Programme within The Commons Conservancy
-Homepage: https://github.com/tauri-apps/tauri#readme
-
-_This package ships no license file. It declares Apache-2.0 OR MIT; the terms are
-the standard text of that license._
-
-### @tauri-apps/plugin-shell 2.3.0
-
-License: MIT OR Apache-2.0
-
-```text
-SPDXVersion: SPDX-2.1
-DataLicense: CC0-1.0
-PackageName: tauri
-DataFormat: SPDXRef-1
-PackageSupplier: Organization: The Tauri Programme in the Commons Conservancy
-PackageHomePage: https://tauri.app
-PackageLicenseDeclared: Apache-2.0
-PackageLicenseDeclared: MIT
-PackageCopyrightText: 2019-2022, The Tauri Programme in the Commons Conservancy
-PackageSummary: <text>Tauri is a rust project that enables developers to make secure
-and small desktop applications using a web frontend.
-                </text>
-PackageComment: <text>The package includes the following libraries; see
-Relationship information.
-                </text>
-Created: 2019-05-20T09:00:00Z
-PackageDownloadLocation: git://github.com/tauri-apps/tauri
-PackageDownloadLocation: git+https://github.com/tauri-apps/tauri.git
-PackageDownloadLocation: git+ssh://github.com/tauri-apps/tauri.git
-Creator: Person: Daniel Thompson-Yvetot
 ```
 
 ### @tokenizer/inflate 0.4.1

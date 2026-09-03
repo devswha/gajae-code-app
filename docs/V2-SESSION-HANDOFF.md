@@ -469,6 +469,33 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
    control), and the Changes tab buried under `.gjc/_session-*` runtime
    scratch (hidden server-side). Plus write-row line numbers in Last turn.
    The stack is clear for packaging.
+   **Evening, while re-shooting the website/README media on v2.0.0-beta.7
+   (the 2026-08-21 screenshots and demo video showed the retired file
+   tree/editor UI and were deleted):** two more app fixes and three
+   observations.
+   - Fixed: the Changes tab's Last-turn scope opened before the session's
+     history had loaded stayed on "No changes" until a click; the panel is
+     not on the store owner's render path, so `useLastTurnChanges` now
+     subscribes per session (`sessionStore.subscribeSession` +
+     `useSyncExternalStore`).
+   - Fixed: a model chosen on the new-session screen ran the first turn
+     but was not the session's; after a reload (or a change of the global
+     pick) the next turn silently ran on the app default. Seen live: a
+     Terra session's second turn went to GLM and hit its rate limit. An
+     explicit model on the first turn is now the session pin
+     (`resolveResumeModel(..., { firstTurn })`); `default` pins nothing.
+   - Gap, not fixed: with ChatGPT models the runtime edits through
+     `apply_patch`, which neither the Last-turn scope (edit/write/delete/
+     move only) nor the tool card configs know; the scope shows nothing for
+     those turns (Working tree still does) and the card shows raw
+     Parameters/Details. Needs a patch parser or a runtime-side normalization.
+   - Upstream: with the ChatGPT provider the model received the project
+     path as `/Users/USER/…` and passed it back as the bash `cwd`, which
+     does not exist; the run recovered via `pwd`. The runtime redacts the
+     home directory in what it sends and does not un-redact tool inputs.
+   - Upstream/behaviour: the title generator uses the `default` role model,
+     not the session's; when that provider is rate-limited the session keeps
+     its heuristic title even though the turn itself ran fine elsewhere.
 
 1. ~~Rebuild a signed + notarized DMG and accept it from the mounted image~~
    — done 2026-09-03, see TL;DR.

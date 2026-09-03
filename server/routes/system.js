@@ -44,7 +44,39 @@ export function createSystemRouter({ opener = defaultOpener } = {}) {
     }
   });
 
+  /**
+   * The desktop shell's webview loads the server's loopback origin, where
+   * neither Tauri IPC nor window.open reach the outside; a sign-in link or a
+   * docs link clicked there opened nothing. The sidecar runs on the same
+   * machine as the person, so it hands the URL to the OS browser. Only
+   * https: is accepted: this is for web pages, not for schemes.
+   */
+  router.post('/open-url', async (req, res) => {
+    const target = safeExternalUrl(req.body?.url);
+    if (!target) {
+      return res.status(400).json({ error: 'An https URL is required.' });
+    }
+
+    try {
+      await opener(target);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to open URL externally:', error);
+      return res.status(500).json({ error: 'Failed to open the link' });
+    }
+  });
+
   return router;
+}
+
+export function safeExternalUrl(value) {
+  if (typeof value !== 'string' || value.length > 4096) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname ? url.href : null;
+  } catch {
+    return null;
+  }
 }
 
 export default createSystemRouter();

@@ -534,6 +534,14 @@ spctl -a -t exec -vv "/tmp/gajae-copy/Gajae Code App.app"                    # a
 hdiutil detach /tmp/gajae-dmg
 ```
 
+Then, in the installed app (not the browser): open a provider sign-in and
+press **Open sign-in link** — the OS browser must open. The webview is the
+server's loopback origin, where Tauri IPC is not injected and `window.open`
+goes nowhere; since `b4fd118`+1 external links travel through
+`POST /api/system/open-url` (https only) and every `target="_blank"` anchor is
+routed the same way. beta.7 shipped without this and its sign-in button did
+nothing in the desktop app.
+
 The copy-out step exists because of beta.7's first image (below): every check
 on the mounted image passed, and the installed app said "damaged". The DMG
 builder now runs the same copy-out verification itself and builds an APFS

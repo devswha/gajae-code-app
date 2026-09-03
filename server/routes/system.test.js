@@ -22,6 +22,11 @@ async function serve(opener) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }),
+    postOpenUrl: (body) => fetch(`http://127.0.0.1:${port}/api/system/open-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
     close: async () => {
       server.close();
       await once(server, 'close');
@@ -79,5 +84,20 @@ test('open-file surfaces opener failures as a 500', async () => {
   } finally {
     await server.close();
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('open-url hands an https link to the OS opener and refuses everything else', async () => {
+  const opened = [];
+  const server = await serve(async (target) => { opened.push(target); });
+  try {
+    assert.equal((await server.postOpenUrl({ url: 'https://auth.example.com/oauth?code=1' })).status, 200);
+    assert.deepEqual(opened, ['https://auth.example.com/oauth?code=1']);
+    for (const url of ['http://example.com', 'file:///etc/passwd', 'javascript:alert(1)', 'x-apple.systempreferences:', 42, '']) {
+      assert.equal((await server.postOpenUrl({ url })).status, 400, `${String(url)} must be refused`);
+    }
+    assert.equal(opened.length, 1);
+  } finally {
+    await server.close();
   }
 });

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import { api } from '../../../utils/api';
+import { markDesktopShell } from '../../../utils/externalLink';
 import type { AuthContextValue, AuthProviderProps, AuthUser, AuthUserPayload } from '../types';
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         const payload = (await response.json()) as AuthUserPayload;
         if (!controller.signal.aborted) {
+          markDesktopShell(payload.shell?.desktop === true);
           setUser(payload.user ?? null);
         }
       } catch (error) {

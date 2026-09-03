@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { routeExternalAnchors } from '../../utils/externalLink';
+
 type TauriEventApi = {
   event?: {
     listen?: (
@@ -34,6 +36,10 @@ export function deepLinkPath(rawUrl: unknown): string | null {
 
 export default function DesktopDeepLinkBridge() {
   const navigate = useNavigate();
+  // Links that leave the app. The listener is installed unconditionally and
+  // decides per click whether it is inside the desktop shell (known once the
+  // auth bootstrap answers), so nothing depends on effect ordering.
+  useEffect(() => routeExternalAnchors(document), []);
   useEffect(() => {
     const tauri = (window as { __TAURI__?: TauriEventApi }).__TAURI__;
     const listen = tauri?.event?.listen;

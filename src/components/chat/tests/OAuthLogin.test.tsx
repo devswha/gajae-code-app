@@ -87,24 +87,18 @@ test('OAuth terminal failures expose safe retry messages without raw provider er
     assert.doesNotMatch(failure.message, /raw-provider-error/);
   }
 });
-test('desktop enables exactly one HTTPS-scoped external opener', async () => {
-  const [packageJsonText, capabilityText, tauriConfigText, rustMainText] = await Promise.all([
+test('the sign-in link leaves the app through the sidecar in the desktop shell, not through Tauri IPC', async () => {
+  const [packageJsonText, rustMainText, systemRoutesText] = await Promise.all([
     readFile('package.json', 'utf8'),
-    readFile('src-tauri/capabilities/default.json', 'utf8'),
-    readFile('src-tauri/tauri.conf.json', 'utf8'),
     readFile('src-tauri/src/main.rs', 'utf8'),
+    readFile('server/routes/system.js', 'utf8'),
   ]);
-  const packageJson = JSON.parse(packageJsonText) as {
-    dependencies: Record<string, string>;
-  };
-  const capability = JSON.parse(capabilityText) as { permissions: string[] };
-  const tauriConfig = JSON.parse(tauriConfigText) as {
-    plugins: { shell: { open: string } };
-  };
+  const packageJson = JSON.parse(packageJsonText) as { dependencies: Record<string, string> };
 
-  assert.equal(packageJson.dependencies['@tauri-apps/plugin-shell'], '2.3.0');
-  assert.equal(capability.permissions.filter((permission) => permission === 'shell:default').length, 1);
-  assert.equal(tauriConfig.plugins.shell.open, '^https://.+');
-  assert.equal((rustMainText.match(/tauri_plugin_shell::init\(\)/g) ?? []).length, 1);
-  assert.equal(rustMainText.includes('tauri_plugin_opener'), false);
+  // The webview loads the server's loopback origin, where Tauri IPC is not
+  // injected (src-tauri/src/main.rs says so), so a client-side plugin could
+  // never open anything there; the sidecar's open-url route does.
+  assert.equal('@tauri-apps/plugin-shell' in packageJson.dependencies, false);
+  assert.match(rustMainText, /Tauri IPC event\s+\/\/ injection is not guaranteed/);
+  assert.match(systemRoutesText, /router\.post\('\/open-url'/);
 });

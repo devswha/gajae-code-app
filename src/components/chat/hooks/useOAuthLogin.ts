@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { open } from '@tauri-apps/plugin-shell';
 
 import { useWebSocket } from '../../../contexts/WebSocketContext';
+import { openExternalUrl, safeExternalUrl } from '../../../utils/externalLink';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -215,34 +215,16 @@ export function safeOAuthAuthorizationUrl(value: unknown): string | null {
   if (typeof value !== 'string' || value.length > MAX_TEXT_LENGTH) {
     return null;
   }
-
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && url.hostname ? url.href : null;
-  } catch {
-    return null;
-  }
+  return safeExternalUrl(value);
 }
+
 /**
- * Opens a validated authorization URL through the desktop shell capability.
- * Browser development builds use a no-opener window as a fallback.
+ * Opens a validated authorization URL in the person's browser: through the
+ * sidecar inside the desktop shell (the webview is a loopback origin with no
+ * Tauri IPC and no working window.open), a new tab elsewhere.
  */
-export async function openOAuthAuthorizationUrl(value: unknown): Promise<boolean> {
-  const url = safeOAuthAuthorizationUrl(value);
-  if (!url || typeof window === 'undefined') {
-    return false;
-  }
-
-  if ('__TAURI_INTERNALS__' in window) {
-    try {
-      await open(url);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  return window.open(url, '_blank', 'noopener,noreferrer') !== null;
+export function openOAuthAuthorizationUrl(value: unknown): Promise<boolean> {
+  return openExternalUrl(safeOAuthAuthorizationUrl(value));
 }
 
 export function useOAuthLogin() {

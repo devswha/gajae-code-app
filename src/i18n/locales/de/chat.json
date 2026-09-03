@@ -53,7 +53,9 @@
       "reasoningTitle": "Begründung",
       "defaultModel": "Voreinstellung",
       "currentConfiguration": "Behalten Sie die aktuelle Konfiguration bei",
-      "signInRequired": "Melden Sie sich in den Einstellungen bei {{provider}} an, um dieses Modell zu verwenden"
+      "signInRequired": "Melden Sie sich in den Einstellungen bei {{provider}} an, um dieses Modell zu verwenden",
+      "search": "Anbieter oder Modell suchen",
+      "noMatches": "Keine Treffer"
     },
     "agentConfiguration": {
       "label": "Agenten-Setup",

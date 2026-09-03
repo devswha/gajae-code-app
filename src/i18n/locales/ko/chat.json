@@ -53,7 +53,9 @@
       "reasoningTitle": "추론",
       "defaultModel": "기본값",
       "currentConfiguration": "현재 설정 유지",
-      "signInRequired": "이 모델을 쓰려면 설정에서 {{provider}}에 로그인하세요"
+      "signInRequired": "이 모델을 쓰려면 설정에서 {{provider}}에 로그인하세요",
+      "search": "프로바이더·모델 검색",
+      "noMatches": "일치하는 항목 없음"
     },
     "agentConfiguration": {
       "label": "에이전트 설정",

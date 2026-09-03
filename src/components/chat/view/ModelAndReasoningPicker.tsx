@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Loader2, Search } from 'lucide-react';
 
 import { primaryModelSelector } from '../../../../shared/model-selectors';
 import { cn } from '../../../utils/cn';
@@ -130,6 +130,23 @@ export function deriveSessionModelOptions(
 }
 
 /**
+ * Narrows the provider/model groups to a query. A provider whose name matches
+ * keeps every model; otherwise a group keeps the models whose label or id
+ * match. Groups left with nothing disappear, so the provider column is the
+ * list of places where something matched.
+ */
+export function filterSessionModelGroups(groups: SessionModelGroup[], query: string): SessionModelGroup[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return groups;
+  const matches = (text: string) => text.toLowerCase().includes(needle);
+  return groups.flatMap((group) => {
+    if (matches(providerDisplayLabel(group.group)) || matches(group.group)) return [group];
+    const models = group.models.filter((model) => matches(model.label) || matches(model.value));
+    return models.length ? [{ ...group, models }] : [];
+  });
+}
+
+/**
  * Resolves which model id the trigger button should display: the live session
  * report wins, then an explicit raw selection, then the default-role model of
  * the selected (or current) preset.
@@ -215,11 +232,14 @@ export default function ModelAndReasoningPicker({
   const rootRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const [popupPosition, setPopupPosition] = useState({ bottom: 0, left: 0 });
+  const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  const groups = useMemo(
+  const allGroups = useMemo(
     () => deriveSessionModelOptions(modelOptions, presetOptions, availabilityKnown),
     [modelOptions, presetOptions, availabilityKnown],
   );
+  const groups = useMemo(() => filterSessionModelGroups(allGroups, query), [allGroups, query]);
   const displayModel = resolveDisplayModel(value, currentModel, presetOptions);
   const displayModelLabel = modelDisplayLabel(displayModel, modelOptions);
   const isRawSelection = value !== DEFAULT_MODEL_VALUE && !value.startsWith('profile:');
@@ -262,7 +282,10 @@ export default function ModelAndReasoningPicker({
     if (!open) {
       setActiveProvider(null);
       setActiveModel(null);
+      setQuery('');
+      return;
     }
+    window.requestAnimationFrame(() => searchRef.current?.focus());
   }, [open]);
 
   const chooseModel = async (modelId: string) => {
@@ -343,7 +366,26 @@ export default function ModelAndReasoningPicker({
             {!isRawSelection && <Check className="size-3.5 shrink-0 text-primary" />}
           </button>
 
-          <div className="mt-1 flex divide-x divide-border/60 border-t border-border/60 pt-1">
+          <div className="relative mt-1 px-1 pb-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-3 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(event) => { setQuery(event.target.value); setActiveProvider(null); }}
+              onKeyDown={(event) => { if (event.key === 'Escape' && query) { event.stopPropagation(); setQuery(''); } }}
+              placeholder={t('input.modelReasoning.search')}
+              aria-label={t('input.modelReasoning.search')}
+              className="h-7 w-full rounded-md border border-input bg-background pr-2 pl-7 text-xs outline-hidden placeholder:text-muted-foreground focus:border-ring"
+            />
+          </div>
+
+          {groups.length === 0 && (
+            <p className="px-2.5 py-6 text-center text-[11px] text-muted-foreground" role="status">
+              {t('input.modelReasoning.noMatches')}
+            </p>
+          )}
+
+          <div className={cn('flex divide-x divide-border/60 border-t border-border/60 pt-1', groups.length === 0 && 'hidden')}>
             <div className="min-w-0 flex-[1.1] pr-1" role="listbox" aria-label={t('input.modelReasoning.providerTitle')}>
               <p className="px-2.5 pt-1 pb-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
                 {t('input.modelReasoning.providerTitle')}

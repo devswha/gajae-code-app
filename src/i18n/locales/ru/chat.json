@@ -53,7 +53,9 @@
       "reasoningTitle": "Рассуждение",
       "defaultModel": "Стандартная модель",
       "currentConfiguration": "Сохранить текущую конфигурацию",
-      "signInRequired": "Войдите в {{provider}} в настройках, чтобы использовать эту модель"
+      "signInRequired": "Войдите в {{provider}} в настройках, чтобы использовать эту модель",
+      "search": "Поиск провайдеров и моделей",
+      "noMatches": "Ничего не найдено"
     },
     "agentConfiguration": {
       "label": "Настройка агента",

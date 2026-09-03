@@ -53,7 +53,9 @@
       "reasoningTitle": "Ragionamento",
       "defaultModel": "Predefinito",
       "currentConfiguration": "Mantieni la configurazione corrente",
-      "signInRequired": "Accedi a {{provider}} nelle impostazioni per usare questo modello"
+      "signInRequired": "Accedi a {{provider}} nelle impostazioni per usare questo modello",
+      "search": "Cerca provider o modelli",
+      "noMatches": "Nessun risultato"
     },
     "agentConfiguration": {
       "label": "Configurazione dell'agente",

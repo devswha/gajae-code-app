@@ -53,7 +53,9 @@
       "reasoningTitle": "推理",
       "defaultModel": "預設",
       "currentConfiguration": "保留現有配置",
-      "signInRequired": "要使用此模型，請在設定中登入 {{provider}}"
+      "signInRequired": "要使用此模型，請在設定中登入 {{provider}}",
+      "search": "搜尋供應商或模型",
+      "noMatches": "沒有相符項目"
     },
     "agentConfiguration": {
       "label": "代理設定",

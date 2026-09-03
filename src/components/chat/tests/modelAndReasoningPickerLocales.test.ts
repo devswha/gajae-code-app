@@ -13,6 +13,8 @@ const REQUIRED_KEYS = {
     'defaultModel',
     'currentConfiguration',
     'signInRequired',
+    'search',
+    'noMatches',
   ],
   agentConfiguration: ['label', 'title', 'description', 'search', 'noMatches'],
 } as const;

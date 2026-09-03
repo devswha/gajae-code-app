@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   deriveSessionModelOptions,
   displayedReasoningEffort,
+  filterSessionModelGroups,
   modelDisplayLabel,
   persistChosenModel,
   providerDisplayLabel,
@@ -263,4 +264,22 @@ test('choosing a model persists it before the optional reasoning step', async ()
   });
 
   assert.deepEqual(selected, ['openai-codex/gpt-5.6-sol']);
+});
+
+test('the search narrows providers by name and models by label or id, and drops empty providers', () => {
+  const groups = deriveSessionModelOptions([
+    { value: 'openai-codex/gpt-5.6-terra', label: 'GPT-5.6 Terra' },
+    { value: 'openai-codex/gpt-5.6-sol', label: 'GPT-5.6 Sol' },
+    { value: 'anthropic/claude-opus-5', label: 'Anthropic Opus 5' },
+    { value: 'zai/glm-5.3', label: 'GLM-5.3' },
+  ]);
+
+  assert.equal(filterSessionModelGroups(groups, '  '), groups, 'a blank query changes nothing');
+  // A provider name match keeps the whole provider.
+  assert.deepEqual(filterSessionModelGroups(groups, 'chatgpt').map((group) => [group.group, group.models.length]), [['openai-codex', 2]]);
+  // A model match keeps only the matching models, across providers.
+  assert.deepEqual(filterSessionModelGroups(groups, 'terra').map((group) => [group.group, group.models.map((model) => model.value)]), [['openai-codex', ['openai-codex/gpt-5.6-terra']]]);
+  // Ids count too, case-insensitively.
+  assert.deepEqual(filterSessionModelGroups(groups, 'OPUS').flatMap((group) => group.models.map((model) => model.value)), ['anthropic/claude-opus-5']);
+  assert.deepEqual(filterSessionModelGroups(groups, 'nothing-like-this'), []);
 });

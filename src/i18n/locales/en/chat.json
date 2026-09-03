@@ -53,7 +53,9 @@
       "reasoningTitle": "Reasoning",
       "defaultModel": "Default",
       "currentConfiguration": "Keep current configuration",
-      "signInRequired": "Sign in to {{provider}} in Settings to use this model"
+      "signInRequired": "Sign in to {{provider}} in Settings to use this model",
+      "search": "Search providers and models",
+      "noMatches": "No matches"
     },
     "agentConfiguration": {
       "label": "Agent setup",

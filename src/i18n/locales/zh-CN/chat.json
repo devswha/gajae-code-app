@@ -53,7 +53,9 @@
       "reasoningTitle": "分析",
       "defaultModel": "标准",
       "currentConfiguration": "保留当前配置",
-      "signInRequired": "要使用此模型，请在设置中登录 {{provider}}"
+      "signInRequired": "要使用此模型，请在设置中登录 {{provider}}",
+      "search": "搜索提供商或模型",
+      "noMatches": "无匹配项"
     },
     "agentConfiguration": {
       "label": "代理设置",

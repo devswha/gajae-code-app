@@ -120,7 +120,12 @@ async function buildDebugBundle(sessionId) {
     `version: ${await packageVersion()}`,
   ];
   if (sessionId) {
-    const row = sessionsDb.getSessionById(sessionId);
+    // A fresh install can lack the sessions table entirely; the bundle still
+    // assembles, just without a row.
+    let row = null;
+    try {
+      row = sessionsDb.getSessionById(sessionId);
+    } catch { /* no table yet */ }
     sections.push('', '## session', row ? JSON.stringify({
       sessionId: row.session_id,
       provider: row.provider,

@@ -45,6 +45,46 @@ Final local beta.3 candidate:
 - Installed bundle: `/Applications/Gajae Code App.app`, desktop version `0.2.2`
 - Deep code-signature verification and packaged native/Bun loading smoke: pass
 
+## beta.7 — Developer ID signed + notarized build, accepted from the mounted image — **PASSED 2026-09-03 (16:15 KST)**
+
+Built at `d6e7826` (package version `2.0.0-beta.7`, desktop version `0.2.2`)
+with `APPLE_SIGNING_IDENTITY` exported and `GITHUB_TOKEN` from `gh auth token`,
+following the signed release procedure below.
+
+- `server:payload:macos` 52 s → `tauri build --bundles app` 35 s →
+  `desktop:sign:macos` 15 s; 27 nested Mach-Os signed, one native restamped.
+  `codesign --verify --deep --strict` OK. Out-of-tree packaged smoke on the
+  hardened app (the script copies it out of the checkout) → `{"status":"ok"}`.
+- App notarization `cacf861b-4856-41a3-a959-4e131a1eec52` → `Accepted` in
+  4 minutes (the 73-minute first submission was a one-off). Same single
+  warning as before (`mammoth/test/test-data/empty.zip could not be
+  unpacked`). Stapled and validated; `spctl -a -t exec` → `accepted`,
+  `source=Notarized Developer ID`.
+- **Mistake caught by acceptance, recorded so it is not repeated:** the first
+  `desktop:dmg:macos` ran in a shell without `APPLE_SIGNING_IDENTITY`, so the
+  image was ad-hoc signed (`Signature=adhoc`, `TeamIdentifier=not set`).
+  notarytool still *accepted* that image and stapled it, but `spctl -a -t
+  open --context context:primary-signature` rejected it. The identity has to
+  be in the environment of every step, not only the sign step. The DMG was
+  rebuilt with the identity (the stapled app inside was kept) and
+  re-notarized: `fe911601-598b-46af-8041-d545ab753d91` → `Accepted` in
+  3 minutes; stapled.
+- Final image: `227303972` bytes (216.8 MiB), SHA-256
+  `f0659df093ee0085caf636c2dc3caaf25cf419821b9e6eaace52e1f473244c55`
+  (`.sha256` regenerated after stapling).
+- Acceptance, all from the mounted image at `/tmp/gajae-dmg`: `stapler
+  validate` on the DMG and the app → OK; `spctl -a -t open --context
+  context:primary-signature` and `-t install` on the DMG → `accepted`,
+  `source=Notarized Developer ID`; `spctl -a -t exec` on the app →
+  `accepted`; `codesign --verify --deep --strict` → OK; packaged-server
+  smoke → `{"status":"ok","version":"2.0.0-beta.7"}`; `--data-survival`
+  → `events=1, schemas=idempotent`. The `elkjs` stub holds outside the tree.
+
+This is the image to publish for `v2.0.0-beta.7`. The release workflow
+builds an ad-hoc DMG on the runner (no signing secrets in CI), so the
+notarized image and its `.sha256` are uploaded over the workflow's desktop
+asset after the release is created.
+
 ## Post-beta.3 HEAD — First Developer ID signed + notarized build — **2026-09-02: signing/notarization PASSED, mounted-image smoke FAILED**
 
 Built at `a4773ff` (package version `2.0.0-beta.7`, desktop version `0.2.2`)

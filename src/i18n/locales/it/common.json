@@ -66,7 +66,8 @@
     "tabs": {
       "status": "Stato",
       "changes": "Modifiche",
-      "browser": "Navigatore"
+      "browser": "Navigatore",
+      "tasks": "Attività"
     },
     "changes": {
       "title": "Modifiche",
@@ -107,6 +108,11 @@
       "truncated": "Mostrati {{shown}} file su {{total}}; l’elenco è limitato.",
       "moreLines_one": "Mostra {{count}} altra riga",
       "moreLines_other": "Mostra {{count}} altre righe"
+    },
+    "tasks": {
+      "empty": "Ancora niente in programma",
+      "emptyHint": "Quando l’agente tiene un elenco di attività in questa sessione, appare qui.",
+      "progress": "{{done}} di {{total}} completate"
     },
     "browser": {
       "address": "Indirizzo web",

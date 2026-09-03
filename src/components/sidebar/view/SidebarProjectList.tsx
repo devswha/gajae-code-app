@@ -58,6 +58,7 @@ export type SidebarProjectListProps = {
   onToggleSessionStar?: (sessionId: string) => void;
   onRegenerateTitle?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
+  onCopyDebugInfo?: (sessionId: string) => void;
   t: TFunction;
 };
 
@@ -104,6 +105,7 @@ export default function SidebarProjectList({
   onToggleSessionStar,
   onRegenerateTitle,
   onExportSession,
+  onCopyDebugInfo,
   t,
 }: SidebarProjectListProps) {
   const state = (
@@ -174,6 +176,7 @@ export default function SidebarProjectList({
               onToggleSessionStar={onToggleSessionStar}
               onRegenerateTitle={onRegenerateTitle}
               onExportSession={onExportSession}
+              onCopyDebugInfo={onCopyDebugInfo}
               t={t}
             />
           ))}

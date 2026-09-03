@@ -66,7 +66,8 @@
     "tabs": {
       "status": "ステータス。",
       "changes": "変更",
-      "browser": "Browser。"
+      "browser": "Browser。",
+      "tasks": "タスク"
     },
     "changes": {
       "title": "変更",
@@ -105,6 +106,11 @@
       },
       "truncated": "{{total}}件中{{shown}}件を表示中（一覧は制限されています）",
       "moreLines_other": "残り{{count}}行を表示"
+    },
+    "tasks": {
+      "empty": "まだ計画はありません",
+      "emptyHint": "このセッションでエージェントが ToDo リストを管理すると、ここに表示されます。",
+      "progress": "{{total}} 件中 {{done}} 件完了"
     },
     "browser": {
       "address": "Web アドレス。",

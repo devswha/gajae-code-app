@@ -28,6 +28,7 @@ const RETAINED_SIDEBAR_KEYS = [
   'projects.projects',
   'projects.addFirst',
   'sessions.newSession',
+  'sessions.copyDebugInfo',
   'sessions.newTask',
   'sessions.work',
   'sessions.noSessions',
@@ -49,6 +50,7 @@ const RETAINED_SIDEBAR_KEYS = [
   'actions.reportIssue',
   'actions.joinCommunity',
   'messages.refreshError',
+  'messages.debugInfoError',
   'messages.deleteProjectFailed',
   'messages.deleteProjectError',
 ] as const;

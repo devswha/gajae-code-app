@@ -105,6 +105,7 @@ function Sidebar(props: SidebarProps) {
     onRegenerateTitle: (sessionId) => { void controller.regenerateSessionTitle(sessionId); },
     onToggleSessionStar: (sessionId) => { void controller.toggleSessionStar(sessionId); },
     onExportSession: (sessionId) => { void controller.exportSession(sessionId); },
+    onCopyDebugInfo: (sessionId) => { void controller.copyDebugInfo(sessionId); },
     t,
   };
 

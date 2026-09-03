@@ -21,6 +21,7 @@
     "renameSession": "Rinomina conversazione",
     "regenerateTitle": "Rigenera titolo",
     "exportSession": "Esporta Markdown",
+    "copyDebugInfo": "Copia informazioni di debug",
     "pin": "Perno",
     "unpin": "Sblocca",
     "noSessions": "Nessuna conversazione ancora",
@@ -90,7 +91,8 @@
     "restoreProjectFailed": "Impossibile ripristinare il progetto. Riprova.",
     "restoreProjectError": "Si è verificato un errore di ripristino del progetto. Riprova.",
     "restoreSessionFailed": "Impossibile ripristinare la conversazione. Riprova.",
-    "restoreSessionError": "Si è verificato un errore di ripristino della conversazione. Riprova."
+    "restoreSessionError": "Si è verificato un errore di ripristino della conversazione. Riprova.",
+    "debugInfoError": "Impossibile copiare le informazioni di debug."
   },
   "version": {
     "updateAvailable": "Nuovo aggiornamento disponibile"

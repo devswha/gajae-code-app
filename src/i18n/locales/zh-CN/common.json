@@ -66,7 +66,8 @@
     "tabs": {
       "status": "状态",
       "changes": "更改",
-      "browser": "浏览器"
+      "browser": "浏览器",
+      "tasks": "任务"
     },
     "changes": {
       "title": "更改",
@@ -105,6 +106,11 @@
       },
       "truncated": "共 {{total}} 个文件，显示 {{shown}} 个；列表已截断。",
       "moreLines_other": "显示其余 {{count}} 行"
+    },
+    "tasks": {
+      "empty": "暂无计划",
+      "emptyHint": "当代理在此会话中维护待办列表时，会显示在这里。",
+      "progress": "已完成 {{done}} / {{total}}"
     },
     "browser": {
       "address": "网址",

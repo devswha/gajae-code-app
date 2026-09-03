@@ -5,7 +5,8 @@ import { forgetSessionStorage } from '../../chat/utils/chatStorage';
 import { useAppShellStore } from '../../../stores/useAppShellStore';
 import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
-import { api } from '../../../utils/api';
+import { api, authenticatedFetch } from '../../../utils/api';
+import { copyTextToClipboard } from '../../../utils/clipboard';
 import { downloadBlob, filenameFromContentDisposition } from '../../../utils/download';
 import type { ArchivedProjectListItem, ArchivedSessionListItem, DeleteProjectConfirmation, ProjectSortOrder, SessionDeleteConfirmation, SessionWithProvider } from '../types/types';
 import { clearLegacyStarredProjectIds, getAllSessions, readLegacyStarredProjectIds, readProjectSortOrder, sortProjects } from '../utils/utils';
@@ -279,8 +280,21 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
       downloadBlob(await response.blob(), filenameFromContentDisposition(response.headers.get('content-disposition'), `${sessionId}.md`));
     } catch (error) { console.error('[Sidebar] Error exporting session:', error); alert(t('messages.exportSessionError')); }
   }, [t]);
-  const collapseSidebar = useCallback(() => setSidebarVisible(false), [setSidebarVisible]);
+ 
+  const copyDebugInfo = useCallback(async (sessionId: string) => {
+    try {
+      const response = await authenticatedFetch('/api/system/debug-bundle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      });
+      const payload = response.ok ? await response.json() : null;
+      const bundle = payload?.bundle;
+      if (typeof bundle !== 'string' || !bundle) { console.error('[Sidebar] Debug bundle failed:', response.status); alert(t('messages.debugInfoError')); return; }
+      if (!(await copyTextToClipboard(bundle))) { console.error('[Sidebar] Debug bundle copy was refused'); alert(t('messages.debugInfoError')); }
+    } catch (error) { console.error('[Sidebar] Error assembling debug info:', error); alert(t('messages.debugInfoError')); }
+  }, [t]); const collapseSidebar = useCallback(() => setSidebarVisible(false), [setSidebarVisible]);
   const expandSidebar = useCallback(() => setSidebarVisible(true), [setSidebarVisible]);
 
-  return { isSidebarCollapsed: !isMobile && !sidebarVisible, expandedProjects, editingProject, showNewProject, editingName, initialSessionsLoaded, currentTime, projectSortOrder, isRefreshing, editingSession, editingSessionName, deletingProjects, loadingMoreProjects, deleteConfirmation, sessionDeleteConfirmation, filteredProjects, isArchiveOpen, archiveLoadError, archivedProjects, archivedSessions, archivedSessionsCount: archivedProjects.length + archivedSessions.length, isArchivedSessionsLoading, toggleProject, handleSessionClick, toggleStarProject, isProjectStarred, getProjectSessions, loadMoreSessionsForProject, startEditing, cancelEditing, saveProjectName, showDeleteSessionConfirmation, confirmDeleteSession, requestProjectDelete, confirmDeleteProject, handleProjectSelect, openArchivedSession, restoreArchivedProject, restoreArchivedSession, openArchive, closeArchive, refreshProjects, updateSessionSummary, regenerateSessionTitle, toggleSessionStar, exportSession, collapseSidebar, expandSidebar, setShowNewProject, setEditingName, setEditingSession, setEditingSessionName, setDeleteConfirmation, setSessionDeleteConfirmation };
+  return { isSidebarCollapsed: !isMobile && !sidebarVisible, expandedProjects, editingProject, showNewProject, editingName, initialSessionsLoaded, currentTime, projectSortOrder, isRefreshing, editingSession, editingSessionName, deletingProjects, loadingMoreProjects, deleteConfirmation, sessionDeleteConfirmation, filteredProjects, isArchiveOpen, archiveLoadError, archivedProjects, archivedSessions, archivedSessionsCount: archivedProjects.length + archivedSessions.length, isArchivedSessionsLoading, toggleProject, handleSessionClick, toggleStarProject, isProjectStarred, getProjectSessions, loadMoreSessionsForProject, startEditing, cancelEditing, saveProjectName, showDeleteSessionConfirmation, confirmDeleteSession, requestProjectDelete, confirmDeleteProject, handleProjectSelect, openArchivedSession, restoreArchivedProject, restoreArchivedSession, openArchive, closeArchive, refreshProjects, updateSessionSummary, regenerateSessionTitle, toggleSessionStar, exportSession, copyDebugInfo, collapseSidebar, expandSidebar, setShowNewProject, setEditingName, setEditingSession, setEditingSessionName, setDeleteConfirmation, setSessionDeleteConfirmation };
 }

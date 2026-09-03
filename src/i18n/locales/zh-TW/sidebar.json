@@ -21,6 +21,7 @@
     "renameSession": "重新命名對話",
     "regenerateTitle": "重新產生標題",
     "exportSession": "匯出Markdown",
+    "copyDebugInfo": "複製除錯資訊",
     "pin": "固定",
     "unpin": "取消固定",
     "noSessions": "尚無對話",
@@ -90,7 +91,8 @@
     "restoreProjectFailed": "無法復原專案。請再試一次。",
     "restoreProjectError": "發生專案復原錯誤。請再試一次。",
     "restoreSessionFailed": "無法復原對話。請再試一次.",
-    "restoreSessionError": "發生對話恢復錯誤。請再試一次。"
+    "restoreSessionError": "發生對話恢復錯誤。請再試一次。",
+    "debugInfoError": "無法複製除錯資訊。"
   },
   "version": {
     "updateAvailable": "有新版本可用"

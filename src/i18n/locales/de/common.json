@@ -66,7 +66,8 @@
     "tabs": {
       "status": "Status",
       "changes": "Änderungen",
-      "browser": "Browser"
+      "browser": "Browser",
+      "tasks": "Aufgaben"
     },
     "changes": {
       "title": "Änderungen",
@@ -107,6 +108,11 @@
       "truncated": "Zeige {{shown}} von {{total}} Dateien; die Liste wurde gekürzt.",
       "moreLines_one": "{{count}} weitere Zeile anzeigen",
       "moreLines_other": "{{count}} weitere Zeilen anzeigen"
+    },
+    "tasks": {
+      "empty": "Noch nichts geplant",
+      "emptyHint": "Wenn der Agent in dieser Sitzung eine Aufgabenliste führt, erscheint sie hier.",
+      "progress": "{{done}} von {{total}} erledigt"
     },
     "browser": {
       "address": "Webadresse",

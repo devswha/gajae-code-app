@@ -48,6 +48,7 @@ type SidebarProjectItemProps = {
   onToggleSessionStar?: (sessionId: string) => void;
   onRegenerateTitle?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
+  onCopyDebugInfo?: (sessionId: string) => void;
   t: TFunction;
 };
 
@@ -89,6 +90,7 @@ export default function SidebarProjectItem({
   onToggleSessionStar,
   onRegenerateTitle,
   onExportSession,
+  onCopyDebugInfo,
   t,
 }: SidebarProjectItemProps) {
   const isSelected = selectedProject?.projectId === project.projectId;
@@ -213,6 +215,7 @@ export default function SidebarProjectItem({
           onToggleSessionStar={onToggleSessionStar}
           onRegenerateTitle={onRegenerateTitle}
           onExportSession={onExportSession}
+              onCopyDebugInfo={onCopyDebugInfo}
           onProjectSelect={onProjectSelect}
           onSessionSelect={onSessionSelect}
           onDeleteSession={onDeleteSession}

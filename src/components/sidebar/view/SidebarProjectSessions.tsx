@@ -29,6 +29,7 @@ type SidebarProjectSessionsProps = {
   onToggleSessionStar?: (sessionId: string) => void;
   onRegenerateTitle?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
+  onCopyDebugInfo?: (sessionId: string) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
   onDeleteSession: (
@@ -80,6 +81,7 @@ export default function SidebarProjectSessions({
   onToggleSessionStar,
   onRegenerateTitle,
   onExportSession,
+  onCopyDebugInfo,
   onProjectSelect,
   onSessionSelect,
   onDeleteSession,
@@ -122,6 +124,7 @@ export default function SidebarProjectSessions({
               onToggleSessionStar={onToggleSessionStar}
               onRegenerateTitle={onRegenerateTitle}
               onExportSession={onExportSession}
+              onCopyDebugInfo={onCopyDebugInfo}
               onProjectSelect={onProjectSelect}
               onSessionSelect={onSessionSelect}
               onDeleteSession={onDeleteSession}

@@ -21,6 +21,7 @@
     "renameSession": "Rename conversation",
     "regenerateTitle": "Regenerate title",
     "exportSession": "Export Markdown",
+    "copyDebugInfo": "Copy debug info",
     "pin": "Pin",
     "unpin": "Unpin",
     "noSessions": "No conversations yet",
@@ -90,7 +91,8 @@
     "restoreProjectFailed": "Could not restore the project. Try again.",
     "restoreProjectError": "A project restore error occurred. Try again.",
     "restoreSessionFailed": "Could not restore the conversation. Try again.",
-    "restoreSessionError": "A conversation restore error occurred. Try again."
+    "restoreSessionError": "A conversation restore error occurred. Try again.",
+    "debugInfoError": "The debug info could not be copied."
   },
   "version": {
     "updateAvailable": "New update available"

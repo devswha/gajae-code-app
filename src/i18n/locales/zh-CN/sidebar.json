@@ -21,6 +21,7 @@
     "renameSession": "重命名对话",
     "regenerateTitle": "重新生成标题",
     "exportSession": "导出Markdown",
+    "copyDebugInfo": "复制调试信息",
     "pin": "固定",
     "unpin": "取消固定",
     "noSessions": "暂无对话",
@@ -90,7 +91,8 @@
     "restoreProjectFailed": "无法恢复该项目，请重试。",
     "restoreProjectError": "发生了项目恢复错误，请重试。",
     "restoreSessionFailed": "无法恢复对话，请重试。",
-    "restoreSessionError": "发生了对话恢复错误，请重试。"
+    "restoreSessionError": "发生了对话恢复错误，请重试。",
+    "debugInfoError": "无法复制调试信息。"
   },
   "version": {
     "updateAvailable": "有新版本可用"

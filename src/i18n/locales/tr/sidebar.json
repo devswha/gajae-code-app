@@ -21,6 +21,7 @@
     "renameSession": "Konuşmayı yeniden adlandır",
     "regenerateTitle": "Başlığı yeniden oluştur",
     "exportSession": "İhracat İndirimi",
+    "copyDebugInfo": "Hata ayıklama bilgisini kopyala",
     "pin": "Sabitle",
     "unpin": "Sabitlemeyi kaldır",
     "noSessions": "Henüz görüşme yok",
@@ -90,7 +91,8 @@
     "restoreProjectFailed": "Proje geri yüklenemedi. Tekrar deneyin.",
     "restoreProjectError": "Bir proje geri yükleme hatası oluştu. Tekrar deneyin.",
     "restoreSessionFailed": "Görüşme geri yüklenemedi. Tekrar deneyin.",
-    "restoreSessionError": "Konuşma geri yükleme hatası oluştu. Tekrar deneyin."
+    "restoreSessionError": "Konuşma geri yükleme hatası oluştu. Tekrar deneyin.",
+    "debugInfoError": "Hata ayıklama bilgisi kopyalanamadı."
   },
   "version": {
     "updateAvailable": "Yeni güncelleme mevcut"

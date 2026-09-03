@@ -1,8 +1,11 @@
 import { execFile } from 'node:child_process';
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { isAbsolute } from 'node:path';
 
 import express from 'express';
+
+import { sessionsDb } from '../modules/database/repositories/sessions.db.js';
 
 const PLATFORM_OPENERS = {
   darwin: { command: 'open', args: (target) => [target] },
@@ -66,7 +69,77 @@ export function createSystemRouter({ opener = defaultOpener } = {}) {
     }
   });
 
+  /**
+   * Everything a bug report about a session needs, in one paste: the DB row,
+   * the tail of the transcript and the worker log. QA feedback used to be a
+   * screenshot and a retelling; this makes "Copy debug info" carry the
+   * evidence instead. Text on purpose: it goes into a chat message.
+   */
+  router.post('/debug-bundle', async (req, res) => {
+    const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId.trim() : '';
+    try {
+      const bundle = await buildDebugBundle(sessionId || null);
+      res.json({ success: true, bundle });
+    } catch (error) {
+      console.error('Failed to assemble the debug bundle:', error);
+      res.status(500).json({ error: 'Failed to assemble the debug bundle' });
+    }
+  });
+
   return router;
+}
+
+async function packageVersion() {
+  try {
+    return JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8')).version ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+const BUNDLE_TRANSCRIPT_BYTES = 16 * 1024;
+const BUNDLE_LOG_LINES = 60;
+
+async function tailLines(filePath, lineCount) {
+  const text = await readFile(filePath, 'utf8').catch(() => null);
+  if (text === null) return '(unavailable)';
+  const lines = text.trimEnd().split('\n');
+  return lines.slice(-lineCount).join('\n');
+}
+
+async function tailBytes(filePath, byteCount) {
+  const text = await readFile(filePath, 'utf8').catch(() => null);
+  if (text === null) return '(unavailable)';
+  return text.length > byteCount ? `…${text.slice(-byteCount)}` : text;
+}
+
+async function buildDebugBundle(sessionId) {
+  const sections = [
+    '# Gajae Code App debug bundle',
+    `generated: ${new Date().toISOString()}`,
+    `version: ${await packageVersion()}`,
+  ];
+  if (sessionId) {
+    const row = sessionsDb.getSessionById(sessionId);
+    sections.push('', '## session', row ? JSON.stringify({
+      sessionId: row.session_id,
+      provider: row.provider,
+      providerSessionId: row.provider_session_id,
+      project: row.project_path,
+      name: row.custom_name,
+      nameSource: row.name_source,
+      archived: Boolean(row.isArchived),
+      transcript: row.jsonl_path,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }, null, 2) : `(no session "${sessionId}" in the database)`);
+    if (row?.jsonl_path) {
+      sections.push('', '## transcript tail (jsonl, last bytes)', await tailBytes(row.jsonl_path, BUNDLE_TRANSCRIPT_BYTES));
+    }
+  }
+  sections.push('', '## worker log tail', await tailLines(`${homedir()}/.gajae-app/logs/gjc-worker.log`, BUNDLE_LOG_LINES));
+  sections.push('', '## browser sidecar log tail', await tailLines(`${homedir()}/.gajae-app/logs/browser-sidecar.log`, BUNDLE_LOG_LINES));
+  return sections.join('\n');
 }
 
 export function safeExternalUrl(value) {

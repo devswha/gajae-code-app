@@ -27,6 +27,11 @@ async function serve(opener) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }),
+    postDebugBundle: (body) => fetch(`http://127.0.0.1:${port}/api/system/debug-bundle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
     close: async () => {
       server.close();
       await once(server, 'close');
@@ -97,6 +102,22 @@ test('open-url hands an https link to the OS opener and refuses everything else'
       assert.equal((await server.postOpenUrl({ url })).status, 400, `${String(url)} must be refused`);
     }
     assert.equal(opened.length, 1);
+  } finally {
+    await server.close();
+  }
+});
+
+test('debug-bundle carries the session row, the transcript tail and the log tails as text', async () => {
+  const server = await serve(async () => {});
+  try {
+    const noSession = await server.postDebugBundle({ sessionId: 'no-such-session' });
+    assert.equal(noSession.status, 200);
+    const bundle = (await noSession.json()).bundle;
+    assert.match(bundle, /# Gajae Code App debug bundle/);
+    assert.match(bundle, /no session "no-such-session"/);
+    assert.match(bundle, /## worker log tail/);
+    assert.match(bundle, /## browser sidecar log tail/);
+    assert.doesNotMatch(bundle, /undefined/);
   } finally {
     await server.close();
   }

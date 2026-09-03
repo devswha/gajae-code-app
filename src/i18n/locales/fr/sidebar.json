@@ -21,6 +21,7 @@
     "renameSession": "Renommer la conversation",
     "regenerateTitle": "Régénérer le titre",
     "exportSession": "Exporter Markdown",
+    "copyDebugInfo": "Copier les infos de débogage",
     "pin": "Épingle",
     "unpin": "Désépingler",
     "noSessions": "Aucune conversation pour l'instant",
@@ -90,7 +91,8 @@
     "restoreProjectFailed": "Impossible de restaurer le projet. Essayer à nouveau.",
     "restoreProjectError": "Une erreur de restauration du projet s'est produite. Essayer à nouveau.",
     "restoreSessionFailed": "Impossible de restaurer la conversation. Essayer à nouveau.",
-    "restoreSessionError": "Une erreur de restauration de conversation s'est produite. Essayer à nouveau."
+    "restoreSessionError": "Une erreur de restauration de conversation s'est produite. Essayer à nouveau.",
+    "debugInfoError": "Les infos de débogage n’ont pas pu être copiées."
   },
   "version": {
     "updateAvailable": "Nouvelle mise à jour disponible"

@@ -66,7 +66,8 @@
     "tabs": {
       "status": "Статус",
       "changes": "Изменения",
-      "browser": "Браузер"
+      "browser": "Браузер",
+      "tasks": "Задачи"
     },
     "changes": {
       "title": "Изменения",
@@ -113,6 +114,11 @@
       "moreLines_other": "Показать ещё {{count}} строки",
       "moreLines_few": "Показать ещё {{count}} строки",
       "moreLines_many": "Показать ещё {{count}} строк"
+    },
+    "tasks": {
+      "empty": "Пока ничего не запланировано",
+      "emptyHint": "Когда агент ведёт список задач в этой сессии, он появляется здесь.",
+      "progress": "Выполнено {{done}} из {{total}}"
     },
     "browser": {
       "address": "Веб-адрес",

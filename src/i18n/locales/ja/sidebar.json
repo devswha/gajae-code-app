@@ -21,6 +21,7 @@
     "renameSession": "会話の名前を変更。",
     "regenerateTitle": "タイトルを再生成",
     "exportSession": "Markdown でエクスポート。",
+    "copyDebugInfo": "デバッグ情報をコピー",
     "pin": "固定。",
     "unpin": "固定を解除。",
     "noSessions": "会話はまだありません。",
@@ -90,7 +91,8 @@
     "restoreProjectFailed": "プロジェクトの復元に失敗しました。もう一度お試しください。",
     "restoreProjectError": "プロジェクトの復元でエラーが発生しました。もう一度お試しください。",
     "restoreSessionFailed": "セッションの復元に失敗しました。もう一度お試しください。",
-    "restoreSessionError": "セッションの復元でエラーが発生しました。もう一度お試しください。"
+    "restoreSessionError": "セッションの復元でエラーが発生しました。もう一度お試しください。",
+    "debugInfoError": "デバッグ情報をコピーできませんでした。"
   },
   "version": {
     "updateAvailable": "アップデートあり。"

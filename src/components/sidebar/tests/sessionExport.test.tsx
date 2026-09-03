@@ -26,6 +26,7 @@ async function makeT(): Promise<TFunction> {
         sidebar: {
           sessions: {
             exportSession: 'Export as Markdown',
+            copyDebugInfo: 'Copy debug info',
             renameSession: 'Rename Session',
             deleteSession: 'Delete Session',
             pin: 'Pin',
@@ -145,4 +146,15 @@ test('saving a blob does not leave the anchor or the object URL behind', () => {
     globalThis.URL.revokeObjectURL = originalRevoke;
     (globalThis as { document?: unknown }).document = originalDocument;
   }
+});
+
+test('copy debug info sits next to export when the host wires it, and is absent otherwise', async () => {
+  const t = await makeT();
+  const withHandler = actions(t, { onCopyDebugInfo: () => {} });
+  const item = withHandler.find((action) => action.key === 'copy-debug-info');
+  assert.ok(item, 'the handler brings the item');
+  assert.equal(item.label, 'Copy debug info');
+
+  const withoutHandler = actions(t);
+  assert.equal(withoutHandler.some((action) => action.key === 'copy-debug-info'), false);
 });

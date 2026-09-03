@@ -21,6 +21,7 @@
     "renameSession": "대화 이름 변경",
     "regenerateTitle": "제목 다시 생성",
     "exportSession": "Markdown로 내보내기",
+    "copyDebugInfo": "디버그 정보 복사",
     "pin": "핀",
     "unpin": "핀 해제",
     "noSessions": "아직 대화가 없습니다",
@@ -90,7 +91,8 @@
     "restoreProjectFailed": "프로젝트 복원에 실패했습니다. 다시 시도해주세요.",
     "restoreProjectError": "프로젝트 복원 오류가 발생했습니다. 다시 시도해주세요.",
     "restoreSessionFailed": "대화 복원에 실패했습니다. 다시 시도해주세요.",
-    "restoreSessionError": "대화 복원 오류가 발생했습니다. 다시 시도해주세요."
+    "restoreSessionError": "대화 복원 오류가 발생했습니다. 다시 시도해주세요.",
+    "debugInfoError": "디버그 정보를 복사하지 못했습니다."
   },
   "version": {
     "updateAvailable": "새로운 업데이트가 있습니다"

@@ -21,6 +21,7 @@
     "renameSession": "Konversation umbenennen",
     "regenerateTitle": "Titel neu erzeugen",
     "exportSession": "Exportieren Sie Markdown",
+    "copyDebugInfo": "Debug-Infos kopieren",
     "pin": "Pin",
     "unpin": "Lösen",
     "noSessions": "Noch keine Gespräche",
@@ -90,7 +91,8 @@
     "restoreProjectFailed": "Das Projekt konnte nicht wiederhergestellt werden. Versuchen Sie es erneut.",
     "restoreProjectError": "Bei der Projektwiederherstellung ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
     "restoreSessionFailed": "Konversation konnte nicht wiederhergestellt werden. Versuchen Sie es erneut.",
-    "restoreSessionError": "Beim Wiederherstellen der Konversation ist ein Fehler aufgetreten. Versuchen Sie es erneut."
+    "restoreSessionError": "Beim Wiederherstellen der Konversation ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
+    "debugInfoError": "Die Debug-Infos konnten nicht kopiert werden."
   },
   "version": {
     "updateAvailable": "Neues Update verfügbar"

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, Download, Edit2, MoreHorizontal, RefreshCw, Star, Trash2, X } from 'lucide-react';
+import { Bug, Check, Download, Edit2, MoreHorizontal, RefreshCw, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, buttonVariants } from '../../../shared/view/ui';
@@ -36,6 +36,8 @@ type SidebarSessionItemProps = {
   onToggleSessionStar?: (sessionId: string) => void;
   onRegenerateTitle?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
+  /** Assembles the session's debug bundle into the clipboard, for a bug report. */
+  onCopyDebugInfo?: (sessionId: string) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
   onDeleteSession: (
@@ -84,6 +86,7 @@ type SessionActionOptions = {
   onToggleSessionStar?: (sessionId: string) => void;
   onRegenerateTitle?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
+  onCopyDebugInfo?: (sessionId: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onDeleteSession: () => void;
 };
@@ -105,6 +108,7 @@ export function buildSessionActions({
   onToggleSessionStar,
   onRegenerateTitle,
   onExportSession,
+  onCopyDebugInfo,
   onStartEditingSession,
   onDeleteSession,
 }: SessionActionOptions): ActionMenuItem[] {
@@ -133,6 +137,12 @@ export function buildSessionActions({
       label: t('sessions.exportSession'),
       icon: Download,
       onSelect: () => onExportSession(sessionId),
+    }] : []),
+    ...(onCopyDebugInfo ? [{
+      key: 'copy-debug-info',
+      label: t('sessions.copyDebugInfo'),
+      icon: Bug,
+      onSelect: () => onCopyDebugInfo(sessionId),
     }] : []),
     // A running session keeps its transcript: deleting it mid-run would race
     // the writer.
@@ -166,6 +176,7 @@ export default function SidebarSessionItem({
   onToggleSessionStar,
   onRegenerateTitle,
   onExportSession,
+  onCopyDebugInfo,
   onProjectSelect,
   onSessionSelect,
   onDeleteSession,
@@ -226,6 +237,7 @@ export default function SidebarSessionItem({
     onToggleSessionStar,
     onRegenerateTitle,
     onExportSession,
+    onCopyDebugInfo,
     onStartEditingSession,
     onDeleteSession: requestDeleteSession,
   });

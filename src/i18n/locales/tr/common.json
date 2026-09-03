@@ -66,7 +66,8 @@
     "tabs": {
       "status": "Durum",
       "changes": "Değişiklikler",
-      "browser": "Tarayıcı"
+      "browser": "Tarayıcı",
+      "tasks": "Görevler"
     },
     "changes": {
       "title": "Değişiklikler",
@@ -107,6 +108,11 @@
       "truncated": "{{total}} dosyadan {{shown}} tanesi gösteriliyor; liste sınırlı.",
       "moreLines_one": "{{count}} satır daha göster",
       "moreLines_other": "{{count}} satır daha göster"
+    },
+    "tasks": {
+      "empty": "Henüz planlanan bir şey yok",
+      "emptyHint": "Aracı bu oturumda bir yapılacaklar listesi tutarsa burada görünür.",
+      "progress": "{{total}} görevden {{done}} tanesi tamam"
     },
     "browser": {
       "address": "Web adresi",

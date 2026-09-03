@@ -66,7 +66,8 @@
     "tabs": {
       "status": "Statut",
       "changes": "Modifications",
-      "browser": "Navigateur"
+      "browser": "Navigateur",
+      "tasks": "Tâches"
     },
     "changes": {
       "title": "Modifications",
@@ -107,6 +108,11 @@
       "truncated": "Affichage de {{shown}} fichiers sur {{total}} ; la liste est tronquée.",
       "moreLines_one": "Afficher {{count}} ligne de plus",
       "moreLines_other": "Afficher {{count}} lignes de plus"
+    },
+    "tasks": {
+      "empty": "Rien de prévu pour l’instant",
+      "emptyHint": "Quand l’agent tient une liste de tâches dans cette session, elle s’affiche ici.",
+      "progress": "{{done}} sur {{total}} terminées"
     },
     "browser": {
       "address": "Adresse Internet",

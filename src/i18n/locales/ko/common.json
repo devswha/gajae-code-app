@@ -66,7 +66,8 @@
     "tabs": {
       "status": "상태",
       "changes": "변경 사항",
-      "browser": "브라우저"
+      "browser": "브라우저",
+      "tasks": "할 일"
     },
     "changes": {
       "title": "변경 사항",
@@ -105,6 +106,11 @@
       },
       "truncated": "전체 {{total}}개 중 {{shown}}개 표시 중입니다. 목록이 제한되었습니다.",
       "moreLines_other": "나머지 {{count}}줄 표시"
+    },
+    "tasks": {
+      "empty": "아직 계획된 것이 없습니다",
+      "emptyHint": "이 세션에서 에이전트가 할 일 목록을 관리하면 여기에 표시됩니다.",
+      "progress": "{{total}}개 중 {{done}}개 완료"
     },
     "browser": {
       "address": "웹 주소",

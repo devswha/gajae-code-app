@@ -11,6 +11,7 @@ import { initTheme, theme } from '@gajae-code/coding-agent/modes/theme/theme';
 import { generateSessionTitle } from '@gajae-code/coding-agent/utils/title-generator';
 import { getSupportedEfforts } from '@gajae-code/ai/model-thinking';
 
+import { appendImagesInputTag } from './shared/image-attachments.js';
 import { GjcBunOAuthController, type GjcBunOAuthControllerOptions } from './gjc-bun-oauth-controller.js';
 import { GJC_APP_BUILTIN_COMMAND_NAMES } from './gjc-command-surface.generated.js';
 import type { GjcWorkerOAuthRuntime, GjcWorkerRuntime, GjcWorkerWriter } from './gjc-worker.js';
@@ -44,6 +45,8 @@ export type SdkRunConfig = {
   spawns: string;
   bashPolicy: AppBashPolicy;
   appSessionId?: string;
+  /** Image attachments the client sent with this message (`{path, name?, mimeType?}` descriptors). */
+  images?: unknown;
   /**
    * The project's permission policy. Absent means the app did not decide, and
    * the runtime keeps its own default (guarded tools run unprompted); present
@@ -740,7 +743,9 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         let promptError: unknown;
         try {
           if (promptMessage !== null) {
-            await result.session.prompt(promptMessage);
+            // Attachments ride as an <images_input> block: the title above used
+            // the bare user text, the model reads the files its own way.
+            await result.session.prompt(appendImagesInputTag(promptMessage, config.images));
           }
         } catch (error) {
           promptError = error;

@@ -165,8 +165,10 @@ class FakeAgentSession {
   setToolUIContext(context: typeof this.uiContext): void { this.uiContext = context; }
   setSdkPermissionMode(mode: 'prompt' | 'allow' | 'deny'): void { this.sdkPermissionMode = mode; }
   setSdkPermissionProvider(provider: typeof this.sdkPermissionProvider): void { this.sdkPermissionProvider = provider; }
+  readonly promptTexts: string[] = [];
   async prompt(message: string, options?: { streamingBehavior?: 'steer' | 'followUp' }): Promise<void> {
     this.promptCalls += 1;
+    this.promptTexts.push(message);
     // Mirrors the SDK: a busy agent refuses a bare prompt and requires the
     // caller to name the queue; a steer resolves as soon as it is queued rather
     // than waiting for the turn it joined.
@@ -791,6 +793,32 @@ test('OAuth callbacks emit safe phases and refresh before auth update completion
     await f.close();
   }
 });
+test('attached images reach the model as an images_input block while the title uses the bare text', async () => {
+  const titleCalls: Array<{ firstMessage: string }> = [];
+  const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
+    generateSessionTitle: async (firstMessage: string) => { titleCalls.push({ firstMessage }); return 'A title'; },
+  });
+  try {
+    const run = f.host.handle(request('session.start', 'images-first', {
+      message: 'what is in this screenshot?',
+      options: { ...f.options, images: [{ path: '/assets/images/shot.png', name: 'shot.png', mimeType: 'image/png' }] },
+    }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    session.complete();
+    await run;
+
+    assert.equal(session.promptTexts.length, 1);
+    const prompt = session.promptTexts[0]!;
+    assert.match(prompt, /^what is in this screenshot\?/);
+    assert.match(prompt, /<images_input>/);
+    assert.match(prompt, /The user attached 1 image\(s\)/);
+    assert.match(prompt, /0\. \/assets\/images\/shot\.png \(original name: shot\.png\)/);
+    // The title generator saw the user's words, not the attachment block.
+    assert.deepEqual(titleCalls.map((call) => call.firstMessage), ['what is in this screenshot?']);
+  } finally { await f.close(); }
+});
+
 test('OAuth refresh failure preserves persisted auth state and reports a distinct safe error', async () => {
   const f = await fixture(
     'contract-model',

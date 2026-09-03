@@ -488,8 +488,17 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
      in either scope, press `+`, write, Enter — the comment lands in the
      chat composer as `comment\n\npath:line\n> <the line>` (the composer
      gained `insertAtEnd`; MainContent wires it to the tab through a ref,
-     `composerInsertRef`). With that, item (4) is complete; a `/review`
-     command stays rejected (a canned prompt not worth the command surface).
+     `composerInsertRef`). Comments batch as of 2026-09-03 afternoon: Enter
+     adds a comment to the tab's review (a note under its line, editable and
+     removable, kept across row collapse and the scope toggle), a footer
+     `Send N comments` hands the whole review to the composer as one message
+     (`formatDiffReview`: the per-comment blocks blank-line separated),
+     Cmd/Ctrl+Enter adds and sends in one stroke. With that, item (4) is
+     complete and **closed**: the tab's value is the review-to-agent loop,
+     not diff viewing, so 2-pane, split view, syntax highlighting and
+     Accept/Reject are rejected — an IDE does those better and git ops stay
+     the agent's. A `/review` command stays rejected too (a canned prompt
+     not worth the command surface).
    - (5) Worktree isolation + run-location picker — **investigated 2026-09-03:
      deferred to the runtime's Slice 3, no app-side work.** The native core
      owns worktree lifecycle end to end (`gajae-core` git.rs via

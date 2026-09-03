@@ -94,8 +94,14 @@
       "comment": {
         "add": "この行にコメントする",
         "placeholder": "この行へのコメント…",
-        "send": "コメントをチャットへ送る",
+        "submit": "レビューに追加",
+        "edit": "コメントを編集",
+        "remove": "コメントを削除",
         "cancel": "コメントを破棄"
+      },
+      "review": {
+        "clear": "レビューを破棄",
+        "send_other": "{{count}}件のコメントを送る"
       },
       "truncated": "{{total}}件中{{shown}}件を表示中（一覧は制限されています）",
       "moreLines_other": "残り{{count}}行を表示"

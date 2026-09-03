@@ -94,8 +94,14 @@
       "comment": {
         "add": "评论此行",
         "placeholder": "对此行的评论…",
-        "send": "将评论发送到聊天",
+        "submit": "添加到评审",
+        "edit": "编辑评论",
+        "remove": "删除评论",
         "cancel": "放弃评论"
+      },
+      "review": {
+        "clear": "放弃评审",
+        "send_other": "发送 {{count}} 条评论"
       },
       "truncated": "共 {{total}} 个文件，显示 {{shown}} 个；列表已截断。",
       "moreLines_other": "显示其余 {{count}} 行"

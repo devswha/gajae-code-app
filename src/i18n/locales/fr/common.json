@@ -94,8 +94,15 @@
       "comment": {
         "add": "Commenter cette ligne",
         "placeholder": "Commentaire sur cette ligne…",
-        "send": "Envoyer le commentaire au chat",
+        "submit": "Ajouter à la revue",
+        "edit": "Modifier le commentaire",
+        "remove": "Supprimer le commentaire",
         "cancel": "Abandonner le commentaire"
+      },
+      "review": {
+        "clear": "Abandonner la revue",
+        "send_one": "Envoyer {{count}} commentaire",
+        "send_other": "Envoyer {{count}} commentaires"
       },
       "truncated": "Affichage de {{shown}} fichiers sur {{total}} ; la liste est tronquée.",
       "moreLines_one": "Afficher {{count}} ligne de plus",

@@ -94,8 +94,14 @@
       "comment": {
         "add": "이 줄에 코멘트",
         "placeholder": "이 줄에 대한 코멘트…",
-        "send": "코멘트를 채팅으로 보내기",
+        "submit": "리뷰에 추가",
+        "edit": "코멘트 수정",
+        "remove": "코멘트 삭제",
         "cancel": "코멘트 취소"
+      },
+      "review": {
+        "clear": "리뷰 취소",
+        "send_other": "코멘트 {{count}}개 보내기"
       },
       "truncated": "전체 {{total}}개 중 {{shown}}개 표시 중입니다. 목록이 제한되었습니다.",
       "moreLines_other": "나머지 {{count}}줄 표시"

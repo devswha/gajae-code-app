@@ -94,8 +94,15 @@
       "comment": {
         "add": "Comment on this line",
         "placeholder": "Comment on this line…",
-        "send": "Send comment to chat",
+        "submit": "Add to review",
+        "edit": "Edit comment",
+        "remove": "Remove comment",
         "cancel": "Discard comment"
+      },
+      "review": {
+        "clear": "Discard review",
+        "send_one": "Send {{count}} comment",
+        "send_other": "Send {{count}} comments"
       },
       "truncated": "Showing {{shown}} of {{total}} files; the list is capped.",
       "moreLines_one": "Show {{count}} more line",

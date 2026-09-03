@@ -94,8 +94,15 @@
       "comment": {
         "add": "Bu satıra yorum ekle",
         "placeholder": "Bu satır hakkında yorum…",
-        "send": "Yorumu sohbete gönder",
+        "submit": "İncelemeye ekle",
+        "edit": "Yorumu düzenle",
+        "remove": "Yorumu kaldır",
         "cancel": "Yorumu iptal et"
+      },
+      "review": {
+        "clear": "İncelemeyi iptal et",
+        "send_one": "{{count}} yorumu gönder",
+        "send_other": "{{count}} yorumu gönder"
       },
       "truncated": "{{total}} dosyadan {{shown}} tanesi gösteriliyor; liste sınırlı.",
       "moreLines_one": "{{count}} satır daha göster",

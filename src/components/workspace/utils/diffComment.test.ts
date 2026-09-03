@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { formatDiffComment } from './diffComment';
+import { formatDiffComment, formatDiffReview } from './diffComment';
 
 /*
  * A line comment becomes the next message's draft: what the user said, then
@@ -28,4 +28,15 @@ test('a removed line comments by its old number; context carries no marker', () 
 test('a row with no numbers references the file alone; the comment is trimmed', () => {
   const unnumbered = { path: 'new.ts', oldLine: null, newLine: null, marker: '+' as const, content: 'x' };
   assert.equal(formatDiffComment(unnumbered, '  note  '), 'note\n\nnew.ts\n> +x');
+});
+
+test('a review is its comments in order, blank-line separated; one comment is just that comment', () => {
+  const first = { path: 'a.ts', oldLine: null, newLine: 1, marker: '+' as const, content: 'one' };
+  const second = { path: 'b.ts', oldLine: 3, newLine: null, marker: '-' as const, content: 'two' };
+  assert.equal(formatDiffReview([{ location: first, comment: 'why' }]), formatDiffComment(first, 'why'));
+  assert.equal(
+    formatDiffReview([{ location: first, comment: 'why' }, { location: second, comment: 'and this' }]),
+    'why\n\na.ts:1\n> +one\n\nand this\n\nb.ts:3\n> -two',
+  );
+  assert.equal(formatDiffReview([]), '');
 });

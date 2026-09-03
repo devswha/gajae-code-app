@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { parseUnifiedDiff, type UnifiedDiffRow } from '../utils/unifiedDiff';
@@ -16,19 +16,21 @@ export type UnifiedDiffProps = {
   patch: string;
   /** Offered per row when present: press to start a comment on that line. */
   onLineComment?: (row: DiffCommentRow) => void;
+  /** Rendered directly under the row with that index: a comment editor or a pending note. */
+  annotations?: ReadonlyMap<number, ReactNode>;
 };
 
-export default function UnifiedDiff({ patch, onLineComment }: UnifiedDiffProps) {
+export default function UnifiedDiff({ patch, onLineComment, annotations }: UnifiedDiffProps) {
   const rows = useMemo(() => parseUnifiedDiff(patch), [patch]);
 
-  return <UnifiedDiffRows rows={rows} onLineComment={onLineComment} />;
+  return <UnifiedDiffRows rows={rows} onLineComment={onLineComment} annotations={annotations} />;
 }
 
 /** Rows rendered before the remainder hides behind a reveal; a generated
  * file's patch can be thousands of lines and the tab must not paint them. */
 const ROW_LIMIT = 500;
 
-export function UnifiedDiffRows({ rows, onLineComment }: { rows: UnifiedDiffRow[]; onLineComment?: (row: DiffCommentRow) => void }) {
+export function UnifiedDiffRows({ rows, onLineComment, annotations }: { rows: UnifiedDiffRow[]; onLineComment?: (row: DiffCommentRow) => void; annotations?: ReadonlyMap<number, ReactNode> }) {
   const { t } = useTranslation();
   const [showAll, setShowAll] = useState(false);
   const visible = showAll || rows.length <= ROW_LIMIT ? rows : rows.slice(0, ROW_LIMIT);
@@ -38,13 +40,14 @@ export function UnifiedDiffRows({ rows, onLineComment }: { rows: UnifiedDiffRow[
         if (row.kind === 'hunk') {
           return <div key={index} className="px-2 text-muted-foreground">{row.content}</div>;
         }
+        const annotation = annotations?.get(index);
         const appearance = row.kind === 'added'
           ? { className: 'bg-diff-added text-diff-added-foreground', marker: '+' }
           : row.kind === 'removed'
             ? { className: 'bg-diff-removed text-diff-removed-foreground', marker: '-' }
             : { className: 'text-muted-foreground', marker: ' ' };
-        return (
-          <div key={index} className={`group/line flex min-w-0 ${appearance.className}`}>
+        const line = (
+          <div className={`group/line flex min-w-0 ${appearance.className}`}>
             <span className="w-6 shrink-0 text-center select-none">{appearance.marker}</span>
             <span className="w-10 shrink-0 px-1 text-right text-muted-foreground/70 select-none">{row.oldLine ?? ''}</span>
             <span className="w-10 shrink-0 px-1 text-right text-muted-foreground/70 select-none">{row.newLine ?? ''}</span>
@@ -62,6 +65,7 @@ export function UnifiedDiffRows({ rows, onLineComment }: { rows: UnifiedDiffRow[
             )}
           </div>
         );
+        return <div key={index}>{line}{annotation}</div>;
       })}
       {rows.length > ROW_LIMIT && !showAll && (
         <button

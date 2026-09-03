@@ -94,8 +94,15 @@
       "comment": {
         "add": "Commenta questa riga",
         "placeholder": "Commento a questa riga…",
-        "send": "Invia il commento alla chat",
+        "submit": "Aggiungi alla revisione",
+        "edit": "Modifica commento",
+        "remove": "Rimuovi commento",
         "cancel": "Scarta il commento"
+      },
+      "review": {
+        "clear": "Scarta la revisione",
+        "send_one": "Invia {{count}} commento",
+        "send_other": "Invia {{count}} commenti"
       },
       "truncated": "Mostrati {{shown}} file su {{total}}; l’elenco è limitato.",
       "moreLines_one": "Mostra {{count}} altra riga",

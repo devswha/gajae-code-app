@@ -8,13 +8,16 @@ import { createElement } from 'react';
 import { I18nextProvider } from 'react-i18next';
 
 import type { SessionStore } from '../../../stores/useSessionStore';
-import type { ProjectChange } from '../hooks/useProjectChanges';
+import type { ProjectChange, ProjectChanges } from '../hooks/useProjectChanges';
 
 import WorkspaceChangesTab, { ChangeRow } from './WorkspaceChangesTab';
 
 const t = (key: string) => key;
+const rowShared = { openPath: null as string | null, onSetOpenPath: () => {}, onOpenInEditor: () => {}, review: [], onCommentChange: () => {}, onSendReview: () => true, t };
 const i18n = createInstance();
-await i18n.init({ lng: 'en', resources: { en: { translation: {} } } });
+// Only the review's send label is translated, so its count is observable;
+// every other key renders as itself.
+await i18n.init({ lng: 'en', resources: { en: { translation: { workspace: { changes: { review: { send_one: 'send:{{count}}', send_other: 'send:{{count}}' } } } } } } });
 const file: ProjectChange = {
   path: 'src/file.ts',
   oldPath: null,
@@ -32,12 +35,10 @@ afterEach(cleanup);
 
 test('switching comment rows clears the prior row draft and focuses the new editor', () => {
   render(createElement(I18nextProvider, { i18n }, createElement(ChangeRow, {
+    ...rowShared,
     file,
     openPath: file.path,
-    onSetOpenPath: () => {},
-    onOpenInEditor: () => {},
     onComposerInsert: () => true,
-    t,
   })));
 
   const actions = screen.getAllByLabelText('workspace.changes.comment.add');
@@ -51,23 +52,107 @@ test('switching comment rows clears the prior row draft and focuses the new edit
   assert.equal(document.activeElement, nextInput);
 });
 
-test('an unavailable composer keeps the line comment draft instead of discarding it', () => {
-  render(createElement(I18nextProvider, { i18n }, createElement(ChangeRow, {
-    file,
-    openPath: file.path,
-    onSetOpenPath: () => {},
-    onOpenInEditor: () => {},
-    onComposerInsert: () => false,
-    t,
-  })));
+function renderTab(files: ProjectChange[], onComposerInsert: (text: string) => boolean) {
+  const changes: ProjectChanges = { branch: 'main', hasCommits: true, files, totalFiles: files.length, truncated: false };
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify(changes), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch;
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(createElement(QueryClientProvider, { client: queryClient },
+    createElement(I18nextProvider, { i18n },
+      createElement(WorkspaceChangesTab, {
+        projectId: 'project',
+        projectPath: '/tmp/project',
+        sessionStore: { getMessages: () => [], getSessionSlot: () => ({ status: 'idle' }) } as unknown as SessionStore,
+        onComposerInsert,
+        active: true,
+      }),
+    ),
+  ));
+  return () => { globalThis.fetch = originalFetch; };
+}
 
-  fireEvent.click(screen.getAllByLabelText('workspace.changes.comment.add')[0]);
+async function addComment(rowIndex: number, text: string) {
+  fireEvent.click(screen.getAllByLabelText('workspace.changes.comment.add')[rowIndex]);
   const input = screen.getByLabelText('workspace.changes.comment.placeholder') as HTMLInputElement;
-  fireEvent.change(input, { target: { value: 'keep me' } });
-  fireEvent.click(screen.getByLabelText('workspace.changes.comment.send'));
+  fireEvent.change(input, { target: { value: text } });
+  fireEvent.keyDown(input, { key: 'Enter' });
+}
 
-  assert.equal(screen.getByLabelText('workspace.changes.comment.placeholder'), input);
-  assert.equal(input.value, 'keep me');
+test('comments across files accumulate into one review and are sent as a single message', async () => {
+  const inserted: string[] = [];
+  const other: ProjectChange = { ...file, path: 'src/other.ts', patch: '@@ -1 +1 @@\n-before\n+after' };
+  const restore = renderTab([file, other], (text) => { inserted.push(text); return true; });
+  try {
+    fireEvent.click(await screen.findByText('src/file.ts'));
+    await addComment(1, 'why new');
+    assert.equal(screen.getByText('send:1').tagName, 'BUTTON');
+    assert.ok(screen.getByText('why new'));
+
+    fireEvent.click(screen.getByText('src/other.ts'));
+    await addComment(1, 'why after');
+    assert.ok(screen.getByText('send:2'));
+    // Re-expanding the first file shows its comment still waiting.
+    fireEvent.click(screen.getByText('src/file.ts'));
+    assert.ok(screen.getByText('why new'));
+
+    fireEvent.click(screen.getByText('send:2'));
+    assert.deepEqual(inserted, ['why new\n\nsrc/file.ts:1\n> +new\n\nwhy after\n\nsrc/other.ts:1\n> +after']);
+    assert.equal(screen.queryByText(/^send:/), null);
+    assert.equal(screen.queryByText('why new'), null);
+  } finally {
+    restore();
+  }
+});
+
+test('a pending comment can be edited in place or removed, and Cmd+Enter sends the review', async () => {
+  const inserted: string[] = [];
+  const restore = renderTab([file], (text) => { inserted.push(text); return true; });
+  try {
+    fireEvent.click(await screen.findByText('src/file.ts'));
+    await addComment(1, 'first take');
+    await addComment(0, 'about old');
+    assert.ok(screen.getByText('send:2'));
+
+    fireEvent.click(screen.getByText('first take'));
+    const editor = screen.getByLabelText('workspace.changes.comment.placeholder') as HTMLInputElement;
+    assert.equal(editor.value, 'first take');
+    fireEvent.change(editor, { target: { value: 'second take' } });
+    fireEvent.keyDown(editor, { key: 'Enter' });
+    assert.equal(screen.queryByText('first take'), null);
+    assert.ok(screen.getByText('second take'));
+    assert.ok(screen.getByText('send:2'));
+
+    fireEvent.click(screen.getAllByLabelText('workspace.changes.comment.remove')[0]);
+    assert.ok(screen.getByText('send:1'));
+
+    fireEvent.click(screen.getAllByLabelText('workspace.changes.comment.add')[2]);
+    const last = screen.getByLabelText('workspace.changes.comment.placeholder') as HTMLInputElement;
+    fireEvent.change(last, { target: { value: 'and keep' } });
+    fireEvent.keyDown(last, { key: 'Enter', metaKey: true });
+    assert.equal(inserted.length, 1);
+    assert.match(inserted[0], /^second take\n\nsrc\/file\.ts:1\n> \+new\n\nand keep\n\nsrc\/file\.ts:2\n> keep$/);
+    assert.equal(screen.queryByText(/^send:/), null);
+  } finally {
+    restore();
+  }
+});
+
+test('an unavailable composer keeps the review instead of discarding it', async () => {
+  const restore = renderTab([file], () => false);
+  try {
+    fireEvent.click(await screen.findByText('src/file.ts'));
+    await addComment(1, 'keep me');
+    fireEvent.click(screen.getByText('send:1'));
+
+    assert.ok(screen.getByText('keep me'));
+    assert.ok(screen.getByText('send:1'));
+
+    fireEvent.click(screen.getByText('workspace.changes.review.clear'));
+    assert.equal(screen.queryByText('keep me'), null);
+    assert.equal(screen.queryByText(/^send:/), null);
+  } finally {
+    restore();
+  }
 });
 
 test('an orphaned mutation is not shown as loading after the run is idle', () => {

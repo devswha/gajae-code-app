@@ -94,8 +94,14 @@
       "comment": {
         "add": "評論此行",
         "placeholder": "對此行的評論…",
-        "send": "將評論傳送到聊天",
+        "submit": "加入審閱",
+        "edit": "編輯評論",
+        "remove": "移除評論",
         "cancel": "捨棄評論"
+      },
+      "review": {
+        "clear": "捨棄審閱",
+        "send_other": "傳送 {{count}} 則評論"
       },
       "truncated": "共 {{total}} 個檔案，顯示 {{shown}} 個；清單已截斷。",
       "moreLines_other": "顯示其餘 {{count}} 行"

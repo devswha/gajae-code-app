@@ -118,6 +118,18 @@ function ChatInterface({
     setPendingPermissionRequests,
   });
 
+
+  // "New work item" while a fresh conversation is already on screen changes
+  // nothing visible — same project, same composer — so the click reads as
+  // dead. The state reset happens in the session-state hook; here the click
+  // also lands the cursor in the box, which is the only feedback that state
+  // can offer.
+  const previousFocusTrigger = useRef(newSessionTrigger ?? 0);
+  useEffect(() => {
+    if ((newSessionTrigger ?? 0) === previousFocusTrigger.current) return;
+    previousFocusTrigger.current = newSessionTrigger ?? 0;
+    composer.textareaRef.current?.focus();
+  }, [composer.textareaRef, newSessionTrigger]);
   useEffect(() => {
     const prior = reasoningSessionRef.current;
     const selected = selectedSession?.id ?? null;

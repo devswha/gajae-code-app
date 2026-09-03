@@ -472,10 +472,15 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
 
 1. ~~Rebuild a signed + notarized DMG and accept it from the mounted image~~
    — done 2026-09-03, see TL;DR.
-2. ~~Cut `v2.0.0-beta.7`~~ — published 2026-09-03. Next cut: the release
-   workflow still ships an ad-hoc DMG; either add the signing/notarization
-   secrets to CI (`docs/DESKTOP-TAURI-VERIFICATION.md` § "To notarize in
-   CI") or keep uploading the local notarized image over it, as done here.
+2. ~~Cut `v2.0.0-beta.7`~~ — published 2026-09-03. **The release
+   workflow now signs and notarizes on the runner once the `release`
+   environment holds five secrets** (`APPLE_CERTIFICATE_P12`,
+   `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`,
+   `APPLE_APP_PASSWORD`; table in `docs/DESKTOP-TAURI-VERIFICATION.md`
+   § "Signing and notarizing in CI"). The owner enters them; until then the
+   workflow builds the ad-hoc image as before. The lane is untested against
+   real secrets: the first dispatch after they land is the verification.
+   `README.md` was written the same day.
 3. **Session-UI roadmap, remaining items** (1–3.5 landed 2026-09-02):
    - (4) Changes tab — **shipped 2026-09-03** (`253cd21` server,
      `3df9ba6` tab, last-turn scope after): third workspace tab between

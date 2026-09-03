@@ -513,10 +513,33 @@ If `notarytool submit` fails, read the reasons — they are specific:
 xcrun notarytool log <submission-id> --keychain-profile gajae-notary
 ```
 
-To notarize in CI instead of locally, the macOS release job needs the
-certificate `.p12` and its password, plus the notarization credentials, as
-repository secrets; it imports the `.p12` into a temporary keychain, exports
-`APPLE_SIGNING_IDENTITY`, and runs the same two submit/staple steps.
+### Signing and notarizing in CI (the release workflow)
+
+The `desktop-macos` job of `.github/workflows/release.yml` runs this same
+procedure on the runner when the **`release` environment** carries these
+secrets (Settings → Environments → `release`):
+
+| Secret | Value |
+|---|---|
+| `APPLE_CERTIFICATE_P12` | The Developer ID Application certificate with its private key, exported from Keychain Access as `.p12`, then `base64 -i cert.p12 \| pbcopy` |
+| `APPLE_CERTIFICATE_PASSWORD` | The password chosen when exporting the `.p12` |
+| `APPLE_ID` | The Apple ID e-mail of the developer account |
+| `APPLE_TEAM_ID` | The 10-character Team ID (`security find-identity` prints it in parentheses) |
+| `APPLE_APP_PASSWORD` | An app-specific password from appleid.apple.com, for `notarytool`; never the account password |
+
+With them the job imports the certificate into a throwaway keychain, exports
+`APPLE_SIGNING_IDENTITY` for every later step (the sign step *and* the DMG
+step - see the ad-hoc-image mistake recorded above), signs, notarizes and
+staples the app, builds the image, checks it is Developer ID-signed, notarizes
+and staples it, regenerates the `.sha256`, and in the mounted-image smoke
+requires `stapler validate` and `spctl -a -t exec` → `source=Notarized
+Developer ID`. The keychain is deleted at the end of the job.
+
+Without `APPLE_CERTIFICATE_P12` the job builds the ad-hoc image it always has
+and says so in the log. `APPLE_CERTIFICATE_P12` set with any of the other four
+missing fails the job rather than shipping a half-signed image. The
+environment's secrets are only released to a `workflow_dispatch` from `main`,
+never to a pull request.
 
 ## Automated packaged-server smoke (Mac)
 

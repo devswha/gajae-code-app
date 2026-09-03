@@ -50,6 +50,11 @@ export type GjcAutomationBridgeTransport = {
   token: string;
 };
 
+const CHROMIUM_DOWNLOAD_TITLE = 'The browser tool needs Chromium. Download Chrome for Testing once (about 150 MB, kept in ~/.gajae-app/browser)?';
+const CHROMIUM_DOWNLOAD = 'Download and continue';
+const CHROMIUM_NOT_NOW = 'Not now';
+const isDownloadRequired = (error: unknown): boolean => error instanceof Error && /browser_download_required/.test(error.message);
+
 const ALLOW_ONCE = 'Allow once';
 const ALLOW_ALWAYS = 'Always allow';
 const DENY = 'Deny';
@@ -236,6 +241,32 @@ export function createGjcAutomationTools(
     if (!granted.granted) throw new Error(`Browser access to ${check.origin} was not granted.`);
   };
 
+  /**
+   * The Browser panel and this tool share one app-managed Chromium (a Chrome
+   * for Testing download under ~/.gajae-app/browser). Until it exists, the
+   * sidecar refuses to open unless the download is allowed. The agent must
+   * not allow it on its own, and a bare "browser_download_required" failure
+   * told the person nothing, so the tool asks - the same card the origin
+   * check uses - and downloads on a yes; on a no the agent hears where the
+   * person can do it later.
+   */
+  const openBrowser = async (url: string | undefined, signal?: AbortSignal): Promise<unknown> => {
+    const request = (allowDownload: boolean) => bridgeRequest(transport, {
+      surface: 'browser', sessionId: appSessionId, operation: 'open',
+      payload: { ...(url ? { url } : {}), allowDownload },
+    }, signal);
+    try {
+      return await request(false);
+    } catch (error) {
+      if (!isDownloadRequired(error)) throw error;
+    }
+    const choice = await ui.select(CHROMIUM_DOWNLOAD_TITLE, [CHROMIUM_DOWNLOAD, CHROMIUM_NOT_NOW], { signal });
+    if (choice !== CHROMIUM_DOWNLOAD) {
+      throw new Error('Chromium is not installed and the user declined the download. The browser tool is unavailable until they choose "Get Chromium and launch it" in the Browser panel or Settings > Automation.');
+    }
+    return request(true);
+  };
+
   const browser: NonNullable<AutomationTools['browser']> = {
     name: 'browser',
     label: 'Browser',
@@ -246,12 +277,7 @@ export function createGjcAutomationTools(
       const params = browserSchema.parse(rawParams);
       if (params.action === 'open') {
         if (params.url) await ensureBrowserAccess(params.url, signal);
-        return textResult(await bridgeRequest(transport, {
-          surface: 'browser', sessionId: appSessionId, operation: 'open',
-          // Chromium downloads are initiated only by the user's explicit action in
-          // the Browser panel. Agent calls must never silently accept the download.
-          payload: { ...(params.url ? { url: params.url } : {}), allowDownload: false },
-        }, signal));
+        return textResult(await openBrowser(params.url, signal));
       }
       if (params.action === 'close') {
         return textResult(await bridgeRequest(transport, { surface: 'browser', sessionId: appSessionId, operation: 'close' }, signal));

@@ -327,3 +327,88 @@ test('agent computer exposes compact structured metadata even when the original 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+async function bridgeServer(handle: (request: Record<string, unknown>) => { ok: boolean; result?: unknown; error?: string }) {
+  const directory = await mkdtemp(join(tmpdir(), 'gajae-automation-chromium-'));
+  const socketPath = join(directory, 'bridge.sock');
+  const requests: Array<Record<string, unknown>> = [];
+  const server = net.createServer((socket) => {
+    let buffer = '';
+    socket.setEncoding('utf8');
+    socket.on('data', (chunk) => {
+      buffer += chunk;
+      const newline = buffer.indexOf('\n');
+      if (newline < 0) return;
+      const request = JSON.parse(buffer.slice(0, newline)) as Record<string, unknown>;
+      requests.push(request);
+      socket.end(`${JSON.stringify({ id: request.id, ...handle(request) })}\n`);
+    });
+  });
+  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(socketPath, () => resolve()); });
+  return {
+    socketPath,
+    requests,
+    close: async () => { await new Promise<void>((resolve) => server.close(() => resolve())); await rm(directory, { recursive: true, force: true }); },
+  };
+}
+
+test('without Chromium the browser tool asks the person and downloads on a yes', async () => {
+  const bridge = await bridgeServer((request) => {
+    if (request.operation === 'authorize') return { ok: true, result: { granted: true } };
+    const allowDownload = (request.payload as Record<string, unknown>).allowDownload;
+    return allowDownload
+      ? { ok: true, result: { sessionId: 'app-session', activeTabId: 'tab-1', tabs: [] } }
+      : { ok: false, error: 'browser_download_required: Chromium must be downloaded before first use.' };
+  });
+  const prompts: Array<{ title: string; options: string[] }> = [];
+  try {
+    const { browser } = createGjcAutomationTools('app-session', {
+      async select(title, options) { prompts.push({ title, options }); return 'Download and continue'; },
+    }, { socketPath: bridge.socketPath, token: TEST_TOKEN });
+    const result = await browser!.execute('tool-call-1', { action: 'open', url: 'https://example.com' }, undefined);
+
+    assert.equal(prompts.length, 1);
+    assert.match(prompts[0]!.title, /needs Chromium/);
+    assert.deepEqual(prompts[0]!.options, ['Download and continue', 'Not now']);
+    assert.deepEqual(bridge.requests.map((request) => [request.operation, (request.payload as Record<string, unknown>)?.allowDownload]),
+      [['authorize', undefined], ['open', false], ['open', true]]);
+    assert.match(JSON.stringify(result), /tab-1/);
+  } finally {
+    await bridge.close();
+  }
+});
+
+test('without Chromium and a no, the browser tool fails with where the person can install it', async () => {
+  const bridge = await bridgeServer((request) => request.operation === 'authorize'
+    ? { ok: true, result: { granted: true } }
+    : { ok: false, error: 'browser_download_required: Chromium must be downloaded before first use.' });
+  try {
+    const { browser } = createGjcAutomationTools('app-session', {
+      async select() { return 'Not now'; },
+    }, { socketPath: bridge.socketPath, token: TEST_TOKEN });
+    await assert.rejects(
+      browser!.execute('tool-call-1', { action: 'open', url: 'https://example.com' }, undefined),
+      /declined the download[\s\S]*Browser panel or Settings > Automation/,
+    );
+    // Never downloaded behind the person's back.
+    assert.equal(bridge.requests.some((request) => (request.payload as Record<string, unknown>)?.allowDownload === true), false);
+  } finally {
+    await bridge.close();
+  }
+});
+
+test('an unrelated open failure is not turned into a download prompt', async () => {
+  const bridge = await bridgeServer((request) => request.operation === 'authorize'
+    ? { ok: true, result: { granted: true } }
+    : { ok: false, error: 'unsupported_platform: Chromium is unavailable on this platform.' });
+  let asked = 0;
+  try {
+    const { browser } = createGjcAutomationTools('app-session', {
+      async select() { asked += 1; return 'Download and continue'; },
+    }, { socketPath: bridge.socketPath, token: TEST_TOKEN });
+    await assert.rejects(browser!.execute('tool-call-1', { action: 'open', url: 'https://example.com' }, undefined), /unsupported_platform/);
+    assert.equal(asked, 0);
+  } finally {
+    await bridge.close();
+  }
+});

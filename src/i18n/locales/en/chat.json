@@ -52,7 +52,8 @@
       "modelTitle": "Conversation model",
       "reasoningTitle": "Reasoning",
       "defaultModel": "Default",
-      "currentConfiguration": "Keep current configuration"
+      "currentConfiguration": "Keep current configuration",
+      "signInRequired": "Sign in to {{provider}} in Settings to use this model"
     },
     "agentConfiguration": {
       "label": "Agent setup",

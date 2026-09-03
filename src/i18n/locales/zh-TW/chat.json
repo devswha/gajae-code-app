@@ -52,7 +52,8 @@
       "modelTitle": "對話模型",
       "reasoningTitle": "推理",
       "defaultModel": "預設",
-      "currentConfiguration": "保留現有配置"
+      "currentConfiguration": "保留現有配置",
+      "signInRequired": "要使用此模型，請在設定中登入 {{provider}}"
     },
     "agentConfiguration": {
       "label": "代理設定",

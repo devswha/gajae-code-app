@@ -52,7 +52,8 @@
       "modelTitle": "チャットモデル。",
       "reasoningTitle": "推論。",
       "defaultModel": "デフォルト。",
-      "currentConfiguration": "現在の設定を使用。"
+      "currentConfiguration": "現在の設定を使用。",
+      "signInRequired": "このモデルを使うには、設定で {{provider}} にサインインしてください"
     },
     "agentConfiguration": {
       "label": "エージェント設定。",

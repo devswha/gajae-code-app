@@ -121,6 +121,8 @@ interface ChatComposerProps {
   modelPreset?: string;
   modelPresetOptions?: ProviderModelOption[];
   modelOptions?: ProviderModelOption[];
+  /** Whether `modelOptions` is the runtime's answer; see ModelAndReasoningPicker. */
+  availabilityKnown?: boolean;
   modelPresetsLoading?: boolean;
   /** Monotonic signal: each increment opens the model preset popup. */
   modelPickerOpenTrigger?: number;
@@ -187,6 +189,7 @@ export default function ChatComposer({
   modelPreset = 'default',
   modelPresetOptions = [],
   modelOptions = [],
+  availabilityKnown = false,
   modelPresetsLoading,
   modelPickerOpenTrigger,
   onSelectModelPreset = () => {},
@@ -431,6 +434,7 @@ export default function ChatComposer({
                 currentModel={displayedModel}
                 presetOptions={modelPresetOptions}
                 modelOptions={modelOptions}
+                availabilityKnown={availabilityKnown}
                 loading={modelPresetsLoading}
                 onSelect={onSelectModelPreset}
                 reasoningEffort={reasoningEffort}

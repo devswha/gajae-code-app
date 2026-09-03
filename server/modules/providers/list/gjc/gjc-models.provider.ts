@@ -252,7 +252,12 @@ export class GjcProviderModels implements IProviderModels {
         ...(model.group ? { group: model.group } : {}),
         effort: model.effort,
       }));
-    return models.length > 0 ? { ...base, MODELS: models } : base;
+    // MODELS is the runtime's word on what can run with the stored
+    // credentials. An answer with nothing in it (no provider signed in) is
+    // reported as an empty list, so the picker can dim the preset models it
+    // still lists; only an unreachable runtime leaves MODELS out, and then
+    // the picker treats availability as unknown rather than as none.
+    return runtimeCatalog === undefined ? base : { ...base, MODELS: models };
   }
 
   async getCurrentActiveModel(): Promise<ProviderCurrentActiveModel> {

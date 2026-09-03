@@ -52,7 +52,8 @@
       "modelTitle": "Konuşma modeli",
       "reasoningTitle": "muhakeme",
       "defaultModel": "Standart model",
-      "currentConfiguration": "Mevcut yapılandırmayı koru"
+      "currentConfiguration": "Mevcut yapılandırmayı koru",
+      "signInRequired": "Bu modeli kullanmak için Ayarlar’dan {{provider}} hesabına giriş yapın"
     },
     "agentConfiguration": {
       "label": "Temsilci kurulumu",

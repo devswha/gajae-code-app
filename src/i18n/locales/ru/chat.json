@@ -52,7 +52,8 @@
       "modelTitle": "Модель разговора",
       "reasoningTitle": "Рассуждение",
       "defaultModel": "Стандартная модель",
-      "currentConfiguration": "Сохранить текущую конфигурацию"
+      "currentConfiguration": "Сохранить текущую конфигурацию",
+      "signInRequired": "Войдите в {{provider}} в настройках, чтобы использовать эту модель"
     },
     "agentConfiguration": {
       "label": "Настройка агента",

@@ -52,7 +52,8 @@
       "modelTitle": "Modello di conversazione",
       "reasoningTitle": "Ragionamento",
       "defaultModel": "Predefinito",
-      "currentConfiguration": "Mantieni la configurazione corrente"
+      "currentConfiguration": "Mantieni la configurazione corrente",
+      "signInRequired": "Accedi a {{provider}} nelle impostazioni per usare questo modello"
     },
     "agentConfiguration": {
       "label": "Configurazione dell'agente",

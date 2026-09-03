@@ -38,10 +38,10 @@ test('deriveSessionModelOptions groups executable runtime models by provider', (
 
   assert.deepEqual(groups.map((group) => group.group), ['anthropic', 'custom', 'openai']);
   assert.deepEqual(groups.find((group) => group.group === 'openai')?.models, [
-    { value: 'openai/gpt-5.6-sol', label: 'Sol' },
+    { value: 'openai/gpt-5.6-sol', label: 'Sol', available: true },
   ]);
   assert.deepEqual(groups.find((group) => group.group === 'custom')?.models, [
-    { value: 'custom/codex', label: 'Codex' },
+    { value: 'custom/codex', label: 'Codex', available: true },
   ]);
   // Duplicate across roles/presets collapses to a single entry.
   const all = groups.flatMap((group) => group.models.map((model) => model.value));
@@ -54,22 +54,39 @@ test('a missing runtime catalog falls back to preset roles instead of an empty p
 
   const all = groups.flatMap((group) => group.models.map((model) => model.value));
   assert.deepEqual(all.sort(), ['anthropic/claude-opus-4', 'custom/codex', 'openai/gpt-5.6-sol']);
-  // Effort suffixes are stripped and labels compact to the bare model id.
+  // Effort suffixes are stripped and labels compact to the bare model id;
+  // nothing is dimmed, because availability is unknown, not none.
   assert.deepEqual(groups.find((group) => group.group === 'openai')?.models, [
-    { value: 'openai/gpt-5.6-sol', label: 'gpt-5.6-sol' },
+    { value: 'openai/gpt-5.6-sol', label: 'gpt-5.6-sol', available: true },
   ]);
+  assert.ok(groups.every((group) => group.available));
 });
 
-test('runtime models stay authoritative over preset roles when present', () => {
+test('when the runtime has answered, preset models it did not list are shown dimmed and unselectable', () => {
   const groups = deriveSessionModelOptions(
     [{ value: 'cursor/composer-2.5', label: 'Composer 2.5' }],
     catalog,
+    true,
   );
 
-  assert.deepEqual(groups, [{
+  // The signed-in provider first and available; the rest still listed, but not selectable.
+  assert.deepEqual(groups[0], {
     group: 'cursor',
-    models: [{ value: 'cursor/composer-2.5', label: 'Composer 2.5' }],
-  }]);
+    available: true,
+    models: [{ value: 'cursor/composer-2.5', label: 'Composer 2.5', available: true }],
+  });
+  const openai = groups.find((group) => group.group === 'openai');
+  assert.equal(openai?.available, false);
+  assert.deepEqual(openai?.models, [{ value: 'openai/gpt-5.6-sol', label: 'gpt-5.6-sol', available: false }]);
+  assert.equal(groups.find((group) => group.group === 'anthropic')?.available, false);
+});
+
+test('nobody signed in: the runtime answers with nothing and every preset model is dimmed', () => {
+  const groups = deriveSessionModelOptions([], catalog, true);
+  const all = groups.flatMap((group) => group.models);
+  assert.equal(all.length, 3);
+  assert.ok(all.every((model) => model.available === false));
+  assert.ok(groups.every((group) => group.available === false));
 });
 
 test('effort suffixes never leak into runtime model rows', () => {
@@ -89,10 +106,10 @@ test('effort suffixes never leak into runtime model rows', () => {
   ]);
 
   assert.deepEqual(groups.find((group) => group.group === 'anthropic')?.models, [
-    { value: 'anthropic/claude-fable-5', label: 'A' },
+    { value: 'anthropic/claude-fable-5', label: 'A', available: true },
   ]);
   assert.deepEqual(groups.find((group) => group.group === 'openai-codex')?.models, [
-    { value: 'openai-codex/gpt-5.6-terra', label: 'Terra' },
+    { value: 'openai-codex/gpt-5.6-terra', label: 'Terra', available: true },
   ]);
 });
 
@@ -115,7 +132,8 @@ test('legacy fallback sequences cannot leak brackets or secondary models into th
     { value: fallback, label: 'Fallback' },
   ]), [{
     group: 'glm-zcode53',
-    models: [{ value: 'glm-zcode53/glm-5.3', label: 'Fallback' }],
+    available: true,
+    models: [{ value: 'glm-zcode53/glm-5.3', label: 'Fallback', available: true }],
   }]);
 });
 

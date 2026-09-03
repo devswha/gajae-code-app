@@ -282,6 +282,7 @@ function ChatInterface({
       modelPreset={gjcModel}
       modelPresetOptions={providerModelCatalog.gjc?.OPTIONS ?? []}
       modelOptions={providerModelCatalog.gjc?.MODELS ?? []}
+      availabilityKnown={Array.isArray(providerModelCatalog.gjc?.MODELS)}
       modelPresetsLoading={providerModelsLoading}
       modelPickerOpenTrigger={composer.modelPickerTrigger}
       onSelectModelPreset={(model) => selectProviderModel('gjc', model, session.currentSessionId || selectedSession?.id || null)}

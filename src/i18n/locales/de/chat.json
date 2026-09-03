@@ -52,7 +52,8 @@
       "modelTitle": "Gesprächsmodell",
       "reasoningTitle": "Begründung",
       "defaultModel": "Voreinstellung",
-      "currentConfiguration": "Behalten Sie die aktuelle Konfiguration bei"
+      "currentConfiguration": "Behalten Sie die aktuelle Konfiguration bei",
+      "signInRequired": "Melden Sie sich in den Einstellungen bei {{provider}} an, um dieses Modell zu verwenden"
     },
     "agentConfiguration": {
       "label": "Agenten-Setup",

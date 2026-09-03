@@ -52,7 +52,8 @@
       "modelTitle": "对话模型",
       "reasoningTitle": "分析",
       "defaultModel": "标准",
-      "currentConfiguration": "保留当前配置"
+      "currentConfiguration": "保留当前配置",
+      "signInRequired": "要使用此模型，请在设置中登录 {{provider}}"
     },
     "agentConfiguration": {
       "label": "代理设置",

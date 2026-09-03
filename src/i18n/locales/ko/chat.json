@@ -52,7 +52,8 @@
       "modelTitle": "대화 모델",
       "reasoningTitle": "추론",
       "defaultModel": "기본값",
-      "currentConfiguration": "현재 설정 유지"
+      "currentConfiguration": "현재 설정 유지",
+      "signInRequired": "이 모델을 쓰려면 설정에서 {{provider}}에 로그인하세요"
     },
     "agentConfiguration": {
       "label": "에이전트 설정",

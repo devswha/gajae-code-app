@@ -250,3 +250,20 @@ test('credential database WAL changes invalidate the model catalog revision', as
   await utimes(walPath, 30, 30);
   assert.equal(await models.getCatalogRevision(), 30_000);
 });
+
+test('a runtime that answers with no available model reports an empty MODELS; an unreachable one reports none', async (t) => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-availability-'));
+  t.after(() => rm(homeDir, { recursive: true, force: true }));
+  const agentDir = path.join(homeDir, '.gjc', 'agent');
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'config.yml'), 'modelProfile:\n  default: openai-codex/gpt-test\n', 'utf8');
+
+  // Nobody is signed in: the runtime answers, and its answer is "nothing".
+  const signedOut = await new GjcProviderModels(homeDir, async () => ({ ok: true, result: { models: [] } })).getSupportedModels();
+  assert.deepEqual(signedOut.MODELS, []);
+  assert.ok(signedOut.OPTIONS.length > 0, 'the preset catalog still lists what could be chosen');
+
+  // The worker is down: availability is unknown, not "none".
+  const unreachable = await new GjcProviderModels(homeDir, async () => { throw new Error('worker unavailable'); }).getSupportedModels();
+  assert.equal('MODELS' in unreachable, false);
+});

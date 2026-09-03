@@ -17,15 +17,18 @@ Last updated: 2026-09-02 night. Supersedes the 2026-07-18 handoff.
   2026-09-02 session-UI pass (tool output density, four-state session status,
   sidebar search, concise titles, per-project permissions, turn work block,
   composer Stop / Esc) is recorded below.
-- **Developer ID signing + notarization is proven, but nothing is shippable
-  yet (2026-09-02).** The Mac has the certificate and the `gajae-notary`
-  notarytool profile; the first signed build (`a4773ff`) was notarized,
-  stapled and Gatekeeper-accepted — then failed packaged acceptance on the
-  mounted image (`GJC worker failed` / missing `elkjs`). An unsigned payload
-  + ad-hoc `.app` with the first-party stub now pass out-of-tree smokes.
-  **The next session rebuilds, re-notarizes and accepts from the mounted
-  image.** See `docs/DESKTOP-TAURI-VERIFICATION.md` § "Signed release
-  procedure". No notarized build has been tagged or published.
+- **`v2.0.0-beta.7` is published (2026-09-03 16:20 KST) as the first MIT
+  release and the first notarized macOS image.** Cut at `d84a9d3`; the
+  release workflow (run 33727451679) created the tag and the Linux server
+  tarball, then the locally built, Developer ID-signed, notarized and
+  stapled DMG (SHA-256 `f0659df0…44c55`, 227303972 bytes) and its
+  `.sha256` were uploaded over the runner's ad-hoc image; the download was
+  re-verified (checksum, `stapler validate`, Gatekeeper). Release notes
+  are hand-written (MIT, permissions default, removals, session UI, fixes).
+  Record: `docs/DESKTOP-TAURI-VERIFICATION.md` § beta.7. Lesson recorded
+  there: `APPLE_SIGNING_IDENTITY` must be in the environment of *every*
+  packaging step; an ad-hoc DMG is accepted by notarytool but rejected by
+  `spctl -t open`.
 - v1 users are served by the frozen snapshot repo **`devswha/gajae-app-v1`**
   (cut at v1.0.0, release assets mirrored). Maintenance flows one way:
   this repo → cherry-pick to the snapshot.
@@ -467,23 +470,12 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
    scratch (hidden server-side). Plus write-row line numbers in Last turn.
    The stack is clear for packaging.
 
-1. **Rebuild a signed + notarized DMG from this HEAD and accept it from
-   the mounted image.** That is the only remaining blocker before a
-   publishable desktop build. Follow `docs/DESKTOP-TAURI-VERIFICATION.md`
-   § "Signed release procedure". Do not ship the 2026-09-02 notarized DMG
-   (SHA-256 `15adf60e2431502b6efe3c42cd16eb5f985e52394ad1fc20dee8ba302af3cd02`);
-   it predates the stub. Do not tag or upload a GitHub Release unless asked.
-2. **Cut `v2.0.0-beta.7` (user decision):** `package.json` already carries
-   `2.0.0-beta.7` and `"license": "MIT"`; the tag does not exist yet. This
-   is the first MIT distribution (beta.6 and earlier stay AGPL). Rebuild
-   and re-notarize at the cut HEAD. `release-it` generates CHANGELOG.
-   Release notes must include:
-   - MIT relicensing (earlier betas remain AGPL).
-   - Permission default `ask` now actually prompts for bash / eval / delete
-     (`858f1a3`); the SDK gate used to default to `"allow"`.
-   - File tree, git GUI and in-app editor are gone.
-   - Session UI: four-state status, sidebar search, tool-output density,
-     per-project permissions, turn work block, composer Stop / Esc.
+1. ~~Rebuild a signed + notarized DMG and accept it from the mounted image~~
+   — done 2026-09-03, see TL;DR.
+2. ~~Cut `v2.0.0-beta.7`~~ — published 2026-09-03. Next cut: the release
+   workflow still ships an ad-hoc DMG; either add the signing/notarization
+   secrets to CI (`docs/DESKTOP-TAURI-VERIFICATION.md` § "To notarize in
+   CI") or keep uploading the local notarized image over it, as done here.
 3. **Session-UI roadmap, remaining items** (1–3.5 landed 2026-09-02):
    - (4) Changes tab — **shipped 2026-09-03** (`253cd21` server,
      `3df9ba6` tab, last-turn scope after): third workspace tab between

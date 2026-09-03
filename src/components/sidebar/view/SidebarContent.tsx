@@ -112,12 +112,12 @@ export default function SidebarContent({
 
       {!isArchiveOpen && (
         <>
-          <SidebarNavigationTabs
-            canCreateSession={canCreateSession}
-            onCreateSession={createSession}
-            onCreateProject={onCreateProject}
-            t={t}
-          />
+          {canCreateSession && (
+            <SidebarNavigationTabs
+              onCreateSession={createSession}
+              t={t}
+            />
+          )}
           {hasProjects && <SidebarFilterInput value={filter.query} onChange={filter.setQuery} inputRef={filter.inputRef} t={t} />}
         </>
       )}

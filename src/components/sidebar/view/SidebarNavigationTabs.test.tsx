@@ -21,27 +21,18 @@ async function makeT(): Promise<TFunction> {
   return i18n.getFixedT('en', 'sidebar');
 }
 
-function renderNavigation(t: TFunction, canCreateSession: boolean): string {
+function renderNavigation(t: TFunction): string {
   return renderToStaticMarkup(createElement(SidebarNavigationTabs, {
-    canCreateSession,
     onCreateSession: () => {},
-    onCreateProject: () => {},
     t,
   }));
 }
 
 test('renders one prominent New task action without mode tabs', async () => {
-  const html = renderNavigation(await makeT(), true);
+  const html = renderNavigation(await makeT());
   assert.match(html, /<nav/);
   assert.match(html, /aria-label="New task"/);
   assert.match(html, />New task</);
   assert.doesNotMatch(html, /role="tablist"|role="tab"/);
-});
-
-test('with no projects the one action is Add a project, never a disabled button', async () => {
-  const html = renderNavigation(await makeT(), false);
-  assert.match(html, /aria-label="Add a project"/);
-  assert.match(html, />Add a project</);
   assert.doesNotMatch(html, /disabled/);
-  assert.doesNotMatch(html, /New task/);
 });

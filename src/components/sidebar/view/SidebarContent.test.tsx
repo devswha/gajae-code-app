@@ -259,9 +259,10 @@ test('renders the empty project state under the Projects and Work sections witho
   assert.match(emptyRow, /No projects yet/);
   assert.match(emptyRow, /Add one/);
   assert.match(html, /id="sidebar-projects-heading"[^>]*>Projects/);
-  // The primary action is Add a project, not a disabled New task; there is no
-  // Work section and no filter until the first project exists.
-  assert.match(html, /aria-label="Create project"/);
+  // No primary button, no Work section, no filter until the first project
+  // exists. "Create project" appears once: the section header's "+", the one
+  // place the action belongs next to the empty row.
+  assert.equal(html.match(/aria-label="Create project"/g)?.length, 1);
   assert.doesNotMatch(html, /aria-label="New task"/);
   assert.doesNotMatch(html, /id="sidebar-work-heading"/);
   assert.doesNotMatch(html, /data-sidebar-filter/);

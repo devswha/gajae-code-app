@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 
 import { createCachedDiffCalculator } from '../../chat/utils/messageTransforms';
 import type { NormalizedMessage, SessionStore } from '../../../stores/useSessionStore';
@@ -160,9 +160,14 @@ export function lastTurnFiles(messages: NormalizedMessage[]): LastTurnFile[] {
 }
 
 export function useLastTurnChanges(sessionStore: SessionStore, sessionId: string | undefined, enabled: boolean) {
-  const { getMessages, getSessionSlot } = sessionStore;
+  const { getMessages, getSessionSlot, subscribeSession } = sessionStore;
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const messages = sessionId ? getMessages(sessionId) : EMPTY_MESSAGES;
+  // The panel is not on the store owner's render path, so it subscribes to
+  // the session itself: history arriving after the tab opened, or a turn's
+  // tool results landing, re-read the messages here without a user action.
+  const subscribe = useCallback((listener: () => void) => (sessionId ? subscribeSession(sessionId, listener) : () => {}), [sessionId, subscribeSession]);
+  const read = useCallback(() => (sessionId ? getMessages(sessionId) : EMPTY_MESSAGES), [getMessages, sessionId]);
+  const messages = useSyncExternalStore(subscribe, read, read);
   const snapshot = useMemo(() => ({ messages, refreshVersion }), [messages, refreshVersion]);
   const files = useMemo(
     () => enabled && sessionId ? lastTurnFiles(snapshot.messages) : [],

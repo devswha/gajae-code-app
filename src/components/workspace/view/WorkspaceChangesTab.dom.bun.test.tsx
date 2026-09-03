@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createInstance } from 'i18next';
 import { createElement } from 'react';
@@ -62,7 +62,7 @@ function renderTab(files: ProjectChange[], onComposerInsert: (text: string) => b
       createElement(WorkspaceChangesTab, {
         projectId: 'project',
         projectPath: '/tmp/project',
-        sessionStore: { getMessages: () => [], getSessionSlot: () => ({ status: 'idle' }) } as unknown as SessionStore,
+        sessionStore: { getMessages: () => [], getSessionSlot: () => ({ status: 'idle' }), subscribeSession: () => () => {} } as unknown as SessionStore,
         onComposerInsert,
         active: true,
       }),
@@ -155,6 +155,35 @@ test('an unavailable composer keeps the review instead of discarding it', async 
   }
 });
 
+test('the Last-turn scope picks up history that arrives after the tab opened', async () => {
+  let messages: unknown[] = [];
+  const listeners = new Set<() => void>();
+  const sessionStore = {
+    getMessages: () => messages,
+    getSessionSlot: () => ({ status: 'idle' }),
+    subscribeSession: (_id: string, listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); },
+  } as unknown as SessionStore;
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(createElement(QueryClientProvider, { client: queryClient },
+    createElement(I18nextProvider, { i18n },
+      createElement(WorkspaceChangesTab, { projectId: 'project', projectPath: '/tmp/project', sessionId: 'session', sessionStore, lastTurnRunning: false, active: true }),
+    ),
+  ));
+  fireEvent.click(screen.getByRole('button', { name: 'workspace.changes.scope.lastTurn' }));
+  assert.ok(screen.getByText('workspace.changes.emptyTurn'));
+  assert.equal(listeners.size, 1, 'the tab subscribes to its session');
+
+  // History lands: the store notifies, nobody clicks anything.
+  messages = [
+    { id: 'user', sessionId: 'session', timestamp: '2026-01-01T00:00:00Z', provider: 'gjc', kind: 'text', role: 'user', content: 'write it' },
+    { id: 'write', sessionId: 'session', timestamp: '2026-01-01T00:00:01Z', provider: 'gjc', kind: 'tool_use', toolId: 'write-1', toolName: 'write', toolInput: { path: 'hello.py', content: 'print(1)\n' }, toolResult: { content: 'ok', isError: false } },
+  ];
+  act(() => { listeners.forEach((listener) => listener()); });
+
+  assert.ok(await screen.findByText('hello.py'));
+  assert.equal(screen.queryByText('workspace.changes.emptyTurn'), null);
+});
+
 test('an orphaned mutation is not shown as loading after the run is idle', () => {
   const messages = [
     { id: 'user', sessionId: 'session', timestamp: '2026-01-01T00:00:00Z', provider: 'gjc', kind: 'text', role: 'user', content: 'edit it' },
@@ -163,6 +192,7 @@ test('an orphaned mutation is not shown as loading after the run is idle', () =>
   const sessionStore = {
     getMessages: () => messages,
     getSessionSlot: () => ({ status: 'idle' }),
+    subscribeSession: () => () => {},
   } as unknown as SessionStore;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 

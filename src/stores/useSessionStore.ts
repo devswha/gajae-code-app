@@ -179,7 +179,20 @@ export function useSessionStore() {
   const activeJob = useRef<string | null>(null);
   const [observedSession, setObservedSession] = useState<string | null>(null);
   const [, redraw] = useState(0);
-  const emitSession = useCallback((id: string) => { if (activeSession.current === id) redraw((version) => version + 1); }, []);
+  // Consumers that are not on the store owner's render path (the workspace
+  // panel reads a session's messages through stable props, which the compiler
+  // memoizes) subscribe per session instead of relying on the owner's redraw.
+  const sessionListeners = useRef(new Map<string, Set<() => void>>());
+  const subscribeSession = useCallback((id: string, listener: () => void) => {
+    const listeners = sessionListeners.current.get(id) ?? new Set<() => void>();
+    listeners.add(listener);
+    sessionListeners.current.set(id, listeners);
+    return () => { listeners.delete(listener); if (listeners.size === 0) sessionListeners.current.delete(id); };
+  }, []);
+  const emitSession = useCallback((id: string) => {
+    if (activeSession.current === id) redraw((version) => version + 1);
+    sessionListeners.current.get(id)?.forEach((listener) => listener());
+  }, []);
   const emitJob = useCallback((id: string) => { if (activeJob.current === id) redraw((version) => version + 1); }, []);
 
   const evict = useCallback((keep?: string) => {
@@ -278,7 +291,7 @@ export function useSessionStore() {
   const getMessages = useCallback((id: string) => { const slot = slots.current.get(id); if (!slot) return EMPTY; refreshMerged(slot); return slot.merged; }, []);
   const getSessionSlot = useCallback((id: string) => { const slot = slots.current.get(id); if (slot) refreshMerged(slot); return slot; }, []);
 
-  return useMemo(() => ({ getSlot, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot }), [getSlot, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot]);
+  return useMemo(() => ({ getSlot, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession }), [getSlot, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession]);
 }
 
 export type SessionStore = ReturnType<typeof useSessionStore>;

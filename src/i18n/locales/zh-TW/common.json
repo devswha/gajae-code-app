@@ -14,9 +14,9 @@
     "settingUpWorkspace": "準備工作空間……",
     "chooseProject": "選擇專案",
     "selectProjectDescription": "使用側欄的專案文件夹按鈕來新增一個專案，開始在 Gajae Code 中編寫代碼。它的對話和檔案歷史將一起保存在那裡。",
-    "tip": "提示",
-    "createProjectMobile": "使用上方的菜單來訪問您的專案",
-    "createProjectDesktop": "使用側欄的資料夾按鈕來新增一個專案",
+    "firstProject": "新增第一個專案",
+    "firstProjectDescription": "選擇這台電腦上的一個資料夾。Gajae Code 會在其中工作，專案的對話也會保留在那裡。",
+    "addProject": "新增專案",
     "newSession": "開始對話",
     "projectFiles": "專案中的檔案"
   },

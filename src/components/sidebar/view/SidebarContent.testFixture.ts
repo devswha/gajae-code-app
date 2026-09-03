@@ -57,7 +57,7 @@ export async function makeSidebarT(): Promise<TFunction> {
             openArchive: 'Open archive',
           },
           projects: {
-            createProjectHint: 'Create a workspace to start.',
+            addFirst: 'Add one',
             noProjects: 'No projects yet',
             searchPlaceholder: 'Search projects',
             title: 'Projects',
@@ -95,7 +95,6 @@ export async function makeSidebarT(): Promise<TFunction> {
             hideSidebar: 'Hide sidebar',
             processingSessionIndicator: 'Processing session',
             refresh: 'Refresh',
-            selectProjectToCreateSession: 'Select a project before creating a session',
           },
         },
       },

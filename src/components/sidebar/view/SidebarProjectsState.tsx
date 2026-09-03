@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import type { LoadingProgress } from '../../../types/app';
 
 type SidebarProjectsStateProps = {
+  readonly onCreateProject?: () => void;
   isLoading: boolean;
   loadingProgress: LoadingProgress | null;
   projectsCount: number;
@@ -15,6 +16,7 @@ export default function SidebarProjectsState({
   isLoading,
   loadingProgress,
   projectsCount,
+  onCreateProject,
   t,
 }: SidebarProjectsStateProps) {
   if (isLoading) {
@@ -51,15 +53,21 @@ export default function SidebarProjectsState({
     );
   }
 
+  // One line, and the line is the action: a first-time user does not know
+  // the small "+" in the section header, and an explanation paragraph is
+  // longer than just doing the thing.
   if (projectsCount === 0) {
     return (
-      <div className="px-3 py-5 text-left">
-        <div className="mb-2 flex size-8 items-center justify-center rounded-lg bg-muted">
-          <Folder className="size-4 text-muted-foreground" />
-        </div>
-        <h3 className="mb-1 text-sm font-medium text-foreground">{t('projects.noProjects')}</h3>
-        <p className="text-xs text-muted-foreground">{t('projects.createProjectHint')}</p>
-      </div>
+      <button
+        type="button"
+        className="flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm text-muted-foreground outline-hidden transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+        onClick={onCreateProject}
+        data-testid="sidebar-empty-projects"
+      >
+        <Folder className="size-4 shrink-0" aria-hidden />
+        <span className="truncate">{t('projects.noProjects')}</span>
+        <span className="ml-auto shrink-0 text-xs text-primary">{t('projects.addFirst')}</span>
+      </button>
     );
   }
 

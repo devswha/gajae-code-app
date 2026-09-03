@@ -5,13 +5,13 @@
     "deleteProject": "移除工作空間",
     "renameProject": "重新命名工作空間",
     "noProjects": "尚未有任何工作空間",
+    "addFirst": "新增",
     "loadingProjects": "正在取得工作空間…",
     "projectNamePlaceholder": "工作空間名稱",
     "untitledSession": "未命名對話",
     "newSession": "開始對話",
     "fetchingProjects": "正在獲取專案和對話",
-    "projects": "專案",
-    "createProjectHint": "新增一個專案以開始"
+    "projects": "專案"
   },
   "sessions": {
     "work": "工作",
@@ -27,14 +27,12 @@
     "loadingSessions": "正在取得對話中…",
     "unnamed": "未命名",
     "loading": "正在加載...",
-    "showMore": "顯示更多對話",
-    "createSessionHint": "選擇專案，然後使用 + 開啟會話"
+    "showMore": "顯示更多對話"
   },
   "tooltips": {
     "hideSidebar": "收合側欄",
     "createProject": "新增專案",
     "createSession": "開始對話",
-    "selectProjectToCreateSession": "開始對話前請先選擇專案",
     "refresh": "重新載入專案和對話 (Ctrl+R)",
     "renameProject": "重命名工作區 (F2)",
     "deleteProject": "從側欄移除此專案 (Delete)",

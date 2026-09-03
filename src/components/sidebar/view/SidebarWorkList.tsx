@@ -7,11 +7,9 @@ import type { SidebarProjectListProps } from './SidebarProjectList';
 
 type SidebarWorkListProps = {
   readonly projectListProps: SidebarProjectListProps;
-  /** Render nothing when empty; the host is already explaining why (an active filter). */
-  readonly quietWhenEmpty?: boolean;
 };
 
-export default function SidebarWorkList({ projectListProps, quietWhenEmpty = false }: SidebarWorkListProps) {
+export default function SidebarWorkList({ projectListProps }: SidebarWorkListProps) {
   const {
     projects,
     filteredProjects,
@@ -19,7 +17,6 @@ export default function SidebarWorkList({ projectListProps, quietWhenEmpty = fal
     isLoading,
     isMobile,
     loadingProgress,
-    initialSessionsLoaded,
     currentTime,
     editingSession,
     editingSessionName,
@@ -60,18 +57,8 @@ export default function SidebarWorkList({ projectListProps, quietWhenEmpty = fal
     );
   }
 
-  if (sessionRows.length === 0) {
-    if (quietWhenEmpty) return null;
-    const isLoadingSessions = filteredProjects.some((project) => !initialSessionsLoaded.has(project.projectId));
-    return (
-      <div className="px-3 py-4 text-left">
-        <p className="text-sm text-muted-foreground">
-          {isLoadingSessions ? t('sessions.loadingSessions') : t('sessions.noSessions')}
-        </p>
-        {!isLoadingSessions && <p className="mt-1 text-xs text-muted-foreground/70">{t('sessions.createSessionHint')}</p>}
-      </div>
-    );
-  }
+  // The host does not render the section without rows; nothing to say here.
+  if (sessionRows.length === 0) return null;
 
   return (
     <div className="space-y-0.5 pb-1">

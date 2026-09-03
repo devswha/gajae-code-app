@@ -14,9 +14,9 @@
     "settingUpWorkspace": "Preparazione dello spazio di lavoro...",
     "chooseProject": "Scegli un progetto",
     "selectProjectDescription": "Scegli un progetto nella barra laterale per iniziare a scrivere codice in Gajae Code. Le sue conversazioni e la cronologia dei file rimangono insieme lì.",
-    "tip": "Suggerimento",
-    "createProjectMobile": "Utilizza il menu in alto per raggiungere i tuoi progetti",
-    "createProjectDesktop": "Utilizza il pulsante della cartella nella barra laterale per aggiungere un progetto",
+    "firstProject": "Aggiungi il primo progetto",
+    "firstProjectDescription": "Scegli una cartella su questo computer. Gajae Code lavora al suo interno e le conversazioni del progetto restano lì.",
+    "addProject": "Aggiungi un progetto",
     "newSession": "Inizia la conversazione",
     "projectFiles": "File nel progetto"
   },

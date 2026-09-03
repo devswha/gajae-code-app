@@ -5,13 +5,13 @@
     "deleteProject": "Supprimer l'espace de travail",
     "renameProject": "Renommer l'espace de travail",
     "noProjects": "Aucun espace de travail pour l'instant",
+    "addFirst": "En ajouter un",
     "loadingProjects": "Récupération des espaces de travail…",
     "projectNamePlaceholder": "Nom de l'espace de travail",
     "untitledSession": "Conversation sans nom",
     "newSession": "Démarrer une conversation",
     "fetchingProjects": "Récupération de projets et de conversations",
-    "projects": "projets",
-    "createProjectHint": "Ajouter un projet pour commencer"
+    "projects": "projets"
   },
   "sessions": {
     "work": "Espace de travail",
@@ -27,14 +27,12 @@
     "loadingSessions": "Récupération de conversations…",
     "unnamed": "Sans titre",
     "loading": "Chargement en cours...",
-    "showMore": "Afficher plus de conversations",
-    "createSessionHint": "Choisissez un projet, puis utilisez + pour ouvrir une session"
+    "showMore": "Afficher plus de conversations"
   },
   "tooltips": {
     "hideSidebar": "Réduire la barre latérale",
     "createProject": "Ajouter un projet",
     "createSession": "Démarrer une conversation",
-    "selectProjectToCreateSession": "Choisissez un projet avant de démarrer une conversation",
     "refresh": "Recharger les projets et les conversations (Ctrl+R)",
     "renameProject": "Renommer l'espace de travail (F2)",
     "deleteProject": "Supprimer ce projet de la barre latérale (Supprimer)",

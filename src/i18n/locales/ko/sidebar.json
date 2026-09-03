@@ -5,13 +5,13 @@
     "deleteProject": "워크스페이스 제거",
     "renameProject": "워크스페이스 이름 변경",
     "noProjects": "아직 워크스페이스가 없습니다",
+    "addFirst": "추가하기",
     "loadingProjects": "워크스페이스를 가져오는 중…",
     "projectNamePlaceholder": "워크스페이스 이름",
     "untitledSession": "제목 없는 대화",
     "newSession": "대화 시작",
     "fetchingProjects": "프로젝트와 대화를 가져오는 중",
-    "projects": "현재 프로젝트",
-    "createProjectHint": "프로젝트를 추가하여 사용해보세요"
+    "projects": "현재 프로젝트"
   },
   "sessions": {
     "work": "작업",
@@ -27,14 +27,12 @@
     "loadingSessions": "대화를 가져오는 중…",
     "unnamed": "미명명",
     "loading": "불러오는 중…",
-    "showMore": "더 많은 대화 보기",
-    "createSessionHint": "프로젝트를 선택한 후 +를 사용하여 세션 열기"
+    "showMore": "더 많은 대화 보기"
   },
   "tooltips": {
     "hideSidebar": "사이드바 접기",
     "createProject": "프로젝트 추가",
     "createSession": "대화 시작",
-    "selectProjectToCreateSession": "대화를 시작하기 전에 프로젝트 선택",
     "refresh": "프로젝트와 대화 새로고침 (Ctrl+R)",
     "renameProject": "워크스페이스 이름 변경 (F2)",
     "deleteProject": "사이드바에서 이 프로젝트 제거 (Delete)",

@@ -5,13 +5,13 @@
     "deleteProject": "Arbeitsbereich entfernen",
     "renameProject": "Arbeitsbereich umbenennen",
     "noProjects": "Noch keine Arbeitsbereiche",
+    "addFirst": "Hinzufügen",
     "loadingProjects": "Arbeitsbereiche werden abgerufen…",
     "projectNamePlaceholder": "Name des Arbeitsbereichs",
     "untitledSession": "Unbenanntes Gespräch",
     "newSession": "Gespräch beginnen",
     "fetchingProjects": "Projekte und Gespräche abrufen",
-    "projects": "Arbeitsprojekte",
-    "createProjectHint": "Fügen Sie zunächst ein Projekt hinzu"
+    "projects": "Arbeitsprojekte"
   },
   "sessions": {
     "work": "Arbeitsbereich",
@@ -27,14 +27,12 @@
     "loadingSessions": "Gespräche abrufen…",
     "unnamed": "Ohne Titel",
     "loading": "Laden...",
-    "showMore": "Weitere Gespräche anzeigen",
-    "createSessionHint": "Wählen Sie ein Projekt aus und öffnen Sie dann mit + eine Sitzung"
+    "showMore": "Weitere Gespräche anzeigen"
   },
   "tooltips": {
     "hideSidebar": "Seitenleiste einklappen",
     "createProject": "Fügen Sie ein Projekt hinzu",
     "createSession": "Beginnen Sie ein Gespräch",
-    "selectProjectToCreateSession": "Wählen Sie ein Projekt aus, bevor Sie ein Gespräch beginnen",
     "refresh": "Projekte und Konversationen neu laden (Ctrl+R)",
     "renameProject": "Arbeitsbereich umbenennen (F2)",
     "deleteProject": "Dieses Projekt aus der Seitenleiste entfernen (Löschen)",

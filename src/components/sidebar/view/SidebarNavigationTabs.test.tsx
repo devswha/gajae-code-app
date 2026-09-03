@@ -15,7 +15,7 @@ async function makeT(): Promise<TFunction> {
     interpolation: { escapeValue: false },
     resources: { en: { sidebar: {
       sessions: { newTask: 'New task' },
-      tooltips: { selectProjectToCreateSession: 'Add a project before starting a new task' },
+      tooltips: { createProject: 'Add a project' },
     } } },
   });
   return i18n.getFixedT('en', 'sidebar');
@@ -25,6 +25,7 @@ function renderNavigation(t: TFunction, canCreateSession: boolean): string {
   return renderToStaticMarkup(createElement(SidebarNavigationTabs, {
     canCreateSession,
     onCreateSession: () => {},
+    onCreateProject: () => {},
     t,
   }));
 }
@@ -37,9 +38,10 @@ test('renders one prominent New task action without mode tabs', async () => {
   assert.doesNotMatch(html, /role="tablist"|role="tab"/);
 });
 
-test('disables New task without opening project creation when no projects exist', async () => {
+test('with no projects the one action is Add a project, never a disabled button', async () => {
   const html = renderNavigation(await makeT(), false);
-  assert.match(html, /title="Add a project before starting a new task"/);
-  assert.match(html, /disabled=""/);
-  assert.doesNotMatch(html, /Create a project to start a new task/);
+  assert.match(html, /aria-label="Add a project"/);
+  assert.match(html, />Add a project</);
+  assert.doesNotMatch(html, /disabled/);
+  assert.doesNotMatch(html, /New task/);
 });

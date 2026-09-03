@@ -5,13 +5,13 @@
     "deleteProject": "Çalışma alanını kaldır",
     "renameProject": "Çalışma alanını yeniden adlandırın",
     "noProjects": "Henüz çalışma alanı yok",
+    "addFirst": "Ekle",
     "loadingProjects": "Çalışma alanları alınıyor…",
     "projectNamePlaceholder": "Çalışma alanı adı",
     "untitledSession": "Adsız görüşme",
     "newSession": "Konuşmayı başlat",
     "fetchingProjects": "Projeleri ve konuşmaları alma",
-    "projects": "projeler",
-    "createProjectHint": "Başlamak için bir proje ekleyin"
+    "projects": "projeler"
   },
   "sessions": {
     "work": "iş",
@@ -27,14 +27,12 @@
     "loadingSessions": "Konuşmalar alınıyor…",
     "unnamed": "İsimsiz",
     "loading": "Oturumlar yükleniyor…",
-    "showMore": "Daha fazla görüşme göster",
-    "createSessionHint": "Bir proje seçin ve ardından bir oturum açmak için + tuşunu kullanın"
+    "showMore": "Daha fazla görüşme göster"
   },
   "tooltips": {
     "hideSidebar": "Kenar çubuğunu daralt",
     "createProject": "Proje ekle",
     "createSession": "Konuşma başlat",
-    "selectProjectToCreateSession": "Konuşmaya başlamadan önce bir proje seçin",
     "refresh": "Projeleri ve konuşmaları yeniden yükle (Ctrl+R)",
     "renameProject": "Çalışma alanını yeniden adlandırın (F2)",
     "deleteProject": "Bu projeyi kenar çubuğundan kaldır (Sil)",

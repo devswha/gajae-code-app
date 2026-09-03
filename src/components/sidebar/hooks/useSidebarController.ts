@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 
 import { forgetSessionStorage } from '../../chat/utils/chatStorage';
+import { useAppShellStore } from '../../../stores/useAppShellStore';
 import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import { api } from '../../../utils/api';
@@ -30,7 +31,9 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
   const palette = usePaletteOps();
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [editingProject, setEditingProject] = useState<string | null>(null);
-  const [showNewProject, setShowNewProject] = useState(false);
+  // Shared with the empty main pane, whose only action is the same dialog.
+  const showNewProject = useAppShellStore((state) => state.newProjectOpen);
+  const setShowNewProject = useAppShellStore((state) => state.setNewProjectOpen);
   const [editingName, setEditingName] = useState('');
   const [initialSessionsLoaded, setInitialSessionsLoaded] = useState<Set<string>>(new Set());
   const [currentTime, setCurrentTime] = useState(() => new Date());

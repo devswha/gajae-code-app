@@ -74,11 +74,19 @@ export default function SidebarContent({
   const selectedProjectIsAvailable = selectedProject !== null
     && availableProjects.some((project) => project.projectId === selectedProject.projectId);
   const canCreateSession = availableProjects.length > 0;
+  // Nothing to filter and nothing to report until the first project exists:
+  // the empty workspace is one action (add a project) and one line saying so.
+  const hasProjects = availableProjects.length > 0 || projectListProps.isLoading;
   const filter = useSidebarFilter(projectListProps);
   const listProps = filter.listProps;
   // Counts describe the whole workspace, not the filtered view: the heading is
   // a status line, and hiding a failed run behind a filter would be a lie.
-  const workCounts = countWorkRows(collectWorkRows(projectListProps));
+  const workRows = collectWorkRows(projectListProps);
+  const workCounts = countWorkRows(workRows);
+  // Work is a status area - what runs, waits, failed, or finished unread. It
+  // appears when there is something to report and not before; a permanent
+  // empty header asking the user to start a conversation was not status.
+  const showWork = hasProjects && workRows.length > 0;
   const showsFilterEmptyState = filter.active && filter.matchCount === 0 && !projectListProps.isLoading;
 
   const createSession = () => {
@@ -91,7 +99,7 @@ export default function SidebarContent({
 
   return (
     <div
-      className="flex h-full flex-col bg-background md:w-72 md:select-none"
+      className="flex h-full flex-col bg-sidebar md:w-72 md:select-none"
       style={{}}
     >
       <SidebarHeader
@@ -107,9 +115,10 @@ export default function SidebarContent({
           <SidebarNavigationTabs
             canCreateSession={canCreateSession}
             onCreateSession={createSession}
+            onCreateProject={onCreateProject}
             t={t}
           />
-          <SidebarFilterInput value={filter.query} onChange={filter.setQuery} inputRef={filter.inputRef} t={t} />
+          {hasProjects && <SidebarFilterInput value={filter.query} onChange={filter.setQuery} inputRef={filter.inputRef} t={t} />}
         </>
       )}
 
@@ -144,17 +153,19 @@ export default function SidebarContent({
               actionLabel={t('tooltips.createProject')}
               onAction={onCreateProject}
             >
-              <SidebarProjectList {...listProps} showSessions />
+              <SidebarProjectList {...listProps} onCreateProject={onCreateProject} showSessions />
             </SidebarSection>
-            <SidebarSection
-              id="sidebar-work"
-              title={t('sessions.work')}
-              open={workOpen}
-              onOpenChange={setWorkOpen}
-              trailing={<SidebarWorkCounts counts={workCounts} t={t} />}
-            >
-              <SidebarWorkList projectListProps={listProps} quietWhenEmpty={filter.active} />
-            </SidebarSection>
+            {showWork && (
+              <SidebarSection
+                id="sidebar-work"
+                title={t('sessions.work')}
+                open={workOpen}
+                onOpenChange={setWorkOpen}
+                trailing={<SidebarWorkCounts counts={workCounts} t={t} />}
+              >
+                <SidebarWorkList projectListProps={listProps} />
+              </SidebarSection>
+            )}
           </div>
         )}
       </ScrollArea>

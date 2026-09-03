@@ -14,9 +14,9 @@
     "settingUpWorkspace": "准备工作区…",
     "chooseProject": "选择项目",
     "selectProjectDescription": "在 Gajae Code 中开始编码之前，请选择一个侧边栏项目。其对话和文件历史将保持在一起。",
-    "tip": "提示信息",
-    "createProjectMobile": "使用上方菜单访问您的项目",
-    "createProjectDesktop": "使用侧边栏文件夹按钮添加项目",
+    "firstProject": "添加第一个项目",
+    "firstProjectDescription": "选择这台机器上的一个文件夹。Gajae Code 在其中工作，项目的对话也保留在那里。",
+    "addProject": "添加项目",
     "newSession": "发起对话",
     "projectFiles": "项目中的文件"
   },

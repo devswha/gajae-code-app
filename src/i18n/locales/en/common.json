@@ -14,9 +14,9 @@
     "settingUpWorkspace": "Preparing the workspace…",
     "chooseProject": "Pick a project",
     "selectProjectDescription": "Pick a sidebar project to begin coding in Gajae Code. Its conversations and file history stay together there.",
-    "tip": "Tip",
-    "createProjectMobile": "Use the menu above to reach your projects",
-    "createProjectDesktop": "Use the sidebar folder button to add a project",
+    "firstProject": "Add your first project",
+    "firstProjectDescription": "Pick a folder on this machine. Gajae Code works inside it, and the project’s conversations stay with it.",
+    "addProject": "Add a project",
     "newSession": "Start conversation",
     "projectFiles": "Files in project"
   },

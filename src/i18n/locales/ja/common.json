@@ -14,9 +14,9 @@
     "settingUpWorkspace": "ワークスペースを準備しています...。",
     "chooseProject": "プロジェクトを選択。",
     "selectProjectDescription": "サイドバーからプロジェクトを選択して、Gajae Codeとコーディングを始めましょう。各プロジェクトにはチャットセッションとファイル履歴が含まれています。",
-    "tip": "ヒント。",
-    "createProjectMobile": "上部のメニューボタンからプロジェクトにアクセスできます。",
-    "createProjectDesktop": "サイドバーのフォルダアイコンをクリックして新しいプロジェクトを作成できます。",
+    "firstProject": "最初のプロジェクトを追加",
+    "firstProjectDescription": "このマシン上のフォルダを選びます。Gajae Code はその中で作業し、プロジェクトの会話もそこに残ります。",
+    "addProject": "プロジェクトを追加",
     "newSession": "新しいセッション。",
     "projectFiles": "プロジェクトファイル。"
   },

@@ -14,9 +14,9 @@
     "settingUpWorkspace": "Vorbereiten des Arbeitsbereichs…",
     "chooseProject": "Wählen Sie ein Projekt",
     "selectProjectDescription": "Wählen Sie ein Seitenleistenprojekt aus, um mit dem Codieren in Gajae Code zu beginnen. Die Gespräche und der Dateiverlauf bleiben dort zusammen.",
-    "tip": "Tipp",
-    "createProjectMobile": "Über das Menü oben gelangen Sie zu Ihren Projekten",
-    "createProjectDesktop": "Verwenden Sie die Ordnerschaltfläche in der Seitenleiste, um ein Projekt hinzuzufügen",
+    "firstProject": "Erstes Projekt hinzufügen",
+    "firstProjectDescription": "Wählen Sie einen Ordner auf diesem Rechner. Gajae Code arbeitet darin, und die Gespräche des Projekts bleiben dort.",
+    "addProject": "Projekt hinzufügen",
     "newSession": "Gespräch beginnen",
     "projectFiles": "Dateien im Projekt"
   },

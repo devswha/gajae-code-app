@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 
+import { PROJECTS_QUERY_KEY } from '../../../hooks/useProjectsQuery';
 import type { Project } from '../../../types/app';
 import type { MainContentHeaderProps, MainContentProps, MainContentStateViewProps } from '../types/types';
 
@@ -49,9 +51,24 @@ test('Given a selected project when rendering the main header then the workspace
   assert.doesNotMatch(html, /lucide-hammer|background job/i);
 });
 
-test('Given no selected project when rendering the empty state then project guidance has no background-job control', () => {
-  const html = renderToStaticMarkup(createElement(MainContentStateView, emptyStateProps));
+const renderEmptyState = (projects: Project[]) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, enabled: false } } });
+  client.setQueryData(PROJECTS_QUERY_KEY, projects);
+  return renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(MainContentStateView, emptyStateProps)));
+};
+
+test('Given projects but none selected when rendering the empty state then it asks to pick one, without a background-job control', () => {
+  const html = renderEmptyState([selectedProject]);
 
   assert.match(html, /mainContent\.chooseProject/);
+  assert.doesNotMatch(html, /mainContent\.firstProject|main-add-project/);
   assert.doesNotMatch(html, /Delegate a background job/i);
+});
+
+test('Given no projects at all when rendering the empty state then the one action is adding a project', () => {
+  const html = renderEmptyState([]);
+
+  assert.match(html, /mainContent\.firstProject/);
+  assert.match(html, /<button[^>]*data-testid="main-add-project"[^>]*>[\s\S]*?mainContent\.addProject/);
+  assert.doesNotMatch(html, /mainContent\.chooseProject|mainContent\.tip/);
 });

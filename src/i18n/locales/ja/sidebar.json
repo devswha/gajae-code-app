@@ -5,13 +5,13 @@
     "deleteProject": "ワークスペースを削除。",
     "renameProject": "ワークスペースの名前を変更。",
     "noProjects": "ワークスペースはまだありません。",
+    "addFirst": "追加",
     "loadingProjects": "ワークスペースを取得中…",
     "projectNamePlaceholder": "ワークスペース名。",
     "untitledSession": "無題のセッション。",
     "newSession": "会話を開始。",
     "fetchingProjects": "プロジェクトと会話を取得中。",
-    "projects": "プロジェクト。",
-    "createProjectHint": "プロジェクトを追加して開始。"
+    "projects": "プロジェクト。"
   },
   "sessions": {
     "work": "作業。",
@@ -27,14 +27,12 @@
     "loadingSessions": "会話を取得中…",
     "unnamed": "名称未設定。",
     "loading": "読み込み中...。",
-    "showMore": "会話をさらに表示。",
-    "createSessionHint": "プロジェクトを選択してから、+ で会話を開きます。"
+    "showMore": "会話をさらに表示。"
   },
   "tooltips": {
     "hideSidebar": "サイドバーを隠す。",
     "createProject": "プロジェクトを追加。",
     "createSession": "会話を開始。",
-    "selectProjectToCreateSession": "会話を開始する前にプロジェクトを選択してください。",
     "refresh": "プロジェクトと会話を再読み込み (Ctrl+R)。",
     "renameProject": "プロジェクト名を変更 (F2)。",
     "deleteProject": "サイドバーからプロジェクトを除去 (Delete)。",

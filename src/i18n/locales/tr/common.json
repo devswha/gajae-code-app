@@ -14,9 +14,9 @@
     "settingUpWorkspace": "Çalışma alanı hazırlanıyor…",
     "chooseProject": "Bir proje seçin",
     "selectProjectDescription": "Gajae Code'da kodlamaya başlamak için bir kenar çubuğu projesi seçin. Konuşmaları ve dosya geçmişi burada bir arada kalır.",
-    "tip": "İpucu",
-    "createProjectMobile": "Projelerinize ulaşmak için yukarıdaki menüyü kullanın",
-    "createProjectDesktop": "Proje eklemek için kenar çubuğu klasör düğmesini kullanın",
+    "firstProject": "İlk projenizi ekleyin",
+    "firstProjectDescription": "Bu makinedeki bir klasörü seçin. Gajae Code onun içinde çalışır ve projenin konuşmaları orada kalır.",
+    "addProject": "Proje ekle",
     "newSession": "Konuşmayı başlat",
     "projectFiles": "Projedeki dosyalar"
   },

@@ -5,13 +5,13 @@
     "deleteProject": "Удалить рабочую область",
     "renameProject": "Переименовать рабочую область",
     "noProjects": "Рабочих мест пока нет",
+    "addFirst": "Добавить",
     "loadingProjects": "Получение рабочих пространств…",
     "projectNamePlaceholder": "Имя рабочей области",
     "untitledSession": "Безымянный разговор",
     "newSession": "Начать разговор",
     "fetchingProjects": "Получение проектов и разговоров",
-    "projects": "проекты",
-    "createProjectHint": "Добавьте проект, чтобы начать"
+    "projects": "проекты"
   },
   "sessions": {
     "work": "Рабочие сеансы",
@@ -27,14 +27,12 @@
     "loadingSessions": "Получение разговоров…",
     "unnamed": "Безымянный",
     "loading": "Загрузка сеансов…",
-    "showMore": "Показать больше разговоров",
-    "createSessionHint": "Выберите проект, затем используйте +, чтобы открыть сеанс."
+    "showMore": "Показать больше разговоров"
   },
   "tooltips": {
     "hideSidebar": "Свернуть боковую панель",
     "createProject": "Добавить проект",
     "createSession": "Начать разговор",
-    "selectProjectToCreateSession": "Прежде чем начать разговор, выберите проект",
     "refresh": "Перезагрузить проекты и обсуждения (Ctrl+R).",
     "renameProject": "Переименовать рабочую область (F2)",
     "deleteProject": "Удалить этот проект с боковой панели (Удалить)",

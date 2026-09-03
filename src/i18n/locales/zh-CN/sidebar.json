@@ -5,13 +5,13 @@
     "deleteProject": "移除工作区",
     "renameProject": "重命名工作区",
     "noProjects": "暂无工作区",
+    "addFirst": "添加",
     "loadingProjects": "正在检索工作区……",
     "projectNamePlaceholder": "工作区名称",
     "untitledSession": "未命名对话",
     "newSession": "开始对话",
     "fetchingProjects": "正在检索项目和对话",
-    "projects": "项目集",
-    "createProjectHint": "添加一个项目以开始"
+    "projects": "项目集"
   },
   "sessions": {
     "work": "办公",
@@ -27,14 +27,12 @@
     "loadingSessions": "正在检索对话……",
     "unnamed": "无名",
     "loading": "加载中...",
-    "showMore": "显示更多对话",
-    "createSessionHint": "选择一个项目，然后使用+打开会话"
+    "showMore": "显示更多对话"
   },
   "tooltips": {
     "hideSidebar": "折叠侧边栏",
     "createProject": "添加一个项目",
     "createSession": "开始对话",
-    "selectProjectToCreateSession": "选择项目后再开始对话",
     "refresh": "重新加载项目和对话 (Ctrl+R)",
     "renameProject": "重命名工作区 (F2)",
     "deleteProject": "从侧边栏移除此项目 (Delete)",

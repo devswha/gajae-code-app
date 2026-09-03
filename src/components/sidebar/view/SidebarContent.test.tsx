@@ -253,11 +253,35 @@ test('renders the empty project state under the Projects and Work sections witho
     },
   });
 
-  assert.match(html, /No projects yet/);
+  // One line, and the line is the action.
+  const emptyRow = html.match(/<button[^>]*data-testid="sidebar-empty-projects"[^>]*>[\s\S]*?<\/button>/)?.[0];
+  assert.ok(emptyRow, 'the empty projects state is a single button row');
+  assert.match(emptyRow, /No projects yet/);
+  assert.match(emptyRow, /Add one/);
   assert.match(html, /id="sidebar-projects-heading"[^>]*>Projects/);
-  assert.match(html, /id="sidebar-work-heading"[^>]*>Work/);
+  // The primary action is Add a project, not a disabled New task; there is no
+  // Work section and no filter until the first project exists.
+  assert.match(html, /aria-label="Create project"/);
+  assert.doesNotMatch(html, /aria-label="New task"/);
+  assert.doesNotMatch(html, /id="sidebar-work-heading"/);
+  assert.doesNotMatch(html, /data-sidebar-filter/);
+  assert.doesNotMatch(html, /Create a workspace to start|Choose a project/);
   assert.doesNotMatch(html, /Search projects/);
   assert.doesNotMatch(html, /type="text"/);
   assert.doesNotMatch(html, />Conversations<|Running sessions|Archive only/);
   assert.doesNotMatch(html, /data-job-sidebar|data-job-inbox|New job|Jobs/);
+});
+
+test('with projects but nothing running, the Work section stays out of the way', async () => {
+  const t = await makeT();
+  const html = renderSidebarContent(t, {
+    projectListProps: {
+      ...sidebarContentProps(t).projectListProps,
+      getSessionStatus: () => 'idle',
+    },
+  });
+  assert.match(html, /id="sidebar-projects-heading"/);
+  assert.doesNotMatch(html, /id="sidebar-work-heading"/);
+  assert.match(html, /data-sidebar-filter/);
+  assert.match(html, /aria-label="New task"/);
 });

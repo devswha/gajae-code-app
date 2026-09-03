@@ -5,13 +5,13 @@
     "deleteProject": "Remove workspace",
     "renameProject": "Rename workspace",
     "noProjects": "No workspaces yet",
+    "addFirst": "Add one",
     "loadingProjects": "Retrieving workspaces…",
     "projectNamePlaceholder": "Workspace name",
     "untitledSession": "Unnamed conversation",
     "newSession": "Start conversation",
     "fetchingProjects": "Retrieving projects and conversations",
-    "projects": "projects",
-    "createProjectHint": "Add a project to begin"
+    "projects": "projects"
   },
   "sessions": {
     "work": "Work",
@@ -27,14 +27,12 @@
     "loadingSessions": "Retrieving conversations…",
     "unnamed": "Unnamed",
     "loading": "Loading...",
-    "showMore": "Show more conversations",
-    "createSessionHint": "Choose a project, then use + to open a session"
+    "showMore": "Show more conversations"
   },
   "tooltips": {
     "hideSidebar": "Collapse sidebar",
     "createProject": "Add a project",
     "createSession": "Start a conversation",
-    "selectProjectToCreateSession": "Choose a project before starting a conversation",
     "refresh": "Reload projects and conversations (Ctrl+R)",
     "renameProject": "Rename workspace (F2)",
     "deleteProject": "Remove this project from the sidebar (Delete)",

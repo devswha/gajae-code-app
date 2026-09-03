@@ -12,6 +12,8 @@ export type AppShellState = {
   showSettings: boolean;
   settingsInitialTab: string;
   loadingProgress: LoadingProgress | null;
+  /** The add-project dialog; opened from the sidebar and from the empty main pane alike. */
+  newProjectOpen: boolean;
   setSelectedProject: (next: Updater<Project | null>) => void;
   setSelectedSession: (next: Updater<ProjectSession | null>) => void;
   setActiveTab: (next: Updater<AppTab>) => void;
@@ -19,6 +21,7 @@ export type AppShellState = {
   openSettings: (tab?: string) => void;
   setShowSettings: (next: Updater<boolean>) => void;
   setLoadingProgress: (next: Updater<LoadingProgress | null>) => void;
+  setNewProjectOpen: (next: Updater<boolean>) => void;
 };
 
 // 'shell'/'git'/'files' were removed as tabs (Files is a side panel now);
@@ -79,6 +82,7 @@ const createInitialState = (): AppShellState => ({
   showSettings: false,
   settingsInitialTab: 'agents',
   loadingProgress: null,
+  newProjectOpen: false,
   setSelectedProject: () => undefined,
   setSelectedSession: () => undefined,
   setActiveTab: () => undefined,
@@ -86,6 +90,7 @@ const createInitialState = (): AppShellState => ({
   openSettings: () => undefined,
   setShowSettings: () => undefined,
   setLoadingProgress: () => undefined,
+  setNewProjectOpen: () => undefined,
 });
 
 export const useAppShellStore = create<AppShellState>()((set) => ({
@@ -123,6 +128,9 @@ export const useAppShellStore = create<AppShellState>()((set) => ({
   setLoadingProgress: (next) => set((state) => ({
     loadingProgress: resolve(next, state.loadingProgress),
   })),
+  setNewProjectOpen: (next) => set((state) => ({
+    newProjectOpen: resolve(next, state.newProjectOpen),
+  })),
 }));
 
 export const resetAppShellStore = () => {
@@ -135,5 +143,6 @@ export const resetAppShellStore = () => {
     openSettings: useAppShellStore.getState().openSettings,
     setShowSettings: useAppShellStore.getState().setShowSettings,
     setLoadingProgress: useAppShellStore.getState().setLoadingProgress,
+    setNewProjectOpen: useAppShellStore.getState().setNewProjectOpen,
   }, true);
 };

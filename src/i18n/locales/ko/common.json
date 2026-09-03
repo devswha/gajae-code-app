@@ -14,9 +14,9 @@
     "settingUpWorkspace": "워크스페이스 준비 중…",
     "chooseProject": "프로젝트 고르기",
     "selectProjectDescription": "Gajae Code에서 코드 작성하기 위해 사이드바 프로젝트를 선택하세요. 그곳에서는 대화 내용과 파일 기록이 함께 유지됩니다.",
-    "tip": "도움말",
-    "createProjectMobile": "프로젝트에 도달하려면 위의 메뉴를 사용하세요",
-    "createProjectDesktop": "프로젝트 추가하려면 사이드바 폴더 버튼을 사용하세요",
+    "firstProject": "첫 프로젝트 추가",
+    "firstProjectDescription": "이 컴퓨터의 폴더를 고르세요. Gajae Code는 그 안에서 작업하고, 프로젝트의 대화도 거기에 남습니다.",
+    "addProject": "프로젝트 추가",
     "newSession": "대화 시작",
     "projectFiles": "프로젝트 내 파일"
   },

@@ -22,6 +22,7 @@ All new product colors must route through semantic CSS variables in `src/index.c
 |------|-------|-------|------|-------|
 | App background | `--background` / `bg-background` | `44 22% 96%` | `0 0% 8%` | Fixed app shell, page background, focused nav controls |
 | Primary text | `--foreground` / `text-foreground` | `36 25% 4%` | `40 8% 93%` | Body text, headings, active labels |
+| Rail surface | `--sidebar` / `bg-sidebar` | `44 20% 93%` | `0 0% 6%` | The sidebar and the workspace panel: one tonal step below the stage, so the centre pane reads as the document without a hard divider |
 | Card surface | `--card` / `bg-card` | `0 0% 100%` | `0 0% 12%` | Cards, prompt input, mobile drawer, elevated list rows |
 | Card text | `--card-foreground` | `36 25% 4%` | `40 8% 93%` | Text on card surfaces |
 | Popover surface | `--popover` / `bg-popover` | `0 0% 100%` | `0 0% 12%` | Dialogs, command result modal, popovers |
@@ -248,6 +249,7 @@ The current strategy is mixed but restrained: borders and tonal shifts for defau
 | Level | Treatment | Usage |
 |-------|-----------|-------|
 | Base | `bg-background`, no shadow | App shell and main panes |
+| Rail | `bg-sidebar` plus `border-border/50` edge | Sidebar (expanded and collapsed), workspace panel, their mobile drawers |
 | Panel | border plus tonal opacity (`border-border/50`, `bg-card/50`, `bg-muted/40`) | Sidebar groups, archived cards, lists |
 | Interactive row | tonal hover/selected states (`hover:bg-accent/50`, `bg-primary/5`) | Sidebar and command items |
 | Elevated card | `rounded-xl border bg-card shadow-sm` | Shared `Card`, archived cards, small panels |

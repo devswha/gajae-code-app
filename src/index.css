@@ -28,6 +28,7 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: hsl(var(--background));
+  --color-sidebar: hsl(var(--sidebar));
   --color-foreground: hsl(var(--foreground));
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
@@ -112,6 +113,8 @@
 
   :root {
     --background: 44 22% 96%; --foreground: 36 25% 4%;
+    /* The rails (sidebar, workspace panel) sit one tonal step below the stage so the centre reads as the document without a hard line. */
+    --sidebar: 44 20% 93%;
     --card: 0 0% 100%; --card-foreground: 36 25% 4%;
     --popover: 0 0% 100%; --popover-foreground: 36 25% 4%;
     --primary: 14 89% 52%; --primary-foreground: 210 40% 98%;
@@ -133,6 +136,7 @@
 
   .dark {
     --background: 0 0% 8%; --foreground: 40 8% 93%;
+    --sidebar: 0 0% 6%;
     --card: 0 0% 12%; --card-foreground: 40 8% 93%;
     --popover: 0 0% 12%; --popover-foreground: 40 8% 93%;
     --primary: 16 90% 57%; --primary-foreground: 0 0% 8%;

@@ -200,7 +200,7 @@ export default function WorkspacePanel({
         />
         <aside
           aria-label={t('workspace.title')}
-          className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[85vw] flex-col border-l border-border/60 bg-background shadow-xl"
+          className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[85vw] flex-col border-l border-border/60 bg-sidebar shadow-xl"
         >
           {header}
           {body}
@@ -234,7 +234,7 @@ export default function WorkspacePanel({
 
       <aside
         aria-label={t('workspace.title')}
-        className="flex min-w-0 flex-1 flex-col border-l border-border/60 bg-background"
+        className="flex min-w-0 flex-1 flex-col border-l border-border/60 bg-sidebar"
       >
         {header}
         {body}

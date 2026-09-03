@@ -614,3 +614,62 @@ test('a realtime row without an id cannot break the merge on a later turn', asyn
     globalThis.fetch = originalFetch;
   }
 });
+
+test('deltas a background session collected merge back as one row, and the final text replaces them', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => response({
+    messages: [
+      { id: 'user-1', sessionId: 'session', timestamp: '2026-01-01T00:00:00Z', kind: 'text', role: 'user', content: 'count', provider: 'gjc' },
+      { id: 'assistant-1', sessionId: 'session', timestamp: '2026-01-01T00:00:05Z', kind: 'text', role: 'assistant', content: 'one two three four five six', provider: 'gjc' },
+    ],
+    total: 2,
+    hasMore: false,
+  })) as typeof fetch;
+
+  try {
+    const store = createStore();
+    // The session was viewed by nobody: its frames landed one delta at a time.
+    const deltas = ['one ', 'two ', 'three ', 'four ', 'five ', 'six'].map((content, index) => ({
+      id: `delta-${index}`, sessionId: 'session', timestamp: `2026-01-01T00:00:0${index}Z`,
+      kind: 'stream_delta' as const, content, provider: 'gjc' as const,
+    }));
+    store.appendRealtimeBatch('session', deltas);
+
+    // Before history arrives: the chunks are one stream, not six messages.
+    const interim = store.getSessionSlot('session')!.merged;
+    assert.equal(interim.filter((message) => message.kind === 'stream_delta').length, 1);
+    assert.equal(interim.find((message) => message.kind === 'stream_delta')?.content, 'one two three four five six');
+
+    await store.fetchFromServer('session');
+    const settled = store.getSessionSlot('session')!.merged;
+    assert.equal(settled.filter((message) => message.kind === 'stream_delta').length, 0, 'the final text outranks the stream');
+    assert.equal(settled.filter((message) => message.content === 'one two three four five six').length, 1, 'the answer renders exactly once');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a viewer that joined mid-turn keeps only the final text, not the stream tail it caught', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => response({
+    messages: [
+      { id: 'assistant-1', sessionId: 'session', timestamp: '2026-01-01T00:00:05Z', kind: 'text', role: 'assistant', content: 'the quick brown fox jumps over the lazy dog', provider: 'gjc' },
+    ],
+    total: 1,
+    hasMore: false,
+  })) as typeof fetch;
+
+  try {
+    const store = createStore();
+    store.appendRealtimeBatch('session', ['lazy ', 'dog'].map((content, index) => ({
+      id: `delta-${index}`, sessionId: 'session', timestamp: `2026-01-01T00:00:0${index}Z`,
+      kind: 'stream_delta' as const, content, provider: 'gjc' as const,
+    })));
+    await store.fetchFromServer('session');
+    const settled = store.getSessionSlot('session')!.merged;
+    assert.equal(settled.filter((message) => message.kind === 'stream_delta').length, 0, 'the tail is inside the final text');
+    assert.equal(settled.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

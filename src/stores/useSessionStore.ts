@@ -95,16 +95,55 @@ function assistantEchoesPersisted(message: NormalizedMessage, server: Normalized
   return server.slice(began, end).some((row) => row.kind === 'text' && row.role === 'assistant' && row.content?.trim() === content);
 }
 
+/**
+ * Deltas for a session nobody was watching land one frame at a time, a word
+ * or two per row; merged back in on return they used to render as dozens of
+ * tiny messages (and the wildly different height broke scroll anchoring).
+ * Consecutive deltas of one session are one stream, so they merge into one
+ * row before the final-text reconciliation runs.
+ */
+function coalesceStreamDeltas(rows: NormalizedMessage[]): NormalizedMessage[] {
+  const result: NormalizedMessage[] = [];
+  for (const row of rows) {
+    const prior = result.at(-1);
+    if (prior?.kind === 'stream_delta' && row.kind === 'stream_delta' && prior.sessionId === row.sessionId) {
+      result[result.length - 1] = { ...prior, content: (prior.content ?? '') + (row.content ?? '') };
+      continue;
+    }
+    result.push(row);
+  }
+  return result;
+}
+
 function collapseStreamTransition(rows: NormalizedMessage[]) {
+  rows = coalesceStreamDeltas(rows);
   const result: NormalizedMessage[] = [];
   const used = new Set<string>();
+  // The turn a delta belongs to starts at the last user message before it;
+  // only assistant texts of that turn may absorb it.
+  let turnStart = 0;
   rows.forEach((row) => {
     if (row.id && used.has(row.id)) return;
+    if (row.kind === 'text' && row.role === 'user') turnStart = result.length + 1;
+    if (row.kind === 'stream_delta' && row.content?.trim()) {
+      const delta = row.content.trim();
+      const absorbed = result.slice(turnStart).some((existing) => existing.kind === 'text'
+        && existing.role === 'assistant'
+        && existing.content?.trim()
+        && (existing.content.trim() === delta || existing.content.includes(delta)));
+      if (absorbed) return;
+    }
     const prior = result.at(-1);
-    if (prior?.kind === 'stream_delta' && row.kind === 'text' && row.role === 'assistant' && prior.content?.trim() && prior.content.trim() === row.content?.trim()) {
-      result[result.length - 1] = row;
-      if (row.id) used.add(row.id);
-      return;
+    if (prior?.kind === 'stream_delta' && row.kind === 'text' && row.role === 'assistant' && prior.content?.trim()) {
+      const delta = prior.content.trim();
+      const answer = row.content?.trim() ?? '';
+      // The final text outranks the delta run: it may equal the stream, or a
+      // viewer that joined mid-turn holds only the stream's tail inside it.
+      if (delta === answer || answer.includes(delta)) {
+        result[result.length - 1] = row;
+        if (row.id) used.add(row.id);
+        return;
+      }
     }
     if (row.id) used.add(row.id);
     result.push(row);

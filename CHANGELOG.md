@@ -4,6 +4,81 @@ All notable changes to Gajae Code App are documented in this file. Current and
 future desktop and server artifacts are published only through
 [GitHub Releases](https://github.com/devswha/gajae-code-app/releases).
 
+## 2.0.0-beta.7 (2026-09-03)
+
+The first release under the MIT license, and the first shipped as a
+Developer ID-signed, notarized macOS image. Earlier betas stay under AGPL.
+
+### License
+
+- Gajae Code App is relicensed under MIT. Every file that still carried
+  upstream-derived expression was rewritten first (`docs/RELICENSING.md`
+  records the method and the measured residual), the bundled GJC engine has
+  one published surface and no imports into the app, AGPL and EPL packages
+  are excluded from what ships (`elkjs` is replaced by a first-party stub so
+  the packaged worker still boots), and `THIRD-PARTY-NOTICES.md` carries the
+  notices the remaining dependencies require.
+
+### Permissions
+
+- The default permission policy now asks. The runtime's SDK gate defaulted
+  to `allow`, so `bash`, `eval` and deletes ran without a prompt; each
+  project now has a persisted mode (Ask, Auto-approve edits, Bypass) and an
+  always-allow list, both settable from the composer and from Settings →
+  Permissions. Permission cards offer Always allow, and Always deny when the
+  runtime offers it; an answer given in one tab closes the card in every
+  other viewer.
+
+### Sessions
+
+- A new session is titled by the runtime's model from its first message, in
+  the sidebar and the header while the first turn is still running. A name
+  you type is never replaced by it; Regenerate title returns to the
+  heuristic; `sessions.name_source` records which is which.
+- Four-state session status (running, waiting for input, finished unviewed,
+  failed) with unread tracking, a Work section that lists every non-idle
+  session across projects, inline sidebar search, and the selected project
+  restored after reload.
+- Stop pressed before the session had finished starting used to be refused
+  and the turn ran on; it now ends the run before its prompt. Deleting or
+  archiving a session used to leave its row in the sidebar until reload.
+- A new session started with the app default model on a warm worker could
+  fail with "model could not be resolved"; the default role now refreshes
+  the model catalog and retries.
+
+### Chat
+
+- A turn's tool activity folds into one work block with a live status row,
+  and a three-level tool output density preference (compact, balanced,
+  detailed). Streamed deltas no longer re-render the whole transcript.
+- Stop button and Esc abort the running turn; a live run fans out to every
+  socket viewing the session; a message sent mid-turn steers it.
+- Tool results that stopped at a cap say so once, and structured tool details
+  reach the client without restating the notice.
+
+### Workspace
+
+- The file tree, git panel and in-app code editor are gone. Files open in
+  your own editor.
+- A Changes tab reads the project's working tree as a diff (capped so one
+  project cannot freeze the tab), with a Last-turn scope that shows the
+  files the viewed session's last turn edited. Comments on diff lines
+  collect into one review message for the composer; Cmd/Ctrl+Enter sends it.
+  The runtime's `.gjc/_session-*` scratch is hidden from the list.
+
+### Server
+
+- Cross-origin callers are rejected on both the HTTP and WebSocket
+  transports. Session storage is reaped without eating queued messages.
+  Turn identity rides the normalized envelope, derived from the transcript.
+
+### Packaging
+
+- The macOS DMG is built, signed with a Developer ID, notarized and stapled,
+  and accepted by Gatekeeper from the mounted image; the packaged smokes run
+  against the image, never the build tree. Dependency notices are
+  platform-independent and shipped with the payload.
+
 ## 2.0.0-beta.6 (2026-08-31)
 
 ### Runtime

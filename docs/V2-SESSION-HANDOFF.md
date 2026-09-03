@@ -519,9 +519,31 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
      stored; the runtime remembers for the run), and the ask controller
      answers the runtime's own `reject_always` option with a
      `reject_once` fallback; `myjob`/`shot-demo` bypass + bash
-     always-allow confirmed intentional by the owner. Remaining: LLM
-     session titles via a Protocol v1 event plus a title-source DB column
-     (see `6340490`).
+     always-allow confirmed intentional by the owner. **LLM session titles
+     shipped 2026-09-03 afternoon**, app-side only (`6340490`'s "runtime
+     capability to request" was over-cautious: the runtime exports
+     `utils/title-generator` and the Bun adapter already imports its
+     registry/settings/session-manager). First turn of a new session →
+     `generateSessionTitle` → `sessionManager.setSessionName(title,'auto')`
+     (transcript `header_patch`) → `{kind:'session_title'}` message →
+     `ChatSessionWriter` stores it via `sessionsDb.applyGeneratedSessionName`
+     and broadcasts `session_upserted`; the turn waits ≤10 s for the title
+     before its terminal frame. `sessions.name_source` (`user`/`auto`/
+     `derived`/NULL) decides precedence: user > auto > derived. Opt-out is
+     the runtime's own `GJC_NO_TITLE`/`PI_NO_TITLE` in the server env (the
+     worker inherits it); no settings toggle yet. The header now follows
+     the viewed session's `session_upserted` (it used to keep the
+     optimistic first-message title until reload).
+   - **Open, pre-existing, reproduced with titles off (`GJC_NO_TITLE=1`):**
+     a new session on a warm worker intermittently fails with "The GJC
+     model could not be resolved" (`GjcModelResolutionError`) while the
+     first new session on a fresh worker and every resumed turn succeed;
+     the composer then shows `GLM-5.3 · Default` instead of the pinned
+     `glm-5.3 · High`. Seen 3 times out of ~6 new sessions on 2026-09-03;
+     two consecutive new sessions with `GJC_BUN_ADAPTER_DEBUG=1` did not
+     reproduce. Suspects: `configuredDefaultModelId` when the client sends
+     `modelId: 'default'`, or `credentialFor` after a prior run's dispose.
+     Not caused by the title work.
 
 ## Key gotchas
 

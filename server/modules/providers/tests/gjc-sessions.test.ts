@@ -174,7 +174,7 @@ test('gjc titles are concise: the first message loses its command and mentions a
       assert.equal(sessionsDb.getSessionById('gjc-titled')?.custom_name, 'Fix the boot order so the watcher…');
 
       // A hand-written name survives every later sync...
-      sessionsDb.updateSessionCustomName('gjc-titled', 'Boot order race');
+      sessionsDb.updateSessionCustomName('gjc-titled', 'Boot order race', 'user');
       await synchronizer.synchronizeFile(filePath);
       assert.equal(sessionsDb.getSessionById('gjc-titled')?.custom_name, 'Boot order race');
 

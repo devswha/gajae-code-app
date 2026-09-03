@@ -323,7 +323,7 @@ export class GjcSessionSynchronizer implements IProviderSessionSynchronizer {
           && parsed.sessionName
           && parsed.sessionName !== UNTITLED_GJC_SESSION
         ) {
-          sessionsDb.updateSessionCustomName(existingSession.session_id, parsed.sessionName);
+          sessionsDb.updateSessionCustomName(existingSession.session_id, parsed.sessionName, 'derived');
         }
       }
 

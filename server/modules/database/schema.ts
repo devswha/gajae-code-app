@@ -98,7 +98,8 @@ export const SESSIONS_TABLE_SCHEMA_SQL = table(`
       session_id TEXT NOT NULL, -- app-side session identity
       provider TEXT NOT NULL DEFAULT 'claude', -- which agent owns the transcript
       provider_session_id TEXT, -- the provider's own identifier, when known
-      custom_name TEXT, -- user-chosen title
+      custom_name TEXT, -- the sidebar title
+      name_source TEXT, -- who set it: user | auto (runtime model) | derived (indexer heuristic)
       project_path TEXT, -- owning project, nullable for orphans
       jsonl_path TEXT, -- transcript location on disk
       isStarred INTEGER DEFAULT 0, -- sidebar pin

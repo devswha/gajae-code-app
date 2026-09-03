@@ -22,7 +22,7 @@ export interface ProviderCurrentActiveModel { model: string; }
 export interface ProviderChangeActiveModelInput { model: string; sessionId: string; }
 export interface ProviderSessionActiveModelChange { changed: boolean; model: string | null; provider: LLMProvider; sessionId: string; supported: boolean; }
 
-type MessageKind = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'stream_delta' | 'stream_end' | 'error' | 'complete' | 'status' | 'permission_request' | 'permission_cancelled' | 'session_created' | 'interactive_prompt' | 'task_notification' | 'system_notice';
+type MessageKind = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'stream_delta' | 'stream_end' | 'error' | 'complete' | 'status' | 'permission_request' | 'permission_cancelled' | 'session_created' | 'session_title' | 'interactive_prompt' | 'task_notification' | 'system_notice';
 interface NormalizedToolResult { content?: string; isError?: boolean; toolUseResult?: unknown; }
 export interface NormalizedMessage {
   id: string; sessionId: string; timestamp: string; provider: LLMProvider; kind: MessageKind;

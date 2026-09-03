@@ -21,6 +21,7 @@ test('live writer bounds oversized tool results before buffering and sending', (
     provider: 'gjc',
     providerSessionId: 'provider-session',
     onProviderSessionId() {},
+    onSessionTitle() {},
     decorateOutboundEvent(message) {
       decorated.push(message);
       return { ...message, sessionId: 'app-session', seq: 1 };
@@ -48,4 +49,26 @@ test('live writer bounds oversized tool results before buffering and sending', (
   assert.equal(outbound.toolResultTruncated, true);
   assert.match(String(outbound.content), /bytes omitted/u);
   assert.equal(String(outbound.content).includes('\uFFFD'), false);
+});
+
+test('a session_title message is handed to the app and never published as chat', () => {
+  const sent: string[] = [];
+  const titles: string[] = [];
+  const writer = new ChatSessionWriter({
+    connection: { readyState: 1, send(value: string) { sent.push(value); } } as unknown as RealtimeClientConnection,
+    appSessionId: 'app-session',
+    userId: null,
+    provider: 'gjc',
+    providerSessionId: 'provider-session',
+    onProviderSessionId() {},
+    onSessionTitle(title) { titles.push(title); },
+    decorateOutboundEvent(message) { return { ...message, sessionId: 'app-session', seq: 1 }; },
+  });
+
+  writer.send({ kind: 'session_title', title: '  Boot order race  ', source: 'auto', sessionId: 'provider-session' });
+  writer.send({ kind: 'session_title', title: '   ', source: 'auto', sessionId: 'provider-session' });
+  writer.send({ kind: 'session_title', source: 'auto', sessionId: 'provider-session' });
+
+  assert.deepEqual(titles, ['Boot order race']);
+  assert.equal(sent.length, 0);
 });

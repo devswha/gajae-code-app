@@ -9,6 +9,8 @@ type ChatSessionWriterOptions = {
   connection: RealtimeClientConnection; appSessionId: string; userId: SessionOwner;
   provider: LLMProvider; providerSessionId: ProviderSessionId;
   onProviderSessionId: (id: string) => void;
+  /** The runtime wrote a title for this session; the app decides whether it sticks. */
+  onSessionTitle: (title: string) => void;
   decorateOutboundEvent: (event: NormalizedMessage) => NormalizedMessage | null;
 };
 
@@ -41,6 +43,12 @@ export class ChatSessionWriter {
     }
 
     const event = message as NormalizedMessage;
+    // A title is not part of the transcript stream: it lands in the sessions
+    // table and reaches every viewer as a `session_upserted`, never as a message.
+    if (event.kind === 'session_title') {
+      if (typeof event.title === 'string' && event.title.trim()) this.config.onSessionTitle(event.title.trim());
+      return;
+    }
     if (event.kind !== 'session_created') {
       this.publish(this.config.decorateOutboundEvent(prepareMessageForTransport(event)));
       return;

@@ -173,7 +173,7 @@ export const sessionsService = {
 
   renameSessionById(sessionId: string, summary: string): { sessionId: string; summary: string } {
     requiredSession(sessionId);
-    sessionsDb.updateSessionCustomName(sessionId, summary);
+    sessionsDb.updateSessionCustomName(sessionId, summary, 'user');
     return { sessionId, summary };
   },
 
@@ -192,7 +192,7 @@ export const sessionsService = {
     if (!summary) {
       throw new AppError('This session has no message to derive a title from yet.', { code: 'SESSION_TITLE_UNAVAILABLE', statusCode: 409 });
     }
-    sessionsDb.updateSessionCustomName(sessionId, summary);
+    sessionsDb.updateSessionCustomName(sessionId, summary, 'derived');
     return { sessionId, summary };
   },
 };

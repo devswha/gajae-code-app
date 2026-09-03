@@ -161,6 +161,11 @@ test('repeated star migrations preserve existing star values and their default c
       database.prepare('SELECT isStarred FROM sessions WHERE session_id = ?').get('existing-session'),
       { isStarred: 1 },
     );
+    // A legacy row gains the provenance column with no claim about its name.
+    assert.deepEqual(
+      database.prepare('SELECT name_source FROM sessions WHERE session_id = ?').get('existing-session'),
+      { name_source: null },
+    );
   } finally {
     database.close();
   }
@@ -172,5 +177,72 @@ test('repository initialization honors an isolated DATABASE_PATH', async () => {
     assert.equal(currentDatabasePath(), process.env.DATABASE_PATH);
     sessionRepository.createSession(sessionId, 'claude', '/workspaces/gajae/dashboard', 'Explicit store session');
     assert.equal(sessionRepository.getSessionById(sessionId)?.custom_name, 'Explicit store session');
+  });
+});
+
+test('a generated title replaces an indexer-derived name but never a user-typed one', async () => {
+  await withSessionDatabase(() => {
+    const projectPath = '/workspaces/gajae/titles';
+
+    // A fresh app session has no name; the indexer's first sighting fills it as derived.
+    sessionRepository.createAppSession('app-derived', 'gjc', projectPath);
+    assert.equal(sessionRepository.getSessionById('app-derived')?.name_source, null);
+    sessionRepository.assignProviderSessionId('app-derived', 'gjc', 'provider-derived');
+    sessionRepository.createSession('provider-derived', 'gjc', projectPath, 'First message cut short', undefined, undefined, '/tmp/derived.jsonl');
+    let row = sessionRepository.getSessionById('app-derived');
+    assert.equal(row?.custom_name, 'First message cut short');
+    assert.equal(row?.name_source, 'derived');
+
+    // The runtime's title wins over the heuristic. The gjc synchronizer echoes
+    // the stored name on every later sync, which keeps the source intact.
+    assert.equal(sessionRepository.applyGeneratedSessionName('app-derived', 'Fix the boot race'), true);
+    sessionRepository.createSession('provider-derived', 'gjc', projectPath, 'Fix the boot race', undefined, undefined, '/tmp/derived.jsonl');
+    row = sessionRepository.getSessionById('app-derived');
+    assert.equal(row?.custom_name, 'Fix the boot race');
+    assert.equal(row?.name_source, 'auto');
+
+    // The user's own name is final for the runtime.
+    sessionRepository.updateSessionCustomName('app-derived', 'Boot order', 'user');
+    assert.equal(sessionRepository.applyGeneratedSessionName('app-derived', 'Something else'), false);
+    sessionRepository.createSession('provider-derived', 'gjc', projectPath, 'Boot order', undefined, undefined, '/tmp/derived.jsonl');
+    row = sessionRepository.getSessionById('app-derived');
+    assert.equal(row?.custom_name, 'Boot order');
+    assert.equal(row?.name_source, 'user');
+
+    // Regenerating on request hands the name back to the heuristic's custody.
+    sessionRepository.updateSessionCustomName('app-derived', 'First message again', 'derived');
+    assert.equal(sessionRepository.applyGeneratedSessionName('app-derived', 'Fix the boot race'), true);
+    assert.equal(sessionRepository.getSessionById('app-derived')?.name_source, 'auto');
+  });
+});
+
+test('an indexer name that changes the value is derived; one of unknown provenance is still the runtime\'s to improve', async () => {
+  await withSessionDatabase(() => {
+    const projectPath = '/workspaces/gajae/legacy';
+    sessionRepository.createSession('legacy', 'gjc', projectPath, 'Old name');
+    assert.equal(sessionRepository.getSessionById('legacy')?.name_source, 'derived');
+    // Simulate a row from before the column existed.
+    const raw = new Database(currentDatabasePath());
+    try {
+      raw.prepare("UPDATE sessions SET name_source = NULL WHERE session_id = 'legacy'").run();
+    } finally {
+      raw.close();
+    }
+
+    // The provider index writes a new value: that is a derived name.
+    sessionRepository.createSession('legacy', 'gjc', projectPath, 'Index says this');
+    assert.equal(sessionRepository.getSessionById('legacy')?.custom_name, 'Index says this');
+    assert.equal(sessionRepository.getSessionById('legacy')?.name_source, 'derived');
+
+    // A null source never blocks the runtime's title.
+    const again = new Database(currentDatabasePath());
+    try {
+      again.prepare("UPDATE sessions SET name_source = NULL WHERE session_id = 'legacy'").run();
+    } finally {
+      again.close();
+    }
+    assert.equal(sessionRepository.applyGeneratedSessionName('legacy', 'Runtime title'), true);
+    assert.equal(sessionRepository.getSessionById('legacy')?.custom_name, 'Runtime title');
+    assert.equal(sessionRepository.getSessionById('legacy')?.name_source, 'auto');
   });
 });

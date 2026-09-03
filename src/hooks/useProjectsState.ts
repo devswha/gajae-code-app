@@ -191,10 +191,20 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
       const alias = typeof update.providerSessionId === 'string' && update.providerSessionId !== update.sessionId
         ? update.providerSessionId
         : null;
-      if (!alias) return;
       const normalized: ProjectSession = { ...update.session, id: update.sessionId, __provider: update.provider, __projectId: update.project?.projectId ?? current?.__projectId };
-      setSelectedSession((session) => session?.id === alias ? { ...session, ...normalized } : session);
-      if (sessionId === alias) navigate(`/session/${update.sessionId}`);
+      // The viewed session's own row changed (a generated title lands mid-turn,
+      // the indexer derived one): the header reads `selectedSession`, so it
+      // has to move with the sidebar. An alias upsert is the same session seen
+      // under its provider id before the canonical id was known. A blank
+      // summary (the provider-id mapping broadcast, before any title exists)
+      // must not erase the optimistic one, same as the cache rule above.
+      setSelectedSession((session) => {
+        if (!session || (session.id !== update.sessionId && session.id !== alias)) return session;
+        const next = { ...session, ...normalized };
+        if (!normalized.summary?.trim() && session.summary?.trim()) next.summary = session.summary;
+        return next;
+      });
+      if (alias && sessionId === alias) navigate(`/session/${update.sessionId}`);
     };
     return subscribe(receive);
   }, [client, navigate, sessionId, setSelectedProject, setSelectedSession, subscribe]);

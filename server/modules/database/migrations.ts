@@ -225,6 +225,15 @@ function addProviderMapping(database: Database): void {
   database.exec('UPDATE sessions SET provider_session_id = session_id WHERE provider_session_id IS NULL');
 }
 
+// Rows that predate the column keep a null source: whether their name was
+// typed or derived is unknowable, and an unknown name is treated as the
+// runtime's to improve but never as the indexer's to overwrite.
+function addSessionNameSource(database: Database): void {
+  if (!hasTable(database, 'sessions')) return;
+  const names = new Set(columnsOf(database, 'sessions').map(({ name }) => name));
+  addMissingColumn(database, 'sessions', names, 'name_source', 'TEXT');
+}
+
 function addProjectsForSessions(database: Database): void {
   if (!hasTable(database, 'sessions')) return;
   database.exec(`
@@ -297,6 +306,7 @@ const migrationPlan: readonly Migration[] = [
   upgradeSessionTable,
   mergeLegacySessionNames,
   addProviderMapping,
+  addSessionNameSource,
   addProjectsForSessions,
   removeLegacyIndexes,
   createProjectPermissions,

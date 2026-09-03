@@ -8,6 +8,7 @@ import { AuthStorage } from '@gajae-code/coding-agent/session/auth-storage';
 import { SessionManager } from '@gajae-code/coding-agent/session/session-manager';
 import { executeAcpBuiltinSlashCommand } from '@gajae-code/coding-agent/slash-commands/acp-builtins';
 import { initTheme, theme } from '@gajae-code/coding-agent/modes/theme/theme';
+import { generateSessionTitle } from '@gajae-code/coding-agent/utils/title-generator';
 import { getSupportedEfforts } from '@gajae-code/ai/model-thinking';
 
 import { GjcBunOAuthController, type GjcBunOAuthControllerOptions } from './gjc-bun-oauth-controller.js';
@@ -52,8 +53,11 @@ export type SdkRunConfig = {
 };
 
 export type GjcAgentSessionFactory = typeof createAgentSession;
+/** The runtime's title generator, narrowed to what the adapter supplies. */
+export type GjcSessionTitleGenerator = (firstMessage: string, registry: ModelRegistry, settings: Settings, model: Model) => Promise<string | null>;
 export type GjcBunSdkAdapterOptions = {
   createSessionFactory?: GjcAgentSessionFactory;
+  generateSessionTitle?: GjcSessionTitleGenerator;
   settings?: Settings;
   loadSettings?: () => Promise<Settings>;
   executeBuiltinCommand?: typeof executeAcpBuiltinSlashCommand;
@@ -83,6 +87,23 @@ type ActiveRun = {
 
 const FAILURE = 'GJC SDK configuration is invalid.';
 const MODEL_ID_EFFORT = /-(off|minimal|low|medium|high|xhigh|max)(?:-fast)?$/;
+/**
+ * How long a finished turn waits for its title before giving up on it. The
+ * title is a 30-token completion started with the turn, so it is normally
+ * long done; a hung title request must not hold the turn's terminal frame.
+ */
+const SESSION_TITLE_GRACE_MS = 10_000;
+/** The runtime's own opt-out, honoured so one environment silences both the TUI and the app. */
+function sessionTitlesDisabled(): boolean {
+  return Boolean(process.env.GJC_NO_TITLE || process.env.PI_NO_TITLE);
+}
+/**
+ * The runtime picks the title model itself (its `default` role, else the
+ * turn's model). No sticky-credential session id or metadata resolver is
+ * passed: the app selects credentials per run, not per TUI session.
+ */
+const runtimeSessionTitle: GjcSessionTitleGenerator = (firstMessage, registry, settings, model) =>
+  generateSessionTitle(firstMessage, registry, settings, undefined, model);
 const RUNTIME_CREDENTIAL_ENV_VARS = new Set([
   'GJC_RUNTIME_API_KEY',
 ]);
@@ -637,6 +658,20 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
             }
           }
         }
+        // The runtime's TUI titles a session from its first message with a
+        // smol-model completion and records it in the transcript header. The
+        // SDK session never does that on its own, so the app mirrors the TUI
+        // here: the first turn of a new session, unless the user already named
+        // it or opted out. The title reaches the app as a `session_title`
+        // message that the server stores and never shows as chat.
+        const titleTask = !resumedId && promptMessage !== null && !sessionManager.getSessionName() && !sessionTitlesDisabled()
+          ? (this.options.generateSessionTitle ?? runtimeSessionTitle)(message, this.modelRegistry, settings, model)
+            .then(async (title) => {
+              if (!title || !(await sessionManager.setSessionName(title, 'auto'))) return;
+              writer.send({ kind: 'session_title', title: sessionManager.getSessionName(), source: 'auto', sessionId: sessionManager.getSessionId() });
+            })
+            .catch(() => {})
+          : null;
         let promptError: unknown;
         try {
           if (promptMessage !== null) {
@@ -644,6 +679,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           }
         } catch (error) {
           promptError = error;
+        }
+        if (titleTask) {
+          let grace: ReturnType<typeof setTimeout> | undefined;
+          await Promise.race([titleTask, new Promise<void>((resolve) => { grace = setTimeout(resolve, SESSION_TITLE_GRACE_MS); })]);
+          clearTimeout(grace);
         }
         forwardPromptTerminal(writer, state, promptError);
         if (promptError !== undefined) throw promptError;

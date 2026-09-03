@@ -294,6 +294,9 @@ async function fixture(
   };
   const adapter = new GjcBunSdkAdapter(authStorage as never, modelRegistry as never, {
     createSessionFactory: factory,
+    // The real generator would reach for a model through the fake registry;
+    // tests that care about titles supply their own.
+    generateSessionTitle: async () => null,
     ...(adapterOptionOverrides.loadSettings ? {} : { settings: settings as never }),
     executeBuiltinCommand,
     ...(oauthTimeoutMs === undefined ? {} : { oauth: { timeoutMs: oauthTimeoutMs } }),
@@ -1870,6 +1873,69 @@ test('steering rejects a payload with nothing to say', async () => {
  * said it was withheld. The adapter now forces those settings on the per-run
  * clone, and this pins that it actually happens where a session is built.
  */
+test('the first turn of a new session titles it from the first message and tells the app', async () => {
+  const titleCalls: Array<{ firstMessage: string; model: unknown }> = [];
+  const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
+    generateSessionTitle: async (firstMessage, _registry, _settings, model) => {
+      titleCalls.push({ firstMessage, model });
+      return 'Fix the boot race';
+    },
+  });
+  try {
+    const run = f.host.handle(request('session.start', 'title-first', { message: 'why does boot hang on the second launch?', options: f.options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    session.complete();
+    await run;
+
+    assert.deepEqual(titleCalls.map((call) => call.firstMessage), ['why does boot hang on the second launch?']);
+    assert.deepEqual(titleCalls[0]?.model, { id: 'contract-model', provider: 'contract-provider' });
+    const titled = f.frames.find((frame) => frame.kind === 'event' && (frame.payload as { message?: { kind?: string } })?.message?.kind === 'session_title');
+    assert.ok(titled, 'the app never received the session_title message');
+    const message = (titled.payload as { message: Record<string, unknown> }).message;
+    // The title in the message is read back from the session manager after
+    // `setSessionName` accepted it, so this also proves the runtime holds it
+    // (the fake session writes no transcript, so the header lands on disk
+    // only once a real turn creates the file).
+    assert.equal(message.title, 'Fix the boot race');
+    assert.equal(message.source, 'auto');
+    assert.equal(typeof message.sessionId, 'string');
+    // The title precedes the terminal frame: the turn waits for it.
+    const order = f.frames.filter((frame) => frame.kind === 'event').map((frame) => (frame.payload as { message?: { kind?: string } })?.message?.kind);
+    assert.ok(order.indexOf('session_title') < order.indexOf('complete'), `expected title before complete in ${order.join(',')}`);
+  } finally { await f.close(); }
+});
+
+test('a generator that declines leaves the session untitled, and a resumed session is never retitled', async () => {
+  let calls = 0;
+  const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
+    generateSessionTitle: async () => { calls += 1; return null; },
+  });
+  try {
+    const first = f.host.handle(request('session.start', 'title-none', { message: 'hello', options: f.options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    session.complete();
+    await first;
+    assert.equal(calls, 1);
+    assert.equal(f.frames.some((frame) => (frame.payload as { message?: { kind?: string } })?.message?.kind === 'session_title'), false);
+
+    // A later turn resumes an existing transcript: titling is the first turn's job only.
+    const providerSessionId = 'already-running';
+    await writeFile(join(f.root, 'running.jsonl'), `${JSON.stringify({
+      type: 'session', version: 3, id: providerSessionId, timestamp: new Date().toISOString(), cwd: f.root,
+    })}\n`);
+    const second = f.host.handle(request('session.resume', 'title-resume', { message: 'and again', options: f.options, providerSessionId }));
+    for (let attempt = 0; attempt < 100 && !f.sessions[1]; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 1));
+    const resumed = f.sessions[1]!;
+    await resumed.promptStarted.promise;
+    resumed.complete();
+    await second;
+
+    assert.equal(calls, 1, 'a resumed session must not be retitled');
+  } finally { await f.close(); }
+});
+
 test('starting a session forces the tool settings the app policy declares', async () => {
   const f = await fixture();
   try {

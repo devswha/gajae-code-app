@@ -166,6 +166,49 @@ test('session upserts write directly to the project cache', async () => {
   }
 });
 
+test('an upsert for the viewed session renames it where the header reads it, not only in the sidebar', async () => {
+  const fetch = installFetch([{ body: [project()] }]);
+  try {
+    const harness = renderHarness();
+    await waitFor(() => assert.equal(harness.getState().projects.length, 1));
+
+    act(() => {
+      harness.getState().registerOptimisticSession({ sessionId: 'session-live', provider: 'gjc', project: project(), summary: 'why does boot hang on the second launch?' });
+    });
+    await waitFor(() => assert.equal(harness.getState().selectedSession?.id, 'session-live'));
+
+    // The provider-id mapping broadcast carries no title yet; the optimistic one stays.
+    act(() => {
+      harness.emit({
+        kind: 'session_upserted',
+        sessionId: 'session-live',
+        providerSessionId: 'provider-live',
+        provider: 'gjc',
+        session: { id: 'session-live', summary: '', messageCount: 0, lastActivity: new Date().toISOString() },
+        project: { projectId: 'project-1', path: '/workspace/project', fullPath: '/workspace/project', displayName: 'Project one', isStarred: false },
+        timestamp: new Date().toISOString(),
+      } as ServerEvent);
+    });
+    assert.equal(harness.getState().selectedSession?.summary, 'why does boot hang on the second launch?');
+
+    act(() => {
+      harness.emit({
+        kind: 'session_upserted',
+        sessionId: 'session-live',
+        provider: 'gjc',
+        session: { id: 'session-live', summary: 'Fix the boot race', messageCount: 0, lastActivity: new Date().toISOString() },
+        project: { projectId: 'project-1', path: '/workspace/project', fullPath: '/workspace/project', displayName: 'Project one', isStarred: false },
+        timestamp: new Date().toISOString(),
+      } as ServerEvent);
+    });
+
+    await waitFor(() => assert.equal(harness.getState().selectedSession?.summary, 'Fix the boot race'));
+    assert.equal(harness.getState().projects[0]?.sessions?.find((session) => session.id === 'session-live')?.summary, 'Fix the boot race');
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('optimistic sessions survive a shorter refetch page', async () => {
   const fetch = installFetch([{ body: [project()] }, { body: [project()] }]);
   try {

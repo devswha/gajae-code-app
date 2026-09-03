@@ -132,6 +132,17 @@ function persistProviderSessionId(run: ChatRun, providerSessionId: string): void
   }
 }
 
+function applyGeneratedTitle(run: ChatRun, title: string): void {
+  try {
+    if (!sessionsDb.applyGeneratedSessionName(run.appSessionId, title)) return;
+    void broadcastSessionUpsert(run.appSessionId).catch((error) => {
+      console.error('[ChatRunRegistry] Failed to broadcast generated session title', { appSessionId: run.appSessionId, error: error instanceof Error ? error.message : String(error) });
+    });
+  } catch (error) {
+    console.error('[ChatRunRegistry] Failed to store generated session title', { appSessionId: run.appSessionId, error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 function createRun(input: StartRunInput): ChatRun {
   const run = {
     appSessionId: input.appSessionId,
@@ -153,6 +164,7 @@ function createRun(input: StartRunInput): ChatRun {
     provider: input.provider,
     providerSessionId: input.providerSessionId,
     onProviderSessionId: (providerSessionId) => persistProviderSessionId(run, providerSessionId),
+    onSessionTitle: (title) => applyGeneratedTitle(run, title),
     decorateOutboundEvent: (event) => decorateRunEvent(run, event),
   });
   return run;

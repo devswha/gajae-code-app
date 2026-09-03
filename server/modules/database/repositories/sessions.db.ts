@@ -2,10 +2,19 @@ import { getConnection } from '@/modules/database/connection.js';
 import { projectsDb } from '@/modules/database/repositories/projects.db.js';
 import { normalizeProjectPath } from '@/shared/utils.js';
 
-type SessionRow = { session_id: string; provider: string; provider_session_id: string | null; project_path: string | null; jsonl_path: string | null; custom_name: string | null; isStarred: number; isArchived: number; created_at: string; updated_at: string };
+/**
+ * Who set `custom_name`: `user` typed it, `auto` is the runtime's model-written
+ * title, `derived` came from a provider index or the first message. Null on
+ * rows that predate the column. The runtime's title replaces anything but a
+ * user's; a user's name is replaced only by the user. The indexer's name wins
+ * on write, as it always has: every provider synchronizer that must keep a
+ * stored name echoes it back rather than relying on the repository.
+ */
+export type SessionNameSource = 'user' | 'auto' | 'derived';
+type SessionRow = { session_id: string; provider: string; provider_session_id: string | null; project_path: string | null; jsonl_path: string | null; custom_name: string | null; name_source: SessionNameSource | null; isStarred: number; isArchived: number; created_at: string; updated_at: string };
 export type ProjectSessionPageRow = SessionRow & { total: number };
 
-const rowColumns = 'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, isStarred, isArchived, created_at, updated_at';
+const rowColumns = 'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, name_source, isStarred, isArchived, created_at, updated_at';
 const sqliteTimestamp = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 const recency = 'datetime(COALESCE(updated_at, created_at))';
 
@@ -60,24 +69,25 @@ export const sessionsDb = {
 
     const mapped = db.prepare('SELECT session_id FROM sessions WHERE provider = ? AND provider_session_id = ? LIMIT 1')
       .get(provider, providerSessionId) as { session_id: string } | undefined;
+    // A name the indexer changes is `derived`; echoing the stored name keeps its source.
     if (mapped) {
-      db.prepare(`UPDATE sessions SET provider = ?, project_path = ?, jsonl_path = ?, custom_name = COALESCE(?, custom_name), updated_at = COALESCE(?, CURRENT_TIMESTAMP) WHERE session_id = ?`)
-        .run(provider, storedProjectPath, jsonlPath ?? null, customName ?? null, updated, mapped.session_id);
+      db.prepare(`UPDATE sessions SET provider = ?, project_path = ?, jsonl_path = ?, name_source = CASE WHEN ? IS NOT NULL AND ? IS NOT custom_name THEN 'derived' ELSE name_source END, custom_name = COALESCE(?, custom_name), updated_at = COALESCE(?, CURRENT_TIMESTAMP) WHERE session_id = ?`)
+        .run(provider, storedProjectPath, jsonlPath ?? null, customName ?? null, customName ?? null, customName ?? null, updated, mapped.session_id);
       return mapped.session_id;
     }
 
-    db.prepare(`INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
-      ON CONFLICT(session_id) DO UPDATE SET provider = excluded.provider, provider_session_id = excluded.provider_session_id, project_path = excluded.project_path, jsonl_path = excluded.jsonl_path, custom_name = COALESCE(excluded.custom_name, sessions.custom_name), updated_at = excluded.updated_at`)
-      .run(providerSessionId, provider, providerSessionId, customName ?? null, storedProjectPath, jsonlPath ?? null, created, updated);
+    db.prepare(`INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, name_source, project_path, jsonl_path, isArchived, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
+      ON CONFLICT(session_id) DO UPDATE SET provider = excluded.provider, provider_session_id = excluded.provider_session_id, project_path = excluded.project_path, jsonl_path = excluded.jsonl_path, name_source = CASE WHEN excluded.custom_name IS NOT NULL AND excluded.custom_name IS NOT sessions.custom_name THEN 'derived' ELSE sessions.name_source END, custom_name = COALESCE(excluded.custom_name, sessions.custom_name), updated_at = excluded.updated_at`)
+      .run(providerSessionId, provider, providerSessionId, customName ?? null, customName ? 'derived' : null, storedProjectPath, jsonlPath ?? null, created, updated);
     return providerSessionId;
   },
 
   createAppSession(sessionId: string, provider: string, projectPath: string): string {
     const storedProjectPath = providerProjectPath(provider, projectPath);
     projectsDb.ensureProjectPathForSession(storedProjectPath);
-    getConnection().prepare(`INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
-      VALUES (?, ?, NULL, NULL, ?, NULL, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`).run(sessionId, provider, storedProjectPath);
+    getConnection().prepare(`INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, name_source, project_path, jsonl_path, isArchived, created_at, updated_at)
+      VALUES (?, ?, NULL, NULL, NULL, ?, NULL, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`).run(sessionId, provider, storedProjectPath);
     return sessionId;
   },
 
@@ -91,8 +101,8 @@ export const sessionsDb = {
       }
       const other = db.prepare(`SELECT ${rowColumns} FROM sessions WHERE provider = ? AND (session_id = ? OR provider_session_id = ?) AND session_id <> ? LIMIT 1`)
         .get(provider, providerSessionId, providerSessionId, sessionId) as SessionRow | undefined;
-      const result = db.prepare(`UPDATE sessions SET provider_session_id = ?, jsonl_path = COALESCE(jsonl_path, ?), custom_name = COALESCE(custom_name, ?), updated_at = CURRENT_TIMESTAMP WHERE session_id = ? AND provider = ?`)
-        .run(providerSessionId, other?.jsonl_path ?? null, other?.custom_name ?? null, sessionId, provider);
+      const result = db.prepare(`UPDATE sessions SET provider_session_id = ?, jsonl_path = COALESCE(jsonl_path, ?), name_source = CASE WHEN custom_name IS NULL AND ? IS NOT NULL THEN ? ELSE name_source END, custom_name = COALESCE(custom_name, ?), updated_at = CURRENT_TIMESTAMP WHERE session_id = ? AND provider = ?`)
+        .run(providerSessionId, other?.jsonl_path ?? null, other?.custom_name ?? null, other?.name_source ?? null, other?.custom_name ?? null, sessionId, provider);
       if (result.changes !== 1) {
         throw new Error(`Cannot assign provider session id: target session "${sessionId}" for provider "${provider}" was not updated`);
       }
@@ -100,8 +110,19 @@ export const sessionsDb = {
     })();
   },
 
-  updateSessionCustomName(sessionId: string, customName: string): void {
-    getConnection().prepare('UPDATE sessions SET custom_name = ? WHERE session_id = ?').run(customName, sessionId);
+  updateSessionCustomName(sessionId: string, customName: string, source: SessionNameSource): void {
+    getConnection().prepare('UPDATE sessions SET custom_name = ?, name_source = ? WHERE session_id = ?').run(customName, source, sessionId);
+  },
+
+  /**
+   * Stores the runtime's generated title unless the user named the session
+   * themselves. Returns whether the row changed.
+   */
+  applyGeneratedSessionName(sessionId: string, title: string): boolean {
+    const result = getConnection()
+      .prepare(`UPDATE sessions SET custom_name = ?, name_source = 'auto' WHERE session_id = ? AND (name_source IS NULL OR name_source <> 'user')`)
+      .run(title, sessionId);
+    return result.changes === 1;
   },
 
   getSessionById(sessionId: string): SessionRow | null {

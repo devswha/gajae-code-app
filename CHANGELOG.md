@@ -4,6 +4,68 @@ All notable changes to Gajae Code App are documented in this file. Current and
 future desktop and server artifacts are published only through
 [GitHub Releases](https://github.com/devswha/gajae-code-app/releases).
 
+## 2.0.0-beta.8 (2026-09-03)
+
+Same-day follow-up to beta.7, driven by first-install testing on a clean
+account. The macOS image published with beta.7 said "damaged and can't be
+opened" once installed; it was replaced, and the root cause is fixed here.
+
+### Packaging
+
+- **The beta.7 "damaged" image, explained and fixed.** The bundled runtime
+  publishes a Hangul bin alias (`node_modules/.bin/가재씨`); hdiutil's default
+  HFS+ image stores that name in NFD while the code signature sealed NFC, so
+  the app that verified on its own mount failed the seal check once Finder
+  copied it to /Applications. The payload builder now drops non-ASCII bin
+  links and refuses any other non-ASCII path, the DMG is built as APFS, and
+  the DMG builder, the CI smoke and the documented acceptance verify a copy
+  taken out of the mount — the check that would have caught it.
+- The release workflow can now sign, notarize and staple the image on the
+  runner when the `release` environment carries the Developer ID secrets;
+  without them it builds the ad-hoc image as before.
+- README added; the website's media is replaced with screenshots of the
+  current release, and its first-launch instructions reflect notarization.
+
+### Desktop
+
+- **Sign-in and other external links actually open in the packaged app.**
+  The webview is the server's loopback origin, where neither Tauri IPC nor
+  `window.open` reach the outside, so "Open sign-in link" did nothing. https
+  links now travel through the sidecar (new `POST /api/system/open-url`), and
+  every `target="_blank"` anchor routes the same way.
+- A sign-in completed through an older attempt's link fails as a named state
+  mismatch with a "use the link shown now" message instead of a generic
+  error. The model is told it runs inside the app: no `gjc` CLI to invoke,
+  no `~/.gjc` to hand-edit, that configuration lives in Settings.
+
+### Browser tool
+
+- With no app-managed Chromium, an agent browser call used to end in a bare
+  error. The tool now asks through a card: download Chrome for Testing once
+  and continue, or decline and hear where to install it later (Browser panel
+  or Settings → Automation).
+
+### Sessions and chat
+
+- A model chosen for a new session stays with that session (first-turn pin);
+  the global default no longer hijacks a resumed session.
+- The model picker dims providers nobody has signed in to (with a sign-in
+  hint), keeps a search field, and shows reasoning levels whenever the
+  runtime can answer.
+- A background session's stream deltas merge into one message — the
+  "one or two words per line, scroll stuck" report on returning to a
+  session.
+- The Changes tab's Last-turn scope sees history that arrives after it
+  opened, without a click.
+- **Tasks tab**: the session's live todo list in the workspace panel.
+- **Copy debug info** in the session menu: DB row, transcript tail and log
+  tails in one paste, for bug reports.
+- An empty workspace is one line and one action ("Add a project"); the Work
+  section appears only when it has something to report; the primary button
+  renders only with projects (no dead third copy of Add a project), and
+  "New work item" on the fresh screen lands the cursor in the composer;
+  the rails sit one tonal step below the stage.
+
 ## 2.0.0-beta.7 (2026-09-03)
 
 The first release under the MIT license, and the first shipped as a

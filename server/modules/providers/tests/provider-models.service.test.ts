@@ -348,6 +348,42 @@ test('resolveResumeModel prefers a stored changed model over the requested one',
   }
 });
 
+test('an explicit model on the first turn becomes the session pin; default pins nothing', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-first-turn-'));
+  const activeModelChangesPath = path.join(tempRoot, 'session-model-changes.json');
+
+  try {
+    const service = createProviderModelsService({
+      activeModelChangesPath,
+      resolveProvider: (provider) => ({
+        models: {
+          getSupportedModels: async () => createModels(`${provider}-models`),
+          getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`),
+          changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+        },
+      }),
+    });
+
+    // First turn with an explicit model: pinned, and a later turn asking for
+    // something else (the global default moved on) still gets the pin.
+    assert.equal(await service.resolveResumeModel('gjc', 'session-first', 'openai-codex/gpt-5.6-terra', { firstTurn: true }), 'openai-codex/gpt-5.6-terra');
+    const pinned = await service.getChangedActiveModel('gjc', 'session-first');
+    assert.equal(pinned.changed, true);
+    assert.equal(pinned.model, 'openai-codex/gpt-5.6-terra');
+    assert.equal(await service.resolveResumeModel('gjc', 'session-first', 'default'), 'openai-codex/gpt-5.6-terra');
+
+    // First turn on the app default: nothing pinned, the session keeps following it.
+    assert.equal(await service.resolveResumeModel('gjc', 'session-default', 'default', { firstTurn: true }), 'default');
+    assert.equal((await service.getChangedActiveModel('gjc', 'session-default')).changed, false);
+
+    // Not the first turn: an explicit request runs but does not pin.
+    assert.equal(await service.resolveResumeModel('gjc', 'session-later', 'zai/glm-5.3'), 'zai/glm-5.3');
+    assert.equal((await service.getChangedActiveModel('gjc', 'session-later')).changed, false);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('a session that pinned a model reports it, so the picker can show what will run', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-read-'));
   const activeModelChangesPath = path.join(tempRoot, 'session-model-changes.json');

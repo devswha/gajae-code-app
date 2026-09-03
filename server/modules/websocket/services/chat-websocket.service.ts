@@ -23,7 +23,7 @@ type ChatWebSocketDependencies = {
   steerFns?: Partial<Record<LLMProvider, (providerSessionId: string, message: string) => boolean | Promise<boolean>>>;
   resolveToolApproval: (requestId: string, payload: { allow: boolean; always?: boolean; updatedInput?: unknown; message?: string; rememberEntry?: unknown; }) => void;
   getPendingApprovalsForSession: (providerSessionId: string) => unknown[];
-  resolveSessionModel?: (provider: LLMProvider, sessionId: string, requestedModel?: string | null) => Promise<string | undefined>;
+  resolveSessionModel?: (provider: LLMProvider, sessionId: string, requestedModel?: string | null, options?: { firstTurn?: boolean }) => Promise<string | undefined>;
   /** Test seam; production reads the project's stored policy. */
   resolveRunPermissions?: (projectPath: string | null | undefined) => Record<string, unknown>;
   /** Test seam; production persists "Always allow" against the project. */
@@ -54,9 +54,9 @@ export function filterImagesToUploadStore(images: unknown, assetsRootOverride?: 
   });
 }
 
-async function defaultResolveSessionModel(provider: LLMProvider, sessionId: string, requestedModel?: string | null): Promise<string | undefined> {
+async function defaultResolveSessionModel(provider: LLMProvider, sessionId: string, requestedModel?: string | null, options?: { firstTurn?: boolean }): Promise<string | undefined> {
   const { providerModelsService } = await import('@/modules/providers/index.js');
-  return providerModelsService.resolveResumeModel(provider, sessionId, requestedModel);
+  return providerModelsService.resolveResumeModel(provider, sessionId, requestedModel, options);
 }
 
 function requestUserId(request: AuthenticatedWebSocketRequest | undefined): string | number | null {
@@ -84,9 +84,9 @@ function providerRunId(run: NonNullable<ReturnType<typeof chatRunRegistry.getRun
   return run.providerSessionId ?? run.writer.getAbortHandle();
 }
 
-async function resolveRequestedModel(dependencies: ChatWebSocketDependencies, provider: LLMProvider, sessionId: string, requestedModel: string | null): Promise<string | undefined> {
+async function resolveRequestedModel(dependencies: ChatWebSocketDependencies, provider: LLMProvider, sessionId: string, requestedModel: string | null, firstTurn: boolean): Promise<string | undefined> {
   try {
-    return await (dependencies.resolveSessionModel ?? defaultResolveSessionModel)(provider, sessionId, requestedModel);
+    return await (dependencies.resolveSessionModel ?? defaultResolveSessionModel)(provider, sessionId, requestedModel, { firstTurn });
   } catch {
     return requestedModel ?? undefined;
   }
@@ -124,7 +124,9 @@ async function sendChat(ws: WebSocket, userId: string | number | null, data: Any
 
   const requestOptions = (data.options ?? {}) as AnyRecord;
   const requestedModel = typeof requestOptions.model === 'string' ? requestOptions.model : null;
-  const model = await resolveRequestedModel(dependencies, provider, sessionId, requestedModel);
+  // A session with no provider id yet is on its first turn: an explicit model
+  // chosen for it becomes its pin (see resolveResumeModel).
+  const model = await resolveRequestedModel(dependencies, provider, sessionId, requestedModel, !storedSession.provider_session_id);
   // The permission policy is the project's, read here and never taken from the
   // request: a browser cannot widen it by sending `skipPermissions` or a mode.
   const { permissions: _clientPermissions, skipPermissions: _legacySkip, ...acceptedOptions } = requestOptions;

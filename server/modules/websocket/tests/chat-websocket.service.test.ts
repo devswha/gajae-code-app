@@ -262,7 +262,8 @@ test('chat.send prefers the session\'s persisted model choice over the client\'s
         }));
         await completed;
 
-        assert.deepEqual(resolverArgs, ['gjc', 'model-override-session', 'default']);
+        // A session with no provider id yet is on its first turn, and the resolver is told so.
+        assert.deepEqual(resolverArgs, ['gjc', 'model-override-session', 'default', { firstTurn: true }]);
         assert.equal(receivedOptions?.model, 'anthropic/claude-opus-5');
       } finally {
         client.terminate();

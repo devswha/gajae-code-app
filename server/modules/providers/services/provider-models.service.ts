@@ -13,7 +13,7 @@ import type {
   ProviderModelsResult,
   ProviderSessionActiveModelChange,
 } from '@/shared/types.js';
-import { readProviderSessionActiveModelChange } from '@/shared/utils.js';
+import { readProviderSessionActiveModelChange, writeProviderSessionActiveModelChange } from '@/shared/utils.js';
 
 export const PROVIDER_MODELS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 const PROVIDER_MODELS_CACHE_VERSION = 11;
@@ -148,11 +148,22 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     getCurrentActiveModel: (provider: LLMProvider, sessionId?: string): Promise<ProviderCurrentActiveModel> => locateProvider(provider).models.getCurrentActiveModel(sessionId),
     getChangedActiveModel: (provider: LLMProvider, sessionId: string): Promise<ProviderSessionActiveModelChange> => readProviderSessionActiveModelChange(provider, sessionId, { filePath: dependencies.activeModelChangesPath }),
     changeActiveModel: (provider: LLMProvider, input: ProviderChangeActiveModelInput): Promise<ProviderSessionActiveModelChange> => locateProvider(provider).models.changeActiveModel(input),
-    async resolveResumeModel(provider: LLMProvider, sessionId: string | undefined, requestedModel?: string | null): Promise<string | undefined> {
+    /**
+     * The model a turn runs on: the session's pin when it has one, else what
+     * the request asked for. On a session's first turn an explicit request
+     * becomes the pin, so the choice made before the first message survives
+     * a reload and a later change of the global default; `default` pins
+     * nothing and the session keeps following the app default.
+     */
+    async resolveResumeModel(provider: LLMProvider, sessionId: string | undefined, requestedModel?: string | null, options: { firstTurn?: boolean } = {}): Promise<string | undefined> {
       const requested = typeof requestedModel === 'string' ? requestedModel.trim() : '';
       if (!sessionId?.trim()) return requested || undefined;
       const saved = await readProviderSessionActiveModelChange(provider, sessionId, { filePath: dependencies.activeModelChangesPath });
-      return saved.supported && saved.changed && saved.model?.trim() ? saved.model.trim() : requested || undefined;
+      if (saved.supported && saved.changed && saved.model?.trim()) return saved.model.trim();
+      if (options.firstTurn && requested && requested !== 'default') {
+        await writeProviderSessionActiveModelChange(provider, { sessionId, model: requested }, { filePath: dependencies.activeModelChangesPath });
+      }
+      return requested || undefined;
     },
     clearCache(): void {
       remembered.clear();

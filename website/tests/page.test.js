@@ -29,18 +29,17 @@ test('states that the macOS beta is notarized and keeps the legacy Gatekeeper pa
   assert.match(html, /id="macos-install"/);
 });
 
-test('uses a real latest-beta workflow recording and supporting product screenshots', () => {
+test('uses screenshots of the current release and none of the retired media', () => {
   const html = renderLandingPage();
-  assert.ok(html.includes('demos/gajae-build-process.mp4'));
-  assert.ok(html.includes('demos/gajae-build-process-poster.jpg'));
-  assert.match(html, /<video[\s\S]*autoplay[\s\S]*controls[\s\S]*muted[\s\S]*playsinline/);
-  assert.match(html, /Real workflow · Latest beta/);
-  assert.ok(html.includes('screenshots/workflow-build-light.jpg'));
-  assert.ok(html.includes('screenshots/model-reasoning-light.jpg'));
-  assert.ok(html.includes('screenshots/browser-verification-light.jpg'));
-  assert.match(html, /Follow the work, not just the answer\./);
-  assert.match(html, /Hand off without losing the page\./);
-  assert.equal(html.includes('Live timeline'), false);
-  assert.equal(html.includes('Ready to continue'), false);
-  assert.equal(html.includes('src/auth/session.ts'), false);
+  assert.ok(html.includes('screenshots/session-review.jpg'));
+  assert.ok(html.includes('screenshots/permission-card.jpg'));
+  assert.ok(html.includes('screenshots/model-picker.jpg'));
+  assert.equal(html.includes('demos/'), false);
+  assert.equal(html.includes('-light.jpg'), false);
+  assert.equal(html.includes('<video'), false);
+  assert.match(html, /Watch the work happen, then review it\./);
+  assert.match(html, /Commands wait for you\./);
+  assert.match(html, /Match the model to the task\./);
+  assert.equal(html.includes('Sol'), false);
+  assert.equal(html.includes('Daymark'), false);
 });

@@ -223,8 +223,9 @@ summary {
   color: var(--secondary);
 }
 
-.product-overview video,
+.product-overview img,
 .detail img {
+  height: auto;
   display: block;
   width: 100%;
   border: 1px solid var(--border);

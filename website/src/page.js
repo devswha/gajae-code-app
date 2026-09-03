@@ -82,50 +82,31 @@ export function renderLandingPage() {
           </p>
         </section>
 
-        <section class="product-overview" id="features" aria-label="Gajae Code App build workflow">
+        <section class="product-overview" id="features" aria-label="Gajae Code App session and review">
           <div class="product-overview-copy">
-            <p class="eyebrow">Real workflow · Latest beta</p>
-            <h2>Watch the work happen.</h2>
-            <p>An English request becomes a code search, a patch, and a live check in the built-in Browser—all in the same session.</p>
+            <p class="eyebrow">Real session · v${RELEASE.version}</p>
+            <h2>Watch the work happen, then review it.</h2>
+            <p>Each turn's tool calls fold into one block. The Changes tab shows the working tree as a diff, and a comment on a line becomes the next message.</p>
           </div>
-          <video
-            autoplay
-            controls
-            loop
-            muted
-            playsinline
-            preload="metadata"
-            poster="./demos/gajae-build-process-poster.jpg"
-            aria-label="Gajae Code App searching, editing, and verifying a dashboard in the built-in Browser"
-          >
-            <source src="./demos/gajae-build-process.mp4" type="video/mp4" />
-          </video>
+          <img src="./screenshots/session-review.jpg" alt="A two-turn Gajae Code App session that writes greet.py and adds a --shout flag, with the Changes tab open on the diff and a review comment waiting to be sent" width="2880" height="1800" />
         </section>
 
         <section class="details" id="workflow" aria-label="Product details">
           <article class="detail">
             <div class="detail-copy">
-              <p class="eyebrow">Build timeline</p>
-              <h2>Follow the work, not just the answer.</h2>
-              <p>The request, code search, patch, and browser check stay together in one readable session.</p>
+              <p class="eyebrow">Permissions</p>
+              <h2>Commands wait for you.</h2>
+              <p>By default a shell command stops the turn on a card: allow it once, always for this project, or deny it. The turn resumes where it paused.</p>
             </div>
-            <img src="./screenshots/workflow-build-light.jpg" alt="English dashboard request followed by search, patch, and browser verification steps in Gajae Code App" />
+            <img src="./screenshots/permission-card.jpg" alt="A Gajae Code App turn paused on a permission card for python3 hello.py, with Deny, Always deny, Always allow and Allow buttons" width="2880" height="1800" />
           </article>
           <article class="detail">
             <div class="detail-copy">
               <p class="eyebrow">Session controls</p>
               <h2>Match the model to the task.</h2>
-              <p>Keep Sol selected and choose the reasoning depth for the next turn without leaving the session.</p>
+              <p>Pick the provider, the model and the reasoning depth for the next turn without leaving the session. A model chosen for a session stays with it.</p>
             </div>
-            <img src="./screenshots/model-reasoning-light.jpg" alt="Latest Sol model and reasoning controls open above an English coding session" />
-          </article>
-          <article class="detail">
-            <div class="detail-copy">
-              <p class="eyebrow">Shared browser</p>
-              <h2>Hand off without losing the page.</h2>
-              <p>The agent verifies in the built-in Chromium tab, then you can expand the same live page and continue from there.</p>
-            </div>
-            <img src="./screenshots/browser-verification-light.jpg" alt="Expanded Gajae Code App Browser showing the responsive Daymark dashboard without cropped or empty areas" />
+            <img src="./screenshots/model-picker.jpg" alt="The model and reasoning picker open above a session, with ChatGPT selected, GPT-5.6 Terra chosen and the reasoning column beside it" width="2880" height="1800" />
           </article>
         </section>
 

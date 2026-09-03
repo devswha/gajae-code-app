@@ -22,12 +22,10 @@
 </p>
 
 <p align="center">
-  <a href="https://devswha.github.io/gajae-code-app/">
-    <img src="website/public/demos/gajae-build-process-poster.jpg" alt="Gajae Code App building a dashboard: the request, the code search, the patch and the browser verification in one session timeline" width="960">
-  </a>
+  <img src="website/public/screenshots/session-review.jpg" alt="A two-turn Gajae Code App session that writes greet.py and adds a --shout flag, with the Changes tab open on the diff and a review comment waiting to be sent" width="960">
 </p>
 
-<p align="center"><em>One session, start to finish: the request, the search, the patch, and the agent checking its own result in the built-in browser. The <a href="https://devswha.github.io/gajae-code-app/">website</a> plays the recording.</em></p>
+<p align="center"><em>Two turns on v2.0.0-beta.7: each turn's tool calls folded into a work block, the Changes tab showing the working tree as a diff, and a line comment waiting to become the next message.</em></p>
 
 
 Gajae Code App is a self-hosted web and desktop interface for [Gajae Code](https://github.com/devswha/gajae-code). It drives the agent through the runtime's own SDK in an isolated worker, shows every turn as it happens, and puts a review loop between the agent's edits and your next message — on a machine you control, with credentials that never leave it.

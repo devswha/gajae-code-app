@@ -124,3 +124,38 @@ export function describeDistributionExclusions({ removed, stubbed }) {
   const stubNote = stubbed.length > 0 ? `; stubbed ${stubbed.join(', ')}` : '';
   return `Excluded ${removed.join(', ')}${stubNote} (see scripts/release/distribution-exclusions.mjs).`;
 }
+
+/**
+ * A file name outside ASCII breaks the code signature the moment the bundle
+ * crosses a filesystem: HFS+ (what `hdiutil` builds by default) stores it in
+ * NFD, APFS keeps whatever bytes it is given, and CodeResources sealed NFC.
+ * `@gajae-code/coding-agent` publishes a Hangul bin alias
+ * (`node_modules/.bin/가재씨`), which is how the notarized beta.7 image
+ * verified on its own mount and reported "a sealed resource is missing or
+ * invalid" once Finder had copied it to /Applications. Bin links are not
+ * runtime inputs for the payload, so a non-ASCII one is removed; any other
+ * non-ASCII path fails the build rather than ship a bundle that breaks on copy.
+ * Returns the payload-relative paths removed.
+ */
+export async function removeNonAsciiPaths(fs, path, payloadDir) {
+  const removed = [];
+  const kept = [];
+  const walk = async (current) => {
+    for (const entry of await fs.readdir(current, { withFileTypes: true })) {
+      const filePath = path.join(current, entry.name);
+      if (/[^\x00-\x7f]/.test(entry.name)) {
+        if (path.basename(current) === '.bin' && !entry.isDirectory()) {
+          await fs.rm(filePath, { force: true });
+          removed.push(path.relative(payloadDir, filePath));
+        } else {
+          kept.push(path.relative(payloadDir, filePath));
+        }
+        continue;
+      }
+      if (entry.isDirectory()) await walk(filePath);
+    }
+  };
+  await walk(payloadDir);
+  if (kept.length) throw new Error(`Payload paths outside ASCII cannot ship (the code signature would not survive a copy): ${kept.join(', ')}`);
+  return removed;
+}

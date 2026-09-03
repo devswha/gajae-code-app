@@ -95,3 +95,25 @@ test('the elkjs stub satisfies the import surface beautiful-mermaid touches and 
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test('a non-ASCII bin link is dropped and any other non-ASCII path refuses to ship', async () => {
+  const { removeNonAsciiPaths } = await import(pathToFileURL(path.join(process.cwd(), 'scripts/release/distribution-exclusions.mjs')).href);
+  const payload = await fs.mkdtemp(path.join(os.tmpdir(), 'gajae-payload-ascii-'));
+  try {
+    await fs.mkdir(path.join(payload, 'node_modules/.bin'), { recursive: true });
+    await fs.mkdir(path.join(payload, 'node_modules/@gajae-code/coding-agent/bin'), { recursive: true });
+    await fs.writeFile(path.join(payload, 'node_modules/@gajae-code/coding-agent/bin/gajaessi.js'), '#!/usr/bin/env node\n');
+    await fs.symlink('../@gajae-code/coding-agent/bin/gajaessi.js', path.join(payload, 'node_modules/.bin/가재씨'));
+    await fs.symlink('../@gajae-code/coding-agent/bin/gajaessi.js', path.join(payload, 'node_modules/.bin/gjc'));
+
+    assert.deepEqual(await removeNonAsciiPaths(fs, path, payload), ['node_modules/.bin/가재씨']);
+    assert.deepEqual((await fs.readdir(path.join(payload, 'node_modules/.bin'))).sort(), ['gjc']);
+    // Idempotent once clean.
+    assert.deepEqual(await removeNonAsciiPaths(fs, path, payload), []);
+
+    await fs.writeFile(path.join(payload, 'node_modules/@gajae-code/coding-agent/bin/설명.md'), 'x');
+    await assert.rejects(removeNonAsciiPaths(fs, path, payload), /설명\.md/);
+  } finally {
+    await fs.rm(payload, { recursive: true, force: true });
+  }
+});

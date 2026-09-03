@@ -45,6 +45,37 @@ Final local beta.3 candidate:
 - Installed bundle: `/Applications/Gajae Code App.app`, desktop version `0.2.2`
 - Deep code-signature verification and packaged native/Bun loading smoke: pass
 
+## beta.7 — second image: “damaged” after install, fixed — **PASSED 2026-09-03 (19:18 KST)**
+
+The 16:15 image below passed every check on its mount and was published;
+installed through the browser and Finder it said “damaged and can't be
+opened”. `codesign --verify --deep --strict` on `/Applications/Gajae Code
+App.app`: `a sealed resource is missing or invalid` — `file added` **and**
+`file missing`: `server-payload/node_modules/.bin/가재씨`.
+`@gajae-code/coding-agent` publishes that Hangul bin alias; `hdiutil`'s
+default HFS+ image stores the name in NFD, CodeResources sealed NFC, so the
+copy Finder made to APFS carried bytes the seal did not know. The mount
+itself verified because HFS+ normalizes on lookup.
+
+Three fixes, all landed: the payload builder removes non-ASCII bin links and
+refuses any other non-ASCII path (`removeNonAsciiPaths`, tested); the DMG
+is built as APFS (`hdiutil create -fs APFS`); and the DMG builder, the CI
+smoke and the documented acceptance now copy the app out of the mount and
+verify it there, with a quarantine attribute, before anything ships.
+
+Rebuilt at `ad877b5` + the fixes: app notarization
+`66e0c11a-c638-4eac-9b4f-fcba88ee71b2` → Accepted in 3 min, stapled; DMG
+notarization `79d06ee2-cf71-4587-b1d7-93153f4d1b8e` → Accepted in 3 min,
+stapled. Final image `221972348` bytes, SHA-256
+`328db060a3be36522075da2797c8acf2a6df93c7d859d880684409d36ba1d759`.
+Acceptance from the mount: all green as before; **and** from a `ditto` copy
+with a quarantine attribute: `codesign --verify --deep --strict` OK,
+`stapler validate` OK, `spctl -a -t exec` → `accepted`,
+`source=Notarized Developer ID`. Uploaded over the release asset, the
+download re-verified (checksum, staple, copy-out), and the Mac's
+`/Applications` install replaced from that download: launches, server
+`/health` → `{"status":"ok","version":"2.0.0-beta.7"}`.
+
 ## beta.7 — Developer ID signed + notarized build, accepted from the mounted image — **PASSED 2026-09-03 (16:15 KST)**
 
 Built at `d6e7826` (package version `2.0.0-beta.7`, desktop version `0.2.2`)
@@ -495,8 +526,19 @@ spctl -a -t exec -vv "/tmp/gajae-dmg/Gajae Code App.app"          # accepted, so
 codesign -dv --verbose=4 "/tmp/gajae-dmg/Gajae Code App.app" 2>&1 | grep -E 'Authority|TeamIdentifier|flags'
 node scripts/release/smoke-packaged-server.mjs --tauri-app "/tmp/gajae-dmg/Gajae Code App.app"
 node scripts/release/smoke-packaged-server.mjs --tauri-app "/tmp/gajae-dmg/Gajae Code App.app" --data-survival
+# What Finder does: copy out to a writable volume and verify THERE.
+rm -rf /tmp/gajae-copy && mkdir /tmp/gajae-copy
+ditto "/tmp/gajae-dmg/Gajae Code App.app" "/tmp/gajae-copy/Gajae Code App.app"
+codesign --verify --deep --strict "/tmp/gajae-copy/Gajae Code App.app"         # OK, or it is "damaged" after install
+spctl -a -t exec -vv "/tmp/gajae-copy/Gajae Code App.app"                    # accepted
 hdiutil detach /tmp/gajae-dmg
 ```
+
+The copy-out step exists because of beta.7's first image (below): every check
+on the mounted image passed, and the installed app said "damaged". The DMG
+builder now runs the same copy-out verification itself and builds an APFS
+image; the payload builder drops non-ASCII bin links and refuses any other
+non-ASCII path.
 
 The smokes must run against the *mounted image* (or any copy outside this
 checkout). Run from `src-tauri/target/…` they used to pass while the shipped

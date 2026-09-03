@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describeDistributionExclusions, removeExcludedDistributionPackages } from './distribution-exclusions.mjs';
+import { describeDistributionExclusions, removeExcludedDistributionPackages, removeNonAsciiPaths } from './distribution-exclusions.mjs';
 import { withOutOfTreeCopy } from './out-of-tree.mjs';
 
 const NODE_VERSION = '22.22.2';
@@ -247,6 +247,8 @@ try {
   console.log(describeDistributionExclusions(await removeExcludedDistributionPackages(fs, path, path.join(payloadDir, 'node_modules'))));
   const prunedMetadataFiles = await pruneNonRuntimeMetadata(path.join(payloadDir, 'node_modules'))
     + await pruneNonRuntimeMetadata(path.join(payloadDir, 'dist-server'));
+  const nonAsciiRemoved = await removeNonAsciiPaths(fs, path, payloadDir);
+  if (nonAsciiRemoved.length) console.log(`Removed non-ASCII bin links that would break the code signature on copy: ${nonAsciiRemoved.join(', ')}`);
   await codesignNativeClosure(payloadDir);
   await stageSidecar(payloadNode);
   await fs.rm(path.join(payloadDir, 'package-lock.json'), { force: true });

@@ -77,6 +77,30 @@ if (stapled) {
   run(process.execPath, [join(rootDir, 'scripts/release/finalize-macos-app.mjs'), '--app', appPath]);
 }
 
+/**
+ * What Finder does to the image is the test that matters: mount it, copy the
+ * app out to a writable volume, verify the signature there. A signature that
+ * only holds on the read-only mount is the one that says "damaged" after
+ * install.
+ */
+function verifyCopiedFromImage(imagePath) {
+  const mountPoint = mkdtempSync(join(tmpdir(), 'gajae-dmg-mount-'));
+  const copyRoot = mkdtempSync(join(tmpdir(), 'gajae-dmg-copy-'));
+  try {
+    run('hdiutil', ['attach', imagePath, '-nobrowse', '-readonly', '-mountpoint', mountPoint]);
+    try {
+      const copied = join(copyRoot, basename(appPath));
+      run('ditto', [join(mountPoint, basename(appPath)), copied]);
+      run('codesign', ['--verify', '--deep', '--strict', copied]);
+    } finally {
+      run('hdiutil', ['detach', mountPoint]);
+    }
+  } finally {
+    rmSync(copyRoot, { recursive: true, force: true });
+    rmSync(mountPoint, { recursive: true, force: true });
+  }
+}
+
 mkdirSync(outDir, { recursive: true });
 const dmgPath = join(outDir, `gajae-app-desktop-${releaseVersion}-macos-arm64.dmg`);
 
@@ -85,8 +109,15 @@ try {
   run('cp', ['-R', appPath, stage]);
   run('ln', ['-s', '/Applications', join(stage, 'Applications')]);
   rmSync(dmgPath, { force: true });
-  run('hdiutil', ['create', '-volname', 'Gajae Code App', '-srcfolder', stage, '-ov', '-format', 'UDZO', dmgPath]);
+  // APFS, not hdiutil's HFS+ default: HFS+ rewrites file names into NFD, so a
+  // name outside ASCII comes back from the image with different bytes than the
+  // code signature sealed, and the app that verified on the mount reports
+  // "a sealed resource is missing or invalid" once copied to /Applications.
+  // The payload builder refuses such names too; this keeps the image honest
+  // for anything it did not see. APFS images mount on macOS 10.13+.
+  run('hdiutil', ['create', '-fs', 'APFS', '-volname', 'Gajae Code App', '-srcfolder', stage, '-ov', '-format', 'UDZO', dmgPath]);
   run('hdiutil', ['verify', dmgPath]);
+  verifyCopiedFromImage(dmgPath);
   // Notarization is submitted for the disk image, and an unsigned image cannot
   // carry a stapled ticket. The identity matches the one the app was finalized
   // with, so the checksum below is always taken from the image that ships.

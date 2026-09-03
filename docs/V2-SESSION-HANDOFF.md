@@ -17,8 +17,15 @@ Last updated: 2026-09-02 night. Supersedes the 2026-07-18 handoff.
   2026-09-02 session-UI pass (tool output density, four-state session status,
   sidebar search, concise titles, per-project permissions, turn work block,
   composer Stop / Esc) is recorded below.
-- **`v2.0.0-beta.7` is published (2026-09-03 16:20 KST) as the first MIT
-  release and the first notarized macOS image.** Cut at `d84a9d3`; the
+- **`v2.0.0-beta.7` is published (2026-09-03) as the first MIT release and
+  the first notarized macOS image — and its DMG was replaced once at 19:15
+  KST.** The 16:20 image said “damaged” after install: a Hangul bin link
+  (`node_modules/.bin/가재씨`) came back from the HFS+ image with a
+  different Unicode normalization than the code signature sealed. Fixed in
+  the payload builder (drop non-ASCII bin links, refuse other non-ASCII
+  paths), the DMG (APFS), and every acceptance path (verify a copy out of
+  the mount, not just the mount). Current asset SHA-256
+  `328db060…b1d759`, 221972348 bytes. Cut at `d84a9d3`; the
   release workflow (run 33727451679) created the tag and the Linux server
   tarball, then the locally built, Developer ID-signed, notarized and
   stapled DMG (SHA-256 `f0659df0…44c55`, 227303972 bytes) and its

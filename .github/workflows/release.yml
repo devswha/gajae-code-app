@@ -330,10 +330,21 @@ jobs:
           APP="$MOUNT_POINT/Gajae Code App.app"
           test -d "$APP"
           codesign --verify --deep --strict "$APP"
+          # What the user's Finder does: copy the app to a writable volume and
+          # verify it there. A seal that only holds on the read-only mount is
+          # the one that says "damaged" after install (file names outside ASCII
+          # come back from an HFS+ image with different bytes than were sealed).
+          COPIED="$RUNNER_TEMP/gajae-app-copy/Gajae Code App.app"
+          mkdir -p "$(dirname "$COPIED")"
+          ditto "$APP" "$COPIED"
+          codesign --verify --deep --strict "$COPIED"
           if [ "$SIGNED" = "true" ]; then
             xcrun stapler validate "$APP"
             spctl -a -t exec -vv "$APP" 2>&1 | tee /dev/stderr | grep -q 'source=Notarized Developer ID'
+            xcrun stapler validate "$COPIED"
+            spctl -a -t exec -vv "$COPIED" 2>&1 | tee /dev/stderr | grep -q 'source=Notarized Developer ID'
           fi
+          rm -rf "$RUNNER_TEMP/gajae-app-copy"
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Contents/Info.plist")" = "app.gajae.desktop"
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")" = "$DESKTOP_VERSION"
           lipo "$APP/Contents/MacOS/gajae-app-desktop" -verify_arch arm64

@@ -245,6 +245,31 @@ async function configuredDefaultModelId(
   return resolved;
 }
 
+/**
+ * The `default` role resolves against the registry's available models, and a
+ * warm worker's registry can lose models between runs: after a turn, the
+ * runtime's catalog refresh replaces a preset-registered provider's models
+ * with the one it discovered, and the role's model is no longer there until
+ * the next `refresh()` restores it. Every `session.start` with the app default
+ * after that failed with `model_unresolved` while an explicit model id, which
+ * already refreshes on a miss, kept working. Same remedy here.
+ */
+async function configuredDefaultModelIdWithRefresh(
+  settings: Settings,
+  authStorage: AuthStorage,
+  modelRegistry: ModelRegistry,
+  credential: ExactCredentialRef,
+  modelProfile?: string,
+): Promise<string> {
+  try {
+    return await configuredDefaultModelId(settings, authStorage, modelRegistry, credential, modelProfile);
+  } catch (error) {
+    if (!(error instanceof GjcModelResolutionError)) throw error;
+    await modelRegistry.refresh();
+    return configuredDefaultModelId(settings, authStorage, modelRegistry, credential, modelProfile);
+  }
+}
+
 function modelFor(registry: ModelRegistry, modelId: string): Model {
   const all = registry.getAll();
   // Provider-qualified form wins: a gateway model whose bare id happens to look
@@ -492,7 +517,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           process.env.GJC_WORKER_AGENT_DIR ? { agentDir: process.env.GJC_WORKER_AGENT_DIR } : {},
         );
       const configuredModelId = config.modelId === 'default'
-        ? await configuredDefaultModelId(
+        ? await configuredDefaultModelIdWithRefresh(
           globalSettings,
           this.authStorage,
           this.modelRegistry,

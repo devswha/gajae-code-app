@@ -1274,6 +1274,29 @@ test('unresolvable default model answers with the model_unresolved code', async 
     assert.equal(f.sessions.length, 0);
   } finally { await f.close(); }
 });
+test('a default model the warm registry has lost is found again after one refresh', async () => {
+  const model = { id: 'glm-5.3', provider: 'glm-zcode53' };
+  const f = await fixture(['glm-zcode53/glm-5.3:high'], undefined, [model]);
+  f.authStorage.resolvableProviders.add('glm-zcode53');
+  // The registry has dropped the role's model, as a warm worker's does after a
+  // turn, and only a refresh brings it back.
+  let refreshed = false;
+  f.modelRegistry.getAvailable = () => (refreshed ? [model] : []);
+  f.modelRegistry.getAll = () => (refreshed ? [model] : []);
+  const refresh = f.modelRegistry.refresh.bind(f.modelRegistry);
+  f.modelRegistry.refresh = async () => { refreshed = true; await refresh(); };
+  try {
+    const run = f.host.handle(request('session.start', 'default-model-refreshed', {
+      message: 'hello',
+      options: { ...f.options, modelId: 'default', credential: { kind: 'stored' } },
+    }));
+    const session = await firstSession(f.sessions);
+    session.complete();
+    await run;
+    assert.deepEqual(f.trace.filter((entry) => entry === 'modelRegistry.refresh'), ['modelRegistry.refresh']);
+    assert.equal(((response(f.frames, 'default-model-refreshed').payload as Record<string, unknown>).result as Record<string, unknown>).model, 'glm-5.3');
+  } finally { await f.close(); }
+});
 test('a pinned model on a provider with no stored row runs without a credential selector', async () => {
   const f = await fixture('glm-zcode53/glm-5.3:high', undefined, [{ id: 'glm-5.3', provider: 'glm-zcode53' }]);
   f.authStorage.resolvableProviders.add('glm-zcode53');

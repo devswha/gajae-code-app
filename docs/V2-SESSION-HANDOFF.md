@@ -534,16 +534,24 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
      worker inherits it); no settings toggle yet. The header now follows
      the viewed session's `session_upserted` (it used to keep the
      optimistic first-message title until reload).
-   - **Open, pre-existing, reproduced with titles off (`GJC_NO_TITLE=1`):**
-     a new session on a warm worker intermittently fails with "The GJC
-     model could not be resolved" (`GjcModelResolutionError`) while the
-     first new session on a fresh worker and every resumed turn succeed;
-     the composer then shows `GLM-5.3 · Default` instead of the pinned
-     `glm-5.3 · High`. Seen 3 times out of ~6 new sessions on 2026-09-03;
-     two consecutive new sessions with `GJC_BUN_ADAPTER_DEBUG=1` did not
-     reproduce. Suspects: `configuredDefaultModelId` when the client sends
-     `modelId: 'default'`, or `credentialFor` after a prior run's dispose.
-     Not caused by the title work.
+   - **Fixed the same afternoon: `model_unresolved` on a warm worker.**
+     Diagnosis (deterministic through `GjcWorkerHost` in a Bun probe:
+     three `session.start` with `modelId: 'default'` on one adapter — the
+     third fails): after the second turn the runtime's registry drops the
+     model-preset provider `glm-zcode` from 10 models to the one it
+     discovered (`glm-5.2`), so `configuredDefaultModelId` cannot resolve
+     `modelRoles.default = glm-zcode/glm-5.3:xhigh`; `registry.refresh()`
+     restores all ten. An explicit model id never hit it because
+     `modelForWithRefresh` already refreshes on a miss, which is why the
+     picker state decided who saw it: `gjcModel` is `'default'` until a
+     viewed session's pin overwrites it. Fix: `configuredDefaultModelIdWithRefresh`
+     retries once after `refresh()`; four consecutive default-model starts
+     pass in the probe, contract test locks it. The catalog shrink itself is
+     a runtime bug (upstream: preset-registered models lost after a turn's
+     catalog refresh) and still worth reporting. Seen once, unexplained:
+     `resumeManager` threw `GJC SDK configuration is invalid` (session file
+     count ≠ 1) for a turn sent seconds after the same session's first
+     turn completed (`~/.gajae-app/logs/gjc-worker.log`, 05:40:34Z).
 
 ## Key gotchas
 

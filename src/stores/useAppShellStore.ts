@@ -14,6 +14,8 @@ export type AppShellState = {
   loadingProgress: LoadingProgress | null;
   /** The add-project dialog; opened from the sidebar and from the empty main pane alike. */
   newProjectOpen: boolean;
+  /** Set when a /handoff gate is confirmed; the next session_upserted for a new session in that project navigates there. */
+  pendingHandoff: { fromSessionId: string | null; projectId: string | undefined; at: number } | null;
   setSelectedProject: (next: Updater<Project | null>) => void;
   setSelectedSession: (next: Updater<ProjectSession | null>) => void;
   setActiveTab: (next: Updater<AppTab>) => void;
@@ -22,6 +24,7 @@ export type AppShellState = {
   setShowSettings: (next: Updater<boolean>) => void;
   setLoadingProgress: (next: Updater<LoadingProgress | null>) => void;
   setNewProjectOpen: (next: Updater<boolean>) => void;
+  setPendingHandoff: (next: AppShellState['pendingHandoff']) => void;
 };
 
 // 'shell'/'git'/'files' were removed as tabs (Files is a side panel now);
@@ -83,6 +86,7 @@ const createInitialState = (): AppShellState => ({
   settingsInitialTab: 'agents',
   loadingProgress: null,
   newProjectOpen: false,
+  pendingHandoff: null,
   setSelectedProject: () => undefined,
   setSelectedSession: () => undefined,
   setActiveTab: () => undefined,
@@ -91,6 +95,7 @@ const createInitialState = (): AppShellState => ({
   setShowSettings: () => undefined,
   setLoadingProgress: () => undefined,
   setNewProjectOpen: () => undefined,
+  setPendingHandoff: () => undefined,
 });
 
 export const useAppShellStore = create<AppShellState>()((set) => ({
@@ -131,6 +136,7 @@ export const useAppShellStore = create<AppShellState>()((set) => ({
   setNewProjectOpen: (next) => set((state) => ({
     newProjectOpen: resolve(next, state.newProjectOpen),
   })),
+  setPendingHandoff: (next) => set({ pendingHandoff: next }),
 }));
 
 export const resetAppShellStore = () => {
@@ -144,5 +150,6 @@ export const resetAppShellStore = () => {
     setShowSettings: useAppShellStore.getState().setShowSettings,
     setLoadingProgress: useAppShellStore.getState().setLoadingProgress,
     setNewProjectOpen: useAppShellStore.getState().setNewProjectOpen,
+    setPendingHandoff: useAppShellStore.getState().setPendingHandoff,
   }, true);
 };

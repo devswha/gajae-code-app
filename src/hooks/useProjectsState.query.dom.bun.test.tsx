@@ -7,7 +7,7 @@ import { createElement } from 'react';
 
 import type { ServerEvent } from '../contexts/WebSocketContext';
 import type { Project } from '../types/app';
-import { resetAppShellStore } from '../stores/useAppShellStore';
+import { resetAppShellStore, useAppShellStore } from '../stores/useAppShellStore';
 
 import { useProjectsState } from './useProjectsState';
 
@@ -23,6 +23,8 @@ const project = (sessions: Project['sessions'] = []): Project => ({
 });
 
 type HookState = ReturnType<typeof useProjectsState>;
+
+const navigations: string[] = [];
 
 type Harness = {
   getState: () => HookState;
@@ -41,7 +43,7 @@ const renderHarness = (): Harness => {
   const HarnessComponent = () => {
     const hookState = useProjectsState({
       sessionId: null,
-      navigate: (() => undefined) as never,
+      navigate: ((path: string) => { navigations.push(path); }) as never,
       subscribe: (nextListener) => {
         listener = nextListener;
         return () => {
@@ -226,6 +228,35 @@ test('deleting a session removes its row and the row stays removed', async () =>
     await new Promise((resolve) => setTimeout(resolve, 20));
     assert.deepEqual(harness.getState().projects[0]?.sessions?.map((session) => session.id), ['session-a']);
     assert.equal(harness.getState().projects[0]?.sessionMeta?.total, 1);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('a confirmed handoff follows the new session when it is indexed; other upserts do not navigate', async () => {
+  const sessions = [{ id: 'session-old', summary: 'Before the handoff', __provider: 'gjc' as const }];
+  const fetch = installFetch([{ body: [project(sessions)] }]);
+  try {
+    const harness = renderHarness();
+    await waitFor(() => assert.deepEqual(harness.getState().projects[0]?.sessions?.length, 1));
+
+    // An upsert for the old session while pending: not the handoff's.
+    useAppShellStore.getState().setPendingHandoff({ fromSessionId: 'session-old', projectId: 'project-1', at: Date.now() });
+    act(() => harness.emit({
+      kind: 'session_upserted', sessionId: 'session-old', provider: 'gjc',
+      session: { summary: 'Before the handoff', updatedAt: '2026-01-01T00:01:00Z' },
+      project: { projectId: 'project-1' },
+    } as never));
+    assert.deepEqual(navigations, []);
+
+    // The handoff's new session arrives: follow it, once.
+    act(() => harness.emit({
+      kind: 'session_upserted', sessionId: 'session-new', provider: 'gjc',
+      session: { summary: 'Untitled gjc Session', updatedAt: '2026-01-01T00:02:00Z' },
+      project: { projectId: 'project-1' },
+    } as never));
+    assert.deepEqual(navigations, ['/session/session-new']);
+    assert.equal(useAppShellStore.getState().pendingHandoff, null, 'the flag is consumed');
   } finally {
     fetch.restore();
   }

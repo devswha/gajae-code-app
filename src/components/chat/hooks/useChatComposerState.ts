@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, ClipboardEvent, Dispatch, FormEvent, KeyboardEvent, MouseEvent, MutableRefObject, RefObject, SetStateAction, TouchEvent } from 'react';
 import { useDropzone } from 'react-dropzone';
 
+import { useAppShellStore } from '../../../stores/useAppShellStore';
 import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
 import type { MarkSessionProcessing } from '../../../hooks/useSessionProtection';
 import type { CodeEditorDiffInfo, ChatMessage, PendingPermissionRequest, PermissionDecision, SessionEstablishedContext  } from '../types/types';
@@ -149,7 +150,12 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   const editQueuedDraft = useCallback((index: number) => setQueuedDrafts((q) => { const item = q[index]; if (!item) return q; setInput(item.content); inputRef.current = item.content; setAttachedImages(item.images); textareaRef.current?.focus(); return q.filter((_, position) => position !== index); }), []);
   const deleteQueuedDraft = useCallback((index: number) => setQueuedDrafts((q) => q.filter((_, position) => position !== index)), []);
   const moveQueuedDraft = useCallback((from: number, to: number) => setQueuedDrafts((q) => reorderQueue(q, from, to)), []);
-  const confirmCommandGate = useCallback(() => { const gate = gateRef.current; if (!gate) return; announceGate(null); bypassGate.current = true; setInput(gate.text); inputRef.current = gate.text; void handleSubmit(syntheticSubmit()); }, [announceGate, handleSubmit]);
+  const confirmCommandGate = useCallback(() => { const gate = gateRef.current; if (!gate) return; announceGate(null); bypassGate.current = true;
+    // A confirmed handoff moves the runtime to a fresh session; the next
+    // session_upserted for a new id in this project is it, and the app should
+    // follow instead of staying on the old session (issue #6).
+    if (/^\/handoff\b/.test(gate.text.trim())) useAppShellStore.getState().setPendingHandoff({ fromSessionId: conversation, projectId, at: Date.now() });
+    setInput(gate.text); inputRef.current = gate.text; void handleSubmit(syntheticSubmit()); }, [announceGate, conversation, handleSubmit, projectId]);
   const cancelCommandGate = useCallback(() => { announceGate(null); bypassGate.current = false; }, [announceGate]);
   const handleClearInput = useCallback(() => { clearComposer(); textareaRef.current?.focus(); }, [clearComposer]);
   // The Changes tab's line comments arrive here: one new paragraph with the

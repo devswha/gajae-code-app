@@ -52,6 +52,17 @@ export type SdkRunConfig = {
   permissions?: GjcRunPermissions;
 };
 
+/**
+ * Appended to every session's system prompt: facts about the environment the
+ * model runs in that its training cannot know.
+ */
+const GAJAE_APP_ENV_NOTE = [
+  'This session runs inside Gajae Code App, which hosts the Gajae Code runtime in-process.',
+  'Do not run the gjc CLI from bash: it may not be installed, and nothing in this environment requires it.',
+  "Never edit ~/.gjc directly. Sign-in, model and permission configuration live in the app's UI (Settings);",
+  'if the user asks to change them, point them to the app instead of attempting it with shell commands.',
+].join(' ');
+
 export type GjcAgentSessionFactory = typeof createAgentSession;
 /** The runtime's title generator, narrowed to what the adapter supplies. */
 export type GjcSessionTitleGenerator = (firstMessage: string, registry: ModelRegistry, settings: Settings, model: Model) => Promise<string | null>;
@@ -548,6 +559,12 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       const resolvedCredential = await credentialFor(this.authStorage, config.credential, model);
       try {
         const result = await (this.options.createSessionFactory ?? createAgentSession)({
+          // The app hosts the runtime in-process; the model must not reach for
+          // the gjc CLI (absent on most app installs) or hand-edit ~/.gjc when
+          // asked to configure sign-in, models or permissions — those live in
+          // the app's UI, and "the agent stopped instead of editing .gjc" is
+          // the alternative.
+          systemPrompt: (defaults: string[]) => [...defaults, GAJAE_APP_ENV_NOTE],
           cwd: config.cwd,
           sessionManager,
           settings,

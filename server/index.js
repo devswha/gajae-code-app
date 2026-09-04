@@ -47,6 +47,7 @@ import gitRoutes from './routes/git.js';
 import authRoutes from './routes/auth.js';
 import settingsRoutes from './routes/settings.js';
 import { createGjcAppFactory } from './app-factory.js';
+import { isWorkspaceRoot } from './modules/projects/index.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
 import notificationRoutes from './modules/notifications/notifications.routes.js';
 import userRoutes from './routes/user.js';
@@ -577,7 +578,12 @@ app.get('/api/projects/:projectId/files', authenticateToken, async (req, res) =>
             return res.status(404).json({ error: `Project path not found: ${actualPath}` });
         }
 
-        const files = await getFileTree(actualPath, 10, 0, true);
+        // A workspace root (~/Projects: no repo of its own, dozens of child
+        // repos) is where a session picks a child repo, not a tree to mention
+        // files from. Walking it ten levels deep stats every file in every
+        // repo and pins the event loop for minutes, so it lists its children only.
+        const depth = (await isWorkspaceRoot(actualPath)) ? 1 : 10;
+        const files = await getFileTree(actualPath, depth, 0, true);
         res.json(files);
     } catch (error) {
         console.error('[ERROR] File tree error:', error.message);

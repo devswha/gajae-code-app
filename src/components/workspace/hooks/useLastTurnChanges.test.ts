@@ -134,3 +134,77 @@ test('charges separator rows to the shared output-row budget', () => {
   assert.equal(file.rows, null);
   assert.equal(file.tooLarge, true);
 });
+
+/*
+ * The runtime's result details are the source of truth for every edit mode.
+ * A replace-mode call gets real line numbers from them; an apply_patch
+ * envelope (GPT-5 family), whose input names no path, gets its files from
+ * them; a result without details falls back to the replace-mode input.
+ */
+test('an edit with runtime details takes its rows, with line numbers, from the result', () => {
+  const [file] = lastTurnFiles([
+    message({ kind: 'text', role: 'user', content: 'Edit' }),
+    message({
+      toolName: 'edit',
+      toolInput: { path: 'src/a.ts', edits: [{ old_text: 'x = 1', new_text: 'x = 2' }] },
+      toolResult: { content: 'ok', isError: false, toolUseResult: { path: '/repo/src/a.ts', diff: ' 4|before\n-5|x = 1\n+5|x = 2\n 6|after', firstChangedLine: 5 } },
+    }),
+  ]);
+  assert.deepEqual([file.path, file.kind, file.oldPath, file.tooLarge], ['/repo/src/a.ts', 'edit', null, false]);
+  assert.deepEqual(file.rows?.map((row) => [row.kind, row.content, row.kind === 'hunk' ? null : row.oldLine, row.kind === 'hunk' ? null : row.newLine]), [
+    ['context', 'before', 4, 4],
+    ['removed', 'x = 1', 5, null],
+    ['added', 'x = 2', null, 5],
+    ['context', 'after', 6, 6],
+  ]);
+});
+
+test('an apply_patch envelope lists every file its result reports, by operation', () => {
+  const files = lastTurnFiles([
+    message({ kind: 'text', role: 'user', content: 'Patch' }),
+    message({
+      toolName: 'apply_patch',
+      toolId: 'patch-1',
+      toolInput: { input: '*** Begin Patch\n*** Add File: new.ts\n+hello\n*** End Patch' },
+    }),
+    message({
+      kind: 'tool_result',
+      toolId: 'patch-1',
+      content: 'ok',
+      isError: false,
+      isFinal: true,
+      ...({ toolUseResult: { diff: '+1|hello', perFileResults: [
+        { path: 'new.ts', diff: '+1|hello', op: 'create' },
+        { path: 'old.ts', diff: '-3|gone', op: 'update' },
+        { path: 'from.ts', diff: '', op: 'update', move: 'to.ts' },
+        { path: 'dead.ts', diff: '', op: 'delete' },
+        { path: 'broken.ts', diff: '', isError: true, errorText: 'context not found' },
+      ] } } as object),
+    }),
+  ]);
+  assert.deepEqual(files.map((file) => [file.path, file.kind, file.oldPath, file.rows?.length ?? null]), [
+    ['new.ts', 'write', null, 1],
+    ['old.ts', 'edit', null, 1],
+    ['to.ts', 'move', 'from.ts', null],
+    ['dead.ts', 'delete', null, null],
+  ]);
+  assert.deepEqual(files[0].rows, [{ kind: 'added', content: 'hello', oldLine: null, newLine: 1 }]);
+});
+
+test('an apply_patch call is a pending mutation until its result lands, and nothing without details', () => {
+  const pending = [
+    message({ kind: 'text', role: 'user', content: 'Patch' }),
+    message({ toolName: 'apply_patch', toolId: 'patch-2', toolInput: { input: '*** Begin Patch\n*** End Patch' } }),
+  ];
+  assert.equal(hasPendingLastTurnMutation(pending), true);
+  assert.deepEqual(lastTurnFiles([...pending, message({ kind: 'tool_result', toolId: 'patch-2', content: 'ok', isError: false, isFinal: true })]), []);
+});
+
+test('a result diff above the budget marks the file too large instead of rendering it', () => {
+  const diff = Array.from({ length: 2500 }, (_, index) => `+${index + 1}|line`).join('\n');
+  const [file] = lastTurnFiles([
+    message({ kind: 'text', role: 'user', content: 'Big' }),
+    message({ toolName: 'edit', toolInput: { path: 'big.ts', edits: [] }, toolResult: { content: 'ok', isError: false, toolUseResult: { path: 'big.ts', diff } } }),
+  ]);
+  assert.deepEqual([file.rows, file.tooLarge], [null, true]);
+});

@@ -33,6 +33,7 @@ const NON_RUNTIME_KEYS: Readonly<Record<string, string>> = {
   AskUserQuestion: 'The label gjc-sdk-bridge.ts gives a question; the worker sends `ask`.',
   exit_plan_mode: 'Plan-mode payload rendered inline by PlanDisplay, not a builtin tool.',
   ExitPlanMode: 'Legacy casing of the same plan-mode payload.',
+  apply_patch: 'The wire name the edit tool takes in apply_patch mode (its customWireName); the same config as edit.',
 };
 
 test('every configured tool name is one the runtime actually sends', () => {
@@ -69,6 +70,21 @@ test('the tools most calls go through have a config rather than the JSON fallbac
 
 test('the question config is shared, not duplicated', () => {
   assert.equal(TOOL_CONFIGS.ask, TOOL_CONFIGS.AskUserQuestion);
+});
+
+/*
+ * `edit` exposes itself to the GPT-5 family as `apply_patch` (EditTool's
+ * `customWireName`), and that is the name a call arrives under. The card must
+ * be the edit card, and the exemption above must keep describing a name the
+ * runtime really uses - if the runtime ever registers it as a tool of its own,
+ * the exemption test fails and the key gets checked like the rest.
+ */
+test('apply_patch is the edit tool under its wire name', async () => {
+  const { EditTool } = await import('@gajae-code/coding-agent/edit');
+  assert.equal(TOOL_CONFIGS.apply_patch, TOOL_CONFIGS.edit);
+  const wireName = Object.getOwnPropertyDescriptor(EditTool.prototype, 'customWireName');
+  assert.ok(wireName?.get, 'EditTool declares a customWireName getter');
+  assert.match(String(wireName.get), /apply_patch/, 'the wire name is apply_patch');
 });
 
 /**

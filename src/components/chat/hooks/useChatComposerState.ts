@@ -5,24 +5,22 @@ import { useDropzone } from 'react-dropzone';
 import { useAppShellStore } from '../../../stores/useAppShellStore';
 import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
 import type { MarkSessionProcessing } from '../../../hooks/useSessionProtection';
-import type { CodeEditorDiffInfo, ChatMessage, PendingPermissionRequest, PermissionDecision, SessionEstablishedContext  } from '../types/types';
+import type { ChatMessage, PendingPermissionRequest, PermissionDecision, SessionEstablishedContext  } from '../types/types';
 import type { LLMProvider, Project, ProjectSession, ProviderModelsCacheInfo } from '../../../types/app';
 import { authenticatedFetch } from '../../../utils/api';
 import { classifyCommandInput, isAutoSendable } from '../commandDispatchPolicy';
-import { findAppUiCommand, getLocalCommandNotice, isAppUiCommand, resolveCommandAlias, runAppUiCommand, type AppUiCommand } from '../appUiCommands';
+import { findAppUiCommand, getLocalCommandNotice, resolveCommandAlias, runAppUiCommand, type AppUiCommand } from '../appUiCommands';
 import { gateForCommand, type CommandGate } from '../commandGatePolicy';
-import { escapeRegExp } from '../utils/chatFormatting';
 import { permissionResponseMessage } from '../utils/chatPermissions';
 import { clearQueuedMessages, draftInputKey, draftKeysToClear, readQueuedMessages, reorderQueue, safeLocalStorage, writeQueuedMessages, type QueuedSendOptions } from '../utils/chatStorage';
 import { decideQueueFlush } from '../utils/queueFlush';
 
 import { useFileMentions } from './useFileMentions';
-import { type SlashCommand, useSlashCommands } from './useSlashCommands';
+import { useSlashCommands } from './useSlashCommands';
 import { useWorkspaceTarget, type WorkspaceCandidate } from './useWorkspaceTarget';
 
-interface UseChatComposerStateArgs { selectedProject: Project | null; selectedSession: ProjectSession | null; currentSessionId: string | null; gjcModel: string; reasoningEffort?: string; isLoading: boolean; canAbortSession: boolean; tokenBudget: Record<string, unknown> | null; sendMessage: (message: unknown) => void; sendByCtrlEnter?: boolean; onSessionProcessing?: MarkSessionProcessing; onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void; onInputFocusChange?: (focused: boolean) => void; onCommandGateChange?: (gate: PendingCommandGate | null) => void; onFileOpen?: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void; onShowSettings?: () => void; onLogin?: (providerId?: string) => void; scrollToBottom: () => void; addMessage: (msg: ChatMessage) => void; setIsUserScrolledUp: (isScrolledUp: boolean) => void; setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>; }
+interface UseChatComposerStateArgs { selectedProject: Project | null; selectedSession: ProjectSession | null; currentSessionId: string | null; gjcModel: string; reasoningEffort?: string; isLoading: boolean; canAbortSession: boolean; tokenBudget: Record<string, unknown> | null; sendMessage: (message: unknown) => void; sendByCtrlEnter?: boolean; onSessionProcessing?: MarkSessionProcessing; onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void; onInputFocusChange?: (focused: boolean) => void; onCommandGateChange?: (gate: PendingCommandGate | null) => void; onShowSettings?: () => void; onLogin?: (providerId?: string) => void; scrollToBottom: () => void; addMessage: (msg: ChatMessage) => void; setIsUserScrolledUp: (isScrolledUp: boolean) => void; setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>; }
 interface MentionableFile { name: string; path: string; }
-interface CommandExecutionResult { type: 'builtin' | 'custom'; action?: string; data?: any; content?: string; hasBashCommands?: boolean; hasFileIncludes?: boolean; }
 export type ModelCommandData = { current?: { provider?: string; providerLabel?: string; model?: string }; available?: Partial<Record<LLMProvider, string[]>>; availableModels?: string[]; availableOptions?: Array<{ value: string; label?: string; description?: string }>; defaultModel?: string; cache?: ProviderModelsCacheInfo; };
 export type CostCommandData = { tokenUsage?: { used?: number; total?: number }; tokenBreakdown?: { input?: number; output?: number }; provider?: string; model?: string; };
 export type StatusCommandData = { version?: string; packageName?: string; uptime?: string; model?: string; provider?: string; nodeVersion?: string; platform?: string; pid?: number; memoryUsage?: { rssMb?: number; heapUsedMb?: number; heapTotalMb?: number }; };
@@ -41,7 +39,7 @@ const sessionLabel = (session: ProjectSession | null, input: string) => shorten(
 const resetBox = (setInput: (value: string) => void, value: MutableRefObject<string>, setImages: (files: File[]) => void, setUploads: (items: Map<string, number>) => void, setErrors: (items: Map<string, string>) => void, resetCommands: () => void, setExpanded: (open: boolean) => void, area: RefObject<HTMLTextAreaElement | null>) => { setInput(''); value.current = ''; setImages([]); setUploads(new Map()); setErrors(new Map()); resetCommands(); setExpanded(false); if (area.current) area.current.style.height = 'auto'; };
 
 export function useChatComposerState(args: UseChatComposerStateArgs) {
-  const { selectedProject, selectedSession, currentSessionId, gjcModel, reasoningEffort = 'default', isLoading, canAbortSession, tokenBudget, sendMessage, sendByCtrlEnter, onSessionProcessing, onSessionEstablished, onInputFocusChange, onCommandGateChange, onFileOpen, onShowSettings, onLogin, scrollToBottom, addMessage, setIsUserScrolledUp, setPendingPermissionRequests } = args;
+  const { selectedProject, selectedSession, currentSessionId, gjcModel, reasoningEffort = 'default', isLoading, canAbortSession, tokenBudget, sendMessage, sendByCtrlEnter, onSessionProcessing, onSessionEstablished, onInputFocusChange, onCommandGateChange, onShowSettings, onLogin, scrollToBottom, addMessage, setIsUserScrolledUp, setPendingPermissionRequests } = args;
   const projectId = selectedProject?.projectId;
   const conversation = selectedSession?.id || currentSessionId || null;
   const [input, setInput] = useState(() => projectId && typeof window !== 'undefined' ? safeLocalStorage.getItem(draftInputKey(projectId, conversation)) || '' : '');
@@ -73,38 +71,12 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
 
   const eraseDraft = useCallback((settled?: string | null) => { if (projectId) draftKeysToClear(projectId, conversation, settled).forEach((key) => safeLocalStorage.removeItem(key)); }, [conversation, projectId]);
   const announceGate = useCallback((gate: PendingCommandGate | null) => { gateRef.current = gate; setGateState(gate); onCommandGateChange?.(gate); }, [onCommandGateChange]);
-  const showBuiltin = useCallback((result: CommandExecutionResult) => {
-    const data = result.data || {};
-    if (result.action === 'help' || result.action === 'models' || result.action === 'status') { setModal({ kind: result.action, data }); return; }
-    if (result.action === 'memory') {
-      if (data.error) addMessage({ type: 'assistant', content: `Warning: ${data.message}`, timestamp: Date.now() });
-      else { addMessage({ type: 'assistant', content: `${data.message}\n\nPath: \`${data.path}\``, timestamp: Date.now() }); if (data.exists) onFileOpen?.(data.path); }
-      return;
-    }
-    if (result.action === 'config') { onShowSettings?.(); return; }
-    console.warn('Unknown built-in command action:', result.action);
-  }, [addMessage, onFileOpen, onShowSettings]);
-
   const login = useCallback((provider?: string) => { resetBox(setInput, inputRef, setAttachedImages, setUploadingImages, setImageErrors, () => undefined, setExpanded, textareaRef); eraseDraft(); onLogin?.(provider); }, [eraseDraft, onLogin]);
   const palette = usePaletteOps();
   const showCostModal = useCallback(() => { const parts = tokenBudget?.breakdown && typeof tokenBudget.breakdown === 'object' ? tokenBudget.breakdown as Record<string, unknown> : {}; const inTokens = Number(tokenBudget?.inputTokens ?? parts.input); const outTokens = Number(tokenBudget?.outputTokens ?? parts.output); const used = Number(tokenBudget?.used); const total = Number(tokenBudget?.total); setModal({ kind: 'cost', data: { tokenUsage: { used: Number.isFinite(used) ? used : (Number.isFinite(inTokens) ? inTokens : 0) + (Number.isFinite(outTokens) ? outTokens : 0), total: Number.isFinite(total) ? total : 0 }, ...(Number.isFinite(inTokens) || Number.isFinite(outTokens) ? { tokenBreakdown: { input: Number.isFinite(inTokens) ? inTokens : 0, output: Number.isFinite(outTokens) ? outTokens : 0 } } : {}), provider: typeof tokenBudget?.provider === 'string' ? tokenBudget.provider : 'gjc', model: typeof tokenBudget?.model === 'string' ? tokenBudget.model : gjcModel } }); }, [gjcModel, tokenBudget]);
   const applyAppCommand = useCallback((command: AppUiCommand) => runAppUiCommand(command, { openSessionPicker: palette.openSessionPicker, startNewChat: palette.startNewChat, openSettings: () => onShowSettings ? onShowSettings() : palette.openSettings(), openModelPicker: () => setModelPickerTrigger((n) => n + 1), openCostModal: showCostModal }), [onShowSettings, palette, showCostModal]);
 
-  const executeCommand = useCallback(async (command: SlashCommand, raw?: string, config?: { preserveInput?: boolean }) => {
-    if (!selectedProject) return;
-    try {
-      const text = raw ?? inputRef.current;
-      const found = text.match(new RegExp(`${escapeRegExp(command.name)}\\s*(.*)`));
-      const response = await authenticatedFetch('/api/commands/execute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commandName: command.name, commandPath: command.path, args: found?.[1] ? found[1].trim().split(/\s+/) : [], context: { projectId: selectedProject.projectId, sessionId: currentSessionId, provider: 'gjc', model: gjcModel, tokenUsage: tokenBudget } }) });
-      if (!response.ok) { let message = `Failed to execute command (${response.status})`; try { const body = await response.json(); message = body?.message || body?.error || message; } catch { /* Use HTTP status when the error body is not JSON. */ } throw new Error(message); }
-      const result = await response.json() as CommandExecutionResult;
-      if (result.type === 'builtin') { showBuiltin(result); if (!config?.preserveInput) { setInput(''); inputRef.current = ''; } }
-      else if (result.hasBashCommands && !window.confirm('This command contains bash commands that will be executed. Do you want to proceed?')) addMessage({ type: 'assistant', content: 'Command execution cancelled', timestamp: Date.now() });
-      else if (result.type === 'custom') { const content = result.content || ''; setInput(content); inputRef.current = content; setTimeout(() => void submitRef.current?.(syntheticSubmit()), 0); }
-    } catch (error) { const message = error instanceof Error ? error.message : 'Unknown error'; console.error('Error executing command:', error); addMessage({ type: 'assistant', content: `Error executing command: ${message}`, timestamp: Date.now() }); }
-  }, [addMessage, currentSessionId, gjcModel, selectedProject, showBuiltin, tokenBudget]);
-
-  const { slashCommands, slashCommandsCount, filteredCommands, frequentCommands, commandQuery, showCommandMenu, selectedCommandIndex, resetCommandMenuState, handleCommandSelect, handleToggleCommandMenu, handleCommandInputChange, handleCommandMenuKeyDown } = useSlashCommands({ selectedProject, provider: 'gjc', input, setInput, textareaRef, onExecuteCommand: executeCommand, onLoginCommand: login, onAppCommand: (command) => { const app = findAppUiCommand(command.name); if (app) applyAppCommand(app); } });
+  const { slashCommands, slashCommandsCount, filteredCommands, frequentCommands, commandQuery, showCommandMenu, selectedCommandIndex, resetCommandMenuState, handleCommandSelect, handleToggleCommandMenu, handleCommandInputChange, handleCommandMenuKeyDown } = useSlashCommands({ selectedProject, provider: 'gjc', input, setInput, textareaRef, onLoginCommand: login, onAppCommand: (command) => { const app = findAppUiCommand(command.name); if (app) applyAppCommand(app); } });
   const { showFileDropdown, filteredFiles, selectedFileIndex, renderInputWithMentions, selectFile, setCursorPosition, handleFileMentionsKeyDown } = useFileMentions({ selectedProject, input, setInput, textareaRef });
   const clearComposer = useCallback(() => resetBox(setInput, inputRef, setAttachedImages, setUploadingImages, setImageErrors, resetCommandMenuState, setExpanded, textareaRef), [resetCommandMenuState]);
 
@@ -125,11 +97,11 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
     const signIn = /^\/login(?:\s+(.*))?$/.exec(text.trim()); if (signIn) { login(signIn[1]?.trim() || undefined); resetCommandMenuState(); return; }
     if (isLoading) { queueOwner.current = conversation; setQueuedDrafts((q) => [...q, { content: text, images: attachedImages, options: optionsFor(text) }]); clearComposer(); eraseDraft(); return; }
     const candidate = text.trimEnd(); const help = candidate.trim().toLowerCase() === 'help';
-    if (candidate.startsWith('/') || help) { const gap = candidate.indexOf(' '); const name = help ? '/help' : gap > 0 ? candidate.slice(0, gap) : candidate; const commandArgs = gap > 0 ? candidate.slice(gap).trim() : ''; const app = findAppUiCommand(resolveCommandAlias(name)); if (app && (app.interceptWithArgs !== false || !commandArgs)) { clearComposer(); applyAppCommand(app); return; } const notice = getLocalCommandNotice(name, commandArgs); if (notice) { clearComposer(); addMessage({ type: 'assistant', content: notice, timestamp: Date.now() }); return; } if (!bypassGate.current) { const gate = gateForCommand(resolveCommandAlias(name), commandArgs); if (gate) { clearComposer(); announceGate({ ...gate, text: candidate }); return; } } bypassGate.current = false; const registered = slashCommands.find((item) => item.name === name); if (registered && !isAppUiCommand(registered) && registered.type !== 'skill' && registered.type !== 'provider') { void executeCommand(registered, help ? '/help' : candidate); clearComposer(); return; } }
+    if (candidate.startsWith('/') || help) { const gap = candidate.indexOf(' '); const name = help ? '/help' : gap > 0 ? candidate.slice(0, gap) : candidate; const commandArgs = gap > 0 ? candidate.slice(gap).trim() : ''; const app = findAppUiCommand(resolveCommandAlias(name)); if (app && (app.interceptWithArgs !== false || !commandArgs)) { clearComposer(); applyAppCommand(app); return; } const notice = getLocalCommandNotice(name, commandArgs); if (notice) { clearComposer(); addMessage({ type: 'assistant', content: notice, timestamp: Date.now() }); return; } if (!bypassGate.current) { const gate = gateForCommand(resolveCommandAlias(name), commandArgs); if (gate) { clearComposer(); announceGate({ ...gate, text: candidate }); return; } } bypassGate.current = false; }
     let images: unknown[]; try { images = await upload(attachedImages); } catch (error) { const message = error instanceof Error ? error.message : 'Unknown error'; console.error('Image upload failed:', error); addMessage({ type: 'error', content: `Failed to upload images: ${message}`, timestamp: new Date() }); return; }
     const summary = sessionLabel(selectedSession, text); let id: string; try { id = await allocate(summary, text); } catch (error) { const message = error instanceof Error ? error.message : 'Unknown error'; console.error('Session creation failed:', error); addMessage({ type: 'error', content: `Failed to start a new session: ${message}`, timestamp: new Date() }); return; }
     addMessage({ type: 'user', content: text, images: images as any, timestamp: new Date() }); onSessionProcessing?.(id, { statusText: null, canInterrupt: true }); setIsUserScrolledUp(false); setTimeout(scrollToBottom, 100); sendMessage({ type: 'chat.send', sessionId: id, content: text, options: { ...optionsFor(text), images } }); clearComposer(); eraseDraft(id);
-  }, [addMessage, allocate, announceGate, applyAppCommand, attachedImages, clearComposer, conversation, eraseDraft, executeCommand, isLoading, login, onSessionProcessing, optionsFor, resetCommandMenuState, scrollToBottom, selectedProject, selectedSession, sendMessage, setIsUserScrolledUp, slashCommands, upload]);
+  }, [addMessage, allocate, announceGate, applyAppCommand, attachedImages, clearComposer, conversation, eraseDraft, isLoading, login, onSessionProcessing, optionsFor, resetCommandMenuState, scrollToBottom, selectedProject, selectedSession, sendMessage, setIsUserScrolledUp, upload]);
   useEffect(() => { submitRef.current = handleSubmit; }, [handleSubmit]);
 
   const handleSteer = useCallback((event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>) => { event.preventDefault(); const text = inputRef.current; const id = selectedSession?.id || currentSessionId || null; if (!isLoading || !text.trim() || !selectedProject || !id || attachedImages.length || !isAutoSendable(classifyCommandInput(text))) return; const draft = { content: text, images: [], options: optionsFor(text) }; const timer = setTimeout(() => steerAnswer.current(text, false), STEER_REPLY_GRACE); const pending = steerWaiting.current.get(text) || []; pending.push({ draft, timer }); steerWaiting.current.set(text, pending); queueOwner.current = conversation; setQueuedDrafts((q) => [...q, { ...draft, pendingSteer: true }]); sendMessage({ type: 'chat.steer', sessionId: id, content: text }); clearComposer(); eraseDraft(id); }, [attachedImages.length, clearComposer, conversation, currentSessionId, eraseDraft, isLoading, optionsFor, selectedProject, selectedSession?.id, sendMessage]);

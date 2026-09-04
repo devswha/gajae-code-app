@@ -24,7 +24,6 @@ interface UseSlashCommandsOptions {
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
-  onExecuteCommand: (command: SlashCommand, rawInput?: string) => void | Promise<void>;
   onLoginCommand?: () => void;
   onAppCommand?: (command: SlashCommand) => void;
 }
@@ -45,7 +44,6 @@ const getHistory = (projectId: string): Record<string, number> => {
   }
 };
 const saveHistory = (projectId: string, history: Record<string, number>) => safeLocalStorage.setItem(historyKey(projectId), JSON.stringify(history));
-const isPromise = (value: unknown): value is Promise<unknown> => Boolean(value) && typeof (value as Promise<unknown>).then === 'function';
 const needsInsertion = (command: SlashCommand) => command.type === 'skill' || command.type === 'provider' || command.metadata?.type === 'skill';
 const isLogin = (command: SlashCommand) => command.name === '/login';
 
@@ -76,7 +74,7 @@ const matchCommands = (commands: SlashCommand[], query: string) => {
   return containing.length ? containing : commands.filter((command) => command.description?.toLowerCase().includes(term));
 };
 
-export function useSlashCommands({ selectedProject, provider, input, setInput, textareaRef, onExecuteCommand, onLoginCommand, onAppCommand }: UseSlashCommandsOptions) {
+export function useSlashCommands({ selectedProject, provider, input, setInput, textareaRef, onLoginCommand, onAppCommand }: UseSlashCommandsOptions) {
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
   const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
   const [showCommandMenu, setShowCommandMenu] = useState(false);
@@ -204,13 +202,8 @@ export function useSlashCommands({ selectedProject, provider, input, setInput, t
       placeCommand(command);
       return;
     }
-    const result = onExecuteCommand(command);
-    if (isPromise(result)) {
-      result.then(resetCommandMenuState, resetCommandMenuState);
-    } else {
-      resetCommandMenuState();
-    }
-  }, [onAppCommand, onExecuteCommand, onLoginCommand, placeCommand, recordUse, removeTypedCommand, resetCommandMenuState]);
+    resetCommandMenuState();
+  }, [onAppCommand, onLoginCommand, placeCommand, recordUse, removeTypedCommand, resetCommandMenuState]);
 
   const handleCommandSelect = useCallback((command: SlashCommand | null, index: number, isHover: boolean) => {
     if (!command || !selectedProject) return;

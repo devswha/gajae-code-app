@@ -229,7 +229,11 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   useEffect(() => {
-    if (!sessionId || !projects.length) return;
+    if (!sessionId) {
+      if (selectedSession) setSelectedSession(null);
+      return;
+    }
+    if (!projects.length) return;
     for (const project of projects) {
       const session = rowsOf(project).find((candidate) => candidate.id === sessionId);
       if (!session) continue;
@@ -241,7 +245,7 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
     if (selectedSession?.id !== sessionId && selectedProject) {
       setSelectedSession({ id: sessionId, __provider: fallbackProvider, __projectId: selectedProject.projectId, summary: '' });
     }
-  }, [projects, selectedProject, selectedSession?.__provider, selectedSession?.id, sessionId, setSelectedProject, setSelectedSession]);
+  }, [projects, selectedProject, selectedSession, sessionId, setSelectedProject, setSelectedSession]);
 
   const handleProjectSelect = useCallback((project: Project) => {
     setSelectedProject(project);

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, test } from 'node:test';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
-import { createElement } from 'react';
+import { createElement, useState } from 'react';
 
 import type { Project } from '../types/app';
 import { resetAppShellStore } from '../stores/useAppShellStore';
@@ -37,10 +37,13 @@ type HookState = ReturnType<typeof useProjectsState>;
 /** One page load: a fresh query cache and shell store, the same localStorage. */
 const mountApp = (route: { sessionId?: string | null } = {}) => {
   let state: HookState | null = null;
+  let setRouteSessionId: ((sessionId: string | null) => void) | null = null;
   const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false, retry: false } } });
   const Harness = () => {
+    const [sessionId, setSessionId] = useState(route.sessionId ?? null);
+    setRouteSessionId = setSessionId;
     state = useProjectsState({
-      sessionId: route.sessionId ?? null,
+      sessionId,
       navigate: (() => undefined) as never,
       subscribe: () => () => undefined,
       isMobile: false,
@@ -53,6 +56,10 @@ const mountApp = (route: { sessionId?: string | null } = {}) => {
     getState: () => {
       assert.ok(state, 'hook state is available after rendering');
       return state;
+    },
+    setRouteSessionId: (sessionId: string | null) => {
+      assert.ok(setRouteSessionId, 'route state is available after rendering');
+      setRouteSessionId(sessionId);
     },
     reload: () => {
       view.unmount();
@@ -138,6 +145,28 @@ test('a session route restores from the URL and leaves the remembered project al
     await waitFor(() => assert.equal(app.getState().projects.length, 2));
     await act(async () => { await Promise.resolve(); });
     assert.equal(app.getState().selectedProject, null, 'the URL owns the context on /session/:id');
+  } finally {
+    restore();
+  }
+});
+
+test('returning to the root route clears a session rehydrated before navigation settled', async () => {
+  const session = { id: 'session-1', summary: 'Existing work' };
+  const projectWithSession = {
+    ...project('project-1', 'Project one'),
+    sessions: [session],
+    sessionMeta: { hasMore: false, total: 1 },
+  };
+  const restore = serveProjects([projectWithSession, twoProjects[1]]);
+  try {
+    const app = mountApp({ sessionId: session.id });
+    await waitFor(() => assert.equal(app.getState().selectedSession?.id, session.id));
+
+    act(() => { app.getState().handleNewSession(projectWithSession); });
+    await waitFor(() => assert.equal(app.getState().selectedSession?.id, session.id));
+
+    act(() => { app.setRouteSessionId(null); });
+    await waitFor(() => assert.equal(app.getState().selectedSession, null));
   } finally {
     restore();
   }

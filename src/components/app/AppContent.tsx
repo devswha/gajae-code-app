@@ -182,6 +182,7 @@ export default function AppContent() {
           onSessionIdle={markIdle}
           processingSessions={processingSessions}
           onNavigateToSession={navigateToSession}
+          onNewSession={handleNewSession}
           onSessionEstablished={establishSession}
           onShowSettings={openSettings}
           newSessionTrigger={newSessionTrigger}

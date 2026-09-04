@@ -17,6 +17,10 @@
     "firstProject": "Ajoutez votre premier projet",
     "firstProjectDescription": "Choisissez un dossier sur cette machine. Gajae Code y travaille et les conversations du projet y restent.",
     "addProject": "Ajouter un projet",
+    "scratchStart": "Commencer dans un espace brouillon",
+    "scratchStarting": "Préparation…",
+    "scratchDescription": "Pas encore de dossier ? Gajae Code crée ~/gajae-scratch, un dépôt git jetable, et y ouvre une conversation. L’agent y reste confiné.",
+    "scratchFailed": "Impossible de démarrer l’espace brouillon : {{reason}}",
     "newSession": "Démarrer une conversation",
     "projectFiles": "Fichiers dans le projet"
   },

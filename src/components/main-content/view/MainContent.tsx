@@ -32,6 +32,7 @@ function MainContent({
   onSessionIdle,
   processingSessions,
   onNavigateToSession,
+  onNewSession,
   onSessionEstablished,
   onShowSettings,
   newSessionTrigger,
@@ -81,6 +82,7 @@ function MainContent({
         mode="loading"
         isMobile={isMobile}
         onMenuClick={onMenuClick}
+        onNewSession={onNewSession}
       />
     );
   }
@@ -91,6 +93,7 @@ function MainContent({
         mode="empty"
         isMobile={isMobile}
         onMenuClick={onMenuClick}
+        onNewSession={onNewSession}
       />
     );
   }

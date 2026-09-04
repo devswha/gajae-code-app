@@ -188,6 +188,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(projectData),
     }),
+  // Creates and registers `~/gajae-scratch` (idempotent); the empty workspace's one-click start.
+  startScratchWorkspace: () =>
+    authenticatedFetch('/api/projects/scratch', { method: 'POST' }),
   migrateLegacyProjectStars: (projectIds: string[]) =>
     authenticatedFetch('/api/projects/migrate-legacy-stars', {
       method: 'POST',

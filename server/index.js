@@ -581,8 +581,9 @@ app.get('/api/projects/:projectId/files', authenticateToken, async (req, res) =>
         // A workspace root (~/Projects: no repo of its own, dozens of child
         // repos) is where a session picks a child repo, not a tree to mention
         // files from. Walking it ten levels deep stats every file in every
-        // repo and pins the event loop for minutes, so it lists its children only.
-        const depth = (await isWorkspaceRoot(actualPath)) ? 1 : 10;
+        // repo and pins the event loop for minutes, so it lists the root's own
+        // entries but does not open any child repo.
+        const depth = (await isWorkspaceRoot(actualPath)) ? 0 : 10;
         const files = await getFileTree(actualPath, depth, 0, true);
         res.json(files);
     } catch (error) {

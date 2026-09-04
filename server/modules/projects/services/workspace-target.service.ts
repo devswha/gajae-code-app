@@ -40,7 +40,10 @@ function isCandidateDirName(name: string): boolean {
 
 async function readPackageName(directoryPath: string): Promise<string | null> {
   try {
-    const raw = await fs.readFile(path.join(directoryPath, 'package.json'), 'utf8');
+    const manifestPath = path.join(directoryPath, 'package.json');
+    const stats = await fs.lstat(manifestPath);
+    if (!stats.isFile() || stats.size > 64 * 1024) return null;
+    const raw = await fs.readFile(manifestPath, 'utf8');
     const parsed = JSON.parse(raw) as { name?: unknown };
     const name = typeof parsed.name === 'string' ? parsed.name.trim() : '';
     if (!name) return null;
@@ -55,12 +58,14 @@ async function readPackageName(directoryPath: string): Promise<string | null> {
  * Lists the immediate child directories of `dir` that are themselves git repositories
  * (contain a `.git` entry). Hidden directories and `node_modules` are never candidates.
  */
-export async function listChildRepos(dir: string): Promise<WorkspaceScoringChild[]> {
+export async function listChildRepos(dir: string, options: { withPackageNames?: boolean } = {}): Promise<WorkspaceScoringChild[]> {
   let entries: import('node:fs').Dirent[];
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
-  } catch {
-    return [];
+  } catch (error) {
+    const failure = error as NodeJS.ErrnoException;
+    if (failure.code === 'ENOENT' || failure.code === 'ENOTDIR') return [];
+    throw failure;
   }
 
   const children: WorkspaceScoringChild[] = [];
@@ -68,15 +73,28 @@ export async function listChildRepos(dir: string): Promise<WorkspaceScoringChild
     if (!entry.isDirectory() || !isCandidateDirName(entry.name)) continue;
     const childPath = path.join(dir, entry.name);
     if (!(await hasGitEntry(childPath))) continue;
-    const stats = await fs.stat(childPath);
+    let stats: import('node:fs').Stats;
+    try {
+      stats = await fs.stat(childPath);
+    } catch (error) {
+      const failure = error as NodeJS.ErrnoException;
+      if (failure.code === 'ENOENT') continue;
+      throw failure;
+    }
     children.push({
       path: childPath,
       name: entry.name,
-      packageName: await readPackageName(childPath),
+      packageName: options.withPackageNames === false ? null : await readPackageName(childPath),
       mtimeMs: stats.mtimeMs,
     });
   }
   return children;
+}
+
+async function workspaceChildren(projectPath: string, withPackageNames: boolean): Promise<WorkspaceScoringChild[] | null> {
+  if (await hasGitEntry(projectPath)) return null;
+  const children = await listChildRepos(projectPath, { withPackageNames });
+  return children.length ? children : null;
 }
 
 /**
@@ -84,9 +102,7 @@ export async function listChildRepos(dir: string): Promise<WorkspaceScoringChild
  * contains at least one immediate child directory that is one.
  */
 export async function isWorkspaceRoot(dir: string): Promise<boolean> {
-  if (await hasGitEntry(dir)) return false;
-  const children = await listChildRepos(dir);
-  return children.length > 0;
+  return (await workspaceChildren(dir, false)) !== null;
 }
 
 function projectRowOrThrow(projectId: string): ProjectRepositoryRow {
@@ -97,10 +113,10 @@ function projectRowOrThrow(projectId: string): ProjectRepositoryRow {
 
 export async function resolveWorkspaceTarget(projectId: string, text: string): Promise<ResolveWorkspaceTargetResult> {
   const project = projectRowOrThrow(projectId);
-  if (!(await isWorkspaceRoot(project.project_path))) {
+  const children = await workspaceChildren(project.project_path, true);
+  if (!children) {
     return { isWorkspace: false, candidates: [] };
   }
-  const children = await listChildRepos(project.project_path);
   return { isWorkspace: true, candidates: scoreWorkspaceCandidates(text, children) };
 }
 
@@ -110,11 +126,10 @@ function notWorkspaceChild(message: string): AppError {
 
 export async function descendIntoChild(projectId: string, childPath: string): Promise<DescendIntoChildResult> {
   const project = projectRowOrThrow(projectId);
-  if (!(await isWorkspaceRoot(project.project_path))) {
+  const children = await workspaceChildren(project.project_path, false);
+  if (!children) {
     throw notWorkspaceChild('Project is not a workspace root');
   }
-
-  const children = await listChildRepos(project.project_path);
   const resolvedChildPath = normalizeProjectPath(path.resolve(childPath));
   const matchedChild = children.find((child) => normalizeProjectPath(child.path) === resolvedChildPath);
   if (!matchedChild) {

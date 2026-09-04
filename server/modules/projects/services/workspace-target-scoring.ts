@@ -40,7 +40,10 @@ function mentionedWhole(name: string, lowerText: string): boolean {
 
 function scoreAgainstName(name: string, lowerText: string, tokens: string[]): { score: number; reason: WorkspaceCandidateReason } {
   if (tokens.includes(name)) return { score: 100, reason: 'mention' };
-  if (name.length >= 4 && mentionedWhole(name, lowerText)) return { score: 80, reason: 'mention' };
+  // Names the ASCII tokenizer would mangle (Korean directories or symbols like
+  // c++) can only be found by whole mention; boundaries keep short ASCII names
+  // such as "go" from false-positiving.
+  if ((name.length >= 4 || (name.length >= 2 && /[^a-z0-9._-]/.test(name))) && mentionedWhole(name, lowerText)) return { score: 80, reason: 'mention' };
   if (tokens.some((token) => token.length >= 3 && name.startsWith(token))) return { score: 40, reason: 'partial' };
   return { score: 0, reason: 'recent' };
 }

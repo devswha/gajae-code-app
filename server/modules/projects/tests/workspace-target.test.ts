@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -61,6 +61,19 @@ test('scoring: a name outside the token class is found as a whole mention', () =
   assert.equal(byName.get('웹툰분석')?.reason, 'mention');
   // `api` still scores as an exact token, the whole-mention rule is only for longer names.
   assert.equal(byName.get('api')?.score, 100);
+});
+
+test('scoring: short Unicode and symbol names whole-mention, short ASCII names do not', () => {
+  const children = [
+    { path: '/w/前端', name: '前端', packageName: null, mtimeMs: 1 },
+    { path: '/w/c++', name: 'c++', packageName: null, mtimeMs: 2 },
+    { path: '/w/go', name: 'go', packageName: null, mtimeMs: 3 },
+  ];
+  const byName = new Map(scoreWorkspaceCandidates('前端 c++ going', children).map((entry) => [entry.name, entry]));
+  assert.equal(byName.get('前端')?.score, 80);
+  assert.equal(byName.get('c++')?.score, 80);
+  assert.equal(byName.get('go')?.score, 0);
+  assert.equal(scoreWorkspaceCandidates('go', children).find((entry) => entry.name === 'go')?.score, 100);
 });
 
 test('scoring: a repo whose name is a prefix of the mentioned one is not a mention', () => {
@@ -163,6 +176,23 @@ test('isWorkspaceRoot / listChildRepos: detects workspace, skips hidden/node_mod
       await rm(plainRoot, { recursive: true, force: true });
     }
   });
+});
+
+test('listChildRepos: ignores unsafe, oversized, and invalid manifests', async () => {
+  const workspace = await mkdtemp(path.join(tmpdir(), 'workspace-manifests-'));
+  const outside = path.join(workspace, 'outside.json');
+  try {
+    await writeFile(outside, JSON.stringify({ name: 'tantalizing' }));
+    for (const name of ['linked', 'large', 'invalid']) await makeGitRepo(path.join(workspace, name));
+    await symlink(outside, path.join(workspace, 'linked', 'package.json'));
+    await writeFile(path.join(workspace, 'large', 'package.json'), JSON.stringify({ name: 'x'.repeat(64 * 1024) }));
+    await writeFile(path.join(workspace, 'invalid', 'package.json'), '{ nope');
+    const children = await listChildRepos(workspace);
+    assert.ok(children.every((child) => child.packageName === null));
+    assert.equal(scoreWorkspaceCandidates('linked', children).find((child) => child.name === 'linked')?.score, 100);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
 });
 
 test('resolveWorkspaceTarget: 404s for unknown project, reports non-workspace projects, scores workspace children', async () => {

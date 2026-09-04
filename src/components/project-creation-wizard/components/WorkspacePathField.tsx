@@ -125,6 +125,7 @@ export default function WorkspacePathField({
         <Button
           type="button"
           variant="outline"
+          size="sm"
           onClick={() => setIsFolderBrowserOpen(true)}
           className="px-3"
           title={t('projectWizard.folderBrowser.browseFolders')}

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -193,6 +193,45 @@ test('provider model cache is persisted across service instances', async () => {
     const models = await reader.getProviderModels('gjc');
     assert.equal(models.models.DEFAULT, 'gjc-cached');
     assert.equal(models.cache.source, 'disk');
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('provider model cache ignores the prior catalog schema version', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-cache-version-'));
+  const cachePath = path.join(tempRoot, 'models-cache.json');
+  let loads = 0;
+
+  try {
+    await writeFile(cachePath, JSON.stringify({
+      version: 11,
+      entries: {
+        gjc: {
+          updatedAt: Date.now(),
+          expiresAt: Date.now() + PROVIDER_MODELS_CACHE_TTL_MS,
+          models: createModels('canonical-collapsed'),
+        },
+      },
+    }), 'utf8');
+    const service = createProviderModelsService({
+      cachePath,
+      resolveProvider: () => ({
+        models: {
+          getSupportedModels: async () => {
+            loads += 1;
+            return createModels('provider-qualified');
+          },
+          getCurrentActiveModel: async () => createCurrentActiveModel('gjc-active'),
+          changeActiveModel: async (input) => createSessionActiveModelChange('gjc', input),
+        },
+      }),
+    });
+
+    const result = await service.getProviderModels('gjc');
+    assert.equal(loads, 1);
+    assert.equal(result.models.DEFAULT, 'provider-qualified');
+    assert.equal(result.cache.source, 'fresh');
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

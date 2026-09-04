@@ -16,7 +16,7 @@ import type {
 import { readProviderSessionActiveModelChange, writeProviderSessionActiveModelChange } from '@/shared/utils.js';
 
 export const PROVIDER_MODELS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
-const PROVIDER_MODELS_CACHE_VERSION = 11;
+const PROVIDER_MODELS_CACHE_VERSION = 12;
 
 type ProviderModelsServiceDependencies = { resolveProvider?: (provider: LLMProvider) => Pick<IProvider, 'models'>; cachePath?: string; activeModelChangesPath?: string; now?: () => number };
 type ProviderModelsOptions = { bypassCache?: boolean };

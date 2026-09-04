@@ -260,6 +260,7 @@ async function fixture(
     authStorage,
     getAll: () => models,
     getAvailable: () => models,
+    getCanonicalId: (model: typeof models[number]) => model.id,
     getCanonicalModelSelections: (query: { candidates?: typeof models } = {}) =>
       (query.candidates ?? models).map((model) => ({
         record: {
@@ -688,6 +689,30 @@ test('model catalog reports the runtime-supported reasoning levels', async () =>
         }],
       },
     });
+  } finally {
+    await f.close();
+  }
+});
+
+test('model catalog preserves credentialed provider-qualified models with the same bare id', async () => {
+  const f = await fixture(
+    'cliproxy/gpt-5.6-terra',
+    undefined,
+    [
+      { id: 'gpt-5.6-terra', name: 'CLiProxy Terra', provider: 'cliproxy', reasoning: true, thinking: { minLevel: 'low', maxLevel: 'high', levels: ['low', 'high'], mode: 'effort' } },
+      { id: 'gpt-5.6-terra', name: 'ChatGPT Terra', provider: 'openai-codex', reasoning: true, thinking: { minLevel: 'medium', maxLevel: 'xhigh', levels: ['medium', 'xhigh'], mode: 'effort' } },
+      { id: 'gpt-5.6-terra', name: 'Unavailable Terra', provider: 'other-provider' },
+    ] as never,
+  );
+  try {
+    f.authStorage.credentials.push({ id: 1, provider: 'cliproxy' }, { id: 2, provider: 'openai-codex' });
+    await f.host.handle(request('models.catalog', 'distinct-provider-models'));
+    const payload = response(f.frames, 'distinct-provider-models').payload as { result: { models: Array<{ value: string; label: string; group: string; effort: { values: Array<{ value: string }> } }> } };
+
+    assert.deepEqual(payload.result.models, [
+      { value: 'cliproxy/gpt-5.6-terra', label: 'CLiProxy Terra', group: 'cliproxy', canonicalId: 'gpt-5.6-terra', effort: { values: [{ value: 'low' }, { value: 'high' }] } },
+      { value: 'openai-codex/gpt-5.6-terra', label: 'ChatGPT Terra', group: 'openai-codex', canonicalId: 'gpt-5.6-terra', effort: { values: [{ value: 'medium' }, { value: 'xhigh' }] } },
+    ]);
   } finally {
     await f.close();
   }

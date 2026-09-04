@@ -95,6 +95,7 @@ Signed-off by: <name> <email> — GitHub @<handle> — YYYY-MM-DD
 ### Signatories
 
 - Hako (devswha) — project owner; copyright holder, not a licensor to itself.
+- Signed-off by: 이종명 <114718483+lee98www@users.noreply.github.com> — GitHub @lee98www — 2026-09-04
 
 ---
 

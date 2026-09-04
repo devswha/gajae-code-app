@@ -99,11 +99,10 @@ const updateProjectCache = (projects: Project[], event: SessionUpsert): Project[
     ? project.projectId === projectId
     : rowsOf(project).some((session) => session.id === event.sessionId));
   if (found) {
-    // A row the indexer discovered ('auto') can become a sidebar project the
-    // moment a session lands in it (a workspace descend promotes it), so the
-    // event's origin wins over the cached one.
+    // The database only promotes discovered rows ('auto'/'legacy') to explicit;
+    // a later index event must never demote an explicit cached project.
     const origin = event.project?.origin;
-    const promoted = origin && origin !== found.origin ? { ...found, origin } : found;
+    const promoted = origin === 'explicit' && found.origin !== 'explicit' ? { ...found, origin } : found;
     const next = applySessionUpsert(promoted, event);
     return next === found ? projects : projects.map((project) => project === found ? next : project);
   }

@@ -202,6 +202,26 @@ test('an upsert carrying an origin promotes the cached project so the sidebar ca
   }
 });
 
+test('upsert origin only promotes cached projects to explicit', async () => {
+  const fetch = installFetch([{ body: [{ ...project(), origin: 'explicit' }] }]);
+  try {
+    const harness = renderHarness();
+    await waitFor(() => assert.equal(harness.getState().projects.length, 1));
+    act(() => harness.emit({
+      kind: 'session_upserted', sessionId: 'auto-event', provider: 'gjc', session: { id: 'auto-event' },
+      project: { ...project(), origin: 'auto' }, timestamp: new Date().toISOString(),
+    } as ServerEvent));
+    await waitFor(() => assert.equal(harness.getState().projects[0]?.origin, 'explicit'));
+    act(() => harness.emit({
+      kind: 'session_upserted', sessionId: 'explicit-event', provider: 'gjc', session: { id: 'explicit-event' },
+      project: { ...project(), origin: 'explicit' }, timestamp: new Date().toISOString(),
+    } as ServerEvent));
+    assert.equal(harness.getState().projects[0]?.origin, 'explicit');
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('an upsert for the viewed session renames it where the header reads it, not only in the sidebar', async () => {
   const fetch = installFetch([{ body: [project()] }]);
   try {

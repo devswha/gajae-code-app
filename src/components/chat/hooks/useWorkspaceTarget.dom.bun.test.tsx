@@ -154,3 +154,62 @@ test('establishing a session releases the pin', async () => {
     fetch.restore();
   }
 });
+
+test('resolveForSend authoritatively resolves submitted text before preview completes', async () => {
+  const fetch = installFetch(({ url }) => {
+    const text = new URL(url, 'http://local').searchParams.get('text') ?? '';
+    return { isWorkspace: true, candidates: text ? [candidateA] : [] };
+  });
+  try {
+    const view = composer();
+    const target = await view.result.current.resolveForSend('exact submitted text');
+    assert.equal(target?.name, 'repo-a');
+    assert.equal(new URL(fetch.calls[1].url, 'http://local').searchParams.get('text'), 'exact submitted text');
+    assert.equal(view.result.current.isWorkspace, false);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('resolveForSend honors a pinned root target without fetching', async () => {
+  const fetch = installFetch(() => ({ isWorkspace: true, candidates: [] }));
+  try {
+    const view = composer();
+    await waitFor(() => assert.equal(fetch.calls.length, 1));
+    act(() => { view.result.current.pickTarget(null); });
+    assert.equal(await view.result.current.resolveForSend('repo-a'), null);
+    assert.equal(fetch.calls.length, 1);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('resolveForSend throws on an unsuccessful response', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => new Response('', { status: 503 })) as typeof fetch;
+  try {
+    const view = composer();
+    await assert.rejects(() => view.result.current.resolveForSend('repo-a'), /503/);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('a late response from a previous project cannot overwrite the current project', async () => {
+  const original = globalThis.fetch;
+  let resolveA: ((response: Response) => void) | undefined;
+  globalThis.fetch = ((input: RequestInfo | URL) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
+    if (url.includes('proj-workspace')) return new Promise<Response>((resolve) => { resolveA = resolve; });
+    return Promise.resolve(new Response(JSON.stringify({ data: { isWorkspace: true, candidates: [candidateB] } }), { status: 200 }));
+  }) as typeof fetch;
+  try {
+    const view = composer();
+    view.rerender({ selectedProject: { ...project, projectId: 'proj-b' } });
+    await waitFor(() => assert.equal(view.result.current.candidates[0]?.name, 'repo-b'));
+    await act(async () => { resolveA?.(new Response(JSON.stringify({ data: { isWorkspace: true, candidates: [candidateA] } }), { status: 200 })); });
+    assert.equal(view.result.current.candidates[0]?.name, 'repo-b');
+  } finally {
+    globalThis.fetch = original;
+  }
+});

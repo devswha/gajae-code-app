@@ -498,11 +498,17 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
      Terra session's second turn went to GLM and hit its rate limit. An
      explicit model on the first turn is now the session pin
      (`resolveResumeModel(..., { firstTurn })`); `default` pins nothing.
-   - Gap, not fixed: with ChatGPT models the runtime edits through
-     `apply_patch`, which neither the Last-turn scope (edit/write/delete/
-     move only) nor the tool card configs know; the scope shows nothing for
-     those turns (Working tree still does) and the card shows raw
-     Parameters/Details. Needs a patch parser or a runtime-side normalization.
+   - ~~Gap, not fixed: with ChatGPT models the runtime edits through
+     `apply_patch`, which neither the Last-turn scope nor the tool card
+     configs know~~ — **closed 2026-09-05 (#33)** without a patch parser:
+     the runtime's edit *result* details (`{path, op, move, diff}` per file,
+     `perFileResults[]` for an envelope, numbered diff `+12|text`) are the
+     normalization every edit mode shares, and they already reach the client
+     as `toolResult.toolUseResult` live and on reload.
+     `src/components/chat/utils/editResult.ts` reads them; the edit card
+     (`apply_patch` shares it) and the Last-turn scope render from the
+     result, with real line numbers, and fall back to the replace-mode input
+     only while a call runs or when a result carries no details.
    - Upstream: with the ChatGPT provider the model received the project
      path as `/Users/USER/…` and passed it back as the bash `cwd`, which
      does not exist; the run recovered via `pwd`. The runtime redacts the

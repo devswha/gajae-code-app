@@ -224,5 +224,17 @@
     "generating": "Generazione del piano...",
     "revise": "Rivedi",
     "build": "Procedi"
+  },
+  "workspaceTarget": {
+    "chooseRepo": "scegli repo",
+    "keepAtRoot": "Resta nella radice",
+    "target": "→ {{name}}",
+    "search": "Cerca repo…",
+    "noMatch": "Nessun repo corrispondente",
+    "reason": {
+      "mention": "Menzionato",
+      "partial": "Corrispondenza parziale",
+      "recent": "Attivo di recente"
+    }
   }
 }

@@ -224,5 +224,17 @@
     "generating": "Plan wird erstellt...",
     "revise": "Überarbeiten",
     "build": "Umsetzen"
+  },
+  "workspaceTarget": {
+    "chooseRepo": "Repo wählen",
+    "keepAtRoot": "Im Stammverzeichnis bleiben",
+    "target": "→ {{name}}",
+    "search": "Repos durchsuchen…",
+    "noMatch": "Kein passendes Repo",
+    "reason": {
+      "mention": "Erwähnt",
+      "partial": "Teilweise Übereinstimmung",
+      "recent": "Kürzlich aktiv"
+    }
   }
 }

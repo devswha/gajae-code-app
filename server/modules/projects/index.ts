@@ -14,8 +14,10 @@ import {
   generateDisplayName as displayName,
   getProjectsWithSessions as projectsWithSessions,
 } from './services/projects-with-sessions-fetch.service.js';
+import { isWorkspaceRoot as workspaceRoot } from './services/workspace-target.service.js';
 
 export {
+  workspaceRoot as isWorkspaceRoot,
   displayName as generateDisplayName,
   grantAlwaysAllow as grantProjectAlwaysAllow,
   projectsWithSessions as getProjectsWithSessions,

@@ -224,5 +224,17 @@
     "generating": "正在產生計畫...",
     "revise": "修改",
     "build": "執行"
+  },
+  "workspaceTarget": {
+    "chooseRepo": "選擇儲存庫",
+    "keepAtRoot": "保留在根目錄",
+    "target": "→ {{name}}",
+    "search": "搜尋儲存庫…",
+    "noMatch": "沒有符合的儲存庫",
+    "reason": {
+      "mention": "已提及",
+      "partial": "部分符合",
+      "recent": "最近活躍"
+    }
   }
 }

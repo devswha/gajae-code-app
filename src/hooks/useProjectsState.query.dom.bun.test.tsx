@@ -168,6 +168,60 @@ test('session upserts write directly to the project cache', async () => {
   }
 });
 
+test('an upsert carrying an origin promotes the cached project so the sidebar can show it', async () => {
+  // The indexer had only discovered the repo ('auto', hidden); a workspace
+  // descend registered it as explicit on the server and the session landed.
+  const fetch = installFetch([{ body: [{ ...project(), origin: 'auto' }] }]);
+  try {
+    const harness = renderHarness();
+    await waitFor(() => assert.equal(harness.getState().projects.length, 1));
+
+    act(() => {
+      harness.emit({
+        kind: 'session_upserted',
+        sessionId: 'session-descended',
+        provider: 'gjc',
+        session: { id: 'session-descended', summary: 'fix the build' },
+        project: {
+          projectId: 'project-1',
+          path: '/workspace/project',
+          fullPath: '/workspace/project',
+          displayName: 'Project one',
+          isStarred: false,
+          origin: 'explicit',
+        },
+        timestamp: new Date().toISOString(),
+      } as ServerEvent);
+    });
+
+    await waitFor(() => assert.equal(harness.getState().projects[0]?.origin, 'explicit'));
+    assert.deepEqual(harness.getState().projects[0]?.sessions?.map((session) => session.id), ['session-descended']);
+    assert.equal(fetch.calls(), 1);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('upsert origin only promotes cached projects to explicit', async () => {
+  const fetch = installFetch([{ body: [{ ...project(), origin: 'explicit' }] }]);
+  try {
+    const harness = renderHarness();
+    await waitFor(() => assert.equal(harness.getState().projects.length, 1));
+    act(() => harness.emit({
+      kind: 'session_upserted', sessionId: 'auto-event', provider: 'gjc', session: { id: 'auto-event' },
+      project: { ...project(), origin: 'auto' }, timestamp: new Date().toISOString(),
+    } as ServerEvent));
+    await waitFor(() => assert.equal(harness.getState().projects[0]?.origin, 'explicit'));
+    act(() => harness.emit({
+      kind: 'session_upserted', sessionId: 'explicit-event', provider: 'gjc', session: { id: 'explicit-event' },
+      project: { ...project(), origin: 'explicit' }, timestamp: new Date().toISOString(),
+    } as ServerEvent));
+    assert.equal(harness.getState().projects[0]?.origin, 'explicit');
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('an upsert for the viewed session renames it where the header reads it, not only in the sidebar', async () => {
   const fetch = installFetch([{ body: [project()] }]);
   try {

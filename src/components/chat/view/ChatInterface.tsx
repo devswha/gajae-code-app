@@ -303,6 +303,11 @@ function ChatInterface({
       permissions={projectPermissions.permissions}
       onSelectPermissionMode={projectPermissions.setMode}
       permissionsBusy={projectPermissions.isSettingMode}
+      isWorkspace={composer.isWorkspace}
+      workspaceRootName={selectedProject.displayName}
+      workspaceCandidates={composer.workspaceCandidates}
+      workspaceTarget={composer.workspaceTargetValue}
+      onPickWorkspaceTarget={composer.pickWorkspaceTarget}
     />
   );
 

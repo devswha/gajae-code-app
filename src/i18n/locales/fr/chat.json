@@ -224,5 +224,17 @@
     "generating": "Génération du plan...",
     "revise": "Réviser",
     "build": "Construire"
+  },
+  "workspaceTarget": {
+    "chooseRepo": "choisir un dépôt",
+    "keepAtRoot": "Rester à la racine",
+    "target": "→ {{name}}",
+    "search": "Rechercher un dépôt…",
+    "noMatch": "Aucun dépôt correspondant",
+    "reason": {
+      "mention": "Mentionné",
+      "partial": "Correspondance partielle",
+      "recent": "Récemment actif"
+    }
   }
 }

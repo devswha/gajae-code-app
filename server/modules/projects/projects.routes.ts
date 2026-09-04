@@ -3,6 +3,7 @@ import express from 'express';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { startCloneProject, type CloneProjectOperation } from '@/modules/projects/services/project-clone.service.js';
 import { createProject, promoteProjectOrigin, updateProjectDisplayName } from '@/modules/projects/services/project-management.service.js';
+import { descendIntoChild, resolveWorkspaceTarget } from '@/modules/projects/services/workspace-target.service.js';
 import {
   getProjectPermissions,
   listConfiguredProjectPermissions,
@@ -93,6 +94,21 @@ router.post('/:projectId/promote', asyncHandler(async (request, response) => {
   const projectId = routeProjectId(request.params.projectId, true);
   if (!projectId) throw new AppError('projectId is required', { code: 'PROJECT_ID_REQUIRED', statusCode: 400 });
   response.json({ success: true, project: promoteProjectOrigin(projectId) });
+}));
+
+router.get('/:projectId/resolve-target', asyncHandler(async (request, response) => {
+  const projectId = routeProjectId(request.params.projectId, true);
+  const result = await resolveWorkspaceTarget(projectId, queryText(request.query.text));
+  response.json(createApiSuccessResponse(result));
+}));
+
+router.post('/:projectId/descend', asyncHandler(async (request, response) => {
+  const projectId = routeProjectId(request.params.projectId, true);
+  const body: { path?: unknown } = request.body ?? {};
+  const childPath = typeof body.path === 'string' ? body.path : '';
+  if (!childPath) throw new AppError('path is required', { code: 'NOT_WORKSPACE_CHILD', statusCode: 400 });
+  const { created, project } = await descendIntoChild(projectId, childPath);
+  response.status(created ? 201 : 200).json(createApiSuccessResponse(project));
 }));
 
 router.get('/:projectId/sessions', asyncHandler(async (request, response) => {

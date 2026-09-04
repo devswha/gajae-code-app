@@ -224,5 +224,17 @@
     "generating": "Generating plan...",
     "revise": "Revise",
     "build": "Build"
+  },
+  "workspaceTarget": {
+    "chooseRepo": "choose repo",
+    "keepAtRoot": "Keep at root",
+    "target": "→ {{name}}",
+    "search": "Search repos…",
+    "noMatch": "No repo matches",
+    "reason": {
+      "mention": "Mentioned",
+      "partial": "Partial match",
+      "recent": "Recently active"
+    }
   }
 }

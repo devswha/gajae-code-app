@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 
+import { editResultFiles, parseRuntimeDiff, type EditResultFile } from '../../chat/utils/editResult';
 import { createCachedDiffCalculator } from '../../chat/utils/messageTransforms';
 import type { NormalizedMessage, SessionStore } from '../../../stores/useSessionStore';
 import type { UnifiedDiffRow } from '../utils/unifiedDiff';
@@ -39,9 +40,14 @@ function pathValue(value: unknown): string | null {
   return typeof value === 'string' && value ? value : null;
 }
 
+// `apply_patch` is the edit tool's wire name in its apply_patch mode (GPT-5
+// family models); its input is a multi-file envelope, and its result the same
+// per-file details every other edit mode reports.
+const EDIT_TOOLS = ['edit', 'apply_patch'];
+
 function isMutationTool(message: NormalizedMessage): boolean {
   if (message.kind !== 'tool_use' || !message.toolName) return false;
-  return ['edit', 'write', 'delete', 'move'].includes(message.toolName.toLowerCase());
+  return [...EDIT_TOOLS, 'write', 'delete', 'move'].includes(message.toolName.toLowerCase());
 }
 
 export function hasPendingLastTurnMutation(messages: NormalizedMessage[]): boolean {
@@ -98,6 +104,23 @@ function editRows(edits: unknown, budget: DiffBudget): UnifiedDiffRow[] | null {
   return rows;
 }
 
+/**
+ * A file from the runtime's own edit result. Rows come from the numbered diff
+ * it applied, with real line numbers, regardless of which edit mode ran.
+ */
+function editResultFile(file: EditResultFile, budget: DiffBudget): LastTurnFile | null {
+  if (file.isError) return null;
+  if (file.move) return { path: file.move, kind: 'move', oldPath: file.path, rows: null, tooLarge: false };
+  if (file.op === 'delete') return { path: file.path, kind: 'delete', oldPath: null, rows: null, tooLarge: false };
+  const kind = file.op === 'create' ? 'write' : 'edit';
+  if (file.diff.length > budget.characters) return { path: file.path, kind, oldPath: null, rows: null, tooLarge: true };
+  const rows = parseRuntimeDiff(file.diff);
+  if (rows.length > budget.rows) return { path: file.path, kind, oldPath: null, rows: null, tooLarge: true };
+  budget.characters -= file.diff.length;
+  budget.rows -= rows.length;
+  return { path: file.path, kind, oldPath: null, rows, tooLarge: false };
+}
+
 export function lastTurnFiles(messages: NormalizedMessage[]): LastTurnFile[] {
   const lastUser = messages.reduce((last, message, index) =>
     message.kind === 'text' && message.role === 'user' ? index : last, -1);
@@ -116,12 +139,22 @@ export function lastTurnFiles(messages: NormalizedMessage[]): LastTurnFile[] {
   return turn.flatMap((message): LastTurnFile[] => {
     if (message.kind !== 'tool_use' || !message.toolName) return [];
     const kind = message.toolName.toLowerCase();
-    if (kind !== 'edit' && kind !== 'write' && kind !== 'delete' && kind !== 'move') return [];
+    if (!EDIT_TOOLS.includes(kind) && kind !== 'write' && kind !== 'delete' && kind !== 'move') return [];
 
     const input = parseToolInput(message.toolInput);
     if (!input) return [];
     const result = message.toolResult ?? (message.toolId ? results.get(message.toolId) : null);
     if (!result || result.isError === true || ('isFinal' in result && result.isFinal === false)) return [];
+
+    if (EDIT_TOOLS.includes(kind)) {
+      // The runtime's result is the source of truth for every edit mode; the
+      // replace-mode input is the fallback for a result that carries none.
+      // A standalone tool_result row carries the runtime details at its top
+      // level, the same slot a merged `toolResult` does.
+      const fromResult = editResultFiles((result as { toolUseResult?: unknown }).toolUseResult, pathValue(input.path) ?? '');
+      if (fromResult.length > 0) return fromResult.flatMap((file) => editResultFile(file, budget) ?? []);
+    }
+    if (kind !== 'edit' && kind !== 'write' && kind !== 'delete' && kind !== 'move') return [];
 
     if (kind === 'move') {
       const oldPath = pathValue(input.from) ?? pathValue(input.path);

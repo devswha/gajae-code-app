@@ -33,12 +33,33 @@ function resultText(result: any): string {
   return result?.content != null ? String(result.content) : '';
 }
 
-function titleFrom(config: any, value: unknown, fallback: string): string {
-  return typeof config.title === 'function' ? config.title(value) : config.title || fallback;
+function titleFrom(config: any, value: unknown, fallback: string, helpers?: unknown): string {
+  return typeof config.title === 'function' ? config.title(value, helpers) : config.title || fallback;
+}
+
+const editBadge: Record<string, string> = { create: 'New', delete: 'Deleted', update: 'Diff' };
+
+/** One viewer per file the runtime reports it edited, whichever edit mode ran. */
+function EditResultDiffs({ files, onFileOpen }: { files: Array<{ path: string; op: string; move: string | null; lines: DiffLine[] }>; onFileOpen?: (filePath: string) => void }): React.ReactNode {
+  return (
+    <div className="space-y-2" data-testid="edit-result-diffs">
+      {files.map((file, index) => (
+        <ToolDiffViewer
+          key={`${file.path}:${index}`}
+          filePath={file.path}
+          lines={file.lines}
+          badge={file.move ? 'Renamed' : editBadge[file.op] ?? 'Diff'}
+          badgeColor={file.op === 'create' ? 'green' : 'gray'}
+          onFileClick={onFileOpen && file.op !== 'delete' ? () => onFileOpen(file.path) : undefined}
+        />
+      ))}
+    </div>
+  );
 }
 
 function CollapsibleBody({ contentType, contentProps, createDiff, onFileOpen, config, data }: any): React.ReactNode {
   if (contentType === 'diff') {
+    if (contentProps.files) return <EditResultDiffs files={contentProps.files} onFileOpen={onFileOpen} />;
     return createDiff ? <ToolDiffViewer {...contentProps} createDiff={createDiff} onFileClick={() => onFileOpen?.(contentProps.filePath)} /> : null;
   }
   if (contentType === 'markdown') return <MarkdownContent content={contentProps.content || ''} />;
@@ -55,9 +76,9 @@ function CollapsibleBody({ contentType, contentProps, createDiff, onFileOpen, co
 }
 
 /** The +N/-M a folded diff row carries, so a closed edit still says how big it was. */
-function DiffStats({ createDiff, oldContent, newContent }: { createDiff?: (oldStr: string, newStr: string) => DiffLine[]; oldContent?: string; newContent?: string }): React.ReactNode {
-  if (!createDiff || oldContent === undefined || newContent === undefined) return null;
-  const lines = createDiff(oldContent, newContent);
+function DiffStats({ createDiff, oldContent, newContent, files }: { createDiff?: (oldStr: string, newStr: string) => DiffLine[]; oldContent?: string; newContent?: string; files?: Array<{ lines: DiffLine[] }> }): React.ReactNode {
+  const lines = files ? files.flatMap((file) => file.lines) : createDiff && oldContent !== undefined && newContent !== undefined ? createDiff(oldContent, newContent) : null;
+  if (!lines) return null;
   const added = lines.filter((line) => line.type === 'added').length;
   const removed = lines.filter((line) => line.type === 'removed').length;
   return (
@@ -101,19 +122,20 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({ toolName, toolInput,
     return <OneLineDisplay toolName={toolName} icon={displayConfig.icon} label={displayConfig.label} value={value} secondary={secondary} action={displayConfig.action} onAction={handleAction} style={displayConfig.style} wrapText={displayConfig.wrapText} colorScheme={displayConfig.colorScheme} status={toolStatus !== 'completed' ? toolStatus : undefined} />;
   }
 
-  const contentProps = displayConfig.getContentProps?.(parsedData, { selectedProject, createDiff, onFileOpen }) || {};
+  const helpers = { selectedProject, createDiff, onFileOpen, toolResult };
+  const contentProps = displayConfig.getContentProps?.(parsedData, helpers) || {};
   if (displayConfig.type === 'plan') {
-    return <PlanDisplay title={titleFrom(displayConfig, parsedData, 'Plan')} content={contentProps.content || ''} defaultOpen={collapsibleStartsOpen(rules, displayConfig.defaultOpen ?? false)} isStreaming={mode === 'input' && !toolResult} showRawParameters={mode === 'input' && showRawParameters} rawContent={rawToolInput} toolName={toolName} toolId={toolId} />;
+    return <PlanDisplay title={titleFrom(displayConfig, parsedData, 'Plan', helpers)} content={contentProps.content || ''} defaultOpen={collapsibleStartsOpen(rules, displayConfig.defaultOpen ?? false)} isStreaming={mode === 'input' && !toolResult} showRawParameters={mode === 'input' && showRawParameters} rawContent={rawToolInput} toolName={toolName} toolId={toolId} />;
   }
   if (displayConfig.type !== 'collapsible') return null;
 
   const isDiff = displayConfig.contentType === 'diff';
-  const canOpenFile = (toolName === 'Edit' || toolName === 'Write' || toolName === 'ApplyPatch') && contentProps.filePath && onFileOpen;
+  const canOpenFile = ['edit', 'write', 'apply_patch', 'Edit', 'Write', 'ApplyPatch'].includes(toolName) && contentProps.filePath && onFileOpen;
   const onTitleClick = canOpenFile ? () => onFileOpen(contentProps.filePath, { old_string: contentProps.oldContent, new_string: contentProps.newContent }) : undefined;
   const badge = toolStatus && toolStatus !== 'completed' ? <ToolStatusBadge status={toolStatus} /> : undefined;
   const startsOpen = isDiff ? rules.diffOpen : collapsibleStartsOpen(rules, displayConfig.defaultOpen);
-  const action = isDiff ? <DiffStats createDiff={createDiff} oldContent={contentProps.oldContent} newContent={contentProps.newContent} /> : undefined;
-  return <CollapsibleDisplay toolName={toolName} toolId={toolId} title={titleFrom(displayConfig, parsedData, 'Details')} defaultOpen={startsOpen} onTitleClick={onTitleClick} badge={badge} action={action} showRawParameters={mode === 'input' && showRawParameters} rawContent={rawToolInput}><CollapsibleBody contentType={displayConfig.contentType} contentProps={contentProps} createDiff={createDiff} onFileOpen={onFileOpen} config={displayConfig} data={parsedData} /></CollapsibleDisplay>;
+  const action = isDiff ? <DiffStats createDiff={createDiff} oldContent={contentProps.oldContent} newContent={contentProps.newContent} files={contentProps.files} /> : undefined;
+  return <CollapsibleDisplay toolName={toolName} toolId={toolId} title={titleFrom(displayConfig, parsedData, 'Details', helpers)} defaultOpen={startsOpen} onTitleClick={onTitleClick} badge={badge} action={action} showRawParameters={mode === 'input' && showRawParameters} rawContent={rawToolInput}><CollapsibleBody contentType={displayConfig.contentType} contentProps={contentProps} createDiff={createDiff} onFileOpen={onFileOpen} config={displayConfig} data={parsedData} /></CollapsibleDisplay>;
 };
 
 ToolRenderer.displayName = 'ToolRenderer';

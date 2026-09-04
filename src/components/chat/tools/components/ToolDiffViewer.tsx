@@ -2,15 +2,17 @@ import React, { useMemo } from 'react';
 
 type DiffLine = { type: string; content: string; lineNum: number };
 
-interface ToolDiffViewerProps {
-  oldContent: string;
-  newContent: string;
+type ToolDiffViewerProps = {
   filePath: string;
-  createDiff: (oldStr: string, newStr: string) => DiffLine[];
   onFileClick?: () => void;
   badge?: string;
   badgeColor?: 'gray' | 'green';
-}
+} & (
+  // Two sources: a before/after pair the client diffs itself, or the rows the
+  // runtime reported it applied (every edit mode, with real line numbers).
+  | { oldContent: string; newContent: string; createDiff: (oldStr: string, newStr: string) => DiffLine[]; lines?: undefined }
+  | { lines: DiffLine[]; oldContent?: undefined; newContent?: undefined; createDiff?: undefined }
+);
 
 function diffAppearance(type: string) {
   if (type === 'removed') return { className: 'bg-diff-removed text-diff-removed-foreground', marker: '-' };
@@ -39,14 +41,16 @@ export const ToolDiffViewer: React.FC<ToolDiffViewerProps> = ({
   newContent,
   filePath,
   createDiff,
+  lines: givenLines,
   onFileClick,
   badge = 'Diff',
   badgeColor = 'gray',
 }) => {
   const lines = useMemo(() => {
-    if (oldContent === undefined || newContent === undefined) return [];
+    if (givenLines) return givenLines;
+    if (!createDiff || oldContent === undefined || newContent === undefined) return [];
     return createDiff(oldContent, newContent);
-  }, [createDiff, oldContent, newContent]);
+  }, [createDiff, givenLines, oldContent, newContent]);
   const badgeClasses = badgeColor === 'green' ? 'bg-diff-added text-diff-added-foreground' : 'bg-muted text-muted-foreground';
   const fileLabel = onFileClick ? (
     <button onClick={onFileClick} className="cursor-pointer truncate font-mono text-xs text-muted-foreground transition-colors hover:text-primary">

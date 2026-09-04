@@ -142,3 +142,37 @@ test('the tools that only had a JSON dump now say what they were asked for', () 
   // Unregistered tools still fall back rather than crash.
   assert.equal(getToolConfig('no_such_tool'), TOOL_CONFIGS.Default);
 });
+
+/*
+ * The edit tool has five modes with five input shapes, and apply_patch (the
+ * GPT-5 family) arrives under its own wire name with a multi-file envelope
+ * and no path. The card reads the runtime's result details, which every mode
+ * reports the same way, and keeps the replace-mode input as its fallback.
+ */
+test('an edit with runtime details renders the diff the runtime applied, per file', () => {
+  const details = {
+    diff: '+1|hello\n-3|gone',
+    perFileResults: [
+      { path: 'new.ts', diff: '+1|hello', op: 'create' },
+      { path: 'from.ts', diff: '@@ -3,1 +3,0 @@\n-3|gone', op: 'update', move: 'to.ts' },
+    ],
+  };
+  const props = TOOL_CONFIGS.apply_patch.input.getContentProps?.({ input: '*** Begin Patch\n*** End Patch' }, { toolResult: { toolUseResult: details } });
+
+  assert.equal(TOOL_CONFIGS.apply_patch, TOOL_CONFIGS.edit, 'apply_patch is the edit card under its wire name');
+  assert.equal(props.filePath, 'new.ts');
+  assert.deepEqual(props.files.map((file: { path: string; op: string; move: string | null }) => [file.path, file.op, file.move]), [['new.ts', 'create', null], ['to.ts', 'update', 'to.ts']]);
+  assert.deepEqual(props.files[0].lines, [{ type: 'added', content: 'hello', lineNum: 1 }]);
+  assert.deepEqual(props.files[1].lines, [{ type: 'removed', content: 'gone', lineNum: 3 }], 'hunk headers are not rows');
+  assert.equal(titleOf('apply_patch', { input: '' }), 'Edit', 'no result yet: nothing to name');
+  assert.equal(TOOL_CONFIGS.edit.input.title && typeof TOOL_CONFIGS.edit.input.title === 'function' ? TOOL_CONFIGS.edit.input.title({ input: '' }, { toolResult: { toolUseResult: details } }) : '', '2 files');
+  assert.equal(TOOL_CONFIGS.edit.input.title && typeof TOOL_CONFIGS.edit.input.title === 'function' ? TOOL_CONFIGS.edit.input.title({ input: '' }, { toolResult: { toolUseResult: { path: '/repo/src/one.ts', diff: '' } } }) : '', 'one.ts');
+});
+
+test('an edit whose result carries no details keeps the replace-mode fallback', () => {
+  const input = { path: 'src/a.ts', edits: [{ old_text: 'x', new_text: 'y' }] };
+  const props = TOOL_CONFIGS.edit.input.getContentProps?.(input, { toolResult: { content: 'ok' } });
+  assert.equal(props.files, undefined);
+  assert.equal(props.oldContent, 'x');
+  assert.equal(titleOf('edit', input), 'a.ts', 'the input path names the card whatever the result says');
+});

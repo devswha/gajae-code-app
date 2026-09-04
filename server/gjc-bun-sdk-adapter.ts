@@ -22,6 +22,7 @@ import { parseGjcRunPermissions, type GjcRunPermissions } from './gjc-permission
 import { GjcModelResolutionError } from './gjc-model-resolution.js';
 import { resolveContainedExportCommand } from './gjc-export-path.js';
 import { readSessionSnapshot } from './gjc-session-state.js';
+import { installGjcCliShim } from './gjc-cli-shim.js';
 import {
   closeGjcAutomationSession,
   createGjcAutomationTools,
@@ -61,10 +62,10 @@ export type SdkRunConfig = {
  */
 const GAJAE_APP_ENV_NOTE = [
   'This session runs inside Gajae Code App, which hosts the Gajae Code runtime in-process.',
-  'Do not run the gjc CLI from bash: it may not be installed, and nothing in this environment requires it.',
-  "Never edit ~/.gjc directly. Sign-in, model and permission configuration live in the app's UI (Settings);",
-  'if the user asks to change them, point them to the app instead of attempting it with shell commands.',
+  "The bundled gjc shim on PATH is for bundled workflow skills' `gjc state <skill> ...` commands; for sign-in, models, and permissions, use the app's Settings and never edit ~/.gjc directly.",
 ].join(' ');
+
+let warnedAboutGjcCliShim = false;
 
 export type GjcAgentSessionFactory = typeof createAgentSession;
 /** The runtime's title generator, narrowed to what the adapter supplies. */
@@ -779,6 +780,10 @@ export async function ensureSdkThemeInitialized(): Promise<void> {
 
 export async function createGjcBunSdkAdapter(agentDir: string = process.env.GJC_WORKER_AGENT_DIR ?? ''): Promise<GjcBunSdkAdapter> {
   if (!agentDir) throw new Error(FAILURE);
+  if (!installGjcCliShim() && !warnedAboutGjcCliShim) {
+    warnedAboutGjcCliShim = true;
+    console.warn('Could not install the bundled gjc CLI shim; bundled workflow skills may be unavailable.');
+  }
   // Capture the app-owned bridge capability in trusted adapter memory, then
   // remove it before the SDK creates bash tools whose child processes inherit
   // the worker environment. The model can use the injected tools but cannot

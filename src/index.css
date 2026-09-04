@@ -88,15 +88,22 @@
     }
   }
 
+  /*
+   * The panel is centered by the `translate` property (Tailwind 4's
+   * -translate-x-1/2 -translate-y-1/2). The entrance must not touch
+   * translate, in either `transform` or `translate`: a keyframe translate
+   * composes with the utility's and the panel opens offset toward the
+   * upper left, snapping to center when the animation ends.
+   */
   @keyframes dialog-content-show {
     from {
       opacity: 0;
-      transform: translate(-50%, -48%) scale(0.96);
+      transform: scale(0.96);
     }
 
     to {
       opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
+      transform: scale(1);
     }
   }
 }

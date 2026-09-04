@@ -109,7 +109,6 @@ function ChatInterface({
     onSessionProcessing,
     onSessionEstablished: establishSession,
     onInputFocusChange,
-    onFileOpen,
     onShowSettings,
     scrollToBottom: session.scrollToBottom,
     onLogin: oauthLogin.openLogin,

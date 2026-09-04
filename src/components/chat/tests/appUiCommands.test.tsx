@@ -122,7 +122,7 @@ test('typed /resume is intercepted as an app command and never sent to the model
   assert.deepEqual(addedMessages, []);
 });
 
-test('typed /cost is an app command and does not call legacy REST execution', async () => {
+test('typed /cost is an app command and does not fetch', async () => {
   const sentMessages: unknown[] = [];
   const addedMessages: unknown[] = [];
   const composer = captureComposer(sentMessages, addedMessages);

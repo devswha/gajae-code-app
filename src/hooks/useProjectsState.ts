@@ -228,9 +228,14 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
+  const restoredFromUrlRef = useRef<string | null>(null);
   useEffect(() => {
     if (!sessionId) {
-      if (selectedSession) setSelectedSession(null);
+      // Only a session this effect restored from the URL is stale once the
+      // route settles at '/'; an optimistically registered new-chat session
+      // must survive there until its own /session/:id navigation lands.
+      if (selectedSession && restoredFromUrlRef.current === selectedSession.id) setSelectedSession(null);
+      restoredFromUrlRef.current = null;
       return;
     }
     if (!projects.length) return;
@@ -240,10 +245,12 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
       const normalized = withProvider(session);
       if (selectedProject?.projectId !== project.projectId) setSelectedProject(project);
       if (selectedSession?.id !== sessionId || selectedSession.__provider !== normalized.__provider) setSelectedSession(normalized);
+      restoredFromUrlRef.current = sessionId;
       return;
     }
     if (selectedSession?.id !== sessionId && selectedProject) {
       setSelectedSession({ id: sessionId, __provider: fallbackProvider, __projectId: selectedProject.projectId, summary: '' });
+      restoredFromUrlRef.current = sessionId;
     }
   }, [projects, selectedProject, selectedSession, sessionId, setSelectedProject, setSelectedSession]);
 

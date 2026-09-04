@@ -1,9 +1,10 @@
-import { Folder, FolderPlus } from 'lucide-react';
+import { FlaskConical, Folder, FolderPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useProjectsQuery } from '../../../hooks/useProjectsQuery';
 import { Button } from '../../../shared/view/ui/Button';
 import { useAppShellStore } from '../../../stores/useAppShellStore';
+import { useScratchWorkspace } from '../hooks/useScratchWorkspace';
 import type { MainContentStateViewProps } from '../types/types';
 
 import MobileMenuButton from './MobileMenuButton';
@@ -12,10 +13,12 @@ export default function MainContentStateView({
   mode,
   isMobile,
   onMenuClick,
+  onNewSession,
 }: MainContentStateViewProps) {
   const { t } = useTranslation();
   const openNewProject = useAppShellStore((state) => state.setNewProjectOpen);
   const { data: projects } = useProjectsQuery();
+  const scratch = useScratchWorkspace(onNewSession);
 
   const isLoading = mode === 'loading';
   // Nothing to pick from yet: the pane's one job is to add the first project,
@@ -59,6 +62,23 @@ export default function MainContentStateView({
               <FolderPlus className="size-4" aria-hidden />
               {t('mainContent.addProject')}
             </Button>
+            {/* No folder to pick yet: one click makes a disposable one and opens a conversation in it. */}
+            <div className="mt-6 border-t border-border/60 pt-5">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => { void scratch.start(); }}
+                disabled={scratch.isStarting}
+                data-testid="main-start-scratch"
+              >
+                <FlaskConical className="size-4" aria-hidden />
+                {scratch.isStarting ? t('mainContent.scratchStarting') : t('mainContent.scratchStart')}
+              </Button>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{t('mainContent.scratchDescription')}</p>
+              {scratch.error && (
+                <p className="mt-2 text-xs text-destructive" role="alert">{t('mainContent.scratchFailed', { reason: scratch.error })}</p>
+              )}
+            </div>
           </div>
         </div>
       ) : (

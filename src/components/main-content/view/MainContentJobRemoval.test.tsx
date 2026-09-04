@@ -35,6 +35,7 @@ const emptyStateProps = {
   mode: 'empty',
   isMobile: false,
   onMenuClick: () => undefined,
+  onNewSession: () => undefined,
 } satisfies MainContentStateViewProps;
 
 const assertNoJobProps = <_T extends never>(): void => undefined;
@@ -61,14 +62,16 @@ test('Given projects but none selected when rendering the empty state then it as
   const html = renderEmptyState([selectedProject]);
 
   assert.match(html, /mainContent\.chooseProject/);
-  assert.doesNotMatch(html, /mainContent\.firstProject|main-add-project/);
+  assert.doesNotMatch(html, /mainContent\.firstProject|main-add-project|main-start-scratch/);
   assert.doesNotMatch(html, /Delegate a background job/i);
 });
 
-test('Given no projects at all when rendering the empty state then the one action is adding a project', () => {
+test('Given no projects at all when rendering the empty state then the actions are adding a project and starting in scratch', () => {
   const html = renderEmptyState([]);
 
   assert.match(html, /mainContent\.firstProject/);
   assert.match(html, /<button[^>]*data-testid="main-add-project"[^>]*>[\s\S]*?mainContent\.addProject/);
+  assert.match(html, /<button[^>]*data-testid="main-start-scratch"[^>]*>[\s\S]*?mainContent\.scratchStart/);
+  assert.match(html, /mainContent\.scratchDescription/);
   assert.doesNotMatch(html, /mainContent\.chooseProject|mainContent\.tip/);
 });

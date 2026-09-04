@@ -17,6 +17,10 @@
     "firstProject": "첫 프로젝트 추가",
     "firstProjectDescription": "이 컴퓨터의 폴더를 고르세요. Gajae Code는 그 안에서 작업하고, 프로젝트의 대화도 거기에 남습니다.",
     "addProject": "프로젝트 추가",
+    "scratchStart": "스크래치 작업 공간에서 시작",
+    "scratchStarting": "준비 중…",
+    "scratchDescription": "아직 폴더가 없나요? Gajae Code가 일회용 git 저장소 ~/gajae-scratch를 만들고 그 안에서 대화를 엽니다. 에이전트는 그 폴더 안에서만 작업합니다.",
+    "scratchFailed": "스크래치 작업 공간을 시작할 수 없습니다: {{reason}}",
     "newSession": "대화 시작",
     "projectFiles": "프로젝트 내 파일"
   },

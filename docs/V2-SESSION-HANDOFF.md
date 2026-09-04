@@ -1,6 +1,6 @@
 # gajae-app v2 — Session Handoff (resume state)
 
-Last updated: 2026-09-02 night. Supersedes the 2026-07-18 handoff.
+Last updated: 2026-09-05 (scratch workspace, dialog centering). Supersedes the 2026-07-18 handoff.
 
 ## TL;DR
 
@@ -514,10 +514,27 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
 1. ~~Rebuild a signed + notarized DMG and accept it from the mounted image~~
    — done 2026-09-03, see TL;DR.
 2. ~~Cut `v2.0.0-beta.7`~~ — published 2026-09-03; **beta.8 cut the same
-   evening.** Next: **scratch-workspace quick start** — empty workspace gets
-   "Start in a scratch workspace" (creates ~/gajae-scratch, registers it as a
-   project, opens a conversation) so a first run is one click while the
-   project stays the sandbox boundary. Then the CI signing lane. **The release
+   evening.** ~~Next: scratch-workspace quick start~~ — **shipped 2026-09-05**:
+   the empty workspace's pane has "Start in a scratch workspace" under
+   "Add a project". `POST /api/projects/scratch`
+   (`server/modules/projects/services/scratch-workspace.service.ts`)
+   registers `<WORKSPACES_ROOT>/gajae-scratch` through the same
+   `createProject` gate as the wizard (so a rejected path leaves nothing on
+   disk), then `git init`s it and writes a README when it is empty;
+   idempotent (existing → same project, archived reactivated, auto
+   promoted; verified live against a temp root: `created` → `existing`, same
+   id, README listed by `/api/git/diff` on the unborn HEAD). Client:
+   `useScratchWorkspace` posts, refetches the project list so the sidebar
+   has the row, then takes the ordinary `handleNewSession` path
+   (`onNewSession` threaded AppContent → MainContent → MainContentStateView).
+   Next: the CI signing lane.
+   **Also 2026-09-05:** every dialog opened offset to the upper left for its
+   150 ms entrance — Tailwind 4 centers with the `translate` property and the
+   `dialog-content-show` keyframe still animated `transform: translate(-50%,
+   -48%)` on top of it. Fixed in the primitive (#31, fade + scale only);
+   the per-dialog `animate-none` band-aids (#25, #29) are gone and
+   `Dialog.dom.bun.test.tsx` refuses new ones. #28 merged, #29 closed as
+   superseded. **The release
    workflow now signs and notarizes on the runner once the `release`
    environment holds five secrets** (`APPLE_CERTIFICATE_P12`,
    `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`,

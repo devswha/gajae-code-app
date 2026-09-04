@@ -17,6 +17,10 @@
     "firstProject": "新增第一個專案",
     "firstProjectDescription": "選擇這台電腦上的一個資料夾。Gajae Code 會在其中工作，專案的對話也會保留在那裡。",
     "addProject": "新增專案",
+    "scratchStart": "在暫存工作區中開始",
+    "scratchStarting": "正在準備…",
+    "scratchDescription": "還沒有資料夾？Gajae Code 會建立一次性的 git 儲存庫 ~/gajae-scratch，並在其中開啟對話。代理只會在該資料夾內工作。",
+    "scratchFailed": "無法啟動暫存工作區：{{reason}}",
     "newSession": "開始對話",
     "projectFiles": "專案中的檔案"
   },

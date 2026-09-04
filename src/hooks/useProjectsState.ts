@@ -14,7 +14,7 @@ import type { SessionActivityMap } from './useSessionProtection';
 export { projectsHaveChanges, readProjectsResponse } from './useProjectsQuery';
 
 type UseProjectsStateArgs = { sessionId?: string | null; navigate: NavigateFunction; subscribe: (listener: (event: ServerEvent) => void) => () => void; isMobile: boolean; activeSessions: SessionActivityMap };
-type SessionUpsert = ServerEvent & { sessionId: string; providerSessionId?: string | null; provider: LLMProvider; session: ProjectSession; project: { projectId: string; path: string; fullPath: string; displayName: string; isStarred: boolean } | null };
+type SessionUpsert = ServerEvent & { sessionId: string; providerSessionId?: string | null; provider: LLMProvider; session: ProjectSession; project: { projectId: string; path: string; fullPath: string; displayName: string; isStarred: boolean; origin?: Project['origin'] } | null };
 type RegisterOptimisticSessionArgs = { sessionId: string; provider: LLMProvider; project: Project; summary?: string | null };
 type ProjectSessionPage = Pick<Project, 'sessions' | 'sessionMeta'>;
 type FetchProjectsOptions = { showLoadingState?: boolean };
@@ -99,7 +99,12 @@ const updateProjectCache = (projects: Project[], event: SessionUpsert): Project[
     ? project.projectId === projectId
     : rowsOf(project).some((session) => session.id === event.sessionId));
   if (found) {
-    const next = applySessionUpsert(found, event);
+    // A row the indexer discovered ('auto') can become a sidebar project the
+    // moment a session lands in it (a workspace descend promotes it), so the
+    // event's origin wins over the cached one.
+    const origin = event.project?.origin;
+    const promoted = origin && origin !== found.origin ? { ...found, origin } : found;
+    const next = applySessionUpsert(promoted, event);
     return next === found ? projects : projects.map((project) => project === found ? next : project);
   }
   if (!event.project) return projects;
@@ -139,7 +144,7 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
     if (!id || !project?.projectId) return;
     const now = new Date().toISOString();
     const session: ProjectSession = { id, summary: summary ?? '', messageCount: 0, createdAt: now, created_at: now, updated_at: now, lastActivity: now, __provider: provider, __projectId: project.projectId };
-    const event: SessionUpsert = { kind: 'session_upserted', sessionId: id, provider, session, project: { projectId: project.projectId, path: project.path || project.fullPath, fullPath: project.fullPath || project.path || '', displayName: project.displayName, isStarred: Boolean(project.isStarred) }, timestamp: now };
+    const event: SessionUpsert = { kind: 'session_upserted', sessionId: id, provider, session, project: { projectId: project.projectId, path: project.path || project.fullPath, fullPath: project.fullPath || project.path || '', displayName: project.displayName, isStarred: Boolean(project.isStarred), origin: project.origin }, timestamp: now };
     client.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (cached) => updateProjectCache(cached ?? [], event));
     setSelectedProject((current) => current?.projectId === project.projectId ? applySessionUpsert(current, event) : current);
     setSelectedSession((current) => current?.id === id ? { ...current, ...session } : session);

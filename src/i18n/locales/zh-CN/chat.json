@@ -224,5 +224,17 @@
     "generating": "正在生成计划...",
     "revise": "修改",
     "build": "执行"
+  },
+  "workspaceTarget": {
+    "chooseRepo": "选择仓库",
+    "keepAtRoot": "保留在根目录",
+    "target": "→ {{name}}",
+    "search": "搜索仓库…",
+    "noMatch": "没有匹配的仓库",
+    "reason": {
+      "mention": "已提及",
+      "partial": "部分匹配",
+      "recent": "最近活跃"
+    }
   }
 }

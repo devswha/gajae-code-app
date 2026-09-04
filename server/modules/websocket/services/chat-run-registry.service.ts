@@ -104,6 +104,7 @@ async function broadcastSessionUpsert(sessionId: string): Promise<void> {
       fullPath: project.project_path,
       displayName,
       isStarred: Boolean(project.isStarred),
+      origin: project.origin,
     },
     timestamp: new Date().toISOString(),
   });

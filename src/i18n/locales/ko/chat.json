@@ -224,5 +224,17 @@
     "generating": "계획 생성 중...",
     "revise": "수정",
     "build": "진행"
+  },
+  "workspaceTarget": {
+    "chooseRepo": "저장소 선택",
+    "keepAtRoot": "루트에 유지",
+    "target": "→ {{name}}",
+    "search": "저장소 검색…",
+    "noMatch": "일치하는 저장소 없음",
+    "reason": {
+      "mention": "언급됨",
+      "partial": "부분 일치",
+      "recent": "최근 활동"
+    }
   }
 }

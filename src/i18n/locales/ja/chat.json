@@ -224,5 +224,17 @@
     "generating": "計画を生成中...",
     "revise": "修正",
     "build": "実行"
+  },
+  "workspaceTarget": {
+    "chooseRepo": "リポジトリを選択",
+    "keepAtRoot": "ルートのまま",
+    "target": "→ {{name}}",
+    "search": "リポジトリを検索…",
+    "noMatch": "一致するリポジトリなし",
+    "reason": {
+      "mention": "言及あり",
+      "partial": "部分一致",
+      "recent": "最近の活動"
+    }
   }
 }

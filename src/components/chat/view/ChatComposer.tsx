@@ -17,6 +17,7 @@ import { classifyCommandInput, isAutoSendable } from '../commandDispatchPolicy';
 import { useVoiceInput } from '../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../hooks/useVoiceAvailable';
 import type { PendingCommandGate, QueuedDraft } from '../hooks/useChatComposerState';
+import type { WorkspaceCandidate } from '../hooks/useWorkspaceTarget';
 import type { PendingPermissionRequest, PermissionDecision } from '../types/types';
 import type { ProviderModelOption } from '../../../types/app';
 import type { PermissionModeUpdate, ProjectPermissions } from '../../../hooks/useProjectPermissions';
@@ -44,6 +45,7 @@ import PermissionModePicker from './PermissionModePicker';
 import ContextUsageBadge from './ContextUsageBadge';
 import type { ReasoningEffort } from './reasoningEffort';
 import SkillPicker from './SkillPicker';
+import WorkspaceTargetChip from './WorkspaceTargetChip';
 
 interface MentionableFile {
   name: string;
@@ -133,6 +135,12 @@ interface ChatComposerProps {
   permissions?: ProjectPermissions | null;
   onSelectPermissionMode?: (update: PermissionModeUpdate) => Promise<unknown> | unknown;
   permissionsBusy?: boolean;
+  /** True when the selected project is a workspace root; shows the target chip. */
+  isWorkspace?: boolean;
+  workspaceRootName?: string;
+  workspaceCandidates?: WorkspaceCandidate[];
+  workspaceTarget?: WorkspaceCandidate | null;
+  onPickWorkspaceTarget?: (candidate: WorkspaceCandidate | null) => void;
 }
 
 export default function ChatComposer({
@@ -198,6 +206,11 @@ export default function ChatComposer({
   permissions = null,
   onSelectPermissionMode = () => {},
   permissionsBusy = false,
+  isWorkspace = false,
+  workspaceRootName = '',
+  workspaceCandidates = [],
+  workspaceTarget = null,
+  onPickWorkspaceTarget = () => {},
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const commandMenuPosition = useMemo(() => {
@@ -303,6 +316,15 @@ export default function ChatComposer({
           onMoveDown={index < queuedDrafts.length - 1 ? () => onMoveQueuedDraft(index, index + 1) : undefined}
         />
       ))}
+
+      {isWorkspace && (
+        <WorkspaceTargetChip
+          workspaceRootName={workspaceRootName}
+          candidates={workspaceCandidates}
+          target={workspaceTarget}
+          onPick={onPickWorkspaceTarget}
+        />
+      )}
 
       {!hasQuestionPanel && <div className="relative mx-auto max-w-chat">
         {showFileDropdown && filteredFiles.length > 0 && (

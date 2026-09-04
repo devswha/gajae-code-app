@@ -224,5 +224,17 @@
     "generating": "Plan oluşturuluyor...",
     "revise": "Gözden geçir",
     "build": "Uygula"
+  },
+  "workspaceTarget": {
+    "chooseRepo": "depo seç",
+    "keepAtRoot": "Kökte kal",
+    "target": "→ {{name}}",
+    "search": "Depolarda ara…",
+    "noMatch": "Eşleşen depo yok",
+    "reason": {
+      "mention": "Bahsedildi",
+      "partial": "Kısmi eşleşme",
+      "recent": "Son etkinlik"
+    }
   }
 }

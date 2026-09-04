@@ -41,7 +41,7 @@ const projectStore: CreateProjectDependencies = {
   validatePath: validateWorkspacePath, // shared workspace gate from utils
 };
 
-function projectApiView(project: ProjectRepositoryRow): ProjectApiView {
+export function projectApiView(project: ProjectRepositoryRow): ProjectApiView {
   const fullPath = project.project_path;
   const view: ProjectApiView = {
     projectId: project.project_id,

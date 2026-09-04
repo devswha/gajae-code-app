@@ -6,6 +6,7 @@ import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import readline from 'node:readline';
+import { pathToFileURL } from 'node:url';
 
 import {
   Browser as BrowserBinary,
@@ -45,6 +46,24 @@ import {
   type BrowserWaitUntil,
 } from './browser-protocol.js';
 import { normalizeAutomationUrl } from './automation-url.js';
+
+const PUPPETEER_KEY_NAMES = new Set([
+  'Backspace', 'Tab', 'Enter', 'Escape', 'Shift', 'Control', 'Alt', 'Meta',
+  'CapsLock', 'Delete', 'Insert', 'Home', 'End', 'PageUp', 'PageDown',
+  'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown', 'NumLock', 'ScrollLock',
+  'Pause', 'PrintScreen', 'ContextMenu',
+]);
+
+export function toPuppeteerKeyInput(key: string, code?: string): string | null {
+  void code;
+  if (key === 'OS') return 'Meta';
+  if (key === 'Scroll') return 'ScrollLock';
+  if (key === 'Esc') return 'Escape';
+  if (key === 'Del') return 'Delete';
+  if (key === ' ') return 'Space';
+  if (PUPPETEER_KEY_NAMES.has(key) || /^F(?:[1-9]|1[0-2])$/.test(key) || key.length === 1) return key;
+  return null;
+}
 
 type Tab = {
   id: string;
@@ -335,12 +354,18 @@ class BrowserRuntime {
     } else if (input.kind === 'text') {
       await cdp.send('Input.insertText', { text: input.text });
     } else {
-      await cdp.send('Input.dispatchKeyEvent', {
-        type: input.event === 'down' ? 'keyDown' : 'keyUp',
-        key: input.key,
-        code: input.code ?? input.key,
-        modifiers: input.modifiers ?? 0,
-      });
+      const keyInput = toPuppeteerKeyInput(input.key, input.code);
+      if (keyInput) {
+        if (input.event === 'down') await tab.page.keyboard.down(keyInput as KeyInput);
+        else await tab.page.keyboard.up(keyInput as KeyInput);
+      } else {
+        await cdp.send('Input.dispatchKeyEvent', {
+          type: input.event === 'down' ? 'keyDown' : 'keyUp',
+          key: input.key,
+          code: input.code ?? input.key,
+          modifiers: input.modifiers ?? 0,
+        });
+      }
     }
     return { accepted: true };
   }
@@ -770,15 +795,19 @@ function enqueue(frame: BrowserRequestFrame): void {
   globalRequestQueue = globalRequestQueue.then(() => handle(frame)).catch(reportQueueError);
 }
 
-readline.createInterface({ input: process.stdin, crlfDelay: Infinity }).on('line', (line) => {
-  try {
-    for (const frame of decoder.push(`${line}\n`)) {
-      if (frame.kind !== 'request') throw new Error('Only request frames are accepted.');
-      enqueue(frame);
+function runBrowserSidecarEntrypoint(): void {
+  readline.createInterface({ input: process.stdin, crlfDelay: Infinity }).on('line', (line) => {
+    try {
+      for (const frame of decoder.push(`${line}\n`)) {
+        if (frame.kind !== 'request') throw new Error('Only request frames are accepted.');
+        enqueue(frame);
+      }
+    } catch (error) {
+      reportQueueError(error);
     }
-  } catch (error) {
-    reportQueueError(error);
-  }
-});
+  });
 
-emit('ready', { protocolVersion: BROWSER_PROTOCOL_VERSION });
+  emit('ready', { protocolVersion: BROWSER_PROTOCOL_VERSION });
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) runBrowserSidecarEntrypoint();

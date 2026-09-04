@@ -314,6 +314,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.nativeEvent.isComposing) return;
     if (event.metaKey || event.ctrlKey || event.altKey || event.key.length !== 1) {
       event.preventDefault();
       sendInput({ kind: 'key', event: 'down', key: event.key, code: event.code, modifiers: (event.altKey ? 1 : 0) | (event.ctrlKey ? 2 : 0) | (event.metaKey ? 4 : 0) | (event.shiftKey ? 8 : 0) });
@@ -469,6 +470,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
               });
             }}
             onPointerDown={(event) => {
+              surfaceRef.current?.focus();
               const point = framePoint(event);
               if (!point) return;
               event.currentTarget.setPointerCapture(event.pointerId);

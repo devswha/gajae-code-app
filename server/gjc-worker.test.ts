@@ -6,6 +6,7 @@ import { test } from 'node:test';
 
 import {
   GJC_WORKER_PROTOCOL_VERSION,
+  GJC_WORKER_REQUEST_METHODS,
   GjcWorkerNdjsonDecoder,
   parseGjcWorkerFrame,
   serializeGjcWorkerFrame,
@@ -13,6 +14,7 @@ import {
   type GjcWorkerRequestFrame,
 } from './gjc-worker-protocol.js';
 import { GjcRunPermissionsError } from './gjc-permission-policy.js';
+import { GJC_CLEANUP_UNCONFIRMED_CODE, GJC_CLEANUP_UNCONFIRMED_MESSAGE, GjcCleanupUnconfirmedError, isGjcCleanupUnconfirmedError } from './gjc-cleanup-error.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE, GjcModelResolutionError } from './gjc-model-resolution.js';
 import { claimProtocolStdout, GjcWorkerHost, runGjcWorkerEntrypoint, type GjcWorkerRuntime, type GjcWorkerWriter } from './gjc-worker.js';
 
@@ -42,6 +44,66 @@ async function initialized(fake = fakeRuntime()) {
   await host.handle(request('worker.initialize', 'init'));
   return { fake, frames, host };
 }
+
+test('cleanup failure requires the app-owned brand, not a provider name, code, message or prototype', () => {
+  const genuine = new GjcCleanupUnconfirmedError();
+  assert.equal(isGjcCleanupUnconfirmedError(genuine), true);
+  assert.equal(genuine.message, GJC_CLEANUP_UNCONFIRMED_MESSAGE);
+  for (const spoof of [
+    GJC_CLEANUP_UNCONFIRMED_MESSAGE, null, undefined,
+    Object.assign(new Error(GJC_CLEANUP_UNCONFIRMED_MESSAGE), { name: genuine.name, code: GJC_CLEANUP_UNCONFIRMED_CODE }),
+    Object.create(GjcCleanupUnconfirmedError.prototype),
+    { name: genuine.name, code: GJC_CLEANUP_UNCONFIRMED_CODE, message: genuine.message },
+  ]) assert.equal(isGjcCleanupUnconfirmedError(spoof), false);
+});
+
+test('fatal cleanup fences all worker requests and sibling events without retiring uncertain runs', async () => {
+  const fake = fakeRuntime();
+  const frames: Array<{ kind?: string; id?: string; method?: string; payload?: any }> = [];
+  const host = new GjcWorkerHost({ runtime: async () => fake.runtime, emit: (frame) => frames.push(frame), closeDrainMs: 1 });
+  await host.handle(request('worker.initialize', 'init'));
+  const first = host.handle(request('session.start', 'fatal-run', { message: 'first', options: {} }, 'scope-a'));
+  const second = host.handle(request('session.start', 'sibling-run', { message: 'second', options: {} }, 'scope-b'));
+  fake.runs[0]!.run.reject(new GjcCleanupUnconfirmedError());
+  await first;
+  const fatal = frames.find((frame) => frame.id === 'fatal-run')!;
+  assert.deepEqual(fatal.payload, { ok: false, error: { code: GJC_CLEANUP_UNCONFIRMED_CODE, message: GJC_CLEANUP_UNCONFIRMED_MESSAGE } });
+  const before = frames.length;
+  fake.runs[1]!.writer!.send({ kind: 'complete', exitCode: 0 });
+  fake.runs[1]!.writer!.send({ kind: 'permission_request', requestId: 'late-ask' });
+  fake.runs[1]!.writer!.setSessionId!('late-provider-id');
+  assert.equal(frames.length, before);
+  for (const method of GJC_WORKER_REQUEST_METHODS) {
+    const id = `blocked-${method}`;
+    await host.handle(request(method, id, {}, 'scope-c'));
+    assert.equal(frames.find((frame) => frame.id === id)!.payload.error.code, GJC_CLEANUP_UNCONFIRMED_CODE);
+  }
+  assert.equal(fake.runs.length, 2, 'no request reached the runtime after poisoning');
+  fake.runs[1]!.run.resolve();
+  await second;
+  assert.equal(frames.find((frame) => frame.id === 'sibling-run')!.payload.error.code, GJC_CLEANUP_UNCONFIRMED_CODE);
+  assert.equal(frames.some((frame) => frame.kind === 'event' && ['turn.completed', 'turn.failed'].includes(frame.method!)), false);
+  assert.equal(frames.some((frame) => frame.method === 'worker.status' && frame.payload.processId === null), false,
+    'unconfirmed cleanup must not erase process ownership before reaping');
+  assert.equal(JSON.stringify(frames).includes('"aborted":true'), false);
+  await host.close();
+});
+
+test('ordinary provider failures that imitate fatal cleanup remain nonfatal', async () => {
+  const { fake, host, frames } = await initialized();
+  const first = host.handle(request('session.start', 'benign-failure', { message: 'first', options: {} }));
+  fake.runs[0]!.run.reject(Object.assign(new Error(GJC_CLEANUP_UNCONFIRMED_MESSAGE), {
+    name: 'GjcCleanupUnconfirmedError', code: GJC_CLEANUP_UNCONFIRMED_CODE,
+  }));
+  await first;
+  assert.equal((frames.find((frame: any) => frame.id === 'benign-failure') as any).payload.error.code, 'run_failed');
+  const second = host.handle(request('session.start', 'healthy-reuse', { message: 'second', options: {} }));
+  assert.equal(fake.runs.length, 2);
+  fake.runs[1]!.run.resolve();
+  await second;
+  assert.equal((frames.find((frame: any) => frame.id === 'healthy-reuse') as any).payload.ok, true);
+  await host.close();
+});
 
 test('requires initialization exactly once and completes the handshake', async () => {
   const fake = fakeRuntime(); const frames: unknown[] = []; const host = new GjcWorkerHost({ runtime: async () => fake.runtime, emit: (frame) => frames.push(frame) });

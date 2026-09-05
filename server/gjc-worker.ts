@@ -19,6 +19,7 @@ import {
   type JsonValue,
 } from './gjc-worker-protocol.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE, isGjcModelResolutionError } from './gjc-model-resolution.js';
+import { GJC_CLEANUP_UNCONFIRMED_CODE, GJC_CLEANUP_UNCONFIRMED_MESSAGE, isGjcCleanupUnconfirmedError } from './gjc-cleanup-error.js';
 
 export type GjcWorkerWriter = {
   send(value: unknown): void;
@@ -152,6 +153,16 @@ function awaitAbort(promise: Promise<boolean>, timeoutMs: number): Promise<boole
 
 /** Isolated Protocol v1 host; its only output is supplied through emit. */
 export class GjcWorkerHost {
+  #cleanupUnconfirmed = false;
+
+  #poisonOnCleanupFailure(error: unknown): void {
+    if (!isGjcCleanupUnconfirmedError(error) || this.#cleanupUnconfirmed) return;
+    this.#cleanupUnconfirmed = true;
+    this.#closed = true;
+    // Signal the fatal response without waiting for graceful shutdown. Only
+    // the supervising process can establish that this generation was reaped.
+    void Promise.resolve().then(() => this.close()).catch(() => {});
+  }
   readonly #emit: GjcWorkerHostOptions['emit'];
   readonly #diagnostic: (message: string) => void;
   readonly #loadRuntime: NonNullable<GjcWorkerHostOptions['runtime']>;
@@ -187,6 +198,7 @@ export class GjcWorkerHost {
   }
 
   async handle(request: GjcWorkerRequestFrame): Promise<void> {
+    if (this.#cleanupUnconfirmed) return this.#response(request, failure(GJC_CLEANUP_UNCONFIRMED_CODE, GJC_CLEANUP_UNCONFIRMED_MESSAGE));
     if (this.#closed) return this.#response(request, failure('worker_closed', 'Worker is no longer accepting requests.'));
     if (request.method === 'worker.initialize') return this.#initialize(request);
     if (!this.#initialized) return this.#response(request, failure('not_initialized', 'Worker must be initialized before use.'));
@@ -231,10 +243,11 @@ export class GjcWorkerHost {
   }
 
   #response(request: GjcWorkerRequestFrame, response: ReturnType<typeof success> | ReturnType<typeof failure>): void {
+    if (this.#cleanupUnconfirmed) response = failure(GJC_CLEANUP_UNCONFIRMED_CODE, GJC_CLEANUP_UNCONFIRMED_MESSAGE);
     this.#emit({ protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'response', id: request.id, method: request.method, payload: response, ...('sessionId' in request ? { sessionId: request.sessionId } : {}) } as GjcWorkerResponseFrame);
   }
   #event(run: Run, method: Exclude<GjcWorkerEventFrame['method'], GjcWorkerGlobalEventMethod>, eventPayload: JsonObject): void {
-    if (!run.active || this.#runs.get(run.runId) !== run) return;
+    if (this.#cleanupUnconfirmed || !run.active || this.#runs.get(run.runId) !== run) return;
     this.#emit({ protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'event', id: `event-${randomUUID()}`, method, sessionId: run.scope, payload: { runId: run.runId, ...eventPayload } });
   }
   #oauthEvent(event: GjcWorkerOAuthEvent): void {
@@ -274,6 +287,7 @@ export class GjcWorkerHost {
     try {
       this.#response(request, success(await runtime.modelCatalog()));
     } catch (error) {
+      this.#poisonOnCleanupFailure(error);
       this.#diagnose('model catalog failed', error);
       this.#response(request, failure('model_catalog_failed', 'Model catalog is unavailable.'));
     }
@@ -359,9 +373,9 @@ export class GjcWorkerHost {
     const writer: GjcWorkerWriter = {
       send: (message) => this.#normalized(run, message),
       setSessionId: (providerSessionId) => this.#captureSession(run, providerSessionId),
-      setCredential: (credential) => { if (run.active) run.credential = credential; },
-      setModel: (model) => { if (run.active) run.model = model; },
-      setAborted: () => { if (run.active) run.aborted = true; },
+      setCredential: (credential) => { if (!this.#cleanupUnconfirmed && run.active) run.credential = credential; },
+      setModel: (model) => { if (!this.#cleanupUnconfirmed && run.active) run.model = model; },
+      setAborted: () => { if (!this.#cleanupUnconfirmed && run.active) run.aborted = true; },
     };
     let completed = false;
     let invalidPermissions = false;
@@ -387,40 +401,60 @@ export class GjcWorkerHost {
       // app's model selection or the runtime's default role did it).
       invalidPermissions = isGjcRunPermissionsError(error);
       modelUnresolved = isGjcModelResolutionError(error);
+      this.#poisonOnCleanupFailure(error);
       this.#diagnose(`run ${run.runId} failed`, error);
     } finally {
-      if (run.abortPromise) {
-        const aborted = await awaitAbort(run.abortPromise, this.#closeDrainMs);
-        if (aborted === undefined || run.abortDeadlineExceeded) {
-          run.abortDeadlineExceeded = true;
-          completed = false;
-        } else {
-          // A rejected abort (false) leaves the run active per the live spec;
-          // the spawned run outcome alone governs `completed`.
-          run.aborted = run.aborted || aborted;
-        }
-      }
-      const result: JsonObject = {
-        runId: run.runId,
-        ...(run.providerSessionId ? { providerSessionId: run.providerSessionId } : {}),
-        ...(run.credential ? { credential: run.credential } : {}),
-        ...(run.model ? { model: run.model } : {}),
-        ...(run.aborted ? { aborted: true } : {}),
-      };
-      this.#event(run, 'worker.status', { processId: null });
-      const failed = invalidPermissions
-        ? failure(GJC_INVALID_PERMISSIONS_CODE, GJC_INVALID_PERMISSIONS_MESSAGE)
-        : modelUnresolved
-          ? failure(GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE)
-          : failure('run_failed', 'GJC run failed.');
-      this.#response(request, completed ? success(result) : failed);
-      run.active = false;
-      if (this.#runs.get(run.runId) === run) this.#runs.delete(run.runId);
-      run.resolveCompletion();
+      await this.#settleStart(request, run, { completed, invalidPermissions, modelUnresolved });
     }
   }
+
+  async #settleStart(
+    request: Extract<GjcWorkerRequestFrame, { sessionId: string }>,
+    run: Run,
+    status: { completed: boolean; invalidPermissions: boolean; modelUnresolved: boolean },
+  ): Promise<void> {
+    let { completed } = status;
+    const { invalidPermissions, modelUnresolved } = status;
+    if (this.#cleanupUnconfirmed) {
+      this.#response(request, failure(GJC_CLEANUP_UNCONFIRMED_CODE, GJC_CLEANUP_UNCONFIRMED_MESSAGE));
+      return;
+    }
+    if (run.abortPromise) {
+      const aborted = await awaitAbort(run.abortPromise, this.#closeDrainMs);
+      if (aborted === undefined || run.abortDeadlineExceeded) {
+        run.abortDeadlineExceeded = true;
+        completed = false;
+      } else {
+        // A rejected abort (false) leaves the run active per the live spec;
+        // the spawned run outcome alone governs `completed`.
+        run.aborted = run.aborted || aborted;
+      }
+    }
+    const result: JsonObject = {
+      runId: run.runId,
+      ...(run.providerSessionId ? { providerSessionId: run.providerSessionId } : {}),
+      ...(run.credential ? { credential: run.credential } : {}),
+      ...(run.model ? { model: run.model } : {}),
+      ...(run.aborted ? { aborted: true } : {}),
+    };
+    // A sibling may poison the worker while this run awaits an abort.
+    if (this.#cleanupUnconfirmed) {
+      this.#response(request, failure(GJC_CLEANUP_UNCONFIRMED_CODE, GJC_CLEANUP_UNCONFIRMED_MESSAGE));
+      return;
+    }
+    this.#event(run, 'worker.status', { processId: null });
+    const failed = invalidPermissions
+      ? failure(GJC_INVALID_PERMISSIONS_CODE, GJC_INVALID_PERMISSIONS_MESSAGE)
+      : modelUnresolved
+        ? failure(GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE)
+        : failure('run_failed', 'GJC run failed.');
+    this.#response(request, completed ? success(result) : failed);
+    run.active = false;
+    if (this.#runs.get(run.runId) === run) this.#runs.delete(run.runId);
+    run.resolveCompletion();
+  }
   #captureSession(run: Run, providerSessionId: string): void {
-    if (!run.active || !providerSessionId || run.providerSessionId === providerSessionId) return;
+    if (this.#cleanupUnconfirmed || !run.active || !providerSessionId || run.providerSessionId === providerSessionId) return;
     run.providerSessionId = providerSessionId;
     this.#event(run, 'session.created', { providerSessionId });
   }
@@ -475,6 +509,7 @@ export class GjcWorkerHost {
       }
       return this.#response(request, success(json(result)));
     } catch (error) {
+      this.#poisonOnCleanupFailure(error);
       return this.#response(request, failure('goal_control_failed', error instanceof Error ? error.message : 'Goal operation failed.'));
     }
   }
@@ -503,6 +538,7 @@ export class GjcWorkerHost {
       const steered = await steer.call(this.#runtime, run.abortHandle ?? run.providerSessionId ?? run.runId, input.message);
       this.#response(request, success({ runId: run.runId, steered }));
     } catch (error) {
+      this.#poisonOnCleanupFailure(error);
       this.#diagnose(`run ${run.runId} steer failed`, error);
       this.#response(request, failure('steer_failed', 'Unable to steer the run.'));
     }
@@ -518,7 +554,7 @@ export class GjcWorkerHost {
     try {
       run.abortPromise ??= this.#runtime!.abortGjcSession(
         run.abortHandle ?? run.providerSessionId ?? run.runId,
-      );
+      ).catch((error) => { this.#poisonOnCleanupFailure(error); throw error; });
       const aborted = await awaitAbort(run.abortPromise, this.#closeDrainMs);
       if (aborted === undefined || run.abortDeadlineExceeded) {
         run.abortDeadlineExceeded = true;
@@ -531,7 +567,8 @@ export class GjcWorkerHost {
         run.aborted = aborted;
         this.#response(request, success({ runId: run.runId, aborted }));
       }
-    } catch {
+    } catch (error) {
+      this.#poisonOnCleanupFailure(error);
       run.abortPromise = undefined;
       this.#response(request, failure('abort_failed', 'Unable to abort the run.'));
     }
@@ -554,7 +591,8 @@ export class GjcWorkerHost {
         runId: run.runId,
         accepted: this.#runtime!.resolveGjcToolApproval(input.requestId, input.decision),
       }));
-    } catch {
+    } catch (error) {
+      this.#poisonOnCleanupFailure(error);
       this.#response(request, failure('reply_failed', 'Unable to submit the reply.'));
     }
   }

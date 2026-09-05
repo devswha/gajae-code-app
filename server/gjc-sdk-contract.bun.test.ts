@@ -36,6 +36,7 @@ import {
 } from './gjc-worker-protocol.js';
 import { GjcWorkerHost } from './gjc-worker.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE } from './gjc-model-resolution.js';
+import { GJC_CLEANUP_UNCONFIRMED_CODE } from './gjc-cleanup-error.js';
 
 type Listener = (event: unknown) => void;
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: Error): void };
@@ -2164,7 +2165,9 @@ test('rejecting session disposal emits the fixed diagnostic and fails the run', 
       const message = (frame.payload as { message?: Record<string, unknown> })?.message;
       return message?.kind === 'complete' ? [message.exitCode] : [];
     });
-    assert.deepEqual(terminals, [1], 'cleanup failure must never follow a successful completion frame');
+    assert.deepEqual(terminals, [], 'Node must emit the failure terminal only after verified worker reaping');
+    assert.equal(((response(f.frames, 'dispose-rejects').payload as Record<string, unknown>).error as { code: string }).code,
+      GJC_CLEANUP_UNCONFIRMED_CODE);
   } finally {
     console.error = originalError;
     await f.close();

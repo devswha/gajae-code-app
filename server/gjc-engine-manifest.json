@@ -19,6 +19,7 @@
     "server/gjc-bun-sdk-adapter.ts",
     "server/gjc-bun-sdk-events.ts",
     "server/gjc-bun-worker.ts",
+    "server/gjc-cleanup-error.ts",
     "server/gjc-cli-shim.ts",
     "server/gjc-cli.js",
     "server/gjc-command-surface.generated.ts",

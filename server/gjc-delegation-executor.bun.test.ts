@@ -26,6 +26,9 @@ import { GjcDelegationExecutor, serializeGjcDelegationAutomationTools } from './
 import type { GjcPermissionProvider } from './gjc-bun-permission-gate.js';
 import { GjcBunSdkAdapter } from './gjc-bun-sdk-adapter.js';
 import { installGjcCliShim } from './gjc-cli-shim.js';
+import { GJC_CLEANUP_UNCONFIRMED_CODE, isGjcCleanupUnconfirmedError } from './gjc-cleanup-error.js';
+import { GjcWorkerHost } from './gjc-worker.js';
+import { GJC_WORKER_PROTOCOL_VERSION, type GjcWorkerRequestFrame } from './gjc-worker-protocol.js';
 
 type Session = Awaited<ReturnType<typeof createAgentSession>>['session'];
 type Snapshot = { id: string; status: string; resultText: string };
@@ -587,6 +590,111 @@ for (const goalMode of ['unavailable', 'idle', 'active'] as const) {
   test(`production adapter preserves delegation and permissions with ${goalMode} root GOAL`, { timeout: 30_000 },
     () => verifyProductionAdapterDelegation(goalMode));
 }
+
+async function verifyRealChildCleanupFailure(failureMode: 'permanent' | 'transient') {
+  const entered = deferred();
+  let childStopped = false;
+  let child: Session | undefined;
+  let originalAbort: (() => Promise<void>) | undefined;
+  let attempts = 0;
+  const f = await fixture((context, options) => {
+    if (context.systemPrompt?.some((block) => block.includes('You are a delegated executor'))) {
+      const events = new AssistantMessageEventStream();
+      options?.signal?.addEventListener('abort', () => {
+        childStopped = true;
+        const output = answer(); output.stopReason = 'aborted';
+        events.push({ type: 'error', reason: 'aborted', error: output }); events.end(output);
+      }, { once: true });
+      entered.resolve();
+      return events;
+    }
+    if (!context.messages.some((message) => message.role === 'toolResult')) {
+      const output = answer(); output.stopReason = 'toolUse';
+      output.content = [{ type: 'toolCall', id: 'held-child', name: 'task', arguments: task('Hold until cancellation.') }];
+      return stream(output);
+    }
+    const events = new AssistantMessageEventStream();
+    void entered.promise.then(() => {
+      const output = answer('The owner turn ends while its child is still active.');
+      events.push({ type: 'done', reason: 'stop', message: output }); events.end(output);
+    });
+    return events;
+  });
+  const previous = process.env.GJC_RUNTIME_API_KEY;
+  process.env.GJC_RUNTIME_API_KEY = 'offline-delegation-credential';
+  let host: GjcWorkerHost | undefined;
+  try {
+    let factoryCalls = 0;
+    const adapter = new GjcBunSdkAdapter(f.authStorage, f.registry, {
+      settings: f.settings, generateSessionTitle: async () => null,
+      createSessionFactory: async (input) => {
+        factoryCalls += 1;
+        const output = await createAgentSession({ ...input, agentDir: f.base.agentDir,
+          enableMcpAutoload: false, enableLsp: false, skipPythonPreflight: true, disableExtensionDiscovery: true,
+          skills: [], rules: [], contextFiles: [], promptTemplates: [], slashCommands: [],
+        });
+        if (input!.currentAgentType === 'executor') {
+          child = output.session; originalAbort = child.abort.bind(child);
+          child.abort = async () => {
+            attempts += 1;
+            if (failureMode === 'permanent' || attempts === 1) throw new Error('private child abort payload');
+            await originalAbort!();
+          };
+        }
+        return output;
+      },
+    });
+    const frames: Array<Record<string, any>> = [];
+    host = new GjcWorkerHost({ runtime: async () => adapter, emit: (frame) => frames.push(frame), closeDrainMs: 1 });
+    await host.handle({ protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'request', method: 'worker.initialize', id: 'init', payload: {} });
+    const start: GjcWorkerRequestFrame = {
+      protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'request', method: 'session.start', id: 'fatal-cleanup', sessionId: 'fatal-scope',
+      payload: { message: 'Start the held child, then end this turn.', options: {
+        cwd: f.base.cwd!, sessionRoot: join(f.root, 'adapter-sessions'), goalOwner: 'number:1', goalUiVersion: 1,
+        modelId: 'openai-codex/gpt-6-astra', effort: 'xhigh', credential: { kind: 'runtime-env', envVar: 'GJC_RUNTIME_API_KEY' },
+        toolNames: ['task', 'subagent'], spawns: '*', bashPolicy: { allowedPrefixes: [] }, permissions: { mode: 'ask', allowAlways: ['task'] },
+      } },
+    };
+    await within(host.handle(start));
+    if (failureMode === 'transient') {
+      assert.equal(frames.find((frame) => frame.id === 'fatal-cleanup')!.payload.error.code, 'run_failed');
+      assert.equal(childStopped, true);
+      assert.equal(attempts, 2);
+      assert.deepEqual(frames.filter((frame) => ['turn.completed', 'turn.failed'].includes(frame.method))
+        .map((frame) => frame.payload.message.exitCode), [1]);
+      await host.handle({ protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'request', method: 'models.catalog', id: 'healthy-catalog', payload: {} });
+      assert.equal(frames.find((frame) => frame.id === 'healthy-catalog')!.payload.ok, true);
+      assert.ok(!JSON.stringify(frames).includes('private child abort payload'));
+      return;
+    }
+    assert.equal(frames.find((frame) => frame.id === 'fatal-cleanup')!.payload.error.code, GJC_CLEANUP_UNCONFIRMED_CODE);
+    assert.equal(childStopped, false, 'failed aborts are not successful cleanup; the supervisor must reap this worker');
+    assert.ok(attempts >= 3);
+    assert.equal(frames.some((frame) => ['turn.completed', 'turn.failed'].includes(frame.method)), false);
+    assert.equal(frames.some((frame) => frame.method === 'worker.status' && frame.payload.processId === null), false);
+    assert.ok(!JSON.stringify(frames).includes('private child abort payload'));
+    assert.ok(!JSON.stringify(frames).includes('"aborted":true'));
+    await host.handle({ ...start, id: 'blocked-scope', sessionId: 'another-scope' });
+    assert.equal(frames.find((frame) => frame.id === 'blocked-scope')!.payload.error.code, GJC_CLEANUP_UNCONFIRMED_CODE);
+    assert.equal(factoryCalls, 2);
+    assert.throws(() => adapter.spawnGjc('blocked', {}, { send() {} }), isGjcCleanupUnconfirmedError);
+    await assert.rejects(adapter.abortGjcSession('fatal-cleanup'), isGjcCleanupUnconfirmedError);
+    await assert.rejects(adapter.modelCatalog(), isGjcCleanupUnconfirmedError);
+    assert.throws(() => adapter.resolveGjcToolApproval('unknown', { allow: true }), isGjcCleanupUnconfirmedError);
+  } finally {
+    // Test-only substitute for process termination after the orphan/fatal
+    // assertions. Production termination belongs exclusively to Node's reaper.
+    if (child && originalAbort) { child.abort = originalAbort; if (!childStopped) await originalAbort(); await child.dispose(); }
+    await host?.close();
+    if (previous === undefined) delete process.env.GJC_RUNTIME_API_KEY; else process.env.GJC_RUNTIME_API_KEY = previous;
+    await f.close();
+  }
+}
+
+test('permanent real child abort rejection poisons the worker without emitting a terminal or claiming abort', { timeout: 30_000 },
+  () => verifyRealChildCleanupFailure('permanent'));
+test('recovered transient child cleanup failure leaves the shared worker healthy', { timeout: 30_000 },
+  () => verifyRealChildCleanupFailure('transient'));
 
 test('children pin the parent’s actual stored account and resume with its new account', { timeout: 30_000 }, async () => {
   const f = await fixture(undefined, undefined, undefined, true);

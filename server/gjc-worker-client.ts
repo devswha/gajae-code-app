@@ -10,6 +10,7 @@ import type { Writable } from 'node:stream';
 import type { GjcGoalCommand, GjcGoalSnapshot, GjcGoalScope } from '../shared/gjc-goal.js';
 
 import {
+  GJC_CLEANUP_UNCONFIRMED_CODE,
   GJC_AGENT_TOOL_NAMES,
   GJC_INVALID_PERMISSIONS_CODE,
   GJC_INVALID_PERMISSIONS_MESSAGE,
@@ -147,6 +148,7 @@ type Run = {
   options: GjcWorkerOptions;
   aborted: boolean;
   runtimeAborted?: boolean;
+  cleanupUnconfirmed?: boolean;
   abortPromise?: Promise<boolean>;
   phase: RunPhase;
   terminalForwarded: boolean;
@@ -842,6 +844,9 @@ export class GjcWorkerSupervisor {
     if (child !== this.child) return;
     try {
       for (const frame of this.decoder?.push(chunk) ?? []) {
+        // A fatal response can retire this generation midway through a batch.
+        // Its remaining frames must not publish terminals or satisfy requests.
+        if (child !== this.child) break;
         if (frame.kind === 'response') this.handleResponse(frame);
         else if (frame.kind === 'event') this.handleEvent(frame);
         else throw new GjcWorkerProtocolError('unexpected_request', 'Worker emitted a request frame.');
@@ -850,6 +855,16 @@ export class GjcWorkerSupervisor {
   }
 
   private handleResponse(response: GjcWorkerResponseFrame): void {
+    if (!response.payload.ok && response.payload.error.code === GJC_CLEANUP_UNCONFIRMED_CODE) {
+      const child = this.child;
+      if (child) {
+        for (const run of this.runs.values()) run.cleanupUnconfirmed = true;
+        // Fence synchronously, before settling the request and its startRun
+        // continuation. workerFailed owns every terminal after verified reap.
+        void this.workerFailed(child);
+      }
+      return;
+    }
     const expired = this.expiredRequests.get(response.id);
     if (!expired) {
       this.tracker.settle(response);
@@ -1014,6 +1029,7 @@ export class GjcWorkerSupervisor {
   }
 
   resolveApproval(requestId: string, decision: GjcApprovalDecision): boolean {
+    if (!this.child || this.terminating || this.terminationFailure) return false;
     const pending = this.approvals.get(requestId);
     const serializedDecision = safeJsonObject(decision);
     if (!pending || !serializedDecision) return false;
@@ -1035,6 +1051,7 @@ export class GjcWorkerSupervisor {
   private restoreApproval(requestId: string, pending: PendingApproval): void {
     if (this.approvals.get(requestId) !== pending) return;
     const run = this.runs.get(pending.runId);
+    if (run?.cleanupUnconfirmed) return;
     if (!run || run.phase === 'run_terminal') {
       this.approvals.delete(requestId);
       return;
@@ -1049,6 +1066,7 @@ export class GjcWorkerSupervisor {
   }
 
   pendingApprovals(appSessionId: string): unknown[] {
+    if (!this.child || this.terminating || this.terminationFailure) return [];
     return [...this.approvals.values()]
       .filter((item) => item.appScope === appSessionId && !item.inFlight)
       .map((item) => item.message);
@@ -1056,6 +1074,16 @@ export class GjcWorkerSupervisor {
 
   private finish(run: Run, failed: boolean, failureMessage = SAFE_FAILURE, outcome: GjcWorkerOutcome = run.aborted ? 'aborted' : run.phase === 'registered' ? 'not_started' : 'completed'): void {
     if (run.phase === 'run_terminal') return;
+    if (run.cleanupUnconfirmed) {
+      if (outcome !== 'reaped') return;
+      // An abort response that raced the fatal fault is not proof that this
+      // generation drained. Preserve only terminals verified before the fault.
+      if (!run.terminalForwarded) {
+        failed = true;
+        run.aborted = false;
+        run.runtimeAborted = false;
+      }
+    }
     run.phase = 'run_terminal';
     if (!run.started) run.rejectStarted(new Error(failureMessage));
     run.resolveOutcome(outcome);

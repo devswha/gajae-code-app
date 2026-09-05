@@ -20,6 +20,7 @@ import { GjcBunOAuthController, type GjcBunOAuthControllerOptions } from './gjc-
 import { GJC_APP_BUILTIN_COMMAND_NAMES } from './gjc-command-surface.generated.js';
 import type { GjcWorkerOAuthRuntime, GjcWorkerRuntime, GjcWorkerWriter } from './gjc-worker.js';
 import { GjcBunAskController } from './gjc-bun-ask-controller.js';
+import { GjcCleanupUnconfirmedError, isGjcCleanupUnconfirmedError } from './gjc-cleanup-error.js';
 import { GjcDelegationExecutor, GJC_APP_DELEGATION_TOOL_NAMES, serializeGjcDelegationAutomationTools } from './gjc-delegation-executor.js';
 import { createGjcPermissionProvider, type GjcPermissionProvider } from './gjc-bun-permission-gate.js';
 import { forwardPromptTerminal, forwardSdkEvent, normalizeBuiltinCommandStdout, type SdkRunState } from './gjc-bun-sdk-events.js';
@@ -383,6 +384,33 @@ async function resumeManager(providerSessionId: string, sessionRoot: string): Pr
 
 /** In-process, serial-only SDK runtime. AuthStorage and ModelRegistry are app-owned singleton inputs. */
 export class GjcBunSdkAdapter implements GjcWorkerRuntime {
+  #cleanupFailure?: GjcCleanupUnconfirmedError;
+
+  #assertHealthy(): void {
+    if (this.#cleanupFailure) throw this.#cleanupFailure;
+  }
+
+  #poison(): GjcCleanupUnconfirmedError {
+    if (this.#cleanupFailure) return this.#cleanupFailure;
+    const failure = this.#cleanupFailure = new GjcCleanupUnconfirmedError();
+    // Fence every session in this shared runtime immediately. These are only
+    // best-effort aborts; the Node supervisor must prove whole-worker reaping.
+    for (const starting of this.#starting.values()) starting.abortRequested = true;
+    for (const run of this.#runs.values()) {
+      run.abortState = 'aborting';
+      run.state.abortPending = true;
+      for (const stop of [
+        () => run.goals?.fenceMutations(),
+        () => run.askController.dispose(),
+        () => run.delegation?.dispose(),
+        () => run.session.abort(),
+      ]) {
+        try { void Promise.resolve(stop()).catch(() => {}); }
+        catch { /* The fatal fault already requires OS-level termination. */ }
+      }
+    }
+    return failure;
+  }
   readonly #runs = new Map<string, ActiveRun>();
   /** Runs accepted but not yet holding a session; an abort can still reach them. */
   readonly #starting = new Map<string, { abortRequested: boolean }>();
@@ -407,6 +435,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   }
 
   async modelCatalog() {
+    this.#assertHealthy();
     const seen = new Set<string>();
     const models = [];
     const candidates = await modelsForCredential(this.authStorage, this.modelRegistry, { kind: 'stored' });
@@ -436,12 +465,22 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   }
 
   spawnGjc(message: string, options: Record<string, unknown>, writer: GjcWorkerWriter): Promise<void> & { abortHandle?: string; processId?: number } {
+    this.#assertHealthy();
     if (isAppOAuthCommand(message)) throw new Error(FAILURE);
     const runId = typeof options.runHandle === 'string' && options.runHandle ? options.runHandle : '';
     const config = configFromOptions(options);
     if (!runId || this.#runs.has(runId) || this.#starting.has(runId)) throw new Error(FAILURE);
     this.#starting.set(runId, { abortRequested: false });
-    const task = this.#run(runId, message, options, config, writer).finally(() => this.#starting.delete(runId));
+    const guardedWriter: GjcWorkerWriter = {
+      send: (value) => { if (!this.#cleanupFailure) writer.send(value); },
+      ...(writer.setSessionId ? { setSessionId: (id: string) => { if (!this.#cleanupFailure) writer.setSessionId!(id); } } : {}),
+      ...(writer.setCredential ? { setCredential: (credential: Parameters<NonNullable<GjcWorkerWriter['setCredential']>>[0]) => {
+        if (!this.#cleanupFailure) writer.setCredential!(credential);
+      } } : {}),
+      ...(writer.setModel ? { setModel: (model: string) => { if (!this.#cleanupFailure) writer.setModel!(model); } } : {}),
+      ...(writer.setAborted ? { setAborted: () => { if (!this.#cleanupFailure) writer.setAborted!(); } } : {}),
+    };
+    const task = this.#run(runId, message, options, config, guardedWriter).finally(() => this.#starting.delete(runId));
     return Object.assign(task, { abortHandle: runId });
   }
 
@@ -459,6 +498,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
    * has already seen, so the caller queues the message instead.
    */
   async steerGjcSession(runHandle: string, message: string): Promise<boolean> {
+    this.#assertHealthy();
     const run = this.#runs.get(runHandle);
     if (!run || run.abortState !== 'idle') return false;
     if (run.session.isStreaming === false) return false;
@@ -474,6 +514,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   }
 
   async abortGjcSession(sessionId: string): Promise<boolean> {
+    this.#assertHealthy();
     const run = this.#runs.get(sessionId);
     if (!run) {
       // Stop pressed while the session is still being built (model and
@@ -518,6 +559,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   }
 
   resolveGjcToolApproval(requestId: string, decision: unknown): boolean {
+    this.#assertHealthy();
     for (const run of this.#runs.values()) {
       if (run.askController.resolve(requestId, decision)) return true;
     }
@@ -525,6 +567,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   }
 
   async inspectGjcGoal(scope: GjcGoalScope, providerSessionId: string, sessionRoot: string): Promise<GjcGoalSnapshot> {
+    this.#assertHealthy();
     const manager = await resumeManager(providerSessionId, sessionRoot);
     try {
       const { state, scope: owner } = readPersistedGjcGoal(manager);
@@ -539,6 +582,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   }
 
   async controlGjcGoal(runId: string, scope: GjcGoalScope, command?: GjcGoalCommand, stopAfterMutation = true): Promise<GjcGoalSnapshot> {
+    this.#assertHealthy();
     const run = this.#runs.get(runId);
     if (!run || run.abortState !== 'idle' || !matchesGjcGoalOwner(run.goalScope, scope)) throw new Error('No controllable goal exists for this run.');
     if (!run.goals) {
@@ -568,6 +612,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
     try {
       await this.#runInner(runId, options, config, writer, message, (value) => { active = value; });
     } catch (error) {
+      if (isGjcCleanupUnconfirmedError(error)) throw this.#poison();
       // Diagnostics stay opt-in and never reach Protocol frames.
       if (process.env.GJC_BUN_ADAPTER_DEBUG === '1') {
         console.error('[gjc-bun-adapter]', error instanceof Error ? `${error.name}: ${error.message}\n${error.stack ?? ''}` : String(error));
@@ -581,17 +626,21 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         () => run.goals?.dispose(),
         () => run.unsubscribe(),
         () => run.askController.dispose(),
-        () => this.#runs.delete(runId),
         () => run.delegation?.dispose(),
         () => run.session.dispose(),
       ]) {
         try { await cleanup(); }
         catch { disposalError ??= new Error(FAILURE); }
       }
-      if (disposalError) console.error('GJC SDK session disposal failed.');
-      forwardPromptTerminal(writer, run.state, disposalError ?? (didRunFail ? runError ?? new Error(FAILURE) : undefined));
+      if (disposalError) {
+        console.error('GJC SDK session disposal failed.');
+        throw this.#poison();
+      }
+      this.#assertHealthy();
+      this.#runs.delete(runId);
+      forwardPromptTerminal(writer, run.state, didRunFail ? runError ?? new Error(FAILURE) : undefined);
     }
-    if (disposalError) throw disposalError;
+    this.#assertHealthy();
     if (didRunFail) throw runError;
   }
 
@@ -684,6 +733,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           });
           delegation.setToolUIContext(askController.uiContext);
         }
+        this.#assertHealthy();
         const result = await (this.options.createSessionFactory ?? createAgentSession)({
           ...sessionOptions,
           // CustomTool is the public SDK replacement API. Never construct the
@@ -694,6 +744,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           // native SDK spawning is denied for goal/delegation-capable sessions.
           spawns: delegation || goalEnabled ? 'deny' : sessionOptions.spawns,
         });
+        this.#assertHealthy();
         if (config.modelProfile) {
           await activateModelProfile({
             session: result.session,
@@ -865,6 +916,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         let promptError: unknown;
         try {
           if (promptMessage !== null) {
+            this.#assertHealthy();
             // Attachments ride as an <images_input> block: the title above used
             // the bare user text, the model reads the files its own way.
             await result.session.prompt(appendImagesInputTag(promptMessage, config.images));

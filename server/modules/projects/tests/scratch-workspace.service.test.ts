@@ -95,6 +95,47 @@ test('a machine without git still gets a usable scratch project', async () => {
   }, { initializeRepository: async () => false });
 });
 
+test('simultaneous starts all succeed and create the README once', async () => {
+  await withScratch(async (dependencies) => {
+    const results = await Promise.all(Array.from({ length: 12 }, () => startScratchWorkspace(dependencies)));
+
+    assert.equal(results.filter((result) => result.outcome === 'created').length, 1);
+    assert.equal(results.filter((result) => result.outcome === 'existing').length, 11);
+    assert.match(await readFile(path.join(dependencies.scratchPath, 'README.md'), 'utf8'), /Scratch workspace/);
+  }, { initializeRepository: async () => false });
+});
+
+test('simultaneous starts initialize a real git repository successfully', async () => {
+  await withScratch(async (dependencies) => {
+    const results = await Promise.all(Array.from({ length: 6 }, () => startScratchWorkspace(dependencies)));
+
+    assert.equal(results.filter((result) => result.outcome === 'created').length, 1);
+    assert.ok(results.every((result) => result.git));
+    assert.ok(await exists(path.join(dependencies.scratchPath, '.git', 'HEAD')));
+  });
+});
+
+test('a failed initialization releases the next scratch request', async () => {
+  await withScratch(async (dependencies) => {
+    let attempts = 0;
+    const failingOnce = {
+      ...dependencies,
+      initializeRepository: async (directoryPath: string) => {
+        if (++attempts === 1) throw new Error('git initialization failed');
+        return dependencies.initializeRepository(directoryPath);
+      },
+    };
+    const results = await Promise.allSettled([
+      startScratchWorkspace(failingOnce),
+      startScratchWorkspace(failingOnce),
+    ]);
+
+    assert.equal(results.filter((result) => result.status === 'rejected').length, 1);
+    assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
+    assert.equal((await startScratchWorkspace(dependencies)).outcome, 'existing');
+  });
+});
+
 test('a path the workspace gate rejects leaves nothing on disk', async () => {
   await withScratch(async (dependencies) => {
     await assert.rejects(

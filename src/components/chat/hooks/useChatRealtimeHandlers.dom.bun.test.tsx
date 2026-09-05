@@ -78,10 +78,10 @@ function mount(store?: SessionStore, visibleSessionId = 'visible') {
 
 test('an answer that arrives whole on stream_end is shown without any delta', () => {
   const { calls, send } = mount();
-  send({ kind: 'stream_end', sessionId: 'visible', content: 'The moon is far.' } as ServerEvent);
+  send({ kind: 'stream_end', sessionId: 'visible', timestamp: '2026-01-01T00:00:01Z', content: 'The moon is far.' } as ServerEvent);
 
   assert.deepEqual(calls, [
-    ['updateStreaming', 'visible', 'The moon is far.', 'gjc'],
+    ['updateStreaming', 'visible', 'The moon is far.', 'gjc', '2026-01-01T00:00:01Z'],
     ['finalizeStreaming', 'visible'],
   ]);
 });
@@ -93,8 +93,8 @@ test('stream_end outranks the deltas a late viewer accumulated', async () => {
   send({ kind: 'stream_end', sessionId: 'visible', content: 'The moon is far.' } as ServerEvent);
 
   assert.deepEqual(calls, [
-    ['updateStreaming', 'visible', 'is far.', 'gjc'],
-    ['updateStreaming', 'visible', 'The moon is far.', 'gjc'],
+    ['updateStreaming', 'visible', 'is far.', 'gjc', undefined],
+    ['updateStreaming', 'visible', 'The moon is far.', 'gjc', undefined],
     ['finalizeStreaming', 'visible'],
   ]);
 });
@@ -113,7 +113,7 @@ test('interleaved background deltas never enter the visible answer', () => {
   send({ kind: 'stream_end', sessionId: 'visible', content: '' } as ServerEvent);
 
   assert.deepEqual(calls.filter(([name]) => name === 'updateStreaming'), [
-    ['updateStreaming', 'visible', 'Visible answer', 'gjc'],
+    ['updateStreaming', 'visible', 'Visible answer', 'gjc', undefined],
   ]);
   assert.equal(calls.filter(([name, id]) => name === 'appendRealtime' && id === 'background').length, 1);
 });

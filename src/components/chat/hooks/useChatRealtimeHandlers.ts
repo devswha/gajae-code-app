@@ -66,11 +66,11 @@ export function useChatRealtimeHandlers({
       pendingRequests.current = next;
       setPendingPermissionRequests(next);
     };
-    const flushStreaming = (sessionId: string | null | undefined, finalizeEmpty: boolean) => {
+    const flushStreaming = (sessionId: string | null | undefined, finalizeEmpty: boolean, timestamp?: unknown) => {
       stopStreamTimer();
       if (sessionId && (accumulatedStreamRef.current || finalizeEmpty)) {
         if (accumulatedStreamRef.current) {
-          sessionStore.updateStreaming(sessionId, accumulatedStreamRef.current, provider);
+          sessionStore.updateStreaming(sessionId, accumulatedStreamRef.current, provider, timestamp);
         }
         sessionStore.finalizeStreaming(sessionId);
       }
@@ -135,7 +135,7 @@ export function useChatRealtimeHandlers({
         if (!streamTimerRef.current) {
           streamTimerRef.current = requestAnimationFrame(() => {
             streamTimerRef.current = null;
-            if (sessionId) sessionStore.updateStreaming(sessionId, accumulatedStreamRef.current, provider);
+            if (sessionId) sessionStore.updateStreaming(sessionId, accumulatedStreamRef.current, provider, event.timestamp);
           });
         }
         return;
@@ -151,13 +151,13 @@ export function useChatRealtimeHandlers({
             // A formerly visible session can still own a reserved streaming
             // row. Retire it even on an empty end so the next turn gets a new
             // position and timestamp, without touching the visible accumulator.
-            if (content) sessionStore.updateStreaming(sessionId, content, provider);
+            if (content) sessionStore.updateStreaming(sessionId, content, provider, event.timestamp);
             sessionStore.finalizeStreaming(sessionId);
           }
           return;
         }
         if (content) accumulatedStreamRef.current = content;
-        flushStreaming(sessionId, true);
+        flushStreaming(sessionId, true, event.timestamp);
         return;
       }
 

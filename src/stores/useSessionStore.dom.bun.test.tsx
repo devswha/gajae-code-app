@@ -673,3 +673,72 @@ test('a viewer that joined mid-turn keeps only the final text, not the stream ta
     globalThis.fetch = originalFetch;
   }
 });
+
+test('a replayed complete answer is reconciled when the user anchor is outside the history window', () => {
+  const { store, queryClient } = createHarness();
+  act(() => {
+    store.setActiveSession('session');
+    queryClient.setQueryData(['messages', 'session'], {
+      messages: [{ id: 'disk-answer', sessionId: 'session', timestamp: '2026-01-01T00:00:05Z', kind: 'text', role: 'assistant', content: 'Interview threshold: 5%', provider: 'gjc' }],
+      total: 42, hasMore: true, offset: 1,
+    });
+    store.updateStreaming('session', 'Interview threshold: 5%', 'gjc');
+    store.finalizeStreaming('session');
+  });
+  assert.equal(store.getMessages('session').filter(message => message.content === 'Interview threshold: 5%').length, 1);
+});
+
+test('a new user turn preserves an identical reply when the older user anchor is outside the window', () => {
+  const { store, queryClient } = createHarness();
+  act(() => {
+    store.setActiveSession('session');
+    queryClient.setQueryData(['messages', 'session'], {
+      messages: [{ id: 'disk-answer', sessionId: 'session', timestamp: '2026-01-01T00:00:05Z', kind: 'text', role: 'assistant', content: 'Yes.', provider: 'gjc' }],
+      total: 42, hasMore: true, offset: 1,
+    });
+    store.appendRealtime('session', { id: 'local_new-question', sessionId: 'session', timestamp: '2026-01-01T00:01:00Z', kind: 'text', role: 'user', content: 'And the other one?', provider: 'gjc' });
+    store.updateStreaming('session', 'Yes.', 'gjc');
+    store.finalizeStreaming('session');
+  });
+  assert.equal(store.getMessages('session').filter(message => message.content === 'Yes.').length, 2);
+});
+
+test('old replay uses its event time to reconcile before a newer persisted question', () => {
+  const { store, queryClient } = createHarness();
+  act(() => {
+    store.setActiveSession('session');
+    queryClient.setQueryData(['messages', 'session'], {
+      messages: [
+        { id: 'disk-answer', sessionId: 'session', timestamp: '2026-01-01T00:00:05Z', kind: 'text', role: 'assistant', content: 'Earlier answer.', provider: 'gjc' },
+        { id: 'next-question', sessionId: 'session', timestamp: '2026-01-01T00:01:00Z', kind: 'text', role: 'user', content: 'Another question.', provider: 'gjc' },
+        { id: 'next-answer', sessionId: 'session', timestamp: '2026-01-01T00:01:05Z', kind: 'text', role: 'assistant', content: 'Later answer.', provider: 'gjc' },
+      ],
+      total: 42, hasMore: true, offset: 3,
+    });
+    store.updateStreaming('session', 'Earlier answer.', 'gjc', '2026-01-01T00:00:04Z');
+    store.finalizeStreaming('session');
+  });
+  assert.deepEqual(store.getMessages('session').map(message => message.id), ['disk-answer', 'next-question', 'next-answer']);
+});
+
+test('background replay separated from its persisted answer by reasoning never duplicates prose', () => {
+  const { store, queryClient } = createHarness();
+  const common = { sessionId: 'session', provider: 'gjc' as const };
+  act(() => {
+    store.setActiveSession('session');
+    queryClient.setQueryData(['messages', 'session'], {
+      messages: [
+        { ...common, id: 'disk-thought', timestamp: '2026-01-01T00:00:05Z', kind: 'thinking', content: 'Reasoning.' },
+        { ...common, id: 'disk-answer', timestamp: '2026-01-01T00:00:05Z', kind: 'text', role: 'assistant', content: 'Complete answer.' },
+      ], total: 42, hasMore: true, offset: 2,
+    });
+    store.appendRealtimeBatch('session', [
+      { ...common, id: 'delta-1', timestamp: '2026-01-01T00:00:01Z', kind: 'stream_delta', content: 'Complete ' },
+      { ...common, id: 'delta-2', timestamp: '2026-01-01T00:00:02Z', kind: 'stream_delta', content: 'answer.' },
+      { ...common, id: 'live-thought', timestamp: '2026-01-01T00:00:05Z', kind: 'thinking', content: 'Reasoning.' },
+    ]);
+    store.updateStreaming('session', 'Complete answer.', 'gjc', '2026-01-01T00:00:06Z');
+    store.finalizeStreaming('session');
+  });
+  assert.equal(store.getMessages('session').filter(message => message.content === 'Complete answer.').length, 1);
+});

@@ -62,32 +62,26 @@ function localUserIsPersisted(local: NormalizedMessage, server: NormalizedMessag
   });
 }
 
-function ordinalFor(message: NormalizedMessage, server: NormalizedMessage[], realtime: NormalizedMessage[]) {
-  const targetAt = messageTime(message);
-  let turns = 0;
-  const candidates = [...server, ...realtime.filter((row) => !(row.kind === 'text' && row.role === 'user' && row.id?.startsWith('local_') && localUserIsPersisted(row, server)))].sort(chronological);
-  for (const candidate of candidates) {
-    if (candidate.id === message.id) break;
-    const candidateAt = messageTime(candidate);
-    if (targetAt !== null && candidateAt !== null && candidateAt > targetAt) break;
-    if (candidate.kind === 'text' && candidate.role === 'user') turns += 1;
-  }
-  return Math.max(0, turns - 1);
-}
-
 function assistantEchoesPersisted(message: NormalizedMessage, server: NormalizedMessage[], realtime: NormalizedMessage[]) {
   const content = message.content?.trim();
-  if (!content) return false;
-  const wanted = ordinalFor(message, server, realtime);
-  let currentTurn = -1;
-  let began = -1;
-  for (let index = 0; index < server.length; index += 1) {
-    if (server[index].kind === 'text' && server[index].role === 'user') {
-      currentTurn += 1;
-      if (currentTurn === wanted) { began = index + 1; break; }
-    }
+  const targetAt = messageTime(message);
+  if (!content || targetAt === null) return false;
+  const diskIds = new Set(server.map(row => row.id).filter(Boolean));
+  const pendingUsers = realtime.filter(row => userContent(row)
+    && !diskIds.has(row.id)
+    && !(row.id?.startsWith('local_') && localUserIsPersisted(row, server)));
+  const users = [...server.filter(row => userContent(row)), ...pendingUsers].sort(chronological);
+  let anchor: NormalizedMessage | undefined;
+  for (const user of users) {
+    const at = messageTime(user);
+    if (at !== null && at <= targetAt) anchor = user;
   }
-  if (began < 0) return false;
+  // A new, unpersisted question is a distinct turn, even when its answer
+  // repeats older prose. Without an anchor, the loaded prefix is the tail of
+  // the turn whose question fell outside the bounded history window.
+  const anchorIndex = anchor ? server.indexOf(anchor) : -1;
+  if (anchor && anchorIndex < 0) return false;
+  const began = anchorIndex + 1;
   let end = server.length;
   for (let index = began; index < server.length; index += 1) {
     if (server[index].kind === 'text' && server[index].role === 'user') { end = index; break; }
@@ -119,31 +113,25 @@ function collapseStreamTransition(rows: NormalizedMessage[]) {
   rows = coalesceStreamDeltas(rows);
   const result: NormalizedMessage[] = [];
   const used = new Set<string>();
-  // The turn a delta belongs to starts at the last user message before it;
-  // only assistant texts of that turn may absorb it.
-  let turnStart = 0;
+  // Replayed deltas can precede their persisted answer with reasoning or tool
+  // events between them. Match the entire user turn, not just adjacent rows.
+  const answers = new Map<number, string[]>();
+  let turn = 0;
+  for (const row of rows) {
+    if (row.kind === 'text' && row.role === 'user') turn += 1;
+    else if (row.kind === 'text' && row.role === 'assistant' && row.content?.trim()) {
+      const texts = answers.get(turn) ?? [];
+      texts.push(row.content.trim());
+      answers.set(turn, texts);
+    }
+  }
+  turn = 0;
   rows.forEach((row) => {
     if (row.id && used.has(row.id)) return;
-    if (row.kind === 'text' && row.role === 'user') turnStart = result.length + 1;
+    if (row.kind === 'text' && row.role === 'user') turn += 1;
     if (row.kind === 'stream_delta' && row.content?.trim()) {
       const delta = row.content.trim();
-      const absorbed = result.slice(turnStart).some((existing) => existing.kind === 'text'
-        && existing.role === 'assistant'
-        && existing.content?.trim()
-        && (existing.content.trim() === delta || existing.content.includes(delta)));
-      if (absorbed) return;
-    }
-    const prior = result.at(-1);
-    if (prior?.kind === 'stream_delta' && row.kind === 'text' && row.role === 'assistant' && prior.content?.trim()) {
-      const delta = prior.content.trim();
-      const answer = row.content?.trim() ?? '';
-      // The final text outranks the delta run: it may equal the stream, or a
-      // viewer that joined mid-turn holds only the stream's tail inside it.
-      if (delta === answer || answer.includes(delta)) {
-        result[result.length - 1] = row;
-        if (row.id) used.add(row.id);
-        return;
-      }
+      if (answers.get(turn)?.some(answer => answer.includes(delta))) return;
     }
     if (row.id) used.add(row.id);
     result.push(row);
@@ -323,7 +311,7 @@ export function useSessionStore() {
   // The row keeps the timestamp of its first delta: the work block above it
   // measures its duration to the moment the prose began, and a clock that
   // moved with every delta would tick that duration up as the answer streams.
-  const updateStreaming = useCallback((id: string, content: string, provider: LLMProvider) => { const slot = getSlot(id); const streamId = `__streaming_${id}`; const position = slot.realtimeMessages.findIndex((message) => message.id === streamId); const row: NormalizedMessage = { id: streamId, sessionId: id, timestamp: position < 0 ? new Date().toISOString() : slot.realtimeMessages[position].timestamp, provider, kind: 'stream_delta', content }; slot.realtimeMessages = position < 0 ? [...slot.realtimeMessages, row] : slot.realtimeMessages.map((message, index) => index === position ? row : message); refreshMerged(slot); emitSession(id); }, [emitSession, getSlot]);
+  const updateStreaming = useCallback((id: string, content: string, provider: LLMProvider, timestamp?: unknown) => { const slot = getSlot(id); const streamId = `__streaming_${id}`; const position = slot.realtimeMessages.findIndex((message) => message.id === streamId); const startedAt = typeof timestamp === 'string' && Number.isFinite(Date.parse(timestamp)) ? timestamp : new Date().toISOString(); const row: NormalizedMessage = { id: streamId, sessionId: id, timestamp: position < 0 ? startedAt : slot.realtimeMessages[position].timestamp, provider, kind: 'stream_delta', content }; slot.realtimeMessages = position < 0 ? [...slot.realtimeMessages, row] : slot.realtimeMessages.map((message, index) => index === position ? row : message); refreshMerged(slot); emitSession(id); }, [emitSession, getSlot]);
   const finalizeStreaming = useCallback((id: string) => { const slot = slots.current.get(id); if (!slot) return; const streamId = `__streaming_${id}`; const position = slot.realtimeMessages.findIndex((message) => message.id === streamId); if (position < 0) return; slot.realtimeMessages = slot.realtimeMessages.map((message, index) => index === position ? { ...message, id: `text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, kind: 'text', role: 'assistant' } : message); refreshMerged(slot); emitSession(id); }, [emitSession]);
   const clearRealtime = useCallback((id: string) => { const slot = slots.current.get(id); if (!slot) return; slot.realtimeMessages = []; refreshMerged(slot); emitSession(id); }, [emitSession]);
   const clear = useCallback(() => { const hadActive = activeSession.current !== null; slots.current.clear(); queryClient.removeQueries({ queryKey: ['messages'] }); activeSession.current = null; setObservedSession(null); if (hadActive) redraw((version) => version + 1); }, [queryClient]);

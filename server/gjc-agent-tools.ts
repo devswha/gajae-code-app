@@ -1,10 +1,10 @@
 /**
  * Which of the runtime's builtin tools this app turns on.
  *
- * The tools are not built here — `@gajae-code/coding-agent` owns the registry —
- * so the only decision the app makes is which ones a browser-hosted session
- * should have. Every current registry entry must appear in exactly one list
- * below; the partition test makes an upstream addition a deliberate decision.
+ * `@gajae-code/coding-agent` owns the builtin registry. The adapter substitutes
+ * app-owned task/subagent implementations and automation transports for the
+ * selected names. Every current registry entry must appear in exactly one
+ * list below; the partition test makes an upstream addition deliberate.
  *
  * An allowlist is right here, unlike the command catalog: a tool carries real
  * cost or reach (extra model calls, a spawned browser, an SSH connection, a
@@ -39,6 +39,12 @@ export const GJC_AGENT_TOOL_NAMES: readonly string[] = [
   // session, and it makes multi-step work legible in the transcript.
   'todo_write',
 
+  // The adapter replaces these names through the public CustomTool API and
+  // excludes the SDK builtins. App children inherit policy/model/credentials,
+  // remain owned by their calling transcript and end with the owner's turn.
+  'task',
+  'subagent',
+
   // Structural code search. Read-only, and materially better than regex on
   // real refactors.
   'ast_grep',
@@ -69,8 +75,6 @@ export const GJC_AGENT_TOOL_NAMES: readonly string[] = [
  * widening this set needs to know which is which.
  */
 export const GJC_AGENT_TOOLS_WITHHELD: Readonly<Record<string, string>> = {
-  task: 'Workflow delegation needs explicit cost consent and child policy inheritance. SDK 0.15.6 creates children with its default allow permission mode and role-selected tools, bypassing the app permission provider and tool allowlist; a skill Run gate alone does not preserve those boundaries.',
-  subagent: 'Resumes task children through the same SDK executor without inheriting the app permission provider or tool allowlist. Enable together with a policy-preserving task bridge.',
   job: 'Produces background work the app has no screen for; the /jobs surface tracks the app\u2019s own orchestrator, not this tool.',
   monitor: 'Long-lived watchers with nowhere to surface in the app.',
   cron: 'Schedules work that outlives the session with no UI to review or cancel it.',

@@ -16,6 +16,7 @@ import { GjcBunOAuthController, type GjcBunOAuthControllerOptions } from './gjc-
 import { GJC_APP_BUILTIN_COMMAND_NAMES } from './gjc-command-surface.generated.js';
 import type { GjcWorkerOAuthRuntime, GjcWorkerRuntime, GjcWorkerWriter } from './gjc-worker.js';
 import { GjcBunAskController } from './gjc-bun-ask-controller.js';
+import { GjcDelegationExecutor, GJC_APP_DELEGATION_TOOL_NAMES, serializeGjcDelegationAutomationTools } from './gjc-delegation-executor.js';
 import { createGjcPermissionProvider, type GjcPermissionProvider } from './gjc-bun-permission-gate.js';
 import { forwardPromptTerminal, forwardSdkEvent, normalizeBuiltinCommandStdout, type SdkRunState } from './gjc-bun-sdk-events.js';
 import { parseGjcRunPermissions, type GjcRunPermissions } from './gjc-permission-policy.js';
@@ -98,6 +99,7 @@ type ActiveRun = {
   state: SdkRunState;
   abortState: 'idle' | 'aborting' | 'aborted';
   appSessionId?: string;
+  delegation?: GjcDelegationExecutor;
 };
 
 const FAILURE = 'GJC SDK configuration is invalid.';
@@ -190,7 +192,13 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
   // `invalid_permissions` code so the worker can answer with that code and the
   // app can tell the user why the run never started.
   const permissions = parseGjcRunPermissions(candidate.permissions);
-  return { ...(candidate as unknown as SdkRunConfig), ...(permissions ? { permissions } : {}) };
+  return {
+    ...(candidate as unknown as SdkRunConfig),
+    // The SDK resolves builtin names case-insensitively. Canonicalize before
+    // selecting app replacements so TASK cannot reach its builtin executor.
+    toolNames: candidate.toolNames.map((name: string) => name.toLowerCase()),
+    ...(permissions ? { permissions } : {}),
+  };
 }
 
 async function modelsForCredential(
@@ -478,7 +486,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       ? closeAutomation(run.appSessionId).catch(() => {})
       : Promise.resolve();
     try {
-      await run.session.abort();
+      await Promise.all([run.session.abort(), run.delegation?.dispose()]);
       run.askController.dispose();
       run.abortState = 'aborted';
       run.state.abortRequested = true;
@@ -519,7 +527,8 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       active.askController.dispose();
       this.#runs.delete(runId);
       try {
-        await active.session.dispose();
+        try { await active.delegation?.dispose(); }
+        finally { await active.session.dispose(); }
       } catch {
         console.error('GJC SDK session disposal failed.');
         disposalError = new Error(FAILURE);
@@ -557,8 +566,12 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       const askController = new GjcBunAskController(writer);
       const model = await modelForWithRefresh(this.modelRegistry, configuredModelId);
       const resolvedCredential = await credentialFor(this.authStorage, config.credential, model);
+      let delegation: GjcDelegationExecutor | undefined;
       try {
-        const result = await (this.options.createSessionFactory ?? createAgentSession)({
+        const permissionProvider = config.permissions
+          ? createGjcPermissionProvider(config.permissions, askController, writer)
+          : undefined;
+        const sessionOptions: Parameters<typeof createAgentSession>[0] = {
           // The app hosts the runtime in-process; the model must not reach for
           // the gjc CLI (absent on most app installs) or hand-edit ~/.gjc when
           // asked to configure sign-in, models or permissions — those live in
@@ -590,12 +603,26 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           ...(config.bashPolicy.restrictionProfile ? { bashRestrictionProfile: config.bashPolicy.restrictionProfile } : {}),
           hasUI: true,
           ...(config.appSessionId ? {
-            automationTools: createGjcAutomationTools(
+            automationTools: serializeGjcDelegationAutomationTools(createGjcAutomationTools(
               config.appSessionId,
               askController.uiContext,
               this.options.automationBridge,
-            ),
+            )),
           } : {}),
+        };
+        if (config.toolNames.some((name) => GJC_APP_DELEGATION_TOOL_NAMES.includes(name as 'task' | 'subagent'))) {
+          delegation = new GjcDelegationExecutor({
+            parent: sessionManager, session: () => result.session, sessionOptions,
+            permissionProvider, createSession: this.options.createSessionFactory,
+          });
+          delegation.setToolUIContext(askController.uiContext);
+        }
+        const result = await (this.options.createSessionFactory ?? createAgentSession)({
+          ...sessionOptions,
+          // CustomTool is the public SDK replacement API. Never construct the
+          // built-in executor: it does not inherit the app permission boundary.
+          toolNames: sessionOptions.toolNames!.filter((name) => !GJC_APP_DELEGATION_TOOL_NAMES.includes(name as 'task' | 'subagent')),
+          ...(delegation ? { customTools: delegation.tools(), spawns: 'deny' } : {}),
         });
         if (config.modelProfile) {
           await activateModelProfile({
@@ -641,7 +668,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
             throw new Error(FAILURE);
           }
           session.setSdkPermissionMode('prompt');
-          session.setSdkPermissionProvider(createGjcPermissionProvider(config.permissions, askController, writer));
+          session.setSdkPermissionProvider(permissionProvider);
         }
         const state: SdkRunState = { abortRequested: false, abortPending: false, terminalEmitted: false, finalError: false };
         // The adapter is the only place holding the live session, so the
@@ -659,6 +686,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           askController,
           state,
           abortState: 'idle',
+          ...(delegation ? { delegation } : {}),
           ...(config.appSessionId ? { appSessionId: config.appSessionId } : {}),
         };
         setActive(activeRun);
@@ -756,10 +784,12 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           await Promise.race([titleTask, new Promise<void>((resolve) => { grace = setTimeout(resolve, SESSION_TITLE_GRACE_MS); })]);
           clearTimeout(grace);
         }
+        await delegation?.dispose();
         forwardPromptTerminal(writer, state, promptError);
         if (promptError !== undefined) throw promptError;
       } finally {
-        resolvedCredential.dispose();
+        try { await delegation?.dispose(); }
+        finally { resolvedCredential.dispose(); }
       }
     }
   }

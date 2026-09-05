@@ -96,10 +96,13 @@ parent; do not reuse a pre-SDK-upgrade bundle. `codesign` consumes the existing
 keychain identity; notarytool consumes the named profile. No PKCS#12 export,
 Apple password extraction or GitHub secret transfer is necessary.
 
-The hosted workflow cannot currently ingest an already signed local DMG.
-The parent must use a separately reviewed local-artifact publication path,
-or the owner must provision the hosted signing lane. This readiness task
-does not dispatch or publish through either route.
+The hosted workflow cannot ingest an already signed local DMG. Use the
+explicit draft-first path in `scripts/release/LOCAL-RELEASE.md`: the local
+verifier binds the draft ID/tag/commit and independent asset hashes, checks
+signatures/staples/Gatekeeper and versions, then publishes only when invoked
+with `--publish`. This path requires no hosted signing secrets and preserves
+the workflow's unsigned-publication guard. Neither route was dispatched or
+published while implementing these checks.
 
 ## Bounded validation after integration
 

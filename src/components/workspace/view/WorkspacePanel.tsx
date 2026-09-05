@@ -97,7 +97,7 @@ export default function WorkspacePanel({
 
   const header = (
     <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-2 py-1.5">
-      <PillBar role="tablist" aria-label={t('workspace.title')}>
+      <PillBar role="tablist" aria-label={t('workspace.title')} className="min-w-0 overflow-x-auto">
         {WORKSPACE_TABS.map((candidate) => {
           const Icon = TAB_ICONS[candidate];
           const isActive = candidate === tab;
@@ -115,7 +115,7 @@ export default function WorkspacePanel({
               isActive={isActive}
               onClick={() => onTabChange(candidate)}
               onKeyDown={handleTabKeyDown}
-              className="px-2.5 py-[5px] text-xs"
+              className="shrink-0 px-2.5 py-[5px] text-xs whitespace-nowrap"
             >
               <Icon className="h-3.5 w-3.5" strokeWidth={isActive ? 2.2 : 1.8} />
               <span>{t(`workspace.tabs.${candidate}`)}</span>

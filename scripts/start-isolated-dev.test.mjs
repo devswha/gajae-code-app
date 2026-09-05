@@ -56,6 +56,30 @@ test('remote isolated environment enables only the admitted private override', (
   assert.equal(env.GAJAE_ALLOW_UNAUTH_REMOTE, '1');
 });
 
+test('production workspace and browser overrides cannot escape the QA home', () => {
+  const parentEnv = {
+    WORKSPACES_ROOT: '/production/projects',
+    GAJAE_BROWSER_PROFILE_DIR: '/production/browser/profile',
+    GAJAE_BROWSER_CACHE_DIR: '/production/browser/chromium',
+    GAJAE_BROWSER_EXECUTABLE_PATH: '/opt/chromium',
+  };
+  const env = isolatedQaEnvironment({
+    parentEnv,
+    qaHome: '/tmp/qa-overrides',
+    host: '127.0.0.1',
+    vitePort: 5174,
+    serverPort: 3101,
+    remote: false,
+  });
+  for (const name of ['WORKSPACES_ROOT', 'GAJAE_BROWSER_PROFILE_DIR', 'GAJAE_BROWSER_CACHE_DIR']) {
+    const relative = path.relative('/tmp/qa-overrides', env[name]);
+    assert.ok(!relative.startsWith('..') && !path.isAbsolute(relative), `${name} must remain in QA storage`);
+    assert.notEqual(env[name], parentEnv[name]);
+  }
+  assert.equal(env.GAJAE_BROWSER_EXECUTABLE_PATH, '/opt/chromium');
+  assert.equal(parentEnv.WORKSPACES_ROOT, '/production/projects');
+});
+
 test('only model configuration files are eligible for copying', () => {
   assert.deepEqual(safeAgentConfigPaths('/Users/real', '/tmp/qa').map(({ source, destination }) => ({
     source: path.basename(source),

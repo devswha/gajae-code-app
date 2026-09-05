@@ -29,6 +29,11 @@ export function isolatedQaEnvironment({ parentEnv, qaHome, host, vitePort, serve
     GJC_CODING_AGENT_DIR: agentDir,
     GJC_WORKER_AGENT_DIR: agentDir,
     GJC_LIVE_SESSION_DIR: path.join(qaHome, '.gjc', 'live-sessions'),
+    // Explicit values also prevent the repository's .env from restoring
+    // production paths after the child process starts.
+    WORKSPACES_ROOT: qaHome,
+    GAJAE_BROWSER_PROFILE_DIR: path.join(qaHome, '.gajae-app', 'browser', 'profile'),
+    GAJAE_BROWSER_CACHE_DIR: path.join(qaHome, '.gajae-app', 'browser', 'chromium'),
     HOST: host,
     VITE_PORT: String(vitePort),
     SERVER_PORT: String(serverPort),

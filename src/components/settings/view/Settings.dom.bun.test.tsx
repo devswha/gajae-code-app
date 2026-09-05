@@ -29,6 +29,13 @@ afterEach(() => {
   localStorage.clear();
 });
 
+async function waitForFocus(element: HTMLElement, message: string) {
+  // Comparing DOM objects makes assertion formatting block the RAF we await.
+  await waitFor(() => assert.equal(document.activeElement === element, true, message), {
+    onTimeout: (error) => error,
+  });
+}
+
 function mount() {
   let closeCount = 0;
   let abortCount = 0;
@@ -56,11 +63,11 @@ test('Settings has a named modal and close button, autofocuses inside, and resto
   const dialog = screen.getByRole('dialog', { name: 'Settings' });
   assert.equal(dialog.getAttribute('aria-modal'), 'true');
   const close = within(dialog).getByRole('button', { name: 'Close settings' });
-  await waitFor(() => assert.equal(document.activeElement, close));
-  fireEvent.click(close);
+  await waitForFocus(close, 'Settings close button receives initial focus');
+  await act(async () => { fireEvent.click(close); });
   assert.equal(view.closeCount(), 1);
-  assert.equal(screen.queryByRole('dialog'), null);
-  assert.equal(document.activeElement, view.opener);
+  assert.equal(screen.queryByRole('dialog') === null, true, 'Settings closes after clicking its close button');
+  await waitForFocus(view.opener, 'Closing Settings restores focus to its opener');
 });
 
 test('Escape on either Appearance navigation button closes Settings once and restores focus and scrolling', async () => {
@@ -69,14 +76,14 @@ test('Escape on either Appearance navigation button closes Settings once and res
   for (const index of [0, 1]) {
     view.open();
     const appearance = screen.getAllByRole('button', { name: 'Appearance' })[index];
-    await waitFor(() => assert.notEqual(document.activeElement, view.opener));
+    await waitForFocus(screen.getByRole('button', { name: 'Close settings' }), 'Settings receives focus before Escape');
     act(() => appearance.focus());
     assert.equal(document.body.style.overflow, 'hidden');
-    fireEvent.keyDown(appearance, { key: 'Escape' });
+    await act(async () => { fireEvent.keyDown(appearance, { key: 'Escape' }); });
     assert.equal(view.closeCount(), index + 1);
     assert.equal(view.abortCount(), 0, 'closing Settings must not abort the background run');
-    assert.equal(screen.queryByRole('button', { name: 'Close settings' }), null);
-    assert.equal(document.activeElement, view.opener);
+    assert.equal(screen.queryByRole('button', { name: 'Close settings' }) === null, true, 'Escape closes Settings');
+    await waitForFocus(view.opener, 'Escape restores focus to the Settings opener');
     assert.equal(document.body.style.overflow, 'scroll');
   }
   fireEvent.keyDown(view.opener, { key: 'Escape' });
@@ -89,11 +96,11 @@ test('Tab and Shift+Tab stay inside Settings at both ends of the Appearance cont
   const dialog = screen.getByRole('dialog', { name: 'Settings' });
   const first = within(dialog).getByRole('button', { name: 'Close settings' });
   const last = within(dialog).getByDisplayValue('Alphabetical');
-  await waitFor(() => assert.equal(document.activeElement, first));
+  await waitForFocus(first, 'Settings close button receives initial focus');
   act(() => last.focus());
-  fireEvent.keyDown(last, { key: 'Tab' });
-  assert.equal(document.activeElement, first);
-  fireEvent.keyDown(first, { key: 'Tab', shiftKey: true });
-  assert.equal(document.activeElement, last);
+  await act(async () => { fireEvent.keyDown(last, { key: 'Tab' }); });
+  await waitForFocus(first, 'Tab wraps focus to the first Settings control');
+  await act(async () => { fireEvent.keyDown(first, { key: 'Tab', shiftKey: true }); });
+  await waitForFocus(last, 'Shift+Tab wraps focus to the last Settings control');
   assert.equal(view.closeCount(), 0);
 });

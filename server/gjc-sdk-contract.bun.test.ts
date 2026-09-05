@@ -1323,7 +1323,8 @@ async function identityFixture() {
     toolNames: ['bash', 'skill'], spawns: 'deny', bashPolicy: { allowedPrefixes: [] },
   };
   return {
-    root, options, factoryOptions,
+    root, options, factoryOptions, host, frames,
+    enqueueInspection(inspect: (session: Session) => Promise<void>) { inspections.push(inspect); },
     async run(id: string, inspect: (session: Session) => Promise<void>, providerSessionId?: string) {
       inspections.push(inspect);
       await host.handle(request(providerSessionId ? 'session.resume' : 'session.start', id, {
@@ -1342,6 +1343,63 @@ async function identityFixture() {
     },
   };
 }
+
+test('goal-capable production sessions delegate safely and defer worktree abort to their owner', async () => {
+  const f = await identityFixture();
+  Object.assign(f.options, { toolNames: ['read', 'task', 'subagent'], spawns: '*', goalUiVersion: 1, goalOwner: 'number:1' });
+  try {
+    await f.run('goal-delegation', async (parent) => {
+      assert.equal(parent.settings.get('goal.enabled'), true);
+      const rootOptions = f.factoryOptions[0];
+      assert.ok(rootOptions);
+      assert.equal(rootOptions.spawns, 'deny', 'native SDK spawning stays denied');
+      const created = await parent.getToolByName('goal')!.execute('create-goal', { op: 'create', objective: 'Delegate one bounded check' });
+      let checkedChild = false;
+      f.enqueueInspection(async (child) => {
+        assert.equal(child.settings.get('goal.enabled'), false);
+        assert.equal(child.getActiveToolNames().includes('goal'), false);
+        assert.equal(child.thinkingLevel, 'xhigh');
+        checkedChild = true;
+      });
+      const launched = await parent.getToolByName('task')!.execute('start-child', {
+        agent: 'planner', context: null, tasks: [{ id: 'inspect', description: 'Bounded check', assignment: 'Return after the offline check.', executionMode: 'default', repositoryBinding: null }],
+      });
+      const childId = launched.details.subagents[0].id;
+      const settled = await parent.getToolByName('subagent')!.execute('await-child', { action: 'await', id: childId, timeout_ms: 5000 });
+      assert.equal(settled.details.subagents[0].status, 'completed');
+      assert.equal(checkedChild, true);
+      let aborts = 0;
+      const originalAbort = parent.abort.bind(parent);
+      parent.abort = async () => { aborts++; await originalAbort(); };
+      await f.host.handle(request('goal.control', 'pause-goal-native', {
+        owner: 'number:1', cwd: await realpath(f.options.cwd), runId: 'goal-delegation',
+        command: { operation: 'pause', goalId: created.details.goal.id }, stopAfterMutation: false,
+      }));
+      assert.equal((response(f.frames, 'pause-goal-native').payload as { ok: boolean }).ok, true);
+      assert.equal(aborts, 0, 'the SDK does not bypass the native job abort authority');
+      await assert.rejects(parent.getToolByName('goal')!.execute('resume-too-soon', { op: 'resume' }), /app goal controls/);
+      await f.host.handle(request('turn.abort', 'owner-abort', { runId: 'goal-delegation' }));
+      assert.equal(aborts, 1);
+    });
+    assert.equal((response(f.frames, 'goal-delegation').payload as { result: { aborted?: boolean } }).result.aborted, true);
+  } finally { await f.close(); }
+});
+
+test('a goal-owned stop reports an aborted worker outcome without a separate turn.abort request', async () => {
+  const f = await identityFixture();
+  Object.assign(f.options, { goalUiVersion: 1, goalOwner: 'number:1' });
+  try {
+    await f.run('goal-internal-stop', async (session) => {
+      const created = await session.getToolByName('goal')!.execute('create', { op: 'create', objective: 'Stop this scoped goal' });
+      await f.host.handle(request('goal.control', 'stop-from-goal', {
+        owner: 'number:1', cwd: await realpath(f.options.cwd), runId: 'goal-internal-stop',
+        command: { operation: 'pause', goalId: created.details.goal.id },
+      }));
+      assert.equal((response(f.frames, 'stop-from-goal').payload as { ok: boolean }).ok, true);
+    });
+    assert.equal((response(f.frames, 'goal-internal-stop').payload as { result: { aborted?: boolean } }).result.aborted, true);
+  } finally { await f.close(); }
+});
 
 async function assertSdkIdentity(
   session: Awaited<ReturnType<typeof createAgentSession>>['session'],

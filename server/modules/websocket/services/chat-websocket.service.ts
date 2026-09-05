@@ -370,7 +370,7 @@ export function handleChatConnection(ws: WebSocket, request: AuthenticatedWebSoc
             options: { model: 'default', goalUiVersion: 1 },
           }, dependencies, command).catch((error) => protocolFailure(ws, 'GOAL_RUN_FAILED', error instanceof Error ? error.message : 'Goal run failed.', sessionId));
           subscribeChat(ws, { sessions: [{ sessionId, lastSeq: 0 }] }, dependencies);
-        });
+        }, dependencies.sessionWorktrees);
         sendFrame(ws, { kind: 'chat_goal', sessionId: data.sessionId, requestId: data.requestId, result });
       } catch (error) {
         sendFrame(ws, { kind: 'chat_goal', sessionId: data.sessionId, requestId: data.requestId, error: error instanceof Error ? error.message : 'Goal control failed.' });

@@ -25,6 +25,8 @@ export type GjcWorkerWriter = {
   setSessionId?(sessionId: string): void;
   setCredential?(credential: { kind: 'stored'; providerId: string; credentialId: number }): void;
   setModel?(model: string): void;
+  /** A runtime-owned stop (for example a goal limit) confirmed its abort. */
+  setAborted?(): void;
 };
 type SpawnedRun = Promise<unknown> & { abortHandle?: string; processId?: number };
 export type GjcWorkerOAuthEvent = {
@@ -42,7 +44,7 @@ export type GjcWorkerOAuthRuntime = {
 };
 export type GjcWorkerRuntime = {
   inspectGjcGoal?(scope: GjcGoalScope, providerSessionId: string, sessionRoot: string): Promise<GjcGoalSnapshot>;
-  controlGjcGoal?(runId: string, scope: GjcGoalScope, command?: GjcGoalCommand): Promise<GjcGoalSnapshot>;
+  controlGjcGoal?(runId: string, scope: GjcGoalScope, command?: GjcGoalCommand, stopAfterMutation?: boolean): Promise<GjcGoalSnapshot>;
   spawnGjc(message: string, options: JsonObject, writer: GjcWorkerWriter): SpawnedRun;
   abortGjcSession(sessionId: string): Promise<boolean>;
   /**
@@ -359,6 +361,7 @@ export class GjcWorkerHost {
       setSessionId: (providerSessionId) => this.#captureSession(run, providerSessionId),
       setCredential: (credential) => { if (run.active) run.credential = credential; },
       setModel: (model) => { if (run.active) run.model = model; },
+      setAborted: () => { if (run.active) run.aborted = true; },
     };
     let completed = false;
     let invalidPermissions = false;
@@ -394,7 +397,7 @@ export class GjcWorkerHost {
         } else {
           // A rejected abort (false) leaves the run active per the live spec;
           // the spawned run outcome alone governs `completed`.
-          run.aborted = aborted;
+          run.aborted = run.aborted || aborted;
         }
       }
       const result: JsonObject = {
@@ -451,15 +454,16 @@ export class GjcWorkerHost {
    * losing it.
    */
   async #goal(request: Extract<GjcWorkerRequestFrame, { sessionId: string }>): Promise<void> {
-    const input = payload(request, ['owner', 'cwd', 'projectPath', 'providerSessionId', 'sessionRoot', 'runId', 'command']);
+    const input = payload(request, ['owner', 'cwd', 'projectPath', 'providerSessionId', 'sessionRoot', 'runId', 'command', 'stopAfterMutation']);
     if (!input || typeof input.owner !== 'string' || !input.owner || typeof input.cwd !== 'string' || !input.cwd) return this.#response(request, failure('invalid_payload', 'Invalid goal scope.'));
     if (input.projectPath !== undefined && (typeof input.projectPath !== 'string' || !input.projectPath)) return this.#response(request, failure('invalid_payload', 'Invalid goal project.'));
+    if (input.stopAfterMutation !== undefined && typeof input.stopAfterMutation !== 'boolean') return this.#response(request, failure('invalid_payload', 'Invalid goal stop policy.'));
     const scope = { appSessionId: request.sessionId, owner: input.owner, cwd: input.cwd, ...(typeof input.projectPath === 'string' ? { projectPath: input.projectPath } : {}) };
     try {
       let result: GjcGoalSnapshot;
       if (request.method === 'goal.inspect') {
         if (typeof input.providerSessionId !== 'string' || !input.providerSessionId || typeof input.sessionRoot !== 'string' || !input.sessionRoot
-          || input.runId !== undefined || input.command !== undefined || !this.#runtime?.inspectGjcGoal) throw new Error('Goal inspection is unavailable.');
+          || input.runId !== undefined || input.command !== undefined || input.stopAfterMutation !== undefined || !this.#runtime?.inspectGjcGoal) throw new Error('Goal inspection is unavailable.');
         if ([...this.#runs.values()].some((run) => run.scope === request.sessionId)) throw new Error('The session has an active run.');
         result = await this.#runtime.inspectGjcGoal(scope, input.providerSessionId, input.sessionRoot);
       } else {
@@ -467,7 +471,7 @@ export class GjcWorkerHost {
         if (!run || run.scope !== request.sessionId || !this.#runtime?.controlGjcGoal
           || input.providerSessionId !== undefined || input.sessionRoot !== undefined) throw new Error('No active run exists for this goal control.');
         const command = input.command === undefined ? undefined : parseGjcGoalCommand(input.command);
-        result = await this.#runtime.controlGjcGoal(run.abortHandle ?? run.runId, scope, command);
+        result = await this.#runtime.controlGjcGoal(run.abortHandle ?? run.runId, scope, command, input.stopAfterMutation !== false);
       }
       return this.#response(request, success(json(result)));
     } catch (error) {

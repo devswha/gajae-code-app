@@ -468,11 +468,12 @@ export class GjcWorkerSupervisor {
     return response.result as GjcGoalSnapshot;
   }
 
-  async controlGoal(runId: string, scope: GjcGoalScope, command?: GjcGoalCommand): Promise<GjcGoalSnapshot> {
+  async controlGoal(runId: string, scope: GjcGoalScope, command?: GjcGoalCommand, stopAfterMutation = true): Promise<GjcGoalSnapshot> {
     const run = this.runs.get(runId);
     if (!run || run.appScope !== scope.appSessionId || run.phase !== 'request_issued' || run.aborted || run.abortPromise) throw new Error('The active run changed. Refresh before controlling its goal.');
     const response = await this.request('goal.control', scope.appSessionId, {
       runId, owner: scope.owner, cwd: scope.cwd, ...(scope.projectPath ? { projectPath: scope.projectPath } : {}), ...(command ? { command } : {}),
+      ...(stopAfterMutation ? {} : { stopAfterMutation: false }),
     });
     if (!response.ok) throw new Error(response.error.message);
     return response.result as GjcGoalSnapshot;

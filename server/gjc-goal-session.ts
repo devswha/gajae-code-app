@@ -194,6 +194,11 @@ export class GjcGoalSession {
   }
 
   /** Pause is durable before Stop settles; abort also fences queued SDK continuations. */
+  fenceMutations(): void {
+    this.stopping = true;
+    this.clearLimit();
+  }
+
   stop(): Promise<void> {
     return this.stopPromise ??= this.stopInner().catch((error) => {
       // Keep model mutations fenced, but let the user's Stop retry a failed
@@ -205,8 +210,7 @@ export class GjcGoalSession {
   }
 
   private async stopInner(): Promise<void> {
-    this.stopping = true;
-    this.clearLimit();
+    this.fenceMutations();
     // Calling abort now fences SDK prompt scheduling synchronously. Awaiting
     // pause first would leave a continuation window while accounting drains.
     const abort = this.session.abort();

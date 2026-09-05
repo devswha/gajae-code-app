@@ -145,6 +145,7 @@ test('normal chat submit sends one chat message and never creates a GJC job', as
         effort: 'default',
         sessionSummary: 'normal message',
         images: [],
+        goalUiVersion: 1,
       },
     });
     assert.equal(addedMessages.length, 1);

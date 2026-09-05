@@ -94,6 +94,7 @@ export type GjcBunSdkAdapterOptions = {
 type ActiveRun = {
   goals?: GjcGoalSession;
   goalScope?: GjcGoalScope;
+  markAborted?: () => void;
   session: {
     prompt(message: string, options?: { streamingBehavior?: 'steer' | 'followUp' }): Promise<void>;
     abort(): Promise<void>;
@@ -505,6 +506,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       run.askController.dispose();
       run.abortState = 'aborted';
       run.state.abortRequested = true;
+      run.markAborted?.();
       await automationCleanup;
       return true;
     } catch {
@@ -536,7 +538,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
     } finally { await manager.close(); }
   }
 
-  async controlGjcGoal(runId: string, scope: GjcGoalScope, command?: GjcGoalCommand): Promise<GjcGoalSnapshot> {
+  async controlGjcGoal(runId: string, scope: GjcGoalScope, command?: GjcGoalCommand, stopAfterMutation = true): Promise<GjcGoalSnapshot> {
     const run = this.#runs.get(runId);
     if (!run || run.abortState !== 'idle' || !matchesGjcGoalOwner(run.goalScope, scope)) throw new Error('No controllable goal exists for this run.');
     if (!run.goals) {
@@ -546,6 +548,12 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
     if (!command) return run.goals.snapshot();
     const snapshot = await run.goals.control(command);
     if (command.operation === 'pause' || command.operation === 'drop') {
+      if (!stopAfterMutation) {
+        // The native worktree runtime owns this run's cancellation/finalization.
+        // Freeze further model changes while its caller stops that authority.
+        run.goals.fenceMutations();
+        return { ...snapshot, canControl: false };
+      }
       if (!await this.abortGjcSession(runId)) throw new Error('The goal changed, but stopping the run could not be confirmed.');
       return { ...snapshot, runId: null, resumeRequired: command.operation === 'pause' };
     }
@@ -655,7 +663,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
             ? { credentialSelector: resolvedCredential.credentialSelector }
             : {}),
           toolNames: [...new Set([...config.toolNames, 'ask', ...(goalEnabled ? ['goal'] : [])])],
-          spawns: goalEnabled ? 'deny' : config.spawns,
+          spawns: config.spawns,
           goalToolAllowedOps: goalEnabled ? GJC_GOAL_MODEL_OPERATIONS : [],
           bashAllowedPrefixes: config.bashPolicy.allowedPrefixes,
           ...(config.bashPolicy.restrictionProfile ? { bashRestrictionProfile: config.bashPolicy.restrictionProfile } : {}),
@@ -680,7 +688,10 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           // CustomTool is the public SDK replacement API. Never construct the
           // built-in executor: it does not inherit the app permission boundary.
           toolNames: sessionOptions.toolNames!.filter((name) => !GJC_APP_DELEGATION_TOOL_NAMES.includes(name as 'task' | 'subagent')),
-          ...(delegation ? { customTools: delegation.tools(), spawns: 'deny' } : {}),
+          ...(delegation ? { customTools: delegation.tools() } : {}),
+          // The app executor above receives the configured role policy. Only
+          // native SDK spawning is denied for goal/delegation-capable sessions.
+          spawns: delegation || goalEnabled ? 'deny' : sessionOptions.spawns,
         });
         if (config.modelProfile) {
           await activateModelProfile({
@@ -742,6 +753,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           );
         });
         const activeRun: ActiveRun = {
+          markAborted: writer.setAborted,
           ...(goalScope ? { goalScope } : {}),
           session: result.session,
           sessionManager,

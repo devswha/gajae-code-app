@@ -29,7 +29,13 @@ test('goal protocol rejects cross-session, stale-run, extra-field and malformed 
   assert.equal(calls.length, 0);
   for (const id of ['foreign', 'stale', 'extra', 'malformed', 'busy']) assert.equal(frames.find((frame) => frame.id === id)?.payload.ok, false);
   await send('goal.control', 'valid', control);
-  assert.deepEqual(calls, [['exact-run', { appSessionId: 'app-a', owner: 'number:1', cwd: '/project' }, { operation: 'pause', goalId: 'goal-a' }]]);
+  assert.deepEqual(calls, [['exact-run', { appSessionId: 'app-a', owner: 'number:1', cwd: '/project' }, { operation: 'pause', goalId: 'goal-a' }, true]]);
+  await send('goal.control', 'native-owner', { ...control, stopAfterMutation: false });
+  assert.equal((calls.at(-1) as unknown[]).at(-1), false);
+  const beforeInvalidStop = calls.length;
+  await send('goal.control', 'invalid-stop-policy', { ...control, stopAfterMutation: 'false' });
+  assert.equal(calls.length, beforeInvalidStop);
+  assert.equal(frames.find((frame) => frame.id === 'invalid-stop-policy')?.payload.ok, false);
   finish();
   await run;
   await send('goal.control', 'settled', control);

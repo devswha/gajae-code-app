@@ -157,7 +157,7 @@ const { app, server, wss } = createGjcAppFactory({
         oauthSupervisor: getGjcWorkerSupervisor(),
         goalSupervisor: getGjcWorkerSupervisor(),
         gjcProjection: gjcJobProjection,
-        sessionWorktrees: { prepare: prepareSessionWorktreeRun, abort: abortSessionWorktreeRun, workerHandle: sessionWorktreeWorkerHandle },
+        sessionWorktrees: { prepare: prepareSessionWorktreeRun, abort: abortSessionWorktreeRun, workerHandle: sessionWorktreeWorkerHandle, resolveWorkspace: resolveSessionWorkspacePath },
     },
     shell: {
         resolveProviderSessionId: (sessionId, provider) => {

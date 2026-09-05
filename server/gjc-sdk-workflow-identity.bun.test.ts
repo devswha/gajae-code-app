@@ -11,13 +11,14 @@ import { SessionManager } from '@gajae-code/coding-agent/session/session-manager
 import type { ToolSession } from '@gajae-code/coding-agent/tools';
 
 // Regression coverage for issue #18 (upstream fix: Yeachan-Heo/gajae-code#5282).
-// The app passes an explicit providerSessionId to createAgentSession for every
-// session (gjc-bun-sdk-adapter.ts), which keys the AsyncJobManager endpoint as a
+// The app previously passed an explicit providerSessionId to createAgentSession,
+// which keys the AsyncJobManager endpoint as a
 // JSON tuple. Workflow consumers must see the LOGICAL session id — a single
 // path component — or deep-interview/ralplan state lands in a percent-encoded
 // .gjc/_session-["async-job-endpoint",...] tree and ask fails with
 // "session id must be a single path component". RED on runtime 0.15.6 (the
-// pre-fix pin), GREEN once the pin carries the upstream fix.
+// pre-fix pin), GREEN on 0.16.4. Keep the triggering shape here even though the
+// adapter now avoids the redundant ID as an independent mitigation.
 
 const tempDirs: string[] = [];
 
@@ -45,7 +46,7 @@ test('an app-shaped SDK session keeps workflow identity path-safe beside the asy
   await sessionManager.flush();
   assert.ok(sessionManager.getSessionFile());
 
-  // The adapter always passes an explicit providerSessionId; that is exactly
+  // Preserve the former adapter's explicit providerSessionId: this is exactly
   // the input shape that produced the JSON-tuple endpoint key.
   const { session } = await createAgentSession({
     cwd,

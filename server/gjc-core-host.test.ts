@@ -229,12 +229,16 @@ test('native core reports transcripts a directory already held when it appeared'
 test('native core relays bytes and child diagnostics without a shell', async () => {
   const script = [
     "process.stdin.on('data', (chunk) => process.stdout.write(chunk));",
-    "process.stdin.on('end', () => { process.stderr.write('child diagnostic\\n'); process.exit(7); });",
+    // Windows pipe writes are asynchronous. Let both streams drain before
+    // exiting, otherwise the fixture itself can truncate a correct relay.
+    "process.stdin.on('end', () => { process.stderr.write('child diagnostic\\n'); process.exitCode = 7; });",
   ].join('');
+  const unicode = Buffer.from('한글\n'.repeat(32 * 1024));
   const chunks = [
     Buffer.from('{"protocolVersion":1,"kind":"request"}\n'),
     Buffer.from('split-utf8-'),
-    Buffer.from('한글\n'),
+    unicode.subarray(0, 1),
+    unicode.subarray(1),
   ];
   const result = await runCore([
     '--',

@@ -56,6 +56,7 @@ jobs:
         run: npm run audit
 
       - name: Check source
+        id: source
         run: |
           npm run typecheck
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -70,18 +71,26 @@ jobs:
         run: npm run check:core
 
       - name: Build payload and installer
+        id: build
+        # Gather independent Windows failures in one run. A failed core check
+        # still fails the job and prevents the final artifact upload.
+        if: ${{ !cancelled() && steps.source.outcome == 'success' }}
         run: npm run desktop:build:windows
 
       - name: Test Windows runtime
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: npm run test:windows
 
       - name: Test desktop lifecycle
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
 
       - name: Stage installer and checksum
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        id: installer
         run: |
           $ErrorActionPreference = 'Stop'
           $installers = @(Get-ChildItem 'src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe')
@@ -95,6 +104,7 @@ jobs:
           "WINDOWS_INSTALLER=$($installers[0].FullName)" >> $env:GITHUB_ENV
 
       - name: Verify installed payload
+        if: ${{ !cancelled() && steps.installer.outcome == 'success' }}
         run: |
           $ErrorActionPreference = 'Stop'
           $installDir = Join-Path $env:RUNNER_TEMP 'Gajae Windows QA 가재'

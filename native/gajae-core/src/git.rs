@@ -235,17 +235,10 @@ fn create(workdir: &Path, params: &Value) -> Result<Value, GitError> {
     let root = managed_root(workdir)?;
     std::fs::create_dir_all(&root).map_err(|_| GitError::InvalidPath)?;
     let base = git_text(workdir, ["rev-parse", "HEAD^{commit}"])?;
+    let git_path = git_path_argument(&path)?;
     let status = git_status(
         workdir,
-        [
-            "worktree",
-            "add",
-            "-b",
-            &branch,
-            "--",
-            path.to_str().ok_or(GitError::UnsupportedEncoding)?,
-            &base,
-        ],
+        ["worktree", "add", "-b", &branch, "--", &git_path, &base],
     );
     if !status {
         return Err(GitError::GitFailed);
@@ -446,15 +439,8 @@ fn prune(workdir: &Path, params: &Value) -> Result<Value, GitError> {
     {
         return Err(GitError::DirtyWorktree);
     }
-    if !git_status(
-        workdir,
-        [
-            "worktree",
-            "remove",
-            "--",
-            path.to_str().ok_or(GitError::UnsupportedEncoding)?,
-        ],
-    ) {
+    let git_path = git_path_argument(&path)?;
+    if !git_status(workdir, ["worktree", "remove", "--", &git_path]) {
         return Err(GitError::GitFailed);
     }
     Ok(json!({"pruned":true,"branchRetained":true}))
@@ -490,6 +476,38 @@ fn valid_id(value: &str) -> bool {
         && value
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':'))
+}
+
+fn git_path_argument(path: &Path) -> Result<String, GitError> {
+    let value = path.to_str().ok_or(GitError::UnsupportedEncoding)?;
+    // Keep canonical/verbatim paths for filesystem authorization, but Git's
+    // worktree arguments use its ordinary drive/UNC spelling. Passing \\?\ to
+    // Git for Windows can reject worktree creation despite a valid cwd.
+    Ok(if cfg!(windows) {
+        windows_git_path(value)
+    } else {
+        value.to_owned()
+    })
+}
+
+fn windows_git_path(value: &str) -> String {
+    if let Some(unc) = value.strip_prefix(r"\\?\UNC\") {
+        format!("//{}", unc.replace('\\', "/"))
+    } else if let Some(drive) = value.strip_prefix(r"\\?\") {
+        if drive
+            .as_bytes()
+            .first()
+            .is_some_and(u8::is_ascii_alphabetic)
+            && drive.as_bytes().get(1) == Some(&b':')
+        {
+            drive.replace('\\', "/")
+        } else {
+            // Never turn a device/volume namespace into a relative Git path.
+            value.to_owned()
+        }
+    } else {
+        value.replace('\\', "/")
+    }
 }
 
 fn validate_workdir(workdir: &Path) -> Result<PathBuf, GitError> {
@@ -785,6 +803,14 @@ where
     if too_large {
         return Err(GitError::OutputTooLarge);
     }
+    #[cfg(test)]
+    if !status.success() && !stderr.is_empty() {
+        eprintln!(
+            "Git test command {:?} failed: {}",
+            command.get_args().collect::<Vec<_>>(),
+            String::from_utf8_lossy(&stderr)
+        );
+    }
     Ok(Output {
         status,
         stdout,
@@ -915,6 +941,14 @@ mod tests {
                     .unwrap()
                     .success()
             );
+            assert!(
+                Command::new("git")
+                    .args(["config", "core.autocrlf", "false"])
+                    .current_dir(&path)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
             std::fs::write(path.join("tracked.txt"), "before\n").unwrap();
             assert!(
                 Command::new("git")
@@ -964,6 +998,23 @@ mod tests {
         let frame = serde_json::to_vec(&request).unwrap();
         assert_eq!(frame.len(), length);
         frame
+    }
+
+    #[test]
+    fn git_arguments_use_ordinary_windows_drive_and_unc_paths() {
+        assert_eq!(
+            windows_git_path(r"\\?\C:\Users\가재 dev\.gjc-worktrees\job-1"),
+            "C:/Users/가재 dev/.gjc-worktrees/job-1"
+        );
+        assert_eq!(
+            windows_git_path(r"\\?\UNC\server\share\가재 dev\job-1"),
+            "//server/share/가재 dev/job-1"
+        );
+        assert_eq!(windows_git_path(r"C:\work\job-1"), "C:/work/job-1");
+        assert_eq!(
+            windows_git_path(r"\\?\Volume{example}\work"),
+            r"\\?\Volume{example}\work"
+        );
     }
 
     #[test]

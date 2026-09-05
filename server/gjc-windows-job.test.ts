@@ -127,12 +127,19 @@ test('Windows reap barrier rejects termination and verification failures', async
 
 for (const shutdown of ['guard', 'owner'] as const) {
 test(`Windows Job Object kills detached descendants after ${shutdown} exit`, {
-  skip: process.platform !== 'win32', timeout: 30_000,
+  // Startup (15 s), owner exit (5 s), and two independent reaps (up to 20 s
+  // each) have separate bounds. Do not cancel a still-bounded reap on CI.
+  skip: process.platform !== 'win32', timeout: 65_000,
 }, async () => {
   const program = `
     const { spawn } = require('node:child_process');
     const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' });
-    child.on('spawn', () => process.stdout.write(JSON.stringify({ descendant: child.pid }) + '\\n'));
+    child.on('spawn', () => {
+      const frame = Buffer.from(JSON.stringify({ descendant: child.pid, marker: '가재 job fixture' }) + '\\n');
+      const split = frame.indexOf(Buffer.from('가')) + 1;
+      process.stdout.write(frame.subarray(0, split));
+      setTimeout(() => process.stdout.write(frame.subarray(split)), 10);
+    });
     setInterval(() => {}, 1000);
   `;
   const owner = shutdown === 'owner'
@@ -141,8 +148,12 @@ test(`Windows Job Object kills detached descendants after ${shutdown} exit`, {
   const launch = createWindowsJobLaunch(process.execPath, ['-e', program], process.env, process.cwd());
   if (owner) launch.env.GAJAE_INTERNAL_JOB_OWNER_PROCESS = String(owner.pid);
   const guard = spawn(launch.command, launch.args, { env: launch.env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  const guardClosed = new Promise<void>((resolve) => guard.once('close', () => resolve()));
+  const ownerClosed = owner ? new Promise<void>((resolve) => owner.once('close', () => resolve())) : Promise.resolve();
   let stderr = '';
-  guard.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+  guard.stderr.setEncoding('utf8');
+  guard.stderr.on('data', (chunk: string) => { stderr += chunk; });
+  guard.stdout.setEncoding('utf8');
   let descendant: number | undefined;
   try {
     descendant = await new Promise<number>((resolve, reject) => {
@@ -150,8 +161,8 @@ test(`Windows Job Object kills detached descendants after ${shutdown} exit`, {
       const timer = setTimeout(() => reject(new Error(`Job guard startup timed out: ${stderr}`)), 15_000);
       guard.once('error', (error) => { clearTimeout(timer); reject(error); });
       guard.once('exit', () => { clearTimeout(timer); reject(new Error(`Job guard exited: ${stderr}`)); });
-      guard.stdout.on('data', (chunk: Buffer) => {
-        buffer += chunk.toString();
+      guard.stdout.on('data', (chunk: string) => {
+        buffer += chunk;
         const lines = buffer.split('\n');
         buffer = lines.pop()!;
         for (const raw of lines) {
@@ -159,8 +170,9 @@ test(`Windows Job Object kills detached descendants after ${shutdown} exit`, {
           if (line === GJC_WINDOWS_JOB_GUARD_READY) guard.stdin.write(`${GJC_WINDOWS_JOB_GUARD_ACK}\n`);
           else {
             try {
-              const frame = JSON.parse(line) as { descendant: number };
+              const frame = JSON.parse(line) as { descendant: number; marker: string };
               assert.ok(frame.descendant > 0);
+              assert.equal(frame.marker, '가재 job fixture');
               clearTimeout(timer);
               resolve(frame.descendant);
             } catch (error) { clearTimeout(timer); reject(error); }
@@ -186,6 +198,7 @@ test(`Windows Job Object kills detached descendants after ${shutdown} exit`, {
     if (guard.exitCode === null && guard.signalCode === null) guard.kill('SIGKILL');
     if (owner && owner.exitCode === null && owner.signalCode === null) owner.kill('SIGKILL');
     if (descendant) { try { process.kill(descendant, 'SIGKILL'); } catch { /* already reaped */ } }
+    await Promise.all([guardClosed, ownerClosed]);
   }
 });
 }

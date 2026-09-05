@@ -271,7 +271,16 @@ async function main() {
   await workerHandshake(bun, path.join(payloadDir, 'dist-server', 'server', 'gjc-bun-worker.js'));
   const { version } = JSON.parse(await fs.readFile(path.join(payloadDir, 'package.json'), 'utf8'));
   await serverSmoke(payloadDir, version);
-  console.log('Windows payload smoke passed: Node, SQLite, ConPTY, core, ripgrep, Bun worker, supervised model catalog/Job chain, desktop bootstrap/auth, frontend and graceful shutdown.');
+  await new Promise((resolve, reject) => {
+    process.stdout.write('Windows payload smoke passed: Node, SQLite, ConPTY, core, ripgrep, Bun worker, supervised model catalog/Job chain, desktop bootstrap/auth, frontend and graceful shutdown.\n', error => error ? reject(error) : resolve());
+  });
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await main();
+  // All worker/server exits and the final output flush have been awaited.
+  // node-pty's Windows native helpers can retain event-loop handles afterwards;
+  // this short-lived checker must finish explicitly, like the production server.
+  // The caller independently reaps the owned Job and verifies no descendants.
+  process.exit(0);
+}

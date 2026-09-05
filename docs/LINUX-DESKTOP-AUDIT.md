@@ -1,14 +1,48 @@
 # Linux desktop follow-up audit
 
-This audit follows the initial Linux build at `a456a92`. It integrates the
-parallel fixes with `main` at `5137be4` through merge `2048955`. The app remains
-`2.0.0-beta.8`, with desktop version `0.2.2` and SDK `0.15.6`.
+The original audit followed the initial Linux build at `a456a92`, integrating
+parallel fixes with `main` at `5137be4` through merge `2048955` on SDK `0.15.6`.
+Those Linux package results and checksums remain historical evidence. The
+current source retains app version `2.0.0-beta.8` and desktop version `0.2.2`,
+but now pins SDK `0.16.4`.
+
+## Combined-tree qualification (2026-09-06 KST)
+
+Merge `de994ed` includes `main` at `6d98bee` (PR #35 provider catalog/selection
+fixes); merge `10c8ebc` includes SDK qualification commit `8d62924`. Both
+review fixes remain in the combined tree: `5f4c948` permanently revokes replaced
+terminal sockets after PTY exit, and `b97d90f` makes the packaging/smoke entry
+points execute through symlinked checkout paths and fixes macOS fixture path
+comparisons. The SDK upgrade's deterministic `contract-profile` test is retained
+instead of relying on a changing built-in model profile.
+
+| Check | Combined-tree result |
+| --- | --- |
+| Local `npm ci` and SDK pin | Passed; installed SDK `0.16.4` with Node `22.23.1` and Bun `1.4.0` |
+| Local `npm run verify` | Passed: audit, licenses, notices, typecheck, Rust formatting/Clippy, 61 Rust core tests, 709 Node server tests (2 skipped), 97 server Bun tests (1 live smoke skipped), 469 Node client tests, 196 client Bun tests, 97 script tests (10 Linux-only skips), lint, identity and all build stages |
+| Local Tauri formatting and tests | Passed on macOS arm64: 27 tests; bundle inputs disabled for tests because no packaged payload is built here |
+| New Linux package build and Ubuntu 22.04/24.04 package/GUI checks | Pending fresh Linux CI artifacts after this combined tree is pushed |
+
+The local Rust toolchain is `1.85.1`. Tauri ran with
+`TAURI_CONFIG='{"bundle":{"externalBin":[],"resources":[]}}' cargo test --locked --manifest-path src-tauri/Cargo.toml`
+after the formatting check. These tests exercise the shared/macOS shell code;
+Linux-only instance tests and real Linux packaging still require Linux CI.
+The full gate used `GJC_CONTRACT_LIVE=0`; no live model call or standalone
+GJC E2E run was added to this integration check. The generated manifests,
+command catalog and notices remained unchanged after the successful build.
+
+The SDK qualification recorded at `8d62924` independently passed its full source
+gate, eight GJC E2Es and an isolated `openai-codex/gpt-6-astra` / `xhigh` live
+response/abort smoke before integration. Those results are not a claim that
+the live smoke or Linux package checks have been rerun on this combined tree.
 
 ## Findings and fixes
 
 | Finding | Result |
 | --- | --- |
 | Closing an old terminal socket detached its replacement; old PTY callbacks could affect a newer session | Ownership checks, stable session/child references and guarded expiry preserve the current connection. Both terminal regression suites pass. |
+| A replaced terminal socket could reclaim ownership after PTY exit removed the session entry | Permanent socket revocation survives PTY exit and force-restart; both failing-before regressions pass with `5f4c948`. |
+| Symlinked packaging/smoke CLI paths could exit successfully without running any checks | Entry-point comparisons canonicalize both paths; build/restore guards and real staging fixture checks cover the corrected behavior in `b97d90f`. |
 | Workspace Browser was disabled by the macOS-only desktop gate | Linux x64 browser support is enabled; native computer/CUA support remains separately gated. |
 | Browser's external-open button used `window.open`, which does not reach the system browser from the desktop webview | HTTP/HTTPS preview pages use an authenticated sidecar opener. OAuth/document links retain the existing HTTPS-only policy. |
 | AppRun's Python and GTK search paths broke system Python and Ubuntu 24.04 `gio` | Server bootstrap removes image-owned tool paths while preserving host paths and credentials. The Rust UI keeps its bundle environment. Real AppRun terminal tests prove the fix. |
@@ -24,7 +58,10 @@ The shared macOS payload builder retains its platform checks, signing and native
 closure verification. The concurrent main-branch fixes and tests were preserved,
 including stable QA storage, browser session/frame isolation and terminal URL state.
 
-## Verification
+## Historical Linux verification (SDK 0.15.6)
+
+The following table records the original Linux audit, before the combined-tree
+merges above. It must not be used as package acceptance for SDK `0.16.4`.
 
 | Check | Result |
 | --- | --- |
@@ -54,11 +91,13 @@ and native Linux CUA control are not claimed by this audit.
 
 ## Artifacts and evidence
 
-The final Linux binaries and checksums are in `release/desktop/`; their hashes
-and installation instructions are in [DESKTOP-LINUX.md](DESKTOP-LINUX.md).
-Previous local binaries are retained under `.desktop-build/releases-a456a92/`.
+The original audit staged Linux binaries and checksums in `release/desktop/`;
+their historical hashes and installation instructions are in
+[DESKTOP-LINUX.md](DESKTOP-LINUX.md). Earlier local binaries were retained under
+`.desktop-build/releases-a456a92/`. No new Linux package checksums are claimed
+for the combined SDK `0.16.4` source tree.
 
-Generated evidence is retained under `.desktop-build/linux-audit-evidence/`
+The original audit retained generated evidence under `.desktop-build/linux-audit-evidence/`
 and `.desktop-build/linux-audit-final-artifacts/`, including the full gate,
 container build/test logs, package protocol checks, and OCR GUI reports/images.
 Additional lifecycle evidence is in `.desktop-build/lifecycle-gui/reports/`.
@@ -68,10 +107,12 @@ The Linux workflow now applies the server, AppRun, installed-package and OCR GUI
 checks to Ubuntu 22.04 and 24.04 and uploads GUI evidence even after failure.
 GitHub Actions execution is distinct from the completed local/container checks.
 
-## Separate follow-up
+## SDK qualification boundary
 
-PR #30 / issue #18 remain open. The registry now publishes SDK `0.16.4`; its
-published source/changelog contains the logical-session/async-identity fix that
-the PR was waiting for. The next action is to qualify that version with the
-prepared app-shaped regression and skill matrix, then update the pin/manifest
-through the existing PR. This audit does not silently change the SDK version.
+SDK `0.16.4`, its lockfile, both supported native platform manifests, command
+catalog and notices are now integrated from `8d62924`. The original explicit
+provider-ID regression and the separate logical-session / async-endpoint
+accessor checks are included. The app's redundant-ID mitigation remains.
+The SDK's child permission-bypass regression still reproduces at this version;
+identity qualification does not qualify unrestricted delegation. Fresh Linux
+CI packages and their package/GUI checks remain the next packaging gate.

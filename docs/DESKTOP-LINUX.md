@@ -11,8 +11,16 @@ for validation and does not publish a GitHub Release or send announcements.
 
 ## Compatibility and validation status
 
-Validated on 2026-09-05 UTC / 2026-09-06 KST after integrating the Linux audit
-with `main` at `5137be4`. Runtime sources are recorded by merge `2048955`.
+The current source combines `main` at `6d98bee` (PR #35), qualified SDK
+`0.16.4` from `8d62924`, and review fixes `5f4c948` / `b97d90f` through merge
+`10c8ebc`. New Linux CI package builds and package/GUI checks are pending for
+this combined tree. See [the audit record](LINUX-DESKTOP-AUDIT.md) for its
+separate local source qualification.
+
+The following results are historical evidence from 2026-09-05 UTC /
+2026-09-06 KST, after integrating the original Linux audit with `main` at
+`5137be4` through merge `2048955`, using SDK `0.15.6`. They do not qualify
+new SDK `0.16.4` packages.
 
 | Environment | Result |
 | --- | --- |
@@ -23,8 +31,8 @@ with `main` at `5137be4`. Runtime sources are recorded by merge `2048955`.
 | Native Wayland | One earlier-package startup/render probe passed under Weston 9 headless pixman, without Xwayland; not a final-package GNOME/KDE close/relaunch acceptance |
 | Other targets | Linux arm64, musl/Alpine and cross-compilation are not covered |
 
-The final source gate passed: `npm run verify` includes 61 native-core tests,
-708 Node server tests, 469 Node client tests, 134 script tests and the separate
+That historical source gate passed: `npm run verify` included 61 native-core
+tests, 708 Node server tests, 469 Node client tests, 134 script tests and the separate
 Bun groups. See [the audit record](LINUX-DESKTOP-AUDIT.md) for fixes, focused
 checks and remaining limitations. GitHub workflow execution is recorded separately
 from the local/container results.
@@ -36,11 +44,12 @@ never adds `--no-sandbox`. A compatible installed browser or working managed
 sandbox is still required; native CUA computer control is not automatically
 enabled on Linux.
 
-The published local artifacts below are built on glibc 2.35. A later local build
+The historical local artifacts below were built on glibc 2.35. A later local build
 on Ubuntu 24.04 declares its own newer libc requirement and does not establish
 Ubuntu 22.04 compatibility. AppImage does not remove operating-system requirements.
 
-Local evidence is retained under `.desktop-build/linux-audit-evidence/` and
+The original audit retained local evidence under
+`.desktop-build/linux-audit-evidence/` and
 `.desktop-build/linux-audit-final-artifacts/`; these generated files are not
 committed or published release assets.
 
@@ -118,7 +127,10 @@ release/desktop/gajae-app-desktop-<version>-linux-x64.AppImage
 release/desktop/gajae-app-desktop-<version>-linux-x64.AppImage.sha256
 ```
 
-Final audited artifacts (Ubuntu 22.04 x86_64, glibc 2.35):
+Historical audited artifacts (Ubuntu 22.04 x86_64, glibc 2.35, SDK `0.15.6`):
+these checksums identify the earlier packages only. The combined SDK `0.16.4`
+tree has not yet produced qualified Linux packages; record its new CI artifact
+checksums and results separately, even though the package version is unchanged.
 
 | Format | Size | SHA-256 |
 | --- | --- | --- |

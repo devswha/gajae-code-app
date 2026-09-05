@@ -20,6 +20,8 @@ export interface SlashCommand {
 
 interface UseSlashCommandsOptions {
   selectedProject: Project | null;
+  sessionId?: string | null;
+  executionCwd?: string | null;
   provider: LLMProvider;
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
@@ -74,7 +76,8 @@ const matchCommands = (commands: SlashCommand[], query: string) => {
   return containing.length ? containing : commands.filter((command) => command.description?.toLowerCase().includes(term));
 };
 
-export function useSlashCommands({ selectedProject, provider, input, setInput, textareaRef, onLoginCommand, onAppCommand }: UseSlashCommandsOptions) {
+export function useSlashCommands({ selectedProject, sessionId, executionCwd, provider, input, setInput, textareaRef, onLoginCommand, onAppCommand }: UseSlashCommandsOptions) {
+  const projectId = selectedProject?.projectId;
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
   const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
   const [showCommandMenu, setShowCommandMenu] = useState(false);
@@ -98,15 +101,18 @@ export function useSlashCommands({ selectedProject, provider, input, setInput, t
 
   useEffect(() => {
     let current = true;
+    setSlashCommands([]);
+    setFilteredCommands([]);
     const requestCommands = async () => {
-      if (!selectedProject) {
+      if (!projectId) {
         setSlashCommands([]);
         setFilteredCommands([]);
         return;
       }
       try {
         const params = new URLSearchParams();
-        if (selectedProject.projectId) params.set('projectId', selectedProject.projectId);
+        params.set('projectId', projectId);
+        if (sessionId) params.set('sessionId', sessionId);
         const query = params.toString();
         const endpoint = `/api/providers/${encodeURIComponent(provider)}`;
         const [commandsResponse, skillsResponse] = await Promise.all([
@@ -122,7 +128,7 @@ export function useSlashCommands({ selectedProject, provider, input, setInput, t
           ...(commandPayload?.data?.commands || []).filter((command) => !appNames.has(command.name)),
           ...skillCommands(skillPayload?.data?.skills || []),
         ].filter((command) => isAppUsableCommand(command.name));
-        const history = getHistory(selectedProject.projectId);
+        const history = getHistory(projectId);
         candidates.sort((left, right) => (history[right.name] || 0) - (history[left.name] || 0));
         if (current) setSlashCommands(candidates);
       } catch (error) {
@@ -132,7 +138,7 @@ export function useSlashCommands({ selectedProject, provider, input, setInput, t
     };
     void requestCommands();
     return () => { current = false; };
-  }, [selectedProject, provider]);
+  }, [projectId, provider, sessionId, executionCwd]);
 
   useEffect(() => { if (!showCommandMenu) setSelectedCommandIndex(-1); }, [showCommandMenu]);
   useEffect(() => { setFilteredCommands(matchCommands(slashCommands, commandQuery)); }, [commandQuery, slashCommands]);

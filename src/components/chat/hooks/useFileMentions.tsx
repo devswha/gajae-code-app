@@ -7,7 +7,7 @@ import type { Project } from '../../../types/app';
 
 interface ProjectFileNode { name: string; type: 'file' | 'directory'; path?: string; children?: ProjectFileNode[]; }
 export interface MentionableFile { name: string; path: string; relativePath?: string; }
-interface UseFileMentionsOptions { selectedProject: Project | null; input: string; setInput: Dispatch<SetStateAction<string>>; textareaRef: RefObject<HTMLTextAreaElement | null>; }
+interface UseFileMentionsOptions { selectedProject: Project | null; sessionId?: string | null; executionCwd?: string | null; input: string; setInput: Dispatch<SetStateAction<string>>; textareaRef: RefObject<HTMLTextAreaElement | null>; }
 
 const collectFiles = (nodes: ProjectFileNode[], parent = ''): MentionableFile[] => nodes.flatMap((node) => {
   const path = parent ? `${parent}/${node.name}` : node.name;
@@ -28,7 +28,7 @@ const rankFiles = (files: MentionableFile[], query: string) => {
   return files.filter((file) => file.name.toLowerCase().includes(needle) || file.path.toLowerCase().includes(needle)).slice(0, 10);
 };
 
-export function useFileMentions({ selectedProject, input, setInput, textareaRef }: UseFileMentionsOptions) {
+export function useFileMentions({ selectedProject, sessionId, executionCwd, input, setInput, textareaRef }: UseFileMentionsOptions) {
   const [files, setFiles] = useState<MentionableFile[]>([]);
   const [mentions, setMentions] = useState<string[]>([]);
   const [filteredFiles, setFilteredFiles] = useState<MentionableFile[]>([]);
@@ -46,8 +46,11 @@ export function useFileMentions({ selectedProject, input, setInput, textareaRef 
 
     const load = async () => {
       try {
-        const response = await api.getFiles(projectId, { signal: request.signal });
-        if (response.ok) setFiles(collectFiles((await response.json()) as ProjectFileNode[]));
+        const response = await api.getFiles(projectId, { signal: request.signal }, sessionId ?? undefined);
+        if (response.ok) {
+          const files = collectFiles((await response.json()) as ProjectFileNode[]);
+          if (!request.signal.aborted) setFiles(files);
+        }
       } catch (error) {
         if ((error as { name?: string })?.name !== 'AbortError') console.error('Error fetching files:', error);
       }
@@ -55,7 +58,7 @@ export function useFileMentions({ selectedProject, input, setInput, textareaRef 
 
     void load();
     return () => request.abort();
-  }, [selectedProject?.projectId]);
+  }, [selectedProject?.projectId, sessionId, executionCwd]);
 
   useEffect(() => {
     const mention = findMention(input, cursorPosition);

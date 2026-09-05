@@ -87,8 +87,8 @@ export const api = {
   archivedProjects: () => authenticatedFetch('/api/projects/archived'),
   // Read-only working-tree summary for the Workspace status tab: branch plus
   // the files git reports as changed. Never writes to the repository.
-  gitStatus: (projectId: string) =>
-    authenticatedFetch(`/api/git/status?project=${encodeURIComponent(projectId)}`),
+  gitStatus: (projectId: string, sessionId?: string) =>
+    authenticatedFetch(`/api/git/status?project=${encodeURIComponent(projectId)}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ''}`),
   // Home-relative directory autocomplete ({ home, suggestions }).
   dirSuggestions: (prefix: string) =>
     authenticatedFetch(`/api/providers/fs/dir-suggestions?prefix=${encodeURIComponent(prefix)}`),
@@ -205,8 +205,8 @@ export const api = {
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/toggle-star`, {
       method: 'POST',
     }),
-  getFiles: (projectId: string, options: RequestInit = {}) =>
-    authenticatedFetch(`/api/projects/${projectId}/files`, options),
+  getFiles: (projectId: string, options: RequestInit = {}, sessionId?: string) =>
+    authenticatedFetch(`/api/projects/${projectId}/files${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''}`, options),
 
 
   // Browse filesystem for project suggestions

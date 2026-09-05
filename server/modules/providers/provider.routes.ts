@@ -8,6 +8,7 @@ import { providerSkillsService } from '@/modules/providers/services/provider-ski
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { exportSessionTranscript } from '@/modules/providers/services/session-export.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
+import { createWorktreeSession, readSessionLocation, resolveSessionCommandWorkspace } from '@/modules/providers/services/session-worktrees.service.js';
 import { getHomeDir, getHomeDirSuggestions } from '@/modules/providers/services/home-dirs.service.js';
 import type { LLMProvider, ProviderChangeActiveModelInput } from '@/shared/types.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
@@ -42,6 +43,10 @@ const queryText = (raw: unknown): string | undefined => {
   const text = raw.trim();
   return text || undefined;
 };
+
+const querySessionId = (raw: unknown): string | undefined => raw === undefined
+  ? undefined
+  : typeof raw === 'string' ? sessionFrom(raw) : invalid('Invalid sessionId.', 'INVALID_SESSION_ID');
 
 const queryFlag = (raw: unknown, name: string): boolean | undefined => {
   if (raw === undefined) return undefined;
@@ -105,12 +110,18 @@ router.get('/:provider/models', asyncHandler(async (req: Request, res: Response)
 
 router.get('/:provider/skills', asyncHandler(async (req: Request, res: Response) => {
   const provider = providerFrom(req.params.provider);
-  res.json(createApiSuccessResponse({ provider, skills: await providerSkillsService.listProviderSkills(provider, queryText(req.query.projectId)) }));
+  const projectId = queryText(req.query.projectId);
+  const sessionId = querySessionId(req.query.sessionId);
+  const workspace = sessionId ? await resolveSessionCommandWorkspace(projectId, sessionId) : undefined;
+  res.json(createApiSuccessResponse({ provider, skills: await providerSkillsService.listProviderSkills(provider, projectId, workspace) }));
 }));
 
 router.get('/:provider/commands', asyncHandler(async (req: Request, res: Response) => {
   providerFrom(req.params.provider);
-  res.json(createApiSuccessResponse({ provider: 'gjc', commands: await providerCommandsService.listProviderCommands(queryText(req.query.projectId)) }));
+  const projectId = queryText(req.query.projectId);
+  const sessionId = querySessionId(req.query.sessionId);
+  const workspace = sessionId ? await resolveSessionCommandWorkspace(projectId, sessionId) : undefined;
+  res.json(createApiSuccessResponse({ provider: 'gjc', commands: await providerCommandsService.listProviderCommands(projectId, workspace) }));
 }));
 
 router.get('/:provider/sessions/:sessionId/active-model', asyncHandler(async (req: Request, res: Response) => {
@@ -133,7 +144,18 @@ router.get('/:provider/capabilities', asyncHandler(async (req: Request, res: Res
 router.post('/sessions', asyncHandler(async (req: Request, res: Response) => {
   const body = (req.body ?? {}) as Record<string, unknown>;
   const projectPath = typeof body.projectPath === 'string' ? body.projectPath : '';
-  res.status(201).json(createApiSuccessResponse(sessionsService.createAppSession(providerFrom(body.provider), projectPath)));
+  res.status(201).json(createApiSuccessResponse(await sessionsService.createAppSession(providerFrom(body.provider), projectPath)));
+}));
+
+router.post('/worktree-sessions', asyncHandler(async (req: Request, res: Response) => {
+  const body = objectBody(req.body);
+  providerFrom(body.provider);
+  const projectPath = typeof body.projectPath === 'string' ? body.projectPath : '';
+  res.status(201).json(createApiSuccessResponse(await createWorktreeSession(projectPath)));
+}));
+
+router.get('/sessions/:sessionId/location', asyncHandler(async (req: Request, res: Response) => {
+  res.json(createApiSuccessResponse(readSessionLocation(sessionFrom(req.params.sessionId))));
 }));
 
 router.get('/sessions/running', asyncHandler(async (_req: Request, res: Response) => {

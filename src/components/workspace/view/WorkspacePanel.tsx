@@ -163,6 +163,7 @@ export default function WorkspacePanel({
             projectName={projectName}
             projectPath={projectPath}
             projectId={projectId}
+            sessionId={sessionId}
             permissionMode={permissionMode}
             active
           />

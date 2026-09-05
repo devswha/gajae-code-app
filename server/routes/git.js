@@ -209,7 +209,11 @@ function validateProjectPath(projectPath) {
  * path comes straight from the `projects` table and is then sanity-checked
  * by `validateProjectPath` before any `git` command runs against it.
  */
-async function getActualProjectPath(projectId) {
+async function getActualProjectPath(projectId, sessionId) {
+  if (sessionId !== undefined) {
+    const { resolveSessionWorkspacePath } = await import('../services/session-worktree-paths.js');
+    return validateProjectPath(await resolveSessionWorkspacePath(projectId, sessionId));
+  }
   const projectPath = await projectsDb.getProjectPathById(projectId);
   if (!projectPath) {
     throw new Error(`Unable to resolve project path for "${projectId}"`);
@@ -713,7 +717,7 @@ router.get('/status', async (req, res) => {
   }
 
   try {
-    const projectPath = await getActualProjectPath(project);
+    const projectPath = await getActualProjectPath(project, req.query.sessionId);
 
     // Validate git repository
     await validateGitRepository(projectPath);
@@ -742,6 +746,7 @@ router.get('/status', async (req, res) => {
     });
   } catch (error) {
     console.error('Git status error:', error);
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message, code: error.code });
     res.json({
       error: error.message.includes('not a git repository') || error.message.includes('Project directory is not a git repository')
         ? error.message
@@ -809,10 +814,11 @@ router.get('/diff', async (req, res) => {
   }
 
   try {
-    const projectPath = await getActualProjectPath(project);
+    const projectPath = await getActualProjectPath(project, req.query.sessionId);
     res.json(await readProjectDiff(projectPath));
   } catch (error) {
     console.error('Git diff error:', error);
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message, code: error.code });
     res.json({
       error: error.message.includes('not a git repository') || error.message.includes('Project directory is not a git repository')
         ? error.message

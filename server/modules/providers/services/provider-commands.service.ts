@@ -78,8 +78,8 @@ export const createProviderCommandsService = (dependencies: ProviderCommandsDepe
   const resolveProjectPath = dependencies.resolveProjectPath ?? projectsDb.getProjectPathById;
 
   return {
-    async listProviderCommands(projectId?: string): Promise<ProviderCommand[]> {
-      const workspacePath = projectId ? resolveProjectPath(projectId) : null;
+    async listProviderCommands(projectId?: string, sessionWorkspace?: string): Promise<ProviderCommand[]> {
+      const workspacePath = sessionWorkspace ?? (projectId ? resolveProjectPath(projectId) : null);
       if (projectId && !workspacePath) {
         throw new AppError(`Project "${projectId}" was not found.`, {
           code: 'PROJECT_NOT_FOUND',

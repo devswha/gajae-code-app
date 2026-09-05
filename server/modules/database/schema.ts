@@ -120,6 +120,16 @@ export const LAST_SCANNED_AT_SQL = table(`
   );
 `);
 
+export const SESSION_WORKTREES_TABLE_SCHEMA_SQL = table(`
+  CREATE TABLE IF NOT EXISTS session_worktrees (
+      session_id TEXT PRIMARY KEY NOT NULL,
+      job_id TEXT NOT NULL UNIQUE,
+      repository_root TEXT NOT NULL,
+      worktree_path TEXT,
+      FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+  );
+`);
+
 export const GJC_TERMINAL_NOTIFICATION_DISPATCHES_TABLE_SCHEMA_SQL = table(`
   CREATE TABLE IF NOT EXISTS gjc_terminal_notification_dispatches (
       job_id TEXT NOT NULL, -- the terminal job the event belongs to
@@ -183,6 +193,7 @@ const statements = [
   'CREATE INDEX IF NOT EXISTS idx_notification_channel_endpoints_enabled ON notification_channel_endpoints(enabled);',
   PROJECTS_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
+  SESSION_WORKTREES_TABLE_SCHEMA_SQL,
   'CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id);',
   PROJECT_PERMISSIONS_TABLE_SCHEMA_SQL,
   GJC_TERMINAL_NOTIFICATION_DISPATCHES_TABLE_SCHEMA_SQL,

@@ -27,6 +27,7 @@ import {
 } from '@/modules/database/repositories/projects.db.js';
 import { scanStateDb as scanState } from '@/modules/database/repositories/scan-state.db.js';
 import { sessionsDb as sessions } from '@/modules/database/repositories/sessions.db.js';
+import { sessionWorktreesDb as sessionWorktrees } from '@/modules/database/repositories/session-worktrees.db.js';
 import { userDb as users } from '@/modules/database/repositories/users.js';
 
 export {
@@ -46,6 +47,7 @@ export {
   projects as projectsDb,
   scanState as scanStateDb,
   sessions as sessionsDb,
+  sessionWorktrees as sessionWorktreesDb,
   terminalNotificationDispatches as gjcTerminalNotificationDispatchesDb,
   users as userDb,
 };

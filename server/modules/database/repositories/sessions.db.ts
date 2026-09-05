@@ -1,6 +1,7 @@
 import { getConnection } from '@/modules/database/connection.js';
 import { projectsDb } from '@/modules/database/repositories/projects.db.js';
 import { normalizeProjectPath } from '@/shared/utils.js';
+import { sessionWorktreesDb } from '@/modules/database/repositories/session-worktrees.db.js';
 
 /**
  * Who set `custom_name`: `user` typed it, `auto` is the runtime's model-written
@@ -62,13 +63,15 @@ function projectSessions(projectPath: string, archived: boolean, page?: { limit:
 export const sessionsDb = {
   createSession(providerSessionId: string, provider: string, projectPath: string, customName?: string, createdAt?: string, updatedAt?: string, jsonlPath?: string | null): string {
     const db = getConnection();
-    const storedProjectPath = providerProjectPath(provider, projectPath);
+    const mapped = db.prepare('SELECT session_id FROM sessions WHERE provider = ? AND provider_session_id = ? LIMIT 1')
+      .get(provider, providerSessionId) as { session_id: string } | undefined;
+    // The provider transcript owns execution cwd; the app binding owns project
+    // grouping and permissions. A worktree transcript must not move its parent.
+    const storedProjectPath = (mapped && sessionWorktreesDb.get(mapped.session_id)?.repository_root) || providerProjectPath(provider, projectPath);
     const created = isoTimestamp(createdAt);
     const updated = isoTimestamp(updatedAt);
     projectsDb.ensureProjectPathForSession(storedProjectPath);
 
-    const mapped = db.prepare('SELECT session_id FROM sessions WHERE provider = ? AND provider_session_id = ? LIMIT 1')
-      .get(provider, providerSessionId) as { session_id: string } | undefined;
     // A name the indexer changes is `derived`; echoing the stored name keeps its source.
     if (mapped) {
       db.prepare(`UPDATE sessions SET provider = ?, project_path = ?, jsonl_path = ?, name_source = CASE WHEN ? IS NOT NULL AND ? IS NOT custom_name THEN 'derived' ELSE name_source END, custom_name = COALESCE(?, custom_name), updated_at = COALESCE(?, CURRENT_TIMESTAMP) WHERE session_id = ?`)

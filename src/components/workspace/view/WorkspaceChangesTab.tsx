@@ -48,7 +48,7 @@ export default function WorkspaceChangesTab({
 }: WorkspaceChangesTabProps) {
   const { t } = useTranslation();
   const [scope, setScope] = useState<'workingTree' | 'lastTurn'>('workingTree');
-  const { state, refresh: refreshWorkingTree } = useProjectChanges(projectId, active && scope === 'workingTree');
+  const { state, refresh: refreshWorkingTree } = useProjectChanges(projectId, active && scope === 'workingTree', sessionId, projectPath);
   const { files: lastTurnFiles, pending: lastTurnPending, refresh: refreshLastTurn, status: lastTurnStatus } = useLastTurnChanges(sessionStore, sessionId, active && scope === 'lastTurn');
   const [openPath, setOpenPath] = useState<string | null>(null);
   // The review outlives row expansion and the scope toggle: a comment made on

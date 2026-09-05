@@ -4,6 +4,7 @@ import { safeSessionId, type BrowserCommand, type BrowserInput } from './browser
 import { isCuaSafeTool } from './cua-client.js';
 import { automationService, type AutomationService } from './automation.service.js';
 import { discoverLocalDevelopmentUrls } from './local-sites.js';
+import { parseAutomationGrantFilter } from './automation-grants.js';
 
 function errorResponse(response: Response, error: unknown): Response {
   const message = error instanceof Error ? error.message : 'Automation request failed.';
@@ -141,8 +142,13 @@ export function createAutomationRouter(service: AutomationService = automationSe
   });
 
   router.delete('/grants', (request, response) => {
-    service.grants.revoke(request.body ?? {});
-    response.json(service.grants.list(typeof request.body?.sessionId === 'string' ? request.body.sessionId : undefined));
+    try {
+      const filter = parseAutomationGrantFilter(request.body ?? {});
+      service.grants.revoke(filter);
+      response.json(service.grants.list(filter.sessionId));
+    } catch (error) {
+      errorResponse(response, error);
+    }
   });
 
   return router;

@@ -9,7 +9,7 @@ import { WebSocket, type RawData } from 'ws';
 import { parseIncomingJsonObject } from '@/shared/utils.js';
 
 type ShellIncomingMessage = { type?: string; data?: string; cols?: number; rows?: number; projectPath?: string; sessionId?: string; hasSession?: boolean; provider?: string; initialCommand?: string; isPlainShell?: boolean; forceRestart?: boolean; };
-type PtySessionEntry = { pty: IPty; ws: WebSocket | null; buffer: string[]; timeoutId: NodeJS.Timeout | null; projectPath: string; sessionId: string | null; };
+type PtySessionEntry = { pty: IPty; ws: WebSocket | null; buffer: string[]; timeoutId: NodeJS.Timeout | null; projectPath: string; sessionId: string | null; urlText: string; reportedUrls: Set<string>; };
 type ShellWebSocketDependencies = {
   resolveProviderSessionId: (sessionId: string, provider: string) => string | null | undefined;
   stripAnsiSequences: (content: string) => string;
@@ -89,8 +89,6 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
   console.log('[INFO] Shell websocket connected');
   let activePty: IPty | null = null;
   let key: string | null = null;
-  let urlText = '';
-  const reportedUrls = new Set<string>();
 
   const write = (payload: unknown) => ws.send(JSON.stringify(payload));
   const clearSavedSession = (id: string) => {
@@ -100,24 +98,36 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
     old.pty.kill();
     sessions.delete(id);
   };
-  const relayOutput = (chunk: string) => {
+  const detach = () => {
     if (!key) return;
-    const current = sessions.get(key);
-    if (!current) return;
+    const id = key;
+    const current = sessions.get(id);
+    if (!current || current.ws !== ws) return;
+    current.ws = null;
+    if (current.timeoutId) clearTimeout(current.timeoutId);
+    current.timeoutId = setTimeout(() => {
+      if (sessions.get(id) !== current || current.ws !== null) return;
+      current.pty.kill();
+      sessions.delete(id);
+    }, SESSION_GRACE_PERIOD);
+  };
+  const relayOutput = (id: string, child: IPty, chunk: string) => {
+    const current = sessions.get(id);
+    if (!current || current.pty !== child) return;
     if (current.buffer.length === 5000) current.buffer.shift();
     current.buffer.push(chunk);
     if (!current.ws || current.ws.readyState !== WebSocket.OPEN) return;
 
     const stripped = dependencies.stripAnsiSequences(chunk);
-    urlText = `${urlText}${stripped}`.slice(-URL_WINDOW_LENGTH);
+    current.urlText = `${current.urlText}${stripped}`.slice(-URL_WINDOW_LENGTH);
     const output = chunk.replace(/OPEN_URL:\s*(https?:\/\/[^\s\x1b\x07]+)/g, '[INFO] Opening in browser: $1');
-    const urls = Array.from(new Set(dependencies.extractUrlsFromText(urlText)
+    const urls = Array.from(new Set(dependencies.extractUrlsFromText(current.urlText)
       .map((url) => dependencies.normalizeDetectedUrl(url))
       .filter((url): url is string => Boolean(url))))
       .filter((url, _, all) => !all.some((other) => other !== url && other.startsWith(url)));
     const announce = (url: string, autoOpen: boolean) => {
-      if (reportedUrls.has(url)) return;
-      reportedUrls.add(url);
+      if (current.reportedUrls.has(url)) return;
+      current.reportedUrls.add(url);
       current.ws?.send(JSON.stringify({ type: 'auth_url', url, autoOpen }));
     };
     urls.forEach((url) => announce(url, false));
@@ -133,15 +143,16 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
     const provider = text(data.provider, 'gjc');
     const command = text(data.initialCommand);
     const plain = flag(data.isPlainShell) || (!!command && !hasSession) || provider === 'plain-shell';
-    urlText = '';
-    reportedUrls.clear();
     const login = !!command && (command.includes('setup-token') || command.includes('cursor-agent login') || command.includes('auth login'));
+    detach();
+    activePty = null;
     key = sessionKey(projectPath, sessionId, plain, command);
     if (login || flag(data.forceRestart)) clearSavedSession(key);
     const previous = login || flag(data.forceRestart) ? undefined : sessions.get(key);
     if (previous) {
       activePty = previous.pty;
       if (previous.timeoutId) clearTimeout(previous.timeoutId);
+      previous.timeoutId = null;
       write({ type: 'output', data: '\x1b[36m[Reconnected to existing session]\x1b[0m\r\n' });
       previous.buffer.forEach((data) => write({ type: 'output', data }));
       previous.ws = ws;
@@ -167,16 +178,16 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
       env: { ...process.env, [npmPath.key]: npmPath.value, TERM: 'xterm-256color', COLORTERM: 'truecolor', FORCE_COLOR: '3' },
     });
     const child = activePty;
-    sessions.set(key, { pty: child, ws, buffer: [], timeoutId: null, projectPath, sessionId });
-    child.onData(relayOutput);
+    const childKey = key;
+    sessions.set(childKey, { pty: child, ws, buffer: [], timeoutId: null, projectPath, sessionId, urlText: '', reportedUrls: new Set() });
+    child.onData((chunk) => relayOutput(childKey, child, chunk));
     child.onExit((status) => {
-      if (!key) return;
-      const current = sessions.get(key);
-      if (current && current.pty !== child) return;
+      const current = sessions.get(childKey);
+      if (!current || current.pty !== child) return;
       if (current?.ws?.readyState === WebSocket.OPEN) current.ws.send(JSON.stringify({ type: 'output', data: `\r\n\x1b[33mProcess exited with code ${status.exitCode}${status.signal != null ? ` (${status.signal})` : ''}\x1b[0m\r\n` }));
       if (current?.timeoutId) clearTimeout(current.timeoutId);
-      sessions.delete(key);
-      activePty = null;
+      sessions.delete(childKey);
+      if (activePty === child) activePty = null;
     });
     const welcome = plain
       ? `\x1b[36mStarting terminal in: ${projectPath}\x1b[0m\r\n`
@@ -187,8 +198,8 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
   };
   const handlers: Record<string, (data: ShellIncomingMessage) => void> = {
     init: start,
-    input: (data) => { if (activePty) activePty.write(text(data.data)); },
-    resize: (data) => { if (activePty) activePty.resize(dimension(data.cols, 80), dimension(data.rows, 24)); },
+    input: (data) => { if (activePty && key && sessions.get(key)?.ws === ws) activePty.write(text(data.data)); },
+    resize: (data) => { if (activePty && key && sessions.get(key)?.ws === ws) activePty.resize(dimension(data.cols, 80), dimension(data.rows, 24)); },
   };
 
   ws.on('message', async (raw) => {
@@ -202,16 +213,6 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
       if (ws.readyState === WebSocket.OPEN) write({ type: 'output', data: `\r\n\x1b[31mError: ${message}\x1b[0m\r\n` });
     }
   });
-  ws.on('close', () => {
-    if (!key) return;
-    const current = sessions.get(key);
-    if (!current) return;
-    current.ws = null;
-    current.timeoutId = setTimeout(() => {
-      if (sessions.get(key as string) !== current) return;
-      current.pty.kill();
-      sessions.delete(key as string);
-    }, SESSION_GRACE_PERIOD);
-  });
+  ws.on('close', detach);
   ws.on('error', (error) => console.error('[ERROR] Shell WebSocket error:', error));
 }

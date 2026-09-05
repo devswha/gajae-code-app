@@ -1,5 +1,7 @@
 import { appConfigDb } from '@/modules/database/index.js';
 
+import { safeSessionId } from './browser-protocol.js';
+
 export type AutomationGrantKind = 'origin' | 'application';
 export type AutomationGrantScope = 'session' | 'always';
 
@@ -9,6 +11,30 @@ export type AutomationGrant = {
   scope: AutomationGrantScope;
   sessionId?: string;
 };
+
+type AutomationGrantFilter = {
+  kind?: AutomationGrantKind;
+  value?: string;
+  scope?: AutomationGrantScope;
+  sessionId?: string;
+};
+
+export function parseAutomationGrantFilter(value: unknown): AutomationGrantFilter {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Invalid automation grant filter.');
+  }
+  const input = value as Record<string, unknown>;
+  if (Object.keys(input).some((key) => !['kind', 'value', 'scope', 'sessionId'].includes(key))
+      || ('kind' in input && input.kind !== 'origin' && input.kind !== 'application')
+      || ('scope' in input && input.scope !== 'always' && input.scope !== 'session')
+      || ('value' in input && (typeof input.value !== 'string' || !input.value.trim() || input.value.length > 512))
+      || ('sessionId' in input && !safeSessionId(input.sessionId))
+      || (input.scope === 'session' && !safeSessionId(input.sessionId))
+      || (input.scope === 'always' && 'sessionId' in input)) {
+    throw new Error('Invalid automation grant filter.');
+  }
+  return input as AutomationGrantFilter;
+}
 
 type PersistedGrants = {
   version: 1;
@@ -62,8 +88,9 @@ export class AutomationGrantStore {
     return target.get(sessionId)?.has(value) ?? false;
   }
 
-  revoke(input: { kind?: AutomationGrantKind; value?: string; scope?: AutomationGrantScope; sessionId?: string }): void {
-    if (!input.kind && !input.value && !input.sessionId) {
+  revoke(filter: AutomationGrantFilter): void {
+    const input = parseAutomationGrantFilter(filter);
+    if (!input.kind && !input.value && !input.sessionId && !input.scope) {
       this.sessionOrigins.clear();
       this.sessionApplications.clear();
       this.storage.set(CONFIG_KEY, JSON.stringify({ version: 1, origins: [], applications: [] }));
@@ -80,7 +107,7 @@ export class AutomationGrantStore {
         else target.delete(input.sessionId);
       }
     }
-    if (input.scope !== 'session') {
+    if (input.scope !== 'session' && !input.sessionId) {
       const persisted = this.readPersisted();
       if (!input.kind || input.kind === 'origin') persisted.origins = input.value ? persisted.origins.filter((value) => value !== input.value) : [];
       if (!input.kind || input.kind === 'application') persisted.applications = input.value ? persisted.applications.filter((value) => value !== input.value) : [];

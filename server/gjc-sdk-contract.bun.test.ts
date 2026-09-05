@@ -279,7 +279,12 @@ async function fixture(
         },
         model,
       })),
-    getModelProfile: () => undefined,
+    getModelProfile: (name: string) => name === 'contract-profile' ? {
+      name,
+      requiredProviders: ['contract-provider'],
+      modelMapping: { default: 'contract-provider/contract-model:xhigh' },
+      source: 'user' as const,
+    } : undefined,
     async refresh() { trace.push('modelRegistry.refresh'); },
   };
   const factory = (async (input: Record<string, unknown>) => {
@@ -1602,7 +1607,7 @@ test('default model fallback skips providers that do not match the stored creden
   } finally { await f.close(); }
 });
 test('default model profile resolves its selector without the thinking suffix', async () => {
-  const f = await fixture('', 'claude-fable', { id: 'claude-fable-5', provider: 'anthropic' });
+  const f = await fixture('', 'contract-profile');
   try {
     const run = f.host.handle(request('session.start', 'default-model-profile', {
       message: 'hello',
@@ -1611,8 +1616,8 @@ test('default model profile resolves its selector without the thinking suffix', 
     const session = await firstSession(f.sessions);
     session.complete();
     await run;
-    assert.equal(f.factoryOptions[0]!.model && (f.factoryOptions[0]!.model as { id: string }).id, 'claude-fable-5');
-    assert.equal(((response(f.frames, 'default-model-profile').payload as Record<string, unknown>).result as Record<string, unknown>).model, 'claude-fable-5');
+    assert.equal(f.factoryOptions[0]!.model && (f.factoryOptions[0]!.model as { id: string }).id, 'contract-model');
+    assert.equal(((response(f.frames, 'default-model-profile').payload as Record<string, unknown>).result as Record<string, unknown>).model, 'contract-model');
   } finally { await f.close(); }
 });
 test('default model role fails closed when settings do not configure it', async () => {

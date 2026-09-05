@@ -128,7 +128,7 @@
     }
   },
   "dependencies": {
-    "@gajae-code/coding-agent": "0.15.6",
+    "@gajae-code/coding-agent": "0.16.4",
     "@octokit/rest": "^22.0.0",
     "@puppeteer/browsers": "^2.13.2",
     "@tailwindcss/typography": "^0.5.16",

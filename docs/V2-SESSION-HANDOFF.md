@@ -490,15 +490,15 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
   start, and runtime edit-result diffs have shipped. The older unchecked
   public-distribution checklist in `V2-PLAN.md` is historical; signed and
   notarized beta.7/beta.8 images were already published on September 3.
-- **PR #30 now needs qualification of the published SDK accessor fix.** The
-  Linux follow-up audit verified npm `@gajae-code/coding-agent` `0.16.4`; its
-  source/changelog contains the workflow identity change from
-  `Yeachan-Heo/gajae-code#5282`. The app still pins `0.15.6`. Finish the prepared
-  regression, manifest/dependency update and skill rechecks in #30 before
-  promoting the new SDK. The app's redundant-ID workaround already removes
-  the observed issue #18 trigger; that does not qualify the draft's direct
-  SDK accessor contract. See `LINUX-DESKTOP-AUDIT.md` for the independent
-  Linux runtime and packaging fixes.
+- **SDK 0.16.4 qualifies the workflow identity fix in PR #30.** The published
+  runtime includes `Yeachan-Heo/gajae-code#5282`, and the app now pins 0.16.4.
+  The original explicit-provider-ID reproducer passes, including the separate
+  `getAsyncEndpointId()` accessor and path-safe deep-interview state. Both
+  supported native platform closures, command catalog and notices are updated.
+  Full `npm run verify`, eight GJC E2Es and an isolated Astra/xhigh live
+  response/abort smoke passed. The existing redundant-ID mitigation stays in
+  place. The real-SDK child permission-bypass regression still reproduces on
+  0.16.4; the identity fix does not qualify unrestricted delegation.
 - **Issue #3 now has a live matrix, with unresolved capability blockers.** The bundled `gjc`
   shim is already in the app; the issue's older "shim in progress" comment
   is no longer current. Nine skills were actually invoked, including user

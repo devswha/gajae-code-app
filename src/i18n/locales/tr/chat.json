@@ -1,4 +1,24 @@
 {
+  "goal": {
+    "region": "Oturum hedefi",
+    "title": "Hedef",
+    "active": "Etkin",
+    "paused": "Duraklatıldı",
+    "complete": "Tamamlandı",
+    "cancelled": "İptal edildi",
+    "tokens": "{{value}} token",
+    "pause": "Duraklat",
+    "resume": "Sürdür",
+    "cancel": "Hedefi iptal et",
+    "new": "Yeni hedef",
+    "objective": "Hedef açıklaması",
+    "placeholder": "Ajan neyi tamamlamalı?",
+    "start": "Hedefi başlat",
+    "refresh": "Hedefi yenile",
+    "reconnect": "Hedefleri yönetmek için yeniden bağlanın.",
+    "unavailable": "Hedef kontrolleri bu çalıştırma veya kullanıcı için kullanılamıyor.",
+    "guidance": "Her çalıştırma {{turns}} model adımı veya {{minutes}} dakika sonra duraklatılır. Durdur, hedefi duraklatır. Etkin çalıştırma yoksa Sürdür yeni bir çalıştırma başlatır. Devredilen görevler aynı modeli ve izinleri kullanır."
+  },
   "codeBlock": {
     "copy": "Kodu kopyala",
     "copied": "Kod kopyalandı",
@@ -43,6 +63,13 @@
     "speak": "Yanıtı söyle",
     "stopSpeaking": "Durmak",
     "loading": "Yükleniyor…"
+  },
+  "sessionWorktree": {
+    "label": "Çalışma konumu",
+    "project": "Proje",
+    "newWorktree": "Yeni çalışma ağacı",
+    "worktree": "Çalışma ağacı",
+    "preparing": "Çalışma ağacı hazırlanıyor"
   },
   "input": {
     "placeholder": "'ya sorun, komutlar için / tuşunu veya dosya eklemek için @ tuşunu kullanın… {{provider}}",
@@ -102,6 +129,7 @@
     },
     "messages": {
       "showingOf": " iletiden  tanesi görüntüleniyor {{shown}} {{total}}",
+      "loadedCount": "Yüklenen iletiler: {{shown}}",
       "scrollToLoad": "Daha fazlası için yukarı kaydırın",
       "showingLast": " sayısının en son  mesajı görüntüleniyor {{count}} {{total}}",
       "loadEarlier": "Daha erken mesajlar alın",

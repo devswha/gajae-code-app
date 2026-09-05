@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -198,40 +198,62 @@ test('provider model cache is persisted across service instances', async () => {
   }
 });
 
-test('provider model cache ignores the prior catalog schema version', async () => {
+test('provider model cache rebuilds the prior schema and persists provider variants and the default', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-cache-version-'));
   const cachePath = path.join(tempRoot, 'models-cache.json');
+  const now = 1_000;
   let loads = 0;
+  const expected: ProviderModelsDefinition = {
+    DEFAULT: 'default',
+    OPTIONS: [{ value: 'default', label: 'Current', roles: { default: 'openai-codex/gpt-6-astra:xhigh' } }],
+    MODELS: [
+      { value: 'cliproxy/gpt-6-astra', label: 'Proxy Astra', group: 'cliproxy', effort: { values: [{ value: 'high' }] } },
+      { value: 'openai-codex/gpt-6-astra', label: 'Codex Astra', group: 'openai-codex', effort: { default: 'xhigh', values: [{ value: 'xhigh' }] } },
+    ],
+  };
 
   try {
     await writeFile(cachePath, JSON.stringify({
       version: 11,
       entries: {
         gjc: {
-          updatedAt: Date.now(),
-          expiresAt: Date.now() + PROVIDER_MODELS_CACHE_TTL_MS,
+          updatedAt: now,
+          expiresAt: now + PROVIDER_MODELS_CACHE_TTL_MS,
           models: createModels('canonical-collapsed'),
         },
       },
     }), 'utf8');
-    const service = createProviderModelsService({
+    const dependencies = {
       cachePath,
+      now: () => now,
       resolveProvider: () => ({
         models: {
           getSupportedModels: async () => {
             loads += 1;
-            return createModels('provider-qualified');
+            return expected;
           },
           getCurrentActiveModel: async () => createCurrentActiveModel('gjc-active'),
-          changeActiveModel: async (input) => createSessionActiveModelChange('gjc', input),
+          changeActiveModel: async (input: ProviderChangeActiveModelInput) => createSessionActiveModelChange('gjc', input),
         },
       }),
-    });
+    };
+    const service = createProviderModelsService(dependencies);
 
     const result = await service.getProviderModels('gjc');
     assert.equal(loads, 1);
-    assert.equal(result.models.DEFAULT, 'provider-qualified');
+    assert.deepEqual(result.models, expected);
     assert.equal(result.cache.source, 'fresh');
+    const memory = await service.getProviderModels('gjc');
+    assert.deepEqual(memory.models, expected);
+    assert.equal(memory.cache.source, 'memory');
+
+    const persisted = JSON.parse(await readFile(cachePath, 'utf8'));
+    assert.equal(persisted.version, 12);
+    assert.deepEqual(persisted.entries.gjc.models, expected);
+    const restarted = await createProviderModelsService(dependencies).getProviderModels('gjc');
+    assert.deepEqual(restarted.models, expected);
+    assert.equal(restarted.cache.source, 'disk');
+    assert.equal(loads, 1);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

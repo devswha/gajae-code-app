@@ -78,7 +78,7 @@ function readChanges(body: Record<string, unknown>): ProjectChanges {
   };
 }
 
-export function useProjectChanges(projectId: string | undefined, enabled: boolean) {
+export function useProjectChanges(projectId: string | undefined, enabled: boolean, sessionId?: string, executionCwd?: string) {
   const [state, setState] = useState<ProjectChangesState>({ kind: 'idle' });
   const requestRef = useRef(0);
 
@@ -97,24 +97,24 @@ export function useProjectChanges(projectId: string | undefined, enabled: boolea
 
     publish({ kind: 'loading' });
     try {
-      const response = await api.get(`/git/diff?project=${encodeURIComponent(projectId)}`);
+      const response = await api.get(`/git/diff?project=${encodeURIComponent(projectId)}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ''}`);
       const body = await response.json() as Record<string, unknown>;
-      if (typeof body.error === 'string') {
-        publish(/not a git repository/i.test(body.error) ? { kind: 'not-a-repository' } : { kind: 'unavailable' });
+      if (!response.ok || typeof body.error === 'string') {
+        publish(typeof body.error === 'string' && /not a git repository/i.test(body.error) ? { kind: 'not-a-repository' } : { kind: 'unavailable' });
         return;
       }
       publish({ kind: 'ready', changes: readChanges(body) });
     } catch {
       publish({ kind: 'unavailable' });
     }
-  }, [projectId]);
+  }, [projectId, sessionId]);
 
   useEffect(() => {
     if (!enabled) {
       return;
     }
     void load();
-  }, [enabled, load]);
+  }, [enabled, load, executionCwd]);
 
   return { state, refresh: load };
 }

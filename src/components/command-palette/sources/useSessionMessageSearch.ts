@@ -29,7 +29,7 @@ function resultsFrom(event: Event, projectId: string | undefined): SessionMessag
 /**
  * Full-text search over conversation bodies, streamed from the server.
  *
- * Pass `projectId` to keep only that project's hits (the command palette);
+ * Pass `projectId` to search only that project (the command palette);
  * leave it out to receive hits from every project (the sidebar filter).
  */
 export function useConversationMessageSearch(query: string, enabled: boolean, projectId?: string) {
@@ -38,23 +38,20 @@ export function useConversationMessageSearch(query: string, enabled: boolean, pr
   const connection = useRef<EventSource | null>(null);
 
   useEffect(() => {
+    generation.current += 1;
+    connection.current?.close();
+    connection.current = null;
+    setMatches([]);
     const phrase = query.trim();
     const canSearch = enabled && phrase.length >= QUERY_THRESHOLD;
     if (!canSearch) {
-      setMatches([]);
-      connection.current?.close();
-      connection.current = null;
       return;
     }
-
-    connection.current?.close();
-    connection.current = null;
-    generation.current += 1;
     const timer = window.setTimeout(() => {
       const requestId = ++generation.current;
       let stream: EventSource;
       try {
-        stream = new EventSource(api.searchConversationsUrl(phrase), { withCredentials: true });
+        stream = new EventSource(api.searchConversationsUrl(phrase, 50, projectId), { withCredentials: true });
       } catch (error) {
         // No SSE here (an embedded shell, a test runtime): title matching still works without body hits.
         console.warn('[search] conversation body search unavailable:', error);
@@ -86,7 +83,12 @@ export function useConversationMessageSearch(query: string, enabled: boolean, pr
       stream.addEventListener('error', finish);
     }, SEARCH_DELAY);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      generation.current += 1;
+      connection.current?.close();
+      connection.current = null;
+    };
   }, [enabled, projectId, query]);
 
   useEffect(() => () => {

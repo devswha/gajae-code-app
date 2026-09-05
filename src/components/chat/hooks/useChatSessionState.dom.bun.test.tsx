@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
 import { act, cleanup, renderHook } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createElement } from 'react';
 
-import type { NormalizedMessage, SessionSlot, SessionStore } from '../../../stores/useSessionStore';
+import { useSessionStore, type NormalizedMessage, type SessionSlot, type SessionStore } from '../../../stores/useSessionStore';
 import type { Project, ProjectSession } from '../../../types/app';
 
 import { useChatSessionState } from './useChatSessionState';
@@ -30,13 +32,12 @@ function mount() {
     fetchFromServer: fetchPage,
     fetchMore: fetchPage,
   } as unknown as SessionStore;
-  const lastSeqRef = { current: new Map<string, number>() };
   const statusCheckSentAtRef = { current: new Map<string, number>() };
   const view = renderHook(({ id }: { id: string | null }) => useChatSessionState({
     selectedProject: project,
     selectedSession: id ? { id } as ProjectSession : null,
     ws: null, sendMessage: noop, resetStreamingState: noop,
-    sessionStore: store, lastSeqRef, statusCheckSentAtRef,
+    sessionStore: store, statusCheckSentAtRef,
   }), { initialProps: { id: 'a' as string | null } });
   const resolvePage = async (index: number, slot: SessionSlot) => {
     await act(async () => { pending.splice(index, 1)[0].resolve(slot); });
@@ -116,4 +117,44 @@ test('an old pagination request cannot change a new session or block its own pag
   await view.resolvePage(0, page(50));
   await second!;
   assert.equal(view.result.current.hasMoreMessages, false);
+});
+
+test('subscription cursors survive A → B → A, reconnect, and remount with the shared store', async () => {
+  globalThis.fetch = (async () => new Response(JSON.stringify({ messages: [], total: 0, hasMore: false }))) as typeof fetch;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const shared = renderHook(useSessionStore, {
+    wrapper: ({ children }) => createElement(QueryClientProvider, { client }, children),
+  });
+  const store = shared.result.current;
+  store.trackReplayFrame('a', { seq: 80, replayGeneration: 'a-first' });
+  store.trackReplayFrame('b', { seq: 3, replayGeneration: 'b-first' });
+  const sent: unknown[] = [];
+  const sendMessage = (message: unknown) => { sent.push(message); };
+  const statusCheckSentAtRef = { current: new Map<string, number>() };
+  const mountSubscriber = () => renderHook(({ id, socket }) => useChatSessionState({
+    selectedProject: project, selectedSession: { id } as ProjectSession, ws: socket,
+    sendMessage, resetStreamingState: noop, sessionStore: store, statusCheckSentAtRef,
+  }), { initialProps: { id: 'a', socket: {} as WebSocket } });
+  const expectCursor = (sessionId: string, replayGeneration: string, lastSeq: number) => {
+    assert.deepEqual(sent.at(-1), { type: 'chat.subscribe', sessions: [{ sessionId, replayGeneration, lastSeq }] });
+  };
+  const view = mountSubscriber();
+  await act(async () => {});
+  expectCursor('a', 'a-first', 80);
+  view.rerender({ id: 'b', socket: {} as WebSocket });
+  await act(async () => {});
+  expectCursor('b', 'b-first', 3);
+  store.trackReplayFrame('a', { kind: 'chat_subscribed', replayGeneration: 'a-next' });
+  store.trackReplayFrame('a', { seq: 1, replayGeneration: 'a-next' });
+  view.rerender({ id: 'a', socket: {} as WebSocket });
+  await act(async () => {});
+  expectCursor('a', 'a-next', 1);
+  sent.length = 0;
+  view.rerender({ id: 'a', socket: {} as WebSocket });
+  expectCursor('a', 'a-next', 1);
+  view.unmount();
+  mountSubscriber();
+  await act(async () => {});
+  expectCursor('a', 'a-next', 1);
+  assert.deepEqual(store.getReplayCursor('b'), { replayGeneration: 'b-first', lastSeq: 3 });
 });

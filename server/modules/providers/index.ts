@@ -4,8 +4,10 @@ import {
   initializeSessionsWatcher as initializeWatcher,
 } from './services/sessions-watcher.service.js';
 import { sessionSynchronizerService as synchronizer } from './services/session-synchronizer.service.js';
+import { configureSessionWorktrees as configureWorktrees } from './services/session-worktrees.service.js';
 
 export {
+  configureWorktrees as configureSessionWorktrees,
   closeWatcher as closeSessionsWatcher,
   initializeWatcher as initializeSessionsWatcher,
   models as providerModelsService,

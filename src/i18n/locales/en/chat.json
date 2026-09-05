@@ -1,4 +1,24 @@
 {
+  "goal": {
+    "region": "Session goal",
+    "title": "Goal",
+    "active": "Active",
+    "paused": "Paused",
+    "complete": "Complete",
+    "cancelled": "Cancelled",
+    "tokens": "{{value}} tokens",
+    "pause": "Pause",
+    "resume": "Resume",
+    "cancel": "Cancel goal",
+    "new": "New goal",
+    "objective": "Goal objective",
+    "placeholder": "What should the agent finish?",
+    "start": "Start goal",
+    "refresh": "Refresh goal",
+    "reconnect": "Reconnect to control goals.",
+    "unavailable": "Goal controls are unavailable for this run or owner.",
+    "guidance": "Each run pauses after {{turns}} model steps or {{minutes}} minutes. Stop pauses the goal. Resume starts a new run when idle. Delegated tasks use the same model and permissions."
+  },
   "codeBlock": {
     "copy": "Copy",
     "copied": "Copied",
@@ -43,6 +63,13 @@
     "speak": "Speak response",
     "stopSpeaking": "Stop",
     "loading": "Loading…"
+  },
+  "sessionWorktree": {
+    "label": "Run location",
+    "project": "Project",
+    "newWorktree": "New worktree",
+    "worktree": "Worktree",
+    "preparing": "Preparing worktree"
   },
   "input": {
     "placeholder": "Ask {{provider}}, use / for commands, or @ to add files…",
@@ -102,6 +129,7 @@
     },
     "messages": {
       "showingOf": "Displaying {{shown}} of {{total}} messages",
+      "loadedCount": "Loaded messages: {{shown}}",
       "scrollToLoad": "Scroll upward for more",
       "showingLast": "Displaying the latest {{count}} messages of {{total}}",
       "loadEarlier": "Get earlier messages",

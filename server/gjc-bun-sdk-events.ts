@@ -1,5 +1,7 @@
 import { stripVTControlCharacters } from 'node:util';
 
+import { normalizeGjcGoal } from '../shared/gjc-goal.js';
+
 import type { GjcSessionSnapshot } from './gjc-session-state.js';
 import type { GjcWorkerWriter } from './gjc-worker.js';
 
@@ -28,6 +30,7 @@ export const SDK_EVENT_FIELDS_READ = {
   auto_retry_end: ['success', 'finalError'],
   model_fallback_switched: ['from', 'to', 'reason'],
   notice: ['level', 'message', 'source'],
+  goal_updated: ['goal'],
 } as const satisfies Record<string, readonly string[]>;
 
 type RecordValue = Record<string, unknown>;
@@ -192,6 +195,15 @@ export function forwardSdkEvent(
 ): void {
   if (state.abortRequested || !object(event)) return;
   switch (event.type) {
+    case 'goal_updated': {
+      const goal = event.goal === null ? null : normalizeGjcGoal(event.goal);
+      if (event.goal !== null && !goal) return;
+      const snapshot = readSnapshot?.();
+      writer.send({ kind: 'status', text: 'session_state', sessionState: {
+        goal: { supported: true, runId: null, canControl: false, resumeRequired: false, ...snapshot?.goal, goal },
+      } });
+      return;
+    }
     case 'message_update': {
       const update = object(event.assistantMessageEvent) ? event.assistantMessageEvent : undefined;
       if (update?.type === 'text_delta' && typeof update.delta === 'string') {

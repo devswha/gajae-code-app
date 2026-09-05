@@ -115,6 +115,8 @@ scope is fixed by this specification, and a frame that gets it wrong is rejected
 | `turn.start` | scoped | Run a turn in an existing conversation. |
 | `turn.abort` | scoped | Stop the running turn. |
 | `turn.steer` | scoped | Inject input into the running turn without ending it. |
+| `goal.inspect` | scoped | Read the exact persisted provider session's goal for an authenticated owner and resolved project cwd; refuses an active run. |
+| `goal.control` | scoped | Read or control a goal on the exact worker `runId`; requires matching app session, owner, cwd, and expected goal ID. The trusted server may pass literal `stopAfterMutation: false` for pause/drop so the enclosing native worktree job owns cancellation. |
 | `ask.reply` | scoped | Answer a question the worker raised with `ask.presented`. |
 
 ### Events

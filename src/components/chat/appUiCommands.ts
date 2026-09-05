@@ -153,7 +153,7 @@ export function resolveCommandAlias(commandName: string): string {
  */
 export const TUI_ONLY_COMMAND_HINTS: Readonly<Record<string, string>> = {
   '/retry': 'To follow up on an interrupted run, open the session and send a new message.',
-  '/goal': '',
+  '/goal': 'Use New goal above the chat to enter an objective. The goal badge shows tokens and Pause, Resume, and Cancel controls; Stop also pauses the goal.',
   '/agents': '',
   '/monitors': '',
   '/tree': '',

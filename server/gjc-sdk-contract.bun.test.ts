@@ -36,7 +36,7 @@ import {
 } from './gjc-worker-protocol.js';
 import { GjcWorkerHost } from './gjc-worker.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE } from './gjc-model-resolution.js';
-import { GJC_AGENT_TOOLS_WITHHELD } from './gjc-agent-tools.js';
+import { GJC_CLEANUP_UNCONFIRMED_CODE } from './gjc-cleanup-error.js';
 
 type Listener = (event: unknown) => void;
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: Error): void };
@@ -269,16 +269,25 @@ async function fixture(
     authStorage,
     getAll: () => models,
     getAvailable: () => models,
-    getCanonicalId: (model: typeof models[number]) => model.id,
-    getCanonicalModelSelections: (query: { candidates?: typeof models } = {}) =>
-      (query.candidates ?? models).map((model) => ({
+    getCanonicalId: (model: typeof models[number]): string | undefined => model.id,
+    getCanonicalModelSelections: (query: { candidates?: typeof models } = {}) => {
+      // The SDK selects one concrete provider per canonical record. Returning
+      // every candidate here hid the catalog's original variant collapse.
+      const groups = new Map<string, typeof models>();
+      for (const model of query.candidates ?? models) {
+        const variants = groups.get(model.id) ?? [];
+        variants.push(model);
+        groups.set(model.id, variants);
+      }
+      return [...groups].map(([id, variants]) => ({
         record: {
-          id: model.id,
-          name: 'name' in model && typeof model.name === 'string' ? model.name : model.id,
-          variants: [{ canonicalId: model.id, selector: `${model.provider}/${model.id}`, model, source: 'bundled' }],
+          id,
+          name: 'name' in variants[0] && typeof variants[0].name === 'string' ? variants[0].name : id,
+          variants: variants.map((model) => ({ canonicalId: id, selector: `${model.provider}/${model.id}`, model, source: 'bundled' })),
         },
-        model,
-      })),
+        model: variants[0],
+      }));
+    },
     getModelProfile: (name: string) => name === 'contract-profile' ? {
       name,
       requiredProviders: ['contract-provider'],
@@ -759,6 +768,123 @@ test('model catalog preserves credentialed provider-qualified models with the sa
   }
 });
 
+test('model catalog deduplicates qualified IDs and preserves aliases and uncanonicalized models', async () => {
+  const primary = { id: 'gpt-6-astra', name: 'Astra', provider: 'openai-codex' };
+  const alias = { id: 'gpt-6-astra-xhigh', name: 'Astra xhigh', provider: 'openai-codex' };
+  const custom = { id: 'openai/gpt-6-astra', provider: 'custom' };
+  const f = await fixture('openai-codex/gpt-6-astra', undefined, [primary, alias, { ...primary }, custom]);
+  try {
+    f.authStorage.credentials.push({ id: 9, provider: 'openai-codex' }, { id: 4, provider: 'openai-codex' });
+    f.authStorage.resolvableProviders.add('custom');
+    f.modelRegistry.getCanonicalId = (model) => model.provider === 'custom' ? undefined : 'gpt-6-astra';
+
+    const first = await f.adapter.modelCatalog();
+    assert.deepEqual(first.models, [
+      { value: 'openai-codex/gpt-6-astra', label: 'Astra', group: 'openai-codex', canonicalId: 'gpt-6-astra', effort: { values: [] } },
+      { value: 'openai-codex/gpt-6-astra-xhigh', label: 'Astra xhigh', group: 'openai-codex', canonicalId: 'gpt-6-astra', effort: { default: 'xhigh', values: [] } },
+      { value: 'custom/openai/gpt-6-astra', label: 'openai/gpt-6-astra', group: 'custom', effort: { values: [] } },
+    ]);
+    assert.deepEqual(await f.adapter.modelCatalog(), first);
+
+    // Registry order and credential order must not change a model's ID or
+    // metadata, even when the same canonical model has several selectors.
+    f.modelRegistry.getAvailable = () => [custom, { ...primary }, alias, primary];
+    f.authStorage.credentials.reverse();
+    const reordered = await f.adapter.modelCatalog();
+    const byValue = (a: { value: string }, b: { value: string }) => a.value.localeCompare(b.value);
+    assert.deepEqual([...reordered.models].sort(byValue), [...first.models].sort(byValue));
+  } finally {
+    await f.close();
+  }
+});
+
+test('model catalog honors registry availability and credential changes independently for each provider', async () => {
+  const codex = { id: 'gpt-6-astra', provider: 'openai-codex' };
+  const proxy = { id: 'gpt-6-astra', provider: 'cliproxy' };
+  const disabled = { id: 'gpt-6-astra', provider: 'disabled-provider' };
+  const f = await fixture('openai-codex/gpt-6-astra', undefined, [codex, proxy, disabled]);
+  try {
+    f.authStorage.credentials.push({ id: 4, provider: 'openai-codex' }, { id: 5, provider: 'disabled-provider' });
+    f.authStorage.resolvableProviders.add('cliproxy');
+    f.modelRegistry.getAvailable = () => [codex, proxy];
+    assert.deepEqual((await f.adapter.modelCatalog()).models.map((model) => model.value), [
+      'openai-codex/gpt-6-astra', 'cliproxy/gpt-6-astra',
+    ]);
+
+    f.authStorage.credentials = [];
+    assert.deepEqual((await f.adapter.modelCatalog()).models.map((model) => model.value), ['cliproxy/gpt-6-astra']);
+    f.authStorage.resolvableProviders.clear();
+    assert.deepEqual((await f.adapter.modelCatalog()).models, []);
+  } finally {
+    await f.close();
+  }
+});
+
+test('provider-qualified catalog choices and the default select the matching stored credential', async (t) => {
+  const cases = [
+    { name: 'explicit proxy', modelId: 'cliproxy/gpt-6-astra', credential: { kind: 'stored' }, provider: 'cliproxy', credentialId: 1 },
+    { name: 'explicit codex', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored' }, provider: 'openai-codex', credentialId: 4 },
+    { name: 'pinned codex credential', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored', providerId: 'openai-codex', credentialId: 9 }, provider: 'openai-codex', credentialId: 9 },
+    { name: 'configured default', modelId: 'default', credential: { kind: 'stored' }, provider: 'openai-codex', credentialId: 4 },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const f = await fixture('openai-codex/gpt-6-astra:xhigh', undefined, [
+        { id: 'gpt-6-astra', provider: 'cliproxy' },
+        { id: 'gpt-6-astra', provider: 'openai-codex' },
+      ]);
+      try {
+        f.authStorage.credentials.push({ id: 9, provider: 'openai-codex' }, { id: 1, provider: 'cliproxy' }, { id: 4, provider: 'openai-codex' });
+        const run = f.host.handle(request('session.start', 'variant-credential', {
+          message: 'hello',
+          options: { ...f.options, modelId: scenario.modelId, credential: scenario.credential, effort: 'xhigh' },
+        }));
+        const session = await firstSession(f.sessions);
+        session.complete();
+        await run;
+        assert.deepEqual(f.factoryOptions[0]!.model, { id: 'gpt-6-astra', provider: scenario.provider });
+        assert.deepEqual(f.factoryOptions[0]!.credentialSelector, {
+          provider: scenario.provider,
+          selector: { kind: 'id', value: String(scenario.credentialId) },
+          raw: `id:${scenario.credentialId}`,
+        });
+        const payload = response(f.frames, 'variant-credential').payload as { ok: boolean; result: { credential: unknown } };
+        assert.equal(payload.ok, true);
+        assert.deepEqual(payload.result.credential, { kind: 'stored', providerId: scenario.provider, credentialId: scenario.credentialId });
+      } finally {
+        await f.close();
+      }
+    });
+  }
+});
+
+test('same-name provider variants reject ambiguous bare IDs and mismatched credential pins', async (t) => {
+  const cases = [
+    { name: 'ambiguous bare ID', modelId: 'gpt-6-astra', credential: { kind: 'stored' } },
+    { name: 'mismatched provider', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored', providerId: 'cliproxy' } },
+    { name: 'other provider credential ID', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored', credentialId: 1 } },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const f = await fixture('openai-codex/gpt-6-astra', undefined, [
+        { id: 'gpt-6-astra', provider: 'cliproxy' },
+        { id: 'gpt-6-astra', provider: 'openai-codex' },
+      ]);
+      try {
+        f.authStorage.credentials.push({ id: 1, provider: 'cliproxy' }, { id: 4, provider: 'openai-codex' });
+        await f.host.handle(request('session.start', 'invalid-variant', {
+          message: 'hello',
+          options: { ...f.options, modelId: scenario.modelId, credential: scenario.credential, effort: 'xhigh' },
+        }));
+        assert.equal((response(f.frames, 'invalid-variant').payload as { ok: boolean }).ok, false);
+        assert.equal(f.factoryOptions.length, 0);
+      } finally {
+        await f.close();
+      }
+    });
+  }
+});
+
 test('model catalog only exposes models backed by a stored subscription', async () => {
   const f = await fixture(
     'subscribed-model-high',
@@ -1198,7 +1324,8 @@ async function identityFixture() {
     toolNames: ['bash', 'skill'], spawns: 'deny', bashPolicy: { allowedPrefixes: [] },
   };
   return {
-    root, options, factoryOptions,
+    root, options, factoryOptions, host, frames,
+    enqueueInspection(inspect: (session: Session) => Promise<void>) { inspections.push(inspect); },
     async run(id: string, inspect: (session: Session) => Promise<void>, providerSessionId?: string) {
       inspections.push(inspect);
       await host.handle(request(providerSessionId ? 'session.resume' : 'session.start', id, {
@@ -1217,6 +1344,63 @@ async function identityFixture() {
     },
   };
 }
+
+test('goal-capable production sessions delegate safely and defer worktree abort to their owner', async () => {
+  const f = await identityFixture();
+  Object.assign(f.options, { toolNames: ['read', 'task', 'subagent'], spawns: '*', goalUiVersion: 1, goalOwner: 'number:1' });
+  try {
+    await f.run('goal-delegation', async (parent) => {
+      assert.equal(parent.settings.get('goal.enabled'), true);
+      const rootOptions = f.factoryOptions[0];
+      assert.ok(rootOptions);
+      assert.equal(rootOptions.spawns, 'deny', 'native SDK spawning stays denied');
+      const created = await parent.getToolByName('goal')!.execute('create-goal', { op: 'create', objective: 'Delegate one bounded check' });
+      let checkedChild = false;
+      f.enqueueInspection(async (child) => {
+        assert.equal(child.settings.get('goal.enabled'), false);
+        assert.equal(child.getActiveToolNames().includes('goal'), false);
+        assert.equal(child.thinkingLevel, 'xhigh');
+        checkedChild = true;
+      });
+      const launched = await parent.getToolByName('task')!.execute('start-child', {
+        agent: 'planner', context: null, tasks: [{ id: 'inspect', description: 'Bounded check', assignment: 'Return after the offline check.', executionMode: 'default', repositoryBinding: null }],
+      });
+      const childId = launched.details.subagents[0].id;
+      const settled = await parent.getToolByName('subagent')!.execute('await-child', { action: 'await', id: childId, timeout_ms: 5000 });
+      assert.equal(settled.details.subagents[0].status, 'completed');
+      assert.equal(checkedChild, true);
+      let aborts = 0;
+      const originalAbort = parent.abort.bind(parent);
+      parent.abort = async () => { aborts++; await originalAbort(); };
+      await f.host.handle(request('goal.control', 'pause-goal-native', {
+        owner: 'number:1', cwd: await realpath(f.options.cwd), runId: 'goal-delegation',
+        command: { operation: 'pause', goalId: created.details.goal.id }, stopAfterMutation: false,
+      }));
+      assert.equal((response(f.frames, 'pause-goal-native').payload as { ok: boolean }).ok, true);
+      assert.equal(aborts, 0, 'the SDK does not bypass the native job abort authority');
+      await assert.rejects(parent.getToolByName('goal')!.execute('resume-too-soon', { op: 'resume' }), /app goal controls/);
+      await f.host.handle(request('turn.abort', 'owner-abort', { runId: 'goal-delegation' }));
+      assert.equal(aborts, 1);
+    });
+    assert.equal((response(f.frames, 'goal-delegation').payload as { result: { aborted?: boolean } }).result.aborted, true);
+  } finally { await f.close(); }
+});
+
+test('a goal-owned stop reports an aborted worker outcome without a separate turn.abort request', async () => {
+  const f = await identityFixture();
+  Object.assign(f.options, { goalUiVersion: 1, goalOwner: 'number:1' });
+  try {
+    await f.run('goal-internal-stop', async (session) => {
+      const created = await session.getToolByName('goal')!.execute('create', { op: 'create', objective: 'Stop this scoped goal' });
+      await f.host.handle(request('goal.control', 'stop-from-goal', {
+        owner: 'number:1', cwd: await realpath(f.options.cwd), runId: 'goal-internal-stop',
+        command: { operation: 'pause', goalId: created.details.goal.id },
+      }));
+      assert.equal((response(f.frames, 'stop-from-goal').payload as { ok: boolean }).ok, true);
+    });
+    assert.equal((response(f.frames, 'goal-internal-stop').payload as { result: { aborted?: boolean } }).result.aborted, true);
+  } finally { await f.close(); }
+});
 
 async function assertSdkIdentity(
   session: Awaited<ReturnType<typeof createAgentSession>>['session'],
@@ -1342,19 +1526,61 @@ test('app-shaped real SDK handoff rekeys logical ownership while retaining provi
   } finally { unregisterCustomApis(f.root); await f.close(); }
 });
 
-test('SDK delegation stays withheld while child bash bypasses the parent permission gate', async () => {
-  const f = await identityFixture();
-  f.options.toolNames = ['bash', 'task', 'subagent'];
-  f.options.spawns = 'executor';
+/** Direct SDK construction: this fixture never passes through the app adapter. */
+async function rawSdkDelegationFixture() {
+  const scratch = join(await realpath(process.cwd()), '.tmp');
+  await mkdir(scratch, { recursive: true });
+  const root = await mkdtemp(join(scratch, 'raw-sdk-delegation-'));
+  const cwd = join(root, 'project');
+  const agentDir = join(root, 'agent');
+  await mkdir(cwd);
+  const authStorage = await discoverAuthStorage(agentDir);
+  const settings = await Settings.loadForScope({ cwd, agentDir });
+  settings.override('memory.enabled', false);
+  settings.override('skills.enabled', false);
+  settings.override('goal.enabled', false);
+  settings.override('task.agentModelOverrides', { executor: 'openai-codex/gpt-6-astra' });
+  settings.override('task.maxRuntimeMs', 3000);
+  settings.override('task.maxRecursionDepth', 1);
+  const registry = new ModelRegistry(authStorage, join(agentDir, 'models.yml'), settings, { agentDir });
+  registry.registerProvider('openai-codex', {
+    api: 'raw-sdk-delegation-contract', apiKey: 'offline-raw-sdk-key', baseUrl: 'http://127.0.0.1:1',
+    models: [{ id: 'gpt-6-astra', name: 'Offline Astra contract', reasoning: true,
+      thinking: { mode: 'effort', minLevel: 'xhigh', maxLevel: 'xhigh', levels: ['xhigh'] },
+      input: ['text'], contextWindow: 100000, maxTokens: 1000,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
+  });
+  const { session } = await createAgentSession({
+    cwd, agentDir, settings, authStorage, modelRegistry: registry,
+    model: registry.find('openai-codex', 'gpt-6-astra'), thinkingLevel: 'xhigh',
+    sessionManager: SessionManager.create(cwd, join(root, 'sessions')),
+    toolNames: ['bash', 'task', 'subagent'], spawns: 'executor',
+    enableMcpAutoload: false, enableLsp: false, skipPythonPreflight: true, disableExtensionDiscovery: true,
+    skills: [], rules: [], contextFiles: [], promptTemplates: [], slashCommands: [],
+  });
+  return { root, session, async close() {
+    await session.dispose(); await registry.dispose(); authStorage.close(); await settings.close();
+    await rm(root, { recursive: true, force: true });
+  } };
+}
+
+test('raw SDK builtin delegation bypasses parent permissions; app replacement remains necessary', { timeout: 15_000 }, async () => {
+  const f = await rawSdkDelegationFixture();
   let calls = 0;
   let issuedTool = false;
   const observedToolResults: Array<{ isError: boolean; content: unknown }> = [];
   // Exercise the pinned SDK's real child lifecycle with a deterministic local
   // transport. Its only shell command prints a fixed canary to stdout.
-  registerCustomApi('identity-contract', (_model, context: Context) => {
+  registerCustomApi('raw-sdk-delegation-contract', (model, context: Context, options) => {
+    assert.equal(model.provider, 'openai-codex');
+    assert.equal(model.id, 'gpt-6-astra');
+    assert.equal(options?.reasoning, 'xhigh');
     calls += 1;
     observedToolResults.push(...context.messages.filter((message) => message.role === 'toolResult'));
     const message = identityAnswer('Offline child finished.');
+    message.api = 'raw-sdk-delegation-contract';
+    message.provider = 'openai-codex';
+    message.model = 'gpt-6-astra';
     if (!issuedTool && context.tools?.some((tool) => tool.name === 'bash')) {
       issuedTool = true;
       message.content = [{
@@ -1369,10 +1595,7 @@ test('SDK delegation stays withheld while child bash bypasses the parent permiss
     return stream;
   }, f.root);
   try {
-    await f.run('identity-child-permission', async (session) => {
-      session.settings.override('task.agentModelOverrides', { executor: 'identity-contract/astra' });
-      session.settings.override('task.maxRuntimeMs', 3000);
-      session.settings.override('task.maxRecursionDepth', 1);
+    const session = f.session;
       session.setSdkPermissionMode('deny');
       const bash = session.getToolForExecution('bash');
       assert.ok(bash);
@@ -1392,9 +1615,9 @@ test('SDK delegation stays withheld while child bash bypasses the parent permiss
       assert.ok(observedToolResults.some((result) => !result.isError
         && JSON.stringify(result.content).includes('child-allowed')),
       JSON.stringify({ calls, issuedTool, observedToolResults, launch, settled }));
-      assert.ok(GJC_AGENT_TOOLS_WITHHELD.task);
-      assert.ok(GJC_AGENT_TOOLS_WITHHELD.subagent);
-    });
+      // The application has its own independent positive safety fixture in
+      // gjc-delegation-executor.bun.test.ts. Never convert this unsafe SDK
+      // result into an assertion about the app's current tool names.
   } finally { unregisterCustomApis(f.root); await f.close(); }
 });
 test('session effort is passed to the SDK as the turn thinking level', async () => {
@@ -1938,10 +2161,37 @@ test('rejecting session disposal emits the fixed diagnostic and fails the run', 
     await run;
     assert.equal((response(f.frames, 'dispose-rejects').payload as Record<string, unknown>).ok, false);
     assert.deepEqual(diagnostics, [['GJC SDK session disposal failed.']]);
+    const terminals = f.frames.flatMap(frame => {
+      const message = (frame.payload as { message?: Record<string, unknown> })?.message;
+      return message?.kind === 'complete' ? [message.exitCode] : [];
+    });
+    assert.deepEqual(terminals, [], 'Node must emit the failure terminal only after verified worker reaping');
+    assert.equal(((response(f.frames, 'dispose-rejects').payload as Record<string, unknown>).error as { code: string }).code,
+      GJC_CLEANUP_UNCONFIRMED_CODE);
   } finally {
     console.error = originalError;
     await f.close();
   }
+});
+
+test('successful chat completion waits for SDK session cleanup', async () => {
+  const f = await fixture();
+  const release = deferred<void>();
+  let closing = false;
+  try {
+    const run = f.host.handle(request('session.start', 'dispose-before-complete', { message: 'hello', options: f.options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    const originalDispose = session.dispose.bind(session);
+    session.dispose = async () => { closing = true; await release.promise; await originalDispose(); };
+    session.complete();
+    await waitFor(() => closing || undefined);
+    assert.equal(methods(f.frames).includes('turn.completed'), false);
+    release.resolve();
+    await run;
+    assert.equal(methods(f.frames).filter(method => method === 'turn.completed').length, 1);
+    assert.equal(session.disposed, true);
+  } finally { release.resolve(); await f.close(); }
 });
 
 test('explicit SDK configuration rejects missing fields, unresolvable credentials, and model mismatches without invoking the factory', async () => {

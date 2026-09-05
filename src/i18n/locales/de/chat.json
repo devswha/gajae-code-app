@@ -1,4 +1,24 @@
 {
+  "goal": {
+    "region": "Sitzungsziel",
+    "title": "Ziel",
+    "active": "Aktiv",
+    "paused": "Pausiert",
+    "complete": "Abgeschlossen",
+    "cancelled": "Abgebrochen",
+    "tokens": "{{value}} Token",
+    "pause": "Pausieren",
+    "resume": "Fortsetzen",
+    "cancel": "Ziel abbrechen",
+    "new": "Neues Ziel",
+    "objective": "Zielbeschreibung",
+    "placeholder": "Was soll der Agent abschließen?",
+    "start": "Ziel starten",
+    "refresh": "Ziel aktualisieren",
+    "reconnect": "Verbinden Sie sich erneut, um Ziele zu steuern.",
+    "unavailable": "Die Zielsteuerung ist für diesen Lauf oder Benutzer nicht verfügbar.",
+    "guidance": "Jeder Lauf pausiert nach {{turns}} Modellschritten oder {{minutes}} Minuten. Stop pausiert das Ziel. Fortsetzen startet bei Inaktivität einen neuen Lauf. Delegierte Aufgaben verwenden dasselbe Modell und dieselben Berechtigungen."
+  },
   "codeBlock": {
     "copy": "In Zwischenablage kopieren",
     "copied": "Kopiert",
@@ -43,6 +63,13 @@
     "speak": "Sprechen Sie eine Antwort aus",
     "stopSpeaking": "Stopp",
     "loading": "Laden…"
+  },
+  "sessionWorktree": {
+    "label": "Ausführungsort",
+    "project": "Projekt",
+    "newWorktree": "Neuer Worktree",
+    "worktree": "Worktree",
+    "preparing": "Worktree wird vorbereitet"
   },
   "input": {
     "placeholder": "Fragen Sie {{provider}}, verwenden Sie / für Befehle oder @, um Dateien hinzuzufügen ...",
@@ -102,6 +129,7 @@
     },
     "messages": {
       "showingOf": "Anzeige von {{shown}} von {{total}}-Nachrichten",
+      "loadedCount": "Geladene Nachrichten: {{shown}}",
       "scrollToLoad": "Scrollen Sie nach oben, um mehr zu erfahren",
       "showingLast": "Anzeige der neuesten {{count}}-Meldungen von {{total}}",
       "loadEarlier": "Erhalten Sie frühere Nachrichten",

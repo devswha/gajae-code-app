@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import type { WebSocket } from 'ws';
 
-import { sessionsDb } from '@/modules/database/index.js';
+import { sessionsDb, sessionWorktreesDb } from '@/modules/database/index.js';
 import { grantProjectAlwaysAllow, resolveProjectRunPermissions } from '@/modules/projects/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
@@ -11,6 +11,11 @@ import { getGlobalImageAssetsDir, normalizeImageDescriptors } from '@/shared/ima
 import type { AnyRecord, AuthenticatedWebSocketRequest, LLMProvider } from '@/shared/types.js';
 import { createNormalizedMessage, parseIncomingJsonObject } from '@/shared/utils.js';
 
+import type { GjcGoalCommand } from '../../../../shared/gjc-goal.js';
+import type { SessionWorktreeRuntime } from '../../../../shared/session-worktree-protocol.js';
+
+import { handleChatGoal, type GoalSupervisor } from './chat-goal.service.js';
+
 type ProviderSpawnFn = (command: string, options: AnyRecord, writer: unknown) => Promise<unknown>;
 type ProviderSpawnResult = Promise<unknown> & { abortHandle?: string; };
 type OAuthEvent = { method: 'oauth.phase' | 'oauth.providers.updated' | 'provider.auth.updated'; payload: AnyRecord; };
@@ -18,6 +23,8 @@ type OAuthSupervisor = {
   oauthProviders(): Promise<unknown>; oauthStatus(): Promise<unknown>; oauthStart(providerId: string): Promise<unknown>; oauthSubmit(attemptId: string, value: string): Promise<unknown>; oauthCancel(attemptId: string): Promise<unknown>; subscribeOAuth(listener: (event: OAuthEvent) => void): () => void;
 };
 type ChatWebSocketDependencies = {
+  goalSupervisor?: GoalSupervisor;
+  sessionWorktrees?: SessionWorktreeRuntime;
   spawnFns: Record<LLMProvider, ProviderSpawnFn>;
   abortFns: Record<LLMProvider, (providerSessionId: string) => boolean | Promise<boolean>>;
   steerFns?: Partial<Record<LLMProvider, (providerSessionId: string, message: string) => boolean | Promise<boolean>>>;
@@ -92,7 +99,7 @@ async function resolveRequestedModel(dependencies: ChatWebSocketDependencies, pr
   }
 }
 
-async function sendChat(ws: WebSocket, userId: string | number | null, data: AnyRecord, dependencies: ChatWebSocketDependencies): Promise<void> {
+async function sendChat(ws: WebSocket, userId: string | number | null, data: AnyRecord, dependencies: ChatWebSocketDependencies, goalCommand?: GjcGoalCommand): Promise<void> {
   const content = typeof data.content === 'string' ? data.content : '';
   if (/^\/(?:login|logout)(?:\s|$)/i.test(content.trim())) {
     protocolFailure(ws, 'LOGIN_UI_REQUIRED', 'Account authentication commands must be completed in the app login dialog.', typeof data.sessionId === 'string' ? data.sessionId : undefined);
@@ -116,11 +123,18 @@ async function sendChat(ws: WebSocket, userId: string | number | null, data: Any
     protocolFailure(ws, 'UNSUPPORTED_PROVIDER', `Provider "${provider}" is not available.`, sessionId);
     return;
   }
+  if (sessionWorktreesDb.get(sessionId) && !dependencies.sessionWorktrees) {
+    protocolFailure(ws, 'SESSION_WORKTREES_UNAVAILABLE', 'Session worktree execution is unavailable.', sessionId);
+    return;
+  }
   const run = chatRunRegistry.startRun({ appSessionId: sessionId, provider, providerSessionId: storedSession.provider_session_id, connection: ws, userId });
   if (!run) {
     protocolFailure(ws, 'RUN_IN_PROGRESS', `Session "${sessionId}" already has a run in progress.`, sessionId);
     return;
   }
+
+  const worktreeRun = provider === 'gjc' ? dependencies.sessionWorktrees?.prepare(sessionId) : null;
+  if (worktreeRun) run.writer.setAbortHandle(worktreeRun.abortHandle);
 
   const requestOptions = (data.options ?? {}) as AnyRecord;
   const requestedModel = typeof requestOptions.model === 'string' ? requestOptions.model : null;
@@ -129,9 +143,12 @@ async function sendChat(ws: WebSocket, userId: string | number | null, data: Any
   const model = await resolveRequestedModel(dependencies, provider, sessionId, requestedModel, !storedSession.provider_session_id);
   // The permission policy is the project's, read here and never taken from the
   // request: a browser cannot widen it by sending `skipPermissions` or a mode.
-  const { permissions: _clientPermissions, skipPermissions: _legacySkip, ...acceptedOptions } = requestOptions;
+  const { permissions: _clientPermissions, skipPermissions: _legacySkip, goalOwner: _goalOwner, goalCommand: _goalCommand, goalUiVersion: _goalUiVersion, ...acceptedOptions } = requestOptions;
   const options: AnyRecord = {
     ...acceptedOptions,
+    ...(dependencies.goalSupervisor && userId !== null && requestOptions.goalUiVersion === 1 ? { goalUiVersion: 1 } : {}),
+    ...(userId !== null ? { goalOwner: `${typeof userId}:${userId}` } : {}),
+    ...(goalCommand ? { goalCommand, goalUiVersion: 1 } : {}),
     ...(model ? { model } : {}),
     images: filterImagesToUploadStore(requestOptions.images),
     sessionId: storedSession.provider_session_id ?? undefined,
@@ -142,6 +159,10 @@ async function sendChat(ws: WebSocket, userId: string | number | null, data: Any
   };
 
   try {
+    if (worktreeRun) {
+      await worktreeRun.run(content, options, run.writer);
+      return;
+    }
     const providerRun = spawn(content, options, run.writer);
     if (provider === 'gjc') {
       const handle = (providerRun as ProviderSpawnResult).abortHandle;
@@ -159,7 +180,8 @@ async function sendChat(ws: WebSocket, userId: string | number | null, data: Any
     // console line above keeps the rejection visible server-side either way.
     else if (run.status === 'running') run.writer.send(createNormalizedMessage({ kind: 'error', provider, sessionId: storedSession.provider_session_id ?? sessionId, content: message }));
   } finally {
-    chatRunRegistry.completeRunIfCurrent(run, { exitCode: 1 });
+    chatRunRegistry.completeRunIfCurrent(run, { exitCode: worktreeRun?.aborted ? 0 : 1, ...(worktreeRun?.aborted ? { aborted: true } : {}) });
+    worktreeRun?.dispose();
   }
 }
 
@@ -184,7 +206,7 @@ async function steerChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSo
   else if (run.status !== 'running') reason = 'not-running';
   else if (!steer || !destination) reason = 'unsupported';
   else try {
-    steered = Boolean(await steer(destination, content));
+    steered = Boolean(await steer(dependencies.sessionWorktrees?.workerHandle(destination) ?? destination, content));
     reason = steered ? 'steered' : 'refused';
   } catch (error) {
     console.error('[ERROR] chat.steer failed:', error instanceof Error ? error.message : String(error));
@@ -209,7 +231,11 @@ async function abortChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSo
   try {
     const abort = dependencies.abortFns[run.provider];
     const destination = providerRunId(run);
-    if (abort && destination) succeeded = Boolean(await abort(destination));
+    if (destination) {
+      const worktreeAborted = await dependencies.sessionWorktrees?.abort(destination);
+      if (worktreeAborted != null) succeeded = worktreeAborted;
+      else if (abort) succeeded = Boolean(await abort(destination));
+    }
   } catch (error) {
     const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : null;
     if (run.provider === 'gjc' && code) {
@@ -223,7 +249,7 @@ async function abortChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSo
     protocolFailure(ws, 'ABORT_FAILED', `Session "${sessionId}" could not be aborted.`, sessionId);
     return;
   }
-  chatRunRegistry.completeRun(sessionId, { exitCode: succeeded ? 0 : 1, aborted: true });
+  chatRunRegistry.completeRunIfCurrent(run, { exitCode: succeeded ? 0 : 1, aborted: true });
 }
 
 function subscribeChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSocketDependencies): void {
@@ -234,7 +260,7 @@ function subscribeChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSock
     if (!request || !sessionId) continue;
 
     const rawSequence = request.lastSeq;
-    const lastSeq = typeof rawSequence === 'number' && Number.isFinite(rawSequence) ? Math.max(0, Math.floor(rawSequence)) : 0;
+    const lastSeq = typeof rawSequence === 'number' && Number.isSafeInteger(rawSequence) && rawSequence >= 0 ? rawSequence : 0;
     const run = chatRunRegistry.getRun(sessionId);
     const isProcessing = chatRunRegistry.isProcessing(sessionId);
     if (isProcessing) chatRunRegistry.attachConnection(sessionId, ws);
@@ -244,9 +270,9 @@ function subscribeChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSock
       const record = asRecord(approval);
       return record ? { ...record, sessionId } : approval;
     });
-    sendFrame(ws, { kind: 'chat_subscribed', sessionId, isProcessing, lastSeq: run?.lastSeq ?? 0, pendingPermissions, timestamp: new Date().toISOString() });
+    sendFrame(ws, { kind: 'chat_subscribed', sessionId, isProcessing, replayGeneration: run?.replayGeneration ?? null, lastSeq: run?.lastSeq ?? 0, pendingPermissions, timestamp: new Date().toISOString() });
     if (isProcessing) {
-      for (const event of chatRunRegistry.replayEvents(sessionId, lastSeq)) sendFrame(ws, event);
+      for (const event of chatRunRegistry.replayEvents(sessionId, lastSeq, request.replayGeneration)) sendFrame(ws, event);
     }
   }
 }
@@ -331,6 +357,25 @@ export function handleChatConnection(ws: WebSocket, request: AuthenticatedWebSoc
     sendFrame(ws, { kind: event.method, payload: event.payload });
   }) ?? (() => {});
   const chatHandlers: Record<string, (data: AnyRecord) => Promise<void> | void> = {
+    'chat.goal': async (data) => {
+      if (typeof data.requestId !== 'string' || !data.requestId || data.requestId.length > 120) return protocolFailure(ws, 'INVALID_GOAL_REQUEST', 'A goal request ID is required.');
+      try {
+        if (!dependencies.goalSupervisor) throw new Error('Goal controls are unavailable on this server.');
+        const result = await handleChatGoal(userId, data, dependencies.goalSupervisor, async (sessionId, command) => {
+          // Run ownership remains in the existing chat pipeline; controls do
+          // not introduce a second execution loop or background task system.
+          void sendChat(ws, userId, {
+            sessionId,
+            content: command.operation === 'create' ? `Goal: ${command.objective}` : `Goal: ${command.operation}`,
+            options: { model: 'default', goalUiVersion: 1 },
+          }, dependencies, command).catch((error) => protocolFailure(ws, 'GOAL_RUN_FAILED', error instanceof Error ? error.message : 'Goal run failed.', sessionId));
+          subscribeChat(ws, { sessions: [{ sessionId, lastSeq: 0 }] }, dependencies);
+        }, dependencies.sessionWorktrees);
+        sendFrame(ws, { kind: 'chat_goal', sessionId: data.sessionId, requestId: data.requestId, result });
+      } catch (error) {
+        sendFrame(ws, { kind: 'chat_goal', sessionId: data.sessionId, requestId: data.requestId, error: error instanceof Error ? error.message : 'Goal control failed.' });
+      }
+    },
     'chat.send': (data) => sendChat(ws, userId, data, dependencies),
     'chat.abort': (data) => abortChat(ws, data, dependencies),
     'chat.steer': (data) => steerChat(ws, data, dependencies),

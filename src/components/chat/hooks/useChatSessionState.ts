@@ -25,7 +25,6 @@ type Props = {
   onSessionIdle?: MarkSessionIdle;
   resetStreamingState: () => void;
   statusCheckSentAtRef: MutableRefObject<Map<string, number>>;
-  lastSeqRef: MutableRefObject<Map<string, number>>;
   sessionStore: SessionStore;
   showImagePreviews?: boolean;
 };
@@ -86,7 +85,6 @@ export function useChatSessionState({
   onSessionIdle: _onSessionIdle,
   resetStreamingState,
   statusCheckSentAtRef,
-  lastSeqRef,
   sessionStore,
   showImagePreviews = true,
 }: Props) {
@@ -383,7 +381,7 @@ export function useChatSessionState({
     const subscribe = () => {
       if (!ws) return;
       statusCheckSentAtRef.current.set(sessionId, Date.now());
-      sendMessage({ type: 'chat.subscribe', sessions: [{ sessionId, lastSeq: lastSeqRef.current.get(sessionId) ?? 0 }] });
+      sendMessage({ type: 'chat.subscribe', sessions: [{ sessionId, ...sessionStore.getReplayCursor(sessionId) }] });
     };
     if (loadedKeyRef.current === key && sessionStore.has(sessionId) && !sessionStore.isStale(sessionId)) {
       subscribe();
@@ -420,7 +418,7 @@ export function useChatSessionState({
       .catch(() => {
         if (requestViewRef.current === requestView) setIsLoadingSessionMessages(false);
       });
-  }, [currentSessionId, lastSeqRef, resetPagination, resetStreamingState, selectedProject, selectedSession, sendMessage, sessionStore, showImagePreviews, statusCheckSentAtRef, ws]);
+  }, [currentSessionId, resetPagination, resetStreamingState, selectedProject, selectedSession, sendMessage, sessionStore, showImagePreviews, statusCheckSentAtRef, ws]);
 
   useEffect(() => {
     const session = selectedSession as (ProjectSession & { __searchTargetSnippet?: unknown; __searchTargetTimestamp?: unknown }) | null;

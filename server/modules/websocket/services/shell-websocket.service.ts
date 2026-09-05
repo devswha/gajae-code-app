@@ -19,6 +19,9 @@ type ShellWebSocketDependencies = {
 };
 
 const sessions = new Map<string, PtySessionEntry>();
+// Revocation outlives the PTY entry: its exit must not let a delayed init from
+// a replaced connection seize the session before the current owner restarts.
+const supersededSockets = new WeakSet<WebSocket>();
 const SESSION_GRACE_PERIOD = 30 * 60 * 1000;
 const URL_WINDOW_LENGTH = 32768;
 const SAFE_ID = /^[a-zA-Z0-9_.\-:]+$/;
@@ -112,6 +115,7 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
   const clearSavedSession = (id: string) => {
     const old = sessions.get(id);
     if (!old) return;
+    if (old.ws && old.ws !== ws) supersededSockets.add(old.ws);
     if (old.timeoutId) clearTimeout(old.timeoutId);
     old.pty.kill();
     sessions.delete(id);
@@ -174,6 +178,7 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
       activePty = previous.pty;
       if (previous.timeoutId) clearTimeout(previous.timeoutId);
       previous.timeoutId = null;
+      if (previous.ws && previous.ws !== ws) supersededSockets.add(previous.ws);
       previous.ws = ws;
       write({ type: 'output', data: '\x1b[36m[Reconnected to existing session]\x1b[0m\r\n' });
       previous.buffer.forEach((data) => write({ type: 'output', data }));
@@ -213,7 +218,7 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
 
   ws.on('message', async (raw) => {
     try {
-      if (ws.readyState !== WebSocket.OPEN) return;
+      if (ws.readyState !== WebSocket.OPEN || supersededSockets.has(ws)) return;
       // A replaced connection cannot reclaim, restart or control the new owner.
       const current = key ? sessions.get(key) : undefined;
       if (current && current.ws !== ws) return;

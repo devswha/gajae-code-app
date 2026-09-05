@@ -163,6 +163,28 @@ test('the reconnected owner can start a fresh terminal after the previous PTY ex
   assert.deepEqual(f.terminals[1]!.writes, ['fresh\n']);
 });
 
+for (const forceRestart of [false, true]) {
+  test(`a superseded socket stays revoked after PTY exit (replacement restart: ${forceRestart})`, t => {
+    const f = fixture(t);
+    const a = f.connect(); a.receive(f.init);
+    const b = f.connect(); b.receive({ ...f.init, forceRestart });
+    const terminal = f.terminals.at(-1)!;
+    terminal.exit();
+    const count = f.terminals.length;
+
+    // No session entry remains to identify the superseded socket. Delayed
+    // init frames must still not seize the session before its owner restarts.
+    a.receive({ ...f.init, forceRestart: true });
+    a.receive({ ...f.init, sessionId: randomUUID() });
+    assert.equal(f.terminals.length, count);
+    b.receive(f.init);
+    assert.equal(f.terminals.length, count + 1);
+    a.receive({ type: 'input', data: 'stale\n' });
+    b.receive({ type: 'input', data: 'owner\n' });
+    assert.deepEqual(f.terminals.at(-1)!.writes, ['owner\n']);
+  });
+}
+
 test('switching sessions detaches the old PTY without redirecting its output or exit', t => {
   const f = fixture(t);
   const a = f.connect(); a.receive(f.init);

@@ -2,10 +2,10 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { constants, createReadStream } from 'node:fs';
-import { access, chmod, copyFile, cp, mkdtemp, readFile, readdir, rename, rm, stat } from 'node:fs/promises';
+import { access, chmod, copyFile, cp, mkdtemp, readFile, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 import { packagedTargets } from './packaged-server-paths.mjs';
 import { desktopTargetDirectory } from './desktop-platforms.mjs';
@@ -130,4 +130,4 @@ export async function restoreLinuxAppImage(rootDir = repositoryRoot, { targetDir
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) await restoreLinuxAppImage();
+if (process.argv[1] && await realpath(fileURLToPath(import.meta.url)) === await realpath(process.argv[1])) await restoreLinuxAppImage();

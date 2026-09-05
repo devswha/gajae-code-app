@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 import { desktopTargetDirectory } from './desktop-platforms.mjs';
 
@@ -69,7 +69,7 @@ export async function stageLinuxDesktop({ rootDir = repositoryRoot, targetDir } 
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (process.argv[1] && await realpath(fileURLToPath(import.meta.url)) === await realpath(process.argv[1])) {
   if (process.argv.length !== 2) throw new Error('Usage: node scripts/release/stage-linux-desktop.mjs');
   console.log(JSON.stringify(await stageLinuxDesktop(), null, 2));
 }

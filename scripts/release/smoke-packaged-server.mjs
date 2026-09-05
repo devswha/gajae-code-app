@@ -2,8 +2,8 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import crypto from 'node:crypto';
-import { mkdir, rm, symlink } from 'node:fs/promises';
-import { pathToFileURL } from 'node:url';
+import { mkdir, realpath, rm, symlink } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 import path from 'node:path';
 
@@ -551,4 +551,4 @@ export async function runPackagedSmoke(args = process.argv.slice(2)) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) await runPackagedSmoke();
+if (process.argv[1] && await realpath(fileURLToPath(import.meta.url)) === await realpath(process.argv[1])) await runPackagedSmoke();

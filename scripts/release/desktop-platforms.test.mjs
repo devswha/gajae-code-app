@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import Handlebars from 'handlebars';
 
@@ -40,7 +41,7 @@ test('unsupported desktop architectures fail before preparing platform artifacts
 });
 
 test('Cargo output resolution honors target-dir config and absolute/relative environment overrides', async t => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gajae-cargo-output-'));
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'gajae-cargo-output-')));
   t.after(() => rm(root, { recursive: true, force: true }));
   const tauri = path.join(root, 'src-tauri');
   await mkdir(path.join(tauri, 'src'), { recursive: true });
@@ -57,6 +58,21 @@ test('Cargo output resolution honors target-dir config and absolute/relative env
   assert.equal(await desktopTargetDirectory(root, { ...env, CARGO_TARGET_DIR: path.join(root, 'absolute target') }), path.join(root, 'absolute target'));
   // A Cargo default target cannot override the explicit native Tauri target.
   assert.deepEqual(desktopBuildArgs(['build'], 'linux', 'x64'), ['build', '--target', 'x86_64-unknown-linux-gnu']);
+});
+
+test('symlinked Linux packaging CLIs execute their host guards instead of succeeding without work', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'gajae-cli-symlink-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const checkout = path.join(root, 'checkout');
+  await symlink(fileURLToPath(new URL('../../', import.meta.url)), checkout, 'dir');
+  const preload = path.join(root, 'unsupported-platform.cjs');
+  // Fail before any build, cleanup or tool execution on every test host.
+  await writeFile(preload, "Object.defineProperty(process, 'platform', { value: 'linux' }); Object.defineProperty(process, 'arch', { value: 'arm64' });\n");
+  for (const script of ['build-linux-desktop.mjs', 'restore-linux-appimage.mjs', 'smoke-packaged-server.mjs']) {
+    const result = spawnSync(process.execPath, ['--require', preload, path.join(checkout, 'scripts/release', script)], { encoding: 'utf8' });
+    assert.notEqual(result.status, 0, `${script} silently skipped its entry point`);
+    assert.match(result.stderr, /Desktop builds support|AppImage restoration requires Linux x64|Usage: node scripts\/release\/smoke-packaged-server.mjs/);
+  }
 });
 
 test('Debian dependencies declare the build-host glibc floor and preserve existing requirements', () => {

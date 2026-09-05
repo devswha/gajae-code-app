@@ -85,12 +85,16 @@ test('the no-argument CLI locates the checkout from its own path, independently 
   await fs.writeFile(path.join(f.rootDir, 'src-tauri/Cargo.toml'), '[package]\nname = "fixture"\nversion = "0.1.0"\nedition = "2021"\n');
   await fs.writeFile(path.join(f.rootDir, 'src-tauri/src/main.rs'), 'fn main() {}');
   const env = { ...process.env, CARGO_TARGET_DIR: f.targetDir };
-  const result = spawnSync(process.execPath, [script], { cwd: os.tmpdir(), encoding: 'utf8', env });
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(JSON.parse(result.stdout).artifacts.length, 2);
-  const rejected = spawnSync(process.execPath, [script, '--unknown'], { encoding: 'utf8' });
-  assert.notEqual(rejected.status, 0);
-  assert.match(rejected.stderr, /Usage: node scripts\/release\/stage-linux-desktop.mjs/);
+  const link = path.join(f.rootDir, 'linked-checkout');
+  await fs.symlink(f.rootDir, link, 'dir');
+  for (const entry of [script, path.join(link, 'scripts/release/stage-linux-desktop.mjs')]) {
+    const result = spawnSync(process.execPath, [entry], { cwd: os.tmpdir(), encoding: 'utf8', env });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).artifacts.length, 2);
+    const rejected = spawnSync(process.execPath, [entry, '--unknown'], { encoding: 'utf8' });
+    assert.notEqual(rejected.status, 0);
+    assert.match(rejected.stderr, /Usage: node scripts\/release\/stage-linux-desktop.mjs/);
+  }
 });
 
 test('stages configured Cargo output instead of a stale default bundle', async t => {

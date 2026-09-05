@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { chmod, cp, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -107,7 +107,7 @@ test('optional plugin download can fall back to linuxdeploy built-in plugin and 
   `);
   const plugin = await appImagePlugin({ targetDir, env });
   const temporary = await readFile(env.EXTRACT_LOG, 'utf8');
-  assert.equal(plugin.command, path.join(temporary, 'squashfs-root/usr/bin/linuxdeploy-plugin-appimage'));
+  assert.equal(await realpath(plugin.command), path.join(temporary, 'squashfs-root/usr/bin/linuxdeploy-plugin-appimage'));
   assert.deepEqual(plugin.args, []);
   await plugin.cleanup();
   await assert.rejects(stat(temporary), { code: 'ENOENT' });

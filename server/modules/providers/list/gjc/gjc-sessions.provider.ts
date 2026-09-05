@@ -168,13 +168,13 @@ async function readTranscriptLineage(sessionFilePath: string): Promise<Transcrip
   const records: TranscriptTurnRecord[] = [];
   for await (const line of readBoundedJsonlLines(sessionFilePath)) {
     if (!line.trim()) continue;
-    let entry: AnyRecord;
+    let entry: AnyRecord | null;
     try {
-      entry = JSON.parse(line) as AnyRecord;
+      entry = readObjectRecord(JSON.parse(line));
     } catch {
       continue;
     }
-    if (typeof entry.id !== 'string') continue;
+    if (!entry || typeof entry.id !== 'string') continue;
     const message = entry.type === 'message' ? readObjectRecord(entry.message) : undefined;
     const role = typeof message?.role === 'string' ? message.role : undefined;
     records.push({

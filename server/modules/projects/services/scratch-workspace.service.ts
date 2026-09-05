@@ -67,7 +67,13 @@ async function initializeGitRepository(directoryPath: string): Promise<boolean> 
 async function writeReadmeIfEmpty(directoryPath: string): Promise<boolean> {
   const entries = (await readdir(directoryPath)).filter((entry) => entry !== '.git');
   if (entries.length > 0) return false;
-  await writeFile(path.join(directoryPath, 'README.md'), README, { flag: 'wx' });
+  try {
+    await writeFile(path.join(directoryPath, 'README.md'), README, { flag: 'wx' });
+  } catch (error) {
+    // A different process may have created the file after readdir.
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    throw error;
+  }
   return true;
 }
 
@@ -89,10 +95,24 @@ export const scratchWorkspaceSteps: ScratchWorkspaceDependencies = {
   writeReadme: writeReadmeIfEmpty,
 };
 
+const initializingDirectories = new Map<string, Promise<void>>();
+
 export async function startScratchWorkspace(dependencies: ScratchWorkspaceDependencies = scratchWorkspaceSteps): Promise<ScratchWorkspaceResult> {
   const project = await dependencies.registerProject(dependencies.scratchPath, SCRATCH_WORKSPACE_NAME);
   const directory = project.fullPath || dependencies.scratchPath; // the registered (realpath'd) folder
-  const git = await dependencies.initializeRepository(directory);
-  const created = await dependencies.writeReadme(directory);
-  return { project, outcome: created ? 'created' : 'existing', git };
+  // Multiple tabs can start Scratch together. Serialize git init as well as
+  // README creation so another request cannot see a half-initialized repo.
+  const previous = initializingDirectories.get(directory);
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  initializingDirectories.set(directory, pending);
+  try {
+    await previous;
+    const git = await dependencies.initializeRepository(directory);
+    const created = await dependencies.writeReadme(directory);
+    return { project, outcome: created ? 'created' : 'existing', git };
+  } finally {
+    release();
+    if (initializingDirectories.get(directory) === pending) initializingDirectories.delete(directory);
+  }
 }

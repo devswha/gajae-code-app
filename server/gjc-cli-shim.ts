@@ -32,7 +32,13 @@ function writeShimIfNeeded(shimPath: string, content: string): void {
     // A missing or unreadable shim is replaced below.
   }
   if (existingContent !== content) writeFileSync(shimPath, content, { mode: 0o755 });
-  else if (existingMode !== 0o755) chmodSync(shimPath, 0o755);
+  // writeFile's mode only applies to new files; replacing an existing shim
+  // must also repair permissions left by an older installation.
+  if (existingMode !== 0o755) chmodSync(shimPath, 0o755);
+}
+
+function quoteShellArgument(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 function prependPath(env: NodeJS.ProcessEnv, shimDir: string, platform: NodeJS.Platform): void {
@@ -53,7 +59,7 @@ export function installGjcCliShim(options: GjcCliShimOptions = {}): { shimDir: s
     if (!binPath) return null;
     const shimDir = path.join(homeDir, '.gajae-app', 'gjc-cli-shim');
     mkdirSync(shimDir, { recursive: true });
-    writeShimIfNeeded(path.join(shimDir, 'gjc'), `#!/bin/sh\nexec "${bunPath}" "${binPath}" "$@"\n`);
+    writeShimIfNeeded(path.join(shimDir, 'gjc'), `#!/bin/sh\nexec ${quoteShellArgument(bunPath)} ${quoteShellArgument(binPath)} "$@"\n`);
     if (platform === 'win32') {
       writeShimIfNeeded(path.join(shimDir, 'gjc.cmd'), `@echo off\r\n"${bunPath}" "${binPath}" %*\r\n`);
     }

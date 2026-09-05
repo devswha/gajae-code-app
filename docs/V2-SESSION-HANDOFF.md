@@ -1,6 +1,6 @@
 # gajae-app v2 — Session Handoff (resume state)
 
-Last updated: 2026-09-05 (scratch workspace, dialog centering). Supersedes the 2026-07-18 handoff.
+Last updated: 2026-09-05 (parallel correctness review and follow-up status). Supersedes the 2026-07-18 handoff.
 
 ## TL;DR
 
@@ -471,6 +471,35 @@ Seen but left alone: a viewer that did not send the turn learns of the
 run ~2 s late (from `session_upserted`, not from the sender's optimistic
 state); a finished block's `Worked for Ns` can shift by a few seconds
 after the reconcile fetch replaces realtime timestamps with disk ones.
+
+## Current follow-ups (rechecked 2026-09-05)
+
+- The parallel correctness pass is recorded in
+  [`plans/code-review-2026-09-05.md`](plans/code-review-2026-09-05.md), including
+  session/queue isolation, transcript turns and transport, scratch startup,
+  CLI shims, desktop lifecycle, watcher recovery and narrow-panel controls.
+- The v2 baseline, frontend refactor, Local Studio phases 1–5, scratch quick
+  start, and runtime edit-result diffs have shipped. The older unchecked
+  public-distribution checklist in `V2-PLAN.md` is historical; signed and
+  notarized beta.7/beta.8 images were already published on September 3.
+- **PR #30 / issue #18 remain blocked on the upstream SDK release.** The npm
+  registry still reports `@gajae-code/coding-agent` latest `0.16.3`, which
+  predates the workflow identity fix (`Yeachan-Heo/gajae-code#5282`, merged
+  into `dev` at `2250239de9e565df2d3cb12ba365d65ff9f0555d`). Keep the existing
+  `0.15.6` app pin until a published runtime carries that change, then finish
+  the prepared regression test, manifest and dependency updates in #30.
+- **Issue #3 needs its skill matrix re-run after #30.** The bundled `gjc`
+  shim is already in the app; the issue's older "shim in progress" comment
+  is no longer current. Do not close the workflow issue based only on
+  transport tests or on successful skill selection.
+- **CI signing awaits owner-provided credentials.** `gh secret list --env
+  release` returned no environment secrets on September 5. The workflow
+  and the five required names are documented in
+  `DESKTOP-TAURI-VERIFICATION.md`; the first signed CI dispatch remains
+  unverified. This is separate from the locally signed releases that shipped.
+- Session worktree selection still depends on the runtime's Slice 3.
+  Conversation forks and split-pane workspaces remain deferred product
+  decisions, not missing implementations from the completed plans.
 
 ## How to resume (next session)
 

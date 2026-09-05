@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
-import { act, cleanup, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 
 import type { Project, ProjectSession } from '../../../types/app';
-import { draftInputKey } from '../utils/chatStorage';
+import { draftInputKey, readQueuedMessages, writeQueuedMessages } from '../utils/chatStorage';
 
 import { useChatComposerState } from './useChatComposerState';
 
@@ -23,19 +23,20 @@ const project: Project = {
   origin: 'explicit',
 };
 
-const session = (id: string): ProjectSession => ({ id, summary: `Session ${id}` } as ProjectSession);
+const session = (id: string): ProjectSession => ({ id, __provider: 'gjc', summary: `Session ${id}` } as ProjectSession);
 
 const baseArgs = {
   selectedProject: project,
   selectedSession: null as ProjectSession | null,
   currentSessionId: null as string | null,
   gjcModel: 'gjc/test-model',
+  reasoningEffort: 'default',
   isLoading: false,
   canAbortSession: false,
   tokenBudget: null,
-  sendMessage: () => undefined,
+  sendMessage: (_message: unknown) => {},
   scrollToBottom: () => undefined,
-  addMessage: () => undefined,
+  addMessage: (_message: unknown) => {},
   setIsUserScrolledUp: () => undefined,
   setPendingPermissionRequests: () => undefined,
 };
@@ -126,4 +127,70 @@ test('clearing the composer removes the stored draft rather than storing an empt
   act(() => { view.result.current.setInput(''); });
 
   assert.equal(localStorage.getItem(draftInputKey('proj-1', 'session-a')), null);
+});
+
+const submit = () => ({ preventDefault() {} }) as never;
+const typeText = (view: ReturnType<typeof composer>, text: string) => act(() => {
+  view.result.current.handleInputChange({ target: { value: text, selectionStart: text.length } } as never);
+});
+
+test('automatic queue dispatch keeps the model and effort chosen when queued', async () => {
+  const sent: unknown[] = [];
+  const sendMessage = (message: unknown) => { sent.push(message); };
+  writeQueuedMessages('a', [{ content: 'queued work', options: { model: 'queued-model', effort: 'xhigh', sessionSummary: 'queued summary' } }]);
+  const view = composer({ selectedSession: session('a'), isLoading: true, sendMessage });
+  view.rerender({ selectedSession: session('a'), isLoading: false, gjcModel: 'different-model', reasoningEffort: 'low', sendMessage });
+  await waitFor(() => assert.equal(sent.length, 1));
+  assert.deepEqual(sent[0], {
+    type: 'chat.send', sessionId: 'a', content: 'queued work',
+    options: { model: 'queued-model', effort: 'xhigh', sessionSummary: 'queued summary', images: [] },
+  });
+});
+
+test('steering acknowledgements affect their owning queue even when another session steers identical text', () => {
+  const echoed: unknown[] = [];
+  const addMessage = (message: unknown) => { echoed.push(message); };
+  const view = composer({ selectedSession: session('a'), isLoading: true, addMessage });
+  typeText(view, 'same steer');
+  act(() => { view.result.current.handleSteer(submit()); });
+  view.rerender({ selectedSession: session('b'), isLoading: true, addMessage });
+  typeText(view, 'same steer');
+  act(() => { view.result.current.handleSteer(submit()); });
+  act(() => { view.result.current.resolveSteerResult('same steer', true, 'a'); });
+  assert.equal(view.result.current.queuedDrafts.length, 1, 'B still awaits its own acknowledgement');
+  assert.equal(view.result.current.queuedDrafts[0].pendingSteer, true);
+  assert.equal(readQueuedMessages('a').length, 0, 'accepted steering is removed from A storage');
+  assert.deepEqual(echoed, [], 'A steering must never echo into B');
+  act(() => { view.result.current.resolveSteerResult('same steer', true, 'b'); });
+  assert.equal(view.result.current.queuedDrafts.length, 0);
+  assert.equal(echoed.length, 1);
+});
+
+test('a rejected background steer stays queued in its own session', () => {
+  const view = composer({ selectedSession: session('a'), isLoading: true });
+  typeText(view, 'keep for A');
+  act(() => { view.result.current.handleSteer(submit()); });
+  view.rerender({ selectedSession: session('b'), isLoading: true });
+  act(() => { view.result.current.resolveSteerResult('keep for A', false, 'a'); });
+  assert.deepEqual(view.result.current.queuedDrafts, []);
+  assert.equal(readQueuedMessages('a')[0]?.content, 'keep for A');
+});
+
+test('returning to an awaiting steer does not turn it into an ordinary queued send', () => {
+  const view = composer({ selectedSession: session('a'), isLoading: true });
+  typeText(view, 'wait for acknowledgement');
+  act(() => { view.result.current.handleSteer(submit()); });
+  view.rerender({ selectedSession: session('b'), isLoading: true });
+  view.rerender({ selectedSession: session('a'), isLoading: true });
+  assert.equal(view.result.current.queuedDrafts[0]?.pendingSteer, true);
+});
+
+test('accepting a background steer preserves an ordinary queued message with the same text', () => {
+  writeQueuedMessages('a', [{ content: 'repeat this' }]);
+  const view = composer({ selectedSession: session('a'), isLoading: true });
+  typeText(view, 'repeat this');
+  act(() => { view.result.current.handleSteer(submit()); });
+  view.rerender({ selectedSession: session('b'), isLoading: true });
+  act(() => { view.result.current.resolveSteerResult('repeat this', true, 'a'); });
+  assert.deepEqual(readQueuedMessages('a'), [{ content: 'repeat this' }]);
 });

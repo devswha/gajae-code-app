@@ -164,7 +164,7 @@ export async function verifyWindowsSmokeEnvironment(env, cwd, { execute = promis
   // source-only compiler helper through the existing build-time tsx runtime so
   // this preflight exercises exactly the code shipped by the production guard.
   const { tsImport } = await import('tsx/esm/api');
-  const { windowsCodeDomCompileScript } = await tsImport(new URL('../../server/gjc-windows-job.ts', import.meta.url).href, import.meta.url);
+  const { windowsCodeDomCompileScript, encodeWindowsPowerShellCommand } = await tsImport(new URL('../../server/gjc-windows-job.ts', import.meta.url).href, import.meta.url);
   const powershell = path.win32.join(env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   const source = String.raw`
 $ErrorActionPreference = 'Stop'
@@ -201,7 +201,7 @@ try {
 }
 `.trim();
   try {
-    const encoded = Buffer.from(source, 'utf16le').toString('base64');
+    const encoded = encodeWindowsPowerShellCommand(source);
     const { stdout } = await execute(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], {
       cwd, env, windowsHide: true, shell: false, encoding: 'utf8', timeout: 60_000, maxBuffer: 64 * 1024,
     });

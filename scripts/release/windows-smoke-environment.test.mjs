@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { gunzipSync } from 'node:zlib';
 import { promisify } from 'node:util';
 
 import { verifyWindowsSmokeEnvironment, windowsSmokeEnvironment } from './windows-payload.mjs';
@@ -32,14 +33,18 @@ test('isolated Windows environment retains OS/compiler metadata and isolates all
   for (const key of ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'NODE_OPTIONS']) assert.equal(env[key], undefined);
 });
 
-test('Add-Type probe uses constant UTF-16LE encoded source and returns bounded native evidence', async () => {
+test('Add-Type probe compresses its source below Windows command limits and returns native evidence', async () => {
   const env = windowsSmokeEnvironment(String.raw`C:\runtime 가재`, String.raw`C:\profile 가재`);
   const cwd = String.raw`C:\payload space 가재`;
   const native = { runtime: String.raw`C:\Windows\Microsoft.NET\Framework64\v4.0.30319`, temp: env.TEMP, compilerExists: true, tempExists: true };
   const actual = await verifyWindowsSmokeEnvironment(env, cwd, {
     execute: async (_command, args, options) => {
       assert.ok(args.includes('-EncodedCommand'));
-      const source = Buffer.from(args.at(-1), 'base64').toString('utf16le');
+      assert.ok(args.join(' ').length < 30_000, 'probe must fit CreateProcess command-line limits');
+      const loader = Buffer.from(args.at(-1), 'base64').toString('utf16le');
+      const compressed = loader.match(/FromBase64String\('([^']+)'\)/)?.[1];
+      assert.ok(compressed);
+      const source = gunzipSync(Buffer.from(compressed, 'base64')).toString('utf8');
       assert.match(source, /Add-Type -CompilerParameters \$compilerParameters -TypeDefinition/);
       assert.match(source, /GetTempPath/);
       assert.match(source, /GetRuntimeDirectory/);

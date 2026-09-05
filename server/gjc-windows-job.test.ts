@@ -6,6 +6,7 @@ import { gunzipSync } from 'node:zlib';
 
 import {
   createWindowsJobLaunch,
+  encodeWindowsPowerShellCommand,
   killWindowsJobGuard,
   GJC_WINDOWS_JOB_GUARD_ACK,
   GJC_WINDOWS_JOB_GUARD_READY,
@@ -14,6 +15,16 @@ import {
   windowsCodeDomLabelValidationScript,
   windowsCodeDomPathValidationScript,
 } from './gjc-windows-job.js';
+
+test('compressed PowerShell transport preserves large Unicode scripts below the Windows argv limit', () => {
+  const source = `${windowsCodeDomCompileScript('public class Probe {}', true)}\n# 가재\n`;
+  const encoded = encodeWindowsPowerShellCommand(source);
+  assert.ok(encoded.length < 30_000);
+  const loader = Buffer.from(encoded, 'base64').toString('utf16le');
+  const compressed = loader.match(/FromBase64String\('([^']+)'\)/u)?.[1];
+  assert.ok(compressed);
+  assert.equal(gunzipSync(Buffer.from(compressed, 'base64')).toString('utf8'), source);
+});
 
 test('quotes Windows argv values without losing quotes or trailing slashes', () => {
   assert.equal(quoteWindowsArgument('plain'), 'plain');

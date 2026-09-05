@@ -635,9 +635,9 @@ try {
 }
 `.trim()}`;
 
-const WINDOWS_JOB_GUARD_COMMAND = (() => {
+export function encodeWindowsPowerShellCommand(source: string): string {
   const compressed = gzipSync(
-    Buffer.from(WINDOWS_JOB_GUARD_SCRIPT, 'utf8'),
+    Buffer.from(source, 'utf8'),
     { level: 9 },
   ).toString('base64');
   const loader = [
@@ -648,7 +648,9 @@ const WINDOWS_JOB_GUARD_COMMAND = (() => {
     '& ([ScriptBlock]::Create($r.ReadToEnd()))',
   ].join(';');
   return Buffer.from(loader, 'utf16le').toString('base64');
-})();
+}
+
+const WINDOWS_JOB_GUARD_COMMAND = encodeWindowsPowerShellCommand(WINDOWS_JOB_GUARD_SCRIPT);
 
 /** Quotes one argv value using the Windows CommandLineToArgvW-compatible rules. */
 export function quoteWindowsArgument(value: string): string {

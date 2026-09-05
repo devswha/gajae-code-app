@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { windowsCodeDomCompileScript } from '../../server/gjc-windows-job.ts';
+import { encodeWindowsPowerShellCommand, windowsCodeDomCompileScript } from '../../server/gjc-windows-job.ts';
 
 import { assertWindowsHost, windowsSmokeEnvironment } from './windows-payload.mjs';
 
@@ -28,7 +28,7 @@ try {
   for (const [label, environment] of [['baseline', process.env], ['isolated Unicode', env]]) {
     console.log(`Windows compiler probe: ${label}`);
     const result = spawnSync(path.join(env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), [
-      '-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(source, 'utf16le').toString('base64'),
+      '-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', encodeWindowsPowerShellCommand(source),
     ], { cwd: root, env: environment, windowsHide: true, stdio: 'inherit', timeout: 60_000 });
     if (result.error) console.error(result.error.message);
     if (result.status !== 0) failed = true;

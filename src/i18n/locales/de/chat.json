@@ -129,6 +129,7 @@
     },
     "messages": {
       "showingOf": "Anzeige von {{shown}} von {{total}}-Nachrichten",
+      "loadedCount": "Geladene Nachrichten: {{shown}}",
       "scrollToLoad": "Scrollen Sie nach oben, um mehr zu erfahren",
       "showingLast": "Anzeige der neuesten {{count}}-Meldungen von {{total}}",
       "loadEarlier": "Erhalten Sie frühere Nachrichten",

@@ -28,6 +28,13 @@ for the C++ toolchain and WebView2. The
 runtime's Windows minimum. The application's interactive acceptance checks
 below must still be run on the intended Windows version.
 
+Windows PowerShell 5.1's legacy compiler needs ASCII temporary filenames. When
+the temporary directory contains Unicode, the worker uses a verified Windows
+8.3 alias of the same protected directory and restores its environment after
+compilation. If that volume has no usable short names, the app reports an error;
+use an ASCII, writable `TEMP` and `TMP` for the launch/build session. Profiles,
+project paths and installed app paths can still contain Unicode.
+
 In PowerShell, from the repository root:
 
 ```powershell
@@ -64,6 +71,8 @@ browser.
 The `Windows desktop` workflow in `.github/workflows/windows.yml` runs on
 `windows-2022` for this branch, main and pull requests to main. It checks source,
 Rust core tests, a Windows runtime regression suite, and desktop lifecycle tests.
+An initial compiler job probes both ordinary and isolated Unicode temporary
+paths before the build job installs npm dependencies.
 It builds the NSIS installer, installs it into a temporary directory containing
 spaces and Korean text, then verifies the installed server payload before
 uploading the installer and checksum.
@@ -107,12 +116,28 @@ terminal tools; this port does not add a Windows native computer-control driver.
 
 ## Verification record — September 5, 2026
 
-- Linux x64, Node 24.18.0: `npm run verify` passed, including 1,428 JavaScript
-  and Bun tests and 58 Rust unit tests plus three Rust process tests.
-- The focused Windows contracts also pass on Linux; tests requiring actual
-  Windows APIs remain gated to the Windows runner.
-- Tauri wrapper/bootstrap/icon tests and Rust formatting passed. The Windows
-  shell sources passed a cross-target compile/Clippy check in an isolated
-  harness; this did not build or run the installer.
-- Native Windows CI and interactive acceptance are separate evidence. The
-  checklist above records what must still be verified before public release.
+- Linux x64, Node 24.18.0, code commit `21ac3b6`: `npm run verify` passed,
+  including 1,440 JavaScript and Bun tests and 59 Rust unit tests plus four
+  Rust process tests.
+- Native Windows CI run `33958813323`, code commit `2889326`, passed on
+  `windows-2022`: 49 build-tool tests, 108 runtime tests, 60 Rust core unit tests,
+  four Rust process tests, and 19 Tauri desktop tests. One Rust fixture is
+  intentionally excluded from direct execution and is launched by its owning
+  process-tree test.
+- The NSIS installer was built, installed under a path containing spaces and
+  Korean text, and the installed payload passed SQLite, ConPTY, native core,
+  ripgrep, Bun worker, supervised model catalog/Job ownership, desktop
+  authentication, frontend delivery and graceful shutdown checks.
+- The installer remains unsigned. Interactive GUI, provider sign-in, a real
+  agent turn, and reinstall/uninstall acceptance remain in the checklist above.
+
+Verified preview artifact from that run:
+
+```text
+gajae-app-desktop-2.0.0-beta.8-windows-x64-setup.exe
+SHA-256: 3e5431de5c9a372f971a5643e9cda3a3352fb52e2efb75d2949906eac5b74eef
+```
+
+The downloaded installer matches the companion checksum. The CI artifact is
+named `gajae-app-desktop-windows-x64` and is retained for 14 days; source builds
+remain available after it expires.

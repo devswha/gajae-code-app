@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { once } from 'node:events';
-import { appendFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, open, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 
 import { closeConnection, initializeDatabase, projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { gjcSearchFile, gjcSearchMessages } from '@/modules/providers/services/gjc-conversation-search.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 
 type Entry = Record<string, unknown>;
@@ -220,6 +222,55 @@ test('search enforces per-session/global limits and cancellation', async (t) => 
   assert.equal((await search('   ')).matches.length, 0);
 });
 
+test('worktree transcript cwd does not replace the logical project scope or prevent matches', async (t) => {
+  const f = await fixture(t);
+  await f.add('unrelated', [message('other', 'user', 'needle')], { project: path.join(f.root, 'other-project') });
+  const actualCwd = path.join(f.project, '.worktrees', 'session-one');
+  await mkdir(actualCwd, { recursive: true });
+  const session = await f.add('worktree-sdk', [message('worktree-user', 'user', 'worktree needle')], {
+    appId: 'worktree-app', header: { cwd: actualCwd },
+  });
+  const scoped = await search('needle', { projectId: session.projectId, limit: 1 });
+  assert.equal(scoped.projects[0]?.projectName, f.project);
+  assert.equal(scoped.projects[0]?.projectId, session.projectId);
+  assert.deepEqual(scoped.sessions.map(({ sessionId }) => sessionId), ['worktree-app']);
+  assert.equal(scoped.matches[0]?.snippet, 'worktree needle');
+  assert.ok((await search('needle')).sessions.some(({ sessionId }) => sessionId === 'worktree-app'));
+  const otherId = projectsDb.getProjectPath(path.join(f.root, 'other-project'))!.project_id;
+  assert.deepEqual((await search('needle', { projectId: otherId })).sessions.map(({ sessionId }) => sessionId), ['unrelated']);
+});
+
+test('opened handles replaced with a FIFO or directory are rejected before streaming', { skip: process.platform === 'win32' }, async (t) => {
+  const f = await fixture(t);
+  const { file } = await f.add('replaced', [message('user', 'user', 'needle')]);
+  const handle = await open(file, 'r');
+  const createReadStream = handle.createReadStream;
+  const prototype = Object.getPrototypeOf(handle);
+  await handle.close();
+  let streams = 0;
+  t.mock.method(prototype, 'createReadStream', function (this: typeof handle, ...args: Parameters<typeof createReadStream>) {
+    streams += 1;
+    return createReadStream.apply(this, args);
+  });
+  const collect = async () => {
+    const entries = [];
+    for await (const entry of gjcSearchMessages(file, 'replaced', () => false)) entries.push(entry);
+    return entries;
+  };
+  assert.equal((await collect()).length, 1);
+  assert.equal(streams, 1, 'the spy observes regular-file streams');
+  streams = 0;
+  assert.equal(await gjcSearchFile(file, [f.live]), file);
+  await rm(file);
+  execFileSync('mkfifo', [file]);
+  assert.deepEqual(await collect(), []);
+  assert.equal(streams, 0, 'a FIFO swapped after candidate validation is never streamed');
+  await rm(file);
+  await mkdir(file);
+  assert.deepEqual(await collect(), []);
+  assert.equal(streams, 0, 'directories are also rejected at the opened-handle boundary');
+});
+
 test('GJC search rejects outside files, symlinks, sidecars, missing paths, and mismatched session headers', async (t) => {
   const f = await fixture(t);
   const entries = [message('user', 'user', 'boundary needle')];
@@ -229,7 +280,8 @@ test('GJC search rejects outside files, symlinks, sidecars, missing paths, and m
   await f.add('nested', entries, { file: path.join(f.live, 'slug', 'session-sidecar', 'nested.jsonl') });
   await f.add('extension', entries, { file: path.join(f.live, 'extension.txt') });
   await f.add('wrong-id', entries, { header: { id: 'different-sdk-session' } });
-  await f.add('wrong-project', entries, { header: { cwd: path.join(f.root, 'different-project') } });
+  await f.add('invalid-cwd', entries, { header: { cwd: 7 } });
+  await f.add('relative-cwd', entries, { header: { cwd: 'workspace' } });
   await f.add('no-header', entries, { header: { type: 'custom' } });
   const addPath = (id: string, file: string) => sessionsDb.createSession(id, 'gjc', f.project, undefined, timestamp, timestamp, file);
   const link = path.join(f.live, 'leaf-link.jsonl');

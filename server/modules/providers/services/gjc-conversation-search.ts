@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { readGjcTranscriptMessage } from '@/modules/providers/list/gjc/gjc-transcript-message.js';
-import { getGjcLiveSessionRoot, normalizeProjectPath, readObjectRecord } from '@/shared/utils.js';
+import { getGjcLiveSessionRoot, readObjectRecord } from '@/shared/utils.js';
 
 const MAX_LINE_BYTES = 32 * 1024 * 1024;
 
@@ -45,11 +45,15 @@ export async function gjcSearchFile(file: string, roots: string[]): Promise<stri
 /** Bound malformed/large records without buffering an entire transcript or an unlimited line. */
 async function* lines(file: string, aborted: () => boolean): AsyncGenerator<string> {
   const handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW || 0) | (constants.O_NONBLOCK || 0));
-  const stream = handle.createReadStream();
+  let stream: ReturnType<typeof handle.createReadStream> | undefined;
   let parts: Buffer[] = [];
   let bytes = 0;
   let oversized = false;
   try {
+    // Candidate validation and open are separate operations. A replaced FIFO,
+    // device, or directory must never become an input stream, even with NONBLOCK.
+    if (!(await handle.stat()).isFile()) return;
+    stream = handle.createReadStream({ autoClose: false });
     for await (const chunk of stream) {
       if (aborted()) return;
       const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
@@ -72,13 +76,15 @@ async function* lines(file: string, aborted: () => boolean): AsyncGenerator<stri
       }
     }
     if (!oversized && bytes && !aborted()) yield Buffer.concat(parts, bytes).toString('utf8');
-  } finally { stream.destroy(); }
+  } finally {
+    stream?.destroy();
+    await handle.close();
+  }
 }
 
 export async function* gjcSearchMessages(
   file: string,
   providerSessionId: string,
-  projectPath: string | null,
   aborted: () => boolean,
 ): AsyncGenerator<GjcSearchMessage> {
   let belongsToSession = false;
@@ -88,8 +94,11 @@ export async function* gjcSearchMessages(
       try { entry = readObjectRecord(JSON.parse(line)); } catch { continue; }
       if (!entry) continue;
       if (entry.type === 'session') {
+        // The transcript owns actual execution cwd; the DB owns the logical
+        // project grouping. Worktree sessions legitimately have different paths.
+        // Bind the contained transcript to its provider ID, not its project cwd.
         belongsToSession = entry.id === providerSessionId && typeof entry.cwd === 'string'
-          && projectPath !== null && normalizeProjectPath(entry.cwd) === normalizeProjectPath(projectPath);
+          && path.isAbsolute(entry.cwd);
         if (!belongsToSession) return;
         continue;
       }

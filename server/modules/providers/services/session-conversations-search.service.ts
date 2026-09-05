@@ -229,7 +229,7 @@ class TranscriptSearch {
     const matches: ConversationMatch[] = [];
     let firstUser: string | null = null;
     let firstAssistant: string | null = null;
-    for await (const message of gjcSearchMessages(row.jsonl_path, row.provider_session_id ?? row.session_id, row.project_path, this.aborted)) {
+    for await (const message of gjcSearchMessages(row.jsonl_path, row.provider_session_id ?? row.session_id, this.aborted)) {
       if (this.total >= this.max || this.aborted()) break;
       if (message.role === 'user') firstUser ??= message.text;
       else firstAssistant ??= message.text;

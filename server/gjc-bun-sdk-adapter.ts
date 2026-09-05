@@ -390,12 +390,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
     const models = [];
     const candidates = await modelsForCredential(this.authStorage, this.modelRegistry, { kind: 'stored' });
 
-    const selections = this.modelRegistry.getCanonicalModelSelections({
-      availableOnly: true,
-      candidates,
-    });
-    for (const { record, model } of selections) {
-      if (!model) continue;
+    for (const model of candidates) {
       const value = `${model.provider}/${model.id}`;
       if (seen.has(value)) continue;
       seen.add(value);
@@ -404,11 +399,12 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         efforts = getSupportedEfforts(model);
       }
       const defaultEffort = MODEL_ID_EFFORT.exec(model.id)?.[1];
+      const canonicalId = this.modelRegistry.getCanonicalId(model);
       models.push({
         value,
-        label: record.name || model.name || model.id,
+        label: model.name || model.id,
         group: model.provider,
-        canonicalId: record.id,
+        ...(canonicalId ? { canonicalId } : {}),
         effort: {
           ...(defaultEffort ? { default: defaultEffort } : {}),
           values: efforts.map((effort) => ({ value: effort })),

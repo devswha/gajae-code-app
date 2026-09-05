@@ -25,6 +25,10 @@ exported throughout that build. No credential or PKCS#12 export is needed.
 The existing signed-build instructions remain in
 `docs/DESKTOP-TAURI-VERIFICATION.md`.
 
+For the final SDK 0.16.4 candidate, `scripts/release/MACOS-ACCEPTANCE.md`
+provides the pinned source snapshot, isolated build paths, bounded local
+notarization, quarantined copy verification, and separate packaged smokes.
+
 Use the exact same source commit for the Linux server archive and any optional
 Linux desktop artifacts. Keep independent SHA-256 values from the accepted
 local builds; do not take the expected hashes from the remote draft being

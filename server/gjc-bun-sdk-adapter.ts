@@ -568,17 +568,19 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       didRunFail = true;
     }
     if (active) {
-      await active.goals?.dispose();
-      active.unsubscribe();
-      active.askController.dispose();
-      this.#runs.delete(runId);
-      try {
-        try { await active.delegation?.dispose(); }
-        finally { await active.session.dispose(); }
-      } catch {
-        console.error('GJC SDK session disposal failed.');
-        disposalError = new Error(FAILURE);
+      const run = active;
+      for (const cleanup of [
+        () => run.goals?.dispose(),
+        () => run.unsubscribe(),
+        () => run.askController.dispose(),
+        () => this.#runs.delete(runId),
+        () => run.delegation?.dispose(),
+        () => run.session.dispose(),
+      ]) {
+        try { await cleanup(); }
+        catch { disposalError ??= new Error(FAILURE); }
       }
+      if (disposalError) console.error('GJC SDK session disposal failed.');
     }
     if (disposalError) throw disposalError;
     if (didRunFail) throw runError;

@@ -177,3 +177,37 @@ test('goal_updated fan-in handles completion/drop event data and rejects malform
     assert.equal(frames.length, before);
   } finally { await f.close(); }
 });
+
+test('Stop retries a refused SDK abort while keeping the goal durably paused and model mutations fenced', async () => {
+  const f = await fixture();
+  const originalAbort = f.session.abort.bind(f.session);
+  let attempts = 0;
+  f.session.abort = async () => {
+    if (++attempts === 1) throw new Error('Transient abort failure');
+    await originalAbort();
+  };
+  try {
+    await f.goals.control({ operation: 'create', goalId: null, objective: 'A stoppable goal' });
+    await assert.rejects(f.goals.stop(), /Transient abort failure/);
+    assert.equal(readPersistedGjcGoal(f.manager).state?.goal.status, 'paused');
+    await assert.rejects(f.session.getToolByName('goal')!.execute('resume-after-stop', { op: 'resume' }), /app goal controls/);
+    await f.goals.stop();
+    assert.equal(attempts, 2);
+    assert.equal(f.session.getGoalModeState()?.enabled, false);
+  } finally { f.session.abort = originalAbort; await f.close(); }
+});
+
+test('failed goal persistence fences autonomous continuation and requests a stop', async () => {
+  const f = await fixture();
+  const originalFlush = f.manager.flush.bind(f.manager);
+  f.manager.flush = async () => { throw new Error('Disk unavailable'); };
+  try {
+    await assert.rejects(f.session.getToolByName('goal')!.execute('goal-create', { op: 'create', objective: 'Must remain durable' }), /Disk unavailable/);
+    assert.equal(f.session.getGoalModeState()?.enabled, false);
+    assert.equal(f.stops(), 1);
+  } finally {
+    f.manager.flush = originalFlush;
+    await f.goals.stop();
+    await f.close();
+  }
+});

@@ -156,7 +156,19 @@ export class GjcGoalSession {
   }
   private clearLimit(): void { clearTimeout(this.timer); this.timer = undefined; }
   private stopAtLimit(): void { void this.stopRun().catch(() => {}); }
-  private async persist(): Promise<void> { await this.manager.ensureOnDisk?.(); await this.manager.flush?.(); }
+  private async persist(): Promise<void> {
+    try {
+      await this.manager.ensureOnDisk?.();
+      await this.manager.flush?.();
+    } catch (error) {
+      // A goal without durable ownership/state must not schedule another turn.
+      // Fence immediately; the asynchronous stop joins after this operation.
+      const state = normalizeGjcGoalState(this.session.getGoalModeState());
+      if (state?.enabled) this.session.setGoalModeState({ ...state, enabled: false });
+      if (!this.stopping && !this.disposed) this.stopAtLimit();
+      throw error;
+    }
+  }
 
   /** Preserve the original SDK GoalTool's ultragoal/provenance guards. */
   invokeTool<T>(operation: GjcGoalOperation, executeBuiltin: () => Promise<T>, allowed: readonly GjcGoalOperation[] = this.modelOperations): Promise<T> {
@@ -183,7 +195,13 @@ export class GjcGoalSession {
 
   /** Pause is durable before Stop settles; abort also fences queued SDK continuations. */
   stop(): Promise<void> {
-    return this.stopPromise ??= this.stopInner();
+    return this.stopPromise ??= this.stopInner().catch((error) => {
+      // Keep model mutations fenced, but let the user's Stop retry a failed
+      // SDK abort or disk flush instead of retaining a rejected promise.
+      this.stopPromise = undefined;
+      this.publish(this.snapshot());
+      throw error;
+    });
   }
 
   private async stopInner(): Promise<void> {
@@ -195,8 +213,12 @@ export class GjcGoalSession {
     const pause = this.pending.then(async () => {
       if (normalizeGjcGoalState(this.session.getGoalModeState())?.goal.status === 'active') await this.session.operateGoal('pause');
     });
-    await Promise.all([abort, pause]);
+    const results = await Promise.allSettled([abort, pause]);
+    // The pause may have succeeded even if the SDK abort failed. Preserve it
+    // before reporting failure, and join both cleanup attempts before retry.
     await this.persist();
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure?.status === 'rejected') throw failure.reason;
     this.publish(this.snapshot());
   }
 

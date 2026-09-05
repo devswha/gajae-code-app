@@ -20,6 +20,7 @@ type PermissionModePickerProps = {
   onSelectMode: (update: PermissionModeUpdate) => Promise<unknown> | unknown;
   busy?: boolean;
   disabled?: boolean;
+  className?: string;
 };
 
 /**
@@ -30,7 +31,7 @@ type PermissionModePickerProps = {
  * first time a project switches to it, put behind a confirmation dialog: it is
  * the one setting here that removes a safety net rather than tuning one.
  */
-export default function PermissionModePicker({ permissions, onSelectMode, busy = false, disabled = false }: PermissionModePickerProps) {
+export default function PermissionModePicker({ permissions, onSelectMode, busy = false, disabled = false, className }: PermissionModePickerProps) {
   const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
   const [confirmingBypass, setConfirmingBypass] = useState(false);
@@ -127,14 +128,14 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
   const label = t(`permissionMode.modes.${mode}.label`);
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className={cn('relative', className)}>
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
         disabled={unavailable || isBusy}
         data-mode={mode}
         className={cn(
-          'flex h-8 max-w-40 min-w-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50',
+          'flex h-8 w-full max-w-40 min-w-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50',
           mode === 'bypass' ? 'text-destructive hover:text-destructive' : 'text-muted-foreground hover:text-foreground',
         )}
         aria-label={t('permissionMode.label')}
@@ -143,7 +144,7 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
         title={t('permissionMode.tooltip', { mode: label, shortcut })}
       >
         {isBusy ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden /> : <Icon className="size-3.5 shrink-0" aria-hidden />}
-        <span className="min-w-0 truncate">{label}</span>
+        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
         <ChevronDown className={cn('size-3 shrink-0 transition-transform', open && 'rotate-180')} aria-hidden />
       </button>
 

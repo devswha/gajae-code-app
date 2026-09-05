@@ -12,10 +12,11 @@ import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
 import { useQueuedMessageAutoSend } from '../../hooks/useQueuedMessageAutoSend';
-import { observeOutgoingChatMessage, useSessionAttentionSync } from '../../hooks/useSessionAttentionSync';
+import { useSessionAttentionSync } from '../../hooks/useSessionAttentionSync';
 
 import { hiddenKeyboardHeight } from './appContentUtils';
 import { useRunningSessionsSync } from './useRunningSessionsSync';
+import { useAppMessageSender } from './useAppMessageSender';
 
 type SidebarLayerProps = {
   isMobile: boolean;
@@ -74,10 +75,7 @@ export default function AppContent() {
   const { ws, sendMessage: sendToServer, subscribe } = useWebSocket();
   // Answering an approval and starting a run are facts the sidebar's status
   // model needs, and they only ever appear on the outgoing side of the socket.
-  const sendMessage = useCallback((message: unknown) => {
-    observeOutgoingChatMessage(message);
-    sendToServer(message);
-  }, [sendToServer]);
+  const sendMessage = useAppMessageSender(sendToServer);
   const {
     processingSessions,
     markSessionProcessing: markProcessing,

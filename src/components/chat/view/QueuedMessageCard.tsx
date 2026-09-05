@@ -4,6 +4,7 @@ import { ArrowDownIcon, ArrowUpIcon, PencilIcon, XIcon } from 'lucide-react';
 interface QueuedMessageCardProps {
   content: string;
   imageCount?: number;
+  pendingSteer?: boolean;
   /** 1-based place in the send order. */
   position: number;
   total: number;
@@ -17,6 +18,7 @@ interface QueuedMessageCardProps {
 export default function QueuedMessageCard({
   content,
   imageCount = 0,
+  pendingSteer = false,
   position,
   total,
   onEdit,
@@ -47,7 +49,7 @@ export default function QueuedMessageCard({
             <span className="text-muted-foreground/60 normal-case">
               {/* Only the head is sent when the current turn ends; the rest
                   follow one per turn, so promising otherwise would be a lie. */}
-              · {isNext ? t('input.queue.willSend') : t('input.queue.willFollow')}
+              · {pendingSteer ? t('input.queue.awaitingSteer') : isNext ? t('input.queue.willSend') : t('input.queue.willFollow')}
             </span>
           </div>
           <p className="mt-0.5 line-clamp-2 text-sm wrap-break-word text-foreground/90">{content}</p>

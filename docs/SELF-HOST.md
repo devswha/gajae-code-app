@@ -61,6 +61,62 @@ port forwarding.
 ssh -N -L 3001:127.0.0.1:3001 user@server
 ```
 
+## DNS host admission and reverse-proxy migration
+
+The server now rejects unlisted DNS names before serving HTTP routes or
+accepting WebSocket upgrades. With `ALLOWED_HOSTS` unset, `localhost` and
+literal IPv4/IPv6 addresses continue to work. Matching `Host` and `Origin`
+headers, an omitted `Origin`, or `X-Forwarded-Proto: https` do not admit a DNS
+name. This prevents an attacker-controlled DNS name from reaching a loopback
+server after rebinding.
+
+**Compatibility change:** older releases accepted arbitrary matching DNS
+Host/Origin pairs. Existing HTTPS reverse proxies, custom local DNS aliases
+and tailnet DNS names must now be listed in the **app server's environment**.
+Changing only Nginx's `server_name` is insufficient. Direct loopback/IP access
+and SSH tunnels using `localhost` need no migration.
+
+Before upgrading a DNS-based deployment, create a service drop-in:
+
+```sh
+systemctl --user edit gajae-app.service
+```
+
+Add a setting such as:
+
+```ini
+[Service]
+Environment="ALLOWED_HOSTS=gjc.example.com,macbook.tailnet.example"
+```
+
+Replace these examples with names you control. Entries are comma-separated
+hostnames without schemes, ports or paths. A leading dot such as
+`.internal.example` admits that domain and all its subdomains; use an exact
+name when only one host should be trusted. Source-development deployments
+can put the same setting in `.env`; both Vite and the API server use it.
+
+Keep the proxy forwarding the public Host (`proxy_set_header Host $host;` in
+the [Nginx example](nginx-subpath-template.conf)). A proxy that uses a DNS
+upstream name as Host must also list that name, or forward a loopback/IP Host;
+the public browser origin still needs its own entry. HTTPS remains supported
+with this explicit configuration. Forwarded headers do not replace admission.
+
+After the upgrade, reload the service configuration and restart the app:
+
+```sh
+systemctl --user daemon-reload
+systemctl --user restart gajae-app.service
+curl --fail http://127.0.0.1:3001/health
+```
+
+Check the published page and its WebSocket connection. HTTP requests with an
+unlisted Host return 403; WebSocket upgrades are rejected with 401. Configure
+health checks using a permitted Host.
+
+`ALLOWED_HOSTS=*` retains an explicit compatibility escape hatch, but disables
+this DNS host protection. Host admission does not authenticate remote clients;
+keep the existing loopback/VPN/tunnel or authenticated-proxy access boundary.
+
 ## Cutover to a verified release
 
 A cutover changes only the `current` symlink and then restarts the service.

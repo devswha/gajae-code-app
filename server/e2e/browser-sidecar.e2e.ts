@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import readline from 'node:readline';
-import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
   BROWSER_PROTOCOL_VERSION,
@@ -14,33 +15,46 @@ import {
   type BrowserRequestMethod,
 } from '../modules/automation/browser-protocol.js';
 
+function sidecarEntrypoint(): string {
+  const source = fileURLToPath(new URL('../modules/automation/browser-sidecar.ts', import.meta.url));
+  return existsSync(source) ? source : fileURLToPath(new URL('../modules/automation/browser-sidecar.js', import.meta.url));
+}
+
 class SidecarHarness {
   readonly child: ChildProcessWithoutNullStreams;
   readonly events: BrowserProtocolFrame[] = [];
   readonly pending = new Map<string, { resolve(value: unknown): void; reject(error: Error): void }>();
   private sequence = 0;
-  private failure?: Error;
-  private diagnostics = '';
+  private readonly closed: Promise<void>;
+  private stoppedError?: Error;
+  private stderr = '';
 
-  constructor(profileDirectory: string) {
+  constructor(profileDirectory: string, entrypoint = sidecarEntrypoint()) {
     this.child = spawn(join(process.cwd(), 'dist-native', 'bun'), [
-      fileURLToPath(new URL(`../modules/automation/browser-sidecar.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`, import.meta.url)),
+      entrypoint,
     ], {
       env: { ...process.env, GAJAE_BROWSER_PROFILE_DIR: profileDirectory },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     this.child.stderr.setEncoding('utf8');
-    this.child.stderr.on('data', (chunk: string) => { this.diagnostics = `${this.diagnostics}${chunk}`.slice(-8_192); });
-    const fail = (error: Error) => {
-      this.failure = error;
-      for (const pending of this.pending.values()) pending.reject(error);
-      this.pending.clear();
-    };
-    this.child.on('error', fail);
-    this.child.stdin.on('error', fail);
-    this.child.once('close', (code, signal) => fail(new Error(`Browser sidecar exited (code=${code}, signal=${signal}): ${this.diagnostics}`)));
+    this.child.stderr.on('data', (chunk: string) => { this.stderr = (this.stderr + chunk).slice(-8_192); });
+    this.child.on('error', (error) => this.stop(error));
+    this.child.stdin.on('error', (error) => this.stop(error));
+    this.closed = new Promise((resolve) => {
+      this.child.once('close', (code, signal) => {
+        this.stop(new Error(`Browser sidecar exited (${code ?? signal}). ${this.stderr}`));
+        resolve();
+      });
+    });
     readline.createInterface({ input: this.child.stdout }).on('line', (line) => {
-      const frame = JSON.parse(line) as BrowserProtocolFrame;
+      let frame: BrowserProtocolFrame;
+      try {
+        frame = JSON.parse(line) as BrowserProtocolFrame;
+      } catch {
+        this.stop(new Error(`Invalid browser sidecar frame: ${line.slice(0, 500)}. ${this.stderr}`));
+        this.child.kill();
+        return;
+      }
       if (frame.kind === 'response') {
         const pending = this.pending.get(frame.id);
         if (!pending) return;
@@ -53,17 +67,24 @@ class SidecarHarness {
     });
   }
 
-  request(method: BrowserRequestMethod, sessionId?: string, payload: Record<string, unknown> = {}): Promise<unknown> {
-    if (this.failure) return Promise.reject(this.failure);
+  private stop(error: Error): void {
+    this.stoppedError ??= error;
+    for (const pending of this.pending.values()) pending.reject(this.stoppedError);
+    this.pending.clear();
+  }
+
+  request(method: BrowserRequestMethod, sessionId?: string, payload: Record<string, unknown> = {}, timeoutMs = 15_000): Promise<unknown> {
+    if (this.stoppedError) return Promise.reject(this.stoppedError);
     const id = `e2e-${++this.sequence}`;
     return new Promise((resolve, reject) => {
+      const finish = () => { clearTimeout(timer); this.pending.delete(id); };
       const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`Timed out waiting for browser sidecar ${method}: ${this.diagnostics}`));
-      }, 35_000);
+        finish();
+        reject(new Error(`Timed out waiting for browser sidecar ${method} after ${timeoutMs}ms. ${this.stderr}`));
+      }, timeoutMs);
       this.pending.set(id, {
-        resolve: value => { clearTimeout(timer); resolve(value); },
-        reject: error => { clearTimeout(timer); reject(error); },
+        resolve: (value) => { finish(); resolve(value); },
+        reject: (error) => { finish(); reject(error); },
       });
       this.child.stdin.write(`${JSON.stringify({
         protocolVersion: BROWSER_PROTOCOL_VERSION,
@@ -79,9 +100,9 @@ class SidecarHarness {
   async waitForEvent(method: string, timeoutMs = 5_000, fromIndex = 0): Promise<BrowserProtocolFrame> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      if (this.failure) throw this.failure;
       const event = this.events.slice(fromIndex).find((candidate) => candidate.kind === 'event' && candidate.method === method);
       if (event) return event;
+      if (this.stoppedError) throw this.stoppedError;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     throw new Error(`Timed out waiting for ${method}.`);
@@ -90,30 +111,80 @@ class SidecarHarness {
   async waitForAsync(type: string, fromIndex = 0, timeoutMs = 5_000): Promise<BrowserProtocolFrame> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      if (this.failure) throw this.failure;
       const event = this.events.slice(fromIndex).find((candidate) => (
         candidate.kind === 'event'
         && candidate.method === 'async'
         && candidate.payload.type === type
       ));
       if (event) return event;
+      if (this.stoppedError) throw this.stoppedError;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     throw new Error(`Timed out waiting for async event ${type}.`);
   }
 
   async shutdown(): Promise<void> {
-    if (!this.child.pid || this.child.exitCode !== null || this.child.signalCode !== null) return;
-    const closed = new Promise<void>((resolve) => this.child.once('close', () => resolve()));
-    const timer = setTimeout(() => this.child.kill('SIGKILL'), 5_000);
+    if (this.child.exitCode !== null || this.child.signalCode !== null) return this.closed;
+    const timer = setTimeout(() => this.child.kill('SIGKILL'), 2_000);
     try {
-      await this.request('shutdown').catch(() => {});
-      await closed;
-    } finally { clearTimeout(timer); }
+      await this.request('shutdown', undefined, {}, 2_000).catch(() => {});
+      await this.closed;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }
 
-test('real Chromium sidecar shares structured actions, tabs, and screencast state', async (t) => {
+test('sidecar harness rejects pending requests when its process exits', { timeout: 5_000 }, async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'gajae-sidecar-exit-e2e-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const entrypoint = join(root, 'exiting-sidecar.ts');
+  await writeFile(entrypoint, `
+    console.log(JSON.stringify({ protocolVersion: 1, kind: 'event', method: 'ready', payload: {} }));
+    process.stdin.once('data', () => {
+      process.stderr.write('fixture sidecar exited unexpectedly\\n');
+      process.exit(17);
+    });
+    process.stdin.resume();
+  `);
+  const sidecar = new SidecarHarness(join(root, 'profile'), entrypoint);
+  t.after(() => sidecar.shutdown());
+  await sidecar.waitForEvent('ready');
+  const request = sidecar.request('initialize');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await assert.rejects(Promise.race([
+      request,
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('pending request never settled after exit')), 1_000); }),
+    ]), /sidecar exited.*17.*fixture sidecar exited unexpectedly/isu);
+    assert.equal(sidecar.pending.size, 0);
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
+test('sidecar harness bounds silent requests and shutdown without a response', { timeout: 5_000 }, async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'gajae-sidecar-silent-e2e-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const entrypoint = join(root, 'silent-sidecar.ts');
+  await writeFile(entrypoint, `
+    import readline from 'node:readline';
+    console.log(JSON.stringify({ protocolVersion: 1, kind: 'event', method: 'ready', payload: {} }));
+    readline.createInterface({ input: process.stdin }).on('line', (line) => {
+      if (JSON.parse(line).method === 'shutdown') process.exit(0);
+    });
+  `);
+  const sidecar = new SidecarHarness(join(root, 'profile'), entrypoint);
+  t.after(() => sidecar.shutdown());
+  await sidecar.waitForEvent('ready');
+  await assert.rejects(sidecar.request('initialize', undefined, {}, 50), /Timed out waiting for browser sidecar initialize/u);
+  assert.equal(sidecar.pending.size, 0);
+  await sidecar.shutdown();
+  assert.equal(sidecar.child.exitCode, 0);
+  await assert.rejects(sidecar.request('status'), /sidecar exited/u);
+});
+
+test('real Chromium sidecar shares structured actions, tabs, and screencast state', { timeout: 45_000 }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'gajae-browser-e2e-'));
   const server = createServer((request, response) => {
     if (request.url === '/download') {
@@ -238,6 +309,19 @@ test('real Chromium sidecar shares structured actions, tabs, and screencast stat
   assert.equal(state.tabs.length, 1);
   assert.ok(state.activeTabId);
 
+  const background = await sidecar.request('session.open', 'background-e2e', { url: `${url}/background`, allowDownload: false }) as { activeTabId: string; tabs: unknown[] };
+  assert.equal(background.tabs.length, 1);
+  assert.notEqual(background.activeTabId, state.activeTabId);
+  for (const action of ['selectTab', 'closeTab']) {
+    await assert.rejects(sidecar.request('browser.command', 'browser-e2e', {
+      command: { action, tabId: background.activeTabId },
+    }), /Browser tab was not found/u);
+  }
+  await sidecar.request('browser.command', 'background-e2e', {
+    command: { action: 'fill', selector: '#name', text: 'background preserved' },
+  });
+  await sidecar.request('browser.command', 'background-e2e', { command: { action: 'click', selector: '#apply' } });
+
   const interrupted = assert.rejects(
     sidecar.request('browser.command', 'browser-e2e', {
       command: { action: 'run', code: 'new Promise(() => {})', timeoutMs: 30_000 },
@@ -245,11 +329,25 @@ test('real Chromium sidecar shares structured actions, tabs, and screencast stat
     /closed|destroyed|Target|session|Protocol/iu,
   );
   await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.deepEqual(await sidecar.request('browser.command', 'background-e2e', {
+    command: { action: 'extract', selector: '#result', format: 'text' },
+  }, 2_000), { value: 'background preserved' }, 'another session remains usable during a non-settling script');
   const closeStarted = Date.now();
-  assert.deepEqual(await Promise.race([
-    sidecar.request('session.close', 'browser-e2e'),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('session.close was blocked behind browser.run')), 2_000)),
-  ]), { closed: true });
+  assert.deepEqual(await sidecar.request('session.close', 'browser-e2e', {}, 2_000), { closed: true });
   assert.ok(Date.now() - closeStarted < 2_000, 'session.close must interrupt a long browser.run');
   await interrupted;
+
+  assert.deepEqual(await sidecar.request('browser.command', 'background-e2e', {
+    command: { action: 'extract', selector: '#result', format: 'text' },
+  }), { value: 'background preserved' }, 'closing one session preserves the other session');
+  await assert.rejects(sidecar.request('session.state', 'browser-e2e'), /Open the browser session first/u);
+  assert.deepEqual(await sidecar.request('session.close', 'browser-e2e'), { closed: false });
+  const reopened = await sidecar.request('session.open', 'browser-e2e', { url, allowDownload: false }) as { activeTabId: string; tabs: unknown[] };
+  assert.equal(reopened.tabs.length, 1);
+  assert.notEqual(reopened.activeTabId, state.activeTabId);
+  await assert.rejects(sidecar.request('browser.command', 'browser-e2e', {
+    command: { action: 'selectTab', tabId: state.activeTabId },
+  }), /Browser tab was not found/u);
+  assert.deepEqual(await sidecar.request('session.close', 'browser-e2e'), { closed: true });
+  assert.deepEqual(await sidecar.request('session.close', 'background-e2e'), { closed: true });
 });

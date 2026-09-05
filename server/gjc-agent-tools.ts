@@ -69,8 +69,8 @@ export const GJC_AGENT_TOOL_NAMES: readonly string[] = [
  * widening this set needs to know which is which.
  */
 export const GJC_AGENT_TOOLS_WITHHELD: Readonly<Record<string, string>> = {
-  task: 'Delegates to sub-agents, so every call multiplies model spend. Wanted for the ralplan review loop, but that is a cost decision, not a default.',
-  subagent: 'Same sub-agent spend as task.',
+  task: 'Workflow delegation needs explicit cost consent and child policy inheritance. SDK 0.15.6 creates children with its default allow permission mode and role-selected tools, bypassing the app permission provider and tool allowlist; a skill Run gate alone does not preserve those boundaries.',
+  subagent: 'Resumes task children through the same SDK executor without inheriting the app permission provider or tool allowlist. Enable together with a policy-preserving task bridge.',
   job: 'Produces background work the app has no screen for; the /jobs surface tracks the app\u2019s own orchestrator, not this tool.',
   monitor: 'Long-lived watchers with nowhere to surface in the app.',
   cron: 'Schedules work that outlives the session with no UI to review or cancel it.',

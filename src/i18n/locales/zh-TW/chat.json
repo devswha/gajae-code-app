@@ -78,6 +78,7 @@
       "label": "已佇列",
       "willSend": "於當前執行結束後發送",
       "willFollow": "於上方訊息之後發送",
+      "awaitingSteer": "等待引導指令確認",
       "edit": "編輯佇列中的項目",
       "delete": "移除佇列中的項目",
       "moveUp": "在佇列中上移",

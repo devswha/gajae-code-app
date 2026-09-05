@@ -9,7 +9,7 @@ import { WebSocket, type RawData } from 'ws';
 import { parseIncomingJsonObject } from '@/shared/utils.js';
 
 type ShellIncomingMessage = { type?: string; data?: string; cols?: number; rows?: number; projectPath?: string; sessionId?: string; hasSession?: boolean; provider?: string; initialCommand?: string; isPlainShell?: boolean; forceRestart?: boolean; };
-type PtySessionEntry = { pty: IPty; ws: WebSocket | null; buffer: string[]; timeoutId: NodeJS.Timeout | null; projectPath: string; sessionId: string | null; };
+type PtySessionEntry = { pty: IPty; ws: WebSocket | null; buffer: string[]; timeoutId: NodeJS.Timeout | null; projectPath: string; sessionId: string | null; urlText: string; reportedUrls: Set<string>; };
 type ShellWebSocketDependencies = {
   resolveProviderSessionId: (sessionId: string, provider: string) => string | null | undefined;
   stripAnsiSequences: (content: string) => string;
@@ -117,8 +117,6 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
     sessions.delete(id);
   };
   const relayOutput = (id: string, child: IPty) => {
-    let urlText = '';
-    const reportedUrls = new Set<string>();
     return (chunk: string) => {
       const current = sessions.get(id);
       if (!current || current.pty !== child) return;
@@ -127,15 +125,15 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
       if (!current.ws || current.ws.readyState !== WebSocket.OPEN) return;
 
       const stripped = dependencies.stripAnsiSequences(chunk);
-      urlText = `${urlText}${stripped}`.slice(-URL_WINDOW_LENGTH);
+      current.urlText = `${current.urlText}${stripped}`.slice(-URL_WINDOW_LENGTH);
       const output = chunk.replace(/OPEN_URL:\s*(https?:\/\/[^\s\x1b\x07]+)/g, '[INFO] Opening in browser: $1');
-      const urls = Array.from(new Set(dependencies.extractUrlsFromText(urlText)
+      const urls = Array.from(new Set(dependencies.extractUrlsFromText(current.urlText)
         .map((url) => dependencies.normalizeDetectedUrl(url))
         .filter((url): url is string => Boolean(url))))
         .filter((url, _, all) => !all.some((other) => other !== url && other.startsWith(url)));
       const announce = (url: string, autoOpen: boolean) => {
-        if (reportedUrls.has(url)) return;
-        reportedUrls.add(url);
+        if (current.reportedUrls.has(url)) return;
+        current.reportedUrls.add(url);
         current.ws?.send(JSON.stringify({ type: 'auth_url', url, autoOpen }));
       };
       urls.forEach((url) => announce(url, false));
@@ -190,7 +188,7 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
       env: { ...process.env, [npmPath.key]: npmPath.value, TERM: 'xterm-256color', COLORTERM: 'truecolor', FORCE_COLOR: '3' },
     });
     const child = activePty;
-    sessions.set(key, { pty: child, ws, buffer: [], timeoutId: null, projectPath, sessionId });
+    sessions.set(key, { pty: child, ws, buffer: [], timeoutId: null, projectPath, sessionId, urlText: '', reportedUrls: new Set() });
     child.onData(relayOutput(nextKey, child));
     child.onExit((status) => {
       const current = sessions.get(nextKey);

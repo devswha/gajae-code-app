@@ -19,7 +19,7 @@ import { useFileMentions } from './useFileMentions';
 import { useSlashCommands } from './useSlashCommands';
 import { useWorkspaceTarget, type WorkspaceCandidate } from './useWorkspaceTarget';
 
-interface UseChatComposerStateArgs { selectedProject: Project | null; selectedSession: ProjectSession | null; currentSessionId: string | null; gjcModel: string; reasoningEffort?: string; isLoading: boolean; canAbortSession: boolean; tokenBudget: Record<string, unknown> | null; sendMessage: (message: unknown) => void; sendByCtrlEnter?: boolean; onSessionProcessing?: MarkSessionProcessing; onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void; onInputFocusChange?: (focused: boolean) => void; onCommandGateChange?: (gate: PendingCommandGate | null) => void; onShowSettings?: () => void; onLogin?: (providerId?: string) => void; scrollToBottom: () => void; addMessage: (msg: ChatMessage) => void; setIsUserScrolledUp: (isScrolledUp: boolean) => void; setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>; }
+interface UseChatComposerStateArgs { selectedProject: Project | null; selectedSession: ProjectSession | null; currentSessionId: string | null; gjcModel: string; reasoningEffort?: string; isLoading: boolean; canAbortSession: boolean; tokenBudget: Record<string, unknown> | null; sendMessage: (message: unknown) => boolean | void; sendByCtrlEnter?: boolean; onSessionProcessing?: MarkSessionProcessing; onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void; onInputFocusChange?: (focused: boolean) => void; onCommandGateChange?: (gate: PendingCommandGate | null) => void; onShowSettings?: () => void; onLogin?: (providerId?: string) => void; scrollToBottom: () => void; addMessage: (msg: ChatMessage) => void; setIsUserScrolledUp: (isScrolledUp: boolean) => void; setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>; }
 interface MentionableFile { name: string; path: string; }
 export type ModelCommandData = { current?: { provider?: string; providerLabel?: string; model?: string }; available?: Partial<Record<LLMProvider, string[]>>; availableModels?: string[]; availableOptions?: Array<{ value: string; label?: string; description?: string }>; defaultModel?: string; cache?: ProviderModelsCacheInfo; };
 export type CostCommandData = { tokenUsage?: { used?: number; total?: number }; tokenBreakdown?: { input?: number; output?: number }; provider?: string; model?: string; };
@@ -31,7 +31,6 @@ export type QueuedDraft = { id?: string; content: string; images: File[]; option
 export type PendingCommandGate = CommandGate & { text: string };
 
 const TURN_START_GRACE = 5000;
-const STEER_REPLY_GRACE = 5000;
 const syntheticSubmit = () => ({ preventDefault() {} }) as unknown as FormEvent<HTMLFormElement>;
 const storedQueue = (id: string): QueuedDraft[] => readQueuedMessages(id).map((draft) => ({ ...draft, images: [] }));
 const steerKey = (sessionId: string, content: string) => JSON.stringify([sessionId, content]);
@@ -67,11 +66,39 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   const priorConversation = useRef(conversation);
   const bypassGate = useRef(false);
   const gateRef = useRef<PendingCommandGate | null>(null);
-  const steerAnswer = useRef<(content: string, accepted: boolean, sessionId: string) => void>(() => undefined);
-  const steerWaiting = useRef(new Map<string, Array<{ draft: QueuedDraft; timer: ReturnType<typeof setTimeout> }>>());
+  const steerWaiting = useRef(new Map<string, Array<{ draft: QueuedDraft }>>());
+  const submissionOwner = useRef<object | null>({});
+  const submissionInFlight = useRef<object | null>(null);
+  const draftImages = useRef(new Map<string, File[]>());
+  const attachedImagesRef = useRef(attachedImages);
+  attachedImagesRef.current = attachedImages;
+  const gateChangeRef = useRef(onCommandGateChange);
+  gateChangeRef.current = onCommandGateChange;
+
+  useEffect(() => {
+    const owner = {};
+    submissionOwner.current = owner;
+    submissionInFlight.current = null;
+    return () => {
+      if (submissionOwner.current === owner) submissionOwner.current = null;
+    };
+  }, [conversation, projectId]);
 
   const eraseDraft = useCallback((settled?: string | null) => { if (projectId) draftKeysToClear(projectId, conversation, settled).forEach((key) => safeLocalStorage.removeItem(key)); }, [conversation, projectId]);
   const announceGate = useCallback((gate: PendingCommandGate | null) => { gateRef.current = gate; setGateState(gate); onCommandGateChange?.(gate); }, [onCommandGateChange]);
+  useEffect(() => {
+    const key = draftInputKey(projectId ?? '', conversation);
+    const imagesByDraft = draftImages.current;
+    setAttachedImages(imagesByDraft.get(key) ?? []);
+    setUploadingImages(new Map());
+    setImageErrors(new Map());
+    setModal(null);
+    gateRef.current = null;
+    setGateState(null);
+    gateChangeRef.current?.(null);
+    bypassGate.current = false;
+    return () => { imagesByDraft.set(key, attachedImagesRef.current); };
+  }, [conversation, projectId]);
   const login = useCallback((provider?: string) => { resetBox(setInput, inputRef, setAttachedImages, setUploadingImages, setImageErrors, () => undefined, setExpanded, textareaRef); eraseDraft(); onLogin?.(provider); }, [eraseDraft, onLogin]);
   const palette = usePaletteOps();
   const showCostModal = useCallback(() => { const parts = tokenBudget?.breakdown && typeof tokenBudget.breakdown === 'object' ? tokenBudget.breakdown as Record<string, unknown> : {}; const inTokens = Number(tokenBudget?.inputTokens ?? parts.input); const outTokens = Number(tokenBudget?.outputTokens ?? parts.output); const used = Number(tokenBudget?.used); const total = Number(tokenBudget?.total); setModal({ kind: 'cost', data: { tokenUsage: { used: Number.isFinite(used) ? used : (Number.isFinite(inTokens) ? inTokens : 0) + (Number.isFinite(outTokens) ? outTokens : 0), total: Number.isFinite(total) ? total : 0 }, ...(Number.isFinite(inTokens) || Number.isFinite(outTokens) ? { tokenBreakdown: { input: Number.isFinite(inTokens) ? inTokens : 0, output: Number.isFinite(outTokens) ? outTokens : 0 } } : {}), provider: typeof tokenBudget?.provider === 'string' ? tokenBudget.provider : 'gjc', model: typeof tokenBudget?.model === 'string' ? tokenBudget.model : gjcModel } }); }, [gjcModel, tokenBudget]);
@@ -91,7 +118,19 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   // resolved child repo becomes the session's project, and it is what the
   // caller (ChatInterface's `establishSession`) registers into the sidebar.
   const descend = useCallback(async (target: WorkspaceCandidate): Promise<Project> => { const response = await authenticatedFetch(`/api/projects/${encodeURIComponent(selectedProject!.projectId)}/descend`, { method: 'POST', body: JSON.stringify({ path: target.path }) }); if (!response.ok) { const body = await response.json().catch(() => ({})) as { error?: string | { message?: string } }; const error = body.error; throw new Error(typeof error === 'string' ? error : error?.message ?? `Failed to switch to ${target.name} (${response.status})`); } return (await response.json())?.data as Project; }, [selectedProject]);
-  const allocate = useCallback(async (summary: string | null, text: string) => { let id = selectedSession ? (selectedSession.__provider === 'gjc' ? selectedSession.id : null) : currentSessionId; if (id) return id; const target = await resolveForSend(text); const project = target ? await descend(target) : selectedProject; const response = await authenticatedFetch('/api/providers/sessions', { method: 'POST', body: JSON.stringify({ provider: 'gjc', projectPath: project?.fullPath || project?.path || '' }) }); if (!response.ok) throw new Error(`Failed to create session (${response.status})`); id = (await response.json())?.data?.sessionId || null; if (!id) throw new Error('no session id returned.'); onSessionEstablished?.(id, { provider: 'gjc', project: project!, summary }); return id; }, [currentSessionId, descend, onSessionEstablished, resolveForSend, selectedProject, selectedSession]);
+  const allocate = useCallback(async (summary: string | null, text: string, isCurrent: () => boolean): Promise<{ id: string; context?: SessionEstablishedContext } | null> => {
+    let id = selectedSession ? (selectedSession.__provider === 'gjc' ? selectedSession.id : null) : currentSessionId;
+    if (id) return { id };
+    const target = await resolveForSend(text);
+    if (!isCurrent()) return null;
+    const project = target ? await descend(target) : selectedProject;
+    if (!isCurrent()) return null;
+    const response = await authenticatedFetch('/api/providers/sessions', { method: 'POST', body: JSON.stringify({ provider: 'gjc', projectPath: project?.fullPath || project?.path || '' }) });
+    if (!response.ok) throw new Error(`Failed to create session (${response.status})`);
+    id = (await response.json())?.data?.sessionId || null;
+    if (!id) throw new Error('no session id returned.');
+    return { id, context: { provider: 'gjc', project: project!, summary } };
+  }, [currentSessionId, descend, resolveForSend, selectedProject, selectedSession]);
 
   const handleSubmit = useCallback(async (event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>, queued?: QueuedDraft) => {
     event.preventDefault(); const text = queued?.content ?? inputRef.current; if (!text.trim() || !selectedProject) return;
@@ -101,41 +140,76 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
     if (isLoading) { queueOwner.current = conversation; setQueuedDrafts((q) => [...q, { content: text, images: files, options: sendOptions }]); clearComposer(); eraseDraft(); return; }
     const candidate = text.trimEnd(); const help = candidate.trim().toLowerCase() === 'help';
     if (candidate.startsWith('/') || help) { const gap = candidate.indexOf(' '); const name = help ? '/help' : gap > 0 ? candidate.slice(0, gap) : candidate; const commandArgs = gap > 0 ? candidate.slice(gap).trim() : ''; const app = findAppUiCommand(resolveCommandAlias(name)); if (app && (app.interceptWithArgs !== false || !commandArgs)) { clearComposer(); applyAppCommand(app); return; } const notice = getLocalCommandNotice(name, commandArgs); if (notice) { clearComposer(); addMessage({ type: 'assistant', content: notice, timestamp: Date.now() }); return; } if (!bypassGate.current) { const gate = gateForCommand(resolveCommandAlias(name), commandArgs); if (gate) { clearComposer(); announceGate({ ...gate, text: candidate }); return; } } bypassGate.current = false; }
-    let images: unknown[]; try { images = await upload(files); } catch (error) { const message = error instanceof Error ? error.message : 'Unknown error'; console.error('Image upload failed:', error); addMessage({ type: 'error', content: `Failed to upload images: ${message}`, timestamp: new Date() }); return; }
-    const summary = sessionLabel(selectedSession, text); let id: string; try { id = await allocate(summary, text); } catch (error) { const message = error instanceof Error ? error.message : 'Unknown error'; console.error('Session creation failed:', error); addMessage({ type: 'error', content: `Failed to start a new session: ${message}`, timestamp: new Date() }); return; }
-    addMessage({ type: 'user', content: text, images: images as any, timestamp: new Date() }); onSessionProcessing?.(id, { statusText: null, canInterrupt: true }); setIsUserScrolledUp(false); setTimeout(scrollToBottom, 100); sendMessage({ type: 'chat.send', sessionId: id, content: text, options: { ...sendOptions, images } }); clearComposer(); eraseDraft(id);
-  }, [addMessage, allocate, announceGate, applyAppCommand, attachedImages, clearComposer, conversation, eraseDraft, isLoading, login, onSessionProcessing, optionsFor, resetCommandMenuState, scrollToBottom, selectedProject, selectedSession, sendMessage, setIsUserScrolledUp, upload]);
+    const owner = submissionOwner.current;
+    if (!owner || submissionInFlight.current === owner) return;
+    submissionInFlight.current = owner;
+    const isCurrent = () => submissionOwner.current === owner;
+    try {
+      let images: unknown[];
+      try { images = await upload(files); } catch (error) {
+        if (!isCurrent()) return;
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        addMessage({ type: 'error', content: `Failed to upload images: ${message}`, timestamp: new Date() });
+        return;
+      }
+      if (!isCurrent()) return;
+      const summary = sessionLabel(selectedSession, text);
+      let allocation: Awaited<ReturnType<typeof allocate>>;
+      try { allocation = await allocate(summary, text, isCurrent); } catch (error) {
+        if (!isCurrent()) return;
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        addMessage({ type: 'error', content: `Failed to start a new session: ${message}`, timestamp: new Date() });
+        return;
+      }
+      if (!allocation || !isCurrent()) return;
+      const { id, context } = allocation;
+      if (sendMessage({ type: 'chat.send', sessionId: id, content: text, options: { ...sendOptions, images } }) === false) {
+        addMessage({ type: 'error', content: 'Connection lost. Your draft has been kept; retry when connected.', timestamp: new Date() });
+        return;
+      }
+      if (context) onSessionEstablished?.(id, context);
+      addMessage({ type: 'user', content: text, images: images as any, timestamp: new Date() });
+      onSessionProcessing?.(id, { statusText: null, canInterrupt: true });
+      setIsUserScrolledUp(false);
+      setTimeout(() => { if (isCurrent()) scrollToBottom(); }, 100);
+      // Typing during an upload belongs to the next draft, even in this session.
+      if (inputRef.current === text) { clearComposer(); eraseDraft(id); }
+    } finally {
+      if (submissionInFlight.current === owner) submissionInFlight.current = null;
+    }
+  }, [addMessage, allocate, announceGate, applyAppCommand, attachedImages, clearComposer, conversation, eraseDraft, isLoading, login, onSessionEstablished, onSessionProcessing, optionsFor, resetCommandMenuState, scrollToBottom, selectedProject, selectedSession, sendMessage, setIsUserScrolledUp, upload]);
   useEffect(() => { submitRef.current = handleSubmit; }, [handleSubmit]);
 
-  const restoreQueue = useCallback((id: string) => storedQueue(id).map((draft) => ({
-    ...draft,
-    pendingSteer: Boolean(draft.id && steerWaiting.current.get(steerKey(id, draft.content))?.some((pending) => pending.draft.id === draft.id)),
-  })), []);
+  const restoreQueue = useCallback((id: string) => storedQueue(id), []);
   const handleSteer = useCallback((event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>) => {
     event.preventDefault();
     const text = inputRef.current;
     const id = selectedSession?.id || currentSessionId || null;
     if (!isLoading || !text.trim() || !selectedProject || !id || attachedImages.length || !isAutoSendable(classifyCommandInput(text))) return;
-    const draft: QueuedDraft = { id: `steer_${Date.now()}_${Math.random().toString(36).slice(2)}`, content: text, images: [], options: optionsFor(text) };
-    const timer = setTimeout(() => steerAnswer.current(text, false, id), STEER_REPLY_GRACE);
+    if (sendMessage({ type: 'chat.steer', sessionId: id, content: text }) === false) {
+      addMessage({ type: 'error', content: 'Connection lost. Your draft has been kept; retry when connected.', timestamp: new Date() });
+      return;
+    }
+    const draft: QueuedDraft = { id: `steer_${Date.now()}_${Math.random().toString(36).slice(2)}`, content: text, images: [], options: optionsFor(text), pendingSteer: true };
+    // A missing reply does not mean rejection. Persist the unresolved claim so
+    // neither a later turn nor a remount can send the same instruction again.
     const key = steerKey(id, text);
     const pending = steerWaiting.current.get(key) || [];
-    pending.push({ draft, timer });
+    pending.push({ draft });
     steerWaiting.current.set(key, pending);
     queueOwner.current = conversation;
     setQueuedDrafts((q) => [...q, { ...draft, pendingSteer: true }]);
-    sendMessage({ type: 'chat.steer', sessionId: id, content: text });
     clearComposer();
     eraseDraft(id);
-  }, [attachedImages.length, clearComposer, conversation, currentSessionId, eraseDraft, isLoading, optionsFor, selectedProject, selectedSession?.id, sendMessage]);
+  }, [addMessage, attachedImages.length, clearComposer, conversation, currentSessionId, eraseDraft, isLoading, optionsFor, selectedProject, selectedSession?.id, sendMessage]);
   const resolveSteerResult = useCallback((content: string, accepted: boolean, sessionId: string | null = conversation) => {
     if (!sessionId) return;
     const key = steerKey(sessionId, content);
     const list = steerWaiting.current.get(key);
-    const pending = list?.shift();
+    const restored = storedQueue(sessionId).find((draft) => draft.pendingSteer && draft.content === content);
+    const pending = list?.shift() ?? (restored ? { draft: restored } : undefined);
     if (!pending) return;
     if (!list?.length) steerWaiting.current.delete(key);
-    clearTimeout(pending.timer);
     const settle = (queue: QueuedDraft[]) => accepted
       ? queue.filter((item) => item.id !== pending.draft.id)
       : queue.map((item) => item.id === pending.draft.id ? { ...item, pendingSteer: false } : item);
@@ -145,19 +219,17 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
         addMessage({ type: 'user', content: pending.draft.content, timestamp: new Date() });
         scrollToBottom();
       }
-    } else if (accepted) {
+    } else {
       writeQueuedMessages(sessionId, settle(storedQueue(sessionId)));
     }
     if (accepted) onSessionProcessing?.(sessionId, { statusText: null, canInterrupt: true });
   }, [addMessage, conversation, onSessionProcessing, scrollToBottom]);
-  useEffect(() => { steerAnswer.current = resolveSteerResult; }, [resolveSteerResult]);
-  useEffect(() => () => { for (const list of steerWaiting.current.values()) list.forEach(({ timer }) => clearTimeout(timer)); steerWaiting.current.clear(); }, []);
 
   useEffect(() => { const switched = priorConversation.current !== conversation; priorConversation.current = conversation; const wasBusy = priorLoading.current; priorLoading.current = isLoading; if (isLoading) { queueInFlight.current = false; if (dispatchTimer.current) clearTimeout(dispatchTimer.current); } const head = queuedDrafts[0]; const verdict = decideQueueFlush({ sessionSwitched: switched, isLoading, wasLoading: wasBusy, queueLength: queuedDrafts.length, awaitingDispatchedTurn: queueInFlight.current, composerHasInput: Boolean(input.trim()), headAwaitingSteer: Boolean(head?.pendingSteer) }); if (verdict.action !== 'flush' || !head) return; const timer = setTimeout(() => { const disk = conversation ? readQueuedMessages(conversation) : []; if (conversation && disk.length < queuedDrafts.length) { setQueuedDrafts(restoreQueue(conversation)); return; } queueInFlight.current = true; if (dispatchTimer.current) clearTimeout(dispatchTimer.current); dispatchTimer.current = setTimeout(() => { queueInFlight.current = false; setQueuePulse((n) => n + 1); }, TURN_START_GRACE); setQueuedDrafts((q) => q.slice(1)); setInput(head.content); inputRef.current = head.content; setAttachedImages(head.images); setTimeout(() => { if (queueOwner.current === conversation) void submitRef.current?.(syntheticSubmit(), head); }, 0); }, verdict.delayMs); return () => clearTimeout(timer); }, [conversation, input, isLoading, queuePulse, queuedDrafts, restoreQueue]);
   useEffect(() => () => { if (dispatchTimer.current) clearTimeout(dispatchTimer.current); }, []);
   useEffect(() => { if (!projectId) return; const value = safeLocalStorage.getItem(draftInputKey(projectId, conversation)) || ''; setInput((old) => { inputRef.current = value; return old === value ? old : value; }); }, [conversation, projectId]);
   useEffect(() => { if (!projectId) return; const key = draftInputKey(projectId, conversation); if (input) safeLocalStorage.setItem(key, input); else safeLocalStorage.removeItem(key); }, [conversation, input, projectId]);
-  useEffect(() => { if (conversation && queueOwner.current === conversation) { if (queuedDrafts.length) writeQueuedMessages(conversation, queuedDrafts.map(({ id, content, options }) => ({ id, content, options }))); else clearQueuedMessages(conversation); } }, [conversation, queuedDrafts]);
+  useEffect(() => { if (conversation && queueOwner.current === conversation) { if (queuedDrafts.length) writeQueuedMessages(conversation, queuedDrafts.map(({ id, content, options, pendingSteer }) => ({ id, content, options, ...(pendingSteer ? { pendingSteer: true } : {}) }))); else clearQueuedMessages(conversation); } }, [conversation, queuedDrafts]);
   useEffect(() => { queueOwner.current = conversation; queueInFlight.current = false; setQueuedDrafts(conversation ? restoreQueue(conversation) : []); }, [conversation, restoreQueue]);
 
   const resize = useCallback((target: HTMLTextAreaElement) => { target.style.height = 'auto'; const height = Math.max(22, target.scrollHeight); target.style.height = `${height}px`; if (!lineHeight.current) { const parsed = parseInt(window.getComputedStyle(target).lineHeight); lineHeight.current = Number.isFinite(parsed) ? parsed : 24; } setExpanded(height > lineHeight.current * 2); resized.current = target.value; }, []);
@@ -185,7 +257,7 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   // reference and the quote, focus moved to the composer, ready to send.
   const insertAtEnd = useCallback((text: string) => { if (!text.trim()) return; const next = inputRef.current.trim() ? `${inputRef.current.trimEnd()}\n\n${text}` : text; setInput(next); inputRef.current = next; textareaRef.current?.focus(); }, []);
   const handleAbortSession = useCallback(() => { if (!canAbortSession) return; const id = selectedSession?.id || currentSessionId; if (!id) { console.warn('Abort requested but no session ID is available.'); return; } sendMessage({ type: 'chat.abort', sessionId: id }); }, [canAbortSession, currentSessionId, selectedSession?.id, sendMessage]);
-  const handlePermissionDecision = useCallback((requestIds: string | string[], decision: PermissionDecision) => { const ids = (Array.isArray(requestIds) ? requestIds : [requestIds]).filter(Boolean); ids.forEach((requestId) => sendMessage(permissionResponseMessage(requestId, decision))); if (ids.length) setPendingPermissionRequests((requests) => requests.filter((request) => !ids.includes(request.requestId))); }, [sendMessage, setPendingPermissionRequests]);
+  const handlePermissionDecision = useCallback((requestIds: string | string[], decision: PermissionDecision) => { const ids = (Array.isArray(requestIds) ? requestIds : [requestIds]).filter(Boolean); const sent = ids.filter((requestId) => sendMessage(permissionResponseMessage(requestId, decision)) !== false); if (sent.length) setPendingPermissionRequests((requests) => requests.filter((request) => !sent.includes(request.requestId))); }, [sendMessage, setPendingPermissionRequests]);
   const handleInputFocusChange = useCallback((focused: boolean) => { setFocused(focused); onInputFocusChange?.(focused); }, [onInputFocusChange]);
   return { input, setInput, textareaRef, inputHighlightRef, isTextareaExpanded, slashCommandsCount, skillCommands: slashCommands.filter((command) => command.type === 'skill'), filteredCommands, frequentCommands, commandQuery, showCommandMenu, selectedCommandIndex, resetCommandMenuState, handleCommandSelect, handleToggleCommandMenu, showFileDropdown, filteredFiles: filteredFiles as MentionableFile[], selectedFileIndex, renderInputWithMentions, selectFile, attachedImages, setAttachedImages, uploadingImages, imageErrors, getRootProps, getInputProps, isDragActive, openImagePicker: open, handleSubmit, handleSteer, modelPickerTrigger, queuedDrafts, editQueuedDraft, deleteQueuedDraft, moveQueuedDraft, resolveSteerResult, pendingCommandGate, confirmCommandGate, cancelCommandGate, handleVoiceTranscript, insertAtEnd, handleInputChange, handleKeyDown, handlePaste, handleTextareaClick: (event: MouseEvent<HTMLTextAreaElement>) => setCursorPosition(event.currentTarget.selectionStart), handleTextareaInput, syncInputOverlayScroll, handleClearInput, handleAbortSession, handlePermissionDecision, handleInputFocusChange, isInputFocused, commandModalPayload, closeCommandModal: () => setModal(null), showCostModal, isWorkspace: workspaceTarget.isWorkspace, workspaceCandidates: workspaceTarget.candidates, workspaceTargetValue: workspaceTarget.target, pickWorkspaceTarget: workspaceTarget.pickTarget };
 }

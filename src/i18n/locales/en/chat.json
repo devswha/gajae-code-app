@@ -78,6 +78,7 @@
       "label": "Queued",
       "willSend": "Sends when the current run finishes",
       "willFollow": "Sends after the messages above",
+      "awaitingSteer": "Waiting for steering confirmation",
       "edit": "Edit queued item",
       "delete": "Remove queued item",
       "moveUp": "Move up in queue",

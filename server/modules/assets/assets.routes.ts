@@ -1,4 +1,5 @@
-import fs, { promises as fsPromises } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { constants, promises as fsPromises } from 'node:fs';
 
 import express from 'express';
 import mime from 'mime-types';
@@ -11,9 +12,10 @@ import {
 
 const assetsRouter = express.Router();
 
-function generatedFilename(originalName: string): string {
-  const uniquePart = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-  return `${uniquePart}-${originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+function generatedFilename(mimeType: string): string {
+  // The original extension is untrusted: an allowed image MIME with an HTML
+  // filename must never become an executable document on the app's origin.
+  return `${randomUUID()}.${mime.extension(mimeType)}`;
 }
 
 const imageUpload = multer({
@@ -24,7 +26,7 @@ const imageUpload = multer({
         (reason: Error) => done(reason, ''),
       );
     },
-    filename: (_request, file, done) => done(null, generatedFilename(file.originalname)),
+    filename: (_request, file, done) => done(null, generatedFilename(file.mimetype)),
   }),
   fileFilter: (_request, file, done) => {
     if (!isAllowedImageMimeType(file.mimetype)) {
@@ -59,24 +61,42 @@ assetsRouter.get('/images/:filename', async (request, response) => {
     return;
   }
 
+  let asset;
   try {
-    await fsPromises.access(filename);
+    // Reject non-files before opening (including FIFOs), then verify the opened
+    // descriptor. O_NOFOLLOW also closes a final-component symlink swap race.
+    if (!(await fsPromises.lstat(filename)).isFile()) {
+      response.status(404).json({ error: 'Asset not found' });
+      return;
+    }
+    asset = await fsPromises.open(filename, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0));
+    if (!(await asset.stat()).isFile()) {
+      await asset.close();
+      response.status(404).json({ error: 'Asset not found' });
+      return;
+    }
   } catch {
+    await asset?.close().catch(() => {});
     response.status(404).json({ error: 'Asset not found' });
     return;
   }
 
-  const contentType = mime.lookup(filename) || 'application/octet-stream';
+  const detectedType = mime.lookup(filename);
+  const contentType = detectedType && isAllowedImageMimeType(detectedType) ? detectedType : 'application/octet-stream';
   response.setHeader('Content-Type', contentType);
   response.setHeader('X-Content-Type-Options', 'nosniff');
-  if (contentType === 'image/svg+xml') response.setHeader('Content-Disposition', 'attachment');
+  if (contentType === 'image/svg+xml' || contentType === 'application/octet-stream') {
+    response.setHeader('Content-Disposition', 'attachment');
+  }
 
-  const assetStream = fs.createReadStream(filename);
-  assetStream.pipe(response);
+  const assetStream = asset.createReadStream();
+  response.once('close', () => assetStream.destroy());
   assetStream.on('error', (failure) => {
     console.error('Error streaming image asset:', failure);
     if (!response.headersSent) response.status(500).json({ error: 'Error reading asset' });
+    else response.destroy();
   });
+  assetStream.pipe(response);
 });
 
 export default assetsRouter;

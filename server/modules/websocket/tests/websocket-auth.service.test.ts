@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { createServer, request as httpRequest } from 'node:http';
 import test from 'node:test';
 
+import WebSocket from 'ws';
+
 import { verifyWebSocketClient } from '@/modules/websocket/services/websocket-auth.service.js';
+import { createWebSocketServer } from '@/modules/websocket/services/websocket-server.service.js';
 
 /*
  * The upgrade check is the only thing standing between a page the owner
@@ -86,4 +91,84 @@ test('a rejected origin never reaches the implicit owner lookup', () => {
 
   assert.equal(allowed, false);
   assert.equal(ownerLookedUp, false);
+});
+
+test('malformed upgrade targets fail closed before authentication instead of throwing', () => {
+  for (const url of ['//[', '//%', 'http://[', '//attacker.example/ws']) {
+    let lookedUp = false;
+    const request = { url, headers: { host: '127.0.0.1:3001' } };
+    assert.equal(verifyWebSocketClient({ req: request } as never, {
+      authenticateWebSocket: () => { lookedUp = true; return owner(); },
+    }), false, url);
+    assert.equal(lookedUp, false);
+  }
+});
+
+test('the optional deployment API key protects WebSocket upgrades before owner lookup', (t) => {
+  const previous = process.env.API_KEY;
+  const desktop = process.env.GJC_DESKTOP;
+  process.env.API_KEY = 'fixture-deployment-key';
+  delete process.env.GJC_DESKTOP;
+  t.after(() => {
+    if (previous === undefined) delete process.env.API_KEY;
+    else process.env.API_KEY = previous;
+    if (desktop === undefined) delete process.env.GJC_DESKTOP;
+    else process.env.GJC_DESKTOP = desktop;
+  });
+  for (const key of [undefined, '', 'incorrect', 'fixture-deployment-key']) {
+    let lookedUp = false;
+    const valid = key === 'fixture-deployment-key';
+    assert.equal(verifyWebSocketClient(upgrade({ host: '127.0.0.1:3001', 'x-api-key': key }), {
+      authenticateWebSocket: () => { lookedUp = true; return owner(); },
+    }), valid);
+    assert.equal(lookedUp, valid);
+  }
+});
+
+test('the live gateway rejects unauthorized and malformed upgrades and still accepts an authenticated client', async (t) => {
+  const previous = process.env.API_KEY;
+  const desktop = process.env.GJC_DESKTOP;
+  process.env.API_KEY = 'fixture-gateway-key';
+  delete process.env.GJC_DESKTOP;
+  t.after(() => {
+    if (previous === undefined) delete process.env.API_KEY;
+    else process.env.API_KEY = previous;
+    if (desktop === undefined) delete process.env.GJC_DESKTOP;
+    else process.env.GJC_DESKTOP = desktop;
+  });
+  const server = createServer();
+  let attached = 0;
+  const gateway = createWebSocketServer(server, {
+    verifyClient: { authenticateWebSocket: () => { attached++; return owner(); } },
+    chat: {} as never,
+    shell: {} as never,
+    browser: (socket) => socket.send('authenticated'),
+  });
+  t.after(async () => {
+    for (const socket of gateway.clients) socket.terminate();
+    await new Promise<void>((resolve) => gateway.close(() => resolve()));
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const rejectUpgrade = (target: string) => new Promise<number | undefined>((resolve, reject) => {
+    const request = httpRequest({
+      host: '127.0.0.1', port: address.port, path: target,
+      headers: { connection: 'Upgrade', upgrade: 'websocket', 'sec-websocket-version': '13', 'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==' },
+    }, (response) => { response.resume(); resolve(response.statusCode); });
+    request.once('error', reject);
+    request.once('upgrade', (_response, socket) => { socket.destroy(); reject(new Error('Unauthenticated upgrade succeeded')); });
+    request.end();
+  });
+  for (const target of ['/ws', '/shell', '/desktop-notifications', '/ws/browser?sessionId=one', '//[']) {
+    assert.equal(await rejectUpgrade(target), 401, target);
+  }
+  assert.equal(attached, 0);
+  const client = new WebSocket(`ws://127.0.0.1:${address.port}/ws/browser`, { headers: { 'x-api-key': 'fixture-gateway-key' } });
+  const message = once(client, 'message');
+  t.after(() => client.terminate());
+  assert.equal(String((await message)[0]), 'authenticated');
+  assert.equal(attached, 1);
 });

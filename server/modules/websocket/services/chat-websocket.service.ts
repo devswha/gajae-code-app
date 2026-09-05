@@ -254,7 +254,7 @@ function subscribeChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSock
 function permissionResponse(data: AnyRecord, dependencies: ChatWebSocketDependencies): void {
   if (typeof data.requestId !== 'string' || !data.requestId.length) return;
   const pending = chatRunRegistry.resolvePendingApproval(data.requestId);
-  const allow = Boolean(data.allow);
+  const allow = data.allow === true;
   // "Always" rides with both answers: allow_always persists a project rule,
   // reject_always only tells the run to stop asking - a permanent deny list
   // is not something the browser gets to write.

@@ -1,11 +1,19 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { copyFile, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import { test } from 'node:test';
 
 import { ACP_BUILTIN_SLASH_COMMANDS } from '@gajae-code/coding-agent/slash-commands/acp-builtins';
+import { createAgentSession, discoverAuthStorage } from '@gajae-code/coding-agent/sdk/session';
+import { ModelRegistry } from '@gajae-code/coding-agent/config/model-registry';
+import { Settings } from '@gajae-code/coding-agent/config/settings';
+import { SessionManager } from '@gajae-code/coding-agent/session/session-manager';
+import { AsyncJobManager } from '@gajae-code/coding-agent/async/job-manager';
+import { registerCustomApi, unregisterCustomApis } from '@gajae-code/ai/api-registry';
+import { AssistantMessageEventStream } from '@gajae-code/ai/utils/event-stream';
+import type { AssistantMessage, Context } from '@gajae-code/ai/types';
 
 
 import {
@@ -28,6 +36,7 @@ import {
 } from './gjc-worker-protocol.js';
 import { GjcWorkerHost } from './gjc-worker.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE } from './gjc-model-resolution.js';
+import { GJC_AGENT_TOOLS_WITHHELD } from './gjc-agent-tools.js';
 
 type Listener = (event: unknown) => void;
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: Error): void };
@@ -1087,8 +1096,276 @@ test('resume opens the sole exact session file and never re-emits session.create
     session.complete();
     await run;
     assert.equal((f.factoryOptions[0]!.sessionManager as { getSessionId(): string }).getSessionId(), providerSessionId);
+    assert.equal(Object.hasOwn(f.factoryOptions[0]!, 'providerSessionId'), false,
+      'the SDK must derive provider identity from the resumed logical session');
     assert.equal(methods(f.frames).includes('session.created'), false);
   } finally { await f.close(); }
+});
+
+/** Real SDK construction; prompts are intercepted before any model transport can run. */
+async function identityFixture() {
+  const root = await mkdtemp(join(tmpdir(), 'gjc-sdk-identity-'));
+  const cwd = join(root, 'project');
+  const agentDir = join(root, 'agent');
+  await mkdir(cwd);
+  const authStorage = await discoverAuthStorage(agentDir);
+  const settings = await Settings.loadForScope({ cwd, agentDir });
+  settings.override('memory.enabled', false);
+  settings.override('skills.enabled', false);
+  const registry = new ModelRegistry(authStorage, join(agentDir, 'models.yml'), settings, { agentDir });
+  // This synthetic Astra fixture has no registered transport and no real credentials.
+  registry.registerProvider('identity-contract', {
+    api: 'identity-contract',
+    apiKey: 'offline-identity-test-key',
+    baseUrl: 'http://127.0.0.1:1',
+    models: [{
+      id: 'astra', name: 'Offline Astra identity fixture', reasoning: true,
+      thinking: { mode: 'effort', minLevel: 'xhigh', maxLevel: 'xhigh', levels: ['xhigh'] },
+      input: ['text'], contextWindow: 100000, maxTokens: 1000,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    }],
+  });
+  type Session = Awaited<ReturnType<typeof createAgentSession>>['session'];
+  const sessions: Session[] = [];
+  const factoryOptions: Array<Parameters<typeof createAgentSession>[0]> = [];
+  const inspections: Array<(session: Session) => Promise<void>> = [];
+  const failures: unknown[] = [];
+  const adapter = new GjcBunSdkAdapter(authStorage, registry, {
+    settings,
+    generateSessionTitle: async () => null,
+    createSessionFactory: async (input) => {
+      const sdkOptions = {
+        ...input,
+        agentDir,
+        enableMcpAutoload: false,
+        enableLsp: false,
+        skipPythonPreflight: true,
+        disableExtensionDiscovery: true,
+        skills: [], rules: [], contextFiles: [], promptTemplates: [], slashCommands: [],
+        systemPrompt: ['Offline session identity contract.'],
+      };
+      factoryOptions.push(sdkOptions);
+      try {
+        const result = await createAgentSession(sdkOptions);
+        sessions.push(result.session);
+        const inspect = inspections.shift();
+        assert.ok(inspect, 'each SDK session needs an explicit offline prompt handler');
+        result.session.prompt = async () => {
+          try { await inspect(result.session); }
+          catch (error) { failures.push(error); throw error; }
+        };
+        return result;
+      } catch (error) { failures.push(error); throw error; }
+    },
+  });
+  const frames: Array<Record<string, unknown>> = [];
+  const host = new GjcWorkerHost({ runtime: async () => adapter, emit: (frame) => frames.push(frame as Record<string, unknown>) });
+  await host.handle(request('worker.initialize', 'identity-init'));
+  const options = {
+    cwd, sessionRoot: join(root, 'sessions'),
+    credential: { kind: 'runtime-env', envVar: 'GJC_RUNTIME_API_KEY' },
+    modelId: 'identity-contract/astra', effort: 'xhigh',
+    toolNames: ['bash', 'skill'], spawns: 'deny', bashPolicy: { allowedPrefixes: [] },
+  };
+  return {
+    root, options, factoryOptions,
+    async run(id: string, inspect: (session: Session) => Promise<void>, providerSessionId?: string) {
+      inspections.push(inspect);
+      await host.handle(request(providerSessionId ? 'session.resume' : 'session.start', id, {
+        message: 'offline identity inspection', options,
+        ...(providerSessionId ? { providerSessionId } : {}),
+      }));
+      if (failures.length) throw failures[0];
+      assert.equal((response(frames, id).payload as { ok: boolean }).ok, true);
+    },
+    async close() {
+      for (const session of sessions) await session.dispose();
+      await registry.dispose();
+      authStorage.close();
+      await settings.close();
+      await rm(root, { recursive: true, force: true });
+    },
+  };
+}
+
+async function assertSdkIdentity(
+  session: Awaited<ReturnType<typeof createAgentSession>>['session'],
+  providerId = session.sessionManager.getSessionId(),
+) {
+  const id = session.sessionManager.getSessionId();
+  const bash = session.getToolByName('bash');
+  assert.ok(bash, 'the real SDK must construct its bash tool');
+  const output: { content: Array<{ type: string; text?: string }> } =
+    await bash.execute('identity-env', { command: 'printenv GJC_SESSION_ID' });
+  const text = output.content.filter((item) => item.type === 'text').map((item) => item.text).join('\n');
+  assert.equal(text.trim(), id,
+    'workflow tools and GJC_SESSION_ID need the logical ID, never an async endpoint tuple');
+  assert.equal(session.sessionId, id);
+  assert.equal(session.agent.sessionId, id);
+  assert.equal(session.agent.providerSessionId, providerId, 'omission must preserve provider cache identity');
+  assert.equal(session.credentialSessionId, providerId, 'omission must preserve credential affinity');
+  const manager = AsyncJobManager.forEndpoint(id);
+  assert.ok(manager);
+  assert.equal(AsyncJobManager.endpointIdOf(manager), id);
+  return { id, manager };
+}
+
+function identityAnswer(text: string): AssistantMessage {
+  return {
+    role: 'assistant', content: [{ type: 'text', text }],
+    api: 'identity-contract', provider: 'identity-contract', model: 'astra',
+    stopReason: 'stop', timestamp: Date.now(),
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+  };
+}
+
+async function persistIdentityTurn(session: Awaited<ReturnType<typeof createAgentSession>>['session']) {
+  session.sessionManager.appendMessage({ role: 'user', content: 'persist for resume', timestamp: Date.now() });
+  session.sessionManager.appendMessage(identityAnswer('offline answer'));
+  await session.sessionManager.flush();
+}
+
+test('app-shaped real SDK start and resume keep workflow, provider and async identities aligned', async () => {
+  const f = await identityFixture();
+  try {
+    let first: Awaited<ReturnType<typeof assertSdkIdentity>> | undefined;
+    await f.run('identity-start', async (session) => {
+      first = await assertSdkIdentity(session);
+      assert.equal(Object.hasOwn(f.factoryOptions[0]!, 'providerSessionId'), false);
+      await persistIdentityTurn(session);
+    });
+    assert.ok(first);
+    assert.equal(AsyncJobManager.forEndpoint(first.id), undefined, 'completed runs release ownership');
+    await f.run('identity-resume', async (session) => {
+      const resumed = await assertSdkIdentity(session);
+      assert.equal(resumed.id, first!.id);
+      assert.notEqual(resumed.manager, first!.manager, 'resume must acquire a fresh manager');
+    }, first.id);
+    assert.equal(AsyncJobManager.forEndpoint(first.id), undefined);
+  } finally { await f.close(); }
+});
+
+test('app-shaped real SDK sessions isolate async ownership and reject duplicate live resumes', async () => {
+  const a = await identityFixture();
+  const b = await identityFixture();
+  b.options.cwd = a.options.cwd;
+  b.options.sessionRoot = a.options.sessionRoot;
+  try {
+    await a.run('identity-a', async (sessionA) => {
+      const first = await assertSdkIdentity(sessionA);
+      await persistIdentityTurn(sessionA);
+      await b.run('identity-b', async (sessionB) => {
+        const second = await assertSdkIdentity(sessionB);
+        assert.notEqual(first.id, second.id);
+        assert.notEqual(first.manager, second.manager);
+        assert.equal(AsyncJobManager.forEndpoint(first.id), first.manager);
+        const duplicate = await SessionManager.open(sessionA.sessionFile!, a.options.sessionRoot);
+        await assert.rejects(
+          createAgentSession({ ...a.factoryOptions[0], sessionManager: duplicate }),
+          /endpoint id is already held by another live async job manager/,
+        );
+        assert.equal(AsyncJobManager.forEndpoint(first.id), first.manager);
+        assert.equal(AsyncJobManager.forEndpoint(second.id), second.manager);
+        assert.equal(AsyncJobManager.instance(), second.manager,
+          'a rejected duplicate must not replace the active global manager');
+      });
+      assert.equal(AsyncJobManager.forEndpoint(first.id), first.manager,
+        'disposing a different session must not release this session');
+    });
+  } finally { await b.close(); await a.close(); }
+});
+
+test('app-shaped real SDK handoff rekeys logical ownership while retaining provider affinity', async () => {
+  const f = await identityFixture();
+  let handoffCalls = 0;
+  let successorId: string | undefined;
+  // Deterministic local completion exercises the actual handoff transaction;
+  // there is no network transport or live model call in this test.
+  registerCustomApi('identity-contract', (model) => {
+    assert.equal(model.id, 'astra');
+    handoffCalls += 1;
+    const stream = new AssistantMessageEventStream();
+    const message = identityAnswer('Offline handoff document.');
+    stream.push({ type: 'done', reason: 'stop', message });
+    stream.end(message);
+    return stream;
+  }, f.root);
+  try {
+    await f.run('identity-handoff', async (session) => {
+      const before = await assertSdkIdentity(session);
+      await persistIdentityTurn(session);
+      const handoff = await session.handoff('Offline identity contract');
+      assert.ok(handoff);
+      assert.equal(handoffCalls, 1);
+      const after = await assertSdkIdentity(session, before.id);
+      successorId = after.id;
+      assert.notEqual(after.id, before.id);
+      assert.equal(after.manager, before.manager, 'handoff rekeys the existing owner');
+      assert.equal(AsyncJobManager.forEndpoint(before.id), undefined);
+    });
+    assert.ok(successorId);
+    assert.equal(AsyncJobManager.forEndpoint(successorId), undefined);
+    await f.run('identity-handoff-resume', async (session) => {
+      assert.equal((await assertSdkIdentity(session)).id, successorId);
+    }, successorId);
+  } finally { unregisterCustomApis(f.root); await f.close(); }
+});
+
+test('SDK delegation stays withheld while child bash bypasses the parent permission gate', async () => {
+  const f = await identityFixture();
+  f.options.toolNames = ['bash', 'task', 'subagent'];
+  f.options.spawns = 'executor';
+  let calls = 0;
+  let issuedTool = false;
+  const observedToolResults: Array<{ isError: boolean; content: unknown }> = [];
+  // Exercise the pinned SDK's real child lifecycle with a deterministic local
+  // transport. Its only shell command prints a fixed canary to stdout.
+  registerCustomApi('identity-contract', (_model, context: Context) => {
+    calls += 1;
+    observedToolResults.push(...context.messages.filter((message) => message.role === 'toolResult'));
+    const message = identityAnswer('Offline child finished.');
+    if (!issuedTool && context.tools?.some((tool) => tool.name === 'bash')) {
+      issuedTool = true;
+      message.content = [{
+        type: 'toolCall', id: 'child-permission-canary', name: 'bash',
+        arguments: { command: 'printf child-allowed' },
+      }];
+      message.stopReason = 'toolUse';
+    }
+    const stream = new AssistantMessageEventStream();
+    stream.push({ type: 'done', reason: message.stopReason as 'stop' | 'toolUse', message });
+    stream.end(message);
+    return stream;
+  }, f.root);
+  try {
+    await f.run('identity-child-permission', async (session) => {
+      session.settings.override('task.agentModelOverrides', { executor: 'identity-contract/astra' });
+      session.settings.override('task.maxRuntimeMs', 3000);
+      session.settings.override('task.maxRecursionDepth', 1);
+      session.setSdkPermissionMode('deny');
+      const bash = session.getToolForExecution('bash');
+      assert.ok(bash);
+      await assert.rejects(
+        bash.execute('parent-permission-canary', { command: 'printf child-allowed' }),
+        /rejected by session permission policy/,
+      );
+      const task = session.getToolByName('task');
+      const subagent = session.getToolByName('subagent');
+      assert.ok(task);
+      assert.ok(subagent);
+      const launch = await task.execute('offline-delegation', {
+        agent: 'executor', tasks: [{ id: 'permission-probe', description: 'Offline permission contract', assignment: 'Offline fixture.' }],
+      });
+      const settled = await subagent.execute('offline-await', { action: 'await', timeout_ms: 5000 });
+      assert.ok(calls > 0, JSON.stringify({ launch, settled }));
+      assert.ok(observedToolResults.some((result) => !result.isError
+        && JSON.stringify(result.content).includes('child-allowed')),
+      JSON.stringify({ calls, issuedTool, observedToolResults, launch, settled }));
+      assert.ok(GJC_AGENT_TOOLS_WITHHELD.task);
+      assert.ok(GJC_AGENT_TOOLS_WITHHELD.subagent);
+    });
+  } finally { unregisterCustomApis(f.root); await f.close(); }
 });
 test('session effort is passed to the SDK as the turn thinking level', async () => {
   const f = await fixture();
@@ -1863,7 +2140,10 @@ test('production Bun worker rejects a tampered test-only manifest override', asy
   }
 });
 
-test('live pinned SDK smoke (set GJC_CONTRACT_LIVE=1)', { skip: process.env.GJC_CONTRACT_LIVE === '1' ? false : 'requires GJC_CONTRACT_LIVE=1' }, async () => {
+test('live pinned SDK smoke (set GJC_CONTRACT_LIVE=1)', {
+  skip: process.env.GJC_CONTRACT_LIVE === '1' ? false : 'requires GJC_CONTRACT_LIVE=1',
+  timeout: 180_000, // Real provider initialization and reasoning exceed Bun's default 5s.
+}, async () => {
   const root = await mkdtemp(join(tmpdir(), 'gjc-contract-live-'));
   try {
     const modelId = process.env.GJC_CONTRACT_LIVE_MODEL_ID;

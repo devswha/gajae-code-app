@@ -78,6 +78,7 @@
       "label": "In der Warteschlange",
       "willSend": "Wird gesendet, wenn der aktuelle Lauf beendet ist",
       "willFollow": "Wird nach den oben genannten Nachrichten gesendet",
+      "awaitingSteer": "Warten auf Bestätigung der Steuerungsanweisung",
       "edit": "Bearbeiten Sie das Element in der Warteschlange",
       "delete": "Warteschlangenelement entfernen",
       "moveUp": "In der Warteschlange nach oben rücken",

@@ -67,7 +67,13 @@ function socketUrl(sessionId: string): string {
   return `${protocol}//${window.location.host}/ws/browser?sessionId=${encodeURIComponent(sessionId)}`;
 }
 
-export default function BrowserPanel({ sessionId, navigationRequest, onNavigationHandled }: BrowserPanelProps) {
+export default function BrowserPanel(props: BrowserPanelProps) {
+  // Keep HTTP continuations, frames and in-flight controls scoped to the
+  // session that created them, including when the viewer returns to an old id.
+  return <BrowserSession key={props.sessionId} {...props} />;
+}
+
+function BrowserSession({ sessionId, navigationRequest, onNavigationHandled }: BrowserPanelProps) {
   const { t } = useTranslation();
   const [status, setStatus] = useState<AutomationStatus | null>(null);
   const [state, setState] = useState<BrowserState | null>(null);
@@ -78,6 +84,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
   const [error, setError] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [localUrls, setLocalUrls] = useState(COMMON_LOCAL_URLS);
+  const frameObjectUrlRef = useRef<string | null>(null);
   const frameRef = useRef<HTMLImageElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const frameViewportRef = useRef<BrowserViewportSize>(DEFAULT_BROWSER_VIEWPORT);
@@ -86,6 +93,17 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
   const pointerFrameRef = useRef<number | null>(null);
   const acceptFramesRef = useRef(false);
   const handledNavigationRef = useRef<number | null>(null);
+
+  const releaseFrameUrl = useCallback(() => {
+    const previous = frameObjectUrlRef.current;
+    frameObjectUrlRef.current = null;
+    if (previous) URL.revokeObjectURL(previous);
+  }, []);
+  const replaceFrameUrl = useCallback((next: string | null) => {
+    releaseFrameUrl();
+    frameObjectUrlRef.current = next;
+    setFrameUrl(next);
+  }, [releaseFrameUrl]);
 
   const activeTab = useMemo(
     () => state?.tabs.find((tab) => tab.id === state.activeTabId) ?? null,
@@ -121,103 +139,114 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
 
   useEffect(() => {
     let disposed = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     // The sidecar can emit the first frame before its subscribe response/state
     // snapshot reaches React. The websocket is already session-scoped, so
     // accept that initial frame and let an explicit empty state disable frames.
     acceptFramesRef.current = true;
+    replaceFrameUrl(null);
     setState(null);
     setError(null);
     setDownloadProgress(null);
-    const websocket = new WebSocket(socketUrl(sessionId));
-    websocket.binaryType = 'arraybuffer';
-    socketRef.current = websocket;
-    setConnection('connecting');
-    websocket.onopen = () => !disposed && setConnection('live');
-    websocket.onclose = () => !disposed && setConnection('offline');
-    websocket.onerror = () => !disposed && setConnection('offline');
-    websocket.onmessage = (event) => {
+    const connect = () => {
       if (disposed) return;
-      if (typeof event.data === 'string') {
-        const message = JSON.parse(event.data) as { type: string; payload?: Record<string, unknown>; message?: string };
-        if (message.type === 'state' && message.payload) {
-          const nextState = message.payload as unknown as BrowserState;
-          const hasActiveTab = Boolean(
-            nextState.activeTabId
-            && nextState.tabs.some((tab) => tab.id === nextState.activeTabId),
-          );
-          acceptFramesRef.current = hasActiveTab;
-          setState(nextState);
-          if (!hasActiveTab) {
-            setFrameUrl((previous) => {
-              if (previous) URL.revokeObjectURL(previous);
-              return null;
-            });
-          }
-        }
-        if (message.type === 'error') {
-          setError(
-            typeof message.payload?.message === 'string'
-              ? message.payload.message
-              : message.message ?? t('workspace.browser.error'),
-          );
-        }
-        if (message.type === 'download.progress' && message.payload) {
-          const downloaded = Number(message.payload.downloadedBytes ?? 0);
-          const total = Number(message.payload.totalBytes ?? 0);
-          setDownloadProgress(total > 0 ? Math.round((downloaded / total) * 100) : null);
-        }
-        if (message.type === 'async' && message.payload?.type === 'download.attempt') {
-          setError(t('workspace.browser.downloadBlocked', {
-            filename: typeof message.payload.suggestedFilename === 'string'
-              ? message.payload.suggestedFilename
-              : t('workspace.browser.downloadUnknown'),
-          }));
-        }
-        if (message.type === 'async' && message.payload?.type === 'dialog') {
-          setError(t('workspace.browser.dialogDismissed', {
-            message: typeof message.payload.message === 'string' ? message.payload.message : '',
-          }));
-        }
-        if (message.type === 'async' && message.payload?.type === 'sidecar.recovered') setError(null);
+      let websocket: WebSocket;
+      try {
+        websocket = new WebSocket(socketUrl(sessionId));
+      } catch {
+        setConnection('offline');
+        reconnectTimer = setTimeout(connect, 1_000);
         return;
       }
-      if (!acceptFramesRef.current) return;
-      const packet = event.data as ArrayBuffer;
-      const view = new DataView(packet);
-      if (view.byteLength < 4) return;
-      const headerLength = view.getUint32(0);
-      if (headerLength <= 0 || headerLength + 4 > view.byteLength) return;
-      const header = JSON.parse(new TextDecoder().decode(packet.slice(4, 4 + headerLength))) as {
-        type?: string;
-        sessionId?: string;
-        mimeType?: string;
-        metadata?: { deviceWidth?: unknown; deviceHeight?: unknown };
+      websocket.binaryType = 'arraybuffer';
+      socketRef.current = websocket;
+      setConnection('connecting');
+      websocket.onopen = () => !disposed && socketRef.current === websocket && setConnection('live');
+      websocket.onclose = () => {
+        if (disposed || socketRef.current !== websocket) return;
+        socketRef.current = null;
+        setConnection('offline');
+        reconnectTimer = setTimeout(connect, 1_000);
       };
-      if (header.type !== 'frame' || header.sessionId !== sessionId) return;
-      const frameViewport = normalizeBrowserViewport(
-        header.metadata?.deviceWidth,
-        header.metadata?.deviceHeight,
-      );
-      if (frameViewport) frameViewportRef.current = frameViewport;
-      const nextUrl = URL.createObjectURL(new Blob([packet.slice(4 + headerLength)], { type: header.mimeType ?? 'image/jpeg' }));
-      setFrameUrl((previous) => {
-        if (previous) URL.revokeObjectURL(previous);
-        return nextUrl;
-      });
+      websocket.onerror = () => !disposed && setConnection('offline');
+      websocket.onmessage = (event) => {
+        if (disposed || socketRef.current !== websocket) return;
+        if (typeof event.data === 'string') {
+          const message = JSON.parse(event.data) as { type: string; payload?: Record<string, unknown>; message?: string };
+          if (message.type === 'state' && message.payload) {
+            const nextState = message.payload as unknown as BrowserState;
+            const hasActiveTab = Boolean(
+              nextState.activeTabId
+              && nextState.tabs.some((tab) => tab.id === nextState.activeTabId),
+            );
+            acceptFramesRef.current = hasActiveTab;
+            setState(nextState);
+            if (!hasActiveTab) {
+              replaceFrameUrl(null);
+            }
+          }
+          if (message.type === 'error') {
+            setError(
+              typeof message.payload?.message === 'string'
+                ? message.payload.message
+                : message.message ?? t('workspace.browser.error'),
+            );
+          }
+          if (message.type === 'download.progress' && message.payload) {
+            const downloaded = Number(message.payload.downloadedBytes ?? 0);
+            const total = Number(message.payload.totalBytes ?? 0);
+            setDownloadProgress(total > 0 ? Math.round((downloaded / total) * 100) : null);
+          }
+          if (message.type === 'async' && message.payload?.type === 'download.attempt') {
+            setError(t('workspace.browser.downloadBlocked', {
+              filename: typeof message.payload.suggestedFilename === 'string'
+                ? message.payload.suggestedFilename
+                : t('workspace.browser.downloadUnknown'),
+            }));
+          }
+          if (message.type === 'async' && message.payload?.type === 'dialog') {
+            setError(t('workspace.browser.dialogDismissed', {
+              message: typeof message.payload.message === 'string' ? message.payload.message : '',
+            }));
+          }
+          if (message.type === 'async' && message.payload?.type === 'sidecar.recovered') setError(null);
+          return;
+        }
+        if (!acceptFramesRef.current) return;
+        const packet = event.data as ArrayBuffer;
+        const view = new DataView(packet);
+        if (view.byteLength < 4) return;
+        const headerLength = view.getUint32(0);
+        if (headerLength <= 0 || headerLength + 4 > view.byteLength) return;
+        const header = JSON.parse(new TextDecoder().decode(packet.slice(4, 4 + headerLength))) as {
+          type?: string;
+          sessionId?: string;
+          mimeType?: string;
+          metadata?: { deviceWidth?: unknown; deviceHeight?: unknown };
+        };
+        if (header.type !== 'frame' || header.sessionId !== sessionId) return;
+        const frameViewport = normalizeBrowserViewport(
+          header.metadata?.deviceWidth,
+          header.metadata?.deviceHeight,
+        );
+        if (frameViewport) frameViewportRef.current = frameViewport;
+        const nextUrl = URL.createObjectURL(new Blob([packet.slice(4 + headerLength)], { type: header.mimeType ?? 'image/jpeg' }));
+        replaceFrameUrl(nextUrl);
+      };
     };
+    connect();
     return () => {
       disposed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       acceptFramesRef.current = false;
-      websocket.close();
+      socketRef.current?.close();
       socketRef.current = null;
       if (pointerFrameRef.current !== null) cancelAnimationFrame(pointerFrameRef.current);
       pointerFrameRef.current = null;
-      setFrameUrl((previous) => {
-        if (previous) URL.revokeObjectURL(previous);
-        return null;
-      });
+      // A keyed unmount cannot rely on React executing another state updater.
+      releaseFrameUrl();
     };
-  }, [sessionId, t]);
+  }, [releaseFrameUrl, replaceFrameUrl, sessionId, t]);
 
   const open = useCallback(async (url: string, allowDownload = false) => {
     setBusy(true);
@@ -344,10 +373,7 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
   const stop = async () => {
     setBusy(true);
     acceptFramesRef.current = false;
-    setFrameUrl((previous) => {
-      if (previous) URL.revokeObjectURL(previous);
-      return null;
-    });
+    replaceFrameUrl(null);
     try {
       await jsonRequest(`/api/browser/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
       setState(null);
@@ -359,6 +385,14 @@ export default function BrowserPanel({ sessionId, navigationRequest, onNavigatio
   };
 
   if (!status) {
+    if (error) return (
+      <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 p-6 text-sm">
+        <p className="text-destructive">{error}</p>
+        <button type="button" onClick={() => void loadStatus()} className="rounded-md border border-border px-3 py-2 text-foreground hover:bg-muted">
+          {t('buttons.retry', { defaultValue: 'Retry' })}
+        </button>
+      </div>
+    );
     return (
       <div className="flex h-full items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">
         <LoaderCircle className="h-4 w-4 animate-spin" />

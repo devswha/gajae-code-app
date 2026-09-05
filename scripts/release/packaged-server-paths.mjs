@@ -197,6 +197,9 @@ export function smokeEnvironment(target, dataDirectory, inherited = process.env)
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_TERMINAL_PROMPT: '0',
     GAJAE_ALLOW_DEVELOPMENT_BUN: '0', GJC_NO_TITLE: '1',
     GJC_WORKER_AGENT_DIR: path.join(dataDirectory, 'agent'),
+    GJC_CODING_AGENT_DIR: path.join(dataDirectory, 'agent'),
+    PI_CODING_AGENT_DIR: path.join(dataDirectory, 'agent'),
+    GJC_LIVE_SESSION_DIR: path.join(dataDirectory, 'live-sessions'),
     DATABASE_PATH: path.join(dataDirectory, 'auth.db'),
     NODE_ENV: 'production',
   };

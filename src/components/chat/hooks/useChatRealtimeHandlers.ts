@@ -80,6 +80,9 @@ export function useChatRealtimeHandlers({
     const receive = (event: ServerEvent) => {
       if (!event.kind) return;
       const { sessionId, visible } = resolveSession(event);
+      // Subscription responses may race and replay the same frames twice.
+      // Deduplicate before converting stream_end into a new synthetic text id.
+      if (sessionId && !sessionStore.acceptRealtimeEvent(sessionId, event.id)) return;
 
       if (event.kind === 'websocket_reconnected') {
         onWebSocketReconnect?.();

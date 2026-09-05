@@ -20,6 +20,7 @@ export interface NormalizedMessage {
 export type SessionStatus = 'idle' | 'loading' | 'streaming' | 'error';
 export interface SessionSlot {
   serverMessages: NormalizedMessage[]; realtimeMessages: NormalizedMessage[]; merged: NormalizedMessage[];
+  receivedEventIds: Set<string>;
   _lastServerRef: NormalizedMessage[]; _lastRealtimeRef: NormalizedMessage[]; _fetchSeq: number; _fetchMoreTicket: number | null;
   _pendingRequests: number; _loadingTicket: number | null; _includeImages: boolean; status: SessionStatus; fetchedAt: number;
   total: number; hasMore: boolean; offset: number; tokenUsage: unknown;
@@ -29,6 +30,7 @@ export type JobProjectionSlot = { snapshot: JobSnapshot | null; lastAppliedSeque
 
 const EMPTY: NormalizedMessage[] = [];
 const MAX_REALTIME_MESSAGES = 500;
+const MAX_RECEIVED_EVENT_IDS = 5000;
 const MAX_SESSION_SLOTS = 50;
 const STALE_THRESHOLD_MS = 30_000;
 const LOCAL_ACTIVITY_WINDOW = 5 * 60 * 1000;
@@ -180,7 +182,7 @@ function newJobSlot(): JobProjectionSlot {
 
 function newSlot(sessionId: string, client: QueryClient): SessionSlot {
   const key = ['messages', sessionId] as const;
-  const slot = { realtimeMessages: EMPTY, merged: EMPTY, _lastServerRef: EMPTY, _lastRealtimeRef: EMPTY, _fetchSeq: 0, _fetchMoreTicket: null, _pendingRequests: 0, _loadingTicket: null, _includeImages: true, status: 'idle' } as SessionSlot;
+  const slot = { realtimeMessages: EMPTY, merged: EMPTY, receivedEventIds: new Set<string>(), _lastServerRef: EMPTY, _lastRealtimeRef: EMPTY, _fetchSeq: 0, _fetchMoreTicket: null, _pendingRequests: 0, _loadingTicket: null, _includeImages: true, status: 'idle' } as SessionSlot;
   const window = () => client.getQueryData<MessagesWindow>(key);
   Object.defineProperties(slot, {
     serverMessages: { enumerable: true, get: () => window()?.messages ?? EMPTY }, total: { enumerable: true, get: () => window()?.total ?? 0 }, hasMore: { enumerable: true, get: () => window()?.hasMore ?? false }, offset: { enumerable: true, get: () => window()?.offset ?? 0 }, tokenUsage: { enumerable: true, get: () => window()?.tokenUsage }, fetchedAt: { enumerable: true, get: () => client.getQueryState(key)?.dataUpdatedAt ?? 0 },
@@ -231,6 +233,14 @@ export function useSessionStore() {
   }, []);
   const remember = useCallback((id: string, slot: SessionSlot) => { slots.current.delete(id); slots.current.set(id, slot); evict(id); }, [evict]);
   const getSlot = useCallback((id: string) => { const slot = slots.current.get(id) ?? newSlot(id, queryClient); remember(id, slot); return slot; }, [queryClient, remember]);
+  const acceptRealtimeEvent = useCallback((id: string, eventId: unknown) => {
+    if (typeof eventId !== 'string' || !eventId) return true;
+    const received = getSlot(id).receivedEventIds;
+    if (received.has(eventId)) return false;
+    received.add(eventId);
+    if (received.size > MAX_RECEIVED_EVENT_IDS) received.delete(received.values().next().value!);
+    return true;
+  }, [getSlot]);
   const begin = useCallback((id: string) => { const slot = slots.current.get(id) ?? newSlot(id, queryClient); slot._pendingRequests += 1; remember(id, slot); return slot; }, [queryClient, remember]);
   const has = useCallback((id: string) => slots.current.has(id), []);
 
@@ -318,7 +328,7 @@ export function useSessionStore() {
   const getMessages = useCallback((id: string) => { const slot = slots.current.get(id); if (!slot) return EMPTY; refreshMerged(slot); return slot.merged; }, []);
   const getSessionSlot = useCallback((id: string) => { const slot = slots.current.get(id); if (slot) refreshMerged(slot); return slot; }, []);
 
-  return useMemo(() => ({ getSlot, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession }), [getSlot, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession]);
+  return useMemo(() => ({ getSlot, acceptRealtimeEvent, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession }), [getSlot, acceptRealtimeEvent, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession]);
 }
 
 export type SessionStore = ReturnType<typeof useSessionStore>;

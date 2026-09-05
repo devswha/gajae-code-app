@@ -25,6 +25,7 @@ type Call = [string, ...unknown[]];
 function fakeStore(calls: Call[]): SessionStore {
   const record = (name: string) => (...args: unknown[]) => { calls.push([name, ...args]); };
   return {
+    acceptRealtimeEvent: () => true,
     updateStreaming: record('updateStreaming'),
     finalizeStreaming: record('finalizeStreaming'),
     appendRealtime: record('appendRealtime'),
@@ -166,6 +167,24 @@ test('a background final answer is reconciled with persisted history exactly onc
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('repeated subscription replay finalizes an answer once and accepts a new run with reset sequence', () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = renderHook(useSessionStore, {
+    wrapper: ({ children }) => createElement(QueryClientProvider, { client }, children),
+  });
+  const { send, switchTo } = mount(view.result.current);
+  const end = { id: 'stream-end-1', kind: 'stream_end', sessionId: 'visible', seq: 62, timestamp: '2026-01-01T00:00:01Z', content: 'The answer.' } as ServerEvent;
+  send(end);
+  switchTo('another');
+  switchTo('visible');
+  send(end);
+  assert.equal(view.result.current.getMessages('visible').filter(row => row.content === 'The answer.').length, 1);
+  // The server currently resets seq for every run: a different event ID must
+  // still be admitted even when its sequence is below the previous turn's.
+  send({ ...end, id: 'stream-end-2', seq: 1, timestamp: '2026-01-01T00:01:01Z' });
+  assert.equal(view.result.current.getMessages('visible').filter(row => row.content === 'The answer.').length, 2);
 });
 
 for (const endContent of ['A first answer', '']) {

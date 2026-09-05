@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { isAbsolute, resolve } from 'node:path';
+import { existsSync, realpathSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { promisify, parseArgs } from 'node:util';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 export const REQUIRED_SIGNING_SECRETS = Object.freeze([
   'APPLE_CERTIFICATE_P12',
@@ -158,4 +158,13 @@ async function main() {
   process.exitCode = result.status === 'ready' ? 0 : 1;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) await main();
+function isDirectInvocation() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectInvocation()) await main();

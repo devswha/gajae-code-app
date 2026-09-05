@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { mkdtemp, rm, symlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -63,6 +66,30 @@ test('CLI exits nonzero for incomplete configuration without exposing values', (
     const invalid = spawnSync(process.execPath, [script, ...args], { env, encoding: 'utf8' });
     assert.equal(invalid.status, 2);
     assert.ok(!`${invalid.stdout}${invalid.stderr}`.includes(marker));
+  }
+});
+
+test('CLI invoked through a symlinked checkout still checks credentials and fails closed', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'gajae-signing-entry-test-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const checkout = join(directory, 'checkout');
+  await symlink(fileURLToPath(new URL('../../', import.meta.url)), checkout, 'junction');
+  const env = { ...process.env };
+  for (const name of REQUIRED_SIGNING_SECRETS) delete env[name];
+  const result = spawnSync(process.execPath, [join(checkout, 'scripts/release/check-signing-readiness.mjs'), '--mode', 'ci'], { env, encoding: 'utf8' });
+  assert.equal(result.status, 1);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.status, 'blocked');
+  assert.deepEqual(report.checks.filter(entry => entry.status === 'fail').map(entry => entry.name), REQUIRED_SIGNING_SECRETS);
+});
+
+test('module imports stay inert when argv has no entry path or names a nonexistent file', () => {
+  const moduleUrl = new URL('./check-signing-readiness.mjs', import.meta.url).href;
+  for (const setup of ['process.argv.length = 1;', 'process.argv[1] = "/nonexistent-gajae-entry-path";']) {
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', `${setup} await import(${JSON.stringify(moduleUrl)});`], { encoding: 'utf8' });
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, '');
+    assert.equal(result.stderr, '');
   }
 });
 

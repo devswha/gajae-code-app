@@ -11,62 +11,38 @@ for validation and does not publish a GitHub Release or send announcements.
 
 ## Compatibility and validation status
 
-| Item | Build/check target |
+Validated on 2026-09-05 UTC / 2026-09-06 KST after integrating the Linux audit
+with `main` at `5137be4`. Runtime sources are recorded by merge `2048955`.
+
+| Environment | Result |
 | --- | --- |
-| Architecture | Linux x86_64, Rust target `x86_64-unknown-linux-gnu` |
-| CI build host | Ubuntu 22.04, glibc 2.35; configured, not yet run |
-| CI package checks | Server and X11/Xvfb GUI smokes for both formats on Ubuntu 22.04 and Ubuntu 24.04; configured, not yet run |
-| Local Ubuntu 24.04 build | glibc 2.39; both formats verified under X11/Xvfb |
-| Bundled runtimes | Node 22.22.2 and Bun 1.4.0 |
-| Other targets | Linux arm64, musl/Alpine, and cross-compilation are not covered |
+| Ubuntu 22.04.5, glibc 2.35 (container) | Built both formats; native hashes, auth, WebSockets, terminal reconnection, data survival, AppRun Python/gio and OCR GUI passed |
+| Installed Ubuntu 22.04 Debian package | Installation, desktop entry validation, URI argument support/MIME registration and two GUI launches passed |
+| Ubuntu 24.04.4, glibc 2.39 (host) | The same Ubuntu 22.04 artifacts passed backend, AppRun environment and two-launch OCR GUI checks |
+| Rust desktop shell | 37 tests passed; 11 separate X11/Openbox activation, Retry and startup-close checks passed on the audited debug shell |
+| Native Wayland | One earlier-package startup/render probe passed under Weston 9 headless pixman, without Xwayland; not a final-package GNOME/KDE close/relaunch acceptance |
+| Other targets | Linux arm64, musl/Alpine and cross-compilation are not covered |
 
-The glibc floor depends on where the binaries are built. Building successfully
-on Ubuntu 24.04 does not prove that those binaries run on Ubuntu 22.04. Use
-the Ubuntu 22.04 CI build for the intended glibc 2.35 baseline, and require
-both package smoke jobs, including their GUI steps, to pass before claiming compatibility. AppImage does
-not remove the need for a compatible Linux system and desktop libraries.
+The final source gate passed: `npm run verify` includes 61 native-core tests,
+708 Node server tests, 469 Node client tests, 134 script tests and the separate
+Bun groups. See [the audit record](LINUX-DESKTOP-AUDIT.md) for fixes, focused
+checks and remaining limitations. GitHub workflow execution is recorded separately
+from the local/container results.
 
-Verified on **2026-09-05** with **2.0.0-beta.8**, Ubuntu 24.04.4 x86_64,
-glibc 2.39, and X11 through Xvfb:
+Linux Workspace Browser is enabled. On hosts where the managed Chromium sandbox
+is blocked, the app can retry installed stable Google Chrome with the same
+private app profile. Explicit executable overrides are respected and the app
+never adds `--no-sandbox`. A compatible installed browser or working managed
+sandbox is still required; native CUA computer control is not automatically
+enabled on Linux.
 
-- Both extracted formats passed runtime/native hash checks, SQLite, PTY, Gajae
-  native/Bun loading, authentication, jobs migration, and `--data-survival`
-  (job/event resume and idempotent schemas).
-- Both rendered the UI in a clean environment outside the checkout, including
-  the AppImage's `AppRun`. Each passed two healthy launches using the same
-  isolated state; `WM_DELETE_WINDOW` returned exit code `0` and all tracked
-  child processes exited. The first-launch screenshots have identical SHA-256.
-- Final `npm run verify` passed with exit code `0`, including the runtime
-  restoration files and all **73 script tests**. All **19 Tauri Cargo tests**
-  passed. The final `--locked` build-argument change separately passed three
-  focused tests.
+The published local artifacts below are built on glibc 2.35. A later local build
+on Ubuntu 24.04 declares its own newer libc requirement and does not establish
+Ubuntu 22.04 compatibility. AppImage does not remove operating-system requirements.
 
-Linux CI is **not run**. Real Wayland, package installation/desktop-menu
-integration, provider browser handoff, and real provider calls are **not
-tested**. Deep-link relay to an already running instance is **pending**.
-The final `npm run desktop:build:linux` completed successfully, including
-runtime restoration and checksum staging. Local Ubuntu 24.04 results do not
-establish the Ubuntu 22.04 compatibility floor.
-
-Local evidence (generated files, not published assets):
-
-| Check | Evidence |
-| --- | --- |
-| Full verification | `/tmp/gajae-linux-final-gate.log` |
-| Single-command build | `/tmp/gajae-linux-acceptance-build.log` |
-| Final artifact acceptance | `.desktop-build/linux-release-acceptance.json` |
-| `.deb` package smoke | `/tmp/gajae-accepted-deb-native.log` and `/tmp/gajae-accepted-deb-data-survival.log` |
-| AppImage package smoke | `/tmp/gajae-accepted-appimage-native.log` and `/tmp/gajae-accepted-appimage-data-survival.log` |
-| `.deb` GUI | `.desktop-build/linux-deb-gui-report.json` and its referenced screenshots |
-| AppImage GUI | `.desktop-build/linux-appimage-gui-report.json` and its referenced screenshots |
-| Portable `.deb` GUI gate | `/tmp/gajae-gui-ci-deb-final/report.json`, screenshots, OCR text and logs |
-| Portable AppImage GUI gate | `/tmp/gajae-gui-ci-appimage-final/report.json`, screenshots, OCR text and logs |
-
-The portable GUI gate separately passed on **2026-09-05** against the existing
-accepted Ubuntu 24.04 packages: two launches per format, two consecutive OCR
-matches per launch, clean window-close exit, descendant cleanup, and closed
-sidecar ports. These runs reused the local packages; they do not validate a
-rebuild of later source changes or the Ubuntu 22.04 baseline.
+Local evidence is retained under `.desktop-build/linux-audit-evidence/` and
+`.desktop-build/linux-audit-final-artifacts/`; these generated files are not
+committed or published release assets.
 
 ## Build prerequisites
 
@@ -142,12 +118,12 @@ release/desktop/gajae-app-desktop-<version>-linux-x64.AppImage
 release/desktop/gajae-app-desktop-<version>-linux-x64.AppImage.sha256
 ```
 
-Final local build artifacts (2026-09-05, Ubuntu 24.04 x86_64):
+Final audited artifacts (Ubuntu 22.04 x86_64, glibc 2.35):
 
 | Format | Size | SHA-256 |
 | --- | --- | --- |
-| `.deb` | 165.4 MiB | `d44bbd50df4eb87777bfc1c3400bd429506a2fbfcb119aa43e7148026dddd094` |
-| `.AppImage` | 211.4 MiB | `f46cb76f3ebf2c427ce8adaf9a59e1b31870b3497f7a5067997ed5f18315c371` |
+| `.deb` | 165.3 MiB | `6d0a5eb07c94586bd625bcde79fda76e79befd1d18b12901048af8b4460187c1` |
+| `.AppImage` | 212.9 MiB | `ec409149ee9775a4f9670226baa7448c19ec33a9bda82c89719bc4892e0a3b99` |
 
 Tauri's intermediate packages live under
 `src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/`. Keep generated
@@ -198,7 +174,7 @@ The desktop shell needs a graphical session with GTK/WebKitGTK available.
 It starts its bundled server on loopback; no separate Node/Bun installation
 or manually started server is needed. Keep Git, CA certificates, and `libnss3` installed
 on the host; the `.deb` declares `git` and `ca-certificates` as dependencies,
-and AppImage users must provide them too. App data lives outside the package in
+and AppImage users must provide them too. `libnss3` supplies Chromium’s NSS/NSPR libraries. App data lives outside the package in
 `~/.gajae-app`, and GJC configuration and credentials live in `~/.gjc`.
 Keep these directories when replacing a package or AppImage.
 
@@ -235,6 +211,7 @@ Then check the AppImage's `squashfs-root`:
   (cd "$EXTRACT_DIR" && "$APPIMAGE" --appimage-extract >/dev/null)
   npm run smoke:packaged-server -- --linux-root "$EXTRACT_DIR/squashfs-root"
   npm run smoke:packaged-server -- --linux-root "$EXTRACT_DIR/squashfs-root" --data-survival
+  npm run smoke:packaged-server -- --linux-root "$EXTRACT_DIR/squashfs-root" --appimage-env
 )
 ```
 

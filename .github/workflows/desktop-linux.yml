@@ -211,9 +211,21 @@ jobs:
           test -x "$EXTRACT_DIR/squashfs-root/usr/bin/gajae-app-desktop"
           npm run smoke:packaged-server -- --linux-root "$EXTRACT_DIR/squashfs-root"
           npm run smoke:packaged-server -- --linux-root "$EXTRACT_DIR/squashfs-root" --data-survival
+          npm run smoke:packaged-server -- --linux-root "$EXTRACT_DIR/squashfs-root" --appimage-env
           python3 scripts/release/smoke-linux-desktop.py \
             --linux-root "$EXTRACT_DIR/squashfs-root" --format appimage \
             --artifacts "$RUNNER_TEMP/gajae-gui-smoke/appimage"
+
+      - name: Verify installed Debian launcher and URI registration
+        run: |
+          set -euo pipefail
+          sudo apt-get install --no-install-recommends -y "./release/desktop/$ASSET_STEM.deb"
+          DESKTOP_NAME="$(node -p "require('./package.json').productName")"
+          desktop-file-validate "/usr/share/applications/$DESKTOP_NAME.desktop"
+          python3 -c 'import json; from gi.repository import Gio; name=json.load(open("package.json"))["productName"]; app=Gio.DesktopAppInfo.new_from_filename("/usr/share/applications/"+name+".desktop"); assert app and app.supports_uris(); assert Gio.AppInfo.get_default_for_uri_scheme("gajae-app") is not None'
+          python3 scripts/release/smoke-linux-desktop.py \
+            --linux-root / --format deb \
+            --artifacts "$RUNNER_TEMP/gajae-gui-smoke/installed-deb"
 
       - name: Upload GUI smoke evidence
         if: always()

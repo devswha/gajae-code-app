@@ -49,6 +49,7 @@ npm run server:payload:linux # Linux x64 payload + pinned runtimes
 env -u CI npm run desktop:build:linux # payload + Tauri deb/AppImage + release/desktop staging
 npm run smoke:packaged-server -- --linux-root <extracted-dir> # extracted deb or squashfs-root
 npm run smoke:packaged-server -- --linux-root <extracted-dir> --data-survival
+npm run smoke:packaged-server -- --linux-root <squashfs-root> --appimage-env # AppRun + real Python/gio terminal probes
 ```
 
 Run a single test file (match the runner's env):

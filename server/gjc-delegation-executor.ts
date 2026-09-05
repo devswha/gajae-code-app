@@ -72,6 +72,7 @@ type Job = {
   owner: Owner;
   controller: AbortController;
   session?: Session;
+  abortTask?: Promise<void>;
   done: Promise<void>;
   settled: boolean;
 };
@@ -311,7 +312,7 @@ export class GjcDelegationExecutor {
 
   async #run(job: Job, message: string, resume: boolean): Promise<void> {
     let unsubscribe: (() => void) | undefined;
-    const timeout = setTimeout(() => job.controller.abort(), GJC_DELEGATION_LIMITS.runtimeMs);
+    const timeout = setTimeout(() => { void this.#cancel(job.receipt.id).catch(() => {}); }, GJC_DELEGATION_LIMITS.runtimeMs);
     try {
       this.#checkOwner(job.owner, job.controller.signal);
       const parent = job.owner.session();
@@ -321,8 +322,16 @@ export class GjcDelegationExecutor {
       const base = this.options.sessionOptions;
       job.receipt.repositoryBinding = await resolveTaskRepositoryBinding(parent.sessionManager.getCwd(), job.receipt.repositoryBinding);
       if (!model || thinkingLevel === undefined) throw new Error('Delegation requires an exact model and effort.');
-      const selector = base.authStorage?.resolveEffectiveCredentialSelector(model.provider, parent.credentialSessionId)
-        ?? base.credentialSelector?.selector;
+      const authStorage = base.authStorage ?? base.modelRegistry?.authStorage;
+      const configuredSelector = authStorage?.resolveEffectiveCredentialSelector(model.provider, parent.credentialSessionId);
+      // AUTO has no configured selector, but the parent's authenticated request
+      // has selected a concrete stored row. Pin that opaque row in the child's
+      // independent credential scope; never copy keys or share the owner's lease.
+      const selectedRow = authStorage?.getSessionCredentialRowId(model.provider, parent.credentialSessionId);
+      const selector = configuredSelector ?? (selectedRow !== undefined
+        ? { kind: 'id' as const, value: String(selectedRow) }
+        : authStorage?.hasSessionCredentialAuto(model.provider, parent.credentialSessionId)
+          ? undefined : base.credentialSelector?.selector);
       const settings = await parent.settings.cloneForCwd(parent.sessionManager.getCwd());
       // Delegated work never starts independent goal loops or background model roles.
       settings.override('goal.enabled', false);
@@ -440,7 +449,7 @@ export class GjcDelegationExecutor {
           .map((block: { text?: string }) => block.text).join('\n').slice(-16_000);
         if (event.message.stopReason === 'error') job.receipt.status = 'failed';
       });
-      const abort = () => { void output.session.abort().catch(() => {}); };
+      const abort = () => { void this.#abortSession(job).catch(() => {}); };
       job.controller.signal.addEventListener('abort', abort, { once: true });
       try {
         checkSignal(job.controller.signal);
@@ -455,7 +464,14 @@ export class GjcDelegationExecutor {
       clearTimeout(timeout);
       unsubscribe?.();
       if (job.session) {
-        await this.#cancelOwned(job.receipt.childSessionId);
+        try { await this.#cancelOwned(job.receipt.childSessionId); }
+        catch {
+          // The cancellation caller receives the abort error and can retry.
+          // Keep this owner's lifetime open until its descendants really stop;
+          // an abort rejection must not dispose their owner or lose their handles.
+          await Promise.all([...this.#jobs.values()]
+            .filter((child) => child.receipt.owner === job.receipt.childSessionId).map((child) => child.done));
+        }
         try { await job.session.dispose(); }
         catch { this.#cleanupFailed = true; job.receipt.status = 'failed'; job.receipt.resultText = 'Delegated session cleanup failed.'; }
       }
@@ -487,11 +503,20 @@ export class GjcDelegationExecutor {
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
 
+  #abortSession(job: Job): Promise<void> {
+    if (!job.session || job.settled) return Promise.resolve();
+    return job.abortTask ??= Promise.resolve().then(() => job.session!.abort()).catch(() => {
+      job.abortTask = undefined;
+      // SDK errors can contain provider payloads or credentials.
+      throw new Error('Delegated cancellation failed. Retry cancellation.');
+    });
+  }
+
   async #cancel(id: string): Promise<void> {
     const job = this.#jobs.get(id);
     if (!job || job.settled) return;
     job.controller.abort();
-    await this.#cancelOwned(job.receipt.childSessionId);
+    await Promise.all([this.#abortSession(job), this.#cancelOwned(job.receipt.childSessionId)]);
     await job.done;
   }
 
@@ -503,8 +528,12 @@ export class GjcDelegationExecutor {
     if (!this.#disposeTask) {
       this.#closed.abort();
       for (const job of this.#jobs.values()) job.controller.abort();
-      this.#disposeTask = Promise.all([...this.#jobs.values()].map((job) => job.done)).then(() => {
+      this.#disposeTask = Promise.all([...this.#jobs.values()].map((job) => this.#cancel(job.receipt.id))).then(() => {
         if (this.#cleanupFailed) throw new Error('App delegation cleanup failed.');
+      }).catch((error) => {
+        // Keep admission closed, but let the root retry a rejected SDK abort.
+        this.#disposeTask = undefined;
+        throw error;
       });
     }
     return this.#disposeTask;

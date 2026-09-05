@@ -18,6 +18,15 @@ Children retain the actual parent model, effort, credentials, permissions and
 tool allowlist. The direct owner's and root's native mutation/Ultragoal ask
 guards also apply to child tool calls. Each child has a distinct session ID and
 keeps GOAL disabled; the root adapter owns GOAL lifecycle and turn disposal.
+For AUTO credentials, the child pins the opaque stored row selected by the
+parent's authenticated request in its own credential scope. Resume reevaluates
+the current account and any new explicit pin; credential values never enter
+delegation receipts.
+
+A rejected SDK abort is an unconfirmed cancellation. `cancel` and `dispose`
+return a sanitized failure and permit retry; disposal keeps new work fenced.
+Concurrent abort attempts share one pending SDK call. An owner remains open
+until its descendants actually stop, including after a descendant abort fails.
 
 The `gajae-app.delegation.v1` transcript entries record child ownership and
 bounded result text. They are not native workflow completion receipts. Workflow

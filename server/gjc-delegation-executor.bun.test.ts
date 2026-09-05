@@ -53,6 +53,15 @@ function deferred() {
   return { promise, resolve };
 }
 
+async function within<T>(promise: Promise<T>, milliseconds = 3000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([promise, new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new Error('Contract operation did not settle.')), milliseconds);
+    })]);
+  } finally { clearTimeout(timer); }
+}
+
 async function fixture(
   respond: (context: Context, options?: SimpleStreamOptions) => AssistantMessageEventStream = () => stream(answer()),
   provider?: GjcPermissionProvider,
@@ -353,6 +362,97 @@ test('nested children have direct ownership, bounded depth and cascading cancell
   } finally { await f.close(); }
 });
 
+for (const operation of ['cancel', 'dispose'] as const) {
+  test(`${operation} reports a rejected child abort safely and retries it through the public executor`, { timeout: 30_000 }, async () => {
+    const entered = deferred();
+    const f = await fixture((_context, options) => {
+      const events = new AssistantMessageEventStream();
+      options?.signal?.addEventListener('abort', () => {
+        const output = answer(); output.stopReason = 'aborted';
+        events.push({ type: 'error', reason: 'aborted', error: output }); events.end(output);
+      }, { once: true });
+      entered.resolve();
+      return events;
+    });
+    let originalAbort: (() => Promise<void>) | undefined;
+    let completed = false;
+    try {
+      const [child] = await tool(f.parent, 'task', task());
+      await entered.promise;
+      originalAbort = f.children[0]!.abort.bind(f.children[0]);
+      let attempts = 0;
+      f.children[0]!.abort = async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error('credential-bearing-provider-payload');
+        await originalAbort!();
+      };
+      const first = operation === 'cancel'
+        ? tool(f.parent, 'subagent', { action: 'cancel', id: child!.id }) : f.executor.dispose();
+      await assert.rejects(within<unknown>(first), { message: 'Delegated cancellation failed. Retry cancellation.' });
+      assert.equal(attempts, 1, 'one failed abort must not silently turn into successful cancellation');
+      if (operation === 'cancel') {
+        assert.equal((await tool(f.parent, 'subagent', { action: 'inspect', id: child!.id }))[0]!.status, 'running');
+        const [cancelled] = await within(tool(f.parent, 'subagent', { action: 'cancel', id: child!.id }));
+        assert.equal(cancelled!.status, 'cancelled');
+      } else {
+        const retry = f.executor.dispose();
+        assert.equal(f.executor.dispose(), retry, 'concurrent disposal shares the successful retry');
+        await within(retry);
+      }
+      assert.equal(attempts, 2);
+      const receipts = f.parent.sessionManager.getEntries().filter((entry: { type: string; customType?: string }) => entry.type === 'custom'
+        && entry.customType === 'gajae-app.delegation.v1');
+      assert.ok(!JSON.stringify(receipts).includes('credential-bearing-provider-payload'));
+      await within(f.executor.dispose());
+      completed = true;
+    } finally {
+      // Rescue only on assertion failure; the successful path is entirely the
+      // app's cancel/dispose API and has already stopped the real SDK stream.
+      if (originalAbort) { f.children[0]!.abort = originalAbort; if (!completed) await originalAbort(); }
+      await f.close();
+    }
+  });
+}
+
+test('failed descendant abort preserves owner cleanup until a root disposal retry succeeds', { timeout: 30_000 }, async () => {
+  const entered = [deferred(), deferred()];
+  let starts = 0;
+  const f = await fixture((_context, options) => {
+    const events = new AssistantMessageEventStream();
+    options?.signal?.addEventListener('abort', () => {
+      const output = answer(); output.stopReason = 'aborted';
+      events.push({ type: 'error', reason: 'aborted', error: output }); events.end(output);
+    }, { once: true });
+    entered[starts++]!.resolve();
+    return events;
+  });
+  let originalAbort: (() => Promise<void>) | undefined;
+  let completed = false;
+  try {
+    const [child] = await tool(f.parent, 'task', task());
+    await entered[0]!.promise;
+    await tool(f.children[0]!, 'task', task());
+    await entered[1]!.promise;
+    const grandchild = f.children[1]!;
+    originalAbort = grandchild.abort.bind(grandchild);
+    let recovered = false;
+    grandchild.abort = async () => {
+      if (!recovered) throw new Error('temporary descendant abort failure');
+      await originalAbort!();
+    };
+    await assert.rejects(within(tool(f.parent, 'subagent', { action: 'cancel', id: child!.id })), /Retry cancellation/);
+    assert.equal((await tool(f.parent, 'subagent', { action: 'inspect', id: child!.id }))[0]!.status, 'running');
+    await assert.rejects(within(f.executor.dispose()), /Retry cancellation/);
+    recovered = true;
+    await within(f.executor.dispose());
+    assert.equal(starts, 2);
+    completed = true;
+  } finally {
+    if (originalAbort) { f.children[1]!.abort = originalAbort; if (!completed) await originalAbort(); }
+    await f.close();
+  }
+});
+
 test('disposal during public SDK setup waits for the late session and never prompts it', { timeout: 30_000 }, async () => {
   const entered = deferred();
   const release = deferred();
@@ -401,18 +501,31 @@ test('public extension guard rejects tools activated after child bootstrap', { t
   } finally { await f.close(); }
 });
 
-test('production adapter replaces SDK task execution and routes child permission asks to the app', { timeout: 30_000 }, async () => {
+async function verifyProductionAdapterDelegation(goalMode: 'unavailable' | 'idle' | 'active') {
+  let root: Session | undefined;
+  let observedActiveRoot = false;
   const f = await fixture((context) => {
     const isChild = context.systemPrompt?.some((block) => block.includes('You are a delegated executor'));
     const results = context.messages.filter((message) => message.role === 'toolResult');
     const output = answer();
     if (isChild) {
+      assert.ok(!context.tools?.some((selected) => selected.name === 'goal'));
       if (results.length) return stream(output);
       output.content = [{ type: 'toolCall', id: 'adapter-child-bash', name: 'bash', arguments: { command: 'printf adapter-bypass-canary' } }];
-    } else if (!results.length) {
+    } else if (goalMode === 'active' && !results.some((message) => message.toolCallId === 'adapter-goal-create')) {
+      output.content = [{ type: 'toolCall', id: 'adapter-goal-create', name: 'goal', arguments: {
+        op: 'create', objective: 'Collect the bounded delegated permission probe and report its real result.',
+      } }];
+    } else if (!results.some((message) => message.toolCallId === 'adapter-task')) {
+      if (goalMode === 'active') {
+        assert.equal(root!.getGoalModeState()?.goal?.status, 'active');
+        observedActiveRoot = true;
+      }
       output.content = [{ type: 'toolCall', id: 'adapter-task', name: 'task', arguments: task() }];
     } else if (!results.some((message) => message.toolCallId === 'adapter-await')) {
       output.content = [{ type: 'toolCall', id: 'adapter-await', name: 'subagent', arguments: { action: 'await' } }];
+    } else if (goalMode === 'active' && !results.some((message) => message.toolCallId === 'adapter-goal-complete')) {
+      output.content = [{ type: 'toolCall', id: 'adapter-goal-complete', name: 'goal', arguments: { op: 'complete' } }];
     } else return stream(output);
     output.stopReason = 'toolUse';
     return stream(output);
@@ -421,23 +534,28 @@ test('production adapter replaces SDK task execution and routes child permission
   process.env.GJC_RUNTIME_API_KEY = 'offline-delegation-credential';
   try {
     const factoryCalls: CreateAgentSessionOptions[] = [];
+    const goalEnabledAtCreation: boolean[] = [];
     const adapter = new GjcBunSdkAdapter(f.authStorage, f.registry, {
       settings: f.settings, generateSessionTitle: async () => null,
       createSessionFactory: async (input) => {
         factoryCalls.push(input!);
-        return createAgentSession({ ...input, agentDir: f.base.agentDir,
+        goalEnabledAtCreation.push(input!.settings!.get('goal.enabled'));
+        const created = await createAgentSession({ ...input, agentDir: f.base.agentDir,
           enableMcpAutoload: false, enableLsp: false, skipPythonPreflight: true, disableExtensionDiscovery: true,
           skills: [], rules: [], contextFiles: [], promptTemplates: [], slashCommands: [],
         });
+        root ??= created.session;
+        return created;
       },
     });
     const frames: Array<Record<string, unknown>> = [];
     await adapter.spawnGjc('Run the offline delegated permission probe.', {
       cwd: f.base.cwd, sessionRoot: join(f.root, 'adapter-sessions'), runHandle: 'delegation-adapter',
+      ...(goalMode === 'unavailable' ? {} : { goalUiVersion: 1, appSessionId: 'offline-goal-delegation', goalOwner: 'number:1' }),
       modelId: 'openai-codex/gpt-6-astra', effort: 'xhigh',
       credential: { kind: 'runtime-env', envVar: 'GJC_RUNTIME_API_KEY' },
       toolNames: ['TASK', 'Subagent', 'bash'], spawns: '*', bashPolicy: { allowedPrefixes: [] },
-      permissions: { mode: 'ask', allowAlways: ['task'] },
+      permissions: { mode: 'ask', allowAlways: ['task', 'goal'] },
     }, { send: (raw) => {
       const message = raw as Record<string, unknown>; frames.push(message);
       if (message.kind === 'permission_request') {
@@ -445,6 +563,12 @@ test('production adapter replaces SDK task execution and routes child permission
       }
     } });
     assert.equal(factoryCalls.length, 2);
+    assert.deepEqual(goalEnabledAtCreation, [goalMode !== 'unavailable', false]);
+    assert.equal(observedActiveRoot, goalMode === 'active');
+    if (goalMode === 'active') {
+      assert.ok(f.calls.some((call) => call.context.messages.some((message) => message.role === 'toolResult'
+        && message.toolCallId === 'adapter-goal-complete' && !message.isError)));
+    }
     for (const input of factoryCalls) {
       assert.equal(input.spawns, 'deny');
       assert.ok(!input.toolNames!.includes('task'));
@@ -457,7 +581,12 @@ test('production adapter replaces SDK task execution and routes child permission
     if (previous === undefined) delete process.env.GJC_RUNTIME_API_KEY; else process.env.GJC_RUNTIME_API_KEY = previous;
     await f.close();
   }
-});
+}
+
+for (const goalMode of ['unavailable', 'idle', 'active'] as const) {
+  test(`production adapter preserves delegation and permissions with ${goalMode} root GOAL`, { timeout: 30_000 },
+    () => verifyProductionAdapterDelegation(goalMode));
+}
 
 test('children pin the parent’s actual stored account and resume with its new account', { timeout: 30_000 }, async () => {
   const f = await fixture(undefined, undefined, undefined, true);
@@ -479,6 +608,59 @@ test('children pin the parent’s actual stored account and resume with its new 
     assert.equal(f.authStorage.resolveEffectiveCredentialSelector('openai-codex', f.parent.credentialSessionId)?.value, String(second.id),
       'child disposal must not release the parent credential scope');
     assert.ok(f.calls.length >= 2);
+  } finally { await f.close(); }
+});
+
+test('AUTO delegation pins the authenticated parent row and refreshes it on resume without sharing credentials', { timeout: 30_000 }, async () => {
+  const f = await fixture(undefined, undefined, undefined, true);
+  const seenKeys: string[] = [];
+  registerCustomApi(API, (model, _context, options) => {
+    assert.equal(model.provider, 'openai-codex'); assert.equal(model.id, 'gpt-6-astra');
+    assert.equal(options?.reasoning, 'xhigh');
+    assert.ok(['offline-account-a', 'offline-account-b'].includes(options!.apiKey!));
+    seenKeys.push(options!.apiKey!);
+    return stream(answer());
+  }, f.root);
+  try {
+    await f.parent.prompt('Authenticate AUTO before delegating.');
+    const row = f.authStorage.getSessionCredentialRowId('openai-codex', f.parent.credentialSessionId);
+    assert.equal(typeof row, 'number');
+    assert.equal(f.authStorage.resolveEffectiveCredentialSelector('openai-codex', f.parent.credentialSessionId), undefined);
+    const parentKey = seenKeys[0];
+    const [child] = await tool(f.parent, 'task', task());
+    const [initial] = await tool(f.parent, 'subagent', { action: 'await', id: child!.id });
+    assert.equal(initial!.status, 'completed');
+    assert.deepEqual(f.childInputs[0]!.credentialSelector?.selector, { kind: 'id', value: String(row) });
+    assert.equal(seenKeys.at(-1), parentKey);
+    assert.notEqual(f.children[0]!.credentialSessionId, f.parent.credentialSessionId);
+    assert.equal(f.authStorage.getSessionCredentialRowId('openai-codex', f.parent.credentialSessionId), row);
+
+    const rows: Array<{ id: number; provider: string }> = f.authStorage.exportSnapshot().credentials;
+    const other = rows.find((entry) => entry.provider === 'openai-codex' && entry.id !== row)!;
+    // A stale startup pin must not defeat the live session's explicit AUTO.
+    f.base.credentialSelector = { provider: 'openai-codex', selector: { kind: 'id', value: String(row) }, raw: `id:${row}` };
+    await f.parent.setCredentialAuto('openai-codex');
+    f.authStorage.switchSessionCredential('openai-codex', f.parent.credentialSessionId, { kind: 'id', value: String(other.id) });
+    await f.parent.prompt('Authenticate the newly selected AUTO account.');
+    const newKey = seenKeys.at(-1);
+    assert.notEqual(newKey, parentKey);
+    assert.equal(f.authStorage.getSessionCredentialRowId('openai-codex', f.parent.credentialSessionId), other.id);
+    await tool(f.parent, 'subagent', { action: 'resume', id: child!.id, message: 'Resume under the current AUTO account.' });
+    assert.equal((await tool(f.parent, 'subagent', { action: 'await', id: child!.id }))[0]!.status, 'completed');
+    assert.deepEqual(f.childInputs[1]!.credentialSelector?.selector, { kind: 'id', value: String(other.id) });
+    assert.equal(seenKeys.at(-1), newKey);
+    assert.equal(f.authStorage.resolveEffectiveCredentialSelector('openai-codex', f.parent.credentialSessionId), undefined);
+    assert.equal(f.authStorage.getSessionCredentialRowId('openai-codex', f.parent.credentialSessionId), other.id);
+
+    // A new explicit pin takes precedence over the previous AUTO request row.
+    await f.parent.setCredentialPin('openai-codex', { kind: 'id', value: String(row) });
+    await tool(f.parent, 'subagent', { action: 'resume', id: child!.id, message: 'Use the new explicit pin.' });
+    assert.equal((await tool(f.parent, 'subagent', { action: 'await', id: child!.id }))[0]!.status, 'completed');
+    assert.equal(f.childInputs[2]!.credentialSelector?.selector.value, String(row));
+    assert.equal(seenKeys.at(-1), parentKey);
+    const receipts = f.parent.sessionManager.getEntries().filter((entry: { type: string; customType?: string }) => entry.type === 'custom'
+      && entry.customType === 'gajae-app.delegation.v1');
+    assert.ok(!JSON.stringify(receipts).includes('offline-account-'));
   } finally { await f.close(); }
 });
 

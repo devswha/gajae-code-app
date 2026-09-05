@@ -179,8 +179,9 @@ export const api = {
       method: 'DELETE',
     });
   },
-  searchConversationsUrl: (query: string, limit: number = 50) => {
+  searchConversationsUrl: (query: string, limit: number = 50, projectId?: string) => {
     const params = new URLSearchParams({ q: query, limit: String(limit) });
+    if (projectId !== undefined) params.set('projectId', projectId);
     return `/api/providers/search/sessions?${params.toString()}`;
   },
   createProject: (projectData: JsonBody) =>

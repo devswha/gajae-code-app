@@ -6,22 +6,23 @@ import { spawn } from 'cross-spawn';
 import { rgPath } from '@vscode/ripgrep';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { gjcSearchFile, gjcSearchMessages, gjcSearchRoots } from '@/modules/providers/services/gjc-conversation-search.js';
 
 type RecordValue = Record<string, any>;
-type Provider = 'claude' | 'codex';
+type Provider = 'claude' | 'codex' | 'gjc';
 type Highlight = { start: number; end: number };
 type ConversationMatch = { role: string; snippet: string; highlights: Highlight[]; timestamp: string | null; provider: Provider; messageUuid?: string | null };
 type SessionResult = { sessionId: string; provider: Provider; sessionSummary: string; matches: ConversationMatch[] };
 type ProjectResult = { projectId: string | null; projectName: string; projectDisplayName: string; sessions: SessionResult[] };
 
 type SessionConversationSearchProgressUpdate = { projectResult: ProjectResult | null; totalMatches: number; scannedProjects: number; totalProjects: number };
-type SearchSessionConversationsInput = { query: string; limit: number; signal?: AbortSignal; onProgress?: (update: SessionConversationSearchProgressUpdate) => void };
+type SearchSessionConversationsInput = { query: string; limit: number; projectId?: string; signal?: AbortSignal; onProgress?: (update: SessionConversationSearchProgressUpdate) => void };
 type SessionRow = ReturnType<typeof sessionsDb.getAllSessions>[number];
 type Candidate = SessionRow & { provider: Provider; jsonl_path: string };
 type ProjectGroup = { projectId: string | null; projectName: string; projectDisplayName: string; sessions: Candidate[] };
 type ClaudeState = { matches: ConversationMatch[]; delayedSummaries: Map<string, string>; fallbackUser: string | null; fallbackAssistant: string | null; summary: string | null };
 
-const PROVIDERS = new Set<Provider>(['claude', 'codex']);
+const PROVIDERS = new Set<Provider>(['claude', 'codex', 'gjc']);
 const MAX_PER_SESSION = 2;
 const RG_BATCH = 40;
 const RG_WORKERS = 6;
@@ -188,12 +189,18 @@ class FileProbe {
   }
 }
 
-function candidates(): Candidate[] {
+async function candidates(projectId: string | undefined, stopped: () => boolean): Promise<Candidate[]> {
   const archived = new Map<string, boolean>(); const output: Candidate[] = [];
+  const project = projectId === undefined ? undefined : projectsDb.getProjectById(projectId);
+  if (projectId !== undefined && (!project || project.isArchived)) return [];
+  const roots = await gjcSearchRoots();
   for (const row of sessionsDb.getAllSessions()) {
+    if (stopped()) break;
+    if (project && row.project_path !== project.project_path) continue;
     const provider = row.provider as Provider; const raw = typeof row.jsonl_path === 'string' ? row.jsonl_path.trim() : '';
     if (!PROVIDERS.has(provider) || !raw) continue;
-    const jsonl_path = path.resolve(raw); if (!fs.existsSync(jsonl_path)) continue;
+    const jsonl_path = provider === 'gjc' ? await gjcSearchFile(raw, roots) : path.resolve(raw);
+    if (!jsonl_path || !fs.existsSync(jsonl_path)) continue;
     const projectPath = typeof row.project_path === 'string' ? row.project_path.trim() : '';
     if (projectPath) { if (!archived.has(projectPath)) archived.set(projectPath, Boolean(projectsDb.getProjectPath(projectPath)?.isArchived)); if (archived.get(projectPath)) continue; }
     output.push({ ...row, provider, jsonl_path });
@@ -214,7 +221,24 @@ class TranscriptSearch {
   get count(): number { return this.total; }
   private record(matches: ConversationMatch[], match: ConversationMatch): void { if (this.total < this.max && matches.length < MAX_PER_SESSION) { matches.push(match); this.total++; } }
   private async lines(file: string, consume: (row: RecordValue) => void): Promise<boolean> { try { const reader = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity }); for await (const line of reader) { if (this.total >= this.max || this.aborted()) break; if (!line.trim()) continue; try { consume(JSON.parse(line) as RecordValue); } catch { /* skip malformed lines */ } } return true; } catch { return false; } }
-  async search(row: Candidate): Promise<SessionResult | null> { return row.provider === 'claude' ? this.claude(row) : this.codex(row); }
+  async search(row: Candidate): Promise<SessionResult | null> {
+    if (row.provider === 'gjc') return this.gjc(row);
+    return row.provider === 'claude' ? this.claude(row) : this.codex(row);
+  }
+  private async gjc(row: Candidate): Promise<SessionResult | null> {
+    const matches: ConversationMatch[] = [];
+    let firstUser: string | null = null;
+    let firstAssistant: string | null = null;
+    for await (const message of gjcSearchMessages(row.jsonl_path, row.provider_session_id ?? row.session_id, row.project_path, this.aborted)) {
+      if (this.total >= this.max || this.aborted()) break;
+      if (message.role === 'user') firstUser ??= message.text;
+      else firstAssistant ??= message.text;
+      if (!this.matcher.accepts(message.text)) continue;
+      this.record(matches, { role: message.role, ...this.matcher.excerpt(message.text), timestamp: message.timestamp, provider: 'gjc', messageUuid: message.messageUuid });
+      if (matches.length >= MAX_PER_SESSION || this.total >= this.max) break;
+    }
+    return matches.length ? { sessionId: row.session_id, provider: 'gjc', sessionSummary: summary(row.custom_name, firstUser ?? firstAssistant, 'GJC Session'), matches } : null;
+  }
   private async claude(row: Candidate): Promise<SessionResult | null> {
     const file = comparablePath(row.jsonl_path); if (!file) return null;
     if (!this.claudeCache.has(file)) {
@@ -231,18 +255,20 @@ class TranscriptSearch {
   }
 }
 
-async function searchConversations(query: string, limit = 50, onProjectResult: ((update: SessionConversationSearchProgressUpdate) => void) | null = null, signal: AbortSignal | null = null): Promise<{ results: ProjectResult[]; totalMatches: number; query: string }> {
-  const clean = typeof query === 'string' ? query.trim() : ''; const cap = Math.max(1, Math.min(Number.isFinite(limit) ? limit : 50, 200)); const words = clean.toLowerCase().split(/\s+/).filter(Boolean); const stopped = () => signal?.aborted === true;
+async function searchConversations(query: string, limit = 50, onProjectResult: ((update: SessionConversationSearchProgressUpdate) => void) | null = null, signal: AbortSignal | null = null, projectId?: string): Promise<{ results: ProjectResult[]; totalMatches: number; query: string }> {
+  const clean = typeof query === 'string' ? query.trim() : ''; const cap = Math.max(1, Math.min(Number.isFinite(limit) ? Math.floor(limit) : 50, 200)); const words = clean.toLowerCase().split(/\s+/).filter(Boolean); const stopped = () => signal?.aborted === true;
   if (!words.length || stopped()) return { results: [], totalMatches: 0, query: clean };
-  const rows = candidates(); if (!rows.length) return { results: [], totalMatches: 0, query: clean };
+  const rows = await candidates(projectId, stopped); if (!rows.length) return { results: [], totalMatches: 0, query: clean };
   const byFile = new Map<string, Candidate[]>(); const paths: Array<{ normalized: string; absolute: string }> = [];
-  for (const row of rows) { const key = comparablePath(row.jsonl_path); if (!key) continue; if (!byFile.has(key)) { byFile.set(key, []); paths.push({ normalized: key, absolute: row.jsonl_path }); } byFile.get(key)?.push(row); }
-  const files = await new FileProbe(signal ?? undefined).matching(paths, words); if (stopped() || !files.size) return { results: [], totalMatches: 0, query: clean };
-  const selected = new Set<string>(); for (const file of files) for (const row of byFile.get(file) ?? []) selected.add(sessionKey(row));
+  for (const row of rows) { if (row.provider === 'gjc') continue; const key = comparablePath(row.jsonl_path); if (!key) continue; if (!byFile.has(key)) { byFile.set(key, []); paths.push({ normalized: key, absolute: row.jsonl_path }); } byFile.get(key)?.push(row); }
+  // GJC must be matched after decoding: /skill:name is reconstructed from
+  // metadata and JSON escapes can hide literal query terms from ripgrep.
+  const files = await new FileProbe(signal ?? undefined).matching(paths, words); if (stopped()) return { results: [], totalMatches: 0, query: clean };
+  const selected = new Set<string>(rows.filter((row) => row.provider === 'gjc').map(sessionKey)); for (const file of files) for (const row of byFile.get(file) ?? []) selected.add(sessionKey(row));
   const claudeByFile = new Map<string, Candidate[]>(); for (const [file, entries] of byFile) { const claude = entries.filter((entry) => entry.provider === 'claude'); if (claude.length) claudeByFile.set(file, claude); }
   const scanner = new TranscriptSearch(new QueryMatcher(clean, words), cap, stopped, selected, claudeByFile); const results: ProjectResult[] = []; const projectGroups = groups(rows); let scanned = 0;
   for (const group of projectGroups) { if (scanner.count >= cap || stopped()) break; const projectResult: ProjectResult = { projectId: group.projectId, projectName: group.projectName, projectDisplayName: group.projectDisplayName, sessions: [] }; for (const row of group.sessions) { if (scanner.count >= cap || stopped()) break; if (!selected.has(sessionKey(row))) continue; const found = await scanner.search(row); if (found) projectResult.sessions.push(found); } scanned++; if (projectResult.sessions.length) { results.push(projectResult); onProjectResult?.({ projectResult, totalMatches: scanner.count, scannedProjects: scanned, totalProjects: projectGroups.length }); } else if (onProjectResult && scanned % 10 === 0) onProjectResult({ projectResult: null, totalMatches: scanner.count, scannedProjects: scanned, totalProjects: projectGroups.length }); }
   return { results, totalMatches: scanner.count, query: clean };
 }
 
-export const sessionConversationsSearchService = { async search(input: SearchSessionConversationsInput): Promise<void> { await searchConversations(input.query, input.limit, input.onProgress ?? null, input.signal ?? null); } };
+export const sessionConversationsSearchService = { async search(input: SearchSessionConversationsInput): Promise<void> { await searchConversations(input.query, input.limit, input.onProgress ?? null, input.signal ?? null, input.projectId); } };

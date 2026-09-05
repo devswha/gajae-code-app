@@ -220,6 +220,8 @@ router.get('/search/sessions', asyncHandler(async (req: Request, res: Response) 
     await sessionConversationsSearchService.search({
       query: searchQuery(req.query.q),
       limit: searchLimit(req.query.limit),
+      projectId: req.query.projectId === undefined ? undefined
+        : queryText(req.query.projectId) ?? invalid('projectId must be a non-empty string.', 'INVALID_QUERY_PARAMETER'),
       signal: cancellation.signal,
       onProgress: ({ projectResult, totalMatches, scannedProjects, totalProjects }) => {
         if (disconnected) return;

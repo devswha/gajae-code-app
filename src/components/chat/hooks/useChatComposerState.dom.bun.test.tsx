@@ -144,7 +144,7 @@ test('automatic queue dispatch keeps the model and effort chosen when queued', a
   await waitFor(() => assert.equal(sent.length, 1));
   assert.deepEqual(sent[0], {
     type: 'chat.send', sessionId: 'a', content: 'queued work',
-    options: { model: 'queued-model', effort: 'xhigh', sessionSummary: 'queued summary', images: [] },
+    options: { model: 'queued-model', effort: 'xhigh', sessionSummary: 'queued summary', images: [], goalUiVersion: 1 },
   });
 });
 

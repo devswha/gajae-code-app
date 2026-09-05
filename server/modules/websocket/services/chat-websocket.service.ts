@@ -11,6 +11,10 @@ import { getGlobalImageAssetsDir, normalizeImageDescriptors } from '@/shared/ima
 import type { AnyRecord, AuthenticatedWebSocketRequest, LLMProvider } from '@/shared/types.js';
 import { createNormalizedMessage, parseIncomingJsonObject } from '@/shared/utils.js';
 
+import type { GjcGoalCommand } from '../../../../shared/gjc-goal.js';
+
+import { handleChatGoal, type GoalSupervisor } from './chat-goal.service.js';
+
 type ProviderSpawnFn = (command: string, options: AnyRecord, writer: unknown) => Promise<unknown>;
 type ProviderSpawnResult = Promise<unknown> & { abortHandle?: string; };
 type OAuthEvent = { method: 'oauth.phase' | 'oauth.providers.updated' | 'provider.auth.updated'; payload: AnyRecord; };
@@ -18,6 +22,7 @@ type OAuthSupervisor = {
   oauthProviders(): Promise<unknown>; oauthStatus(): Promise<unknown>; oauthStart(providerId: string): Promise<unknown>; oauthSubmit(attemptId: string, value: string): Promise<unknown>; oauthCancel(attemptId: string): Promise<unknown>; subscribeOAuth(listener: (event: OAuthEvent) => void): () => void;
 };
 type ChatWebSocketDependencies = {
+  goalSupervisor?: GoalSupervisor;
   spawnFns: Record<LLMProvider, ProviderSpawnFn>;
   abortFns: Record<LLMProvider, (providerSessionId: string) => boolean | Promise<boolean>>;
   steerFns?: Partial<Record<LLMProvider, (providerSessionId: string, message: string) => boolean | Promise<boolean>>>;
@@ -92,7 +97,7 @@ async function resolveRequestedModel(dependencies: ChatWebSocketDependencies, pr
   }
 }
 
-async function sendChat(ws: WebSocket, userId: string | number | null, data: AnyRecord, dependencies: ChatWebSocketDependencies): Promise<void> {
+async function sendChat(ws: WebSocket, userId: string | number | null, data: AnyRecord, dependencies: ChatWebSocketDependencies, goalCommand?: GjcGoalCommand): Promise<void> {
   const content = typeof data.content === 'string' ? data.content : '';
   if (/^\/(?:login|logout)(?:\s|$)/i.test(content.trim())) {
     protocolFailure(ws, 'LOGIN_UI_REQUIRED', 'Account authentication commands must be completed in the app login dialog.', typeof data.sessionId === 'string' ? data.sessionId : undefined);
@@ -129,9 +134,12 @@ async function sendChat(ws: WebSocket, userId: string | number | null, data: Any
   const model = await resolveRequestedModel(dependencies, provider, sessionId, requestedModel, !storedSession.provider_session_id);
   // The permission policy is the project's, read here and never taken from the
   // request: a browser cannot widen it by sending `skipPermissions` or a mode.
-  const { permissions: _clientPermissions, skipPermissions: _legacySkip, ...acceptedOptions } = requestOptions;
+  const { permissions: _clientPermissions, skipPermissions: _legacySkip, goalOwner: _goalOwner, goalCommand: _goalCommand, goalUiVersion: _goalUiVersion, ...acceptedOptions } = requestOptions;
   const options: AnyRecord = {
     ...acceptedOptions,
+    ...(dependencies.goalSupervisor && userId !== null && requestOptions.goalUiVersion === 1 ? { goalUiVersion: 1 } : {}),
+    ...(userId !== null ? { goalOwner: `${typeof userId}:${userId}` } : {}),
+    ...(goalCommand ? { goalCommand, goalUiVersion: 1 } : {}),
     ...(model ? { model } : {}),
     images: filterImagesToUploadStore(requestOptions.images),
     sessionId: storedSession.provider_session_id ?? undefined,
@@ -331,6 +339,25 @@ export function handleChatConnection(ws: WebSocket, request: AuthenticatedWebSoc
     sendFrame(ws, { kind: event.method, payload: event.payload });
   }) ?? (() => {});
   const chatHandlers: Record<string, (data: AnyRecord) => Promise<void> | void> = {
+    'chat.goal': async (data) => {
+      if (typeof data.requestId !== 'string' || !data.requestId || data.requestId.length > 120) return protocolFailure(ws, 'INVALID_GOAL_REQUEST', 'A goal request ID is required.');
+      try {
+        if (!dependencies.goalSupervisor) throw new Error('Goal controls are unavailable on this server.');
+        const result = await handleChatGoal(userId, data, dependencies.goalSupervisor, async (sessionId, command) => {
+          // Run ownership remains in the existing chat pipeline; controls do
+          // not introduce a second execution loop or background task system.
+          void sendChat(ws, userId, {
+            sessionId,
+            content: command.operation === 'create' ? `Goal: ${command.objective}` : `Goal: ${command.operation}`,
+            options: { model: 'default', goalUiVersion: 1 },
+          }, dependencies, command).catch((error) => protocolFailure(ws, 'GOAL_RUN_FAILED', error instanceof Error ? error.message : 'Goal run failed.', sessionId));
+          subscribeChat(ws, { sessions: [{ sessionId, lastSeq: 0 }] }, dependencies);
+        });
+        sendFrame(ws, { kind: 'chat_goal', sessionId: data.sessionId, requestId: data.requestId, result });
+      } catch (error) {
+        sendFrame(ws, { kind: 'chat_goal', sessionId: data.sessionId, requestId: data.requestId, error: error instanceof Error ? error.message : 'Goal control failed.' });
+      }
+    },
     'chat.send': (data) => sendChat(ws, userId, data, dependencies),
     'chat.abort': (data) => abortChat(ws, data, dependencies),
     'chat.steer': (data) => steerChat(ws, data, dependencies),

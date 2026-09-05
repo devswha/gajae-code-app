@@ -78,7 +78,7 @@ export const GJC_AGENT_TOOLS_WITHHELD: Readonly<Record<string, string>> = {
   job: 'Produces background work the app has no screen for; the /jobs surface tracks the app\u2019s own orchestrator, not this tool.',
   monitor: 'Long-lived watchers with nowhere to surface in the app.',
   cron: 'Schedules work that outlives the session with no UI to review or cancel it.',
-  goal: 'Goal-mode artifacts accumulate as files the app cannot display. Enable together with a goals view.',
+  goal: 'Enabled conditionally by the SDK adapter for a capable app view with scoped lifecycle controls and bounded continuation; excluded from delegated sessions and clients without controls.',
   ssh: 'Opens connections to other machines from a UI with no session-scoped confirmation for them.',
   telegram_send: 'Sends messages off this machine.',
   irc: 'Network chat unrelated to coding in this app.',

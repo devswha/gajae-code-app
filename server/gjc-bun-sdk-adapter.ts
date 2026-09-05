@@ -1,3 +1,5 @@
+import { realpath } from 'node:fs/promises';
+
 import { createAgentSession, discoverAuthStorage } from '@gajae-code/coding-agent/sdk/session';
 import { ModelRegistry } from '@gajae-code/coding-agent/config/model-registry';
 import { mergeModelProfiles, resolveProfileBindings } from '@gajae-code/coding-agent/config/model-profiles';
@@ -11,6 +13,8 @@ import { initTheme, theme } from '@gajae-code/coding-agent/modes/theme/theme';
 import { generateSessionTitle } from '@gajae-code/coding-agent/utils/title-generator';
 import { getSupportedEfforts } from '@gajae-code/ai/model-thinking';
 
+import { parseGjcGoalCommand, type GjcGoalCommand, type GjcGoalSnapshot } from '../shared/gjc-goal.js';
+
 import { appendImagesInputTag } from './shared/image-attachments.js';
 import { GjcBunOAuthController, type GjcBunOAuthControllerOptions } from './gjc-bun-oauth-controller.js';
 import { GJC_APP_BUILTIN_COMMAND_NAMES } from './gjc-command-surface.generated.js';
@@ -23,6 +27,8 @@ import { parseGjcRunPermissions, type GjcRunPermissions } from './gjc-permission
 import { GjcModelResolutionError } from './gjc-model-resolution.js';
 import { resolveContainedExportCommand } from './gjc-export-path.js';
 import { readSessionSnapshot } from './gjc-session-state.js';
+import { GjcGoalSession, GJC_GOAL_MODEL_OPERATIONS, matchesGjcGoalOwner, readPersistedGjcGoal, type GjcGoalScope } from './gjc-goal-session.js';
+import { installGjcGoalTool } from './gjc-goal-tool.js';
 import { installGjcCliShim } from './gjc-cli-shim.js';
 import {
   closeGjcAutomationSession,
@@ -47,6 +53,9 @@ export type SdkRunConfig = {
   spawns: string;
   bashPolicy: AppBashPolicy;
   appSessionId?: string;
+  goalUiVersion?: number;
+  goalOwner?: string;
+  goalCommand?: GjcGoalCommand;
   /** Image attachments the client sent with this message (`{path, name?, mimeType?}` descriptors). */
   images?: unknown;
   /**
@@ -83,6 +92,8 @@ export type GjcBunSdkAdapterOptions = {
 };
 
 type ActiveRun = {
+  goals?: GjcGoalSession;
+  goalScope?: GjcGoalScope;
   session: {
     prompt(message: string, options?: { streamingBehavior?: 'steer' | 'followUp' }): Promise<void>;
     abort(): Promise<void>;
@@ -126,9 +137,8 @@ const RUNTIME_CREDENTIAL_ENV_VARS = new Set([
 ]);
 
 export function applyGjcToolSettingsPolicy(settings: Settings): void {
-  // Goal mode writes artifacts the app cannot display, then injects hidden
-  // continuation turns until completion. The app projects no goal state, so
-  // users have no badge, pause, or cancel control for that self-restarting loop.
+  // Default closed. The adapter enables this only after admitting a capable,
+  // owned app view with scoped controls, persistence and a continuation limit.
   settings.override('goal.enabled', false);
 
   // ast_edit only previews rewrites and queues hidden `resolve` to apply them.
@@ -192,6 +202,8 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
   // `invalid_permissions` code so the worker can answer with that code and the
   // app can tell the user why the run never started.
   const permissions = parseGjcRunPermissions(candidate.permissions);
+  if (candidate.goalCommand !== undefined) parseGjcGoalCommand(candidate.goalCommand);
+  if (candidate.goalOwner !== undefined && (typeof candidate.goalOwner !== 'string' || !candidate.goalOwner)) throw new Error(FAILURE);
   return {
     ...(candidate as unknown as SdkRunConfig),
     // The SDK resolves builtin names case-insensitively. Canonicalize before
@@ -486,7 +498,10 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       ? closeAutomation(run.appSessionId).catch(() => {})
       : Promise.resolve();
     try {
-      await Promise.all([run.session.abort(), run.delegation?.dispose()]);
+      await Promise.all([
+        run.goals ? run.goals.stop() : run.session.abort(),
+        run.delegation?.dispose(),
+      ]);
       run.askController.dispose();
       run.abortState = 'aborted';
       run.state.abortRequested = true;
@@ -507,6 +522,36 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
     return false;
   }
 
+  async inspectGjcGoal(scope: GjcGoalScope, providerSessionId: string, sessionRoot: string): Promise<GjcGoalSnapshot> {
+    const manager = await resumeManager(providerSessionId, sessionRoot);
+    try {
+      const { state, scope: owner } = readPersistedGjcGoal(manager);
+      const actualCwd = await realpath(manager.getCwd());
+      if (actualCwd !== (owner?.cwd ?? scope.cwd)) throw new Error('Goal working directory does not match the persisted session.');
+      return {
+        supported: true, goal: state?.goal ?? null, runId: null,
+        canControl: owner ? matchesGjcGoalOwner(owner, scope) : !state,
+        resumeRequired: state?.goal.status === 'active',
+      };
+    } finally { await manager.close(); }
+  }
+
+  async controlGjcGoal(runId: string, scope: GjcGoalScope, command?: GjcGoalCommand): Promise<GjcGoalSnapshot> {
+    const run = this.#runs.get(runId);
+    if (!run || run.abortState !== 'idle' || !matchesGjcGoalOwner(run.goalScope, scope)) throw new Error('No controllable goal exists for this run.');
+    if (!run.goals) {
+      if (command) throw new Error('Start a goal after this run finishes.');
+      return { supported: true, goal: null, runId, canControl: false, resumeRequired: false };
+    }
+    if (!command) return run.goals.snapshot();
+    const snapshot = await run.goals.control(command);
+    if (command.operation === 'pause' || command.operation === 'drop') {
+      if (!await this.abortGjcSession(runId)) throw new Error('The goal changed, but stopping the run could not be confirmed.');
+      return { ...snapshot, runId: null, resumeRequired: command.operation === 'pause' };
+    }
+    return snapshot;
+  }
+
   async #run(runId: string, message: string, options: Record<string, unknown>, config: SdkRunConfig, writer: GjcWorkerWriter): Promise<void> {
     let active: ActiveRun | undefined;
     let runError: unknown;
@@ -523,6 +568,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       didRunFail = true;
     }
     if (active) {
+      await active.goals?.dispose();
       active.unsubscribe();
       active.askController.dispose();
       this.#runs.delete(runId);
@@ -563,6 +609,15 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       // sessions, and the clone keeps their project settings and overrides isolated.
       const settings = await globalSettings.cloneForCwd(config.cwd);
       applyGjcToolSettingsPolicy(settings);
+      const goalScope = config.appSessionId && config.goalOwner
+        ? { appSessionId: config.appSessionId, owner: config.goalOwner, cwd: await realpath(config.cwd),
+            projectPath: await realpath(typeof options.projectPath === 'string' ? options.projectPath : config.cwd) }
+        : undefined;
+      // Requested delegation names are replaced below by the checked app
+      // executor. Its children explicitly disable goal lifecycle operations.
+      const goalEnabled = config.goalUiVersion === 1 && Boolean(goalScope);
+      if (config.goalCommand && !goalEnabled) throw new Error('Goal controls are unavailable in this view.');
+      settings.override('goal.enabled', goalEnabled);
       const askController = new GjcBunAskController(writer);
       const model = await modelForWithRefresh(this.modelRegistry, configuredModelId);
       const resolvedCredential = await credentialFor(this.authStorage, config.credential, model);
@@ -597,8 +652,9 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           ...(resolvedCredential.credentialSelector
             ? { credentialSelector: resolvedCredential.credentialSelector }
             : {}),
-          toolNames: [...new Set([...config.toolNames, 'ask'])],
-          spawns: config.spawns,
+          toolNames: [...new Set([...config.toolNames, 'ask', ...(goalEnabled ? ['goal'] : [])])],
+          spawns: goalEnabled ? 'deny' : config.spawns,
+          goalToolAllowedOps: goalEnabled ? GJC_GOAL_MODEL_OPERATIONS : [],
           bashAllowedPrefixes: config.bashPolicy.allowedPrefixes,
           ...(config.bashPolicy.restrictionProfile ? { bashRestrictionProfile: config.bashPolicy.restrictionProfile } : {}),
           hasUI: true,
@@ -673,13 +729,18 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         const state: SdkRunState = { abortRequested: false, abortPending: false, terminalEmitted: false, finalError: false };
         // The adapter is the only place holding the live session, so the
         // footer snapshot is read here and handed to the event mapper.
-        const unsubscribe = result.session.subscribe((event: unknown) => forwardSdkEvent(
-          event,
-          writer,
-          state,
-          () => readSessionSnapshot(result.session, sessionManager),
-        ));
+        let goals: GjcGoalSession | undefined;
+        const unsubscribe = result.session.subscribe((event: unknown) => {
+          goals?.onEvent(event);
+          forwardSdkEvent(
+            event,
+            writer,
+            state,
+            () => ({ ...readSessionSnapshot(result.session, sessionManager), ...(goals ? { goal: goals.snapshot() } : {}) }),
+          );
+        });
         const activeRun: ActiveRun = {
+          ...(goalScope ? { goalScope } : {}),
           session: result.session,
           sessionManager,
           unsubscribe,
@@ -691,6 +752,15 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         };
         setActive(activeRun);
         this.#runs.set(runId, activeRun);
+        if (goalEnabled && goalScope) {
+          goals = new GjcGoalSession(result.session, sessionManager, goalScope, runId,
+            (goal) => writer.send({ kind: 'status', text: 'session_state', sessionState: { goal } }),
+            () => this.abortGjcSession(runId));
+          activeRun.goals = goals;
+          activeRun.goalScope = goalScope;
+          await goals.restore();
+          await installGjcGoalTool(result.session, goals);
+        }
         if (this.#starting.get(runId)?.abortRequested) {
           // Aborted before it had a session. No prompt, no terminal frame
           // (the app already completed the run as aborted when the abort was
@@ -702,7 +772,15 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           return;
         }
         if (!resumedId) writer.setSessionId?.(sessionManager.getSessionId());
+        const initialSnapshot = readSessionSnapshot(result.session, sessionManager);
+        if (goals) writer.send({ kind: 'status', text: 'session_state', sessionState: { ...initialSnapshot, goal: goals.snapshot() } });
         let promptMessage: string | null = message;
+        if (config.goalCommand) {
+          const goal = await goals!.control(config.goalCommand);
+          promptMessage = config.goalCommand.operation === 'create' || config.goalCommand.operation === 'resume'
+            ? `Work on this goal: ${goal.goal!.objective}`
+            : null;
+        }
         const commandMatch = /^\/([^\s]+)(?:\s+(.*))?$/.exec(message.trim());
         const commandName = commandMatch?.[1];
         if (commandName && GJC_APP_BUILTIN_COMMAND_NAMES.has(commandName)) {

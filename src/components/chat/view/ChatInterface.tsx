@@ -18,7 +18,9 @@ import { useOAuthLogin } from '../hooks/useOAuthLogin';
 import type { ChatInterfaceProps } from '../types/types';
 import { deriveLiveActivity } from '../utils/toolActivity';
 import OAuthLoginDialog from '../OAuthLoginDialog';
+import { useGoalControls } from '../hooks/useGoalControls';
 
+import GoalControls from './GoalControls';
 import ChatComposer from './ChatComposer';
 import ChatMessagesPane from './ChatMessagesPane';
 import CommandResultModal from './CommandResultModal';
@@ -218,6 +220,7 @@ function ChatInterface({
   usePublishSessionStatus(sessionStatusSnapshot);
 
   const historicalSession = isHistoricalNonGjcReadOnlySession(selectedSession);
+  const goalControls = useGoalControls(historicalSession ? null : session.currentSessionId ?? selectedSession?.id ?? null, selectedProject?.projectId ?? null);
   const showLanding = !historicalSession
     && !selectedSession
     && !session.currentSessionId
@@ -313,6 +316,7 @@ function ChatInterface({
   return (
     <PermissionContext.Provider value={permissionContextValue}>
       <div className="flex h-full min-h-0 flex-col">
+        {!historicalSession && (session.currentSessionId || selectedSession?.id) && <GoalControls key={`${selectedProject.projectId}:${session.currentSessionId ?? selectedSession?.id}`} {...goalControls} />}
         {showLanding ? (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-[10vh] sm:px-6">
             <div className="w-full max-w-184">

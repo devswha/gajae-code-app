@@ -152,6 +152,7 @@ const { app, server, wss } = createGjcAppFactory({
         resolveToolApproval: resolveProviderToolApproval,
         getPendingApprovalsForSession: getPendingProviderApprovalsForSession,
         oauthSupervisor: getGjcWorkerSupervisor(),
+        goalSupervisor: getGjcWorkerSupervisor(),
         gjcProjection: gjcJobProjection,
     },
     shell: {

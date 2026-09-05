@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type { Readable, Writable } from 'node:stream';
 import { pathToFileURL } from 'node:url';
 
+import { parseGjcGoalCommand, type GjcGoalCommand, type GjcGoalSnapshot } from '../shared/gjc-goal.js';
+
+import type { GjcGoalScope } from './gjc-goal-session.js';
 import { GJC_INVALID_PERMISSIONS_CODE, GJC_INVALID_PERMISSIONS_MESSAGE, isGjcRunPermissionsError } from './gjc-permission-policy.js';
 import {
   GJC_WORKER_PROTOCOL_VERSION,
@@ -38,6 +41,8 @@ export type GjcWorkerOAuthRuntime = {
   close(): void;
 };
 export type GjcWorkerRuntime = {
+  inspectGjcGoal?(scope: GjcGoalScope, providerSessionId: string, sessionRoot: string): Promise<GjcGoalSnapshot>;
+  controlGjcGoal?(runId: string, scope: GjcGoalScope, command?: GjcGoalCommand): Promise<GjcGoalSnapshot>;
   spawnGjc(message: string, options: JsonObject, writer: GjcWorkerWriter): SpawnedRun;
   abortGjcSession(sessionId: string): Promise<boolean>;
   /**
@@ -187,6 +192,7 @@ export class GjcWorkerHost {
       case 'session.start': case 'session.resume': case 'turn.start': return this.#start(request);
       case 'turn.abort': return this.#abort(request);
       case 'turn.steer': return this.#steer(request);
+      case 'goal.inspect': case 'goal.control': return this.#goal(request);
       case 'ask.reply': return this.#reply(request);
       case 'models.catalog': return this.#modelCatalog(request);
       case 'oauth.providers': return this.#oauthProviders(request);
@@ -444,6 +450,31 @@ export class GjcWorkerHost {
    * answers `steered: false` so the caller can queue the message instead of
    * losing it.
    */
+  async #goal(request: Extract<GjcWorkerRequestFrame, { sessionId: string }>): Promise<void> {
+    const input = payload(request, ['owner', 'cwd', 'projectPath', 'providerSessionId', 'sessionRoot', 'runId', 'command']);
+    if (!input || typeof input.owner !== 'string' || !input.owner || typeof input.cwd !== 'string' || !input.cwd) return this.#response(request, failure('invalid_payload', 'Invalid goal scope.'));
+    if (input.projectPath !== undefined && (typeof input.projectPath !== 'string' || !input.projectPath)) return this.#response(request, failure('invalid_payload', 'Invalid goal project.'));
+    const scope = { appSessionId: request.sessionId, owner: input.owner, cwd: input.cwd, ...(typeof input.projectPath === 'string' ? { projectPath: input.projectPath } : {}) };
+    try {
+      let result: GjcGoalSnapshot;
+      if (request.method === 'goal.inspect') {
+        if (typeof input.providerSessionId !== 'string' || !input.providerSessionId || typeof input.sessionRoot !== 'string' || !input.sessionRoot
+          || input.runId !== undefined || input.command !== undefined || !this.#runtime?.inspectGjcGoal) throw new Error('Goal inspection is unavailable.');
+        if ([...this.#runs.values()].some((run) => run.scope === request.sessionId)) throw new Error('The session has an active run.');
+        result = await this.#runtime.inspectGjcGoal(scope, input.providerSessionId, input.sessionRoot);
+      } else {
+        const run = typeof input.runId === 'string' ? this.#runs.get(input.runId) : undefined;
+        if (!run || run.scope !== request.sessionId || !this.#runtime?.controlGjcGoal
+          || input.providerSessionId !== undefined || input.sessionRoot !== undefined) throw new Error('No active run exists for this goal control.');
+        const command = input.command === undefined ? undefined : parseGjcGoalCommand(input.command);
+        result = await this.#runtime.controlGjcGoal(run.abortHandle ?? run.runId, scope, command);
+      }
+      return this.#response(request, success(json(result)));
+    } catch (error) {
+      return this.#response(request, failure('goal_control_failed', error instanceof Error ? error.message : 'Goal operation failed.'));
+    }
+  }
+
   async #steer(request: Extract<GjcWorkerRequestFrame, { sessionId: string }>): Promise<void> {
     const input = payload(request, ['runId', 'message']);
     if (

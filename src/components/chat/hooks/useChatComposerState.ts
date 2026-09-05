@@ -163,7 +163,7 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
       }
       if (!allocation || !isCurrent()) return;
       const { id, context } = allocation;
-      if (sendMessage({ type: 'chat.send', sessionId: id, content: text, options: { ...sendOptions, images } }) === false) {
+      if (sendMessage({ type: 'chat.send', sessionId: id, content: text, options: { ...sendOptions, images, goalUiVersion: 1 } }) === false) {
         addMessage({ type: 'error', content: 'Connection lost. Your draft has been kept; retry when connected.', timestamp: new Date() });
         return;
       }

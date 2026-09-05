@@ -12,7 +12,10 @@
  * snapshot that throws would take a real answer down with it.
  */
 
+import { normalizeGjcGoalState, type GjcGoalSnapshot } from '../shared/gjc-goal.js';
+
 export type GjcSessionSnapshot = {
+  goal?: GjcGoalSnapshot;
   modelId?: string;
   /** Reasoning effort, as the session reports it (`off`, `low`, `high`, ...). */
   thinkingLevel?: string;
@@ -30,6 +33,7 @@ type SessionLike = {
   model?: { id?: unknown } | null;
   thinkingLevel?: unknown;
   getContextUsage?: () => unknown;
+  getGoalModeState?: () => unknown;
 };
 
 type SessionManagerLike = {
@@ -57,6 +61,14 @@ export function readSessionSnapshot(
   sessionManager: unknown,
 ): GjcSessionSnapshot | undefined {
   const snapshot: GjcSessionSnapshot = {};
+
+  try {
+    const live = session as SessionLike | null;
+    if (typeof live?.getGoalModeState === 'function') {
+      const state = normalizeGjcGoalState(live.getGoalModeState());
+      snapshot.goal = { supported: true, goal: state?.goal ?? null, runId: null, canControl: false, resumeRequired: state?.goal.status === 'active' };
+    }
+  } catch { /* Missing goal capability must not interrupt transcript delivery. */ }
 
   try {
     const live = session as SessionLike | null;

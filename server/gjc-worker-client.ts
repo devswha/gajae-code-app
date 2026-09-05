@@ -7,6 +7,8 @@ import { dirname, isAbsolute, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Writable } from 'node:stream';
 
+import type { GjcGoalCommand, GjcGoalSnapshot, GjcGoalScope } from '../shared/gjc-goal.js';
+
 import {
   GJC_AGENT_TOOL_NAMES,
   GJC_INVALID_PERMISSIONS_CODE,
@@ -455,6 +457,25 @@ export class GjcWorkerSupervisor {
   async modelCatalog(): Promise<GjcWorkerResponsePayload> {
     await this.ensureWorker();
     return this.request('models.catalog', undefined, {});
+  }
+
+  async inspectGoal(scope: GjcGoalScope, providerSessionId: string): Promise<GjcGoalSnapshot> {
+    const liveRoot = getGjcLiveSessionRoot();
+    const sessionRoot = await resolveGjcResumeSessionRoot(providerSessionId, liveRoot) ?? liveRoot;
+    await this.ensureWorker();
+    const response = await this.request('goal.inspect', scope.appSessionId, { owner: scope.owner, cwd: scope.cwd, ...(scope.projectPath ? { projectPath: scope.projectPath } : {}), providerSessionId, sessionRoot });
+    if (!response.ok) throw new Error(response.error.message);
+    return response.result as GjcGoalSnapshot;
+  }
+
+  async controlGoal(runId: string, scope: GjcGoalScope, command?: GjcGoalCommand): Promise<GjcGoalSnapshot> {
+    const run = this.runs.get(runId);
+    if (!run || run.appScope !== scope.appSessionId || run.phase !== 'request_issued' || run.aborted || run.abortPromise) throw new Error('The active run changed. Refresh before controlling its goal.');
+    const response = await this.request('goal.control', scope.appSessionId, {
+      runId, owner: scope.owner, cwd: scope.cwd, ...(scope.projectPath ? { projectPath: scope.projectPath } : {}), ...(command ? { command } : {}),
+    });
+    if (!response.ok) throw new Error(response.error.message);
+    return response.result as GjcGoalSnapshot;
   }
 
   oauthProviders(): Promise<GjcWorkerResponsePayload> {

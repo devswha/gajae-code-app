@@ -12,6 +12,8 @@ export const GJC_WORKER_REQUEST_METHODS = [
   'turn.start',
   'turn.abort',
   'turn.steer',
+  'goal.inspect',
+  'goal.control',
   'ask.reply',
   'models.catalog',
   'oauth.providers',

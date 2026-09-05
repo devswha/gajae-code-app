@@ -8,7 +8,7 @@ workers. The final integration received another independent review.
 
 | Area | Failure | Correction and evidence |
 | --- | --- | --- |
-| Chat streaming | A subscribed background session could append to or finalize the visible answer and replace its model/context status. | Route each event to its owning session; DOM regressions interleave two sessions and reconcile final text with disk history. |
+| Chat streaming | A subscribed background session could append to or finalize the visible answer and replace its model/context status. | Route each event to its owning session, retire its reserved streaming row on background completion, and reconcile final text with disk history. DOM regressions include A→B→A followed by another turn. |
 | History navigation | Late history, pagination and token-usage responses could overwrite a later session's state, including after navigating away and back. | Scope completion to a particular visit; deferred-response DOM tests cover loading, pagination, load-all and usage. |
 | Queued messages | Automatic dispatch used the current model and effort instead of the queued selection. | Carry the queued options and attachments through submission; check the emitted `chat.send`. |
 | Steering | Identical steering text in different sessions shared acknowledgement state; switching sessions could leave the accepted steer queued. | Key pending acknowledgements by session and text, retain queue item identities, and update the owning queue. |
@@ -28,6 +28,8 @@ workers. The final integration received another independent review.
 - Focused backend suites: 271 Node tests, 77 Bun tests passed; one credentialed
   SDK smoke skipped.
 - Focused frontend suites: 127 tests passed, including 15 new regressions.
+  Final review added two stream-lifecycle regressions; the resulting targeted
+  handler/store suites passed all 27 tests.
 - Rust core: formatting, Clippy with warnings denied, and 54 tests passed.
 - Tauri: formatting, Clippy with warnings denied, and 13 tests passed.
 - GJC driver/wire E2E: 7 tests passed. These exercise real HTTP/WebSocket,

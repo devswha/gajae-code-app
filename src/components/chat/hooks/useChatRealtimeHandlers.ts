@@ -147,13 +147,13 @@ export function useChatRealtimeHandlers({
         // disk until the next full reload.
         const content = typeof event.content === 'string' ? event.content : '';
         if (sessionId !== visible) {
-          if (sessionId && content) sessionStore.appendRealtime(sessionId, {
-            ...event,
-            // Finalized live text uses the same identity convention as
-            // finalizeStreaming so a later disk window can absorb its echo.
-            id: `text_${sessionId}_${event.id || event.seq || `${Date.now()}_${Math.random().toString(36).slice(2)}`}`,
-            kind: 'text', role: 'assistant', content,
-          } as unknown as NormalizedMessage);
+          if (sessionId) {
+            // A formerly visible session can still own a reserved streaming
+            // row. Retire it even on an empty end so the next turn gets a new
+            // position and timestamp, without touching the visible accumulator.
+            if (content) sessionStore.updateStreaming(sessionId, content, provider);
+            sessionStore.finalizeStreaming(sessionId);
+          }
           return;
         }
         if (content) accumulatedStreamRef.current = content;

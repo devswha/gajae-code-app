@@ -36,7 +36,6 @@ import {
 } from './gjc-worker-protocol.js';
 import { GjcWorkerHost } from './gjc-worker.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE } from './gjc-model-resolution.js';
-import { GJC_AGENT_TOOLS_WITHHELD } from './gjc-agent-tools.js';
 
 type Listener = (event: unknown) => void;
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: Error): void };
@@ -1468,19 +1467,61 @@ test('app-shaped real SDK handoff rekeys logical ownership while retaining provi
   } finally { unregisterCustomApis(f.root); await f.close(); }
 });
 
-test('SDK delegation stays withheld while child bash bypasses the parent permission gate', async () => {
-  const f = await identityFixture();
-  f.options.toolNames = ['bash', 'task', 'subagent'];
-  f.options.spawns = 'executor';
+/** Direct SDK construction: this fixture never passes through the app adapter. */
+async function rawSdkDelegationFixture() {
+  const scratch = join(await realpath(process.cwd()), '.tmp');
+  await mkdir(scratch, { recursive: true });
+  const root = await mkdtemp(join(scratch, 'raw-sdk-delegation-'));
+  const cwd = join(root, 'project');
+  const agentDir = join(root, 'agent');
+  await mkdir(cwd);
+  const authStorage = await discoverAuthStorage(agentDir);
+  const settings = await Settings.loadForScope({ cwd, agentDir });
+  settings.override('memory.enabled', false);
+  settings.override('skills.enabled', false);
+  settings.override('goal.enabled', false);
+  settings.override('task.agentModelOverrides', { executor: 'openai-codex/gpt-6-astra' });
+  settings.override('task.maxRuntimeMs', 3000);
+  settings.override('task.maxRecursionDepth', 1);
+  const registry = new ModelRegistry(authStorage, join(agentDir, 'models.yml'), settings, { agentDir });
+  registry.registerProvider('openai-codex', {
+    api: 'raw-sdk-delegation-contract', apiKey: 'offline-raw-sdk-key', baseUrl: 'http://127.0.0.1:1',
+    models: [{ id: 'gpt-6-astra', name: 'Offline Astra contract', reasoning: true,
+      thinking: { mode: 'effort', minLevel: 'xhigh', maxLevel: 'xhigh', levels: ['xhigh'] },
+      input: ['text'], contextWindow: 100000, maxTokens: 1000,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
+  });
+  const { session } = await createAgentSession({
+    cwd, agentDir, settings, authStorage, modelRegistry: registry,
+    model: registry.find('openai-codex', 'gpt-6-astra'), thinkingLevel: 'xhigh',
+    sessionManager: SessionManager.create(cwd, join(root, 'sessions')),
+    toolNames: ['bash', 'task', 'subagent'], spawns: 'executor',
+    enableMcpAutoload: false, enableLsp: false, skipPythonPreflight: true, disableExtensionDiscovery: true,
+    skills: [], rules: [], contextFiles: [], promptTemplates: [], slashCommands: [],
+  });
+  return { root, session, async close() {
+    await session.dispose(); await registry.dispose(); authStorage.close(); await settings.close();
+    await rm(root, { recursive: true, force: true });
+  } };
+}
+
+test('raw SDK builtin delegation bypasses parent permissions; app replacement remains necessary', { timeout: 15_000 }, async () => {
+  const f = await rawSdkDelegationFixture();
   let calls = 0;
   let issuedTool = false;
   const observedToolResults: Array<{ isError: boolean; content: unknown }> = [];
   // Exercise the pinned SDK's real child lifecycle with a deterministic local
   // transport. Its only shell command prints a fixed canary to stdout.
-  registerCustomApi('identity-contract', (_model, context: Context) => {
+  registerCustomApi('raw-sdk-delegation-contract', (model, context: Context, options) => {
+    assert.equal(model.provider, 'openai-codex');
+    assert.equal(model.id, 'gpt-6-astra');
+    assert.equal(options?.reasoning, 'xhigh');
     calls += 1;
     observedToolResults.push(...context.messages.filter((message) => message.role === 'toolResult'));
     const message = identityAnswer('Offline child finished.');
+    message.api = 'raw-sdk-delegation-contract';
+    message.provider = 'openai-codex';
+    message.model = 'gpt-6-astra';
     if (!issuedTool && context.tools?.some((tool) => tool.name === 'bash')) {
       issuedTool = true;
       message.content = [{
@@ -1495,10 +1536,7 @@ test('SDK delegation stays withheld while child bash bypasses the parent permiss
     return stream;
   }, f.root);
   try {
-    await f.run('identity-child-permission', async (session) => {
-      session.settings.override('task.agentModelOverrides', { executor: 'identity-contract/astra' });
-      session.settings.override('task.maxRuntimeMs', 3000);
-      session.settings.override('task.maxRecursionDepth', 1);
+    const session = f.session;
       session.setSdkPermissionMode('deny');
       const bash = session.getToolForExecution('bash');
       assert.ok(bash);
@@ -1518,9 +1556,9 @@ test('SDK delegation stays withheld while child bash bypasses the parent permiss
       assert.ok(observedToolResults.some((result) => !result.isError
         && JSON.stringify(result.content).includes('child-allowed')),
       JSON.stringify({ calls, issuedTool, observedToolResults, launch, settled }));
-      assert.ok(GJC_AGENT_TOOLS_WITHHELD.task);
-      assert.ok(GJC_AGENT_TOOLS_WITHHELD.subagent);
-    });
+      // The application has its own independent positive safety fixture in
+      // gjc-delegation-executor.bun.test.ts. Never convert this unsafe SDK
+      // result into an assertion about the app's current tool names.
   } finally { unregisterCustomApis(f.root); await f.close(); }
 });
 test('session effort is passed to the SDK as the turn thinking level', async () => {

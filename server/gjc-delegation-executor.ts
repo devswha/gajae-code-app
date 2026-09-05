@@ -8,6 +8,11 @@ import type { CustomTool } from '@gajae-code/coding-agent/extensibility/custom-t
 import type { AgentSessionEvent } from '@gajae-code/coding-agent/session/agent-session';
 import type { ExtensionFactory } from '@gajae-code/coding-agent/extensibility/extensions/types';
 import { getBundledAgent } from '@gajae-code/coding-agent/task/agents';
+import { taskItemSchema } from '@gajae-code/coding-agent/task/types';
+import { resolveTaskRepositoryBinding } from '@gajae-code/coding-agent/gjc-runtime/repository-binding';
+import { isUltragoalAskBlocked, consumeUltragoalAskNudge } from '@gajae-code/coding-agent/gjc-runtime/ultragoal-guard';
+import { formatUltragoalAskBlockMessage } from '@gajae-code/coding-agent/tools/ultragoal-ask-guard';
+import { assertWorkflowMutationAllowed } from '@gajae-code/coding-agent/skill-state/workflow-mutation-guard';
 import { prompt } from '@gajae-code/utils';
 import * as z from 'zod/v4';
 
@@ -17,23 +22,35 @@ type Session = Awaited<ReturnType<typeof createAgentSession>>['session'];
 type ToolUIContext = Parameters<Awaited<ReturnType<typeof createAgentSession>>['setToolUIContext']>[0];
 const RECEIPT = 'gajae-app.delegation.v1';
 const idSchema = z.string().uuid();
+const repositoryBindingSchema = taskItemSchema.shape.repositoryBinding.unwrap();
+// Strict providers require every object property, including optional binding
+// metadata. Accept null for unused metadata, then normalize to the SDK contract.
+const repositoryBindingInputSchema = repositoryBindingSchema.extend({
+  relativeSubdir: repositoryBindingSchema.shape.relativeSubdir.nullish(),
+  displayPath: repositoryBindingSchema.shape.displayPath.nullish(),
+  head: repositoryBindingSchema.shape.head.nullish(),
+  branch: repositoryBindingSchema.shape.branch.nullish(),
+});
 const taskSchema = z.strictObject({
   agent: z.string().regex(/^[a-z][a-z0-9-]{0,63}$/),
-  context: z.string().max(100_000).optional(),
+  context: z.string().max(100_000).nullish(),
   tasks: z.array(z.strictObject({
     id: z.string().min(1).max(100),
     description: z.string().min(1).max(1000),
     assignment: z.string().min(1).max(100_000),
-    executionMode: z.literal('ultragoal-red-team').optional(),
+    executionMode: z.enum(['default', 'ultragoal-red-team']).nullish().default('default')
+      .describe('Use default for Planner, Architect, Critic, and ordinary Executor work. ultragoal-red-team is only for an explicitly assigned Executor QA/red-team lane.'),
+    repositoryBinding: repositoryBindingInputSchema.nullish()
+      .describe('Copy the workflow repository binding, or use null to bind to the current workspace. This does not change the child working directory.'),
   })).min(1).max(4),
 });
 const controlSchema = z.strictObject({
   action: z.enum(['list', 'inspect', 'await', 'cancel', 'resume']),
-  id: idSchema.optional(),
-  ids: z.array(idSchema).max(32).optional(),
-  message: z.string().min(1).max(100_000).optional(),
-  timeout_ms: z.number().int().min(0).max(60_000).optional(),
-  condition: z.enum(['all_terminal', 'any_terminal']).optional(),
+  id: idSchema.nullish(),
+  ids: z.array(idSchema).max(32).nullish(),
+  message: z.string().min(1).max(100_000).nullish(),
+  timeout_ms: z.number().int().min(0).max(60_000).nullish(),
+  condition: z.enum(['all_terminal', 'any_terminal']).nullish(),
 });
 const receiptSchema = z.object({
   id: idSchema,
@@ -42,7 +59,8 @@ const receiptSchema = z.object({
   childSessionId: idSchema,
   file: z.string().min(1),
   agent: taskSchema.shape.agent,
-  executionMode: z.literal('ultragoal-red-team').optional(),
+  executionMode: z.enum(['default', 'ultragoal-red-team']).optional(),
+  repositoryBinding: taskItemSchema.shape.repositoryBinding,
   description: z.string(),
   status: z.enum(['running', 'completed', 'failed', 'cancelled']),
   resultText: z.string().max(16_000),
@@ -76,6 +94,17 @@ function result(value: unknown) {
 
 function checkSignal(signal?: AbortSignal): void {
   if (signal?.aborted) throw new Error('App delegation cancelled.');
+}
+
+function normalizeRepositoryBinding(binding: z.infer<typeof repositoryBindingInputSchema> | null | undefined) {
+  if (!binding) return undefined;
+  return {
+    ...binding,
+    relativeSubdir: binding.relativeSubdir ?? undefined,
+    displayPath: binding.displayPath ?? undefined,
+    head: binding.head ?? undefined,
+    branch: binding.branch ?? undefined,
+  };
 }
 
 /** A shared lock, also used by the parent, for the single app automation session. */
@@ -130,15 +159,18 @@ export class GjcDelegationExecutor {
         const params = taskSchema.parse(raw);
         this.#checkOwner(owner, signal);
         this.#checkRole(params.agent);
-        if (params.agent !== 'executor' && params.tasks.some((task) => task.executionMode)) {
+        if (params.agent !== 'executor' && params.tasks.some((task) => task.executionMode === 'ultragoal-red-team')) {
           throw new Error('Red-team execution mode requires the executor role.');
         }
         this.#checkCapacity(owner, params.tasks.length);
+        const bindings = await Promise.all(params.tasks.map((task) =>
+          resolveTaskRepositoryBinding(owner.manager.getCwd(), normalizeRepositoryBinding(task.repositoryBinding))));
+        this.#checkOwner(owner, signal);
         await this.#authorize(owner, callId, params, signal);
         this.#checkOwner(owner, signal);
         this.#checkCapacity(owner, params.tasks.length);
-        const jobs = params.tasks.map((task) => this.#launch(owner, params.agent, task.description,
-          [params.context, task.assignment].filter(Boolean).join('\n\n'), undefined, task.executionMode));
+        const jobs = params.tasks.map((task, index) => this.#launch(owner, params.agent, task.description,
+          [params.context, task.assignment].filter(Boolean).join('\n\n'), undefined, task.executionMode ?? 'default', bindings[index]));
         return result({ subagents: jobs.map((job) => this.#snapshot(job.receipt)) });
       },
     });
@@ -258,12 +290,13 @@ export class GjcDelegationExecutor {
     return { ...publicReceipt, status: job && !job.settled ? 'running' : receipt.status };
   }
 
-  #launch(owner: Owner, agent: string, description: string, message: string, previous?: Receipt, executionMode?: Receipt['executionMode']): Job {
+  #launch(owner: Owner, agent: string, description: string, message: string, previous?: Receipt, executionMode?: Receipt['executionMode'], repositoryBinding?: Receipt['repositoryBinding']): Job {
     this.#launches += 1;
     const id = previous?.id ?? randomUUID();
     const receipt: Receipt = { ...previous, id, owner: owner.id, root: this.#root.id,
       agent, description, childSessionId: previous?.childSessionId ?? randomUUID(), file: previous?.file ?? '',
       executionMode: previous?.executionMode ?? executionMode,
+      repositoryBinding: previous?.repositoryBinding ?? repositoryBinding,
       status: 'running', resultText: '' };
     const job: Job = { receipt, owner, controller: new AbortController(), done: Promise.resolve(), settled: false };
     this.#jobs.set(id, job);
@@ -286,6 +319,7 @@ export class GjcDelegationExecutor {
       const thinkingLevel = parent.thinkingLevel;
       const permissionMode = parent.sdkPermissionMode;
       const base = this.options.sessionOptions;
+      job.receipt.repositoryBinding = await resolveTaskRepositoryBinding(parent.sessionManager.getCwd(), job.receipt.repositoryBinding);
       if (!model || thinkingLevel === undefined) throw new Error('Delegation requires an exact model and effort.');
       const selector = base.authStorage?.resolveEffectiveCredentialSelector(model.provider, parent.credentialSessionId)
         ?? base.credentialSelector?.selector;
@@ -333,9 +367,28 @@ export class GjcDelegationExecutor {
       // Public extension hooks guard later subskill activation as well as the
       // initial selection. A tool added after bootstrap cannot widen policy.
       const enforceAllowlist: ExtensionFactory = (api) => {
-        api.on('tool_call', (event) => {
+        api.on('tool_call', async (event) => {
           checkSignal(job.controller.signal);
           if (!allowed.includes(event.toolName)) return { block: true, reason: 'Tool is outside the parent delegation allowlist.' };
+          const tool = job.session?.getToolByName(event.toolName);
+          if (!tool) return { block: true, reason: 'Delegated tool is unavailable.' };
+          // Child logical IDs are deliberately distinct. The SDK's default
+          // guard therefore sees the child's workflow state, not its owner's.
+          // Apply the native guard to both direct-owner and root state without
+          // copying or inventing workflow receipts in the child's directory.
+          for (const owner of new Set([job.owner, this.#root])) {
+            this.#checkOwner(owner, job.controller.signal);
+            await assertWorkflowMutationAllowed({
+              cwd: owner.manager.getCwd(), sessionId: owner.id, tool, args: event.input,
+            });
+            if (event.toolName === 'ask') {
+              const diagnostic = await isUltragoalAskBlocked(owner.manager.getCwd(), { sessionId: owner.id });
+              if (diagnostic.active) {
+                const nudge = await consumeUltragoalAskNudge(owner.manager.getCwd(), owner.id, owner.session().settings.getAgentDir());
+                return { block: true, reason: nudge.nudged ? nudge.message : formatUltragoalAskBlockMessage(diagnostic) };
+              }
+            }
+          }
         });
       };
       const childOwner: Owner = { id: manager.getSessionId(), manager, depth: job.owner.depth + 1, session: () => job.session! };
@@ -346,6 +399,8 @@ export class GjcDelegationExecutor {
       ];
       const output = await (this.options.createSession ?? createAgentSession)({
         ...base, cwd: parent.sessionManager.getCwd(), sessionManager: manager, settings,
+        agentDir: base.agentDir ?? parent.settings.getAgentDir(),
+        agentId: job.receipt.id, agentDisplayName: job.receipt.agent,
         model, thinkingLevel, modelPattern: undefined, activeModelProfile: undefined,
         providerSessionId: undefined, credentialSessionId: undefined,
         credentialSelector: selector ? { provider: model.provider, selector, raw: `${selector.kind}:${selector.value}` } : undefined,
@@ -359,6 +414,7 @@ export class GjcDelegationExecutor {
         forkContextSeed: undefined, providerSessionState: undefined,
         systemPrompt: (defaults) => [...(typeof base.systemPrompt === 'function' ? base.systemPrompt(defaults) : base.systemPrompt ?? defaults),
           `You are a delegated ${job.receipt.agent}. Your owner supplied the assignment below. Stay within its scope. Return findings and evidence.`,
+          `App delegation id: ${job.receipt.id}. Direct owner session_id: ${job.receipt.owner}. Root session_id: ${job.receipt.root}. Repository binding: ${JSON.stringify(job.receipt.repositoryBinding)}. For workflow writes use the assignment's explicit owner session_id and run_id; do not substitute your child session id.`,
           prompt.render(role.systemPrompt, { ultragoalRedTeam: job.receipt.executionMode === 'ultragoal-red-team' }),
           'Use only the supplied tools. Return final text directly; yield and IRC are unavailable. Goal lifecycle remains owned by the root app session.'],
       });

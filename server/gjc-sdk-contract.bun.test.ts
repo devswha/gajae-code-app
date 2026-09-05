@@ -269,16 +269,25 @@ async function fixture(
     authStorage,
     getAll: () => models,
     getAvailable: () => models,
-    getCanonicalId: (model: typeof models[number]) => model.id,
-    getCanonicalModelSelections: (query: { candidates?: typeof models } = {}) =>
-      (query.candidates ?? models).map((model) => ({
+    getCanonicalId: (model: typeof models[number]): string | undefined => model.id,
+    getCanonicalModelSelections: (query: { candidates?: typeof models } = {}) => {
+      // The SDK selects one concrete provider per canonical record. Returning
+      // every candidate here hid the catalog's original variant collapse.
+      const groups = new Map<string, typeof models>();
+      for (const model of query.candidates ?? models) {
+        const variants = groups.get(model.id) ?? [];
+        variants.push(model);
+        groups.set(model.id, variants);
+      }
+      return [...groups].map(([id, variants]) => ({
         record: {
-          id: model.id,
-          name: 'name' in model && typeof model.name === 'string' ? model.name : model.id,
-          variants: [{ canonicalId: model.id, selector: `${model.provider}/${model.id}`, model, source: 'bundled' }],
+          id,
+          name: 'name' in variants[0] && typeof variants[0].name === 'string' ? variants[0].name : id,
+          variants: variants.map((model) => ({ canonicalId: id, selector: `${model.provider}/${model.id}`, model, source: 'bundled' })),
         },
-        model,
-      })),
+        model: variants[0],
+      }));
+    },
     getModelProfile: (name: string) => name === 'contract-profile' ? {
       name,
       requiredProviders: ['contract-provider'],
@@ -729,6 +738,123 @@ test('model catalog preserves credentialed provider-qualified models with the sa
     ]);
   } finally {
     await f.close();
+  }
+});
+
+test('model catalog deduplicates qualified IDs and preserves aliases and uncanonicalized models', async () => {
+  const primary = { id: 'gpt-6-astra', name: 'Astra', provider: 'openai-codex' };
+  const alias = { id: 'gpt-6-astra-xhigh', name: 'Astra xhigh', provider: 'openai-codex' };
+  const custom = { id: 'openai/gpt-6-astra', provider: 'custom' };
+  const f = await fixture('openai-codex/gpt-6-astra', undefined, [primary, alias, { ...primary }, custom]);
+  try {
+    f.authStorage.credentials.push({ id: 9, provider: 'openai-codex' }, { id: 4, provider: 'openai-codex' });
+    f.authStorage.resolvableProviders.add('custom');
+    f.modelRegistry.getCanonicalId = (model) => model.provider === 'custom' ? undefined : 'gpt-6-astra';
+
+    const first = await f.adapter.modelCatalog();
+    assert.deepEqual(first.models, [
+      { value: 'openai-codex/gpt-6-astra', label: 'Astra', group: 'openai-codex', canonicalId: 'gpt-6-astra', effort: { values: [] } },
+      { value: 'openai-codex/gpt-6-astra-xhigh', label: 'Astra xhigh', group: 'openai-codex', canonicalId: 'gpt-6-astra', effort: { default: 'xhigh', values: [] } },
+      { value: 'custom/openai/gpt-6-astra', label: 'openai/gpt-6-astra', group: 'custom', effort: { values: [] } },
+    ]);
+    assert.deepEqual(await f.adapter.modelCatalog(), first);
+
+    // Registry order and credential order must not change a model's ID or
+    // metadata, even when the same canonical model has several selectors.
+    f.modelRegistry.getAvailable = () => [custom, { ...primary }, alias, primary];
+    f.authStorage.credentials.reverse();
+    const reordered = await f.adapter.modelCatalog();
+    const byValue = (a: { value: string }, b: { value: string }) => a.value.localeCompare(b.value);
+    assert.deepEqual([...reordered.models].sort(byValue), [...first.models].sort(byValue));
+  } finally {
+    await f.close();
+  }
+});
+
+test('model catalog honors registry availability and credential changes independently for each provider', async () => {
+  const codex = { id: 'gpt-6-astra', provider: 'openai-codex' };
+  const proxy = { id: 'gpt-6-astra', provider: 'cliproxy' };
+  const disabled = { id: 'gpt-6-astra', provider: 'disabled-provider' };
+  const f = await fixture('openai-codex/gpt-6-astra', undefined, [codex, proxy, disabled]);
+  try {
+    f.authStorage.credentials.push({ id: 4, provider: 'openai-codex' }, { id: 5, provider: 'disabled-provider' });
+    f.authStorage.resolvableProviders.add('cliproxy');
+    f.modelRegistry.getAvailable = () => [codex, proxy];
+    assert.deepEqual((await f.adapter.modelCatalog()).models.map((model) => model.value), [
+      'openai-codex/gpt-6-astra', 'cliproxy/gpt-6-astra',
+    ]);
+
+    f.authStorage.credentials = [];
+    assert.deepEqual((await f.adapter.modelCatalog()).models.map((model) => model.value), ['cliproxy/gpt-6-astra']);
+    f.authStorage.resolvableProviders.clear();
+    assert.deepEqual((await f.adapter.modelCatalog()).models, []);
+  } finally {
+    await f.close();
+  }
+});
+
+test('provider-qualified catalog choices and the default select the matching stored credential', async (t) => {
+  const cases = [
+    { name: 'explicit proxy', modelId: 'cliproxy/gpt-6-astra', credential: { kind: 'stored' }, provider: 'cliproxy', credentialId: 1 },
+    { name: 'explicit codex', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored' }, provider: 'openai-codex', credentialId: 4 },
+    { name: 'pinned codex credential', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored', providerId: 'openai-codex', credentialId: 9 }, provider: 'openai-codex', credentialId: 9 },
+    { name: 'configured default', modelId: 'default', credential: { kind: 'stored' }, provider: 'openai-codex', credentialId: 4 },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const f = await fixture('openai-codex/gpt-6-astra:xhigh', undefined, [
+        { id: 'gpt-6-astra', provider: 'cliproxy' },
+        { id: 'gpt-6-astra', provider: 'openai-codex' },
+      ]);
+      try {
+        f.authStorage.credentials.push({ id: 9, provider: 'openai-codex' }, { id: 1, provider: 'cliproxy' }, { id: 4, provider: 'openai-codex' });
+        const run = f.host.handle(request('session.start', 'variant-credential', {
+          message: 'hello',
+          options: { ...f.options, modelId: scenario.modelId, credential: scenario.credential, effort: 'xhigh' },
+        }));
+        const session = await firstSession(f.sessions);
+        session.complete();
+        await run;
+        assert.deepEqual(f.factoryOptions[0]!.model, { id: 'gpt-6-astra', provider: scenario.provider });
+        assert.deepEqual(f.factoryOptions[0]!.credentialSelector, {
+          provider: scenario.provider,
+          selector: { kind: 'id', value: String(scenario.credentialId) },
+          raw: `id:${scenario.credentialId}`,
+        });
+        const payload = response(f.frames, 'variant-credential').payload as { ok: boolean; result: { credential: unknown } };
+        assert.equal(payload.ok, true);
+        assert.deepEqual(payload.result.credential, { kind: 'stored', providerId: scenario.provider, credentialId: scenario.credentialId });
+      } finally {
+        await f.close();
+      }
+    });
+  }
+});
+
+test('same-name provider variants reject ambiguous bare IDs and mismatched credential pins', async (t) => {
+  const cases = [
+    { name: 'ambiguous bare ID', modelId: 'gpt-6-astra', credential: { kind: 'stored' } },
+    { name: 'mismatched provider', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored', providerId: 'cliproxy' } },
+    { name: 'other provider credential ID', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored', credentialId: 1 } },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const f = await fixture('openai-codex/gpt-6-astra', undefined, [
+        { id: 'gpt-6-astra', provider: 'cliproxy' },
+        { id: 'gpt-6-astra', provider: 'openai-codex' },
+      ]);
+      try {
+        f.authStorage.credentials.push({ id: 1, provider: 'cliproxy' }, { id: 4, provider: 'openai-codex' });
+        await f.host.handle(request('session.start', 'invalid-variant', {
+          message: 'hello',
+          options: { ...f.options, modelId: scenario.modelId, credential: scenario.credential, effort: 'xhigh' },
+        }));
+        assert.equal((response(f.frames, 'invalid-variant').payload as { ok: boolean }).ok, false);
+        assert.equal(f.factoryOptions.length, 0);
+      } finally {
+        await f.close();
+      }
+    });
   }
 });
 

@@ -27,19 +27,19 @@ standard text of the named license.
 
 | Package | Version | License | Copyright holder |
 | --- | --- | --- | --- |
-| `@bufbuild/protobuf` | 2.14.0 | (Apache-2.0 AND BSD-3-Clause) | (not stated) |
-| `@gajae-code/agent-core` | 0.15.6 | MIT | Yeachan-Heo and Gajae Code Contributors |
-| `@gajae-code/ai` | 0.15.6 | MIT | Yeachan-Heo and Gajae Code Contributors |
-| `@gajae-code/coding-agent` | 0.15.6 | MIT | Yeachan-Heo and Gajae Code Contributors |
-| `@gajae-code/natives` | 0.15.6 | MIT | Yeachan-Heo |
-| `@gajae-code/natives-darwin-arm64` | 0.15.6 | MIT | Yeachan-Heo |
-| `@gajae-code/natives-darwin-x64` | 0.15.6 | MIT | Yeachan-Heo |
-| `@gajae-code/natives-linux-arm64` | 0.15.6 | MIT | Yeachan-Heo |
-| `@gajae-code/natives-linux-x64` | 0.15.6 | MIT | Yeachan-Heo |
-| `@gajae-code/natives-win32-x64` | 0.15.6 | MIT | Yeachan-Heo |
-| `@gajae-code/stats` | 0.15.6 | MIT | Yeachan-Heo |
-| `@gajae-code/tui` | 0.15.6 | MIT | Yeachan-Heo and Gajae Code Contributors |
-| `@gajae-code/utils` | 0.15.6 | MIT | Yeachan-Heo |
+| `@bufbuild/protobuf` | 2.14.1 | (Apache-2.0 AND BSD-3-Clause) | (not stated) |
+| `@gajae-code/agent-core` | 0.16.4 | MIT | Yeachan-Heo and Gajae Code Contributors |
+| `@gajae-code/ai` | 0.16.4 | MIT | Yeachan-Heo and Gajae Code Contributors |
+| `@gajae-code/coding-agent` | 0.16.4 | MIT | Yeachan-Heo and Gajae Code Contributors |
+| `@gajae-code/natives` | 0.16.4 | MIT | Yeachan-Heo |
+| `@gajae-code/natives-darwin-arm64` | 0.16.4 | MIT | Yeachan-Heo |
+| `@gajae-code/natives-darwin-x64` | 0.16.4 | MIT | Yeachan-Heo |
+| `@gajae-code/natives-linux-arm64` | 0.16.4 | MIT | Yeachan-Heo |
+| `@gajae-code/natives-linux-x64` | 0.16.4 | MIT | Yeachan-Heo |
+| `@gajae-code/natives-win32-x64` | 0.16.4 | MIT | Yeachan-Heo |
+| `@gajae-code/stats` | 0.16.4 | MIT | Yeachan-Heo |
+| `@gajae-code/tui` | 0.16.4 | MIT | Yeachan-Heo and Gajae Code Contributors |
+| `@gajae-code/utils` | 0.16.4 | MIT | Yeachan-Heo |
 | `@nodable/entities` | 3.0.0 | MIT | Amit Gupta (https://solothought.com) |
 | `@puppeteer/browsers` | 2.13.2 | Apache-2.0 | The Chromium Authors |
 | `@tokenizer/token` | 0.3.0 | MIT | Borewit |
@@ -440,7 +440,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### @bufbuild/protobuf 2.14.0
+### @bufbuild/protobuf 2.14.1
 
 License: (Apache-2.0 AND BSD-3-Clause)
 Homepage: https://protobufes.com/
@@ -512,7 +512,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### @gajae-code/agent-core 0.15.6
+### @gajae-code/agent-core 0.16.4
 
 License: MIT
 Copyright holder: Yeachan-Heo and Gajae Code Contributors
@@ -521,7 +521,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/ai 0.15.6
+### @gajae-code/ai 0.16.4
 
 License: MIT
 Copyright holder: Yeachan-Heo and Gajae Code Contributors
@@ -530,7 +530,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/coding-agent 0.15.6
+### @gajae-code/coding-agent 0.16.4
 
 License: MIT
 Copyright holder: Yeachan-Heo and Gajae Code Contributors
@@ -539,7 +539,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/natives 0.15.6
+### @gajae-code/natives 0.16.4
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -548,7 +548,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/natives-darwin-arm64 0.15.6
+### @gajae-code/natives-darwin-arm64 0.16.4
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -557,7 +557,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/natives-darwin-x64 0.15.6
+### @gajae-code/natives-darwin-x64 0.16.4
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -566,7 +566,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/natives-linux-arm64 0.15.6
+### @gajae-code/natives-linux-arm64 0.16.4
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -575,7 +575,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/natives-linux-x64 0.15.6
+### @gajae-code/natives-linux-x64 0.16.4
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -584,7 +584,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/natives-win32-x64 0.15.6
+### @gajae-code/natives-win32-x64 0.16.4
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -593,7 +593,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/stats 0.15.6
+### @gajae-code/stats 0.16.4
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -602,7 +602,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/tui 0.15.6
+### @gajae-code/tui 0.16.4
 
 License: MIT
 Copyright holder: Yeachan-Heo and Gajae Code Contributors
@@ -611,7 +611,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/utils 0.15.6
+### @gajae-code/utils 0.16.4
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -15300,7 +15300,7 @@ will be liable to anyone for any damages related to this
 software or this license, under any kind of legal claim.***
 ```
 
-### lucide-react 1.37.0
+### lucide-react 1.41.0
 
 License: ISC
 Copyright holder: Eric Fennis

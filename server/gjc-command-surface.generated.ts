@@ -37,6 +37,8 @@ export const GJC_APP_BUILTIN_COMMANDS: readonly GjcAppCommand[] = [
   { name: "compact", description: "Compact the conversation", inputHint: "[focus instructions]" },
   { name: "handoff", description: "Generate a handoff document and start a new session", inputHint: "[focus instructions]" },
   { name: "contribute-pr", description: "Dump redacted session context and spawn a fresh contribute-pr worker", inputHint: "[focus instructions]" },
+  { name: "star", description: "Star the current session for easier discovery" },
+  { name: "unstar", description: "Remove the star from the current session" },
   { name: "memory", description: "Manage memory", inputHint: "<subcommand>" },
   { name: "rename", description: "Rename the current session", inputHint: "<title>" },
   { name: "login", description: "Login with OAuth provider", inputHint: "[provider|redirect URL]" },

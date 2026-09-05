@@ -66,6 +66,7 @@
     "server/gjc-engine-manifest.json": "This file. It describes the split for both repositories and belongs to neither exclusively.",
     "server/gjc-engine-manifest.test.ts": "Keeps this manifest honest against the tree. It describes the split rather than either side of it.",
     "server/gjc-live-session-root.test.ts": "Asserts where the application looks for live session transcripts, not how the engine writes them.",
+    "server/gjc-transcript-turns.contract.bun.test.ts": "Checks the application's turn normalization against records written by the pinned SDK; its provider imports remain with the application.",
     "server/gjc-worker-client.test.ts": "Covers the application-side client above.",
     "server/gjc-worker-protocol-spec.test.ts": "Checks the published protocol specification against the codec. Travels with whichever repository publishes the specification; listed here so the choice is deliberate."
   }

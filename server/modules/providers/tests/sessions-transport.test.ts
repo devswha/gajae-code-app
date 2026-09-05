@@ -174,6 +174,28 @@ test('transport bounds details folded into a tool_use as well as standalone ones
   assert.equal(prepared.toolResultTruncated, undefined);
 });
 
+test('truncating folded text does not restore rejected details', () => {
+  const output = 'x'.repeat(256 * 1024);
+  const cyclic: Record<string, unknown> = {};
+  cyclic.self = cyclic;
+  for (const details of [{ displayContent: { text: output } }, cyclic]) {
+    const message = baseMessage({
+      kind: 'tool_use',
+      toolName: 'read',
+      toolResult: { content: output, isError: false, toolUseResult: details },
+    });
+
+    const [prepared] = prepareHistoryMessagesForTransport([message]);
+
+    assert.equal(prepared.toolResultTruncated, true);
+    assert.equal(prepared.toolDetailsOmitted, true);
+    assert.equal(prepared.toolResult?.toolUseResult, undefined);
+    assert.ok(prepared.toolResult!.content!.length < output.length);
+    assert.doesNotThrow(() => JSON.stringify(prepared));
+    assert.equal(message.toolResult?.toolUseResult, details, 'the source result remains intact');
+  }
+});
+
 /*
  * The on-demand endpoint is the third shape, and it is the one that hurts:
  * it exists to serve the full text a preview cut, so an uncapped details

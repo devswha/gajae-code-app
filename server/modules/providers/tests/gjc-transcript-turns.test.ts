@@ -51,6 +51,36 @@ test('a second rooted user record begins a second turn', () => {
   assert.equal(turns.get('a2')?.turnId, 'u2');
 });
 
+test('a prompt following a terminal assistant begins a separate turn', () => {
+  for (const reason of ['stop', 'error', 'aborted']) {
+    const turns = assignTranscriptTurns([
+      user('u1'),
+      assistant('a1', 'u1', reason),
+      user('u2', 'a1'),
+      assistant('a2', 'u2', 'toolUse'),
+    ]);
+
+    assert.equal(turns.get('u2')?.turnId, 'u2', reason);
+    assert.equal(turns.get('a2')?.turnId, 'u2', reason);
+    assert.equal(turns.get('u2')?.status, 'running', reason);
+    assert.notEqual(turns.get('u1')?.status, 'running', reason);
+  }
+});
+
+test('control entries before steering do not split a running turn', () => {
+  const turns = assignTranscriptTurns([
+    user('u1'),
+    assistant('a1', 'u1', 'toolUse'),
+    { id: 'compact', parentId: 'a1' },
+    { id: 'model', parentId: 'compact' },
+    user('steer', 'model'),
+    assistant('a2', 'steer', 'stop'),
+  ]);
+
+  assert.equal(turns.get('steer')?.turnId, 'u1');
+  assert.equal(turns.get('a2')?.turnId, 'u1');
+});
+
 test('a turn is running until an assistant record settles it', () => {
   const turns = assignTranscriptTurns([
     user('u1'),

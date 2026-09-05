@@ -7,10 +7,9 @@
  * flat order counts every one of them as a new turn - splitting one turn's
  * changed-file card into several and anchoring revert to the wrong message.
  *
- * The transcript already carries the answer. Every record has a `parentId`, so
- * it is a lineage rather than a list, and the distinction is visible: a `user`
- * record that *roots* a segment began a turn, while a `user` record whose
- * parent is another message was injected into a turn already running.
+ * Every record has a `parentId`, so this follows lineage rather than flat file
+ * order. A user message begins a turn at a segment root or after a terminal
+ * assistant; a user message following work still in progress is a steer.
  *
  * How the turn ended is in the transcript too, on the assistant records:
  * `stopReason` is `toolUse` while the turn is still working, and `stop`,
@@ -69,19 +68,35 @@ export function assignTranscriptTurns(
   const byId = new Map<string, TranscriptTurnRecord>();
   for (const record of records) byId.set(record.id, record);
 
-  /**
-   * A `user` record begins a turn unless it was injected into one already
-   * running - which is exactly when its parent is another *message*.
-   *
-   * The parent being a non-message record does not make it mid-turn: resuming
-   * after a compaction, or after a model change, begins a turn like any other
-   * prompt.
-   */
+  // SDK appendMessage links every message to the current leaf, including the
+  // next prompt after a completed answer. Control entries can also sit before
+  // either a new prompt or a steer, so look through them to the last message.
+  const nearestMessages = new Map<string, TranscriptTurnRecord | undefined>();
+  const messageAtOrBefore = (id: string): TranscriptTurnRecord | undefined => {
+    let current = byId.get(id);
+    const seen = new Set<string>();
+    let message: TranscriptTurnRecord | undefined;
+    while (current && !seen.has(current.id)) {
+      if (current.role) {
+        message = current;
+        break;
+      }
+      if (nearestMessages.has(current.id)) {
+        message = nearestMessages.get(current.id);
+        break;
+      }
+      seen.add(current.id);
+      current = current.parentId ? byId.get(current.parentId) : undefined;
+    }
+    for (const entryId of seen) nearestMessages.set(entryId, message);
+    return message;
+  };
+
   const beginsTurn = (record: TranscriptTurnRecord): boolean => {
     if (record.role !== 'user') return false;
     if (!record.parentId) return true;
-    const parent = byId.get(record.parentId);
-    return !parent || !parent.role;
+    const parent = messageAtOrBefore(record.parentId);
+    return !parent || (parent.role === 'assistant' && TERMINAL_STOP_REASONS.has(parent.stopReason ?? ''));
   };
 
   // Walk each record up its lineage to the turn it belongs to, memoising as we
@@ -89,13 +104,13 @@ export function assignTranscriptTurns(
   const turnOf = new Map<string, string | undefined>();
   const resolve = (record: TranscriptTurnRecord): string | undefined => {
     const seen: TranscriptTurnRecord[] = [];
+    const seenIds = new Set<string>();
     let current: TranscriptTurnRecord | undefined = record;
     let turnId: string | undefined;
 
     while (current) {
-      const memo = turnOf.get(current.id);
-      if (memo !== undefined) {
-        turnId = memo;
+      if (turnOf.has(current.id)) {
+        turnId = turnOf.get(current.id);
         break;
       }
       if (beginsTurn(current)) {
@@ -103,10 +118,11 @@ export function assignTranscriptTurns(
         break;
       }
       seen.push(current);
+      seenIds.add(current.id);
       const parentId: string | undefined = current.parentId ?? undefined;
       // A cycle would hang this loop; a transcript should not contain one, and
       // stopping is better than not returning.
-      current = parentId && !seen.some((entry) => entry.id === parentId) ? byId.get(parentId) : undefined;
+      current = parentId && !seenIds.has(parentId) ? byId.get(parentId) : undefined;
     }
 
     for (const entry of seen) turnOf.set(entry.id, turnId);

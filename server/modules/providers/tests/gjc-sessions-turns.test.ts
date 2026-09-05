@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -46,7 +46,7 @@ function transcriptLines(workspacePath: string): string[] {
   ].map((entry) => JSON.stringify(entry));
 }
 
-async function withFixture(run: (provider: GjcSessionsProvider) => Promise<void>): Promise<void> {
+async function withFixture(run: (provider: GjcSessionsProvider, transcriptPath: string) => Promise<void>): Promise<void> {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'gjc-turns-'));
   const workspacePath = path.join(tempRoot, 'workspace');
   const sessionsDir = path.join(tempRoot, '.gjc', 'agent', 'sessions', '-workspace');
@@ -63,7 +63,7 @@ async function withFixture(run: (provider: GjcSessionsProvider) => Promise<void>
 
   try {
     sessionsDb.createSession(SESSION_ID, 'gjc', workspacePath, undefined, undefined, undefined, transcriptPath);
-    await run(new GjcSessionsProvider());
+    await run(new GjcSessionsProvider(), transcriptPath);
   } finally {
     closeConnection();
     if (previousDatabasePath === undefined) delete process.env.DATABASE_PATH;
@@ -103,5 +103,42 @@ test('the turn reports how it ended, on every one of its messages', { concurrenc
         `${message.id} in turn ${message.turnId} should report ${expected}`,
       );
     }
+  });
+});
+
+test('history survives valid JSON values that are not transcript records', { concurrency: false }, async () => {
+  await withFixture(async (provider, transcriptPath) => {
+    await appendFile(transcriptPath, 'null\n[]\n123\n"text"\n{broken\n');
+    const history = await provider.fetchHistory(SESSION_ID);
+
+    assert.ok(history.messages.length > 0, 'one malformed record must not discard the entire conversation');
+    assert.equal(history.messages[0]?.content, 'first prompt');
+    assert.equal(history.messages.at(-1)?.content, 'done');
+    assert.equal(history.messages.at(-1)?.turnId, 'u2');
+  });
+});
+
+test('a resumed edit turn keeps its own identity and structured result on reload', { concurrency: false }, async () => {
+  await withFixture(async (provider, transcriptPath) => {
+    const details = { files: [{ path: 'second.ts', op: 'update', diff: '-1|old\n+1|new' }] };
+    const records = [
+      { type: 'message', id: 'u3', parentId: 'a3', message: { role: 'user', content: 'edit the second file' } },
+      { type: 'message', id: 'a4', parentId: 'u3', message: { role: 'assistant', stopReason: 'toolUse', content: [
+        { type: 'toolCall', id: 'edit-2', name: 'apply_patch', arguments: { patch: 'patch envelope' } },
+      ] } },
+      { type: 'message', id: 't2', parentId: 'a4', message: { role: 'toolResult', toolCallId: 'edit-2',
+        content: [{ type: 'text', text: 'Updated second.ts' }], details } },
+      { type: 'message', id: 'a5', parentId: 't2', message: { role: 'assistant', stopReason: 'stop', content: 'edited' } },
+    ];
+    await appendFile(transcriptPath, `${records.map((entry, index) => JSON.stringify({
+      ...entry, timestamp: `2026-07-09T00:00:${10 + index}.000Z`,
+    })).join('\n')}\n`);
+    const history = await provider.fetchHistory(SESSION_ID);
+    const edit = history.messages.find((message) => message.toolId === 'edit-2');
+
+    assert.equal(edit?.turnId, 'u3');
+    assert.equal(edit?.turnStatus, 'completed');
+    assert.deepEqual(edit?.toolResult?.toolUseResult, details);
+    assert.equal(history.messages.find((message) => message.content === 'second prompt')?.turnId, 'u2');
   });
 });

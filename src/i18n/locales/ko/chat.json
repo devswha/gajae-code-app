@@ -84,7 +84,8 @@
       "moveDown": "큐 하단으로 이동",
       "images_one": "{{count}} 개의 이미지 추가됨",
       "images_other": "{{count}} 개의 이미지 추가됨",
-      "steerNow": "현재 턴을 조종"
+      "steerNow": "현재 턴을 조종",
+      "awaitingSteer": "조종 요청 확인 대기 중"
     },
     "skills": {
       "label": "스킬 선택",

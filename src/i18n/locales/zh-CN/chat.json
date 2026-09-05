@@ -78,6 +78,7 @@
       "label": "已加入队列",
       "willSend": "当前运行结束后发送",
       "willFollow": "在上面的消息之后发送",
+      "awaitingSteer": "等待引导指令确认",
       "edit": "编辑队列项",
       "delete": "移除队列项",
       "moveUp": "在队列中上移",

@@ -308,6 +308,7 @@ export default function ChatComposer({
           key={`${index}:${draft.content}`}
           content={draft.content}
           imageCount={draft.images.length}
+          pendingSteer={draft.pendingSteer}
           position={index + 1}
           total={queuedDrafts.length}
           onEdit={() => onEditQueuedDraft(index)}

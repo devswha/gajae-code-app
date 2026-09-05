@@ -229,8 +229,8 @@ test('native core reports transcripts a directory already held when it appeared'
 test('native core relays bytes and child diagnostics without a shell', async () => {
   const script = [
     "process.stdin.on('data', (chunk) => process.stdout.write(chunk));",
-    // Windows pipe writes are asynchronous. Let both streams drain before
-    // exiting, otherwise the fixture itself can truncate a correct relay.
+    // Let both streams drain before exiting; an immediate process.exit can
+    // make the fixture truncate an otherwise correct relay.
     "process.stdin.on('end', () => { process.stderr.write('child diagnostic\\n'); process.exitCode = 7; });",
   ].join('');
   const unicode = Buffer.from('한글\n'.repeat(32 * 1024));
@@ -501,7 +501,7 @@ test('native git manages worktrees under paths with spaces and Unicode', async (
   }
 });
 
-test('native PTY relays bounded input, resize, output, and shutdown lifecycle', async () => {
+test('native PTY relays bounded input, resize, output, and shutdown lifecycle', { timeout: 50_000 }, async () => {
   const temporaryRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), 'gajae core pty 한글 ')));
   const cwdMarker = `native-cwd:${JSON.stringify(temporaryRoot)}`;
   const child = spawn(corePath, [
@@ -514,18 +514,26 @@ test('native PTY relays bounded input, resize, output, and shutdown lifecycle', 
       "console.log('native-cwd:' + JSON.stringify(process.cwd()));",
       "process.stdout.write('native-child-echo:' + chunk);",
       '});',
+      "process.stdout.write('native-child-ready\\n');",
     ].join(''),
   ], {
     cwd: temporaryRoot,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
-  const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
+  let processClosed = false;
+  const closed = new Promise<void>((resolve) => child.once('close', () => {
+    processClosed = true;
+    resolve();
+  }));
   const frames: Array<Record<string, unknown>> = [];
   let buffered = '';
   let output = '';
   const decoder = new StringDecoder('utf8');
   let diagnostics = '';
+  let inputSent = false;
   let shutdownSent = false;
+  let answeredCursorQueries = 0;
+  let phase = 'host readiness';
   child.stdout.setEncoding('utf8');
   child.stderr.setEncoding('utf8');
   child.stderr.on('data', (chunk: string) => {
@@ -533,54 +541,92 @@ test('native PTY relays bounded input, resize, output, and shutdown lifecycle', 
   });
 
   const completed = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      reject(new Error('native PTY test timed out'));
-    }, 5_000);
+    let timer: NodeJS.Timeout;
+    let failed = false;
+    const fail = (reason: unknown) => {
+      if (failed) return;
+      failed = true;
+      clearTimeout(timer);
+      reject(new Error(`native PTY ${phase} failed: ${String(reason)}; ${JSON.stringify({
+        output, diagnostics, buffered, frames: frames.map((frame) => frame.kind),
+      })}`));
+    };
+    const awaitPhase = (next: string) => {
+      phase = next;
+      clearTimeout(timer);
+      timer = setTimeout(() => fail('timed out after 10s'), 10_000);
+    };
+    const send = (request: Record<string, unknown>) => {
+      child.stdin.write(`${JSON.stringify({ protocolVersion: 1, ...request })}\n`);
+    };
+    awaitPhase('host readiness');
     child.stdout.on('data', (chunk: string) => {
+      if (failed) return;
       buffered += chunk;
-      while (buffered.includes('\n')) {
-        const newline = buffered.indexOf('\n');
-        const line = buffered.slice(0, newline);
-        buffered = buffered.slice(newline + 1);
-        const frame = JSON.parse(line) as Record<string, unknown>;
-        frames.push(frame);
-        if (frame.kind === 'ready') {
-          child.stdin.write(`${JSON.stringify({
-            protocolVersion: 1,
-            method: 'pty.resize',
-            cols: 1000,
-            rows: 30,
-          })}\n`);
-          child.stdin.write(`${JSON.stringify({
-            protocolVersion: 1,
-            method: 'pty.write',
-            data: Buffer.from('native-pty-token\r').toString('base64'),
-          })}\n`);
-        }
-        if (frame.kind === 'output' && typeof frame.data === 'string') {
-          output += decoder.write(Buffer.from(frame.data, 'base64'));
-          if (output.includes('native-child-echo:native-pty-token') && output.includes(cwdMarker) && !shutdownSent) {
-            shutdownSent = true;
-            child.stdin.write(`${JSON.stringify({
-              protocolVersion: 1,
-              method: 'pty.shutdown',
-            })}\n`);
-            child.stdin.end();
+      try {
+        while (buffered.includes('\n')) {
+          const newline = buffered.indexOf('\n');
+          const line = buffered.slice(0, newline);
+          buffered = buffered.slice(newline + 1);
+          const frame = JSON.parse(line) as Record<string, unknown>;
+          frames.push(frame);
+          if (frame.kind === 'ready') {
+            awaitPhase('child readiness');
+          }
+          if (frame.kind === 'output' && typeof frame.data === 'string') {
+            output += decoder.write(Buffer.from(frame.data, 'base64'));
+            // ConPTY inherits the cursor position. Answer CSI 6 n before resize,
+            // which can block until that response arrives. Count over accumulated
+            // output so a query split across frames is answered exactly once.
+            const queries = output.match(/\x1b\[6n/gu)?.length ?? 0;
+            while (answeredCursorQueries < queries && !shutdownSent) {
+              answeredCursorQueries += 1;
+              send({ method: 'pty.write', data: Buffer.from('\x1b[1;1R').toString('base64') });
+            }
+            if (!inputSent && output.includes('native-child-ready')) {
+              inputSent = true;
+              awaitPhase('input echo');
+              send({ method: 'pty.resize', cols: 1000, rows: 30 });
+              send({ method: 'pty.write', data: Buffer.from('native-pty-token\r').toString('base64') });
+            }
+            if (output.includes('native-child-echo:native-pty-token') && output.includes(cwdMarker) && !shutdownSent) {
+              shutdownSent = true;
+              awaitPhase('shutdown');
+              send({ method: 'pty.shutdown' });
+              child.stdin.end();
+            }
           }
         }
-      }
+      } catch (error) { fail(error); }
     });
-    child.once('error', (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
+    child.once('error', fail);
+    child.stdin.on('error', fail);
     child.once('close', (code, signal) => {
       clearTimeout(timer);
       resolve({ code, signal });
     });
   });
 
+  const cleanup = async () => {
+    let forceStop: NodeJS.Timeout | undefined;
+    let cleanupTimeout: NodeJS.Timeout | undefined;
+    try {
+      if (!processClosed) {
+        // EOF lets the core terminate/reap its PTY child before removing the
+        // temporary cwd. Keep a bounded force-stop fallback for a broken core.
+        child.stdin.end();
+        forceStop = setTimeout(() => child.kill('SIGKILL'), 2_000);
+        await Promise.race([closed, new Promise<never>((_, reject) => {
+          cleanupTimeout = setTimeout(() => reject(new Error('native PTY cleanup timed out')), 5_000);
+        })]);
+      }
+      await rm(temporaryRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } finally {
+      clearTimeout(forceStop);
+      clearTimeout(cleanupTimeout);
+    }
+  };
+  let testFailed = false;
   try {
     const exit = await completed;
     assert.deepEqual(exit, { code: 0, signal: null });
@@ -588,11 +634,17 @@ test('native PTY relays bounded input, resize, output, and shutdown lifecycle', 
     assert.equal(frames[0]?.kind, 'ready');
     assert.ok(frames.some((frame) => frame.kind === 'output'));
     assert.ok(frames.some((frame) => frame.kind === 'exit'));
+    assert.ok(inputSent, 'input must follow the child readiness marker');
+    assert.ok(shutdownSent, 'the test must request shutdown after the child echo');
     assert.ok(output.includes(cwdMarker));
     assert.match(output, /native-child-echo:native-pty-token/u);
+  } catch (error) {
+    testFailed = true;
+    throw error;
   } finally {
-    child.kill('SIGKILL');
-    await closed;
-    await rm(temporaryRoot, { recursive: true, force: true });
+    await cleanup().catch((error) => {
+      if (!testFailed) throw error;
+      console.error('native PTY cleanup also failed:', error);
+    });
   }
 });

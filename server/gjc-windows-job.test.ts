@@ -10,6 +10,7 @@ import {
   GJC_WINDOWS_JOB_GUARD_ACK,
   GJC_WINDOWS_JOB_GUARD_READY,
   quoteWindowsArgument,
+  windowsCodeDomCompileScript,
 } from './gjc-windows-job.js';
 
 test('quotes Windows argv values without losing quotes or trailing slashes', () => {
@@ -21,6 +22,21 @@ test('quotes Windows argv values without losing quotes or trailing slashes', () 
     quoteWindowsArgument('C:\\path with space\\'),
     '"C:\\path with space\\\\"',
   );
+});
+
+test('CodeDom compilation uses explicit private temp files with the original elevated protections', () => {
+  const script = windowsCodeDomCompileScript('public class PrivateCompilerFixture {}');
+  assert.match(script, /\[IO.Directory\]::CreateDirectory\(\$compilerTemp, \$compilerSecurity\)/);
+  assert.match(script, /D:\(D;OI;SD;;;/);
+  assert.match(script, /\(A;OICI;FA;;;BA\)S:\(ML;OI;NW;;;HI\)/);
+  assert.match(script, /GenerateInMemory = \$true/);
+  assert.match(script, /'System.dll', 'System.Core.dll'/);
+  assert.match(script, /TempFileCollection\]::new\(\$compilerTemp, \$false\)/);
+  assert.match(script, /Add-Type -CompilerParameters \$compilerParameters/);
+  assert.doesNotMatch(script, /DisableTempFileCollectionDirectoryFeature|SetSwitch|junction|ShortPath/i);
+  assert.ok(script.indexOf('SetSecurityDescriptorSddlForm($compilerSddl)') < script.indexOf('[IO.Directory]::CreateDirectory'));
+  assert.ok(script.indexOf('[IO.Directory]::SetAccessControl') < script.indexOf('$compilerParameters.TempFiles.Delete()'));
+  assert.ok(script.indexOf('$compilerParameters.TempFiles.Delete()') < script.indexOf('[IO.Directory]::Delete'));
 });
 
 test('builds a guard that atomically creates the worker inside a Windows job', () => {

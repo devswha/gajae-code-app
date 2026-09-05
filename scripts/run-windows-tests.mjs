@@ -4,6 +4,10 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const options = process.argv.slice(2);
+if (options.length > 1 || options.some(option => !['--server-only', '--scripts-only'].includes(option))) {
+  throw new Error('Usage: node scripts/run-windows-tests.mjs [--server-only|--scripts-only]');
+}
 // The full existing suite remains in the Linux verify gate. This additional
 // lane exercises the native Windows worker, PTY, path and packaging contracts.
 const serverTests = [
@@ -27,7 +31,11 @@ for (const directory of ['scripts', 'scripts/lib', 'scripts/release', 'src-tauri
   }
 }
 
-for (const [files, tsconfig] of [[serverTests, 'server/tsconfig.json'], [scriptTests, null]]) {
+const groups = [
+  ...(!options.includes('--scripts-only') ? [[serverTests, 'server/tsconfig.json']] : []),
+  ...(!options.includes('--server-only') ? [[scriptTests, null]] : []),
+];
+for (const [files, tsconfig] of groups) {
   const result = spawnSync(process.execPath, [
     ...(tsconfig ? ['--import', 'tsx'] : []),
     '--test', '--test-concurrency=1', ...files,

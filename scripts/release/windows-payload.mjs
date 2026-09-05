@@ -160,6 +160,11 @@ export function windowsSmokeEnvironment(nodeDirectory, stateDir, inherited = pro
 
 /** Test Windows PowerShell's actual .NET compiler without a built server payload. */
 export async function verifyWindowsSmokeEnvironment(env, cwd, { execute = promisify(execFile) } = {}) {
+  // Packaging runs after npm ci, before a compiled server is required. Load the
+  // source-only compiler helper through the existing build-time tsx runtime so
+  // this preflight exercises exactly the code shipped by the production guard.
+  const { tsImport } = await import('tsx/esm/api');
+  const { windowsCodeDomCompileScript } = await tsImport(new URL('../../server/gjc-windows-job.ts', import.meta.url).href, import.meta.url);
   const powershell = path.win32.join(env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   const source = String.raw`
 $ErrorActionPreference = 'Stop'
@@ -188,7 +193,7 @@ try {
     $probe = [System.IO.Path]::Combine($temporary, ('gajae-' + [Guid]::NewGuid().ToString() + '.tmp'))
     [System.IO.File]::WriteAllText($probe, 'isolated-temp-writable')
     [System.IO.File]::Delete($probe)
-    Add-Type -TypeDefinition 'public static class GajaeSmokeEnvironmentProbe { public static int Value() { return 42; } }'
+    ${windowsCodeDomCompileScript('public static class GajaeSmokeEnvironmentProbe { public static int Value() { return 42; } }', true)}
     [Console]::Out.WriteLine(('{"compiled":' + [GajaeSmokeEnvironmentProbe]::Value() + '}'))
 } catch {
     [Console]::Error.WriteLine($_.Exception.ToString())
@@ -202,7 +207,7 @@ try {
     });
     const records = stdout.trim().split(/\r?\n/).map(line => JSON.parse(line));
     if (records.at(-1)?.compiled !== 42) throw new Error('Add-Type did not return its compiled result.');
-    return records[0];
+    return { ...records[0], ...records.find(record => record.compilerTemp) };
   } catch (error) {
     // Do not echo execFile's command field (production guards use huge encoded
     // commands). The bounded stdout/stderr contain the useful native evidence.

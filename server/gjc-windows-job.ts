@@ -13,9 +13,57 @@ const REAP_ENV = 'GAJAE_INTERNAL_JOB_REAP';
 export const GJC_WINDOWS_JOB_GUARD_READY = 'gajae-job-guard-ready-v1';
 export const GJC_WINDOWS_JOB_GUARD_ACK = 'gajae-job-guard-ack-v1';
 
-const WINDOWS_JOB_GUARD_SCRIPT = String.raw`
-$ErrorActionPreference = 'Stop'
-$null = Add-Type -TypeDefinition @'
+/** Compiles trusted constant C# without CodeDom's ANSI elevated-temp helper. */
+export function windowsCodeDomCompileScript(typeDefinition: string, diagnostics = false): string {
+  return String.raw`
+$compilerIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$compilerSid = $compilerIdentity.User.Value
+$compilerPrincipal = [Security.Principal.WindowsPrincipal]::new($compilerIdentity)
+$compilerElevated = $compilerPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$compilerTemp = [IO.Path]::Combine([IO.Path]::GetTempPath(), ('gajae-code-dom-' + [Guid]::NewGuid().ToString('N')))
+$compilerParameters = $null
+$compilerTempCreated = $false
+try {
+    $compilerSecurity = [Security.AccessControl.DirectorySecurity]::new()
+    if ($compilerElevated) {
+        # Exact SDDL used by .NET TempFileCollection.CreateTempDirectoryWithAce:
+        # inherited deny-delete, administrator access, and a high-integrity label.
+        $compilerSddl = 'D:(D;OI;SD;;;' + $compilerSid + ')(A;OICI;FA;;;BA)S:(ML;OI;NW;;;HI)'
+    } else {
+        $compilerSddl = 'D:P(A;OICI;FA;;;' + $compilerSid + ')(A;OICI;FA;;;SY)'
+    }
+    $compilerSecurity.SetSecurityDescriptorSddlForm($compilerSddl)
+    # System.IO uses the wide API; the CodeDom helper uses an ANSI import.
+    $null = [IO.Directory]::CreateDirectory($compilerTemp, $compilerSecurity)
+    $compilerTempCreated = $true
+    ${diagnostics ? `[Console]::Out.WriteLine((@{ compilerTemp = $compilerTemp; elevated = $compilerElevated; compilerSddl = $compilerSecurity.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::All) } | ConvertTo-Json -Compress))` : ''}
+    $compilerParameters = [CodeDom.Compiler.CompilerParameters]::new()
+    $compilerParameters.GenerateInMemory = $true
+    $compilerParameters.ReferencedAssemblies.AddRange([string[]]@('System.dll', 'System.Core.dll'))
+    $compilerParameters.TempFiles = [CodeDom.Compiler.TempFileCollection]::new($compilerTemp, $false)
+    $null = Add-Type -CompilerParameters $compilerParameters -TypeDefinition @'
+${typeDefinition}
+'@
+} finally {
+    try {
+        if ($compilerTempCreated) {
+            # Restore deletion rights only after compilation. Change the DACL
+            # alone so high integrity remains in force until removal completes.
+            $compilerCleanupSecurity = [Security.AccessControl.DirectorySecurity]::new()
+            $compilerCleanupSecurity.SetSecurityDescriptorSddlForm(('D:(A;OICI;FA;;;' + $compilerSid + ')(A;OICI;FA;;;BA)'), [Security.AccessControl.AccessControlSections]::Access)
+            [IO.Directory]::SetAccessControl($compilerTemp, $compilerCleanupSecurity)
+            if ($null -ne $compilerParameters) { $compilerParameters.TempFiles.Delete() }
+            [IO.Directory]::Delete($compilerTemp, $true)
+        }
+    } finally {
+        $compilerIdentity.Dispose()
+    }
+}
+`.trim();
+}
+
+const WINDOWS_JOB_GUARD_SCRIPT = `$ErrorActionPreference = 'Stop'
+${windowsCodeDomCompileScript(String.raw`
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
@@ -396,8 +444,8 @@ public static class GajaeWindowsJobGuard
         }
     }
 }
-'@
-
+`.trim())}
+${String.raw`
 $jobName = [Environment]::GetEnvironmentVariable('${JOB_NAME_ENV}', 'Process')
 $reap = [Environment]::GetEnvironmentVariable('${REAP_ENV}', 'Process')
 [Environment]::SetEnvironmentVariable('${JOB_NAME_ENV}', $null, 'Process')
@@ -431,7 +479,7 @@ try {
 } finally {
     [GajaeWindowsJobGuard]::CloseOwner($ownerHandle)
 }
-`.trim();
+`.trim()}`;
 
 const WINDOWS_JOB_GUARD_COMMAND = (() => {
   const compressed = gzipSync(

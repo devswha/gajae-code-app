@@ -127,7 +127,7 @@ export function assertRuntimeCatalog(catalog) {
 async function terminalSmoke(require) {
   const pty = require('node-pty');
   await new Promise((resolve, reject) => {
-    const terminal = pty.spawn(process.execPath, ['-e', 'process.stdout.write("GAJAE_PTY_OK"); process.exit(0)'], {
+    const terminal = pty.spawn(process.execPath, ['-e', 'process.stdout.write("GAJAE_PTY_OK"); process.exitCode = 0'], {
       name: 'xterm-256color', cols: 80, rows: 24, cwd: process.cwd(), env: process.env,
     });
     let output = '';

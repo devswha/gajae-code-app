@@ -67,9 +67,26 @@ jobs:
           npm run check:licenses
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Test Windows packaging helpers
+      - name: Test Windows build tooling
         id: packaging
-        run: node --test scripts/fetch-bun.test.mjs scripts/release/windows-payload.test.mjs scripts/release/windows-smoke-environment.test.mjs
+        run: npm run test:windows -- --scripts-only
+
+      - name: Test Windows runtime
+        id: runtime
+        if: ${{ !cancelled() && steps.source.outcome == 'success' }}
+        run: |
+          npm run build:core:dev
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:windows -- --server-only 2>&1 | Tee-Object -FilePath (Join-Path $env:RUNNER_TEMP 'gajae-runtime-windows.log')
+          exit $LASTEXITCODE
+
+      - name: Upload failed runtime diagnostics
+        if: ${{ !cancelled() && steps.runtime.outcome == 'failure' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-runtime-diagnostics
+          path: ${{ runner.temp }}/gajae-runtime-windows.log
+          retention-days: 7
 
       - name: Verify Rust core
         id: core
@@ -93,16 +110,12 @@ jobs:
         if: ${{ !cancelled() && steps.source.outcome == 'success' && steps.packaging.outcome == 'success' }}
         run: npm run desktop:build:windows
 
-      - name: Test Windows runtime
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: npm run test:windows
-
       - name: Test desktop lifecycle
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo test --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
+          cargo test --release --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
 
       - name: Stage installer and checksum
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}

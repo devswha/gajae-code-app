@@ -38,7 +38,7 @@ test('Add-Type probe uses constant UTF-16LE encoded source and returns bounded n
     execute: async (_command, args, options) => {
       assert.ok(args.includes('-EncodedCommand'));
       const source = Buffer.from(args.at(-1), 'base64').toString('utf16le');
-      assert.match(source, /Add-Type -TypeDefinition/);
+      assert.match(source, /Add-Type -CompilerParameters \$compilerParameters -TypeDefinition/);
       assert.match(source, /GetTempPath/);
       assert.match(source, /GetRuntimeDirectory/);
       assert.ok(!source.includes(cwd));
@@ -68,7 +68,9 @@ test('real Windows Add-Type works with baseline and isolated Unicode profile, cw
   // the expensive packaging build. Only the constant Add-Type probe runs;
   // neither case loads a PowerShell profile or application credentials.
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gajae Add-Type 가재 space-'));
-  t.after(() => fs.rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }));
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  });
   const cwd = path.join(root, 'payload cwd 가재');
   const env = windowsSmokeEnvironment(path.dirname(process.execPath), path.join(root, 'profile 사용자'));
   for (const directory of [cwd, env.USERPROFILE, env.APPDATA, env.LOCALAPPDATA, env.TEMP,
@@ -86,8 +88,15 @@ test('real Windows Add-Type works with baseline and isolated Unicode profile, cw
       assert.equal(result.compilerExists, true);
       assert.equal(result.tempExists, true);
       assert.ok(result.runtime);
+      assert.ok(path.resolve(result.compilerTemp).startsWith(path.resolve(result.temp) + path.sep));
+      if (result.elevated) {
+        assert.match(result.compilerSddl, /\(D;OI;SD;;;/);
+        assert.match(result.compilerSddl, /\(A;OICI;FA;;;BA\)/);
+        assert.match(result.compilerSddl, /S:\(ML;OI;NW;;;HI\)/);
+      }
+      await assert.rejects(fs.access(result.compilerTemp), { code: 'ENOENT' });
       if (label === 'isolated Unicode') {
-        assert.equal(path.resolve(result.temp).toLowerCase(), path.resolve(env.TEMP).toLowerCase());
+        assert.equal(await fs.realpath(result.temp), await fs.realpath(env.TEMP));
         assert.equal(path.resolve(result.userProfile).toLowerCase(), path.resolve(env.USERPROFILE).toLowerCase());
       }
     } catch (error) {

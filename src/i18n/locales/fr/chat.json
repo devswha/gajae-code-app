@@ -1,4 +1,24 @@
 {
+  "goal": {
+    "region": "Objectif de la session",
+    "title": "Objectif",
+    "active": "En cours",
+    "paused": "En pause",
+    "complete": "Terminé",
+    "cancelled": "Annulé",
+    "tokens": "{{value}} jetons",
+    "pause": "Suspendre",
+    "resume": "Reprendre",
+    "cancel": "Annuler l’objectif",
+    "new": "Nouvel objectif",
+    "objective": "Description de l’objectif",
+    "placeholder": "Que doit terminer l’agent ?",
+    "start": "Démarrer l’objectif",
+    "refresh": "Actualiser l’objectif",
+    "reconnect": "Reconnectez-vous pour gérer les objectifs.",
+    "unavailable": "Les commandes de l’objectif sont indisponibles pour cette exécution ou cet utilisateur.",
+    "guidance": "Chaque exécution est suspendue après {{turns}} étapes du modèle ou {{minutes}} minutes. Arrêter suspend l’objectif. Reprendre lance une nouvelle exécution si aucune n’est active. Les tâches déléguées utilisent le même modèle et les mêmes autorisations."
+  },
   "codeBlock": {
     "copy": "Copier dans le presse-papiers",
     "copied": "Copié",

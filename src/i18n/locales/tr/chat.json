@@ -1,4 +1,24 @@
 {
+  "goal": {
+    "region": "Oturum hedefi",
+    "title": "Hedef",
+    "active": "Etkin",
+    "paused": "Duraklatıldı",
+    "complete": "Tamamlandı",
+    "cancelled": "İptal edildi",
+    "tokens": "{{value}} token",
+    "pause": "Duraklat",
+    "resume": "Sürdür",
+    "cancel": "Hedefi iptal et",
+    "new": "Yeni hedef",
+    "objective": "Hedef açıklaması",
+    "placeholder": "Ajan neyi tamamlamalı?",
+    "start": "Hedefi başlat",
+    "refresh": "Hedefi yenile",
+    "reconnect": "Hedefleri yönetmek için yeniden bağlanın.",
+    "unavailable": "Hedef kontrolleri bu çalıştırma veya kullanıcı için kullanılamıyor.",
+    "guidance": "Her çalıştırma {{turns}} model adımı veya {{minutes}} dakika sonra duraklatılır. Durdur, hedefi duraklatır. Etkin çalıştırma yoksa Sürdür yeni bir çalıştırma başlatır. Devredilen görevler aynı modeli ve izinleri kullanır."
+  },
   "codeBlock": {
     "copy": "Kodu kopyala",
     "copied": "Kod kopyalandı",

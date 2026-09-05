@@ -46,7 +46,7 @@ test('new goal requires an explicit objective and displays bounded-run guidance'
   const start = view.getByRole('button', { name: 'Start goal' });
   assert.equal((start as HTMLButtonElement).disabled, true);
   fireEvent.change(view.getByRole('textbox', { name: 'Goal objective' }), { target: { value: 'Ship scoped controls' } });
-  assert.ok(view.getByText(/20 turns or 15 minutes/));
+  assert.ok(view.getByText(/200 model steps or 120 minutes/));
   fireEvent.click(start);
   await waitFor(() => assert.deepEqual(calls, [{ operation: 'create', objective: 'Ship scoped controls' }]));
 });

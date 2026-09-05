@@ -46,7 +46,7 @@ export default function GoalControls({ snapshot, pending, connected, error, cont
         <input id={objectiveId} className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm" maxLength={8000} value={objective} onChange={(event) => setObjective(event.target.value)} placeholder={label('placeholder', 'What should the agent finish?')} />
         <Button size="sm" type="submit" disabled={disabled || !objective.trim()}>{label('start', 'Start goal')}</Button>
       </form>}
-      {(editing || (goal && !terminal)) && <p className="w-full text-muted-foreground">{t('goal.guidance', { turns: GJC_GOAL_TURN_LIMIT, minutes: GJC_GOAL_RUN_LIMIT_MS / 60_000, defaultValue: `Each run pauses after ${GJC_GOAL_TURN_LIMIT} turns or ${GJC_GOAL_RUN_LIMIT_MS / 60_000} minutes. Stop pauses the goal. Resume starts a new run when idle. Delegated tasks use the same model and permissions.` })}</p>}
+      {(editing || (goal && !terminal)) && <p className="w-full text-muted-foreground">{t('goal.guidance', { turns: GJC_GOAL_TURN_LIMIT, minutes: GJC_GOAL_RUN_LIMIT_MS / 60_000, defaultValue: `Each run pauses after ${GJC_GOAL_TURN_LIMIT} model steps or ${GJC_GOAL_RUN_LIMIT_MS / 60_000} minutes. Stop pauses the goal. Resume starts a new run when idle. Delegated tasks use the same model and permissions.` })}</p>}
       {error && <div role="alert" className="w-full text-destructive">{error} <Button size="sm" variant="ghost" onClick={() => refresh()}>{label('refresh', 'Refresh goal')}</Button></div>}
     </div>
   </section>;

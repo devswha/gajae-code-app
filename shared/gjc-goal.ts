@@ -21,8 +21,10 @@ export type GjcGoalSnapshot = {
 };
 export type GjcGoalCommand = { operation: Exclude<GjcGoalOperation, 'get'>; goalId: string | null; objective?: string };
 export const GJC_GOAL_MAX_OBJECTIVE = 8_000;
-export const GJC_GOAL_RUN_LIMIT_MS = 15 * 60 * 1_000;
-export const GJC_GOAL_TURN_LIMIT = 20;
+// A SDK turn includes tool-calling model steps. Twenty steps interrupted even
+// fixture planning before its reviews; retain a finite lease for full workflows.
+export const GJC_GOAL_RUN_LIMIT_MS = 120 * 60 * 1_000;
+export const GJC_GOAL_TURN_LIMIT = 200;
 
 export function normalizeGjcGoal(value: unknown): GjcGoal | null {
   if (!value || typeof value !== 'object') return null;

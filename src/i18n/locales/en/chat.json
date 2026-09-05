@@ -17,7 +17,7 @@
     "refresh": "Refresh goal",
     "reconnect": "Reconnect to control goals.",
     "unavailable": "Goal controls are unavailable for this run or owner.",
-    "guidance": "Each run pauses after {{turns}} turns or {{minutes}} minutes. Stop pauses the goal. Resume starts a new run when idle. Delegated tasks use the same model and permissions."
+    "guidance": "Each run pauses after {{turns}} model steps or {{minutes}} minutes. Stop pauses the goal. Resume starts a new run when idle. Delegated tasks use the same model and permissions."
   },
   "codeBlock": {
     "copy": "Copy",

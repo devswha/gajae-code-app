@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+
+import koChat from '../../../i18n/locales/ko/chat.json';
 
 import GoalControls, { type GoalControlsProps } from './GoalControls';
 
@@ -56,4 +60,14 @@ test('disconnection and pending requests disable controls; server errors remain 
   assert.equal(refreshed, 1);
   view.rerender(<GoalControls {...initial} pending />);
   assert.equal((view.getByRole('button', { name: 'Cancel goal' }) as HTMLButtonElement).disabled, true);
+});
+
+test('Korean goal controls explain the inherited delegation policy', async () => {
+  const i18n = createInstance();
+  await i18n.init({ lng: 'ko', resources: { ko: { chat: koChat } }, interpolation: { escapeValue: false } });
+  const view = render(<I18nextProvider i18n={i18n}><GoalControls {...initial} /></I18nextProvider>);
+  assert.equal(view.getByRole('status').textContent, '목표 · 진행 중');
+  assert.ok(view.getByRole('button', { name: '일시정지' }));
+  assert.ok(view.getByText('토큰 1,234개'));
+  assert.match(view.getByText(/위임한 작업도/).textContent!, /같은 모델과 권한/);
 });

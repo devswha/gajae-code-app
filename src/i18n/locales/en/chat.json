@@ -1,4 +1,24 @@
 {
+  "goal": {
+    "region": "Session goal",
+    "title": "Goal",
+    "active": "Active",
+    "paused": "Paused",
+    "complete": "Complete",
+    "cancelled": "Cancelled",
+    "tokens": "{{value}} tokens",
+    "pause": "Pause",
+    "resume": "Resume",
+    "cancel": "Cancel goal",
+    "new": "New goal",
+    "objective": "Goal objective",
+    "placeholder": "What should the agent finish?",
+    "start": "Start goal",
+    "refresh": "Refresh goal",
+    "reconnect": "Reconnect to control goals.",
+    "unavailable": "Goal controls are unavailable for this run or owner.",
+    "guidance": "Each run pauses after {{turns}} turns or {{minutes}} minutes. Stop pauses the goal. Resume starts a new run when idle. Delegated tasks use the same model and permissions."
+  },
   "codeBlock": {
     "copy": "Copy",
     "copied": "Copied",

@@ -1,4 +1,24 @@
 {
+  "goal": {
+    "region": "대화 목표",
+    "title": "목표",
+    "active": "진행 중",
+    "paused": "일시정지",
+    "complete": "완료",
+    "cancelled": "취소됨",
+    "tokens": "토큰 {{value}}개",
+    "pause": "일시정지",
+    "resume": "재개",
+    "cancel": "목표 취소",
+    "new": "새 목표",
+    "objective": "목표 내용",
+    "placeholder": "에이전트가 무엇을 완료해야 하나요?",
+    "start": "목표 시작",
+    "refresh": "목표 새로고침",
+    "reconnect": "목표를 제어하려면 다시 연결하세요.",
+    "unavailable": "현재 실행이나 사용자에게 목표 제어 권한이 없습니다.",
+    "guidance": "한 번의 실행은 {{turns}}턴 또는 {{minutes}}분 후 일시정지됩니다. 중지는 목표를 일시정지하고, 재개는 실행 중인 작업이 없으면 새 실행을 시작합니다. 위임한 작업도 같은 모델과 권한을 사용합니다."
+  },
   "codeBlock": {
     "copy": "복사하기",
     "copied": "복사됨",

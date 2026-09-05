@@ -78,6 +78,7 @@
       "label": "In coda",
       "willSend": "Invia al termine dell'esecuzione corrente",
       "willFollow": "Invia dopo i messaggi sopra",
+      "awaitingSteer": "In attesa della conferma dell’istruzione",
       "edit": "Modifica elemento in coda",
       "delete": "Rimuovi l'elemento in coda",
       "moveUp": "Salire in coda",

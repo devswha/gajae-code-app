@@ -37,7 +37,7 @@ export function buildStoredImageRecords(files: UploadedImageFile[]): StoredImage
 export function resolveImageAssetFile(filename: string): string | null {
   const name = typeof filename === 'string' ? filename.trim() : '';
   // Route parameters identify a file, never a path below the asset root.
-  if (!name || name.includes('..') || /[\\/]/.test(name)) return null;
+  if (!name || name.includes('..') || /[\\/\0]/.test(name)) return null;
 
   const directory = nodePath.resolve(assetsDirectory());
   const assetPath = nodePath.resolve(directory, name);

@@ -17,6 +17,10 @@
     "firstProject": "添加第一个项目",
     "firstProjectDescription": "选择这台机器上的一个文件夹。Gajae Code 在其中工作，项目的对话也保留在那里。",
     "addProject": "添加项目",
+    "scratchStart": "在临时工作区中开始",
+    "scratchStarting": "正在准备…",
+    "scratchDescription": "还没有文件夹？Gajae Code 会创建一次性的 git 仓库 ~/gajae-scratch，并在其中打开对话。代理只在该文件夹内工作。",
+    "scratchFailed": "无法启动临时工作区：{{reason}}",
     "newSession": "发起对话",
     "projectFiles": "项目中的文件"
   },

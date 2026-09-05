@@ -17,6 +17,10 @@
     "firstProject": "İlk projenizi ekleyin",
     "firstProjectDescription": "Bu makinedeki bir klasörü seçin. Gajae Code onun içinde çalışır ve projenin konuşmaları orada kalır.",
     "addProject": "Proje ekle",
+    "scratchStart": "Geçici bir çalışma alanında başla",
+    "scratchStarting": "Hazırlanıyor…",
+    "scratchDescription": "Henüz klasör yok mu? Gajae Code, tek kullanımlık bir git deposu olan ~/gajae-scratch klasörünü oluşturur ve orada bir konuşma açar. Ajan bu klasörün içinde kalır.",
+    "scratchFailed": "Geçici çalışma alanı başlatılamadı: {{reason}}",
     "newSession": "Konuşmayı başlat",
     "projectFiles": "Projedeki dosyalar"
   },

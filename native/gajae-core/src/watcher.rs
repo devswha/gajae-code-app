@@ -126,6 +126,11 @@ fn write_event_frames(
     event: Event,
     backfills: &mut VecDeque<(PathBuf, Instant)>,
 ) -> bool {
+    // Restarting invokes the parent's full transcript reconciliation. An OS
+    // overflow flag means the remaining paths cannot describe all changes.
+    if event.need_rescan() {
+        return false;
+    }
     let Some((kind, destination_only)) = output_event(event.kind) else {
         return true;
     };
@@ -143,7 +148,7 @@ fn write_event_frames(
         }
         if is_directory(path) && !backfills.iter().any(|(pending, _)| pending == path) {
             if backfills.len() >= MAX_PENDING_BACKFILLS {
-                backfills.pop_front();
+                return false;
             }
             backfills.push_back((path.clone(), Instant::now() + BACKFILL_DELAY));
         }
@@ -164,7 +169,12 @@ fn write_due_backfill_frames(
         let Some((directory, _)) = backfills.pop_front() else {
             return true;
         };
-        for frame in backfill_frames(&directory, roots) {
+        let Some(frames) = backfill_frames(&directory, roots) else {
+            // A bounded scan must not silently accept an incomplete snapshot.
+            // Reconnect so the parent reconciles the entire provider instead.
+            return false;
+        };
+        for frame in frames {
             if !write_frame(stdout, &frame) {
                 return false;
             }
@@ -176,7 +186,7 @@ fn write_due_backfill_frames(
 /// Reports every transcript already sitting in a newly created directory. Only
 /// real directories are descended and symlinks are never followed, so the walk
 /// cannot cycle or leave the tree it was handed.
-fn backfill_frames(directory: &Path, roots: &[PathBuf]) -> Vec<Vec<u8>> {
+fn backfill_frames(directory: &Path, roots: &[PathBuf]) -> Option<Vec<Vec<u8>>> {
     let mut frames = Vec::new();
     let mut queue = vec![directory.to_path_buf()];
     let mut scanned = 0_usize;
@@ -186,7 +196,7 @@ fn backfill_frames(directory: &Path, roots: &[PathBuf]) -> Vec<Vec<u8>> {
         };
         for entry in entries.flatten() {
             if scanned >= MAX_BACKFILL_ENTRIES {
-                return frames;
+                return None;
             }
             scanned += 1;
             let path = entry.path();
@@ -202,7 +212,7 @@ fn backfill_frames(directory: &Path, roots: &[PathBuf]) -> Vec<Vec<u8>> {
             }
         }
     }
-    frames
+    Some(frames)
 }
 
 fn is_directory(path: &Path) -> bool {
@@ -283,9 +293,15 @@ fn fail() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{OutputEvent, backfill_frames, frame_for_path, frame_for_resolved_path};
+    use super::{
+        MAX_BACKFILL_ENTRIES, MAX_PENDING_BACKFILLS, OutputEvent, backfill_frames, frame_for_path,
+        frame_for_resolved_path, write_due_backfill_frames, write_event_frames,
+    };
+    use notify::{Event, EventKind, event::Flag};
+    use std::collections::VecDeque;
     use std::fs;
     use std::path::PathBuf;
+    use std::time::Instant;
 
     fn scratch_directory(label: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
@@ -296,6 +312,17 @@ mod tests {
                 .unwrap()
                 .as_nanos(),
         ))
+    }
+
+    #[test]
+    fn rescan_required_event_restarts_the_watcher_for_reconciliation() {
+        let event = Event::new(EventKind::Other).set_flag(Flag::Rescan);
+        assert!(!write_event_frames(
+            &mut Vec::new(),
+            &[],
+            event,
+            &mut VecDeque::new(),
+        ));
     }
 
     #[test]
@@ -311,7 +338,7 @@ mod tests {
         fs::write(created.join("ignored.txt"), b"ignored").unwrap();
         fs::write(nested.join("nested.jsonl"), b"{}\n").unwrap();
 
-        let frames = backfill_frames(&created, std::slice::from_ref(&root));
+        let frames = backfill_frames(&created, std::slice::from_ref(&root)).unwrap();
         let reported = frames
             .iter()
             .map(|frame| String::from_utf8(frame.clone()).unwrap())
@@ -344,7 +371,11 @@ mod tests {
         #[cfg(unix)]
         std::os::unix::fs::symlink(&outside, created.join("linked.jsonl")).unwrap();
 
-        assert!(backfill_frames(&created, std::slice::from_ref(&root)).is_empty());
+        assert!(
+            backfill_frames(&created, std::slice::from_ref(&root))
+                .unwrap()
+                .is_empty()
+        );
 
         fs::remove_dir_all(container).unwrap();
     }
@@ -402,5 +433,48 @@ mod tests {
             frame_for_resolved_path(OutputEvent::Add, &oversized, &[root]),
             None
         );
+    }
+
+    #[test]
+    fn full_backfill_queue_requests_reconciliation_without_discarding_a_directory() {
+        let container = scratch_directory("backfill-queue-overflow");
+        fs::create_dir(&container).unwrap();
+        let root = fs::canonicalize(&container).unwrap();
+        let mut backfills: VecDeque<_> = (0..MAX_PENDING_BACKFILLS)
+            .map(|index| (root.join(index.to_string()), Instant::now()))
+            .collect();
+        let first_pending = backfills.front().unwrap().0.clone();
+        let event =
+            Event::new(EventKind::Create(notify::event::CreateKind::Folder)).add_path(root.clone());
+        assert!(!write_event_frames(
+            &mut Vec::new(),
+            &[root],
+            event,
+            &mut backfills,
+        ));
+        assert_eq!(backfills.front().unwrap().0, first_pending);
+        fs::remove_dir_all(container).unwrap();
+    }
+
+    #[test]
+    fn oversized_backfill_requests_reconciliation_instead_of_partial_success() {
+        let container = scratch_directory("backfill-scan-overflow");
+        fs::create_dir(&container).unwrap();
+        let root = fs::canonicalize(&container).unwrap();
+        for index in 0..=MAX_BACKFILL_ENTRIES {
+            fs::write(root.join(format!("{index}.jsonl")), b"{}\n").unwrap();
+        }
+        let mut backfills = VecDeque::from([(root.clone(), Instant::now())]);
+        let mut output = Vec::new();
+        assert!(!write_due_backfill_frames(
+            &mut output,
+            &[root],
+            &mut backfills
+        ));
+        assert!(
+            output.is_empty(),
+            "an incomplete scan must not report success"
+        );
+        fs::remove_dir_all(container).unwrap();
     }
 }

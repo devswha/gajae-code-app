@@ -1,6 +1,6 @@
 # gajae-app v2 — Session Handoff (resume state)
 
-Last updated: 2026-09-02 night. Supersedes the 2026-07-18 handoff.
+Last updated: 2026-09-05 (adversarial review and nine-skill live acceptance). Supersedes the 2026-07-18 handoff.
 
 ## TL;DR
 
@@ -472,6 +472,47 @@ run ~2 s late (from `session_upserted`, not from the sender's optimistic
 state); a finished block's `Worked for Ns` can shift by a few seconds
 after the reconcile fetch replaces realtime timestamps with disk ones.
 
+## Current follow-ups (rechecked 2026-09-05)
+
+- The subsequent adversarial pass and all nine live skill outcomes are in
+  [`plans/adversarial-skills-e2e-2026-09-05.md`](plans/adversarial-skills-e2e-2026-09-05.md).
+  DNS deployments now require explicit `ALLOWED_HOSTS`; see `SELF-HOST.md`.
+  The app avoids the SDK workflow-ID defect by omitting the redundant explicit
+  provider ID, and restores skill requests from transcript metadata. Delegation
+  remains disabled because an offline real-SDK test proved that children bypass
+  their parent's permission policy. Research/file artifacts do not mean that
+  `ralplan`, `ultragoal` or the autoresearch goal lifecycle completed.
+- The parallel correctness pass is recorded in
+  [`plans/code-review-2026-09-05.md`](plans/code-review-2026-09-05.md), including
+  session/queue isolation, transcript turns and transport, scratch startup,
+  CLI shims, desktop lifecycle, watcher recovery and narrow-panel controls.
+- The v2 baseline, frontend refactor, Local Studio phases 1–5, scratch quick
+  start, and runtime edit-result diffs have shipped. The older unchecked
+  public-distribution checklist in `V2-PLAN.md` is historical; signed and
+  notarized beta.7/beta.8 images were already published on September 3.
+- **PR #30 still awaits the upstream SDK accessor fix.** The npm
+  registry still reports `@gajae-code/coding-agent` latest `0.16.3`, which
+  predates the workflow identity fix (`Yeachan-Heo/gajae-code#5282`, merged
+  into `dev` at `2250239de9e565df2d3cb12ba365d65ff9f0555d`). Keep the existing
+  `0.15.6` app pin until a published runtime carries that change, then finish
+  the prepared regression test, manifest and dependency updates in #30. The
+  app's redundant-ID workaround now removes the observed issue #18 trigger;
+  it does not make the draft's direct SDK accessor contract pass.
+- **Issue #3 now has a live matrix, with unresolved capability blockers.** The bundled `gjc`
+  shim is already in the app; the issue's older "shim in progress" comment
+  is no longer current. Nine skills were actually invoked, including user
+  skills. The interview produced its pending-approval spec; mandatory
+  delegation and goal-mode restrictions still prevent complete execution of
+  the other bundled workflows. Keep #3 open for those recorded limitations.
+- **CI signing awaits owner-provided credentials.** `gh secret list --env
+  release` returned no environment secrets on September 5. The workflow
+  and the five required names are documented in
+  `DESKTOP-TAURI-VERIFICATION.md`; the first signed CI dispatch remains
+  unverified. This is separate from the locally signed releases that shipped.
+- Session worktree selection still depends on the runtime's Slice 3.
+  Conversation forks and split-pane workspaces remain deferred product
+  decisions, not missing implementations from the completed plans.
+
 ## How to resume (next session)
 
 0. **Pre-release e2e drill done 2026-09-03 (`docs/plans/beta7-e2e-drill.md`).**
@@ -498,11 +539,17 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
      Terra session's second turn went to GLM and hit its rate limit. An
      explicit model on the first turn is now the session pin
      (`resolveResumeModel(..., { firstTurn })`); `default` pins nothing.
-   - Gap, not fixed: with ChatGPT models the runtime edits through
-     `apply_patch`, which neither the Last-turn scope (edit/write/delete/
-     move only) nor the tool card configs know; the scope shows nothing for
-     those turns (Working tree still does) and the card shows raw
-     Parameters/Details. Needs a patch parser or a runtime-side normalization.
+   - ~~Gap, not fixed: with ChatGPT models the runtime edits through
+     `apply_patch`, which neither the Last-turn scope nor the tool card
+     configs know~~ — **closed 2026-09-05 (#33)** without a patch parser:
+     the runtime's edit *result* details (`{path, op, move, diff}` per file,
+     `perFileResults[]` for an envelope, numbered diff `+12|text`) are the
+     normalization every edit mode shares, and they already reach the client
+     as `toolResult.toolUseResult` live and on reload.
+     `src/components/chat/utils/editResult.ts` reads them; the edit card
+     (`apply_patch` shares it) and the Last-turn scope render from the
+     result, with real line numbers, and fall back to the replace-mode input
+     only while a call runs or when a result carries no details.
    - Upstream: with the ChatGPT provider the model received the project
      path as `/Users/USER/…` and passed it back as the bash `cwd`, which
      does not exist; the run recovered via `pwd`. The runtime redacts the
@@ -514,10 +561,27 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
 1. ~~Rebuild a signed + notarized DMG and accept it from the mounted image~~
    — done 2026-09-03, see TL;DR.
 2. ~~Cut `v2.0.0-beta.7`~~ — published 2026-09-03; **beta.8 cut the same
-   evening.** Next: **scratch-workspace quick start** — empty workspace gets
-   "Start in a scratch workspace" (creates ~/gajae-scratch, registers it as a
-   project, opens a conversation) so a first run is one click while the
-   project stays the sandbox boundary. Then the CI signing lane. **The release
+   evening.** ~~Next: scratch-workspace quick start~~ — **shipped 2026-09-05**:
+   the empty workspace's pane has "Start in a scratch workspace" under
+   "Add a project". `POST /api/projects/scratch`
+   (`server/modules/projects/services/scratch-workspace.service.ts`)
+   registers `<WORKSPACES_ROOT>/gajae-scratch` through the same
+   `createProject` gate as the wizard (so a rejected path leaves nothing on
+   disk), then `git init`s it and writes a README when it is empty;
+   idempotent (existing → same project, archived reactivated, auto
+   promoted; verified live against a temp root: `created` → `existing`, same
+   id, README listed by `/api/git/diff` on the unborn HEAD). Client:
+   `useScratchWorkspace` posts, refetches the project list so the sidebar
+   has the row, then takes the ordinary `handleNewSession` path
+   (`onNewSession` threaded AppContent → MainContent → MainContentStateView).
+   Next: the CI signing lane.
+   **Also 2026-09-05:** every dialog opened offset to the upper left for its
+   150 ms entrance — Tailwind 4 centers with the `translate` property and the
+   `dialog-content-show` keyframe still animated `transform: translate(-50%,
+   -48%)` on top of it. Fixed in the primitive (#31, fade + scale only);
+   the per-dialog `animate-none` band-aids (#25, #29) are gone and
+   `Dialog.dom.bun.test.tsx` refuses new ones. #28 merged, #29 closed as
+   superseded. **The release
    workflow now signs and notarizes on the runner once the `release`
    environment holds five secrets** (`APPLE_CERTIFICATE_P12`,
    `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`,

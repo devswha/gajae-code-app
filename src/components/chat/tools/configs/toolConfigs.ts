@@ -1,9 +1,11 @@
+import { editResultFiles, parseRuntimeDiff } from '../../utils/editResult.js';
+
 export interface ToolDisplayConfig {
   input: {
     type: 'one-line' | 'collapsible' | 'plan' | 'hidden';
     icon?: string; label?: string; getValue?: (input: any) => string; getSecondary?: (input: any) => string | undefined; action?: 'copy' | 'open-file' | 'jump-to-results' | 'none'; style?: string; wrapText?: boolean;
     colorScheme?: { primary?: string; secondary?: string; background?: string; border?: string; icon?: string };
-    title?: string | ((input: any) => string); defaultOpen?: boolean; contentType?: 'diff' | 'markdown' | 'file-list' | 'todo-list' | 'text' | 'task' | 'question-answer'; getContentProps?: (input: any, helpers?: any) => any; actionButton?: 'file-button' | 'none';
+    title?: string | ((input: any, helpers?: any) => string); defaultOpen?: boolean; contentType?: 'diff' | 'markdown' | 'file-list' | 'todo-list' | 'text' | 'task' | 'question-answer'; getContentProps?: (input: any, helpers?: any) => any; actionButton?: 'file-button' | 'none';
   };
   result?: { hidden?: boolean; hideOnSuccess?: boolean; type?: 'one-line' | 'collapsible' | 'plan' | 'special'; title?: string | ((result: any) => string); defaultOpen?: boolean; contentType?: 'markdown' | 'file-list' | 'todo-list' | 'text' | 'success-message' | 'task' | 'question-answer'; getMessage?: (result: any) => string; getContentProps?: (result: any) => any };
 }
@@ -58,6 +60,33 @@ function computerSummary(input: unknown): string {
   return [action.action, detail].filter(Boolean).join(' ');
 }
 
+/**
+ * An edit card's diff. The runtime's result details carry the numbered diff it
+ * applied, one record per file, for every edit mode (replace, patch, hashline,
+ * vim, apply_patch); the replace-mode input is the fallback while the call
+ * is still running or when a result carries no details.
+ */
+function editContent(input: any, helpers?: { toolResult?: { toolUseResult?: unknown } }) {
+  const edits = Array.isArray(input.edits) ? input.edits : [];
+  const files = editResultFiles(helpers?.toolResult?.toolUseResult, typeof input.path === 'string' ? input.path : '')
+    .map((file) => ({ path: file.move ?? file.path, op: file.op, move: file.move, lines: parseRuntimeDiff(file.diff).flatMap((row) => (row.kind === 'hunk' ? [] : [{ type: row.kind, content: row.content, lineNum: row.newLine ?? row.oldLine ?? 0 }])) }));
+  return {
+    filePath: input.path || files[0]?.path || '',
+    oldContent: edits.map((edit: any) => String(edit?.old_text ?? '')).join('\n'),
+    newContent: edits.map((edit: any) => String(edit?.new_text ?? '')).join('\n'),
+    files: files.length > 0 ? files : undefined,
+  };
+}
+
+function editTitle(input: any, helpers?: { toolResult?: { toolUseResult?: unknown } }): string {
+  if (input.path) return leafName(input);
+  const files = editResultFiles(helpers?.toolResult?.toolUseResult);
+  if (files.length > 1) return `${files.length} files`;
+  return files[0] ? leafName({ path: files[0].move ?? files[0].path }) : 'Edit';
+}
+
+const editConfig: ToolDisplayConfig = { input: { type: 'collapsible', title: editTitle, defaultOpen: false, contentType: 'diff', actionButton: 'file-button', getContentProps: editContent }, result: { hideOnSuccess: true } };
+
 const outputAsCode = (result: any) => ({ content: String(result?.content || ''), format: 'code' });
 const outputAsText = (result: any) => ({ content: String(result?.content || ''), format: 'plain' });
 const leafName = (input: any) => input.path?.split('/').pop() || input.path || 'file';
@@ -90,7 +119,10 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
   ast_grep: callOnly('AST Grep', (input) => input.pat || ''),
   skill: { input: { type: 'one-line', label: 'Skill', getValue: (input) => input.name ? `/skill:${input.name}` : '', getSecondary: (input) => input.args || undefined, action: 'none', colorScheme: skillColors } },
   todo_write: { input: { type: 'collapsible', title: (input) => todoTitle(input.ops), defaultOpen: false, contentType: 'markdown', getContentProps: (input) => ({ content: todoMarkdown(input.ops) }) }, result: { hideOnSuccess: true } },
-  edit: { input: { type: 'collapsible', title: leafName, defaultOpen: false, contentType: 'diff', actionButton: 'file-button', getContentProps: (input) => { const edits = Array.isArray(input.edits) ? input.edits : []; return { filePath: input.path || '', oldContent: edits.map((edit: any) => String(edit?.old_text ?? '')).join('\n'), newContent: edits.map((edit: any) => String(edit?.new_text ?? '')).join('\n') }; } }, result: { hideOnSuccess: true } },
+  edit: editConfig,
+  // The edit tool's wire name in apply_patch mode (GPT-5 family): the input is
+  // a multi-file envelope, the result the same per-file details as every mode.
+  apply_patch: editConfig,
   lsp: callOnly('LSP', (input) => [input.action, input.symbol || input.query || input.file].filter(Boolean).join(' ')),
   web_search: { input: { type: 'one-line', label: 'Web Search', getValue: (input) => input.query || '', getSecondary: (input) => input.recency ? `past ${input.recency}` : undefined, action: 'none', colorScheme: neutralColors } },
   computer: callOnly('Computer', computerSummary),

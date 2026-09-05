@@ -24,17 +24,11 @@ const getImplicitOwner = () => {
 };
 
 // Optional API key middleware for non-desktop deployments.
+export const hasValidApiKey = (req) => isDesktopMode() || !process.env.API_KEY
+  || req.headers['x-api-key'] === process.env.API_KEY;
+
 const validateApiKey = (req, res, next) => {
-  if (isDesktopMode()) {
-    return next();
-  }
-
-  if (!process.env.API_KEY) {
-    return next();
-  }
-
-  const apiKey = req.headers['x-api-key'];
-  if (apiKey !== process.env.API_KEY) {
+  if (!hasValidApiKey(req)) {
     return res.status(401).json({ error: 'Invalid API key' });
   }
   next();

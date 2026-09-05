@@ -103,11 +103,10 @@ export function useProjectPermissions(projectId: string | null | undefined) {
     onSuccess: store,
   });
 
-  // Null while the first read is in flight: a picker that showed "Ask" for a
-  // project actually on bypass, even briefly, would be wrong about the one
-  // thing it exists to tell. After a failed read the default is shown, which
-  // is also what the server applies when nothing is stored.
-  const permissions = query.data ?? (projectId && !query.isPending ? defaultProjectPermissions(projectId) : null);
+  // Only a successful server read establishes the policy. A failed read can
+  // happen for a project on bypass too; it must never manufacture an Ask mode.
+  // Query retains the last confirmed policy if a later refresh fails.
+  const permissions = query.data ?? null;
 
   return {
     permissions,

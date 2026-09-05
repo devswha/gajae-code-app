@@ -17,6 +17,10 @@
     "firstProject": "最初のプロジェクトを追加",
     "firstProjectDescription": "このマシン上のフォルダを選びます。Gajae Code はその中で作業し、プロジェクトの会話もそこに残ります。",
     "addProject": "プロジェクトを追加",
+    "scratchStart": "スクラッチ用ワークスペースで始める",
+    "scratchStarting": "準備中…",
+    "scratchDescription": "まだフォルダがありませんか？Gajae Code が使い捨ての git リポジトリ ~/gajae-scratch を作成し、そこで会話を開きます。エージェントはその中だけで作業します。",
+    "scratchFailed": "スクラッチ用ワークスペースを開始できませんでした: {{reason}}",
     "newSession": "新しいセッション。",
     "projectFiles": "プロジェクトファイル。"
   },

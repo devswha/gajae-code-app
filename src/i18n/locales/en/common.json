@@ -17,6 +17,10 @@
     "firstProject": "Add your first project",
     "firstProjectDescription": "Pick a folder on this machine. Gajae Code works inside it, and the project’s conversations stay with it.",
     "addProject": "Add a project",
+    "scratchStart": "Start in a scratch workspace",
+    "scratchStarting": "Setting up…",
+    "scratchDescription": "No folder yet? Gajae Code creates ~/gajae-scratch, a disposable git repository, and opens a conversation there. The agent stays inside it.",
+    "scratchFailed": "Could not start the scratch workspace: {{reason}}",
     "newSession": "Start conversation",
     "projectFiles": "Files in project"
   },

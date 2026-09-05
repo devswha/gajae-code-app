@@ -17,6 +17,10 @@
     "firstProject": "Aggiungi il primo progetto",
     "firstProjectDescription": "Scegli una cartella su questo computer. Gajae Code lavora al suo interno e le conversazioni del progetto restano lì.",
     "addProject": "Aggiungi un progetto",
+    "scratchStart": "Inizia in uno spazio di prova",
+    "scratchStarting": "Preparazione…",
+    "scratchDescription": "Nessuna cartella ancora? Gajae Code crea ~/gajae-scratch, un repository git usa e getta, e apre lì una conversazione. L’agente resta al suo interno.",
+    "scratchFailed": "Impossibile avviare lo spazio di prova: {{reason}}",
     "newSession": "Inizia la conversazione",
     "projectFiles": "File nel progetto"
   },

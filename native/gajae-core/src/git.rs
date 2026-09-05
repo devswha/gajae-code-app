@@ -208,6 +208,9 @@ fn create(workdir: &Path, params: &Value) -> Result<Value, GitError> {
     let entries = worktrees(workdir)?;
     if let Some(existing) = entries.iter().find(|item| item.path == path) {
         if existing.branch.as_deref() == Some(&format!("refs/heads/{branch}")) {
+            if !is_registered_with_common_git_dir(&common_git_dir(workdir)?, &path) {
+                return Err(GitError::NotManagedWorktree);
+            }
             return Ok(worktree_result(false, &job_id, &branch, existing));
         }
         return Err(GitError::BranchConflict);
@@ -378,7 +381,7 @@ fn diff(
             value
                 .base_commit
                 .as_deref()
-                .filter(|value| !value.is_empty())
+                .filter(|value| !value.is_empty() && !value.starts_with('-'))
                 .ok_or(GitError::InvalidRequest)?,
         ),
         "staged" => args.push("--cached"),
@@ -439,7 +442,9 @@ fn prune(workdir: &Path, params: &Value) -> Result<Value, GitError> {
             "--porcelain=v1",
             "-z",
             "--untracked-files=all",
-            "--ignored=no",
+            // Git's default clean check permits deleting ignored files too.
+            // Treat those as local data until the user removes them explicitly.
+            "--ignored=matching",
         ],
     )?
     .is_empty()
@@ -474,7 +479,9 @@ fn registered(
         .into_iter()
         .find(|item| item.path == path)
         .ok_or(GitError::NotManagedWorktree)?;
-    if item.branch.as_deref() != Some(&format!("refs/heads/{branch}")) {
+    if item.branch.as_deref() != Some(&format!("refs/heads/{branch}"))
+        || !is_registered_with_common_git_dir(&common_git_dir(workdir)?, &path)
+    {
         return Err(GitError::NotManagedWorktree);
     }
     Ok(path)
@@ -792,7 +799,16 @@ fn read_limited<R: Read + Send + 'static>(
         let mut bytes = Vec::new();
         let mut buffer = [0_u8; 8192];
         loop {
-            let read = reader.read(&mut buffer).map_err(|_| GitError::GitFailed)?;
+            let read = match reader.read(&mut buffer) {
+                Ok(read) => read,
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(_) => {
+                    // The sibling pipe may stay open indefinitely. Notify the
+                    // owner immediately so it can kill and reap the child.
+                    let _ = sender.send(Err(GitError::GitFailed));
+                    return Err(GitError::GitFailed);
+                }
+            };
             if read == 0 {
                 break;
             }
@@ -983,6 +999,82 @@ mod tests {
     }
 
     #[test]
+    fn diff_rejects_options_as_base_commits_without_writing_files() {
+        let repo = TestRepo::new();
+        let path = repo.path.join(".gjc-worktrees/job-1");
+        create(
+            &repo.path,
+            &json!({"jobId":"job-1", "branch":"job/job-1", "path":path}),
+        )
+        .unwrap();
+        std::fs::write(path.join("tracked.txt"), "after\n").unwrap();
+        let outside = repo.path.join("must-not-overwrite.txt");
+        std::fs::write(&outside, "preserve me\n").unwrap();
+        let result = diff(
+            &repo.path,
+            "malicious-base",
+            &json!({
+                "jobId":"job-1", "branch":"job/job-1", "path":path,
+                "mode":"base", "baseCommit":format!("--output={}", outside.display()),
+            }),
+            &mut Vec::new(),
+        );
+        assert_eq!(std::fs::read_to_string(&outside).unwrap(), "preserve me\n");
+        assert!(matches!(result, Err(GitError::InvalidRequest)));
+    }
+
+    #[test]
+    fn prune_preserves_ignored_files_and_retains_clean_worktree_branches() {
+        let repo = TestRepo::new();
+        let path = repo.path.join(".gjc-worktrees/job-1");
+        let params = json!({"jobId":"job-1", "branch":"job/job-1", "path":path, "confirmed":true});
+        create(&repo.path, &params).unwrap();
+        std::fs::write(repo.path.join(".git/info/exclude"), ".env\n").unwrap();
+        std::fs::write(path.join(".env"), "local-only-value\n").unwrap();
+        let result = prune(&repo.path, &params);
+        assert!(
+            path.join(".env").exists(),
+            "ignored user data must survive pruning"
+        );
+        assert!(matches!(result, Err(GitError::DirtyWorktree)));
+        std::fs::remove_file(path.join(".env")).unwrap();
+        assert_eq!(prune(&repo.path, &params).unwrap()["pruned"], true);
+        assert!(!path.exists());
+        assert!(git_status(
+            &repo.path,
+            ["show-ref", "--verify", "--quiet", "refs/heads/job/job-1"]
+        ));
+    }
+
+    #[test]
+    fn registered_worktree_rejects_a_replaced_git_pointer() {
+        let repo = TestRepo::new();
+        let path = repo.path.join(".gjc-worktrees/job-1");
+        create(
+            &repo.path,
+            &json!({"jobId":"job-1", "branch":"job/job-1", "path":path}),
+        )
+        .unwrap();
+        let other = TestRepo::new();
+        std::fs::write(
+            path.join(".git"),
+            format!("gitdir: {}\n", other.path.join(".git").display()),
+        )
+        .unwrap();
+        assert!(matches!(
+            registered(&repo.path, "job-1", "job/job-1", &path),
+            Err(GitError::NotManagedWorktree)
+        ));
+        assert!(matches!(
+            create(
+                &repo.path,
+                &json!({"jobId":"job-1", "branch":"job/job-1", "path":path})
+            ),
+            Err(GitError::NotManagedWorktree)
+        ));
+    }
+
+    #[test]
     fn newline_porcelain_rejects_an_injected_managed_entry() {
         let root = PathBuf::from("/repo/.gjc-worktrees");
         let output = b"worktree /repo/.gjc-worktrees/unsafe\nworktree /repo/.gjc-worktrees/job-1\nHEAD deadbeef\nbranch refs/heads/job/job-1\n\n";
@@ -1102,5 +1194,49 @@ mod tests {
             (true, b"1234".to_vec(), true)
         );
         assert_eq!(reader.join().unwrap().unwrap(), None);
+    }
+
+    #[test]
+    fn a_failed_pipe_reader_notifies_the_waiter_while_the_other_pipe_is_open() {
+        struct FailedReader;
+        impl Read for FailedReader {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("failed pipe read"))
+            }
+        }
+        let (sender, receiver) = mpsc::channel();
+        let reader = read_limited(FailedReader, 32, true, sender.clone());
+        assert!(matches!(reader.join().unwrap(), Err(GitError::GitFailed)));
+        assert!(matches!(receiver.try_recv(), Ok(Err(GitError::GitFailed))));
+        drop(sender);
+    }
+
+    #[test]
+    fn interrupted_pipe_reads_retry_without_losing_output() {
+        struct InterruptedReader {
+            interrupted: bool,
+            remaining: Cursor<Vec<u8>>,
+        }
+        impl Read for InterruptedReader {
+            fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+                if !self.interrupted {
+                    self.interrupted = true;
+                    return Err(std::io::Error::from(std::io::ErrorKind::Interrupted));
+                }
+                self.remaining.read(buffer)
+            }
+        }
+        let (sender, receiver) = mpsc::channel();
+        let reader = read_limited(
+            InterruptedReader {
+                interrupted: false,
+                remaining: Cursor::new(b"ok".to_vec()),
+            },
+            2,
+            true,
+            sender,
+        );
+        assert!(matches!(receiver.recv(), Ok(Ok((true, bytes, false))) if bytes == b"ok"));
+        assert_eq!(reader.join().unwrap().unwrap(), Some(b"ok".to_vec()));
     }
 }

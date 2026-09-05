@@ -312,3 +312,19 @@ test('the composer tools row wraps instead of clipping its trailing controls', (
   assert.doesNotMatch(toolsRow, /overflow-hidden/);
   assert.match(toolsRow, /flex-wrap/);
 });
+
+test('model controls remain present and disabled while the catalog is missing', () => {
+  for (const loading of [true, false]) {
+    const html = renderToStaticMarkup(createElement(ChatComposer, {
+      ...baseComposerProps,
+      modelPresetOptions: [],
+      modelOptions: [],
+      modelPresetsLoading: loading,
+    }));
+    assert.match(html, /<button[^>]*disabled=""[^>]*aria-label="input\.modelReasoning\.label"/);
+    assert.match(html, /<button[^>]*disabled=""[^>]*aria-label="input\.agentConfiguration\.label"/);
+    assert.match(html, new RegExp(`aria-busy="${loading}"`));
+    assert.match(html, /aria-label="input\.skills\.label"/);
+    assert.doesNotMatch(html, /aria-label="permissionMode\.label"/, 'unavailable permissions must not invent an Ask policy');
+  }
+});

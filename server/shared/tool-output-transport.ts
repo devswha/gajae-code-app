@@ -146,13 +146,13 @@ export function prepareMessageForTransport(message: NormalizedMessage): Normaliz
     prepared = { ...prepared, toolResult: rest, toolDetailsOmitted: true };
   }
 
-  if (message.toolResult && 'content' in message.toolResult) {
-    const preview = buildToolOutputPreview(message.toolResult.content);
+  if (prepared.toolResult && 'content' in prepared.toolResult) {
+    const preview = buildToolOutputPreview(prepared.toolResult.content);
     if (preview.truncated) {
       prepared = {
         ...prepared,
         toolResult: {
-          ...message.toolResult,
+          ...prepared.toolResult,
           content: preview.content as string,
         },
         toolResultTruncated: true,

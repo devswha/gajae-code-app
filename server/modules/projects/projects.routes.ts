@@ -3,6 +3,7 @@ import express from 'express';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { startCloneProject, type CloneProjectOperation } from '@/modules/projects/services/project-clone.service.js';
 import { createProject, promoteProjectOrigin, updateProjectDisplayName } from '@/modules/projects/services/project-management.service.js';
+import { startScratchWorkspace } from '@/modules/projects/services/scratch-workspace.service.js';
 import { descendIntoChild, resolveWorkspaceTarget } from '@/modules/projects/services/workspace-target.service.js';
 import {
   getProjectPermissions,
@@ -141,6 +142,12 @@ router.post('/create-project', asyncHandler(async (request, response) => {
     project: created.project,
     message: created.outcome === 'reactivated_archived' ? 'Archived project path reused successfully' : 'Project created successfully',
   });
+}));
+
+// One click from an empty workspace to a conversation: creates and registers
+// `<workspace root>/gajae-scratch`. Idempotent - a second call returns the same project.
+router.post('/scratch', asyncHandler(async (_request, response) => {
+  response.json(createApiSuccessResponse(await startScratchWorkspace()));
 }));
 
 router.post('/migrate-legacy-stars', asyncHandler(async (request, response) => {

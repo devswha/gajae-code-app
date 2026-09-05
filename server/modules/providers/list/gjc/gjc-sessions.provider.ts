@@ -4,6 +4,7 @@ import { sessionsDb } from '@/modules/database/index.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
 import { assignTranscriptTurns, type TranscriptTurnRecord } from '@/modules/providers/list/gjc/gjc-transcript-turns.js';
+import { readGjcTranscriptMessage } from '@/modules/providers/list/gjc/gjc-transcript-message.js';
 import { createNormalizedMessage, generateMessageId, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 
 const PROVIDER = 'gjc';
@@ -168,14 +169,14 @@ async function readTranscriptLineage(sessionFilePath: string): Promise<Transcrip
   const records: TranscriptTurnRecord[] = [];
   for await (const line of readBoundedJsonlLines(sessionFilePath)) {
     if (!line.trim()) continue;
-    let entry: AnyRecord;
+    let entry: AnyRecord | null;
     try {
-      entry = JSON.parse(line) as AnyRecord;
+      entry = readObjectRecord(JSON.parse(line));
     } catch {
       continue;
     }
-    if (typeof entry.id !== 'string') continue;
-    const message = entry.type === 'message' ? readObjectRecord(entry.message) : undefined;
+    if (!entry || typeof entry.id !== 'string') continue;
+    const message = readGjcTranscriptMessage(entry);
     const role = typeof message?.role === 'string' ? message.role : undefined;
     records.push({
       id: entry.id,
@@ -188,8 +189,8 @@ async function readTranscriptLineage(sessionFilePath: string): Promise<Transcrip
 }
 
 /**
- * Streams a gjc JSONL transcript and flattens `type:"message"` lines into the
- * compact intermediate shape consumed by `normalizeHistoryEntry`.
+ * Streams a gjc JSONL transcript and flattens messages (including visible user
+ * skill requests) into the compact shape consumed by `normalizeHistoryEntry`.
  *
  * Only displayable user, assistant, and tool-result messages are processed;
  * header and control events are ignored. Each `message.content[]` part becomes
@@ -217,12 +218,12 @@ async function streamGjcSessionMessages(
       }
 
       try {
-        const entry = JSON.parse(line) as AnyRecord;
-        if (entry.type !== 'message') {
+        const entry = readObjectRecord(JSON.parse(line));
+        if (!entry) {
           continue;
         }
 
-        const message = readObjectRecord(entry.message);
+        const message = readGjcTranscriptMessage(entry);
         if (!message || message.display === false) {
           continue;
         }

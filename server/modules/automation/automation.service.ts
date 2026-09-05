@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { chmod, mkdir, rm } from 'node:fs/promises';
+import { chmod, mkdir } from 'node:fs/promises';
 import net, { type Server as NetServer, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -111,16 +111,27 @@ const COMPUTER_DISCOVERY_TOOLS = new Set<CuaSafeTool>([
 const WORKSPACE_BROWSER_APPLICATION_ID = 'app.gajae.workspace-browser';
 const WORKSPACE_BROWSER_LABEL = 'Workspace Browser';
 
+export function automationSupport(platform: NodeJS.Platform, arch: string, environment: NodeJS.ProcessEnv) {
+  const override = environment.GAJAE_AUTOMATION === '1';
+  const desktop = environment.GJC_DESKTOP === '1';
+  const mac = platform === 'darwin' && arch === 'arm64';
+  return {
+    browser: override || (desktop && (mac || (platform === 'linux' && arch === 'x64'))),
+    computer: override || (desktop && mac),
+  };
+}
+
 export class AutomationService {
   readonly browser = new BrowserSidecarClient();
   readonly cua = new CuaDriverClient();
   readonly grants = new AutomationGrantStore();
-  readonly supported = (process.env.GJC_DESKTOP === '1' && process.platform === 'darwin' && process.arch === 'arm64')
-    || process.env.GAJAE_AUTOMATION === '1';
+  private readonly capabilities = automationSupport(process.platform, process.arch, process.env);
+  readonly supported = this.capabilities.browser;
   private readonly bridgeToken = randomBytes(32).toString('hex');
   private readonly bridgePath = process.env.GAJAE_AUTOMATION_SOCKET
     ?? join(tmpdir(), `gajae-automation-${process.pid}.sock`);
   private bridge?: NetServer;
+  private readonly bridgeConnections = new Set<Socket>();
   private readonly cuaSessionLabels = new Map<string, string>();
 
   async status() {
@@ -128,10 +139,13 @@ export class AutomationService {
       this.supported
         ? this.browser.status().catch((error) => ({ state: 'error', installed: false, buildId: 'unknown', error: error instanceof Error ? error.message : String(error) }))
         : Promise.resolve({ state: 'idle', installed: false, buildId: 'unsupported' }),
-      this.cua.status(),
+      this.capabilities.computer
+        ? this.cua.status()
+        : Promise.resolve({ installed: false, daemon: 'unknown' as const }),
     ]);
     return {
       supported: this.supported,
+      computerSupported: this.capabilities.computer,
       platform: process.platform,
       architecture: process.arch,
       browser,
@@ -208,7 +222,7 @@ export class AutomationService {
     payload: { tool?: unknown; arguments?: unknown; scope?: unknown; application?: unknown },
     signal?: AbortSignal,
   ): Promise<CuaApplicationAuthorization> {
-    this.requireSupported();
+    this.requireComputerSupported();
     if (!isCuaSafeTool(payload.tool)) throw new Error('Unsupported CUA Driver tool.');
     const args = object(payload.arguments);
     let application = typeof payload.application === 'string' ? payload.application.trim() : '';
@@ -279,7 +293,7 @@ export class AutomationService {
   }
 
   async callComputer(sessionId: string, tool: CuaSafeTool, args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
-    this.requireSupported();
+    this.requireComputerSupported();
     const { session: _ignoredSession, ...scopedArgs } = args;
     if (tool === 'end_session') return this.endComputerSession(sessionId, signal);
     const { label, result } = await this.ensureComputerSession(
@@ -294,9 +308,12 @@ export class AutomationService {
   async startBridge(): Promise<void> {
     if (!this.supported) return;
     if (this.bridge) return;
-    if (process.platform !== 'win32') await rm(this.bridgePath, { force: true }).catch(() => {});
     await mkdir(join(tmpdir()), { recursive: true });
-    const bridge = net.createServer((socket) => this.handleBridgeSocket(socket));
+    const bridge = net.createServer((socket) => {
+      this.bridgeConnections.add(socket);
+      socket.once('close', () => this.bridgeConnections.delete(socket));
+      this.handleBridgeSocket(socket);
+    });
     await new Promise<void>((resolve, reject) => {
       bridge.once('error', reject);
       bridge.listen(this.bridgePath, () => {
@@ -319,10 +336,15 @@ export class AutomationService {
     await this.cua.shutdown();
     const bridge = this.bridge;
     this.bridge = undefined;
+    for (const socket of this.bridgeConnections) socket.destroy();
+    this.bridgeConnections.clear();
+    // Node removes the Unix socket it bound when close completes. A service
+    // that never bound must not unlink another server's configured socket.
     if (bridge) await new Promise<void>((resolve) => bridge.close(() => resolve()));
-    if (process.platform !== 'win32') await rm(this.bridgePath, { force: true }).catch(() => {});
-    delete process.env.GJC_AUTOMATION_SOCKET;
-    delete process.env.GJC_AUTOMATION_TOKEN;
+    if (process.env.GJC_AUTOMATION_SOCKET === this.bridgePath && process.env.GJC_AUTOMATION_TOKEN === this.bridgeToken) {
+      delete process.env.GJC_AUTOMATION_SOCKET;
+      delete process.env.GJC_AUTOMATION_TOKEN;
+    }
   }
 
   private newComputerSessionLabel(): string {
@@ -366,7 +388,12 @@ export class AutomationService {
   }
 
   private requireSupported(): void {
-    if (!this.supported) throw new Error('Automation is available on Apple Silicon macOS in this preview.');
+    if (!this.supported) throw new Error('Browser automation is available in the macOS arm64 and Linux x64 desktop apps.');
+  }
+
+  private requireComputerSupported(): void {
+    this.requireSupported();
+    if (!this.capabilities.computer) throw new Error('Native computer automation is not enabled on this platform.');
   }
 
   private handleBridgeSocket(socket: Socket): void {

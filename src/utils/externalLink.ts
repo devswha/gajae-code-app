@@ -17,10 +17,16 @@ export const isDesktopShell = (): boolean => desktopShell;
 
 /** Only web pages leave the app: https with a host, nothing else. */
 export function safeExternalUrl(value: unknown): string | null {
+  const url = safeBrowserUrl(value);
+  return url?.startsWith('https:') ? url : null;
+}
+
+/** Pages already visited in Workspace Browser can also be local HTTP apps. */
+export function safeBrowserUrl(value: unknown): string | null {
   if (typeof value !== 'string' || value.length > MAX_URL_LENGTH) return null;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && url.hostname ? url.href : null;
+    return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname ? url.href : null;
   } catch {
     return null;
   }
@@ -33,12 +39,19 @@ export function safeExternalUrl(value: unknown): string | null {
  * showing it.
  */
 export async function openExternalUrl(value: unknown): Promise<boolean> {
-  const url = safeExternalUrl(value);
+  return openValidatedUrl(safeExternalUrl(value), '/api/system/open-url');
+}
+
+export async function openBrowserUrl(value: unknown): Promise<boolean> {
+  return openValidatedUrl(safeBrowserUrl(value), '/api/system/open-browser-url');
+}
+
+async function openValidatedUrl(url: string | null, endpoint: string): Promise<boolean> {
   if (!url || typeof window === 'undefined') return false;
 
   if (desktopShell) {
     try {
-      const response = await authenticatedFetch('/api/system/open-url', {
+      const response = await authenticatedFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),

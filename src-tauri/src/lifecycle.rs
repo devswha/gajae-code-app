@@ -9,6 +9,7 @@ use tokio::sync::Notify;
 pub struct SidecarLifecycle {
     pid: std::sync::Mutex<Option<u32>>,
     shutting_down: AtomicBool,
+    shutdown_waiting: AtomicBool,
     exited: Notify,
 }
 
@@ -17,6 +18,7 @@ impl Default for SidecarLifecycle {
         Self {
             pid: std::sync::Mutex::new(None),
             shutting_down: AtomicBool::new(false),
+            shutdown_waiting: AtomicBool::new(false),
             exited: Notify::new(),
         }
     }
@@ -56,12 +58,28 @@ impl SidecarLifecycle {
             .is_some()
     }
 
+    /// The final app.exit() must be allowed through ExitRequested, but only
+    /// after Quit has fenced off new spawns and the tracked server has exited.
+    pub fn shutdown_complete(&self) -> bool {
+        self.is_shutting_down() && !self.has_sidecar()
+    }
+
     pub fn begin_shutdown(&self) -> Option<u32> {
         let pid = self.pid.lock().expect("sidecar lifecycle lock poisoned");
         if self.shutting_down.swap(true, Ordering::SeqCst) {
             return None;
         }
         *pid
+    }
+
+    /// Signal only the currently tracked child, while Retry cannot replace it.
+    pub(crate) fn terminate(&self, expected_pid: u32) -> Result<(), String> {
+        let pid = self.pid.lock().expect("sidecar lifecycle lock poisoned");
+        if *pid == Some(expected_pid) {
+            terminate_sidecar(expected_pid)
+        } else {
+            Ok(())
+        }
     }
 
     async fn wait_for_exit(&self) -> Result<(), String> {
@@ -97,10 +115,23 @@ pub fn terminate_sidecar(pid: u32) -> Result<(), String> {
         fn kill(pid: i32, signal: i32) -> i32;
     }
     const SIGTERM: i32 = 15;
-    if unsafe { kill(pid as i32, SIGTERM) } == 0 {
+    let target = i32::try_from(pid)
+        .ok()
+        .filter(|pid| *pid > 0)
+        .ok_or_else(|| format!("invalid desktop server PID {pid}"))?;
+    if unsafe { kill(target, SIGTERM) } == 0 {
         Ok(())
     } else {
-        Err(format!("could not send SIGTERM to desktop server {pid}"))
+        let error = std::io::Error::last_os_error();
+        // The plugin may already have reaped the child but still be draining
+        // inherited output pipes before it delivers Terminated.
+        if error.raw_os_error() == Some(3) {
+            Ok(()) // ESRCH: the child is already gone.
+        } else {
+            Err(format!(
+                "could not send SIGTERM to desktop server {pid}: {error}"
+            ))
+        }
     }
 }
 
@@ -114,7 +145,15 @@ pub(crate) fn process_alive(pid: u32) -> bool {
     unsafe extern "C" {
         fn kill(pid: i32, signal: i32) -> i32;
     }
-    unsafe { kill(pid as i32, 0) == 0 }
+    let Some(target) = i32::try_from(pid).ok().filter(|pid| *pid > 0) else {
+        return true; // An invalid PID must never authorize Retry or app exit.
+    };
+    if unsafe { kill(target, 0) } == 0 {
+        true
+    } else {
+        // Permission and probe failures are not evidence of process exit.
+        std::io::Error::last_os_error().raw_os_error() != Some(3)
+    }
 }
 
 #[cfg(not(unix))]
@@ -150,27 +189,50 @@ pub fn blocking_shutdown(app: &AppHandle) {
     }
 }
 
-pub fn hide_on_close(window: &Window, event: &tauri::WindowEvent) {
+pub fn handle_close_request(window: &Window, event: &tauri::WindowEvent) {
     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        // Keep the window alive until the server finishes: shutdown errors
+        // still need a visible window, and destroying it must not skip Quit.
         api.prevent_close();
+
+        // Linux has no macOS Reopen event (and no tray UI in this app). Hiding
+        // the last window would leave the server and instance lock invisible.
+        #[cfg(target_os = "linux")]
+        graceful_quit(window.app_handle().clone());
+
+        // Preserve macOS close-to-hide and its Dock/Reopen behavior.
+        #[cfg(not(target_os = "linux"))]
         let _ = window.hide();
     }
 }
 
 pub fn graceful_quit(app: AppHandle) {
+    // Fence spawning on the event thread, before scheduling asynchronous work.
+    // Otherwise a queued Retry/startup can spawn after CloseRequested returns.
+    let lifecycle = app.state::<SidecarLifecycle>();
+    lifecycle.begin_shutdown();
+    if lifecycle.shutdown_complete() {
+        app.exit(0);
+        return;
+    }
+    if lifecycle.shutdown_waiting.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let pid = *lifecycle
+        .pid
+        .lock()
+        .expect("sidecar lifecycle lock poisoned");
+    let signal = pid.map_or(Ok(()), |pid| lifecycle.terminate(pid));
     tauri::async_runtime::spawn(async move {
         let lifecycle = app.state::<SidecarLifecycle>();
-        let Some(pid) = lifecycle.begin_shutdown() else {
-            if !lifecycle.has_sidecar() {
-                app.exit(0);
-            }
-            return;
+        let result = match signal {
+            Ok(()) => lifecycle.wait_for_exit().await,
+            Err(error) => Err(error),
         };
-        if let Err(error) = terminate_sidecar(pid) {
-            show_shutdown_error(&app, &error);
-            return;
-        }
-        if let Err(error) = lifecycle.wait_for_exit().await {
+        // Keep the spawn fence, but let another Close/Quit retry a failed
+        // signal or wait. Previously every subsequent Quit became a no-op.
+        lifecycle.shutdown_waiting.store(false, Ordering::SeqCst);
+        if let Err(error) = result {
             show_shutdown_error(&app, &error);
             return;
         }
@@ -197,6 +259,51 @@ mod tests {
         lifecycle.start(|| Ok((42, ()))).unwrap();
         assert_eq!(lifecycle.begin_shutdown(), Some(42));
         assert_eq!(lifecycle.begin_shutdown(), None);
+    }
+
+    #[test]
+    fn shell_exit_requires_shutdown_even_before_the_server_starts() {
+        let lifecycle = SidecarLifecycle::default();
+        assert!(!lifecycle.shutdown_complete());
+        assert_eq!(lifecycle.begin_shutdown(), None);
+        assert!(lifecycle.shutdown_complete());
+        assert_eq!(
+            lifecycle.start::<()>(|| panic!("closing during startup must prevent a late spawn")),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    fn repeated_close_cannot_release_the_shutdown_fence_early() {
+        let lifecycle = SidecarLifecycle::default();
+        lifecycle.start(|| Ok((42, ()))).unwrap();
+        assert!(!lifecycle.shutdown_complete());
+        assert_eq!(lifecycle.begin_shutdown(), Some(42));
+        assert!(!lifecycle.shutdown_complete());
+        assert_eq!(lifecycle.begin_shutdown(), None);
+        assert!(!lifecycle.shutdown_complete());
+
+        lifecycle.exited(43);
+        assert!(!lifecycle.shutdown_complete());
+        lifecycle.exited(42);
+        assert!(
+            lifecycle.shutdown_complete(),
+            "the final app.exit() must proceed"
+        );
+        assert_eq!(
+            lifecycle.start::<()>(|| panic!("a completed shutdown must still reject Retry")),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    fn unexpected_server_exit_does_not_count_as_a_requested_shutdown() {
+        let lifecycle = SidecarLifecycle::default();
+        lifecycle.start(|| Ok((42, ()))).unwrap();
+        lifecycle.exited(42);
+        assert!(!lifecycle.shutdown_complete());
+        assert_eq!(lifecycle.begin_shutdown(), None);
+        assert!(lifecycle.shutdown_complete());
     }
 
     #[test]
@@ -275,15 +382,25 @@ mod tests {
         lifecycle.start(|| Ok((42, ()))).unwrap();
         assert_eq!(lifecycle.begin_shutdown(), Some(42));
         tauri::async_runtime::block_on(async {
+            let mut waiting = Box::pin(lifecycle.wait_for_exit());
             assert!(
-                tokio::time::timeout(Duration::from_millis(20), lifecycle.wait_for_exit())
+                tokio::time::timeout(Duration::from_millis(20), &mut waiting)
                     .await
                     .is_err()
             );
             lifecycle.exited(43);
             assert!(lifecycle.has_sidecar());
+            assert!(
+                tokio::time::timeout(Duration::from_millis(20), &mut waiting)
+                    .await
+                    .is_err()
+            );
             lifecycle.exited(42);
-            lifecycle.wait_for_exit().await.unwrap();
+            tokio::time::timeout(Duration::from_millis(100), waiting)
+                .await
+                .expect("the existing shutdown waiter must wake when the tracked server exits")
+                .unwrap();
+            assert!(lifecycle.shutdown_complete());
         });
     }
 }

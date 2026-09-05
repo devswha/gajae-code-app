@@ -1,17 +1,24 @@
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import readline from 'node:readline';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
   BROWSER_PROTOCOL_VERSION,
   type BrowserProtocolFrame,
   type BrowserRequestMethod,
 } from '../modules/automation/browser-protocol.js';
+
+function sidecarEntrypoint(): string {
+  const source = fileURLToPath(new URL('../modules/automation/browser-sidecar.ts', import.meta.url));
+  return existsSync(source) ? source : fileURLToPath(new URL('../modules/automation/browser-sidecar.js', import.meta.url));
+}
 
 class SidecarHarness {
   readonly child: ChildProcessWithoutNullStreams;
@@ -22,7 +29,7 @@ class SidecarHarness {
   private stoppedError?: Error;
   private stderr = '';
 
-  constructor(profileDirectory: string, entrypoint = join(process.cwd(), 'server', 'modules', 'automation', 'browser-sidecar.ts')) {
+  constructor(profileDirectory: string, entrypoint = sidecarEntrypoint()) {
     this.child = spawn(join(process.cwd(), 'dist-native', 'bun'), [
       entrypoint,
     ], {

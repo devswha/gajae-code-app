@@ -138,7 +138,7 @@
         "live": "실시간",
         "offline": "오프라인"
       },
-      "unsupported": "자동 미리보기는 macOS 14 이상과 Apple Silicon에서만 지원됩니다.",
+      "unsupported": "Workspace Browser는 macOS arm64 및 Linux x64 데스크톱 앱에서 사용할 수 있습니다.",
       "error": "브라우저 자동화를 시작할 수 없습니다.",
       "downloadBlocked": "다운로드 차단: {{filename}}. 이 미리보기에서는 다운로드를 저장할 수 없습니다.",
       "downloadUnknown": "내려받기",

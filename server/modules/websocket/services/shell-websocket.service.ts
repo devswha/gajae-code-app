@@ -19,6 +19,9 @@ type ShellWebSocketDependencies = {
 };
 
 const sessions = new Map<string, PtySessionEntry>();
+// Revocation outlives the PTY entry: its exit must not let a delayed init from
+// a replaced connection seize the session before the current owner restarts.
+const supersededSockets = new WeakSet<WebSocket>();
 const SESSION_GRACE_PERIOD = 30 * 60 * 1000;
 const URL_WINDOW_LENGTH = 32768;
 const SAFE_ID = /^[a-zA-Z0-9_.\-:]+$/;
@@ -91,50 +94,58 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
   let key: string | null = null;
 
   const write = (payload: unknown) => ws.send(JSON.stringify(payload));
+  const ownedSession = () => {
+    const current = key ? sessions.get(key) : undefined;
+    return current?.ws === ws && current.pty === activePty ? current : undefined;
+  };
+  const detach = () => {
+    const current = ownedSession();
+    if (!current || !key) return;
+    const id = key;
+    current.ws = null;
+    if (current.timeoutId) clearTimeout(current.timeoutId);
+    const timer = setTimeout(() => {
+      // A cancelled callback may already be queued when a new owner attaches.
+      if (sessions.get(id) !== current || current.ws !== null || current.timeoutId !== timer) return;
+      sessions.delete(id);
+      current.pty.kill();
+    }, SESSION_GRACE_PERIOD);
+    current.timeoutId = timer;
+  };
   const clearSavedSession = (id: string) => {
     const old = sessions.get(id);
     if (!old) return;
+    if (old.ws && old.ws !== ws) supersededSockets.add(old.ws);
     if (old.timeoutId) clearTimeout(old.timeoutId);
     old.pty.kill();
     sessions.delete(id);
   };
-  const detach = () => {
-    if (!key) return;
-    const id = key;
-    const current = sessions.get(id);
-    if (!current || current.ws !== ws) return;
-    current.ws = null;
-    if (current.timeoutId) clearTimeout(current.timeoutId);
-    current.timeoutId = setTimeout(() => {
-      if (sessions.get(id) !== current || current.ws !== null) return;
-      current.pty.kill();
-      sessions.delete(id);
-    }, SESSION_GRACE_PERIOD);
-  };
-  const relayOutput = (id: string, child: IPty, chunk: string) => {
-    const current = sessions.get(id);
-    if (!current || current.pty !== child) return;
-    if (current.buffer.length === 5000) current.buffer.shift();
-    current.buffer.push(chunk);
-    if (!current.ws || current.ws.readyState !== WebSocket.OPEN) return;
+  const relayOutput = (id: string, child: IPty) => {
+    return (chunk: string) => {
+      const current = sessions.get(id);
+      if (!current || current.pty !== child) return;
+      if (current.buffer.length === 5000) current.buffer.shift();
+      current.buffer.push(chunk);
+      if (!current.ws || current.ws.readyState !== WebSocket.OPEN) return;
 
-    const stripped = dependencies.stripAnsiSequences(chunk);
-    current.urlText = `${current.urlText}${stripped}`.slice(-URL_WINDOW_LENGTH);
-    const output = chunk.replace(/OPEN_URL:\s*(https?:\/\/[^\s\x1b\x07]+)/g, '[INFO] Opening in browser: $1');
-    const urls = Array.from(new Set(dependencies.extractUrlsFromText(current.urlText)
-      .map((url) => dependencies.normalizeDetectedUrl(url))
-      .filter((url): url is string => Boolean(url))))
-      .filter((url, _, all) => !all.some((other) => other !== url && other.startsWith(url)));
-    const announce = (url: string, autoOpen: boolean) => {
-      if (current.reportedUrls.has(url)) return;
-      current.reportedUrls.add(url);
-      current.ws?.send(JSON.stringify({ type: 'auth_url', url, autoOpen }));
+      const stripped = dependencies.stripAnsiSequences(chunk);
+      current.urlText = `${current.urlText}${stripped}`.slice(-URL_WINDOW_LENGTH);
+      const output = chunk.replace(/OPEN_URL:\s*(https?:\/\/[^\s\x1b\x07]+)/g, '[INFO] Opening in browser: $1');
+      const urls = Array.from(new Set(dependencies.extractUrlsFromText(current.urlText)
+        .map((url) => dependencies.normalizeDetectedUrl(url))
+        .filter((url): url is string => Boolean(url))))
+        .filter((url, _, all) => !all.some((other) => other !== url && other.startsWith(url)));
+      const announce = (url: string, autoOpen: boolean) => {
+        if (current.reportedUrls.has(url)) return;
+        current.reportedUrls.add(url);
+        current.ws?.send(JSON.stringify({ type: 'auth_url', url, autoOpen }));
+      };
+      urls.forEach((url) => announce(url, false));
+      if (dependencies.shouldAutoOpenUrlFromOutput(stripped) && urls.length) {
+        announce(urls.reduce((longest, url) => url.length > longest.length ? url : longest), true);
+      }
+      current.ws.send(JSON.stringify({ type: 'output', data: output }));
     };
-    urls.forEach((url) => announce(url, false));
-    if (dependencies.shouldAutoOpenUrlFromOutput(stripped) && urls.length) {
-      announce(urls.reduce((longest, url) => url.length > longest.length ? url : longest), true);
-    }
-    current.ws.send(JSON.stringify({ type: 'output', data: output }));
   };
   const start = (data: ShellIncomingMessage): void => {
     const projectPath = text(data.projectPath, process.cwd());
@@ -144,29 +155,33 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
     const command = text(data.initialCommand);
     const plain = flag(data.isPlainShell) || (!!command && !hasSession) || provider === 'plain-shell';
     const login = !!command && (command.includes('setup-token') || command.includes('cursor-agent login') || command.includes('auth login'));
-    detach();
-    activePty = null;
-    key = sessionKey(projectPath, sessionId, plain, command);
-    if (login || flag(data.forceRestart)) clearSavedSession(key);
-    const previous = login || flag(data.forceRestart) ? undefined : sessions.get(key);
+    if (sessionId && !SAFE_ID.test(sessionId)) {
+      write({ type: 'error', message: 'Invalid session ID' });
+      return;
+    }
+    const nextKey = sessionKey(projectPath, sessionId, plain, command);
+    const restart = login || flag(data.forceRestart);
+    const previous = restart ? undefined : sessions.get(nextKey);
+    const cwd = path.resolve(projectPath);
+    if (!previous) {
+      try {
+        if (!fs.statSync(cwd).isDirectory()) throw new Error('Not a directory');
+      } catch {
+        write({ type: 'error', message: 'Invalid project path' });
+        return;
+      }
+    }
+    if (key !== nextKey) detach();
+    key = nextKey;
+    if (restart) clearSavedSession(key);
     if (previous) {
       activePty = previous.pty;
       if (previous.timeoutId) clearTimeout(previous.timeoutId);
       previous.timeoutId = null;
+      if (previous.ws && previous.ws !== ws) supersededSockets.add(previous.ws);
+      previous.ws = ws;
       write({ type: 'output', data: '\x1b[36m[Reconnected to existing session]\x1b[0m\r\n' });
       previous.buffer.forEach((data) => write({ type: 'output', data }));
-      previous.ws = ws;
-      return;
-    }
-    const cwd = path.resolve(projectPath);
-    try {
-      if (!fs.statSync(cwd).isDirectory()) throw new Error('Not a directory');
-    } catch {
-      write({ type: 'error', message: 'Invalid project path' });
-      return;
-    }
-    if (sessionId && !SAFE_ID.test(sessionId)) {
-      write({ type: 'error', message: 'Invalid session ID' });
       return;
     }
     const executable = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
@@ -178,15 +193,14 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
       env: { ...process.env, [npmPath.key]: npmPath.value, TERM: 'xterm-256color', COLORTERM: 'truecolor', FORCE_COLOR: '3' },
     });
     const child = activePty;
-    const childKey = key;
-    sessions.set(childKey, { pty: child, ws, buffer: [], timeoutId: null, projectPath, sessionId, urlText: '', reportedUrls: new Set() });
-    child.onData((chunk) => relayOutput(childKey, child, chunk));
+    sessions.set(key, { pty: child, ws, buffer: [], timeoutId: null, projectPath, sessionId, urlText: '', reportedUrls: new Set() });
+    child.onData(relayOutput(nextKey, child));
     child.onExit((status) => {
-      const current = sessions.get(childKey);
+      const current = sessions.get(nextKey);
       if (!current || current.pty !== child) return;
-      if (current?.ws?.readyState === WebSocket.OPEN) current.ws.send(JSON.stringify({ type: 'output', data: `\r\n\x1b[33mProcess exited with code ${status.exitCode}${status.signal != null ? ` (${status.signal})` : ''}\x1b[0m\r\n` }));
-      if (current?.timeoutId) clearTimeout(current.timeoutId);
-      sessions.delete(childKey);
+      if (current.ws?.readyState === WebSocket.OPEN) current.ws.send(JSON.stringify({ type: 'output', data: `\r\n\x1b[33mProcess exited with code ${status.exitCode}${status.signal != null ? ` (${status.signal})` : ''}\x1b[0m\r\n` }));
+      if (current.timeoutId) clearTimeout(current.timeoutId);
+      sessions.delete(nextKey);
       if (activePty === child) activePty = null;
     });
     const welcome = plain
@@ -198,12 +212,16 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
   };
   const handlers: Record<string, (data: ShellIncomingMessage) => void> = {
     init: start,
-    input: (data) => { if (activePty && key && sessions.get(key)?.ws === ws) activePty.write(text(data.data)); },
-    resize: (data) => { if (activePty && key && sessions.get(key)?.ws === ws) activePty.resize(dimension(data.cols, 80), dimension(data.rows, 24)); },
+    input: (data) => { ownedSession()?.pty.write(text(data.data)); },
+    resize: (data) => { ownedSession()?.pty.resize(dimension(data.cols, 80), dimension(data.rows, 24)); },
   };
 
   ws.on('message', async (raw) => {
     try {
+      if (ws.readyState !== WebSocket.OPEN || supersededSockets.has(ws)) return;
+      // A replaced connection cannot reclaim, restart or control the new owner.
+      const current = key ? sessions.get(key) : undefined;
+      if (current && current.ws !== ws) return;
       const data = decode(raw);
       if (!data?.type) throw new Error('Invalid websocket payload');
       handlers[data.type]?.(data);

@@ -11,6 +11,8 @@ import { pathToFileURL } from 'node:url';
 import {
   Browser as BrowserBinary,
   BrowserTag,
+  ChromeReleaseChannel,
+  computeSystemExecutablePath,
   detectBrowserPlatform,
   getInstalledBrowsers,
   install,
@@ -20,6 +22,7 @@ import puppeteer, {
   type Browser,
   type CDPSession,
   type KeyInput,
+  type LaunchOptions,
   type Page,
   type Target,
 } from 'puppeteer-core';
@@ -95,6 +98,45 @@ const CACHE_ROOT = process.env.GAJAE_BROWSER_CACHE_DIR ?? join(homedir(), '.gaja
 const PROFILE_ROOT = process.env.GAJAE_BROWSER_PROFILE_DIR ?? join(homedir(), '.gajae-app', 'browser', 'profile');
 const MAX_RUN_CODE_BYTES = 64 * 1024;
 const MAX_RESULT_TEXT = 256 * 1024;
+
+type AppBrowserLaunchOptions = Omit<LaunchOptions, 'executablePath' | 'channel'> & { userDataDir: string };
+type BrowserLaunchDependencies = {
+  platform?: NodeJS.Platform;
+  explicitExecutable?: boolean;
+  launch?: (options: LaunchOptions) => Promise<Browser>;
+  systemExecutable?: () => string;
+};
+
+export async function launchBrowserWithLinuxFallback(
+  executablePath: string,
+  options: AppBrowserLaunchOptions,
+  {
+    platform = process.platform,
+    explicitExecutable = Boolean(process.env.GAJAE_BROWSER_EXECUTABLE_PATH),
+    launch = launchOptions => puppeteer.launch(launchOptions),
+    systemExecutable = () => computeSystemExecutablePath({ browser: BrowserBinary.CHROME, channel: ChromeReleaseChannel.STABLE }),
+  }: BrowserLaunchDependencies = {},
+): Promise<Browser> {
+  try {
+    return await launch({ ...options, executablePath });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const sandboxFailure = /No usable sandbox!|SUID sandbox helper binary[^\n]*not configured correctly|Failed to move to new namespace[^\n]*Operation not permitted/i.test(message);
+    if (platform !== 'linux' || explicitExecutable || !sandboxFailure) throw error;
+    let fallback: string;
+    try { fallback = systemExecutable(); }
+    catch { throw error; }
+    if (fallback === executablePath) throw error;
+    // Use Puppeteer's known installed stable Chrome path, never a PATH search.
+    // Retry with the same app profile and sandbox options; no personal profile
+    // is opened and no sandbox-disabling flag is added.
+    process.stderr.write('[Browser] Managed Chromium sandbox unavailable; trying installed stable Chrome with the app profile.\n');
+    try { return await launch({ ...options, executablePath: fallback }); }
+    catch (fallbackError) {
+      throw new Error(`Installed Chrome fallback failed: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`, { cause: error });
+    }
+  }
+}
 
 function writeFrame(frame: BrowserResponseFrame | BrowserEventFrame): void {
   process.stdout.write(serializeBrowserFrame(frame));
@@ -430,8 +472,7 @@ class BrowserRuntime {
       }
       await mkdir(PROFILE_ROOT, { recursive: true });
       if (!existsSync(installed.executablePath)) throw new Error('browser_missing: Chromium executable was not found.');
-      const browser = await puppeteer.launch({
-        executablePath: installed.executablePath,
+      const browser = await launchBrowserWithLinuxFallback(installed.executablePath, {
         userDataDir: PROFILE_ROOT,
         headless: true,
         defaultViewport: { ...DEFAULT_BROWSER_VIEWPORT, deviceScaleFactor: 1 },

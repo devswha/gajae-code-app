@@ -4,6 +4,11 @@ import os from 'os';
 import path from 'path';
 
 import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
+import { sanitizeAppImageEnvironment } from './utils/appimage-environment.js';
+
+// AppRun modifies Python and GTK loader paths for the Rust UI. Its Node
+// sidecar and user commands must use host tools without those bundle paths.
+sanitizeAppImageEnvironment(process.env);
 
 const __dirname = getModuleDir(import.meta.url);
 // Resolve the repo/app root via the nearest /server folder so this file keeps finding the

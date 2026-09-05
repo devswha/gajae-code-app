@@ -6,7 +6,9 @@ const TEST_FILE_PATTERN = /\.(?:test|spec)\.(?:js|mjs|ts|tsx)$/;
 // `.tsx` too: component tests that need a DOM run on Bun as well, under
 // `*.dom.bun.test.tsx`.
 const BUN_TEST_FILE_PATTERN = /\.bun\.(?:test|spec)\.tsx?$/;
-const SKIPPED_DIRECTORIES = new Set(['dist', 'dist-server', 'node_modules', 'release']);
+// Roots are source/test directories, so scripts/release is real tooling, not
+// the repository's generated release/ output directory.
+const SKIPPED_DIRECTORIES = new Set(['dist', 'dist-server', 'node_modules']);
 
 const [nodeMajor, nodeMinor, nodePatch] = process.versions.node.split('.').map(Number);
 const meetsMinimumNodeVersion =
@@ -107,12 +109,13 @@ function runBunTests(label, files) {
   }
 }
 
-const [serverTestsAll, clientTests, scriptTests] = await Promise.all([
+const [serverTestsAll, clientTests, scriptTests, desktopScriptTests] = await Promise.all([
   collectTests('server'),
   collectTests('src'),
   // Build and release tooling: plain Node, no tsconfig. This is where the
   // distribution-exclusion stubs are checked before any payload is built.
   collectTests('scripts'),
+  collectTests('src-tauri/scripts'),
 ]);
 const serverBunTests = serverTestsAll.filter((file) => BUN_TEST_FILE_PATTERN.test(file));
 const serverTests = serverTestsAll.filter((file) => !BUN_TEST_FILE_PATTERN.test(file));
@@ -123,4 +126,4 @@ runTests('server', serverTests, { tsconfig: 'server/tsconfig.json' });
 runBunTests('server-bun', serverBunTests);
 runTests('client', clientNodeTests, { tsconfig: 'tsconfig.json' });
 runBunTests('client-bun', clientBunTests);
-runTests('scripts', scriptTests);
+runTests('scripts', [...scriptTests, ...desktopScriptTests]);

@@ -204,6 +204,7 @@ class FakePeer {
 
 function runtime(child: FakeChild, scope = 'app-session-1') {
   return {
+    platform: 'linux' as const,
     spawn: () => child,
     corePath: '/test/gajae-core',
     workerPath: '/test/gjc-bun-worker.js',
@@ -353,6 +354,7 @@ test('fails closed when the Windows job guard never proves app ownership', async
     platform: 'win32',
     environment: { SystemRoot: 'C:\\Windows' },
     initializeTimeoutMs: 5,
+    killTree: (guard) => { guard.kill('SIGKILL'); },
   });
 
   await assert.rejects(
@@ -360,7 +362,7 @@ test('fails closed when the Windows job guard never proves app ownership', async
     /GJC worker failed/,
   );
 
-  assert.equal(child.killed, false);
+  assert.equal(child.killed, true);
 });
 
 test('shares one handshake and sends one start request per concurrent run', async () => {
@@ -392,7 +394,7 @@ test('shares one handshake and sends one start request per concurrent run', asyn
   assert.equal(starts.length, 2);
   assert.deepEqual(starts[0]?.payload, { message: 'first', options: { model: 'x' } });
   assert.equal(peer.requests.some((request) => request.method === 'turn.start'), false);
-  assert.equal(detached, process.platform !== 'win32');
+  assert.equal(detached, true);
   assert.equal(environmentExtendsProcessEnvWithAgentDir(launchEnvironment), true);
   assert.equal(command, '/test/gajae-core');
   assert.deepEqual(args, ['--', '/test/bun', '/test/gjc-bun-worker.js']);
@@ -481,6 +483,7 @@ test('wraps the source worker with Bun while only adding the injected agent dire
 test('fails safely when the native core cannot launch without a Node fallback', async () => {
   const commands: string[] = [];
   const supervisor = new GjcWorkerSupervisor({
+    platform: 'linux',
     corePath: '/missing/gajae-core',
     workerPath: '/test/gjc-worker.js',
     compiled: true,
@@ -971,7 +974,7 @@ test('rejecting option enrichment settles a pre-request run as not_started', asy
   assert.equal(await run.outcome, 'not_started');
   assert.equal(supervisor.isActive('enrichment-failure'), false);
 });
-test('production POSIX terminator waits for direct-child close and process-group absence', async () => {
+test('production POSIX terminator waits for direct-child close and process-group absence', { skip: process.platform === 'win32' }, async () => {
   const child = spawnChild(process.execPath, ['-e', 'setInterval(() => {}, 1_000)'], {
     detached: true,
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -983,10 +986,10 @@ test('production POSIX terminator waits for direct-child close and process-group
     (error: unknown) => (error as NodeJS.ErrnoException).code === 'ESRCH',
   );
 });
-test('Windows tree reaping is explicitly fail-closed while the v2 runtime is frozen', async () => {
+test('Windows tree reaping rejects a child without an owned Job Object', async () => {
   await assert.rejects(
     killWorkerTree(new FakeChild(), 'win32'),
-    /unconfirmed on Windows/,
+    /no owned Job Object/,
   );
 });
 test('OAuth requests and chat runs share one supervised worker process', async () => {

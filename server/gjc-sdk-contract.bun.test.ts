@@ -335,7 +335,7 @@ type ProductionWorkerResult = {
 };
 
 async function runProductionWorker(env: NodeJS.ProcessEnv = {}): Promise<ProductionWorkerResult> {
-  const bun = join(process.cwd(), 'dist-native', 'bun');
+  const bun = join(process.cwd(), 'dist-native', process.platform === 'win32' ? 'bun.exe' : 'bun');
   const worker = join(process.cwd(), 'server', 'gjc-bun-worker.ts');
   return new Promise((resolve, reject) => {
     const child = spawn(bun, [worker], {
@@ -350,7 +350,7 @@ async function runProductionWorker(env: NodeJS.ProcessEnv = {}): Promise<Product
     const timeout = setTimeout(() => {
       child.kill();
       reject(new Error('Production Bun worker timed out.'));
-    }, 10_000);
+    }, 60_000);
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
     child.stdout.on('data', (chunk: string) => {
@@ -1795,7 +1795,9 @@ test('the SDK runtime bootstrap initializes the theme before any session can ask
   // would leave every option-bearing ask crashing again with a passing suite.
   assert.match(bootstrap, /ensureSdkThemeInitialized\(\)/u);
 });
-test('production Bun worker verifies the manifest before accepting initialize and shuts down over stdio', async () => {
+// Production initialization includes online model discovery (commonly 4-8 s),
+// so Bun's default five-second test deadline is shorter than a healthy start.
+test('production Bun worker verifies the manifest before accepting initialize and shuts down over stdio', { timeout: 65_000 }, async () => {
   const agentDirectory = await mkdtemp(join(tmpdir(), 'gjc-agent-'));
   try {
     const result = await runProductionWorker({
@@ -1811,7 +1813,7 @@ test('production Bun worker verifies the manifest before accepting initialize an
   }
 });
 
-test('production Bun worker rejects a tampered test-only manifest override', async () => {
+test('production Bun worker rejects a tampered test-only manifest override', { timeout: 65_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'gjc-manifest-'));
   const manifestPath = join(directory, 'gjc-runtime-manifest.json');
   try {

@@ -7,6 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
+import { npmInvocation } from './lib/npm-cli.mjs';
+
 const execFile = promisify(execFileCallback);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -15,8 +17,7 @@ const manifestPath = path.join(rootDir, 'server', 'gjc-runtime-manifest.json');
 const resolverFrom = path.join(rootDir, 'server');
 const argv = process.argv.slice(2);
 const update = argv.includes('--update');
-// Runtime v2 supports Linux x64 and macOS arm64 only; Windows remains intentionally frozen out.
-const SUPPORTED_PLATFORMS = new Set(['linux-x64', 'darwin-arm64']);
+const SUPPORTED_PLATFORMS = new Set(['linux-x64', 'darwin-arm64', 'win32-x64']);
 
 /**
  * Fill the closure for a platform this machine is not.
@@ -85,9 +86,10 @@ async function closureFiles(packageName, packageRoot, filenames) {
 async function fetchPlatformRoot(platform, version) {
   const platformPackage = `@gajae-code/natives-${platform}`;
   const destination = await fs.mkdtemp(path.join(os.tmpdir(), `gjc-natives-${platform}-`));
-  const { stdout } = await execFile('npm', [
+  const npm = npmInvocation([
     'pack', `${platformPackage}@${version}`, '--pack-destination', destination, '--silent',
-  ], { cwd: rootDir });
+  ]);
+  const { stdout } = await execFile(npm.command, npm.args, { cwd: rootDir });
   const tarball = stdout.trim().split('\n').pop();
   if (!tarball) throw new Error(`npm pack produced no tarball for ${platformPackage}@${version}.`);
   await execFile('tar', ['-xzf', path.join(destination, tarball), '-C', destination]);
@@ -102,10 +104,10 @@ async function platformClosure(nativesRoot, platform, foreignRoot) {
 
   const loaderFiles = (await fs.readdir(path.join(nativesRoot, 'native')))
     .filter((filename) => filename.endsWith('.js'))
-    .map((filename) => path.join('native', filename));
+    .map((filename) => path.posix.join('native', filename));
   const addonFiles = (await fs.readdir(path.join(platformRoot, 'native')))
     .filter((filename) => filename.endsWith('.node'))
-    .map((filename) => path.join('native', filename));
+    .map((filename) => path.posix.join('native', filename));
   if (addonFiles.length === 0) throw new Error(`${platformPackage} has no native addons.`);
 
   const files = [

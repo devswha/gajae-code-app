@@ -22,3 +22,7 @@ tauri-plugin-deep-link = "=2.3.0"
 tokio = { version = "1", features = ["sync", "time"] }
 tauri-runtime = "=2.7.0"
 tauri-runtime-wry = "=2.7.0"
+
+[target.'cfg(windows)'.dependencies]
+tauri-plugin-single-instance = "=2.3.0"
+windows-sys = { version = "=0.59.0", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Pipes", "Win32_System_Threading"] }

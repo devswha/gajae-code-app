@@ -71,8 +71,10 @@ export type { GjcPermissionMode, GjcRunPermissions } from './gjc-permission-poli
 // application instead of outliving it.
 export {
   createWindowsJobLaunch,
+  killWindowsJobGuard,
   GJC_WINDOWS_JOB_GUARD_ACK,
   GJC_WINDOWS_JOB_GUARD_READY,
+  type WindowsJobLaunch,
 } from './gjc-windows-job.js';
 
 // The fixed failure surface for a run whose model cannot be paired with a

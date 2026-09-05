@@ -17,6 +17,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
+import { npmInvocation } from './lib/npm-cli.mjs';
+
 const execFile = promisify(execFileCallback);
 const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BLOCKING_SEVERITIES = new Set(['high', 'critical']);
@@ -45,7 +47,8 @@ function advisoryIdOf(via) {
 
 async function auditReport() {
   try {
-    const { stdout } = await execFile('npm', ['audit', '--json'], {
+    const npm = npmInvocation(['audit', '--json']);
+    const { stdout } = await execFile(npm.command, npm.args, {
       cwd: REPOSITORY_ROOT,
       maxBuffer: 32 * 1024 * 1024,
     });

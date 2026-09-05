@@ -1,10 +1,14 @@
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 
 const APPLICATION_ENV = 'GAJAE_INTERNAL_JOB_APPLICATION';
 const COMMAND_LINE_ENV = 'GAJAE_INTERNAL_JOB_COMMAND_LINE';
 const WORKING_DIRECTORY_ENV = 'GAJAE_INTERNAL_JOB_WORKING_DIRECTORY';
 const OWNER_PROCESS_ENV = 'GAJAE_INTERNAL_JOB_OWNER_PROCESS';
+const JOB_NAME_ENV = 'GAJAE_INTERNAL_JOB_NAME';
+const REAP_ENV = 'GAJAE_INTERNAL_JOB_REAP';
 
 export const GJC_WINDOWS_JOB_GUARD_READY = 'gajae-job-guard-ready-v1';
 export const GJC_WINDOWS_JOB_GUARD_ACK = 'gajae-job-guard-ack-v1';
@@ -16,6 +20,7 @@ using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 public static class GajaeWindowsJobGuard
 {
@@ -29,6 +34,19 @@ public static class GajaeWindowsJobGuard
     private const uint WAIT_FAILED = 0xFFFFFFFF;
     private const uint WAIT_OBJECT_0 = 0x00000000;
     private const uint SYNCHRONIZE = 0x00100000;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct JOBOBJECT_BASIC_ACCOUNTING_INFORMATION
+    {
+        public long TotalUserTime;
+        public long TotalKernelTime;
+        public long ThisPeriodTotalUserTime;
+        public long ThisPeriodTotalKernelTime;
+        public uint TotalPageFaultCount;
+        public uint TotalProcesses;
+        public uint ActiveProcesses;
+        public uint TotalTerminatedProcesses;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct JOBOBJECT_BASIC_LIMIT_INFORMATION
@@ -107,6 +125,50 @@ public static class GajaeWindowsJobGuard
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr CreateJobObject(IntPtr jobAttributes, string name);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr OpenJobObject(uint access, bool inheritHandle, string name);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool TerminateJobObject(IntPtr job, uint exitCode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool QueryInformationJobObject(
+        IntPtr job, int informationClass,
+        ref JOBOBJECT_BASIC_ACCOUNTING_INFORMATION information,
+        uint informationLength, IntPtr returnLength);
+
+    public static void Reap(string name)
+    {
+        // Called only after the guard has exited, so it cannot create a job
+        // after this lookup. A job survives until all handles and processes
+        // are gone; ERROR_FILE_NOT_FOUND therefore also proves termination.
+        IntPtr job = OpenJobObject(0x0004 | 0x0008, false, name);
+        if (job == IntPtr.Zero)
+        {
+            int error = Marshal.GetLastWin32Error();
+            if (error == 2) return;
+            throw new Win32Exception(error, "OpenJobObject failed.");
+        }
+        try
+        {
+            if (!TerminateJobObject(job, 1))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "TerminateJobObject failed.");
+            for (int attempt = 0; attempt < 200; attempt++)
+            {
+                var accounting = new JOBOBJECT_BASIC_ACCOUNTING_INFORMATION();
+                if (!QueryInformationJobObject(job, 1, ref accounting,
+                    (uint)Marshal.SizeOf<JOBOBJECT_BASIC_ACCOUNTING_INFORMATION>(), IntPtr.Zero))
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "QueryInformationJobObject failed.");
+                if (accounting.ActiveProcesses == 0) return;
+                Thread.Sleep(25);
+            }
+            throw new TimeoutException("Windows job termination timed out.");
+        }
+        finally { CloseHandle(job); }
+    }
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -230,9 +292,10 @@ public static class GajaeWindowsJobGuard
         string application,
         string commandLine,
         string workingDirectory,
+        string jobName,
         IntPtr owner)
     {
-        IntPtr job = CreateJobObject(IntPtr.Zero, null);
+        IntPtr job = CreateJobObject(IntPtr.Zero, jobName);
         if (job == IntPtr.Zero)
             throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateJobObject failed.");
 
@@ -335,6 +398,15 @@ public static class GajaeWindowsJobGuard
 }
 '@
 
+$jobName = [Environment]::GetEnvironmentVariable('${JOB_NAME_ENV}', 'Process')
+$reap = [Environment]::GetEnvironmentVariable('${REAP_ENV}', 'Process')
+[Environment]::SetEnvironmentVariable('${JOB_NAME_ENV}', $null, 'Process')
+[Environment]::SetEnvironmentVariable('${REAP_ENV}', $null, 'Process')
+if ([String]::IsNullOrWhiteSpace($jobName)) { throw 'Missing Windows job name.' }
+if ($reap -eq '1') {
+    [GajaeWindowsJobGuard]::Reap($jobName)
+    exit 0
+}
 $application = [Environment]::GetEnvironmentVariable('${APPLICATION_ENV}', 'Process')
 $commandLine = [Environment]::GetEnvironmentVariable('${COMMAND_LINE_ENV}', 'Process')
 $workingDirectory = [Environment]::GetEnvironmentVariable('${WORKING_DIRECTORY_ENV}', 'Process')
@@ -354,7 +426,7 @@ try {
     if (![GajaeWindowsJobGuard]::ReadAcknowledgement('${GJC_WINDOWS_JOB_GUARD_ACK}')) {
         throw 'Invalid job guard acknowledgement.'
     }
-    $exitCode = [GajaeWindowsJobGuard]::Run($application, $commandLine, $workingDirectory, $ownerHandle)
+    $exitCode = [GajaeWindowsJobGuard]::Run($application, $commandLine, $workingDirectory, $jobName, $ownerHandle)
     exit $exitCode
 } finally {
     [GajaeWindowsJobGuard]::CloseOwner($ownerHandle)
@@ -402,6 +474,7 @@ export type WindowsJobLaunch = {
   command: string;
   args: string[];
   env: NodeJS.ProcessEnv;
+  jobName: string;
 };
 
 /**
@@ -414,10 +487,14 @@ export function createWindowsJobLaunch(
   environment: NodeJS.ProcessEnv,
   workingDirectory: string,
 ): WindowsJobLaunch {
-  const systemRoot = environment.SystemRoot ?? environment.WINDIR;
+  const systemRootKey = Object.keys(environment).find((key) => key.toLowerCase() === 'systemroot')
+    ?? Object.keys(environment).find((key) => key.toLowerCase() === 'windir');
+  const systemRoot = systemRootKey ? environment[systemRootKey] : undefined;
   if (!systemRoot) throw new Error('Windows SystemRoot is unavailable.');
+  const jobName = `Local\\gajae-worker-${randomUUID()}`;
 
   return {
+    jobName,
     command: path.win32.join(
       systemRoot,
       'System32',
@@ -440,6 +517,55 @@ export function createWindowsJobLaunch(
       [COMMAND_LINE_ENV]: [application, ...args].map(quoteWindowsArgument).join(' '),
       [WORKING_DIRECTORY_ENV]: workingDirectory,
       [OWNER_PROCESS_ENV]: String(process.pid),
+      [JOB_NAME_ENV]: jobName,
+      [REAP_ENV]: '0',
     },
   };
+}
+
+type WindowsJobChild = {
+  exitCode?: number | null;
+  signalCode?: NodeJS.Signals | null;
+  kill(signal: NodeJS.Signals): boolean;
+  on(event: string, listener: (...args: any[]) => void): unknown;
+};
+
+function confirmWindowsJobTermination(launch: WindowsJobLaunch): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(launch.command, launch.args, {
+      env: { ...launch.env, [REAP_ENV]: '1' },
+      windowsHide: true,
+      timeout: 15_000,
+      maxBuffer: 64 * 1024,
+    }, (error) => {
+      if (error) reject(new Error('Windows job termination could not be verified.', { cause: error }));
+      else resolve();
+    });
+  });
+}
+
+/** Kill the owner handle, then verify the named job has no remaining processes. */
+export async function killWindowsJobGuard(
+  child: WindowsJobChild,
+  launch: WindowsJobLaunch,
+  confirmTermination = confirmWindowsJobTermination,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const exited = () => child.exitCode != null || child.signalCode != null;
+    const timer = setTimeout(() => reject(new Error('Windows job guard termination timed out.')), 5_000);
+    timer.unref?.();
+    const finish = () => { clearTimeout(timer); resolve(); };
+    child.on('close', finish);
+    if (exited()) { finish(); return; }
+    try {
+      if (!child.kill('SIGKILL') && !exited()) {
+        clearTimeout(timer);
+        reject(new Error('Windows job guard could not be terminated.'));
+      }
+    } catch (error) {
+      clearTimeout(timer);
+      reject(error);
+    }
+  });
+  await confirmTermination(launch);
 }

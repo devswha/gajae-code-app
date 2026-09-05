@@ -1,5 +1,8 @@
 # Tauri Desktop (macOS arm64) — Verification Record
 
+Windows x64 has a separate [preview build and verification guide](WINDOWS-DESKTOP.md).
+The acceptance records on this page apply to macOS.
+
 > **Status (2026-07-22): beta.3 rename and reinstall QA passed; C7
 > complete, C8 void, C9 complete.** The beta.3 installed-app smoke covered the
 > visible rename, project/session navigation, preset and skill-command UI,

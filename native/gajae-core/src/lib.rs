@@ -209,17 +209,56 @@ mod tests {
     }
     #[test]
     fn parses_absolute_git_workdir_only() {
+        let workdir = std::env::temp_dir().join("repository");
         assert_eq!(
-            parse_args([os("git"), os("--workdir"), os("/tmp/repository")]),
-            Ok(Command::Git {
-                workdir: std::path::PathBuf::from("/tmp/repository")
-            })
+            parse_args([os("git"), os("--workdir"), workdir.clone().into_os_string()]),
+            Ok(Command::Git { workdir })
         );
         assert_eq!(
             parse_args([os("git"), os("--workdir"), os("relative")]),
             Err(ParseError)
         );
         assert_eq!(parse_args([os("git")]), Err(ParseError));
+    }
+
+    #[test]
+    fn parses_absolute_jobs_database_only() {
+        let database = std::env::temp_dir().join("jobs.sqlite");
+        assert_eq!(
+            parse_args([
+                os("jobs"),
+                os("--database"),
+                database.clone().into_os_string()
+            ]),
+            Ok(Command::Jobs { database })
+        );
+        assert_eq!(
+            parse_args([os("jobs"), os("--database"), os("relative.sqlite")]),
+            Err(ParseError)
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn parses_windows_absolute_paths_and_rejects_drive_relative_paths() {
+        for path in [
+            r"C:\work space\한글",
+            r"\\server\share\repo",
+            r"\\?\C:\repo",
+        ] {
+            assert_eq!(
+                parse_args([os("git"), os("--workdir"), os(path)]),
+                Ok(Command::Git {
+                    workdir: path.into()
+                })
+            );
+        }
+        for path in [r"C:repo", r"\repo", "/tmp/repository"] {
+            assert_eq!(
+                parse_args([os("git"), os("--workdir"), os(path)]),
+                Err(ParseError)
+            );
+        }
     }
 
     #[test]

@@ -8,6 +8,14 @@ use tauri::Manager;
 mod lifecycle;
 mod navigation;
 mod supervisor;
+#[cfg(windows)]
+mod windows_process;
+
+#[derive(Default)]
+struct PendingDeepLink {
+    url: std::sync::Mutex<Option<tauri::Url>>,
+    ui_ready: std::sync::atomic::AtomicBool,
+}
 
 struct SingleInstanceLock {
     _file: std::fs::File,
@@ -31,7 +39,14 @@ fn is_gajae_deep_link(url: &tauri::Url) -> bool {
 }
 
 fn deep_link_route(url: &tauri::Url) -> Option<String> {
-    if !is_gajae_deep_link(url) || url.host_str() != Some("open") {
+    if !is_gajae_deep_link(url)
+        || url.host_str() != Some("open")
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
         return None;
     }
     let segments: Vec<&str> = url.path_segments()?.filter(|s| !s.is_empty()).collect();
@@ -52,8 +67,36 @@ fn deep_link_route(url: &tauri::Url) -> Option<String> {
 fn route_deep_link(app: &tauri::AppHandle, url: tauri::Url) {
     use tauri::{Emitter, Manager};
 
-    if !is_gajae_deep_link(&url) {
+    if deep_link_route(&url).is_none() {
         return;
+    }
+    if app.get_webview_window("main").is_none() {
+        *app.state::<PendingDeepLink>()
+            .url
+            .lock()
+            .expect("deep-link lock poisoned") = Some(url);
+        return;
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        let on_server = app
+            .state::<PendingDeepLink>()
+            .ui_ready
+            .load(std::sync::atomic::Ordering::SeqCst)
+            && window.url().ok().is_some_and(|current| {
+                current.host_str() == Some("127.0.0.1")
+                    && current.path() != "/desktop/bootstrap"
+                    && app.state::<navigation::LoopbackOrigin>().permits(&current)
+            });
+        if !on_server {
+            *app.state::<PendingDeepLink>()
+                .url
+                .lock()
+                .expect("deep-link lock poisoned") = Some(url);
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+            return;
+        }
     }
     let _ = app.emit_to("main", "desktop://deep-link", url.as_str());
     if let Some(window) = app.get_webview_window("main") {
@@ -65,6 +108,7 @@ fn route_deep_link(app: &tauri::AppHandle, url: tauri::Url) {
                 "window.history.pushState({{}},'','{path}');window.dispatchEvent(new PopStateEvent('popstate'));"
             ));
         }
+        let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
     }
@@ -78,11 +122,63 @@ fn retry_desktop_server(app: tauri::AppHandle) {
 fn main() {
     use tauri_plugin_deep_link::DeepLinkExt;
 
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default()
+        .manage(PendingDeepLink::default())
+        .manage(navigation::LoopbackOrigin::default())
+        .manage(lifecycle::SidecarLifecycle::default());
+    // Windows protocol activation starts a second process. Forward to the
+    // running instance before its setup lock can reject the activation.
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        if args.len() == 2 {
+            if let Ok(url) = args[1].parse() {
+                route_deep_link(app, url);
+            }
+        }
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }));
+    let app = builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(navigation::plugin())
         .on_window_event(lifecycle::hide_on_close)
+        .on_page_load(|window, payload| {
+            if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+                window
+                    .app_handle()
+                    .state::<PendingDeepLink>()
+                    .ui_ready
+                    .store(false, std::sync::atomic::Ordering::SeqCst);
+            }
+            if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished)
+                && payload.url().host_str() == Some("127.0.0.1")
+                && payload.url().path() != "/desktop/bootstrap"
+                && window
+                    .app_handle()
+                    .state::<navigation::LoopbackOrigin>()
+                    .permits(payload.url())
+            {
+                window
+                    .app_handle()
+                    .state::<PendingDeepLink>()
+                    .ui_ready
+                    .store(true, std::sync::atomic::Ordering::SeqCst);
+                let pending = window
+                    .app_handle()
+                    .state::<PendingDeepLink>()
+                    .url
+                    .lock()
+                    .expect("deep-link lock poisoned")
+                    .take();
+                if let Some(url) = pending {
+                    route_deep_link(window.app_handle(), url);
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![retry_desktop_server])
         .setup(|app| {
             // A held lock means another instance is running. Setup errors
@@ -97,14 +193,18 @@ fn main() {
                 }
             };
             app.manage(lock);
-            app.manage(navigation::LoopbackOrigin::default());
-            app.manage(lifecycle::SidecarLifecycle::default());
             let app_handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
                 for url in event.urls() {
                     route_deep_link(&app_handle, url);
                 }
             });
+            // The plugin captures cold-start arguments before this listener.
+            if let Some(urls) = app.deep_link().get_current()? {
+                for url in urls {
+                    route_deep_link(app.handle(), url);
+                }
+            }
             supervisor::start(app.handle().clone());
             Ok(())
         })
@@ -113,8 +213,12 @@ fn main() {
     app.run(
         |app: &tauri::AppHandle<tauri::Wry>, event: tauri::RunEvent| match event {
             tauri::RunEvent::ExitRequested { api, .. } => {
-                api.prevent_exit();
-                lifecycle::graceful_quit(app.clone());
+                // app.exit() emits ExitRequested again. Once the tree is gone,
+                // allow that request instead of endlessly preventing our Quit.
+                if !app.state::<lifecycle::SidecarLifecycle>().may_exit() {
+                    api.prevent_exit();
+                    lifecycle::graceful_quit(app.clone());
+                }
             }
             tauri::RunEvent::Exit => {
                 // macOS Quit Apple events (Cmd-Q, AppleScript quit) bypass a
@@ -163,6 +267,10 @@ mod tests {
             "gajae-app://open/job/bad%20id",
             "gajae-app://open/job/a/b",
             "https://example.com/open/job/x",
+            "gajae-app://user@open/job/x",
+            "gajae-app://open:123/job/x",
+            "gajae-app://open/job/x?redirect=evil",
+            "gajae-app://open/job/x#evil",
         ] {
             assert_eq!(
                 deep_link_route(&rejected.parse().unwrap()),

@@ -42,11 +42,21 @@ function quoteShellArgument(value: string): string {
 }
 
 function prependPath(env: NodeJS.ProcessEnv, shimDir: string, platform: NodeJS.Platform): void {
-  const pathKey = platform === 'win32'
-    ? Object.keys(env).find((key) => key.toLowerCase() === 'path') ?? 'PATH'
-    : 'PATH';
-  const entries = (env[pathKey] ?? '').split(path.delimiter).filter(Boolean);
-  if (!entries.includes(shimDir)) env[pathKey] = [shimDir, ...entries].join(path.delimiter);
+  const windows = platform === 'win32';
+  const keys = windows ? Object.keys(env).filter((key) => key.toLowerCase() === 'path').sort() : ['PATH'];
+  const pathKey = keys[0] ?? 'PATH';
+  const delimiter = windows ? ';' : ':';
+  const comparable = (entry: string) => windows ? entry.replaceAll('\\', '/').toLowerCase() : entry;
+  const seen = new Set([comparable(shimDir)]);
+  const entries = keys.flatMap((key) => (env[key] ?? '').split(delimiter)).filter((entry) => {
+    if (!entry || seen.has(comparable(entry))) return false;
+    seen.add(comparable(entry));
+    return true;
+  });
+  // Node selects the first PATH spelling on Windows. Keep one key and put the
+  // bundled CLI ahead of any previously installed global gjc shim.
+  for (const key of keys.slice(1)) delete env[key];
+  env[pathKey] = [shimDir, ...entries].join(delimiter);
 }
 
 export function installGjcCliShim(options: GjcCliShimOptions = {}): { shimDir: string } | null {
@@ -59,9 +69,14 @@ export function installGjcCliShim(options: GjcCliShimOptions = {}): { shimDir: s
     if (!binPath) return null;
     const shimDir = path.join(homeDir, '.gajae-app', 'gjc-cli-shim');
     mkdirSync(shimDir, { recursive: true });
-    writeShimIfNeeded(path.join(shimDir, 'gjc'), `#!/bin/sh\nexec ${quoteShellArgument(bunPath)} ${quoteShellArgument(binPath)} "$@"\n`);
+    const shellPath = (value: string) => platform === 'win32' ? value.replaceAll('\\', '/') : value;
+    writeShimIfNeeded(path.join(shimDir, 'gjc'), `#!/bin/sh\nexec ${quoteShellArgument(shellPath(bunPath))} ${quoteShellArgument(shellPath(binPath))} "$@"\n`);
     if (platform === 'win32') {
-      writeShimIfNeeded(path.join(shimDir, 'gjc.cmd'), `@echo off\r\n"${bunPath}" "${binPath}" %*\r\n`);
+      // Batch files expand %variables% even inside quotes; !variables! expand
+      // when the caller enabled delayed expansion. Neither is path syntax.
+      if (/["\r\n\0]/u.test(bunPath + binPath)) return null;
+      const batchPath = (value: string) => value.replaceAll('%', '%%');
+      writeShimIfNeeded(path.join(shimDir, 'gjc.cmd'), `@echo off\r\nsetlocal DisableDelayedExpansion\r\n"${batchPath(bunPath)}" "${batchPath(binPath)}" %*\r\n`);
     }
     prependPath(env, shimDir, platform);
     return { shimDir };

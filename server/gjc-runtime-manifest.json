@@ -56,6 +56,30 @@
           "sha256": "7332a76de7195891429bf759c00737aef4f0b158b727c3b81cb920defe867e1f"
         }
       ]
+    },
+    "win32-x64": {
+      "files": [
+        {
+          "package": "@gajae-code/natives-win32-x64",
+          "path": "native/pi_natives.win32-x64-baseline.node",
+          "sha256": "984ee1162a39edd4312c58f194866522117ff3a01d4ab86d7d41064ccae8a8c5"
+        },
+        {
+          "package": "@gajae-code/natives",
+          "path": "native/embedded-addon.js",
+          "sha256": "0ee3be1ce9f174e0c3905bfda78f665d6c177b0e953303b35ff5c5b7735552db"
+        },
+        {
+          "package": "@gajae-code/natives",
+          "path": "native/index.js",
+          "sha256": "fc427ab3a07197c24d690880cadea22c1b546f7d4121892000056f0ea4adb67f"
+        },
+        {
+          "package": "@gajae-code/natives",
+          "path": "native/loader-state.js",
+          "sha256": "7332a76de7195891429bf759c00737aef4f0b158b727c3b81cb920defe867e1f"
+        }
+      ]
     }
   }
 }

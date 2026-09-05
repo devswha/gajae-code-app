@@ -2,6 +2,7 @@ use std::fmt::Write as _;
 use std::{
     collections::VecDeque,
     env,
+    ffi::OsString,
     io::{Read, Write},
     net::TcpStream,
     path::PathBuf,
@@ -11,7 +12,9 @@ use std::{
 use getrandom::getrandom;
 use serde::Deserialize;
 use tauri::{AppHandle, Manager, WebviewWindow};
-use tauri_plugin_shell::{process::CommandEvent, ShellExt};
+use tauri_plugin_shell::process::CommandEvent;
+#[cfg(unix)]
+use tauri_plugin_shell::ShellExt;
 use tokio::time;
 
 const READY_KIND: &str = "gajae-desktop-ready";
@@ -86,7 +89,9 @@ fn payload_root(app: &AppHandle) -> Result<PathBuf, String> {
     let root = ["server-payload", "resources/server-payload"]
         .iter()
         .map(|relative| resources.join(relative))
-        .find_map(|candidate| candidate.canonicalize().ok())
+        // Keep ordinary Windows paths: canonicalize adds a verbatim prefix
+        // that third-party Node tools do not consistently accept.
+        .find(|candidate| candidate.is_dir())
         .ok_or_else(|| "server payload is missing".to_owned())?;
     for relative in [
         "dist-server/server/index.js",
@@ -100,6 +105,12 @@ fn payload_root(app: &AppHandle) -> Result<PathBuf, String> {
                 "server payload is incomplete (missing {})",
                 path.display()
             ));
+        }
+    }
+    #[cfg(windows)]
+    for relative in ["dist-native/bun.exe", "dist-native/gajae-core.exe"] {
+        if !root.join(relative).is_file() {
+            return Err(format!("server payload is incomplete (missing {relative})"));
         }
     }
     if !root.is_dir() {
@@ -167,26 +178,84 @@ fn show_error(window: &WebviewWindow, message: &str) {
 async fn stop_failed_sidecar(
     lifecycle: &crate::lifecycle::SidecarLifecycle,
     pid: u32,
-    mut events: tauri::async_runtime::Receiver<CommandEvent>,
+    events: tauri::async_runtime::Receiver<CommandEvent>,
 ) {
-    let _ = crate::lifecycle::terminate_sidecar(pid);
-    // An output/readiness error is not a process exit. Keep the PID tracked
-    // and drain output until the child is gone, so Retry and Quit cannot
-    // abandon a still-running server or start a second one beside it.
+    stop_failed_sidecar_with_timeouts(
+        lifecycle,
+        pid,
+        events,
+        crate::lifecycle::SHUTDOWN_TIMEOUT,
+        crate::lifecycle::FORCE_STOP_TIMEOUT,
+    )
+    .await;
+}
+
+async fn stop_failed_sidecar_with_timeouts(
+    lifecycle: &crate::lifecycle::SidecarLifecycle,
+    pid: u32,
+    mut events: tauri::async_runtime::Receiver<CommandEvent>,
+    grace: Duration,
+    force: Duration,
+) {
+    let mut forced = lifecycle.stop(pid, false).is_err();
+    if forced {
+        let _ = lifecycle.stop(pid, true);
+    }
+    let mut deadline = Instant::now() + if forced { force } else { grace };
     loop {
-        let event = time::timeout(Duration::from_millis(100), events.recv()).await;
-        if matches!(event, Ok(Some(CommandEvent::Terminated(_)))) {
-            break;
+        if lifecycle.reap_if_stopped(pid) {
+            return;
         }
-        #[cfg(unix)]
-        if !crate::lifecycle::process_alive(pid) {
-            break;
+        if Instant::now() >= deadline {
+            if forced {
+                // Retain ownership and block Retry if exit cannot be verified.
+                // This task itself must not hang indefinitely on a closed pipe.
+                eprintln!("desktop server {pid} did not stop within the cleanup deadline");
+                return;
+            }
+            let _ = lifecycle.stop(pid, true);
+            forced = true;
+            deadline = Instant::now() + force;
         }
-        if matches!(event, Ok(None)) {
-            time::sleep(Duration::from_millis(100)).await;
+        match time::timeout(Duration::from_millis(50), events.recv()).await {
+            Ok(Some(CommandEvent::Terminated(_))) => lifecycle.exited(pid),
+            Ok(None) => time::sleep(Duration::from_millis(50)).await,
+            _ => {}
         }
     }
-    lifecycle.exited(pid);
+}
+
+/// Pipes are byte streams: JSON can be split across reads, including UTF-8.
+/// An overlong line is discarded through its newline, never parsed as a suffix.
+#[derive(Default)]
+struct ReadyLines {
+    pending: Vec<u8>,
+    discarding: bool,
+}
+
+impl ReadyLines {
+    fn push(&mut self, bytes: &[u8]) -> Vec<ReadyFrame> {
+        let mut frames = Vec::new();
+        for &byte in bytes {
+            if byte == b'\n' {
+                if !self.discarding {
+                    if let Ok(frame) = serde_json::from_slice::<ReadyFrame>(&self.pending) {
+                        frames.push(frame);
+                    }
+                }
+                self.pending.clear();
+                self.discarding = false;
+            } else if !self.discarding {
+                if self.pending.len() == OUTPUT_LIMIT {
+                    self.pending.clear();
+                    self.discarding = true;
+                } else {
+                    self.pending.push(byte);
+                }
+            }
+        }
+        frames
+    }
 }
 
 fn navigate_and_show(
@@ -234,26 +303,68 @@ pub fn start(app: AppHandle) {
                 return;
             }
         };
-        let home = env::var("HOME").unwrap_or_default();
-        let path = env::var("PATH").unwrap_or_default();
         let entrypoint = payload.join("dist-server/server/index.js");
+        let mut environment: Vec<(OsString, OsString)> = [
+            ("HOST", "127.0.0.1"),
+            ("SERVER_PORT", "0"),
+            ("NODE_ENV", "production"),
+            ("GJC_DESKTOP", "1"),
+            ("GJC_DESKTOP_API_KEY", &api_key),
+            ("GJC_DESKTOP_BOOTSTRAP_NONCE", &nonce),
+        ]
+        .into_iter()
+        .map(|(key, value)| (key.into(), value.into()))
+        .collect();
+        // Preserve the user's inherited environment and Unicode home directory.
+        if let Ok(home) = app.path().home_dir() {
+            environment.push(("HOME".into(), home.into_os_string()));
+        }
+        let native = payload.join("dist-native");
+        let inherited_path = env::var_os("PATH").unwrap_or_default();
+        let path =
+            env::join_paths(std::iter::once(native).chain(env::split_paths(&inherited_path)));
+        let path = match path {
+            Ok(path) => path,
+            Err(error) => {
+                show_error(&window, &format!("invalid server PATH: {error}"));
+                return;
+            }
+        };
+        environment.push(("PATH".into(), path));
         let command = lifecycle.start(|| {
+            #[cfg(unix)]
             let (events, child) = app
                 .shell()
                 .sidecar("gajae-app-server")
                 .map_err(|error| format!("could not prepare server sidecar: {error}"))?
-                .arg(entrypoint.to_string_lossy().as_ref())
-                .env("HOST", "127.0.0.1")
-                .env("SERVER_PORT", "0")
-                .env("NODE_ENV", "production")
-                .env("GJC_DESKTOP", "1")
-                .env("GJC_DESKTOP_API_KEY", api_key)
-                .env("GJC_DESKTOP_BOOTSTRAP_NONCE", &nonce)
-                .env("HOME", home)
-                .env("PATH", path)
+                .arg(&entrypoint)
+                .current_dir(&payload)
+                .envs(environment)
+                .set_raw_out(true)
                 .spawn()
                 .map_err(|error| format!("could not start server sidecar: {error}"))?;
-            Ok((child.pid(), (events, child)))
+            #[cfg(unix)]
+            let tracked = crate::lifecycle::Sidecar::unix(child.pid());
+            #[cfg(windows)]
+            let (events, child) = {
+                let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+                let directory = executable
+                    .parent()
+                    .ok_or_else(|| "desktop executable has no directory".to_owned())?;
+                crate::windows_process::spawn(
+                    &directory.join("gajae-app-server.exe"),
+                    &[
+                        "--eval".into(),
+                        include_str!("windows-server-bootstrap.cjs").into(),
+                        entrypoint.into_os_string(),
+                    ],
+                    &payload,
+                    &environment,
+                )?
+            };
+            #[cfg(windows)]
+            let tracked = crate::lifecycle::Sidecar::windows(std::sync::Arc::clone(&child));
+            Ok((tracked, (events, child)))
         });
         let (mut events, child) = match command {
             Ok(Some(child)) => child,
@@ -267,6 +378,7 @@ pub fn start(app: AppHandle) {
         let deadline = Instant::now() + STARTUP_TIMEOUT;
         let mut output = OutputRing::default();
         let mut ready = false;
+        let mut ready_lines = ReadyLines::default();
         loop {
             let event = if ready {
                 events.recv().await
@@ -306,20 +418,22 @@ pub fn start(app: AppHandle) {
                 return;
             };
             match event {
-                CommandEvent::Stdout(line) | CommandEvent::Stderr(line) => {
+                CommandEvent::Stderr(line) => output.push(&line),
+                CommandEvent::Stdout(line) => {
                     output.push(&line);
                     if ready {
                         continue;
                     }
-                    for raw_line in String::from_utf8_lossy(&line).lines() {
-                        let Ok(ready_frame) = serde_json::from_str::<ReadyFrame>(raw_line) else {
-                            continue;
-                        };
+                    for ready_frame in ready_lines.push(&line) {
                         if !ready_frame.matches_sidecar(sidecar_pid) {
                             continue;
                         }
                         match health_check(ready_frame.port, &ready_frame.version) {
                             Ok(()) => {
+                                if lifecycle.is_shutting_down() {
+                                    stop_failed_sidecar(&lifecycle, sidecar_pid, events).await;
+                                    return;
+                                }
                                 if let Err(error) =
                                     navigate_and_show(&app, &window, ready_frame.port, &nonce)
                                 {
@@ -340,6 +454,8 @@ pub fn start(app: AppHandle) {
                 }
                 CommandEvent::Terminated(status) => {
                     lifecycle.exited(sidecar_pid);
+                    #[cfg(windows)]
+                    stop_failed_sidecar(&lifecycle, sidecar_pid, events).await;
                     if !lifecycle.is_shutting_down() {
                         show_error(
                             &window,
@@ -391,7 +507,9 @@ mod tests {
                 .stdout(Stdio::piped())
                 .spawn()
                 .unwrap();
-            lifecycle.start(|| Ok((child.id(), ()))).unwrap();
+            lifecycle
+                .start(|| Ok((crate::lifecycle::Sidecar::unix(child.id()), ())))
+                .unwrap();
             let mut ready = String::new();
             std::io::BufReader::new(child.stdout.take().unwrap())
                 .read_line(&mut ready)
@@ -437,6 +555,72 @@ mod tests {
                 lifecycle.start::<()>(|| panic!("Retry must not restart after Quit begins")),
                 Ok(None)
             );
+        });
+    }
+
+    #[test]
+    fn readiness_reassembles_fragmented_and_coalesced_crlf_frames() {
+        let frame = b"{\"kind\":\"gajae-desktop-ready\",\"pid\":1,\"host\":\"127.0.0.1\",\"port\":1234,\"protocolVersion\":1,\"version\":\"0.2.0\"}\r\n";
+        for split in 0..frame.len() {
+            let mut lines = ReadyLines::default();
+            assert!(lines.push(&frame[..split]).is_empty());
+            let ready = lines.push(&frame[split..]);
+            assert_eq!(ready.len(), 1);
+            assert!(ready[0].matches_sidecar(1));
+        }
+        let mut lines = ReadyLines::default();
+        assert_eq!(
+            lines
+                .push(&[b"ordinary log\n".as_slice(), frame, frame].concat())
+                .len(),
+            2
+        );
+        assert!(lines.push(&vec![b'x'; OUTPUT_LIMIT + 1]).is_empty());
+        assert!(
+            lines.push(frame).is_empty(),
+            "an oversized line must not yield a valid suffix"
+        );
+        assert_eq!(lines.push(frame).len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_startup_cleanup_is_bounded_when_output_closes_and_sigterm_is_ignored() {
+        use std::io::BufRead;
+        use std::process::{Command, Stdio};
+        tauri::async_runtime::block_on(async {
+            let mut child = Command::new("/bin/sh")
+                .args(["-c", "trap '' TERM; printf 'ready\\n'; read line"])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let mut line = String::new();
+            std::io::BufReader::new(child.stdout.take().unwrap())
+                .read_line(&mut line)
+                .unwrap();
+            let pid = child.id();
+            let lifecycle = crate::lifecycle::SidecarLifecycle::default();
+            lifecycle
+                .start(|| Ok((crate::lifecycle::Sidecar::unix(pid), ())))
+                .unwrap();
+            let reaper = std::thread::spawn(move || child.wait().unwrap());
+            let (sender, events) = tauri::async_runtime::channel(1);
+            drop(sender);
+            time::timeout(
+                Duration::from_secs(3),
+                stop_failed_sidecar_with_timeouts(
+                    &lifecycle,
+                    pid,
+                    events,
+                    Duration::from_millis(100),
+                    Duration::from_secs(2),
+                ),
+            )
+            .await
+            .expect("closed output must not make cleanup loop forever");
+            assert!(!reaper.join().unwrap().success());
+            assert!(!lifecycle.has_sidecar());
         });
     }
 

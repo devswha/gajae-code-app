@@ -54,6 +54,8 @@ sha256sum --check gajae-app-server-2.0.0-beta.7-linux-x64-node22.tar.gz.sha256
 
 Install, upgrade and rollback steps: [docs/INSTALL.md](docs/INSTALL.md) · [docs/SELF-HOST.md](docs/SELF-HOST.md).
 
+**Windows x64 preview — build from source.** The Windows branch adds an NSIS installer with bundled runtimes. See [Windows setup, build and verification](docs/WINDOWS-DESKTOP.md). Preview installers are produced by the Windows desktop Actions workflow.
+
 **From source — Node.js 22, Rust, Bun 1.4.0.**
 
 ```bash
@@ -65,7 +67,7 @@ npm run dev                         # server :3001, client :5173
 npm run desktop:dev                 # the same, inside the Tauri desktop shell
 ```
 
-The app uses the models, presets, skills and credentials of the Gajae Code installation in `~/.gjc`, and you can sign in to providers from inside the app. Intel Mac, Windows and Linux desktop builds are not available yet.
+The app uses the models, presets, skills and credentials of the Gajae Code installation in `~/.gjc`, and you can sign in to providers from inside the app. Windows x64 is available through the preview build path above; Intel Mac and Linux desktop builds are not available yet.
 
 ## Permission Modes
 
@@ -93,7 +95,7 @@ A card answered in one tab closes in every other viewer. Always deny is offered 
 ## Documentation
 
 - [Self-hosting](docs/SELF-HOST.md) · [Install the server release](docs/INSTALL.md) · [Changelog](CHANGELOG.md)
-- [Desktop packaging, signing and notarization](docs/DESKTOP-TAURI-VERIFICATION.md)
+- [Desktop packaging, signing and notarization](docs/DESKTOP-TAURI-VERIFICATION.md) · [Windows desktop preview](docs/WINDOWS-DESKTOP.md)
 - [GJC provider and worker contract](server/GJC-LIVE-SPEC.md) · [Worker protocol](docs/GJC-WORKER-PROTOCOL.md)
 - [Design system](DESIGN.md) · [Repository guide for agents](AGENTS.md)
 - [Licensing](docs/LICENSING.md) · [Relicensing record](docs/RELICENSING.md) · [Upstream intake](docs/UPSTREAM.md)

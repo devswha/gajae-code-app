@@ -12,7 +12,8 @@ coding agent. MIT. Four runtime layers:
   WebSocket, node-pty terminals. TypeScript + JS mixed, run through `tsx`.
 - `native/gajae-core/` — Rust core, built to `dist-native/` by `scripts/build-rust-core.mjs`.
 - `src-tauri/` — Tauri 2 desktop shell (Rust: `supervisor.rs`, `lifecycle.rs`,
-  `navigation.rs`); packages the server as a payload and supervises it.
+  `navigation.rs`, Windows Job Object owner in `windows_process.rs`); packages
+  the server as a payload and supervises it.
 
 `shared/` is code shared between client and server (product identity, network hosts,
 job projection protocol). `scripts/` holds build/release/verify tooling.
@@ -28,7 +29,10 @@ job projection protocol). `scripts/` holds build/release/verify tooling.
   `node scripts/fetch-bun.mjs`.
 - Server binds loopback by default (fail-closed; it can run shell commands).
   `SERVER_PORT` defaults to 3001, Vite dev on 5173. Do not export `SERVER_PORT=0`.
-- Tauri builds choke on `CI=1`: use `env -u CI npm run tauri -- build`.
+- The Tauri wrapper normalizes `CI=1`/`0` to `true`/`false` for the CLI.
+- Windows desktop packaging runs natively on x64 with MSVC, a Windows SDK,
+  and WebView2. See `docs/WINDOWS-DESKTOP.md`. Bundled Windows executables use
+  `.exe`; native-manifest paths always use forward slashes on every host.
 
 ## Commands
 
@@ -41,6 +45,8 @@ npm run check:core       # cargo fmt --check + clippy -D warnings + cargo test
 npm run verify           # FULL GATE: audit + typecheck + check:core + test + lint + check:identity + build
 npm run test:e2e:gjc     # 7 GJC wire/browser e2e tests (separate from npm test)
 npm run desktop:dev      # Tauri dev shell
+npm run desktop:build:windows # Windows x64 payload + NSIS installer (on Windows)
+npm run test:windows     # focused runtime/packaging tests; build the core first
 ```
 
 Run a single test file (match the runner's env):
@@ -168,4 +174,5 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
 - `server/GJC-LIVE-SPEC.md` — GJC provider/worker contract.
 - `docs/DESKTOP-TAURI-VERIFICATION.md` — desktop packaging/verification (incl. the
   human-gated notarization step).
+- `docs/WINDOWS-DESKTOP.md` — Windows preview build, CI and desktop acceptance.
 - `docs/SELF-HOST.md`, `CONTRIBUTING.md` — install/update lifecycle and PR rules.

@@ -13,8 +13,18 @@ impl LoopbackOrigin {
         *self.0.lock().expect("loopback origin lock poisoned") = Some(origin);
     }
 
-    fn permits(&self, url: &tauri::Url) -> bool {
-        if url.scheme() == "tauri" {
+    pub(crate) fn permits(&self, url: &tauri::Url) -> bool {
+        if !url.username().is_empty() || url.password().is_some() {
+            return false;
+        }
+        if url.scheme() == "tauri" && url.host_str() == Some("localhost") {
+            return true;
+        }
+        // WebView2 maps the local Tauri protocol to this HTTP origin.
+        if matches!(url.scheme(), "http" | "https")
+            && url.host_str() == Some("tauri.localhost")
+            && url.port().is_none()
+        {
             return true;
         }
         let origin = self.0.lock().expect("loopback origin lock poisoned");
@@ -57,6 +67,26 @@ mod tests {
 #[cfg(test)]
 mod navigation_policy_tests {
     use super::*;
+
+    #[test]
+    fn recovery_origin_supports_webview2_without_accepting_lookalike_hosts() {
+        let origin = LoopbackOrigin::default();
+        for url in [
+            "tauri://localhost/",
+            "http://tauri.localhost/",
+            "https://tauri.localhost/",
+        ] {
+            assert!(origin.permits(&url.parse().unwrap()));
+        }
+        for url in [
+            "tauri://evil/",
+            "http://tauri.localhost.evil/",
+            "http://tauri.localhost:8888/",
+            "http://user@tauri.localhost/",
+        ] {
+            assert!(!origin.permits(&url.parse().unwrap()));
+        }
+    }
 
     #[test]
     fn navigation_allows_only_the_assigned_loopback_origin() {

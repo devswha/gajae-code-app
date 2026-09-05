@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
 
 import {
   createWindowsJobLaunch,
+  killWindowsJobGuard,
   GJC_WINDOWS_JOB_GUARD_ACK,
   GJC_WINDOWS_JOB_GUARD_READY,
   quoteWindowsArgument,
@@ -52,6 +55,10 @@ test('builds a guard that atomically creates the worker inside a Windows job', (
   assert.match(script, /UpdateProcThreadAttribute/);
   assert.match(script, /WaitForMultipleObjects/);
   assert.match(script, /ReadFile/);
+  assert.match(script, /CreateJobObject\(IntPtr.Zero, jobName\)/);
+  assert.match(script, /TerminateJobObject/);
+  assert.match(script, /QueryInformationJobObject/);
+  assert.match(script, /accounting.ActiveProcesses == 0/);
   assert.doesNotMatch(script, /Console\]::In/);
   assert.match(script, new RegExp(GJC_WINDOWS_JOB_GUARD_READY));
   assert.match(script, new RegExp(GJC_WINDOWS_JOB_GUARD_ACK));
@@ -64,6 +71,8 @@ test('builds a guard that atomically creates the worker inside a Windows job', (
       < script.indexOf('$exitCode = [GajaeWindowsJobGuard]::Run'),
   );
   assert.equal(launch.env.KEEP_ME, 'yes');
+  assert.match(launch.jobName, /^Local\\gajae-worker-[a-f0-9-]+$/);
+  assert.equal(launch.env.GAJAE_INTERNAL_JOB_NAME, launch.jobName);
   assert.equal(
     launch.env.GAJAE_INTERNAL_JOB_OWNER_PROCESS,
     String(process.pid),
@@ -73,3 +82,110 @@ test('builds a guard that atomically creates the worker inside a Windows job', (
     '"C:\\Program Files\\node.exe" "C:\\work dir\\gjc-worker.js"',
   );
 });
+
+test('each Windows worker owns a separate named job and accepts Windows environment casing', () => {
+  const first = createWindowsJobLaunch('node.exe', [], { SYSTEMROOT: 'C:\\Windows' }, 'C:\\work');
+  const second = createWindowsJobLaunch('node.exe', [], { windir: 'C:\\Windows' }, 'C:\\work');
+  assert.equal(first.command, second.command);
+  assert.notEqual(first.jobName, second.jobName);
+  assert.throws(() => createWindowsJobLaunch('node.exe', [], {}, 'C:\\work'), /SystemRoot/);
+});
+
+test('Windows reap barrier waits for guard exit and independent Job Object verification', async () => {
+  const launch = createWindowsJobLaunch('node.exe', [], { SystemRoot: 'C:\\Windows' }, 'C:\\work');
+  const child = Object.assign(new EventEmitter(), { kill: (signal: string) => {
+    assert.equal(signal, 'SIGKILL');
+    return true;
+  } });
+  let queried = false;
+  let release!: () => void;
+  const verification = new Promise<void>((resolve) => { release = resolve; });
+  const reap = killWindowsJobGuard(child, launch, async (owned) => {
+    assert.equal(owned.jobName, launch.jobName);
+    queried = true;
+    await verification;
+  });
+  let settled = false;
+  void reap.then(() => { settled = true; });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(queried, false);
+  child.emit('close');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(queried, true);
+  assert.equal(settled, false);
+  release();
+  await reap;
+});
+
+test('Windows reap barrier rejects termination and verification failures', async () => {
+  const launch = createWindowsJobLaunch('node.exe', [], { SystemRoot: 'C:\\Windows' }, 'C:\\work');
+  const alive = Object.assign(new EventEmitter(), { kill: () => false });
+  await assert.rejects(killWindowsJobGuard(alive, launch, async () => { assert.fail('guard is still alive'); }), /could not be terminated/);
+  const exited = Object.assign(new EventEmitter(), { exitCode: 0, kill: () => { assert.fail('already exited'); } });
+  await assert.rejects(killWindowsJobGuard(exited, launch, async () => { throw new Error('job query failed'); }), /job query failed/);
+});
+
+for (const shutdown of ['guard', 'owner'] as const) {
+test(`Windows Job Object kills detached descendants after ${shutdown} exit`, {
+  skip: process.platform !== 'win32', timeout: 30_000,
+}, async () => {
+  const program = `
+    const { spawn } = require('node:child_process');
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' });
+    child.on('spawn', () => process.stdout.write(JSON.stringify({ descendant: child.pid }) + '\\n'));
+    setInterval(() => {}, 1000);
+  `;
+  const owner = shutdown === 'owner'
+    ? spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', windowsHide: true })
+    : undefined;
+  const launch = createWindowsJobLaunch(process.execPath, ['-e', program], process.env, process.cwd());
+  if (owner) launch.env.GAJAE_INTERNAL_JOB_OWNER_PROCESS = String(owner.pid);
+  const guard = spawn(launch.command, launch.args, { env: launch.env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  let stderr = '';
+  guard.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+  let descendant: number | undefined;
+  try {
+    descendant = await new Promise<number>((resolve, reject) => {
+      let buffer = '';
+      const timer = setTimeout(() => reject(new Error(`Job guard startup timed out: ${stderr}`)), 15_000);
+      guard.once('error', (error) => { clearTimeout(timer); reject(error); });
+      guard.once('exit', () => { clearTimeout(timer); reject(new Error(`Job guard exited: ${stderr}`)); });
+      guard.stdout.on('data', (chunk: Buffer) => {
+        buffer += chunk.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop()!;
+        for (const raw of lines) {
+          const line = raw.replace(/\r$/u, '');
+          if (line === GJC_WINDOWS_JOB_GUARD_READY) guard.stdin.write(`${GJC_WINDOWS_JOB_GUARD_ACK}\n`);
+          else {
+            try {
+              const frame = JSON.parse(line) as { descendant: number };
+              assert.ok(frame.descendant > 0);
+              clearTimeout(timer);
+              resolve(frame.descendant);
+            } catch (error) { clearTimeout(timer); reject(error); }
+          }
+        }
+      });
+    });
+    process.kill(descendant, 0);
+    if (owner) {
+      // Killing the app owner must cause the guard itself to exit. Do not call
+      // the explicit reaper until that independent lifecycle has completed.
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('Guard survived owner exit.')), 5_000);
+        guard.once('exit', () => { clearTimeout(timer); resolve(); });
+        owner.kill('SIGKILL');
+      });
+    }
+    await killWindowsJobGuard(guard, launch);
+    assert.throws(() => process.kill(descendant!, 0), (error: unknown) => (error as NodeJS.ErrnoException).code === 'ESRCH');
+    // Reaping a generation that already exited is idempotent.
+    await killWindowsJobGuard(guard, launch);
+  } finally {
+    if (guard.exitCode === null && guard.signalCode === null) guard.kill('SIGKILL');
+    if (owner && owner.exitCode === null && owner.signalCode === null) owner.kill('SIGKILL');
+    if (descendant) { try { process.kill(descendant, 'SIGKILL'); } catch { /* already reaped */ } }
+  }
+});
+}

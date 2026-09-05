@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
 import { parseIncomingJsonObject } from '@/shared/utils.js';
+
+import { buildGjcShellCommand, buildShellEnvironment, buildShellLaunch } from './shell-command.js';
 
 type ShellIncomingMessage = { type?: string; data?: string; cols?: number; rows?: number; projectPath?: string; sessionId?: string; hasSession?: boolean; provider?: string; initialCommand?: string; isPlainShell?: boolean; forceRestart?: boolean; };
 type PtySessionEntry = { pty: IPty; ws: WebSocket | null; buffer: string[]; timeoutId: NodeJS.Timeout | null; projectPath: string; sessionId: string | null; };
@@ -41,43 +42,14 @@ function nativeSession(message: ShellIncomingMessage, dependencies: ShellWebSock
   return result && SAFE_ID.test(result) ? result : '';
 }
 
-function shellCommand(message: ShellIncomingMessage, dependencies: ShellWebSocketDependencies): string {
+function shellCommand(message: ShellIncomingMessage, dependencies: ShellWebSocketDependencies, env: NodeJS.ProcessEnv): string {
   const command = text(message.initialCommand);
   const provider = text(message.provider, 'gjc');
   if (flag(message.isPlainShell) || (!!command && !flag(message.hasSession)) || provider === 'plain-shell') return command;
   if (provider !== 'gjc') return command;
   const resumeId = nativeSession(message, dependencies);
-  if (!resumeId) return command || 'gjc';
-  return os.platform() === 'win32'
-    ? `gjc --resume "${resumeId}"; if ($LASTEXITCODE -ne 0) { gjc }`
-    : `gjc --resume "${resumeId}" || gjc`;
-}
-
-function environmentValue(env: NodeJS.ProcessEnv, requested: string): string | undefined {
-  const actualKey = Object.keys(env).find((key) => key.toLowerCase() === requested.toLowerCase());
-  return actualKey ? env[actualKey] : undefined;
-}
-
-function preferredPath(env: NodeJS.ProcessEnv): { key: string; value: string | undefined } {
-  const key = Object.keys(env).find((entry) => entry.toLowerCase() === 'path') ?? 'PATH';
-  const original = env[key];
-  if (!original) return { key, value: original };
-  const lowerCaseOnWindows = (entry: string): string => os.platform() === 'win32' ? entry.toLowerCase() : entry;
-  const entries = original.split(path.delimiter).filter(Boolean);
-  const npmPrefix = environmentValue(env, 'npm_config_prefix');
-  const appData = environmentValue(env, 'APPDATA');
-  const candidates = [
-    npmPrefix ?? '',
-    npmPrefix ? path.join(npmPrefix, 'bin') : '',
-    appData ? path.join(appData, 'npm') : '',
-    path.join(os.homedir(), 'AppData', 'Roaming', 'npm'),
-    path.join(os.homedir(), '.npm-global', 'bin'),
-  ].filter(Boolean);
-  const existing = new Set(entries.map(lowerCaseOnWindows));
-  const promoted = candidates.filter((candidate, index) => candidates.indexOf(candidate) === index && existing.has(lowerCaseOnWindows(candidate)));
-  if (!promoted.length) return { key, value: original };
-  const promotedKeys = new Set(promoted.map(lowerCaseOnWindows));
-  return { key, value: [...promoted, ...entries.filter((entry) => !promotedKeys.has(lowerCaseOnWindows(entry)))].join(path.delimiter) };
+  if (!resumeId && command) return command;
+  return buildGjcShellCommand(resumeId, env);
 }
 
 function sessionKey(projectPath: string, sessionId: string | null, plain: boolean, command: string): string {
@@ -158,13 +130,13 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
       write({ type: 'error', message: 'Invalid session ID' });
       return;
     }
-    const executable = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
-    const commandLine = shellCommand(data, dependencies);
+    const env = buildShellEnvironment(process.env);
+    const commandLine = shellCommand(data, dependencies, env);
     const resumeId = nativeSession(data, dependencies);
-    const npmPath = preferredPath(process.env);
-    activePty = pty.spawn(executable, os.platform() === 'win32' ? ['-Command', commandLine] : ['-c', commandLine], {
+    const { executable, args } = buildShellLaunch(commandLine, env);
+    activePty = pty.spawn(executable, args, {
       name: 'xterm-256color', cols: dimension(data.cols, 80), rows: dimension(data.rows, 24), cwd,
-      env: { ...process.env, [npmPath.key]: npmPath.value, TERM: 'xterm-256color', COLORTERM: 'truecolor', FORCE_COLOR: '3' },
+      env,
     });
     const child = activePty;
     sessions.set(key, { pty: child, ws, buffer: [], timeoutId: null, projectPath, sessionId });

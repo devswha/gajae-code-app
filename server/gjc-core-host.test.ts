@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { appendFile, mkdir, mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
@@ -11,6 +12,10 @@ const corePath = fileURLToPath(new URL(`../dist-native/${executable}`, import.me
 const WATCHER_FRAME_TIMEOUT_MS = 60_000;
 const WATCHER_PROCESS_TIMEOUT_MS = 90_000;
 const WATCHER_FRAME_POLL_INTERVAL_MS = 10;
+
+// Rust canonicalize emits verbatim drive/UNC paths on Windows; Node realpath
+// returns their ordinary spelling. Compare the same filesystem path form.
+const coreReportedPath = (value: string): string => path.toNamespacedPath(value);
 
 type CoreResult = {
   code: number | null;
@@ -85,6 +90,7 @@ test('native core recursively watches multiple roots and filters non-transcript 
   ], {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
+  const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
   const frames: Array<Record<string, unknown>> = [];
   let buffered = '';
   let diagnostics = '';
@@ -133,8 +139,9 @@ test('native core recursively watches multiple roots and filters non-transcript 
     const nested = path.join(firstRoot, 'workspace');
     await mkdir(nested);
     await writeFile(path.join(nested, 'ignored.txt'), 'ignored', 'utf8');
-    const transcript = path.join(nested, 'session.jsonl');
-    await writeFile(transcript, '{"type":"session"}\n', 'utf8');
+    const transcriptFile = path.join(nested, 'session.jsonl');
+    await writeFile(transcriptFile, '{"type":"session"}\n', 'utf8');
+    const transcript = coreReportedPath(await realpath(transcriptFile));
     await waitForFrame((frame) => frame.kind === 'event' && frame.path === transcript);
 
     const priorTranscriptEvents = frames.filter((frame) => frame.path === transcript).length;
@@ -159,6 +166,7 @@ test('native core recursively watches multiple roots and filters non-transcript 
     );
   } finally {
     child.kill('SIGKILL');
+    await closed;
     await rm(temporaryRoot, { recursive: true, force: true });
   }
 });
@@ -175,6 +183,7 @@ test('native core reports transcripts a directory already held when it appeared'
   const child = spawn(corePath, ['watch', '--root', root], {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
+  const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
   const frames: Array<Record<string, unknown>> = [];
   let buffered = '';
   child.stdout.setEncoding('utf8');
@@ -201,7 +210,7 @@ test('native core reports transcripts a directory already held when it appeared'
     // The whole populated tree arrives as one rename: the transcript inside it
     // is never observed by the watch, only the directory that now holds it.
     await rename(staged, path.join(root, 'moved'));
-    const transcript = path.join(root, 'moved', 'nested', 'session.jsonl');
+    const transcript = coreReportedPath(await realpath(path.join(root, 'moved', 'nested', 'session.jsonl')));
     await waitForFrame((frame) => (
       frame.kind === 'event' && frame.event === 'add' && frame.path === transcript
     ));
@@ -212,6 +221,7 @@ test('native core reports transcripts a directory already held when it appeared'
     );
   } finally {
     child.kill('SIGKILL');
+    await closed;
     await rm(temporaryRoot, { recursive: true, force: true });
   }
 });
@@ -258,7 +268,7 @@ test('native core preserves a successful child status after child stdin closes',
 test('native core fails safely when its child executable is unavailable', async () => {
   const result = await runCore([
     '--',
-    '/definitely/missing/gajae-worker-executable',
+    path.join(os.tmpdir(), 'definitely-missing-gajae-worker', executable),
   ]);
 
   assert.equal(result.code, 1);
@@ -441,19 +451,75 @@ test('native job authority persists and reconciles state across process replacem
   }
 });
 
+test('native git manages worktrees under paths with spaces and Unicode', async () => {
+  const temporaryRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), 'gajae core git 한글 ')));
+  const worktree = path.join(temporaryRoot, '.gjc-worktrees', 'job-1');
+  const params = { jobId: 'job-1', branch: 'job/job-1', path: worktree };
+  const git = (args: string[]) => execFileSync('git', ['-C', temporaryRoot, ...args], { encoding: 'utf8' });
+  const request = async (method: string, requestParams: Record<string, unknown> = params) => {
+    const result = await runCore(['git', '--workdir', temporaryRoot], [
+      Buffer.from(`${JSON.stringify({ protocolVersion: 1, kind: 'request', id: method, method, params: requestParams })}\n`),
+    ]);
+    assert.equal(result.code, 0, result.stderr.toString('utf8'));
+    assert.equal(result.stderr.length, 0);
+    const frames = result.stdout.toString('utf8').trim().split('\n').map((line) => JSON.parse(line));
+    assert.deepEqual(frames[0], { protocolVersion: 1, kind: 'ready' });
+    assert.equal(frames.at(-1).id, method);
+    assert.equal(frames.at(-1).ok, true, JSON.stringify(frames.at(-1)));
+    return frames;
+  };
+  try {
+    git(['init', '--quiet']);
+    git(['config', 'core.autocrlf', 'false']);
+    await writeFile(path.join(temporaryRoot, 'tracked.txt'), 'before\n');
+    git(['add', 'tracked.txt']);
+    git(['-c', 'user.name=Gajae Test', '-c', 'user.email=gajae@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'initial']);
+
+    const created = (await request('worktree.create')).at(-1).result;
+    assert.equal(created.created, true);
+    assert.equal(created.worktree.path, coreReportedPath(await realpath(worktree)));
+    assert.equal((await request('worktree.create')).at(-1).result.created, false);
+    const listed = await request('worktree.list', {});
+    assert.equal(listed.at(-1).result.count, 1);
+    assert.equal(listed[1].item.path, created.worktree.path);
+
+    await writeFile(path.join(worktree, 'new file.txt'), 'new file\n');
+    assert.equal((await request('status')).at(-1).result.clean, false);
+    const diff = await request('diff', { ...params, mode: 'unstaged', includeUntracked: true });
+    const patch = Buffer.concat(diff.filter((frame) => frame.kind === 'chunk').map((frame) => Buffer.from(frame.data, 'base64'))).toString('utf8');
+    assert.match(patch, /\+new file/u);
+    await rm(path.join(worktree, 'new file.txt'));
+    assert.equal((await request('worktree.prune', { ...params, confirmed: true })).at(-1).result.pruned, true);
+    assert.equal((await request('worktree.list', {})).at(-1).result.count, 0);
+    assert.ok(git(['show-ref', '--verify', 'refs/heads/job/job-1']).trim());
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
 test('native PTY relays bounded input, resize, output, and shutdown lifecycle', async () => {
+  const temporaryRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), 'gajae core pty 한글 ')));
+  const cwdMarker = `native-cwd:${JSON.stringify(temporaryRoot)}`;
   const child = spawn(corePath, [
     'pty',
     '--',
     process.execPath,
     '-e',
-    'process.stdin.pipe(process.stdout)',
+    [
+      "process.stdin.on('data', (chunk) => {",
+      "console.log('native-cwd:' + JSON.stringify(process.cwd()));",
+      "process.stdout.write('native-child-echo:' + chunk);",
+      '});',
+    ].join(''),
   ], {
+    cwd: temporaryRoot,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
+  const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
   const frames: Array<Record<string, unknown>> = [];
   let buffered = '';
   let output = '';
+  const decoder = new StringDecoder('utf8');
   let diagnostics = '';
   let shutdownSent = false;
   child.stdout.setEncoding('utf8');
@@ -479,18 +545,18 @@ test('native PTY relays bounded input, resize, output, and shutdown lifecycle', 
           child.stdin.write(`${JSON.stringify({
             protocolVersion: 1,
             method: 'pty.resize',
-            cols: 100,
+            cols: 1000,
             rows: 30,
           })}\n`);
           child.stdin.write(`${JSON.stringify({
             protocolVersion: 1,
             method: 'pty.write',
-            data: Buffer.from('native-pty-token\n').toString('base64'),
+            data: Buffer.from('native-pty-token\r').toString('base64'),
           })}\n`);
         }
         if (frame.kind === 'output' && typeof frame.data === 'string') {
-          output += Buffer.from(frame.data, 'base64').toString('utf8');
-          if (output.includes('native-pty-token') && !shutdownSent) {
+          output += decoder.write(Buffer.from(frame.data, 'base64'));
+          if (output.includes('native-child-echo:native-pty-token') && output.includes(cwdMarker) && !shutdownSent) {
             shutdownSent = true;
             child.stdin.write(`${JSON.stringify({
               protocolVersion: 1,
@@ -501,18 +567,28 @@ test('native PTY relays bounded input, resize, output, and shutdown lifecycle', 
         }
       }
     });
-    child.once('error', reject);
+    child.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     child.once('close', (code, signal) => {
       clearTimeout(timer);
       resolve({ code, signal });
     });
   });
 
-  const exit = await completed;
-  assert.deepEqual(exit, { code: 0, signal: null });
-  assert.equal(diagnostics, '');
-  assert.equal(frames[0]?.kind, 'ready');
-  assert.ok(frames.some((frame) => frame.kind === 'output'));
-  assert.ok(frames.some((frame) => frame.kind === 'exit'));
-  assert.match(output, /native-pty-token/u);
+  try {
+    const exit = await completed;
+    assert.deepEqual(exit, { code: 0, signal: null });
+    assert.equal(diagnostics, '');
+    assert.equal(frames[0]?.kind, 'ready');
+    assert.ok(frames.some((frame) => frame.kind === 'output'));
+    assert.ok(frames.some((frame) => frame.kind === 'exit'));
+    assert.ok(output.includes(cwdMarker));
+    assert.match(output, /native-child-echo:native-pty-token/u);
+  } finally {
+    child.kill('SIGKILL');
+    await closed;
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
 });

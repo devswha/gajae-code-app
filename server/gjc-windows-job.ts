@@ -13,9 +13,43 @@ const REAP_ENV = 'GAJAE_INTERNAL_JOB_REAP';
 export const GJC_WINDOWS_JOB_GUARD_READY = 'gajae-job-guard-ready-v1';
 export const GJC_WINDOWS_JOB_GUARD_ACK = 'gajae-job-guard-ack-v1';
 
+/** Inspect raw mandatory ACEs: GetSddlForm(All) does not request label output. */
+export function windowsCodeDomLabelValidationScript(): string {
+  return String.raw`
+function Get-GajaeCompilerLabelState([Security.AccessControl.RawSecurityDescriptor]$security) {
+    $entries = @()
+    $count = 0
+    $hasHighLabel = $false
+    $malformedLabel = $false
+    if ($null -ne $security.SystemAcl) { $count = $security.SystemAcl.Count }
+    foreach ($ace in $security.SystemAcl) {
+        $entry = @{ type = [int]$ace.AceType; size = $ace.BinaryLength; flags = [int]$ace.AceFlags }
+        if ([int]$ace.AceType -eq 0x11) {
+            try {
+                # SYSTEM_MANDATORY_LABEL_ACE: header at 0, mask at 4, SID at 8.
+                if ($ace.BinaryLength -lt 16) { throw 'Truncated mandatory-label ACE.' }
+                $bytes = [byte[]]::new($ace.BinaryLength)
+                $ace.GetBinaryForm($bytes, 0)
+                $entry.mask = [BitConverter]::ToUInt32($bytes, 4)
+                $entry.sid = [Security.Principal.SecurityIdentifier]::new($bytes, 8).Value
+                # Inherit-only ACEs do not protect this directory itself.
+                if ($entry.sid -eq 'S-1-16-12288' -and ($entry.mask -band 1) -ne 0 -and ($entry.flags -band 8) -eq 0) { $hasHighLabel = $true }
+            } catch {
+                $malformedLabel = $true
+                $entry.error = $_.Exception.Message
+            }
+        }
+        $entries += $entry
+    }
+    return @{ hasHighLabel = ($hasHighLabel -and -not $malformedLabel); saclCount = $count; aces = $entries }
+}
+`.trim();
+}
+
 /** Compiles trusted constant C# without CodeDom's ANSI elevated-temp helper. */
 export function windowsCodeDomCompileScript(typeDefinition: string, diagnostics = false): string {
   return String.raw`
+${windowsCodeDomLabelValidationScript()}
 $compilerIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $compilerSid = $compilerIdentity.User.Value
 $compilerPrincipal = [Security.Principal.WindowsPrincipal]::new($compilerIdentity)
@@ -87,10 +121,13 @@ try {
     }
     $compilerActualSecurity = [Security.AccessControl.RawSecurityDescriptor]::new($compilerActualBytes, 0)
     $compilerActualSddl = $compilerActualSecurity.GetSddlForm([Security.AccessControl.AccessControlSections]::All)
-    $compilerSecurityReport = (@{ compilerTemp = $compilerTemp; elevated = $compilerElevated; requestedCompilerSddl = $compilerSddl; compilerSddl = $compilerActualSddl } | ConvertTo-Json -Compress)
+    $compilerRequestedLabels = Get-GajaeCompilerLabelState $compilerSecurity
+    $compilerActualLabels = Get-GajaeCompilerLabelState $compilerActualSecurity
+    $compilerSecurityReport = (@{ compilerTemp = $compilerTemp; elevated = $compilerElevated; requestedCompilerSddl = $compilerSddl; compilerSddl = $compilerActualSddl; requestedSaclCount = $compilerRequestedLabels.saclCount; requestedSaclAces = $compilerRequestedLabels.aces; compilerSaclCount = $compilerActualLabels.saclCount; compilerSaclAces = $compilerActualLabels.aces; hasHighLabel = $compilerActualLabels.hasHighLabel } | ConvertTo-Json -Compress -Depth 4)
     ${diagnostics ? '[Console]::Out.WriteLine($compilerSecurityReport)' : ''}
-    # String.raw preserves the single backslash required by PowerShell/.NET.
-    if ($compilerElevated -and $compilerActualSddl -notmatch '\(ML;[^;]*;NW;;;HI\)') {
+    # GetSddlForm(All) serializes auditing SACL flags, not LABEL_SECURITY_INFORMATION.
+    # Enforce the label from the returned raw ACE fields instead of its SDDL text.
+    if ($compilerElevated -and -not $compilerActualLabels.hasHighLabel) {
         throw ('Compiler directory high-integrity label was not preserved. ' + $compilerSecurityReport)
     }
     $compilerParameters = [CodeDom.Compiler.CompilerParameters]::new()

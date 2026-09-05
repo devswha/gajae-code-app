@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { promisify } from 'node:util';
 
 import { verifyWindowsSmokeEnvironment, windowsSmokeEnvironment } from './windows-payload.mjs';
 
@@ -61,6 +63,38 @@ test('Add-Type probe uses constant UTF-16LE encoded source and returns bounded n
   });
 });
 
+test('Windows raw mandatory ACE validator handles labels independently of SDDL formatting', {
+  skip: process.platform !== 'win32', timeout: 45_000,
+}, async () => {
+  const { tsImport } = await import('tsx/esm/api');
+  const { windowsCodeDomLabelValidationScript } = await tsImport(new URL('../../server/gjc-windows-job.ts', import.meta.url).href, import.meta.url);
+  const cases = [
+    { name: 'high', sddl: 'S:(ML;OI;NW;;;HI)', expected: true, count: 1 },
+    { name: 'numeric high SID', sddl: 'S:(ML;OICI;NW;;;S-1-16-12288)', expected: true, count: 1 },
+    { name: 'additional restrictions', sddl: 'S:(ML;OI;NWNR;;;HI)', expected: true, count: 1 },
+    { name: 'medium', sddl: 'S:(ML;OI;NW;;;ME)', expected: false, count: 1 },
+    { name: 'missing no-write-up', sddl: 'S:(ML;OI;NR;;;HI)', expected: false, count: 1 },
+    { name: 'inherit-only', sddl: 'S:(ML;OIIO;NW;;;HI)', expected: false, count: 1 },
+    { name: 'missing SACL', sddl: 'D:(A;;FA;;;BA)', expected: false, count: 0 },
+    { name: 'empty SACL', sddl: 'D:(A;;FA;;;BA)S:AI', expected: false, count: 0 },
+    { name: 'audit ACE is not a label', sddl: 'S:(AU;SA;FA;;;S-1-16-12288)', expected: false, count: 1 },
+  ];
+  const source = `$ErrorActionPreference = 'Stop'
+${windowsCodeDomLabelValidationScript()}
+foreach ($case in ($env:GAJAE_LABEL_FIXTURES | ConvertFrom-Json)) {
+    $state = Get-GajaeCompilerLabelState ([Security.AccessControl.RawSecurityDescriptor]::new($case.sddl))
+    [Console]::Out.WriteLine((@{ name = $case.name; valid = $state.hasHighLabel; count = $state.saclCount; aces = $state.aces } | ConvertTo-Json -Compress -Depth 4))
+}`;
+  const systemRoot = process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows';
+  const { stdout } = await promisify(execFile)(path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), [
+    '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(source, 'utf16le').toString('base64'),
+  ], { env: { ...process.env, GAJAE_LABEL_FIXTURES: JSON.stringify(cases) }, windowsHide: true, shell: false, timeout: 30_000 });
+  const results = stdout.trim().split(/\r?\n/).map(line => JSON.parse(line));
+  assert.deepEqual(results.map(({ name, valid, count }) => ({ name, valid, count })),
+    cases.map(({ name, expected, count }) => ({ name, valid: expected, count })));
+  assert.deepEqual(results[0].aces, [{ type: 0x11, size: 20, flags: 1, mask: 1, sid: 'S-1-16-12288' }]);
+});
+
 test('real Windows Add-Type works with baseline and isolated Unicode profile, cwd and temp', {
   skip: process.platform !== 'win32', timeout: 140_000,
 }, async t => {
@@ -92,7 +126,10 @@ test('real Windows Add-Type works with baseline and isolated Unicode profile, cw
       if (result.elevated) {
         assert.match(result.compilerSddl, /\(D;OI;SD;;;/);
         assert.match(result.compilerSddl, /\(A;OICI;FA;;;BA\)/);
-        assert.match(result.compilerSddl, /\(ML;[^;]*;NW;;;HI\)/);
+        assert.equal(result.hasHighLabel, true);
+        assert.ok(result.compilerSaclCount > 0);
+        assert.ok(result.compilerSaclAces.some(ace => ace.type === 0x11
+          && ace.sid === 'S-1-16-12288' && (ace.mask & 1) !== 0 && (ace.flags & 8) === 0));
       }
       await assert.rejects(fs.access(result.compilerTemp), { code: 'ENOENT' });
       if (label === 'isolated Unicode') {

@@ -11,6 +11,7 @@ import {
   GJC_WINDOWS_JOB_GUARD_READY,
   quoteWindowsArgument,
   windowsCodeDomCompileScript,
+  windowsCodeDomLabelValidationScript,
 } from './gjc-windows-job.js';
 
 test('quotes Windows argv values without losing quotes or trailing slashes', () => {
@@ -43,7 +44,7 @@ test('CodeDom compilation uses explicit private temp files with the original ele
   assert.ok(script.indexOf('$compilerParameters.TempFiles.Delete()') < script.indexOf('[IO.Directory]::Delete'));
 });
 
-test('generated PowerShell label regex matches SDDL and diagnostics precede rejection', () => {
+test('generated PowerShell enforces raw mandatory ACE fields and reports diagnostics before rejection', () => {
   const diagnosticScript = windowsCodeDomCompileScript('public class LabelRegexFixture {}', true);
   const launch = createWindowsJobLaunch('node.exe', [], { SystemRoot: 'C:\\Windows' }, 'C:\\');
   const loader = Buffer.from(launch.args.at(-1)!, 'base64').toString('utf16le');
@@ -51,20 +52,21 @@ test('generated PowerShell label regex matches SDDL and diagnostics precede reje
   assert.ok(compressed);
   const guardScript = gunzipSync(Buffer.from(compressed, 'base64')).toString('utf8');
   for (const script of [diagnosticScript, guardScript]) {
-    const pattern = script.match(/\$compilerActualSddl -notmatch '([^']+)'/u)?.[1];
-    assert.equal(pattern, String.raw`\(ML;[^;]*;NW;;;HI\)`);
-    const regex = new RegExp(pattern!);
-    for (const high of ['S:(ML;OI;NW;;;HI)', 'D:(A;OICI;FA;;;BA)S:(ML;;NW;;;HI)', 'S:(ML;OICI;NW;;;HI)']) {
-      assert.equal(regex.test(high), true, high);
-    }
-    for (const rejected of ['S:(ML;OI;NW;;;ME)', 'D:(A;OICI;FA;;;BA)', 'S:(ML;OI;NR;;;HI)']) {
-      assert.equal(regex.test(rejected), false, rejected);
-    }
+    assert.ok(script.includes(windowsCodeDomLabelValidationScript()));
+    assert.match(script, /\$ace.AceType -eq 0x11/);
+    assert.match(script, /ToUInt32\(\$bytes, 4\)/);
+    assert.match(script, /SecurityIdentifier\]::new\(\$bytes, 8\)/);
+    assert.match(script, /\$entry.sid -eq 'S-1-16-12288'/);
+    assert.match(script, /\(\$entry.mask -band 1\) -ne 0/);
+    assert.match(script, /\(\$entry.flags -band 8\) -eq 0/);
+    assert.doesNotMatch(script, /\$compilerActualSddl -notmatch/);
+    assert.match(script, /GetFileSecurityW\(\$compilerTemp, 0x14/);
     assert.match(script, /requestedCompilerSddl = \$compilerSddl; compilerSddl = \$compilerActualSddl/);
+    assert.match(script, /compilerSaclCount = \$compilerActualLabels.saclCount; compilerSaclAces = \$compilerActualLabels.aces/);
     assert.match(script, /high-integrity label was not preserved\. ' \+ \$compilerSecurityReport/);
   }
   assert.ok(diagnosticScript.indexOf('[Console]::Out.WriteLine($compilerSecurityReport)')
-    < diagnosticScript.indexOf('$compilerActualSddl -notmatch'));
+    < diagnosticScript.indexOf('$compilerElevated -and -not $compilerActualLabels.hasHighLabel'));
 });
 
 test('builds a guard that atomically creates the worker inside a Windows job', () => {

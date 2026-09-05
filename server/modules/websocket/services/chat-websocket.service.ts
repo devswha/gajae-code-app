@@ -260,7 +260,7 @@ function subscribeChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSock
     if (!request || !sessionId) continue;
 
     const rawSequence = request.lastSeq;
-    const lastSeq = typeof rawSequence === 'number' && Number.isFinite(rawSequence) ? Math.max(0, Math.floor(rawSequence)) : 0;
+    const lastSeq = typeof rawSequence === 'number' && Number.isSafeInteger(rawSequence) && rawSequence >= 0 ? rawSequence : 0;
     const run = chatRunRegistry.getRun(sessionId);
     const isProcessing = chatRunRegistry.isProcessing(sessionId);
     if (isProcessing) chatRunRegistry.attachConnection(sessionId, ws);
@@ -270,9 +270,9 @@ function subscribeChat(ws: WebSocket, data: AnyRecord, dependencies: ChatWebSock
       const record = asRecord(approval);
       return record ? { ...record, sessionId } : approval;
     });
-    sendFrame(ws, { kind: 'chat_subscribed', sessionId, isProcessing, lastSeq: run?.lastSeq ?? 0, pendingPermissions, timestamp: new Date().toISOString() });
+    sendFrame(ws, { kind: 'chat_subscribed', sessionId, isProcessing, replayGeneration: run?.replayGeneration ?? null, lastSeq: run?.lastSeq ?? 0, pendingPermissions, timestamp: new Date().toISOString() });
     if (isProcessing) {
-      for (const event of chatRunRegistry.replayEvents(sessionId, lastSeq)) sendFrame(ws, event);
+      for (const event of chatRunRegistry.replayEvents(sessionId, lastSeq, request.replayGeneration)) sendFrame(ws, event);
     }
   }
 }

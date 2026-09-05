@@ -26,7 +26,7 @@ type MessageKind = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'stream_de
 interface NormalizedToolResult { content?: string; isError?: boolean; toolUseResult?: unknown; }
 export interface NormalizedMessage {
   id: string; sessionId: string; timestamp: string; provider: LLMProvider; kind: MessageKind;
-  seq?: number; turnId?: string; turnStatus?: 'running' | 'completed' | 'failed' | 'aborted'; role?: 'user' | 'assistant';
+  seq?: number; replayGeneration?: string; turnId?: string; turnStatus?: 'running' | 'completed' | 'failed' | 'aborted'; role?: 'user' | 'assistant';
   content?: string; displayText?: string; commandName?: string; commandMessage?: string; commandArgs?: string; isLocalCommand?: boolean; isLocalCommandStdout?: boolean; isCompactSummary?: boolean;
   images?: unknown; toolName?: string; toolInput?: unknown; toolId?: string; toolResult?: NormalizedToolResult; toolResultTruncated?: boolean; toolResultBytes?: number; toolDetailsOmitted?: boolean;
   isError?: boolean; level?: 'info' | 'warning' | 'error'; text?: string; tokens?: number; canInterrupt?: boolean; requestId?: string; input?: unknown; context?: unknown; reason?: string; newSessionId?: string; status?: string; summary?: string; tokenBudget?: unknown; subagentTools?: unknown; toolUseResult?: unknown; sequence?: number; rowid?: number;

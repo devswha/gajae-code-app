@@ -741,4 +741,27 @@ test('background replay separated from its persisted answer by reasoning never d
     store.finalizeStreaming('session');
   });
   assert.equal(store.getMessages('session').filter(message => message.content === 'Complete answer.').length, 1);
+  assert.equal(store.getMessages('session').filter(message => message.content === 'Reasoning.').length, 1);
+});
+
+test('thinking reconciliation preserves repeated reasoning in a new turn and never matches assistant prose', () => {
+  const { store, queryClient } = createHarness();
+  const common = { sessionId: 'session', provider: 'gjc' as const };
+  act(() => {
+    queryClient.setQueryData(['messages', 'session'], {
+      messages: [
+        { ...common, id: 'prior-thought', timestamp: '2026-01-01T00:00:05Z', kind: 'thinking', content: 'Repeated reasoning.' },
+        { ...common, id: 'prior-thought-2', timestamp: '2026-01-01T00:00:06Z', kind: 'thinking', content: 'Repeated reasoning.' },
+        { ...common, id: 'prior-text', timestamp: '2026-01-01T00:00:07Z', kind: 'text', role: 'assistant', content: 'Prose is separate.' },
+      ], total: 42, hasMore: true, offset: 3,
+    });
+    store.appendRealtimeBatch('session', [
+      { ...common, id: 'thinking-prose', timestamp: '2026-01-01T00:00:07Z', kind: 'thinking', content: 'Prose is separate.' },
+      { ...common, id: 'local_next', timestamp: '2026-01-01T00:01:00Z', kind: 'text', role: 'user', content: 'Next question' },
+      { ...common, id: 'next-thought', timestamp: '2026-01-01T00:01:05Z', kind: 'thinking', content: 'Repeated reasoning.' },
+    ]);
+  });
+  assert.deepEqual(store.getMessages('session').map(row => row.id), [
+    'prior-thought', 'prior-thought-2', 'prior-text', 'thinking-prose', 'local_next', 'next-thought',
+  ]);
 });

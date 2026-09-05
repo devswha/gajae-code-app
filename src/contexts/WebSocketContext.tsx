@@ -11,7 +11,7 @@ import {
 } from '../../shared/gjc-job-projection-protocol';
 import { useAuth } from '../components/auth/context/AuthContext';
 
-export type ServerEvent = { kind?: string; type?: string; sessionId?: string; seq?: number; [key: string]: unknown };
+export type ServerEvent = { kind?: string; type?: string; sessionId?: string; seq?: number; replayGeneration?: string | null; [key: string]: unknown };
 type JobSubscription = {
   jobId: string;
   getCursor: () => number;

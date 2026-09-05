@@ -62,7 +62,6 @@ function ChatInterface({
   const streamTimerRef = useRef<number | null>(null);
   const accumulatedStreamRef = useRef('');
   const statusCheckSentAtRef = useRef(new Map<string, number>());
-  const lastSeqRef = useRef(new Map<string, number>());
 
   const clearStreaming = useCallback(() => {
     const timer = streamTimerRef.current;
@@ -88,7 +87,7 @@ function ChatInterface({
 
   const session = useChatSessionState({
     selectedProject, selectedSession, ws, sendMessage, newSessionTrigger, processingSessions,
-    onSessionIdle, resetStreamingState: clearStreaming, statusCheckSentAtRef, lastSeqRef,
+    onSessionIdle, resetStreamingState: clearStreaming, statusCheckSentAtRef,
     sessionStore, showImagePreviews,
   });
 
@@ -156,7 +155,7 @@ function ChatInterface({
     statusCheckSentAtRef.current.set(selectedSession.id, Date.now());
     sendMessage({
       type: 'chat.subscribe',
-      sessions: [{ sessionId: selectedSession.id, lastSeq: lastSeqRef.current.get(selectedSession.id) ?? 0 }],
+      sessions: [{ sessionId: selectedSession.id, ...sessionStore.getReplayCursor(selectedSession.id) }],
     });
   }, [selectedProject, selectedSession, sendMessage, sessionStore]);
 
@@ -171,7 +170,6 @@ function ChatInterface({
     setPendingPermissionRequests,
     streamTimerRef,
     accumulatedStreamRef,
-    lastSeqRef,
     statusCheckSentAtRef,
     onSessionProcessing,
     onSessionIdle,

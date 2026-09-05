@@ -9,7 +9,7 @@ import { buildRefreshMessagesUrl } from './sessionMessageFetch';
 
 type MessageKind = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'stream_delta' | 'stream_end' | 'error' | 'complete' | 'status' | 'permission_request' | 'permission_cancelled' | 'session_created' | 'interactive_prompt' | 'task_notification' | 'system_notice';
 export interface NormalizedMessage {
-  id: string; sessionId: string; timestamp: string; provider: LLMProvider; kind: MessageKind; seq?: number;
+  id: string; sessionId: string; timestamp: string; provider: LLMProvider; kind: MessageKind; seq?: number; replayGeneration?: string;
   role?: 'user' | 'assistant'; content?: string; displayText?: string; commandName?: string; commandMessage?: string; commandArgs?: string;
   isLocalCommand?: boolean; isLocalCommandStdout?: boolean; isCompactSummary?: boolean; images?: Array<{ path?: string; data?: string; name?: string }>;
   toolName?: string; toolInput?: unknown; toolId?: string; toolResult?: { content: string; isError: boolean; toolUseResult?: unknown } | null;
@@ -18,9 +18,11 @@ export interface NormalizedMessage {
   summary?: string; exitCode?: number; actualSessionId?: string; parentToolUseId?: string; subagentTools?: unknown[]; isFinal?: boolean; sequence?: number; rowid?: number;
 }
 export type SessionStatus = 'idle' | 'loading' | 'streaming' | 'error';
+export type ChatReplayCursor = { replayGeneration: string | null; lastSeq: number };
 export interface SessionSlot {
   serverMessages: NormalizedMessage[]; realtimeMessages: NormalizedMessage[]; merged: NormalizedMessage[];
   receivedEventIds: Set<string>;
+  replayCursor: ChatReplayCursor; retiredReplayGenerations: Set<string>;
   _lastServerRef: NormalizedMessage[]; _lastRealtimeRef: NormalizedMessage[]; _fetchSeq: number; _fetchMoreTicket: number | null;
   _pendingRequests: number; _loadingTicket: number | null; _includeImages: boolean; status: SessionStatus; fetchedAt: number;
   total: number; hasMore: boolean; offset: number; tokenUsage: unknown;
@@ -88,7 +90,9 @@ function assistantEchoesPersisted(message: NormalizedMessage, server: Normalized
   for (let index = began; index < server.length; index += 1) {
     if (server[index].kind === 'text' && server[index].role === 'user') { end = index; break; }
   }
-  return server.slice(began, end).some((row) => row.kind === 'text' && row.role === 'assistant' && row.content?.trim() === content);
+  return server.slice(began, end).some((row) => (message.kind === 'thinking'
+    ? row.kind === 'thinking'
+    : row.kind === 'text' && row.role === 'assistant') && row.content?.trim() === content);
 }
 
 /**
@@ -102,7 +106,7 @@ function coalesceStreamDeltas(rows: NormalizedMessage[]): NormalizedMessage[] {
   const result: NormalizedMessage[] = [];
   for (const row of rows) {
     const prior = result.at(-1);
-    if (prior?.kind === 'stream_delta' && row.kind === 'stream_delta' && prior.sessionId === row.sessionId) {
+    if (prior?.kind === 'stream_delta' && row.kind === 'stream_delta' && prior.sessionId === row.sessionId && prior.replayGeneration === row.replayGeneration) {
       result[result.length - 1] = { ...prior, content: (prior.content ?? '') + (row.content ?? '') };
       continue;
     }
@@ -147,7 +151,7 @@ function retainUnpersisted(server: NormalizedMessage[], realtime: NormalizedMess
   return realtime.filter((row) => {
     if (row.id && diskIds.has(row.id)) return false;
     if (row.id?.startsWith('local_')) return !localUserIsPersisted(row, server);
-    if ((row.kind === 'stream_delta' || row.id === `__streaming_${row.sessionId}`) || (row.kind === 'text' && row.role === 'assistant' && row.id?.startsWith('text_'))) return !assistantEchoesPersisted(row, server, realtime);
+    if (row.kind === 'thinking' || (row.kind === 'stream_delta' || row.id === `__streaming_${row.sessionId}`) || (row.kind === 'text' && row.role === 'assistant' && row.id?.startsWith('text_'))) return !assistantEchoesPersisted(row, server, realtime);
     return !(row.kind === 'tool_use' && row.toolId && server.some((saved) => saved.kind === 'tool_use' && saved.toolId === row.toolId));
   });
 }
@@ -162,7 +166,7 @@ function mergeWindows(server: NormalizedMessage[], realtime: NormalizedMessage[]
     if (row.id) observed.add(row.id);
     if (row.id && savedIds.has(row.id)) return false;
     if (row.id?.startsWith('local_') && localUserIsPersisted(row, server)) return false;
-    return !(row.kind === 'text' && row.role === 'assistant' && row.id?.startsWith('text_') && assistantEchoesPersisted(row, server, realtime));
+    return !((row.kind === 'thinking' || (row.kind === 'text' && row.role === 'assistant' && row.id?.startsWith('text_'))) && assistantEchoesPersisted(row, server, realtime));
   });
   return additions.length ? collapseStreamTransition([...server, ...additions].sort(chronological)) : server;
 }
@@ -182,7 +186,7 @@ function newJobSlot(): JobProjectionSlot {
 
 function newSlot(sessionId: string, client: QueryClient): SessionSlot {
   const key = ['messages', sessionId] as const;
-  const slot = { realtimeMessages: EMPTY, merged: EMPTY, receivedEventIds: new Set<string>(), _lastServerRef: EMPTY, _lastRealtimeRef: EMPTY, _fetchSeq: 0, _fetchMoreTicket: null, _pendingRequests: 0, _loadingTicket: null, _includeImages: true, status: 'idle' } as SessionSlot;
+  const slot = { realtimeMessages: EMPTY, merged: EMPTY, receivedEventIds: new Set<string>(), replayCursor: { replayGeneration: null, lastSeq: 0 }, retiredReplayGenerations: new Set<string>(), _lastServerRef: EMPTY, _lastRealtimeRef: EMPTY, _fetchSeq: 0, _fetchMoreTicket: null, _pendingRequests: 0, _loadingTicket: null, _includeImages: true, status: 'idle' } as SessionSlot;
   const window = () => client.getQueryData<MessagesWindow>(key);
   Object.defineProperties(slot, {
     serverMessages: { enumerable: true, get: () => window()?.messages ?? EMPTY }, total: { enumerable: true, get: () => window()?.total ?? 0 }, hasMore: { enumerable: true, get: () => window()?.hasMore ?? false }, offset: { enumerable: true, get: () => window()?.offset ?? 0 }, tokenUsage: { enumerable: true, get: () => window()?.tokenUsage }, fetchedAt: { enumerable: true, get: () => client.getQueryState(key)?.dataUpdatedAt ?? 0 },
@@ -239,6 +243,25 @@ export function useSessionStore() {
     if (received.has(eventId)) return false;
     received.add(eventId);
     if (received.size > MAX_RECEIVED_EVENT_IDS) received.delete(received.values().next().value!);
+    return true;
+  }, [getSlot]);
+  const getReplayCursor = useCallback((id: string): ChatReplayCursor => ({ ...getSlot(id).replayCursor }), [getSlot]);
+  const trackReplayFrame = useCallback((id: string, frame: { kind?: string; seq?: number; replayGeneration?: string | null }) => {
+    const subscribed = frame.kind === 'chat_subscribed';
+    const slot = getSlot(id);
+    const generation = typeof frame.replayGeneration === 'string' && frame.replayGeneration ? frame.replayGeneration : null;
+    if (generation !== null && slot.retiredReplayGenerations.has(generation)) return false;
+    if (!subscribed && (!Number.isSafeInteger(frame.seq) || frame.seq! < 1)) return true;
+    // Legacy frames remain displayable, but their unscoped sequence must not
+    // become a reconnect cursor or contaminate an established generation.
+    if (!subscribed && generation === null) return slot.replayCursor.replayGeneration === null;
+    if (slot.replayCursor.replayGeneration !== generation) {
+      if (slot.replayCursor.replayGeneration !== null) slot.retiredReplayGenerations.add(slot.replayCursor.replayGeneration);
+      slot.replayCursor = { replayGeneration: generation, lastSeq: 0 };
+    }
+    // The subscription's lastSeq is an advertised high-water mark, not proof
+    // that replay was received. Only actual registered frames advance it.
+    if (!subscribed && generation !== null) slot.replayCursor.lastSeq = Math.max(slot.replayCursor.lastSeq, frame.seq!);
     return true;
   }, [getSlot]);
   const begin = useCallback((id: string) => { const slot = slots.current.get(id) ?? newSlot(id, queryClient); slot._pendingRequests += 1; remember(id, slot); return slot; }, [queryClient, remember]);
@@ -328,7 +351,7 @@ export function useSessionStore() {
   const getMessages = useCallback((id: string) => { const slot = slots.current.get(id); if (!slot) return EMPTY; refreshMerged(slot); return slot.merged; }, []);
   const getSessionSlot = useCallback((id: string) => { const slot = slots.current.get(id); if (slot) refreshMerged(slot); return slot; }, []);
 
-  return useMemo(() => ({ getSlot, acceptRealtimeEvent, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession }), [getSlot, acceptRealtimeEvent, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession]);
+  return useMemo(() => ({ getSlot, acceptRealtimeEvent, getReplayCursor, trackReplayFrame, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession }), [getSlot, acceptRealtimeEvent, getReplayCursor, trackReplayFrame, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession]);
 }
 
 export type SessionStore = ReturnType<typeof useSessionStore>;

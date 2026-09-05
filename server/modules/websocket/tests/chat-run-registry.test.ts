@@ -101,7 +101,7 @@ describe('chat run event protocol', () => {
     await openDatabase(() => {
       const { run, socket } = createRun('terminal');
       for (const content of ['a', 'b', 'c']) run.writer.send({ kind: 'stream_delta', provider: 'gjc', sessionId: 'native', content });
-      assert.deepEqual(chatRunRegistry.replayEvents('terminal', 1).map(({ content, seq }) => ({ content, seq })), [
+      assert.deepEqual(chatRunRegistry.replayEvents('terminal', 1, run.replayGeneration).map(({ content, seq }) => ({ content, seq })), [
         { content: 'b', seq: 2 }, { content: 'c', seq: 3 },
       ]);
       run.writer.send({ kind: 'complete', provider: 'gjc', sessionId: 'native', exitCode: 0 });
@@ -114,6 +114,39 @@ describe('chat run event protocol', () => {
 });
 
 describe('chat run lifecycle', () => {
+  test('obsolete writers cannot publish into a replacement run', async () => {
+    await openDatabase(() => {
+      const { run: oldRun, socket } = createRun('obsolete');
+      oldRun.writer.send({ kind: 'complete', exitCode: 0 });
+      const nextRun = chatRunRegistry.startRun({ appSessionId: 'obsolete', provider: 'gjc', providerSessionId: null, connection: socket, userId: null });
+      assert.ok(nextRun);
+      assert.notEqual(nextRun.replayGeneration, oldRun.replayGeneration);
+      oldRun.writer.send({ kind: 'stream_delta', content: 'obsolete' });
+      oldRun.writer.send({ kind: 'permission_request', requestId: 'obsolete-approval' });
+      nextRun.writer.send({ kind: 'stream_delta', content: 'current' });
+      assert.deepEqual(socket.messages.map(frame => [frame.kind, frame.seq, frame.replayGeneration]), [
+        ['complete', 1, oldRun.replayGeneration], ['stream_delta', 1, nextRun.replayGeneration],
+      ]);
+      assert.equal(nextRun.pendingApprovals.size, 0);
+    });
+  });
+
+  test('an old expiry timer cannot remove a newer completed generation', async (context) => {
+    await openDatabase(() => {
+      context.mock.timers.enable({ apis: ['setTimeout'] });
+      const { socket } = createRun('expiry');
+      chatRunRegistry.completeRun('expiry', { exitCode: 0 });
+      context.mock.timers.tick(299_999);
+      const nextRun = chatRunRegistry.startRun({ appSessionId: 'expiry', provider: 'gjc', providerSessionId: null, connection: socket, userId: null });
+      assert.ok(nextRun);
+      chatRunRegistry.completeRun('expiry', { exitCode: 0 });
+      context.mock.timers.tick(1);
+      assert.equal(chatRunRegistry.getRun('expiry'), nextRun);
+      context.mock.timers.tick(299_999);
+      assert.equal(chatRunRegistry.getRun('expiry'), undefined);
+    });
+  });
+
   test('does not let an old completion fallback terminate its replacement', async () => {
     await openDatabase(() => {
       const { run: oldRun, socket } = createRun('replacement');

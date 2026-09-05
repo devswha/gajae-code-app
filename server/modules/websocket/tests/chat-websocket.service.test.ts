@@ -11,6 +11,7 @@ import { closeConnection, initializeDatabase, projectPermissionsDb, sessionsDb }
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
 import { connectedClients } from '@/modules/websocket/services/websocket-state.service.js';
+import type { NormalizedMessage } from '@/shared/types.js';
 
 type OutboundFrame = {
   readonly kind: string;
@@ -45,6 +46,120 @@ class FakeWebSocket extends EventEmitter {
 }
 
 const flushMessages = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+function exchangeFrames(client: WebSocket, request: unknown, finished: (frame: OutboundFrame) => boolean): Promise<OutboundFrame[]> {
+  return new Promise((resolve, reject) => {
+    const frames: OutboundFrame[] = [];
+    const cleanup = () => { clearTimeout(timer); client.off('message', receive); client.off('error', fail); };
+    const fail = (error: Error) => { cleanup(); reject(error); };
+    const receive = (raw: unknown) => {
+      try {
+        const frame = parseOutboundFrame(String(raw));
+        frames.push(frame);
+        if (frame.kind === 'protocol_error') throw new Error(JSON.stringify(frame));
+        if (finished(frame)) { cleanup(); resolve(frames); }
+      } catch (error) { fail(error as Error); }
+    };
+    const timer = setTimeout(() => fail(new Error(`Timed out waiting for frames: ${JSON.stringify(frames)}`)), 3000);
+    client.on('message', receive);
+    client.on('error', fail);
+    client.send(JSON.stringify(request));
+  });
+}
+
+test('real websocket reconnect scopes replay to each chat.send run and survives a registry restart', { timeout: 15000 }, async () => {
+  await withIsolatedDatabase(async () => {
+    const sessionId = 'two-turn-replay';
+    sessionsDb.createAppSession(sessionId, 'gjc', '/workspace/replay');
+    let finishProvider: (() => void) | undefined;
+    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+    const clients: WebSocket[] = [];
+    try {
+      await once(server, 'listening');
+      server.on('connection', (socket, request) => handleChatConnection(socket, request as never, {
+        spawnFns: { gjc: (command, _options, rawWriter) => {
+          const writer = rawWriter as { send(frame: Partial<NormalizedMessage>): void };
+          if (command === 'first') {
+            for (let index = 0; index < 7; index += 1) writer.send({ kind: 'stream_delta', content: `first-${index}` });
+            writer.send({ kind: 'stream_end', content: 'First answer' });
+            writer.send({ kind: 'complete', exitCode: 0 });
+            return Promise.resolve();
+          }
+          writer.send({ kind: 'stream_delta', content: 'Second ' });
+          writer.send({ kind: 'thinking', content: 'Second reasoning' });
+          writer.send({ kind: 'stream_end', content: 'Second answer' });
+          writer.send({ kind: 'status', text: 'ready' });
+          return new Promise<void>((resolve) => { finishProvider = resolve; });
+        } },
+        abortFns: { gjc: async () => false }, resolveToolApproval() {}, getPendingApprovalsForSession: () => [],
+        resolveSessionModel: async () => undefined,
+      }));
+      const address = server.address();
+      assert.ok(address && typeof address !== 'string');
+      const connect = async () => {
+        const client = new WebSocket(`ws://127.0.0.1:${address.port}`);
+        clients.push(client);
+        await once(client, 'open');
+        return client;
+      };
+      const sender = await connect();
+      const first = await exchangeFrames(sender, { type: 'chat.send', sessionId, content: 'first' }, frame => frame.kind === 'complete');
+      const firstGeneration = first[0].replayGeneration;
+      assert.equal(typeof firstGeneration, 'string');
+      assert.ok(first.every(frame => frame.replayGeneration === firstGeneration));
+      assert.deepEqual(first.map(frame => frame.seq), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      const second = await exchangeFrames(sender, { type: 'chat.send', sessionId, content: 'second' }, frame => frame.kind === 'status');
+      const secondGeneration = second[0].replayGeneration;
+      assert.notEqual(secondGeneration, firstGeneration);
+      assert.ok(second.every(frame => frame.replayGeneration === secondGeneration));
+      assert.deepEqual(second.map(frame => frame.seq), [1, 2, 3, 4]);
+      sender.close();
+      await once(sender, 'close');
+
+      const subscribe = async (cursor: Record<string, unknown>) => {
+        const client = await connect();
+        // A following empty-session subscription is an ordered wire barrier:
+        // assert the entire replay, including the zero-frame cursor case.
+        const frames = await exchangeFrames(client, {
+          type: 'chat.subscribe', sessions: [{ sessionId, ...cursor }, { sessionId: 'replay-barrier' }],
+        }, frame => frame.sessionId === 'replay-barrier');
+        client.close();
+        await once(client, 'close');
+        assert.equal(frames.at(-1)?.replayGeneration, null);
+        return frames.slice(0, -1);
+      };
+      for (const lastSeq of [1, 4, 9]) {
+        const frames = await subscribe({ replayGeneration: firstGeneration, lastSeq });
+        assert.equal(frames[0].kind, 'chat_subscribed');
+        assert.equal(frames[0].replayGeneration, secondGeneration);
+        assert.equal(frames[0].lastSeq, 4);
+        assert.equal(frames[0].isProcessing, true);
+        assert.deepEqual(frames.slice(1), second, `old cursor ${lastSeq} must replay the whole new run`);
+      }
+      for (const cursor of [{ lastSeq: 2 }, { replayGeneration: null, lastSeq: 9 },
+        { replayGeneration: secondGeneration, lastSeq: 999 }, { replayGeneration: secondGeneration, lastSeq: 1.5 }]) {
+        assert.deepEqual((await subscribe(cursor)).slice(1), second, 'missing or invalid cursors replay from zero');
+      }
+      assert.deepEqual((await subscribe({ replayGeneration: secondGeneration, lastSeq: 2 })).slice(1), second.slice(2));
+      assert.deepEqual((await subscribe({ replayGeneration: secondGeneration, lastSeq: 4 })).slice(1), []);
+
+      // Clearing the registry reproduces a fresh process with no remembered
+      // generation; a new run of the same app session must still be valid.
+      chatRunRegistry.clearAll();
+      finishProvider?.();
+      await flushMessages();
+      const restartedSender = await connect();
+      const restarted = await exchangeFrames(restartedSender, { type: 'chat.send', sessionId, content: 'after-restart' }, frame => frame.kind === 'status');
+      assert.notEqual(restarted[0].replayGeneration, secondGeneration);
+      assert.deepEqual((await subscribe({ replayGeneration: secondGeneration, lastSeq: 4 })).slice(1), restarted);
+    } finally {
+      finishProvider?.();
+      for (const client of clients) client.terminate();
+      for (const client of server.clients) client.terminate();
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    }
+  });
+});
 
 test('chat.subscribe recovers GJC approvals from the app session scope', async () => {
   const originalConnection = new FakeWebSocket();

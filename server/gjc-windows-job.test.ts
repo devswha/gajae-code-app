@@ -43,6 +43,30 @@ test('CodeDom compilation uses explicit private temp files with the original ele
   assert.ok(script.indexOf('$compilerParameters.TempFiles.Delete()') < script.indexOf('[IO.Directory]::Delete'));
 });
 
+test('generated PowerShell label regex matches SDDL and diagnostics precede rejection', () => {
+  const diagnosticScript = windowsCodeDomCompileScript('public class LabelRegexFixture {}', true);
+  const launch = createWindowsJobLaunch('node.exe', [], { SystemRoot: 'C:\\Windows' }, 'C:\\');
+  const loader = Buffer.from(launch.args.at(-1)!, 'base64').toString('utf16le');
+  const compressed = loader.match(/FromBase64String\('([^']+)'\)/u)?.[1];
+  assert.ok(compressed);
+  const guardScript = gunzipSync(Buffer.from(compressed, 'base64')).toString('utf8');
+  for (const script of [diagnosticScript, guardScript]) {
+    const pattern = script.match(/\$compilerActualSddl -notmatch '([^']+)'/u)?.[1];
+    assert.equal(pattern, String.raw`\(ML;[^;]*;NW;;;HI\)`);
+    const regex = new RegExp(pattern!);
+    for (const high of ['S:(ML;OI;NW;;;HI)', 'D:(A;OICI;FA;;;BA)S:(ML;;NW;;;HI)', 'S:(ML;OICI;NW;;;HI)']) {
+      assert.equal(regex.test(high), true, high);
+    }
+    for (const rejected of ['S:(ML;OI;NW;;;ME)', 'D:(A;OICI;FA;;;BA)', 'S:(ML;OI;NR;;;HI)']) {
+      assert.equal(regex.test(rejected), false, rejected);
+    }
+    assert.match(script, /requestedCompilerSddl = \$compilerSddl; compilerSddl = \$compilerActualSddl/);
+    assert.match(script, /high-integrity label was not preserved\. ' \+ \$compilerSecurityReport/);
+  }
+  assert.ok(diagnosticScript.indexOf('[Console]::Out.WriteLine($compilerSecurityReport)')
+    < diagnosticScript.indexOf('$compilerActualSddl -notmatch'));
+});
+
 test('builds a guard that atomically creates the worker inside a Windows job', () => {
   const launch = createWindowsJobLaunch(
     'C:\\Program Files\\node.exe',

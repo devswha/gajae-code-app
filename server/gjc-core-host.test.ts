@@ -12,6 +12,9 @@ const corePath = fileURLToPath(new URL(`../dist-native/${executable}`, import.me
 const WATCHER_FRAME_TIMEOUT_MS = 60_000;
 const WATCHER_PROCESS_TIMEOUT_MS = 90_000;
 const WATCHER_FRAME_POLL_INTERVAL_MS = 10;
+// Windows handles and filesystem scanners can briefly outlive child exit.
+// Retry transient removal errors with at most 3 seconds of linear backoff.
+const TEMP_ROOT_CLEANUP_OPTIONS = { recursive: true, force: true, maxRetries: 5, retryDelay: 200 };
 
 // Rust canonicalize emits verbatim drive/UNC paths on Windows; Node realpath
 // returns their ordinary spelling. Compare the same filesystem path form.
@@ -167,7 +170,7 @@ test('native core recursively watches multiple roots and filters non-transcript 
   } finally {
     child.kill('SIGKILL');
     await closed;
-    await rm(temporaryRoot, { recursive: true, force: true });
+    await rm(temporaryRoot, TEMP_ROOT_CLEANUP_OPTIONS);
   }
 });
 
@@ -222,7 +225,7 @@ test('native core reports transcripts a directory already held when it appeared'
   } finally {
     child.kill('SIGKILL');
     await closed;
-    await rm(temporaryRoot, { recursive: true, force: true });
+    await rm(temporaryRoot, TEMP_ROOT_CLEANUP_OPTIONS);
   }
 });
 
@@ -451,7 +454,7 @@ test('native job authority persists and reconciles state across process replacem
       nextCursor: null,
     });
   } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
+    await rm(temporaryRoot, TEMP_ROOT_CLEANUP_OPTIONS);
   }
 });
 
@@ -497,7 +500,7 @@ test('native git manages worktrees under paths with spaces and Unicode', async (
     assert.equal((await request('worktree.list', {})).at(-1).result.count, 0);
     assert.ok(git(['show-ref', '--verify', 'refs/heads/job/job-1']).trim());
   } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
+    await rm(temporaryRoot, TEMP_ROOT_CLEANUP_OPTIONS);
   }
 });
 
@@ -620,7 +623,7 @@ test('native PTY relays bounded input, resize, output, and shutdown lifecycle', 
           cleanupTimeout = setTimeout(() => reject(new Error('native PTY cleanup timed out')), 5_000);
         })]);
       }
-      await rm(temporaryRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      await rm(temporaryRoot, TEMP_ROOT_CLEANUP_OPTIONS);
     } finally {
       clearTimeout(forceStop);
       clearTimeout(cleanupTimeout);

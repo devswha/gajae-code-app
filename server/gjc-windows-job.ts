@@ -87,8 +87,12 @@ try {
     }
     $compilerActualSecurity = [Security.AccessControl.RawSecurityDescriptor]::new($compilerActualBytes, 0)
     $compilerActualSddl = $compilerActualSecurity.GetSddlForm([Security.AccessControl.AccessControlSections]::All)
-    if ($compilerElevated -and $compilerActualSddl -notmatch '\(ML;[^;]*;NW;;;HI\)') { throw 'Compiler directory high-integrity label was not preserved.' }
-    ${diagnostics ? `[Console]::Out.WriteLine((@{ compilerTemp = $compilerTemp; elevated = $compilerElevated; compilerSddl = $compilerActualSddl } | ConvertTo-Json -Compress))` : ''}
+    $compilerSecurityReport = (@{ compilerTemp = $compilerTemp; elevated = $compilerElevated; requestedCompilerSddl = $compilerSddl; compilerSddl = $compilerActualSddl } | ConvertTo-Json -Compress)
+    ${diagnostics ? '[Console]::Out.WriteLine($compilerSecurityReport)' : ''}
+    # String.raw preserves the single backslash required by PowerShell/.NET.
+    if ($compilerElevated -and $compilerActualSddl -notmatch '\(ML;[^;]*;NW;;;HI\)') {
+        throw ('Compiler directory high-integrity label was not preserved. ' + $compilerSecurityReport)
+    }
     $compilerParameters = [CodeDom.Compiler.CompilerParameters]::new()
     $compilerParameters.GenerateInMemory = $true
     $compilerParameters.ReferencedAssemblies.AddRange([string[]]@('System.dll', 'System.Core.dll'))

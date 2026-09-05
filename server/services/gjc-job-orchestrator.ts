@@ -298,9 +298,14 @@ export class JobOrchestrator {
       }
       let dispatched = false;
       try {
-        if (!current.worktreeId || !current.repositoryRoot) throw new Error('Ready job has no stored repository root and worktree.');
-        const cwd = worktreePath(await this.git(current.repositoryRoot).list({}), current.worktreeId);
+        if (!current.worktreeId || !current.repositoryRoot || !current.branch) throw new Error('Ready job has no stored repository root, branch and worktree.');
+        const git = this.git(current.repositoryRoot);
+        const cwd = worktreePath(await git.list({}), current.worktreeId);
         if (!cwd) throw new Error('Stored worktree is no longer available.');
+        // Listing is discovery, not authorization: its path can have been
+        // replaced since the previous turn. Revalidate the registered Git
+        // pointer and repository ownership just as interrupted resume does.
+        await git.status({ jobId: bound.jobId, branch: current.branch, path: cwd });
         dispatched = true;
         return await this.dispatch(bound.jobId, current, runId, appSessionId, message, options, cwd, bound.providerSessionId);
       } catch (error) {

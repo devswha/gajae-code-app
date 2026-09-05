@@ -146,6 +146,7 @@ type Run = {
   writer: GjcWorkerWriter;
   options: GjcWorkerOptions;
   aborted: boolean;
+  runtimeAborted?: boolean;
   abortPromise?: Promise<boolean>;
   phase: RunPhase;
   terminalForwarded: boolean;
@@ -613,6 +614,12 @@ export class GjcWorkerSupervisor {
           run.resolveStarted();
         },
       );
+      if (response.ok && object(response.result)?.aborted === true) {
+        // Goal limits can stop inside the worker without an app turn.abort.
+        // Preserve that outcome through native jobs and the chat terminal.
+        run.runtimeAborted = !run.aborted && !run.abortPromise;
+        run.aborted = true;
+      }
       this.finish(run, run.terminalFailed || !response.ok, runFailureMessage(response));
     } catch (error) {
       // workerFailed owns terminal settlement and must first prove the reap barrier.
@@ -1097,14 +1104,14 @@ export class GjcWorkerSupervisor {
       return;
     }
 
-    if (!run.aborted && !run.terminalForwarded) {
+    if ((!run.aborted || run.runtimeAborted) && !run.terminalForwarded) {
       try {
-        run.writer.send(createCompleteMessage({
+        run.writer.send({ ...createCompleteMessage({
           provider: 'gjc',
           sessionId,
           actualSessionId: sessionId,
           exitCode: 0,
-        }));
+        }), ...(run.runtimeAborted ? { aborted: true } : {}) });
       } catch {
         // Notification and promise settlement remain authoritative.
       }

@@ -552,7 +552,8 @@ test('aborts an issued run by runId and waits for its terminal start response', 
   const peer = new FakePeer(child);
   replyToHandshake(peer);
   const supervisor = new GjcWorkerSupervisor(runtime(child, 'app-abort'));
-  const run = spawn(supervisor, 'hello', {}, { send() {} });
+  const sent: unknown[] = [];
+  const run = spawn(supervisor, 'hello', {}, { send: value => sent.push(value) });
   const start = await peer.waitFor('session.start');
   let settled = false;
   void run.then(() => { settled = true; });
@@ -565,9 +566,10 @@ test('aborts an issued run by runId and waits for its terminal start response', 
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(settled, false);
 
-  peer.respond(start, { ok: true, result: { runId: start.id } });
+  peer.respond(start, { ok: true, result: { runId: start.id, aborted: true } });
   await run;
   assert.equal(settled, true);
+  assert.equal(sent.length, 0, 'the explicit abort caller retains terminal ownership');
 });
 
 test('keeps a run active when the worker cannot confirm abort', async () => {
@@ -843,6 +845,32 @@ test('forwards one worker terminal event without synthesizing a duplicate', asyn
 
   assert.deepEqual(sent, [terminal]);
   assert.equal(failures, 1);
+});
+
+test('runtime-owned goal stops preserve aborted outcomes and emit one truthful chat terminal', async () => {
+  for (const aborted of [true, 'true'] as const) {
+    const child = new FakeChild();
+    const peer = new FakePeer(child);
+    replyToHandshake(peer);
+    const sent: Array<Record<string, unknown>> = [];
+    const reasons: string[] = [];
+    const supervisor = new GjcWorkerSupervisor({
+      ...runtime(child, 'app-goal-stop'),
+      notifyRunStopped: event => reasons.push(event.stopReason),
+    });
+    const run = supervisor.spawnRun({ runId: 'goal-stop', appSessionId: 'app-goal-stop', message: 'work', options: {}, writer: { send: value => sent.push(value as Record<string, unknown>) } });
+    const start = await peer.waitFor('session.start');
+    peer.respond(start, { ok: true, result: { runId: start.id, aborted } });
+    await run.completion;
+    assert.equal(await run.outcome, aborted === true ? 'aborted' : 'completed');
+    assert.equal(sent.length, 1);
+    const terminal = sent[0];
+    assert.ok(terminal);
+    assert.equal(terminal.kind, 'complete');
+    assert.equal(terminal.aborted, aborted === true);
+    assert.equal(terminal.exitCode, 0);
+    assert.deepEqual(reasons, [aborted === true ? 'aborted' : 'completed']);
+  }
 });
 test('durable-job notification ownership suppresses direct GJC terminal sends', async () => {
   const child = new FakeChild();

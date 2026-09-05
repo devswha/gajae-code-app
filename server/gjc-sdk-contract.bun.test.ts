@@ -2160,10 +2160,35 @@ test('rejecting session disposal emits the fixed diagnostic and fails the run', 
     await run;
     assert.equal((response(f.frames, 'dispose-rejects').payload as Record<string, unknown>).ok, false);
     assert.deepEqual(diagnostics, [['GJC SDK session disposal failed.']]);
+    const terminals = f.frames.flatMap(frame => {
+      const message = (frame.payload as { message?: Record<string, unknown> })?.message;
+      return message?.kind === 'complete' ? [message.exitCode] : [];
+    });
+    assert.deepEqual(terminals, [1], 'cleanup failure must never follow a successful completion frame');
   } finally {
     console.error = originalError;
     await f.close();
   }
+});
+
+test('successful chat completion waits for SDK session cleanup', async () => {
+  const f = await fixture();
+  const release = deferred<void>();
+  let closing = false;
+  try {
+    const run = f.host.handle(request('session.start', 'dispose-before-complete', { message: 'hello', options: f.options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    const originalDispose = session.dispose.bind(session);
+    session.dispose = async () => { closing = true; await release.promise; await originalDispose(); };
+    session.complete();
+    await waitFor(() => closing || undefined);
+    assert.equal(methods(f.frames).includes('turn.completed'), false);
+    release.resolve();
+    await run;
+    assert.equal(methods(f.frames).filter(method => method === 'turn.completed').length, 1);
+    assert.equal(session.disposed, true);
+  } finally { release.resolve(); await f.close(); }
 });
 
 test('explicit SDK configuration rejects missing fields, unresolvable credentials, and model mismatches without invoking the factory', async () => {

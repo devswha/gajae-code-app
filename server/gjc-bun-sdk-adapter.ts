@@ -589,6 +589,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         catch { disposalError ??= new Error(FAILURE); }
       }
       if (disposalError) console.error('GJC SDK session disposal failed.');
+      forwardPromptTerminal(writer, run.state, disposalError ?? (didRunFail ? runError ?? new Error(FAILURE) : undefined));
     }
     if (disposalError) throw disposalError;
     if (didRunFail) throw runError;
@@ -877,7 +878,6 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           clearTimeout(grace);
         }
         await delegation?.dispose();
-        forwardPromptTerminal(writer, state, promptError);
         if (promptError !== undefined) throw promptError;
       } finally {
         try { await delegation?.dispose(); }

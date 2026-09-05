@@ -1,4 +1,4 @@
-import { access, mkdir, rm } from 'node:fs/promises';
+import { access, lstat, mkdir, mkdtemp, rename, rm, rmdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import spawn from 'cross-spawn';
@@ -12,11 +12,12 @@ type CloneProjectInput = { workspacePath: string; githubUrl: string; githubToken
 type CloneCompletePayload = { project: Record<string, unknown>; message: string };
 type CloneProjectEventHandlers = { onProgress: (message: string) => void; onComplete: (payload: CloneCompletePayload) => void };
 type GitCloneProcess = { stdout: NodeJS.ReadableStream | null; stderr: NodeJS.ReadableStream | null; on(event: 'close', listener: (code: number | null) => void): void; on(event: 'error', listener: (error: NodeJS.ErrnoException) => void): void; kill(): void };
+type CloneWorkspace = { path: string; publish(): Promise<void>; cleanup(): Promise<void> };
 type CloneProjectDependencies = {
   validatePath: (requestedPath: string) => Promise<WorkspacePathValidationResult>; // workspace containment gate
   ensureDirectory: (directoryPath: string) => Promise<void>; // mkdir -p semantics
   pathExists: (targetPath: string) => Promise<boolean>; // probe without following the clone
-  removePath: (targetPath: string) => Promise<void>; // rm -rf semantics, used for cleanup
+  createCloneWorkspace: (destination: string) => Promise<CloneWorkspace>;
   getGithubTokenById: (tokenId: number, userId: number) => Promise<{ github_token: string } | null>;
   spawnGitClone: (cloneUrl: string, clonePath: string) => GitCloneProcess; // git clone --progress
   registerProject: (projectPath: string, customName: string) => Promise<{ project: Record<string, unknown> }>; // hands off to project-management
@@ -45,6 +46,51 @@ function requireCloneInput(value: string, code: 'WORKSPACE_PATH_REQUIRED' | 'GIT
 function repositoryName(githubUrl: string): string {
   const segments = githubUrl.replace(/\/+$/, '').replace(/\.git$/, '').split('/');
   return segments.at(-1) || 'repository';
+}
+
+function targetAlreadyExists(destination: string): AppError {
+  return new AppError(`Directory "${path.basename(destination)}" already exists. Please choose a different location or remove the existing directory.`, { code: 'CLONE_TARGET_ALREADY_EXISTS', statusCode: 409 });
+}
+
+export async function createCloneWorkspace(destination: string): Promise<CloneWorkspace> {
+  // Git and recursive cleanup only receive a private, operation-owned path.
+  // Keep the staging directory on the destination filesystem for atomic rename.
+  const staging = await mkdtemp(path.join(path.dirname(destination), '.gajae-clone-'));
+  const checkout = path.join(staging, 'checkout');
+  return {
+    path: checkout,
+    async publish() {
+      // mkdir is exclusive across processes. rename alone could replace an
+      // empty directory created by another request after our initial probe.
+      try {
+        await mkdir(destination);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw targetAlreadyExists(destination);
+        throw error;
+      }
+      const reservation = await lstat(destination);
+      try {
+        // Windows refuses to rename a directory over even an empty directory.
+        // Its rename also refuses a competing directory created in this gap.
+        if (process.platform === 'win32') await rmdir(destination);
+        await rename(checkout, destination);
+      } catch (error) {
+        const current = await lstat(destination).catch((probeError: NodeJS.ErrnoException) => {
+          if (probeError.code === 'ENOENT') return null;
+          throw probeError;
+        });
+        if (current?.dev === reservation.dev && current.ino === reservation.ino) {
+          // Never recursively remove the public destination, even when it was
+          // reserved by us: a user may have added files before publication.
+          await rmdir(destination).catch((cleanupError: NodeJS.ErrnoException) => {
+            if (!['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(cleanupError.code ?? '')) throw cleanupError;
+          });
+        }
+        throw error;
+      }
+    },
+    cleanup: () => rm(staging, { recursive: true, force: true }),
+  };
 }
 
 function authenticatedCloneUrl(githubUrl: string, token: string | null): string {
@@ -90,7 +136,7 @@ const cloneDependencies: CloneProjectDependencies = {
   ensureDirectory: async (directory) => { await mkdir(directory, { recursive: true }); },
   validatePath: validateWorkspacePath, // shared workspace gate from utils
   pathExists: async (target) => !(await pathIsAvailable(target)),
-  removePath: (target) => rm(target, { recursive: true, force: true }),
+  createCloneWorkspace,
   getGithubTokenById: async (tokenId, userId) => githubTokensDb.getGithubTokenById(userId, tokenId) as { github_token: string } | null,
   spawnGitClone: (url, destination) => spawn('git', ['clone', '--progress', '--', url, destination], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }) as unknown as GitCloneProcess,
   registerProject: (projectPath, customName) => createProject({ projectPath, customName }) as Promise<{ project: Record<string, unknown> }>,
@@ -114,14 +160,24 @@ export async function startCloneProject(input: CloneProjectInput, handlers: Clon
   const name = repositoryName(githubUrl);
   const destination = path.join(checkedWorkspace.resolvedPath, name);
   if (await dependencies.pathExists(destination)) {
-    throw new AppError(`Directory "${name}" already exists. Please choose a different location or remove the existing directory.`, { code: 'CLONE_TARGET_ALREADY_EXISTS', statusCode: 409 });
+    throw targetAlreadyExists(destination);
   }
 
-  handlers.onProgress(`Cloning into '${name}'...`);
-  const child = dependencies.spawnGitClone(authenticatedCloneUrl(githubUrl, token), destination);
+  const workspace = await dependencies.createCloneWorkspace(destination);
+  const cleanup = () => workspace.cleanup().catch((error: unknown) => {
+    dependencies.logError('Failed to clean up clone staging directory:', error);
+  });
+  let child: GitCloneProcess;
+  try {
+    handlers.onProgress(`Cloning into '${name}'...`);
+    child = dependencies.spawnGitClone(authenticatedCloneUrl(githubUrl, token), workspace.path);
+  } catch (error) {
+    await cleanup();
+    throw error;
+  }
   let stderr = '';
   const reportOutput = (chunk: Buffer | string, isErrorOutput: boolean): void => {
-    const message = chunk.toString().trim();
+    const message = chunk.toString().replaceAll(workspace.path, destination).trim();
     if (isErrorOutput) stderr = message;
     if (message) handlers.onProgress(message);
   };
@@ -129,27 +185,37 @@ export async function startCloneProject(input: CloneProjectInput, handlers: Clon
   child.stderr?.on('data', (chunk: Buffer | string) => reportOutput(chunk, true));
 
   const completion = new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const finish = (failure?: AppError) => {
+      if (settled) return;
+      settled = true;
+      const complete = async () => {
+        try {
+          if (failure) throw failure;
+          try {
+            await workspace.publish();
+          } catch (error) {
+            if (error instanceof AppError) throw error;
+            throw new AppError(`Clone succeeded but failed to publish checkout: ${messageFor(error)}`, { code: 'CLONE_PROJECT_PUBLICATION_FAILED', statusCode: 500 });
+          }
+          try {
+            const result = await dependencies.registerProject(destination, name);
+            handlers.onComplete({ project: result.project, message: 'Repository cloned successfully' });
+          } catch (error) {
+            throw new AppError(`Clone succeeded but failed to add project: ${messageFor(error)}`, { code: 'CLONE_PROJECT_REGISTRATION_FAILED', statusCode: 500 });
+          }
+        } finally {
+          await cleanup();
+        }
+      };
+      void complete().then(resolve, reject);
+    };
     child.on('error', (error) => {
       const missingGit = error.code === 'ENOENT';
       const failure = { code: missingGit ? 'GIT_NOT_FOUND' : 'GIT_EXECUTION_FAILED', statusCode: 500 };
-      reject(new AppError(missingGit ? 'Git is not installed or not in PATH' : error.message, failure));
+      finish(new AppError(missingGit ? 'Git is not installed or not in PATH' : error.message, failure));
     });
-    child.on('close', async (exitCode) => {
-      if (exitCode !== 0) {
-        await dependencies.removePath(destination).catch((error: unknown) => {
-          dependencies.logError('Failed to clean up after clone failure:', error);
-        });
-        return reject(new AppError(cloneFailureMessage(stderr, token), { code: 'GIT_CLONE_FAILED', statusCode: 500 }));
-      }
-
-      try {
-        const result = await dependencies.registerProject(destination, name);
-        handlers.onComplete({ project: result.project, message: 'Repository cloned successfully' });
-        resolve();
-      } catch (error) {
-        reject(new AppError(`Clone succeeded but failed to add project: ${messageFor(error)}`, { code: 'CLONE_PROJECT_REGISTRATION_FAILED', statusCode: 500 }));
-      }
-    });
+    child.on('close', (exitCode) => finish(exitCode === 0 ? undefined : new AppError(cloneFailureMessage(stderr, token), { code: 'GIT_CLONE_FAILED', statusCode: 500 })));
   });
 
   return { waitForCompletion: completion, cancel: () => child.kill() };

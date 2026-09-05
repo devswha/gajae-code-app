@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
-import { markDesktopShell, openExternalUrl, routeExternalAnchors, safeExternalUrl } from './externalLink';
+import { markDesktopShell, openBrowserUrl, openExternalUrl, routeExternalAnchors, safeExternalUrl } from './externalLink';
 
 type FetchCall = { url: string; body: unknown };
 
@@ -62,14 +62,41 @@ test('inside the desktop shell the sidecar opens the link, not window.open', asy
   }
 });
 
+test('Workspace Browser HTTP and HTTPS pages use the desktop opener without widening OAuth links', async () => {
+  markDesktopShell(true);
+  const opener = installWindowOpen();
+  const fetch = installFetch();
+  try {
+    for (const url of ['http://localhost:5173/path', 'https://example.com/docs']) {
+      assert.equal(await openBrowserUrl(url), true);
+    }
+    assert.deepEqual(fetch.calls, [
+      { url: '/api/system/open-browser-url', body: { url: 'http://localhost:5173/path' } },
+      { url: '/api/system/open-browser-url', body: { url: 'https://example.com/docs' } },
+    ]);
+    for (const bad of ['about:blank', 'file:///etc/passwd', 'javascript:alert(1)', 'data:text/html,test', null]) {
+      assert.equal(await openBrowserUrl(bad), false);
+    }
+    assert.equal(await openExternalUrl('http://localhost:5173'), false);
+    assert.equal(fetch.calls.length, 2);
+    assert.deepEqual(opener.opened, []);
+  } finally {
+    opener.restore();
+    fetch.restore();
+  }
+});
+
 test('a target=_blank anchor is routed through the sidecar in the desktop shell and left alone in a browser', () => {
   const fetch = installFetch();
   const dispose = routeExternalAnchors(document);
   document.body.innerHTML = '<a id="docs" href="https://example.com/docs" target="_blank">docs</a><a id="same" href="https://example.com/same">same tab</a>';
   const click = (id: string) => {
     const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    let routed = false;
+    // Inspect the router's decision, then stop Happy DOM's real navigation.
+    document.addEventListener('click', next => { routed = next.defaultPrevented; next.preventDefault(); }, { once: true });
     document.getElementById(id)?.dispatchEvent(event);
-    return event.defaultPrevented;
+    return routed;
   };
   try {
     assert.equal(click('docs'), false, 'a browser keeps the anchor');

@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
 import { ancestorNodeModules } from './out-of-tree.mjs';
-import { createSmokeDataDirectory, packagedTargets, parseSmokeOptions, smokeEnvironment, smokeLocation } from './packaged-server-paths.mjs';
+import { APPIMAGE_ENV_MARKER, appImageLaunchTarget, createSmokeDataDirectory, packagedTargets, parseSmokeOptions, smokeEnvironment, smokeLocation } from './packaged-server-paths.mjs';
+import { stop } from './smoke-packaged-server.mjs';
 
 async function temporary(t) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'gajae-packaged-path-test-'));
@@ -30,11 +32,107 @@ async function fixture(t, { linux = true, appName = 'gajae-app', flattened = fal
 
 test('smoke CLI accepts either package layout and rejects ambiguous or incomplete arguments', () => {
   assert.deepEqual(parseSmokeOptions(['--linux-root', './root', '--data-survival', '--from-copy', '--project-dir', './project']), {
-    app: path.resolve('root'), linux: true, projectDir: path.resolve('project'), dataSurvival: true, fromCopy: true,
+    app: path.resolve('root'), linux: true, projectDir: path.resolve('project'), dataSurvival: true, fromCopy: true, appImageEnv: false,
   });
   assert.equal(parseSmokeOptions(['--tauri-app', 'Gajae Code App.app']).linux, false);
-  for (const args of [[], ['--linux-root'], ['--linux-root', '--data-survival'], ['--tauri-app', 'a', '--linux-root', 'b'], ['--linux-root', 'a', '--linux-root', 'b'], ['--tauri-app', 'a', '--project-dir'], ['--linux-root', 'a', '--bad'], ['--linux-root', 'a', '--from-copy', '--from-copy']]) {
+  assert.equal(parseSmokeOptions(['--linux-root', 'squashfs-root', '--appimage-env']).appImageEnv, true);
+  for (const args of [[], ['--linux-root'], ['--linux-root', '--data-survival'], ['--tauri-app', 'a', '--linux-root', 'b'], ['--linux-root', 'a', '--linux-root', 'b'], ['--tauri-app', 'a', '--project-dir'], ['--linux-root', 'a', '--bad'], ['--linux-root', 'a', '--from-copy', '--from-copy'], ['--tauri-app', 'a', '--appimage-env'], ['--linux-root', 'a', '--appimage-env', '--data-survival'], ['--linux-root', 'a', '--appimage-env', '--appimage-env']]) {
     assert.throws(() => parseSmokeOptions(args), /Usage:.*--linux-root/);
+  }
+});
+
+async function appImageFixture(t) {
+  const f = await fixture(t, { appName: "App's $literal directory" });
+  const files = {
+    'AppRun': `#!/bin/sh
+APPDIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+export APPDIR
+export PYTHONHOME="$APPDIR/usr/"
+export PYTHONPATH="$APPDIR/usr/share/pyshared/:/fixture/user-python"
+export LD_LIBRARY_PATH="$APPDIR/usr/lib/:/fixture/user-lib"
+exec "$APPDIR/AppRun.wrapped" "$@"
+`,
+    'AppRun.wrapped': '#!/bin/sh\nexec "$APPDIR/usr/bin/gajae-app-desktop" "$@"\n',
+    'gajae-app-desktop.desktop': '[Desktop Entry]\nType=Application\nExec=gajae-app-desktop %u\n',
+    'usr/bin/gajae-app-desktop': '#!/bin/sh\necho original-gui-must-not-run\nexit 99\n',
+  };
+  for (const [relative, content] of Object.entries(files)) await fs.writeFile(path.join(f.app, relative), content, { mode: 0o755 });
+  const nodeFixture = '#!/bin/sh\nprintf "%s\\n" node-fixture "$@" "${APPDIR-}" "${PYTHONHOME-}" "${PYTHONPATH-}" "${LD_LIBRARY_PATH-}" "${SMOKE_USER_VALUE-}"\n';
+  await fs.writeFile(f.command, nodeFixture);
+  return { ...f, appFiles: files, nodeFixture };
+}
+
+test('AppImage mode runs real launcher layers and replaces only the disposable GUI while retaining Node fixture commands', { skip: process.platform !== 'linux' }, async t => {
+  const f = await appImageFixture(t);
+  const original = await packagedTargets(f.app, { linux: true });
+  await assert.rejects(appImageLaunchTarget({ app: f.app }, original), /active disposable smoke copy/);
+  const location = await smokeLocation(f.app, { linux: true });
+  t.after(location.cleanup);
+  const copiedApp = location.app;
+  location.app = f.app;
+  await assert.rejects(appImageLaunchTarget(location, original), /active disposable smoke copy/);
+  location.app = copiedApp;
+  const node = await packagedTargets(location.app, { linux: true });
+  const target = await appImageLaunchTarget(location, node);
+  assert.equal(target.command, node.command);
+  assert.deepEqual(target.args, node.args);
+  assert.equal(target.launchCommand, path.join(location.app, 'AppRun'));
+  assert.deepEqual(target.launchArgs, []);
+  const env = { ...smokeEnvironment(target, f.directory, {}), SMOKE_USER_VALUE: 'fixture-user-value' };
+  const launched = spawnSync(target.launchCommand, target.launchArgs, { cwd: target.cwd, env, encoding: 'utf8' });
+  assert.equal(launched.status, 0, launched.stderr);
+  assert.deepEqual(launched.stdout.trim().split('\n'), [
+    APPIMAGE_ENV_MARKER, 'node-fixture', ...target.args, location.app, `${location.app}/usr/`,
+    `${location.app}/usr/share/pyshared/:/fixture/user-python`, `${location.app}/usr/lib/:/fixture/user-lib`, 'fixture-user-value',
+  ]);
+  assert.doesNotMatch(launched.stdout, /original-gui-must-not-run/);
+  const direct = spawnSync(target.command, ['--eval', 'sqlite-fixture'], { cwd: target.cwd, env, encoding: 'utf8' });
+  assert.equal(direct.status, 0, direct.stderr);
+  assert.match(direct.stdout, /^node-fixture\n--eval\nsqlite-fixture\n/);
+  assert.doesNotMatch(direct.stdout, /AppRun supplied/);
+  for (const [relative, content] of Object.entries(f.appFiles)) {
+    assert.equal(await fs.readFile(path.join(f.app, relative), 'utf8'), content, `original ${relative}`);
+    if (relative !== 'usr/bin/gajae-app-desktop') assert.equal(await fs.readFile(path.join(location.app, relative), 'utf8'), content, `copied ${relative}`);
+  }
+  assert.equal(await fs.readFile(target.command, 'utf8'), f.nodeFixture);
+  assert.equal(await fs.readFile(f.command, 'utf8'), f.nodeFixture);
+  await location.cleanup();
+  await assert.rejects(appImageLaunchTarget(location, target), /active disposable smoke copy/);
+});
+
+test('AppImage mode refuses missing or unsafe launchers before changing the copied GUI', { skip: process.platform !== 'linux' }, async t => {
+  for (const [name, mutate, expected] of [
+    ['Debian layout', async root => fs.rm(path.join(root, 'AppRun')), /AppRun/],
+    ['missing wrapped launcher', async root => fs.rm(path.join(root, 'AppRun.wrapped')), /AppRun.wrapped/],
+    ['external AppRun', async root => { await fs.rm(path.join(root, 'AppRun')); await fs.symlink('/bin/sh', path.join(root, 'AppRun')); }, /escapes extracted root/],
+    ['wrong desktop command', async root => fs.writeFile(path.join(root, 'gajae-app-desktop.desktop'), '[Desktop Entry]\nExec=other-gui\n'), /must launch gajae-app-desktop/],
+    ['multiple desktop entries', async root => fs.writeFile(path.join(root, 'other.desktop'), '[Desktop Entry]\nExec=other\n'), /exactly one root desktop entry/],
+  ]) {
+    await t.test(name, async t => {
+      const f = await appImageFixture(t);
+      const location = await smokeLocation(f.app, { linux: true }); t.after(location.cleanup);
+      const target = await packagedTargets(location.app, { linux: true });
+      await mutate(location.app);
+      await assert.rejects(appImageLaunchTarget(location, target), expected);
+      assert.equal(await fs.readFile(path.join(location.app, 'usr/bin/gajae-app-desktop'), 'utf8'), f.appFiles['usr/bin/gajae-app-desktop']);
+    });
+  }
+});
+
+test('AppImage wrapper fails closed if AppRun did not actually inject each image-owned search path', { skip: process.platform !== 'linux' }, async t => {
+  for (const name of ['PYTHONHOME', 'PYTHONPATH', 'LD_LIBRARY_PATH']) {
+    await t.test(name, async t => {
+      const f = await appImageFixture(t);
+      const location = await smokeLocation(f.app, { linux: true }); t.after(location.cleanup);
+      const target = await appImageLaunchTarget(location, await packagedTargets(location.app, { linux: true }));
+      const launcher = path.join(location.app, 'AppRun');
+      const source = await fs.readFile(launcher, 'utf8');
+      await fs.writeFile(launcher, source.replace(new RegExp(`^export ${name}=.*$`, 'm'), `unset ${name}`));
+      const result = spawnSync(target.launchCommand, target.launchArgs, { cwd: target.cwd, env: smokeEnvironment(target, f.directory, {}), encoding: 'utf8' });
+      assert.equal(result.status, 64, result.stderr);
+      assert.match(result.stderr, new RegExp(`AppRun did not set image-owned ${name}`));
+      assert.doesNotMatch(result.stdout, /node-fixture/);
+    });
   }
 });
 
@@ -179,6 +277,34 @@ test('child environment isolates credentials, configs and module/runtime overrid
   assert.equal(env.PATH.split(path.delimiter)[0], '/smoke-data/bin');
   for (const key of ['NODE_PATH', 'NODE_OPTIONS', 'LD_PRELOAD', 'BUN_OPTIONS', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GJC_RUNTIME_API_KEY', 'AWS_ACCESS_KEY_ID', 'GOOGLE_APPLICATION_CREDENTIALS', 'GIT_DIR', 'TMUX_PANE']) assert.equal(env[key], undefined, key);
   assert.equal(inherited.HOME, '/host/home');
+});
+
+test('packaged shutdown requires a graceful exit and reaps a hung child', async t => {
+  for (const [name, handler, expected] of [
+    ['graceful', 'process.exit(0)', null],
+    ['failure exit', 'process.exit(7)', /shutdown failed \(code=7/],
+    ['unhandled signal', null, /signal=SIGTERM/],
+    ['hung child', '', /did not exit after SIGTERM/],
+  ]) {
+    await t.test(name, async t => {
+      const child = spawn(process.execPath, ['-e', `${handler === null ? '' : `process.on('SIGTERM', () => { ${handler} });`} setInterval(() => {}, 1000); process.stdout.write('ready');`], {
+        env: {}, stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
+      await once(child.stdout, 'data');
+      const instance = { child, output: { value: 'fixture diagnostic' } };
+      if (expected) await assert.rejects(stop(instance, { timeoutMs: 200 }), expected);
+      else await stop(instance, { timeoutMs: 2_000 });
+      assert.ok(child.exitCode !== null || child.signalCode !== null, 'child is reaped before returning');
+      if (name === 'hung child') assert.equal(child.signalCode, 'SIGKILL');
+      await stop(instance);
+    });
+  }
+  await t.test('an already exited child cannot pass shutdown', async () => {
+    const child = spawn(process.execPath, ['-e', 'process.exit(9)'], { env: {}, stdio: 'ignore' });
+    await once(child, 'close');
+    await assert.rejects(stop({ child, output: { value: '' } }), /exited before shutdown \(9\)/);
+  });
 });
 
 test('default fixture directory passes the production workspace gate while /tmp remains forbidden', async t => {

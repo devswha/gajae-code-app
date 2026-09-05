@@ -15,7 +15,7 @@ for validation and does not publish a GitHub Release or send announcements.
 | --- | --- |
 | Architecture | Linux x86_64, Rust target `x86_64-unknown-linux-gnu` |
 | CI build host | Ubuntu 22.04, glibc 2.35; configured, not yet run |
-| CI package checks | Both formats on Ubuntu 22.04 and Ubuntu 24.04; configured, not yet run |
+| CI package checks | Server and X11/Xvfb GUI smokes for both formats on Ubuntu 22.04 and Ubuntu 24.04; configured, not yet run |
 | Local Ubuntu 24.04 build | glibc 2.39; both formats verified under X11/Xvfb |
 | Bundled runtimes | Node 22.22.2 and Bun 1.4.0 |
 | Other targets | Linux arm64, musl/Alpine, and cross-compilation are not covered |
@@ -23,7 +23,7 @@ for validation and does not publish a GitHub Release or send announcements.
 The glibc floor depends on where the binaries are built. Building successfully
 on Ubuntu 24.04 does not prove that those binaries run on Ubuntu 22.04. Use
 the Ubuntu 22.04 CI build for the intended glibc 2.35 baseline, and require
-both package smoke jobs to pass before claiming compatibility. AppImage does
+both package smoke jobs, including their GUI steps, to pass before claiming compatibility. AppImage does
 not remove the need for a compatible Linux system and desktop libraries.
 
 Verified on **2026-09-05** with **2.0.0-beta.8**, Ubuntu 24.04.4 x86_64,
@@ -59,6 +59,14 @@ Local evidence (generated files, not published assets):
 | AppImage package smoke | `/tmp/gajae-accepted-appimage-native.log` and `/tmp/gajae-accepted-appimage-data-survival.log` |
 | `.deb` GUI | `.desktop-build/linux-deb-gui-report.json` and its referenced screenshots |
 | AppImage GUI | `.desktop-build/linux-appimage-gui-report.json` and its referenced screenshots |
+| Portable `.deb` GUI gate | `/tmp/gajae-gui-ci-deb-final/report.json`, screenshots, OCR text and logs |
+| Portable AppImage GUI gate | `/tmp/gajae-gui-ci-appimage-final/report.json`, screenshots, OCR text and logs |
+
+The portable GUI gate separately passed on **2026-09-05** against the existing
+accepted Ubuntu 24.04 packages: two launches per format, two consecutive OCR
+matches per launch, clean window-close exit, descendant cleanup, and closed
+sidecar ports. These runs reused the local packages; they do not validate a
+rebuild of later source changes or the Ubuntu 22.04 baseline.
 
 ## Build prerequisites
 
@@ -70,7 +78,7 @@ sudo apt-get update
 sudo apt-get install --no-install-recommends -y \
   build-essential pkg-config curl wget file unzip git ca-certificates \
   libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
-  libxdo-dev libssl-dev librsvg2-dev patchelf xdg-utils
+  libxdo-dev libssl-dev librsvg2-dev patchelf xdg-utils libnss3
 ```
 
 Install Node.js **22.22.2** for parity with desktop CI, plus Rust through
@@ -188,7 +196,7 @@ APPIMAGE_EXTRACT_AND_RUN=1 "./release/desktop/$LINUX_ASSET.AppImage"
 
 The desktop shell needs a graphical session with GTK/WebKitGTK available.
 It starts its bundled server on loopback; no separate Node/Bun installation
-or manually started server is needed. Keep Git and CA certificates installed
+or manually started server is needed. Keep Git, CA certificates, and `libnss3` installed
 on the host; the `.deb` declares `git` and `ca-certificates` as dependencies,
 and AppImage users must provide them too. App data lives outside the package in
 `~/.gajae-app`, and GJC configuration and credentials live in `~/.gjc`.
@@ -236,6 +244,74 @@ health identity, bootstrap authentication, API access and a job round trip.
 The separate `--data-survival` invocation checks state through shutdown and
 restart. These use temporary app data; neither invocation is GUI acceptance.
 
+## Automated X11 GUI smoke
+
+`scripts/release/smoke-linux-desktop.py` exercises the actual packaged Tauri
+window. Install its additional test prerequisites (no pip packages required):
+
+```bash
+sudo apt-get install --no-install-recommends -y \
+  python3 python3-gi python3-xlib gir1.2-gtk-3.0 \
+  xvfb xauth dbus-x11 libgl1-mesa-dri fontconfig fonts-dejavu-core \
+  tesseract-ocr tesseract-ocr-eng
+```
+
+After the standard and data-survival smokes, run the GUI harness **before
+deleting the extracted root**. For a `.deb` extraction:
+
+```bash
+python3 scripts/release/smoke-linux-desktop.py \
+  --linux-root "$LINUX_ROOT" --format deb \
+  --artifacts /tmp/gajae-gui-deb
+```
+
+For an extracted AppImage:
+
+```bash
+python3 scripts/release/smoke-linux-desktop.py \
+  --linux-root "$EXTRACT_DIR/squashfs-root" --format appimage \
+  --artifacts /tmp/gajae-gui-appimage
+```
+
+The harness starts its own Xvfb display and private D-Bus session, with
+software rendering and English UI text. It launches the `.deb` executable or
+the AppImage's `AppRun` from a fresh temporary home with isolated XDG paths,
+database, agent directory, and instance-lock directory. It strips inherited
+credentials, provider configuration paths, loader overrides, and proxies,
+and refuses a packaged `.env`. It uses no provider sign-in or provider calls.
+No WebKit sandbox-disabling flags are needed; run it as a regular user.
+
+Each of two launches using the same temporary state must pass all of these:
+
+1. A visible app-owned window and a bundled server whose `/health` product,
+   protocol and version match the checkout.
+2. Two consecutive app-window screenshots, at least one second apart, whose
+   OCR contains the full empty-workspace heading and both project/scratch
+   actions. OCR ignores whitespace/punctuation differences. A blank window,
+   loading screen or recovery page cannot satisfy those content assertions.
+3. `WM_DELETE_WINDOW` returns exit code `0`; tracked descendants, including
+   WebKit grandchildren and adopted orphans, exit; the sidecar TCP port refuses
+   a connection. PID start times distinguish exited processes from reused PIDs.
+
+Forced cleanup after failure does not count as successful shutdown. The
+temporary app state is deleted. `--artifacts` requires an empty directory and
+retains `report.json`, per-launch
+screenshots, OCR text, application logs and the private session log. This is
+an X11 empty-workspace smoke; it does not validate Wayland, provider workflows,
+desktop-menu integration or user-data migrations. Keep the server's separate
+data-survival check.
+
+The old local `.desktop-build/qa-desktop.py` saved screenshots without checking
+their content and tracked only immediate children. Its results remain useful
+local evidence, but do not establish this stricter automated gate.
+
+Run focused regression tests without GUI libraries or a package build:
+
+```bash
+python3 scripts/release/smoke-linux-desktop.py --self-test
+node --test scripts/release/smoke-linux-desktop.test.mjs
+```
+
 ## CI and acceptance evidence
 
 `.github/workflows/desktop-linux.yml` runs on pull requests, pushes to `main`,
@@ -250,6 +326,10 @@ and manual dispatch. The workflow:
    14 days.
 6. Downloads those same bytes on Ubuntu 22.04 and 24.04 and checks both extracted
    formats with the standard and data-survival smoke invocations.
+7. Runs the automated GUI gate for both formats on each host, then retains
+   screenshots, OCR text, logs and reports as `gajae-linux-gui-<runner-os>` for
+   14 days. Evidence upload runs even when a preceding smoke fails; inspect
+   each report's status and the workflow result.
 
 The desktop shell checks can also be run locally after building the packages:
 
@@ -262,8 +342,10 @@ The upload happens before the downstream smoke jobs; an artifact's existence
 alone is not a passing result. Check the whole workflow. The existing source
 CI still runs `npm run verify`, which checks the Rust core but does not run
 the Tauri shell's Cargo tests. The test scanner includes
-`scripts/release/*.test.mjs` in that existing gate; no separate CI JavaScript
-test step is needed. The protected release workflow is unchanged and does not
+`scripts/release/*.test.mjs` in that existing gate, including the Linux GUI
+helper's dependency-free Python self-tests through their Node wrapper. The
+desktop matrix also runs that focused wrapper before launching packages.
+The protected release workflow is unchanged and does not
 attach these Linux desktop packages to a release.
 
 For acceptance, record the commit SHA, host/architecture, glibc version,

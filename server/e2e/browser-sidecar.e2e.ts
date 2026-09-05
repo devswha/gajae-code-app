@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import readline from 'node:readline';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import {
@@ -18,14 +19,26 @@ class SidecarHarness {
   readonly events: BrowserProtocolFrame[] = [];
   readonly pending = new Map<string, { resolve(value: unknown): void; reject(error: Error): void }>();
   private sequence = 0;
+  private failure?: Error;
+  private diagnostics = '';
 
   constructor(profileDirectory: string) {
     this.child = spawn(join(process.cwd(), 'dist-native', 'bun'), [
-      join(process.cwd(), 'server', 'modules', 'automation', 'browser-sidecar.ts'),
+      fileURLToPath(new URL(`../modules/automation/browser-sidecar.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`, import.meta.url)),
     ], {
       env: { ...process.env, GAJAE_BROWSER_PROFILE_DIR: profileDirectory },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+    this.child.stderr.setEncoding('utf8');
+    this.child.stderr.on('data', (chunk: string) => { this.diagnostics = `${this.diagnostics}${chunk}`.slice(-8_192); });
+    const fail = (error: Error) => {
+      this.failure = error;
+      for (const pending of this.pending.values()) pending.reject(error);
+      this.pending.clear();
+    };
+    this.child.on('error', fail);
+    this.child.stdin.on('error', fail);
+    this.child.once('close', (code, signal) => fail(new Error(`Browser sidecar exited (code=${code}, signal=${signal}): ${this.diagnostics}`)));
     readline.createInterface({ input: this.child.stdout }).on('line', (line) => {
       const frame = JSON.parse(line) as BrowserProtocolFrame;
       if (frame.kind === 'response') {
@@ -41,9 +54,17 @@ class SidecarHarness {
   }
 
   request(method: BrowserRequestMethod, sessionId?: string, payload: Record<string, unknown> = {}): Promise<unknown> {
+    if (this.failure) return Promise.reject(this.failure);
     const id = `e2e-${++this.sequence}`;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`Timed out waiting for browser sidecar ${method}: ${this.diagnostics}`));
+      }, 35_000);
+      this.pending.set(id, {
+        resolve: value => { clearTimeout(timer); resolve(value); },
+        reject: error => { clearTimeout(timer); reject(error); },
+      });
       this.child.stdin.write(`${JSON.stringify({
         protocolVersion: BROWSER_PROTOCOL_VERSION,
         kind: 'request',
@@ -58,6 +79,7 @@ class SidecarHarness {
   async waitForEvent(method: string, timeoutMs = 5_000, fromIndex = 0): Promise<BrowserProtocolFrame> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
+      if (this.failure) throw this.failure;
       const event = this.events.slice(fromIndex).find((candidate) => candidate.kind === 'event' && candidate.method === method);
       if (event) return event;
       await new Promise((resolve) => setTimeout(resolve, 25));
@@ -68,6 +90,7 @@ class SidecarHarness {
   async waitForAsync(type: string, fromIndex = 0, timeoutMs = 5_000): Promise<BrowserProtocolFrame> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
+      if (this.failure) throw this.failure;
       const event = this.events.slice(fromIndex).find((candidate) => (
         candidate.kind === 'event'
         && candidate.method === 'async'
@@ -80,9 +103,13 @@ class SidecarHarness {
   }
 
   async shutdown(): Promise<void> {
-    if (this.child.exitCode !== null) return;
-    await this.request('shutdown').catch(() => {});
-    await new Promise<void>((resolve) => this.child.once('close', () => resolve()));
+    if (!this.child.pid || this.child.exitCode !== null || this.child.signalCode !== null) return;
+    const closed = new Promise<void>((resolve) => this.child.once('close', () => resolve()));
+    const timer = setTimeout(() => this.child.kill('SIGKILL'), 5_000);
+    try {
+      await this.request('shutdown').catch(() => {});
+      await closed;
+    } finally { clearTimeout(timer); }
   }
 }
 

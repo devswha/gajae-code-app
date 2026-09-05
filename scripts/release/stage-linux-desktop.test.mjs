@@ -11,7 +11,7 @@ import { stageLinuxDesktop } from './stage-linux-desktop.mjs';
 async function fixture(t) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'gajae-stage-linux-test-'));
   t.after(() => fs.rm(rootDir, { recursive: true, force: true }));
-  await fs.writeFile(path.join(rootDir, 'package.json'), JSON.stringify({ version: '2.0.0-beta.8', desktopVersion: '0.2.2' }));
+  await fs.writeFile(path.join(rootDir, 'package.json'), JSON.stringify({ productName: 'Gajae Code App', version: '2.0.0-beta.8', desktopVersion: '0.2.2' }));
   const bundle = path.join(rootDir, 'src-tauri/target/x86_64-unknown-linux-gnu/release/bundle');
   const deb = path.join(bundle, 'deb', 'Gajae Code App_0.2.2_amd64.deb');
   const appimage = path.join(bundle, 'appimage', 'Gajae Code App_0.2.2_amd64.AppImage');
@@ -21,7 +21,7 @@ async function fixture(t) {
   }
   await fs.chmod(deb, 0o640);
   await fs.chmod(appimage, 0o751);
-  return { rootDir, bundle, deb, appimage, output: path.join(rootDir, 'release', 'desktop') };
+  return { rootDir, targetDir: path.join(rootDir, 'src-tauri', 'target'), bundle, deb, appimage, output: path.join(rootDir, 'release', 'desktop') };
 }
 
 test('stages both formats using package.version, correct checksums and original executable modes', async t => {
@@ -80,10 +80,42 @@ test('the no-argument CLI locates the checkout from its own path, independently 
   const script = path.join(f.rootDir, 'scripts', 'release', 'stage-linux-desktop.mjs');
   await fs.mkdir(path.dirname(script), { recursive: true });
   await fs.copyFile(new URL('./stage-linux-desktop.mjs', import.meta.url), script);
-  const result = spawnSync(process.execPath, [script], { cwd: os.tmpdir(), encoding: 'utf8' });
+  await fs.copyFile(new URL('./desktop-platforms.mjs', import.meta.url), path.join(path.dirname(script), 'desktop-platforms.mjs'));
+  await fs.mkdir(path.join(f.rootDir, 'src-tauri/src'));
+  await fs.writeFile(path.join(f.rootDir, 'src-tauri/Cargo.toml'), '[package]\nname = "fixture"\nversion = "0.1.0"\nedition = "2021"\n');
+  await fs.writeFile(path.join(f.rootDir, 'src-tauri/src/main.rs'), 'fn main() {}');
+  const env = { ...process.env, CARGO_TARGET_DIR: f.targetDir };
+  const result = spawnSync(process.execPath, [script], { cwd: os.tmpdir(), encoding: 'utf8', env });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).artifacts.length, 2);
   const rejected = spawnSync(process.execPath, [script, '--unknown'], { encoding: 'utf8' });
   assert.notEqual(rejected.status, 0);
   assert.match(rejected.stderr, /Usage: node scripts\/release\/stage-linux-desktop.mjs/);
+});
+
+test('stages configured Cargo output instead of a stale default bundle', async t => {
+  const f = await fixture(t);
+  const targetDir = path.join(f.rootDir, 'alternate target');
+  const directory = path.join(targetDir, 'x86_64-unknown-linux-gnu/release/bundle');
+  await fs.cp(f.bundle, directory, { recursive: true });
+  await fs.writeFile(path.join(directory, 'deb', path.basename(f.deb)), 'new configured package');
+  const result = await stageLinuxDesktop({ rootDir: f.rootDir, targetDir });
+  assert.equal(await fs.readFile(result.artifacts[0].artifact, 'utf8'), 'new configured package');
+  assert.equal(await fs.readFile(f.deb, 'utf8'), `fixture: ${path.basename(f.deb)}\n`);
+});
+
+test('a sole artifact from another product cannot replace a previously staged release', async t => {
+  for (const format of ['deb', 'appimage']) {
+    await t.test(format, async t => {
+      const f = await fixture(t);
+      const staged = await stageLinuxDesktop(f);
+      const files = staged.artifacts.flatMap(({ artifact, shaFile }) => [artifact, shaFile]);
+      const before = await Promise.all(files.map(file => fs.readFile(file)));
+      const foreign = path.join(path.dirname(f[format]), `Other App_0.2.2_amd64.${format === 'deb' ? 'deb' : 'AppImage'}`);
+      await fs.rename(f[format], foreign);
+      await assert.rejects(stageLinuxDesktop(f), /Unexpected.*artifact/);
+      assert.deepEqual(await Promise.all(files.map(file => fs.readFile(file))), before);
+      assert.equal(await fs.readFile(foreign, 'utf8'), `fixture: ${path.basename(f[format])}\n`);
+    });
+  }
 });

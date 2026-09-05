@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import net from 'node:net';
 import path from 'node:path';
 
-import { createSmokeDataDirectory, packagedTargets, parseSmokeOptions, smokeEnvironment, smokeLocation } from './packaged-server-paths.mjs';
+import { APPIMAGE_ENV_MARKER, appImageLaunchTarget, createSmokeDataDirectory, packagedTargets, parseSmokeOptions, smokeEnvironment, smokeLocation } from './packaged-server-paths.mjs';
 
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
@@ -15,7 +15,7 @@ function request(url, { headers, method = 'GET', body, redirect = 'manual' } = {
   // Force a fresh connection per request: the packaged server may close
   // keep-alive after a response, and undici socket reuse would then fail
   // with UND_ERR_SOCKET ("other side closed") on the next request.
-  return fetch(url, { headers: { ...headers, connection: 'close' }, method, body, redirect });
+  return fetch(url, { headers: { ...headers, connection: 'close' }, method, body, redirect, signal: AbortSignal.timeout(5_000) });
 }
 
 function freePort() {
@@ -31,8 +31,11 @@ function freePort() {
   });
 }
 
-async function waitForHealth(baseUrl, output) {
+async function waitForHealth(baseUrl, output, child) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (child.exitCode !== null || child.signalCode !== null || output.error) {
+      throw new Error(`Packaged server exited before becoming healthy (${child.exitCode ?? child.signalCode ?? output.error.message}):\n${output.value}`);
+    }
     try {
       const response = await request(`${baseUrl}/health`);
       const health = await response.json();
@@ -77,7 +80,7 @@ function launch(target, dataDirectory, projectDir) {
     const apiKey = `smoke-key-${crypto.randomUUID()}`;
     const nonce = `smoke-nonce-${crypto.randomUUID()}`;
     const output = { value: '' };
-    const child = spawn(target.command, target.args, {
+    const child = spawn(target.launchCommand ?? target.command, target.launchArgs ?? target.args, {
       cwd: target.cwd,
       env: {
         ...target.env,
@@ -91,8 +94,8 @@ function launch(target, dataDirectory, projectDir) {
     child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
     child.stdout.on('data', chunk => { output.value += chunk; });
     child.stderr.on('data', chunk => { output.value += chunk; });
-    child.once('error', error => { output.value += `\n${error.message}`; });
-    return { child, baseUrl, nonce, output };
+    child.once('error', error => { output.error = error; output.value += `\n${error.message}`; });
+    return { child, baseUrl, nonce, output, appImageEnv: target.appImageEnv };
   });
 }
 
@@ -155,21 +158,52 @@ async function nativeClosureSmoke(target) {
 }
 
 async function bootstrap(instance) {
-  const health = await waitForHealth(instance.baseUrl, instance.output);
-  const bootstrap = await request(`${instance.baseUrl}/desktop/bootstrap?nonce=${encodeURIComponent(instance.nonce)}`);
+  const health = await waitForHealth(instance.baseUrl, instance.output, instance.child);
+  if (instance.appImageEnv) {
+    if (!instance.output.value.split('\n').includes(APPIMAGE_ENV_MARKER)) throw new Error('AppImage smoke did not execute the instrumented GUI launcher through AppRun.');
+    console.log(APPIMAGE_ENV_MARKER);
+  }
+  for (const suffix of ['', '?nonce=invalid-smoke-nonce']) {
+    const denied = await request(`${instance.baseUrl}/desktop/bootstrap${suffix}`);
+    if (denied.status !== 401 || denied.headers.has('set-cookie')) throw new Error('Invalid bootstrap nonce was accepted or set a cookie.');
+  }
+  const attempts = await Promise.all([0, 1].map(() => request(`${instance.baseUrl}/desktop/bootstrap?nonce=${encodeURIComponent(instance.nonce)}`)));
+  const bootstrap = attempts.find(response => response.status === 303);
+  const rejected = attempts.find(response => response.status === 401);
+  if (!bootstrap || !rejected || rejected.headers.has('set-cookie')) throw new Error('Concurrent bootstrap must accept the nonce exactly once.');
   const cookie = bootstrap.headers.get('set-cookie');
-  if (bootstrap.status !== 303 || bootstrap.headers.get('location') !== '/' || !cookie?.includes('HttpOnly') || !cookie.includes('gajae_desktop_api_key=')) throw new Error('Desktop bootstrap did not produce the required HttpOnly cookie and root redirect.');
+  if (bootstrap.status !== 303 || bootstrap.headers.get('location') !== '/' || !cookie?.includes('HttpOnly') || !cookie.includes('SameSite=Lax') || !cookie.includes('Path=/') || !cookie.includes('gajae_desktop_api_key=')) throw new Error('Desktop bootstrap did not produce the required scoped HttpOnly cookie and root redirect.');
   const replay = await request(`${instance.baseUrl}/desktop/bootstrap?nonce=${encodeURIComponent(instance.nonce)}`);
-  if (replay.status !== 401) throw new Error(`Bootstrap nonce replay status was ${replay.status}, expected 401.`);
+  if (replay.status !== 401 || replay.headers.has('set-cookie')) throw new Error(`Bootstrap nonce replay status was ${replay.status}, expected 401 without a cookie.`);
   return { health, headers: { cookie: cookie.split(';', 1)[0], origin: instance.baseUrl } };
 }
 
-async function stop(instance) {
+export async function stop(instance, { timeoutMs = 15_000 } = {}) {
   if (!instance.child.pid) return;
-  if (instance.child.exitCode !== null || instance.child.signalCode !== null) return;
-  const closed = new Promise(resolve => instance.child.once('close', resolve));
-  instance.child.kill('SIGTERM');
-  await Promise.race([closed, delay(15_000).then(() => { throw new Error(`Packaged server did not exit after SIGTERM:\n${instance.output.value}`); })]);
+  if (instance.stopped) return;
+  const { child } = instance;
+  try {
+    if (child.exitCode !== null || child.signalCode !== null) throw new Error(`Packaged server exited before shutdown (${child.exitCode ?? child.signalCode}).`);
+    const closed = new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal })));
+    let timer;
+    try {
+      child.kill('SIGTERM');
+      const result = await Promise.race([closed, new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Packaged server did not exit after SIGTERM.')), timeoutMs);
+      })]);
+      if (result.code !== 0 || result.signal !== null) throw new Error(`Packaged server shutdown failed (code=${result.code}, signal=${result.signal}).`);
+    } finally {
+      clearTimeout(timer);
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill('SIGKILL');
+        await closed;
+      }
+    }
+  } catch (error) {
+    throw new Error(`${error.message}\n${instance.output.value}`, { cause: error });
+  } finally {
+    instance.stopped = true;
+  }
 }
 
 async function json(response, context) {
@@ -222,6 +256,202 @@ async function v7MigrationSnapshot(target, database) {
   return JSON.parse(output.trim());
 }
 
+// Run with the shipped Node and ws module, so checkout dependencies cannot mask
+// a broken package. Every socket uses the disposable desktop boot credential.
+async function packagedProtocolChecks() {
+  const { default: assert } = await import('node:assert/strict');
+  const { once } = await import('node:events');
+  const { createRequire } = await import('node:module');
+  const { test } = await import('node:test');
+  const { WebSocket } = createRequire(`${process.cwd()}/package.json`)('ws');
+  const base = process.env.GAJAE_SMOKE_URL;
+  const cookie = process.env.GAJAE_SMOKE_COOKIE;
+  const project = process.env.GAJAE_SMOKE_PROJECT;
+  const headers = { cookie, origin: base };
+  const sockets = new Set();
+  const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const get = (pathname, requestHeaders = headers) => fetch(`${base}${pathname}`, { headers: { ...requestHeaders, connection: 'close' }, signal: AbortSignal.timeout(5_000) });
+  async function connect(pathname, requestHeaders = headers) {
+    const socket = new WebSocket(`${base.replace('http:', 'ws:')}${pathname}`, { headers: requestHeaders, handshakeTimeout: 3_000 });
+    sockets.add(socket);
+    const frames = [];
+    socket.on('message', raw => frames.push(JSON.parse(String(raw))));
+    socket.on('error', () => {});
+    await once(socket, 'open');
+    return {
+      socket, frames,
+      send: frame => socket.send(JSON.stringify(frame)),
+      async wait(predicate, label) {
+        const deadline = Date.now() + 4_000;
+        while (Date.now() < deadline) {
+          const found = frames.find(predicate);
+          if (found) return found;
+          await pause(20);
+        }
+        throw new Error(`Timed out waiting for ${label}: ${JSON.stringify(frames)}`);
+      },
+      async output(marker) {
+        const deadline = Date.now() + 4_000;
+        while (Date.now() < deadline) {
+          const output = frames.filter(frame => frame.type === 'output').map(frame => frame.data).join('');
+          if (output.includes(marker)) return output;
+          await pause(20);
+        }
+        throw new Error(`Terminal did not emit ${marker}: ${JSON.stringify(frames)}`);
+      },
+      async close() {
+        if (socket.readyState === WebSocket.CLOSED) return;
+        const closed = once(socket, 'close');
+        socket.terminate();
+        await closed;
+      },
+    };
+  }
+  await test('packaged desktop HTTP, WebSocket and terminal integration', { timeout: 45_000 }, async t => {
+    t.after(() => { for (const socket of sockets) socket.terminate(); });
+    await t.test('HTTP cookie and exact-origin rejection preserve authenticated access', async () => {
+      for (const invalid of [{}, { cookie: 'gajae_desktop_api_key=invalid' }, { cookie, origin: 'http://localhost:1' }]) {
+        assert.equal((await get('/api/gjc/jobs', invalid)).status, 401);
+      }
+      assert.equal((await get('/api/gjc/jobs', { cookie })).status, 200);
+      assert.equal((await get('/api/gjc/jobs')).status, 200);
+    });
+    if (process.platform === 'linux') {
+      await t.test('Linux desktop exposes Workspace Browser without enabling native computer automation', async () => {
+        const response = await get('/api/automation/status');
+        assert.equal(response.status, 200);
+        const status = await response.json();
+        assert.equal(status.supported, true);
+        assert.equal(status.computerSupported, false);
+        assert.equal(status.platform, 'linux');
+      });
+    }
+    if (process.env.GAJAE_SMOKE_APPIMAGE_ENV === '1') {
+      for (const [name, command, expected] of [
+        ['Python', '/usr/bin/python3 -c \'import encodings, sys; assert sys.executable == "/usr/bin/python3"; print("GAJAE_SYSTEM_PYTHON_READY")\'', /GAJAE_SYSTEM_PYTHON_READY/],
+        ['gio', '/usr/bin/gio version', /(?:^|\n)\d+\.\d+(?:\.\d+)?\r?\n/],
+      ]) {
+        await t.test(`AppRun server terminal can execute system ${name}`, async () => {
+          const terminal = await connect('/shell');
+          try {
+            terminal.send({ type: 'init', projectPath: project, sessionId: `appimage-system-${name}`, isPlainShell: true, initialCommand: command });
+            const output = await terminal.output('Process exited with code 0');
+            assert.match(output, expected);
+          } finally { await terminal.close(); }
+        });
+      }
+    }
+    for (const pathname of ['/ws', '/shell']) {
+      await t.test(`${pathname} rejects missing/invalid cookie and absent/foreign origin`, async () => {
+        for (const invalid of [{ origin: base }, { origin: base, cookie: 'gajae_desktop_api_key=invalid' }, { cookie }, { cookie, origin: 'http://localhost:1' }]) {
+          await assert.rejects(connect(pathname, invalid), /Unexpected server response: 401/);
+        }
+      });
+    }
+    await t.test('job subscriptions stay socket-local and recover from malformed input', async () => {
+      const first = await connect('/ws');
+      const second = await connect('/ws');
+      first.send({ protocolVersion: 1, type: 'gjc.job.subscribe', jobId: 'bad/id', after: 0 });
+      await first.wait(frame => frame.kind === 'gjc_job_error' && frame.code === 'invalid_request', 'invalid request');
+      first.send({ protocolVersion: 1, type: 'gjc.job.subscribe', jobId: 'packaged-v6-preserved-job', after: 0 });
+      const subscribed = await first.wait(frame => frame.kind === 'gjc_job_subscribed', 'healthy subscription');
+      first.send({ protocolVersion: 1, type: 'gjc.job.replay', jobId: 'packaged-v6-preserved-job', subscriptionId: subscribed.subscriptionId, after: 0, byteBudget: 4096 });
+      const replay = await first.wait(frame => frame.kind === 'gjc_job_replay_chunk', 'durable replay');
+      assert.equal(replay.events.length, 1);
+      assert.equal(replay.events[0].sequence, 1);
+      await pause(100);
+      assert.equal(second.frames.some(frame => frame.kind?.startsWith('gjc_job_')), false);
+      second.send({ protocolVersion: 1, type: 'gjc.job.subscribe', jobId: 'packaged-v6-preserved-job', after: 1 });
+      await second.wait(frame => frame.kind === 'gjc_job_subscribed', 'independent subscription');
+      await first.close(); await second.close();
+    });
+    await t.test('terminal validates input, spawns, resizes, reconnects and reports command failure', async () => {
+      let terminal = await connect('/shell');
+      const init = { type: 'init', projectPath: project, sessionId: 'packaged-shell', isPlainShell: true, initialCommand: 'exec bash --noprofile --norc', cols: 80, rows: 24 };
+      terminal.send({ ...init, projectPath: `${project}/missing` });
+      await terminal.wait(frame => frame.type === 'error' && frame.message === 'Invalid project path', 'invalid cwd');
+      terminal.send({ ...init, sessionId: 'bad/session' });
+      await terminal.wait(frame => frame.type === 'error' && frame.message === 'Invalid session ID', 'invalid session');
+      terminal.socket.send('{');
+      await terminal.output('Invalid websocket payload');
+      terminal.send(init);
+      await terminal.output('Starting terminal in:');
+      terminal.send({ type: 'input', data: "printf '__HOME:%s__\\n' \"$HOME\"\n" });
+      await terminal.output(`__HOME:${process.env.HOME}__`);
+      terminal.send({ type: 'resize', cols: 97, rows: 31 });
+      terminal.send({ type: 'input', data: "printf '__SIZE:%s__\\n' \"$(stty size)\"\n" });
+      await terminal.output('__SIZE:31 97__');
+      const other = await connect('/shell');
+      other.send({ ...init, sessionId: 'packaged-shell-other', initialCommand: "printf '__%s__\\n' OTHER_TERMINAL; exit 7" });
+      await other.output('__OTHER_TERMINAL__');
+      await other.output('Process exited with code 7');
+      assert.equal(terminal.frames.some(frame => frame.data?.includes('__OTHER_TERMINAL__')), false);
+      await other.close();
+      await terminal.close();
+      terminal = await connect('/shell');
+      terminal.send(init);
+      await terminal.output('Reconnected to existing session');
+      terminal.send({ type: 'input', data: "printf '__%s__\\n' RECONNECTED; exit 0\n" });
+      await terminal.output('__RECONNECTED__');
+      await terminal.output('Process exited with code 0');
+      await terminal.close();
+    });
+    await t.test('closing a replaced terminal socket preserves the current connection', async () => {
+      const init = { type: 'init', projectPath: project, sessionId: 'packaged-shell-overlap', isPlainShell: true, initialCommand: 'exec bash --noprofile --norc' };
+      const previous = await connect('/shell');
+      previous.send(init);
+      await previous.output('Starting terminal in:');
+      const current = await connect('/shell');
+      try {
+        current.send(init);
+        await current.output('Reconnected to existing session');
+        current.send({ type: 'input', data: "printf '__%s__\\n' BEFORE_REPLACE\n" });
+        await current.output('__BEFORE_REPLACE__');
+        current.send({ type: 'resize', cols: 97, rows: 31 });
+        current.send({ type: 'input', data: "printf '__OWNED_SIZE:%s__\\n' \"$(stty size)\"\n" });
+        await current.output('__OWNED_SIZE:31 97__');
+        previous.send({ type: 'resize', cols: 1, rows: 1 });
+        previous.send({ type: 'input', data: 'exit 7\n' });
+        previous.send({ ...init, forceRestart: true });
+        await pause(100);
+        await previous.close();
+        // Allow the server to process the old connection's close handler.
+        await pause(100);
+        current.send({ type: 'input', data: "printf '__%s__\\n' AFTER_REPLACE\n" });
+        await current.output('__AFTER_REPLACE__');
+        current.send({ type: 'input', data: "printf '__RETAINED_SIZE:%s__\\n' \"$(stty size)\"\n" });
+        await current.output('__RETAINED_SIZE:31 97__');
+      } finally {
+        current.send({ type: 'input', data: 'exit 0\n' });
+        await current.close();
+        await previous.close();
+      }
+    });
+  });
+}
+
+async function protocolSmoke(target, instance, headers, projectDir) {
+  const source = `(${packagedProtocolChecks.toString()})()`;
+  await new Promise((resolve, reject) => {
+    const child = spawn(target.command, ['--input-type=module', '--eval', source], {
+      cwd: target.cwd,
+      env: { ...target.env, GAJAE_SMOKE_URL: instance.baseUrl, GAJAE_SMOKE_COOKIE: headers.cookie, GAJAE_SMOKE_PROJECT: projectDir, GAJAE_SMOKE_APPIMAGE_ENV: target.appImageEnv ? '1' : '0' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let output = '';
+    const timer = setTimeout(() => child.kill('SIGKILL'), 55_000);
+    child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
+    child.stdout.on('data', chunk => { output += chunk; }); child.stderr.on('data', chunk => { output += chunk; });
+    child.once('error', error => { clearTimeout(timer); reject(error); });
+    child.once('close', code => {
+      clearTimeout(timer);
+      console.log(output.trim());
+      if (code === 0) resolve();
+      else reject(new Error(`Packaged protocol checks failed (${code}).\n${instance.output.value}`));
+    });
+  });
+}
+
 async function smoke(packagedTarget, suppliedProjectDir) {
   const temporaryDirectory = await createSmokeDataDirectory();
   const jobsDatabase = path.join(temporaryDirectory, 'jobs.sqlite3');
@@ -232,6 +462,7 @@ async function smoke(packagedTarget, suppliedProjectDir) {
     await createV6JobsFixture(target, jobsDatabase);
     instance = await launch(target, temporaryDirectory, projectDir);
     const { health, headers } = await bootstrap(instance);
+    await protocolSmoke(target, instance, headers, projectDir);
     const denied = await request(`${instance.baseUrl}/api/gjc/jobs`);
     if (denied.status !== 401) throw new Error(`Unauthenticated API status was ${denied.status}, expected 401.`);
     const jobs = await request(`${instance.baseUrl}/api/gjc/jobs`, { headers });
@@ -248,8 +479,8 @@ async function smoke(packagedTarget, suppliedProjectDir) {
     if (migration.migrationVersion !== 7 || migration.archivedAt !== null) throw new Error(`v6 jobs.sqlite3 did not migrate to v7 with archived_at NULL: ${JSON.stringify(migration)}`);
     console.log(`${target.label} packaged server smoke passed: ${JSON.stringify(health)}`);
   } finally {
-    if (instance) await stop(instance);
-    await rm(temporaryDirectory, { recursive: true, force: true });
+    try { if (instance) await stop(instance); }
+    finally { await rm(temporaryDirectory, { recursive: true, force: true }); }
   }
 }
 
@@ -265,6 +496,7 @@ async function dataSurvivalSmoke(packagedTarget, suppliedProjectDir) {
     await nativeClosureSmoke(target);
     first = await launch(target, dataDirectory, projectDir);
     const firstSession = await bootstrap(first);
+    const firstNonce = first.nonce;
     const project = await request(`${first.baseUrl}/api/projects/create-project`, { headers: { ...firstSession.headers, 'content-type': 'application/json' }, method: 'POST', body: JSON.stringify({ path: projectDir, customName }) });
     if (!(await json(project, 'Durable project creation')).success) throw new Error('Durable project creation did not report success.');
     const created = await request(`${first.baseUrl}/api/gjc/jobs`, { headers: { ...firstSession.headers, 'content-type': 'application/json' }, method: 'POST', body: JSON.stringify({ appSessionId: `data-survival-${crypto.randomUUID()}`, projectPath: projectDir, message: 'data survival shutdown fence' }) });
@@ -275,6 +507,9 @@ async function dataSurvivalSmoke(packagedTarget, suppliedProjectDir) {
     const schemaAfterFirstBoot = { auth: await sqliteSnapshot(target, authDatabase), jobs: await sqliteSnapshot(target, jobsDatabase) };
     second = await launch(target, dataDirectory, projectDir);
     const secondSession = await bootstrap(second);
+    const staleCookie = await request(`${second.baseUrl}/api/gjc/jobs`, { headers: { ...firstSession.headers, origin: second.baseUrl } });
+    const staleNonce = await request(`${second.baseUrl}/desktop/bootstrap?nonce=${encodeURIComponent(firstNonce)}`);
+    if (staleCookie.status !== 401 || staleNonce.status !== 401 || staleNonce.headers.has('set-cookie')) throw new Error('Desktop credentials from the previous boot were accepted.');
     const list = await json(await request(`${second.baseUrl}/api/gjc/jobs`, { headers: secondSession.headers }), 'Restarted GJC job list');
     if (!Array.isArray(list.items) || !list.items.some(item => item?.jobId === job.jobId && item.state === 'interrupted')) throw new Error(`Restarted GJC job was not preserved as interrupted: ${JSON.stringify(list)}`);
     const replayBeforeResume = await json(await request(`${second.baseUrl}/api/gjc/jobs/${encodeURIComponent(job.jobId)}/events?cursor=0`, { headers: secondSession.headers }), 'Restarted GJC event replay');
@@ -297,9 +532,10 @@ async function dataSurvivalSmoke(packagedTarget, suppliedProjectDir) {
     if (!Array.isArray(authRows) || authRows.length !== 1) throw new Error('Durable auth.db project row did not survive restart.');
     console.log(`${target.label} packaged data-survival smoke passed: job=${job.jobId}, events=${sequences.length}, schemas=idempotent`);
   } finally {
-    if (first) await stop(first);
-    if (second) await stop(second);
-    await rm(dataDirectory, { recursive: true, force: true });
+    try {
+      try { if (first) await stop(first); }
+      finally { if (second) await stop(second); }
+    } finally { await rm(dataDirectory, { recursive: true, force: true }); }
   }
 }
 
@@ -307,7 +543,8 @@ export async function runPackagedSmoke(args = process.argv.slice(2)) {
   const options = parseSmokeOptions(args);
   const location = await smokeLocation(options.app, options);
   try {
-    const target = await packagedTargets(location.app, options);
+    let target = await packagedTargets(location.app, options);
+    if (options.appImageEnv) target = await appImageLaunchTarget(location, target);
     await (options.dataSurvival ? dataSurvivalSmoke(target, options.projectDir) : smoke(target, options.projectDir));
   } finally {
     await location.cleanup();

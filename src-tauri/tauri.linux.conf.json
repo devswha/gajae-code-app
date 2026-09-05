@@ -4,7 +4,8 @@
     "targets": ["deb", "appimage"],
     "linux": {
       "deb": {
-        "depends": ["git", "ca-certificates"],
+        "depends": ["git", "ca-certificates", "desktop-file-utils", "libnss3", "libc6 (>= 2.35)"],
+        "desktopTemplate": "linux.desktop.hbs",
         "section": "devel"
       }
     }

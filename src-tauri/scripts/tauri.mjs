@@ -2,7 +2,7 @@ import { readFile, rm, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { desktopBuildArgs } from '../../scripts/release/desktop-platforms.mjs';
+import { desktopBuildArgs, linuxDebDependencies } from '../../scripts/release/desktop-platforms.mjs';
 
 const srcTauriDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const rootDir = dirname(srcTauriDir);
@@ -26,9 +26,14 @@ if (cargoVersion !== packageJson.desktopVersion) {
 const tauriArgs = desktopBuildArgs(process.argv.slice(2));
 
 const overlayPath = join(srcTauriDir, `.tauri-config-${process.pid}.json`);
-// Tauri merges tauri.<platform>.conf.json itself. Overlay only the version so
-// the base macOS bundle targets cannot overwrite the Linux configuration.
-await writeFile(overlayPath, `${JSON.stringify({ version: packageJson.desktopVersion }, null, 2)}\n`);
+// Tauri merges tauri.<platform>.conf.json itself. Do not overlay base macOS
+// bundle targets onto Linux. Only Linux builds need the host libc floor.
+const overlay = { version: packageJson.desktopVersion };
+if (process.platform === 'linux' && tauriArgs[0] === 'build') {
+  const linuxConfig = JSON.parse(await readFile(join(srcTauriDir, 'tauri.linux.conf.json'), 'utf8'));
+  overlay.bundle = { linux: { deb: { depends: linuxDebDependencies(linuxConfig.bundle?.linux?.deb?.depends || []) } } };
+}
+await writeFile(overlayPath, `${JSON.stringify(overlay, null, 2)}\n`);
 
 try {
   const command = process.platform === 'win32' ? 'tauri.cmd' : 'tauri';

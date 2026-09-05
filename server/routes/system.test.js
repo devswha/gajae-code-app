@@ -27,6 +27,11 @@ async function serve(opener) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }),
+    postBrowserUrl: (body) => fetch(`http://127.0.0.1:${port}/api/system/open-browser-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
     postDebugBundle: (body) => fetch(`http://127.0.0.1:${port}/api/system/debug-bundle`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -45,6 +50,23 @@ test('open-file rejects relative and non-string paths', async () => {
     for (const body of [{ path: 'relative/file.txt' }, { path: 42 }, {}]) {
       assert.equal((await server.postOpenFile(body)).status, 400);
     }
+  } finally {
+    await server.close();
+  }
+});
+
+test('Workspace Browser opens HTTP and HTTPS pages but never arbitrary executable schemes', async () => {
+  const opened = [];
+  const server = await serve(async target => { opened.push(target); });
+  try {
+    for (const url of ['http://localhost:5173/preview', 'https://example.com/docs']) {
+      assert.equal((await server.postBrowserUrl({ url })).status, 200);
+    }
+    for (const url of ['javascript:alert(1)', 'file:///etc/passwd', 'data:text/html,test', 'about:blank', 'https://', null, 'x'.repeat(5000)]) {
+      assert.equal((await server.postBrowserUrl({ url })).status, 400);
+    }
+    assert.equal((await server.postOpenUrl({ url: 'http://localhost:5173/preview' })).status, 400);
+    assert.deepEqual(opened, ['http://localhost:5173/preview', 'https://example.com/docs']);
   } finally {
     await server.close();
   }

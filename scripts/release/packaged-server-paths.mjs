@@ -1,19 +1,21 @@
 import { spawn } from 'node:child_process';
 import { constants } from 'node:fs';
-import { access, cp, lstat, mkdtemp, readdir, readlink, realpath, rm, stat } from 'node:fs/promises';
+import { access, cp, lstat, mkdtemp, readdir, readFile, readlink, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 import { ancestorNodeModules, assertOutOfTree } from './out-of-tree.mjs';
 
-const USAGE = 'Usage: node scripts/release/smoke-packaged-server.mjs (--tauri-app <path> | --linux-root <dir>) [--project-dir <path>] [--data-survival] [--from-copy]';
+const USAGE = 'Usage: node scripts/release/smoke-packaged-server.mjs (--tauri-app <path> | --linux-root <dir>) [--project-dir <path>] [--data-survival | --appimage-env] [--from-copy]';
+const smokeCopies = new WeakMap();
+export const APPIMAGE_ENV_MARKER = 'gajae-smoke: AppRun supplied image-owned PYTHONHOME, PYTHONPATH and LD_LIBRARY_PATH';
 
 export function parseSmokeOptions(args) {
   const options = {};
   for (let index = 0; index < args.length; index += 1) {
     const name = args[index];
     if (Object.hasOwn(options, name)) throw new Error(USAGE);
-    if (['--data-survival', '--from-copy'].includes(name)) options[name] = true;
+    if (['--data-survival', '--from-copy', '--appimage-env'].includes(name)) options[name] = true;
     else if (['--tauri-app', '--linux-root', '--project-dir'].includes(name)) {
       const value = args[++index];
       if (!value || value.startsWith('--')) throw new Error(USAGE);
@@ -21,12 +23,14 @@ export function parseSmokeOptions(args) {
     } else throw new Error(USAGE);
   }
   if (Boolean(options['--tauri-app']) === Boolean(options['--linux-root'])) throw new Error(USAGE);
+  if (options['--appimage-env'] && (!options['--linux-root'] || options['--data-survival'])) throw new Error(USAGE);
   return {
     app: path.resolve(options['--tauri-app'] || options['--linux-root']),
     linux: Boolean(options['--linux-root']),
     projectDir: options['--project-dir'] ? path.resolve(options['--project-dir']) : null,
     dataSurvival: Boolean(options['--data-survival']),
     fromCopy: Boolean(options['--from-copy']),
+    appImageEnv: Boolean(options['--appimage-env']),
   };
 }
 
@@ -52,11 +56,55 @@ export async function smokeLocation(app, { linux = false, fromCopy = false } = {
         child.once('close', code => code === 0 ? resolve() : reject(new Error(`ditto exited with code ${code}`)));
       });
     }
-    return { app: copy, cleanup: () => rm(stagingDir, { recursive: true, force: true }) };
+    const copiedApp = await realpath(copy);
+    const location = { app: copiedApp, cleanup: async () => {
+      smokeCopies.delete(location);
+      await rm(stagingDir, { recursive: true, force: true });
+    } };
+    smokeCopies.set(location, copiedApp);
+    return location;
   } catch (error) {
     await rm(stagingDir, { recursive: true, force: true });
     throw error;
   }
+}
+
+export async function appImageLaunchTarget(location, target) {
+  if (process.platform !== 'linux') throw new Error('--appimage-env requires a Linux host.');
+  // Accept only a disposable copy created here, never a caller-supplied root.
+  if (!smokeCopies.has(location) || location.app !== smokeCopies.get(location)) throw new Error('AppImage launcher replacement requires an active disposable smoke copy.');
+  const app = await realpath(location.app);
+  if (app !== smokeCopies.get(location)) throw new Error('AppImage disposable smoke copy must not resolve to another root.');
+  const launchCommand = path.join(app, 'AppRun');
+  const gui = path.join(app, 'usr', 'bin', 'gajae-app-desktop');
+  for (const file of [launchCommand, path.join(app, 'AppRun.wrapped'), gui, target.command, ...target.args]) {
+    await checkContained(app, file);
+    if (!(await stat(file)).isFile()) throw new Error(`AppImage smoke requires a regular file: ${file}`);
+  }
+  for (const executable of [launchCommand, path.join(app, 'AppRun.wrapped'), gui]) await access(executable, constants.X_OK);
+  if (!(await lstat(gui)).isFile() || await realpath(gui) === await realpath(target.command)) {
+    throw new Error('AppImage GUI launcher must be a separate regular file, not a symlink or the Node sidecar.');
+  }
+  const desktopFiles = (await readdir(app)).filter(name => name.endsWith('.desktop'));
+  if (desktopFiles.length !== 1) throw new Error('AppImage smoke requires exactly one root desktop entry.');
+  const desktop = await checkContained(app, path.join(app, desktopFiles[0]));
+  if (!/^Exec=gajae-app-desktop(?:[ \t].*)?\r?$/m.test(await readFile(desktop, 'utf8'))) {
+    throw new Error('AppImage desktop entry must launch gajae-app-desktop.');
+  }
+  const quote = value => `'${value.replaceAll("'", "'\\''")}'`;
+  const wrapper = `#!/bin/sh
+set -eu
+[ "\${APPDIR-}" = ${quote(app)} ] || { echo 'AppImage smoke did not receive the copied APPDIR' >&2; exit 64; }
+case "\${PYTHONHOME-}" in "$APPDIR"/*) ;; *) echo 'AppRun did not set image-owned PYTHONHOME' >&2; exit 64 ;; esac
+case ":\${PYTHONPATH-}:" in *":$APPDIR/"*) ;; *) echo 'AppRun did not set image-owned PYTHONPATH' >&2; exit 64 ;; esac
+case ":\${LD_LIBRARY_PATH-}:" in *":$APPDIR/"*) ;; *) echo 'AppRun did not set image-owned LD_LIBRARY_PATH' >&2; exit 64 ;; esac
+printf '%s\\n' ${quote(APPIMAGE_ENV_MARKER)}
+exec ${[target.command, ...target.args].map(quote).join(' ')} "$@"
+`;
+  // Unlink first so even a hardlinked executable cannot change another file.
+  await rm(gui);
+  await writeFile(gui, wrapper, { flag: 'wx', mode: 0o755 });
+  return { ...target, label: 'Tauri Linux AppImage AppRun', launchCommand, launchArgs: [], appImageEnv: true };
 }
 
 export function createSmokeDataDirectory() {

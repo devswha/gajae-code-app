@@ -123,15 +123,19 @@ async function pruneNonRuntimeMetadata(directory) {
 
 async function downloadPinnedNode() {
   const archiveName = desktop.nodeArchive;
-  const archive = path.join(os.tmpdir(), archiveName);
-  const response = await fetch(`https://nodejs.org/dist/v${NODE_VERSION}/${archiveName}`);
-  if (!response.ok || !response.body) throw new Error(`Node download failed with HTTP ${response.status}.`);
-  const chunks = [];
-  for await (const chunk of response.body) chunks.push(chunk);
-  await fs.writeFile(archive, Buffer.concat(chunks), { mode: 0o600 });
-  if (await sha256(archive) !== NODE_ARCHIVE_SHA256) throw new Error('Pinned Node archive failed SHA-256 verification.');
-  await run('tar', ['-xzf', archive, '-C', payloadDir]);
-  await fs.rm(archive, { force: true });
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'gajae-node-download-'));
+  try {
+    const archive = path.join(temporary, archiveName);
+    const response = await fetch(`https://nodejs.org/dist/v${NODE_VERSION}/${archiveName}`);
+    if (!response.ok || !response.body) throw new Error(`Node download failed with HTTP ${response.status}.`);
+    const chunks = [];
+    for await (const chunk of response.body) chunks.push(chunk);
+    await fs.writeFile(archive, Buffer.concat(chunks), { mode: 0o600 });
+    if (await sha256(archive) !== NODE_ARCHIVE_SHA256) throw new Error('Pinned Node archive failed SHA-256 verification.');
+    await run('tar', ['-xzf', archive, '-C', payloadDir]);
+  } finally {
+    await fs.rm(temporary, { recursive: true, force: true });
+  }
   const extracted = path.join(payloadDir, `node-v${NODE_VERSION}-${desktop.nodePlatform}`);
   await fs.rename(extracted, path.join(payloadDir, 'node'));
 }

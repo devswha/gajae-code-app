@@ -5,9 +5,11 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, w
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { desktopTargetDirectory } from './desktop-platforms.mjs';
+
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-async function artifactIn(directory, extension) {
+async function artifactIn(directory, extension, expectedName) {
   let entries;
   try {
     entries = await readdir(directory, { withFileTypes: true });
@@ -20,6 +22,7 @@ async function artifactIn(directory, extension) {
     throw new Error(`Expected exactly one ${extension} artifact in ${directory}; found ${candidates.length}${candidates.length ? `: ${candidates.map(entry => entry.name).sort().join(', ')}` : ''}`);
   }
   const candidate = candidates[0];
+  if (candidate.name !== expectedName) throw new Error(`Unexpected ${extension} artifact: ${candidate.name}; expected ${expectedName}.`);
   if (!candidate.isFile()) throw new Error(`Artifact must be a regular file: ${path.join(directory, candidate.name)}`);
   const source = path.join(directory, candidate.name);
   const { mode, size } = await stat(source);
@@ -28,16 +31,17 @@ async function artifactIn(directory, extension) {
   return { source, mode: mode & 0o777, extension };
 }
 
-export async function stageLinuxDesktop({ rootDir = repositoryRoot } = {}) {
-  const { version } = JSON.parse(await readFile(path.join(rootDir, 'package.json'), 'utf8'));
+export async function stageLinuxDesktop({ rootDir = repositoryRoot, targetDir } = {}) {
+  const { version, productName, desktopVersion } = JSON.parse(await readFile(path.join(rootDir, 'package.json'), 'utf8'));
   if (typeof version !== 'string' || !/^[0-9A-Za-z][0-9A-Za-z.+-]*$/.test(version) || version.includes('..')) {
     throw new Error(`Invalid release artifact version: ${version}`);
   }
-  const bundle = path.join(rootDir, 'src-tauri', 'target', 'x86_64-unknown-linux-gnu', 'release', 'bundle');
+  const bundle = path.join(targetDir || await desktopTargetDirectory(rootDir), 'x86_64-unknown-linux-gnu', 'release', 'bundle');
+  const artifactName = `${productName}_${desktopVersion}_amd64`;
   // Validate both formats before replacing any previously staged release.
   const sources = [
-    await artifactIn(path.join(bundle, 'deb'), '.deb'),
-    await artifactIn(path.join(bundle, 'appimage'), '.AppImage'),
+    await artifactIn(path.join(bundle, 'deb'), '.deb', `${artifactName}.deb`),
+    await artifactIn(path.join(bundle, 'appimage'), '.AppImage', `${artifactName}.AppImage`),
   ];
   const outputDir = path.join(rootDir, 'release', 'desktop');
   await mkdir(outputDir, { recursive: true });

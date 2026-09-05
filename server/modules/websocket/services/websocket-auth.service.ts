@@ -1,5 +1,6 @@
 import type { VerifyClientCallbackSync } from 'ws';
 
+import { hasValidApiKey } from '@/middleware/auth.js';
 import { isAllowedRequestOrigin } from '@/shared/request-origin.js';
 import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
 
@@ -26,13 +27,23 @@ function acceptsOrigin(request: AuthenticatedWebSocketRequest, configuredHosts?:
   });
 }
 
-function requestPath(request: AuthenticatedWebSocketRequest): string {
-  return new URL(request.url ?? '/', 'http://localhost').pathname;
+function requestPath(request: AuthenticatedWebSocketRequest): string | null {
+  const target = request.url ?? '/';
+  // Upgrade requests use origin-form targets. Reject authority/absolute forms
+  // before URL parsing, which can otherwise throw out of ws's verify callback.
+  if (!target.startsWith('/') || target.startsWith('//')) return null;
+  try {
+    return new URL(target, 'http://localhost').pathname;
+  } catch {
+    return null;
+  }
 }
 
 export function verifyWebSocketClient(info: Parameters<VerifyClientCallbackSync<AuthenticatedWebSocketRequest>>[0], dependencies: WebSocketAuthDependencies): boolean {
   const upgradeRequest = info.req as AuthenticatedWebSocketRequest;
-  console.log('WebSocket connection attempt to:', requestPath(upgradeRequest));
+  const pathname = requestPath(upgradeRequest);
+  if (pathname === null) return false;
+  console.log('WebSocket connection attempt to:', pathname);
 
   if (!acceptsOrigin(upgradeRequest, dependencies.allowedHosts)) {
     console.log('[WARN] WebSocket upgrade rejected for origin:', upgradeRequest.headers.origin);
@@ -41,6 +52,9 @@ export function verifyWebSocketClient(info: Parameters<VerifyClientCallbackSync<
 
   // Desktop credentials are checked before the owner is attached to an upgrade request.
   if (dependencies.desktopAuth && !dependencies.desktopAuth.authenticateWebSocket(upgradeRequest)) return false;
+  // HTTP middleware does not run during an upgrade. Apply the deployment key
+  // here too, before any chat, terminal, or browser socket gains owner access.
+  if (!hasValidApiKey(upgradeRequest)) return false;
 
   const owner = dependencies.authenticateWebSocket();
   if (!owner) {

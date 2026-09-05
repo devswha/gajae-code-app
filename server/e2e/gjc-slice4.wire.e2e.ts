@@ -126,14 +126,28 @@ test('wire e2e: HTTP jobs endpoints and full websocket projection matrix', { tim
   server.listen(0, '127.0.0.1'); await once(server, 'listening'); const port = (server.address() as any).port;
   t.after(async () => { for (const ws of wss.clients) ws.terminate(); await new Promise<void>(resolve => wss.close(() => resolve())); await new Promise<void>(resolve => server.close(() => resolve())); jobs.close(); client.close(); await rm(database, { force: true }); await rm(root, { recursive: true, force: true }); if (originalApiKey === undefined) delete process.env.API_KEY; else process.env.API_KEY = originalApiKey; });
   const request = (path: string, method = 'GET', body?: unknown, apiKey: string | null = 'wire-e2e-api-key') => fetch(`http://127.0.0.1:${port}${path}`, { method, headers: { 'content-type': 'application/json', ...(apiKey === null ? {} : { 'x-api-key': apiKey }) }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const connect = (apiKey: string | null = 'wire-e2e-api-key', origin?: string) => new WebSocket(`ws://127.0.0.1:${port}/ws`, {
+    headers: { ...(apiKey === null ? {} : { 'x-api-key': apiKey }), ...(origin ? { origin } : {}) },
+  });
   const beforeUnauthorized = authorityCalls;
   assert.equal((await request('/api/gjc/jobs/not-a-job', 'GET', undefined, null)).status, 401);
   assert.equal((await request('/api/gjc/jobs/not-a-job', 'GET', undefined, 'wrong-api-key')).status, 401);
   assert.equal(authorityCalls, beforeUnauthorized);
 
+  await t.test('websocket upgrades reject absent or incorrect API keys and foreign origins before authority access', async () => {
+    for (const [apiKey, origin] of [[null, undefined], ['wrong-api-key', undefined], ['wire-e2e-api-key', 'https://attacker.invalid']] as const) {
+      const socket = connect(apiKey, origin);
+      const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
+      await assert.rejects(once(socket, 'open'), /Unexpected server response: 401/u);
+      await closed;
+    }
+    assert.equal(wss.clients.size, 0);
+    assert.equal(authorityCalls, beforeUnauthorized);
+  });
+
   const created = await request('/api/gjc/jobs', 'POST', { appSessionId: 'app-wire', projectPath: root, message: 'run' });
   assert.equal(created.status, 202); const { jobId: responseJobId } = await created.json() as any; assert.equal(typeof responseJobId, 'string'); const jobId = responseJobId;
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`); await once(ws, 'open'); const inbox = observe(ws);
+  const ws = connect(); await once(ws, 'open'); const inbox = observe(ws);
   const firstSubscription = await subscribe(ws, inbox, jobId, 0);
   const firstReplay = await replay(ws, inbox, jobId, firstSubscription.subscriptionId, 0); assert.equal(firstReplay.done, true);
   supervisor.emit(0, { kind: 'wire_live' });
@@ -156,7 +170,7 @@ test('wire e2e: HTTP jobs endpoints and full websocket projection matrix', { tim
     const beforeOffline = (await jobs.get({ jobId }) as any).lastSequence;
     supervisor.emit(1, { kind: 'offline', step: 1 }); supervisor.emit(1, { kind: 'offline', step: 2 });
     await waitFor(async () => (await jobs.get({ jobId }) as any).lastSequence === beforeOffline + 2, 'offline durable events');
-    const reconnect = new WebSocket(`ws://127.0.0.1:${port}/ws`); await once(reconnect, 'open'); const messages = observe(reconnect);
+    const reconnect = connect(); await once(reconnect, 'open'); const messages = observe(reconnect);
     const sub = await subscribe(reconnect, messages, jobId, beforeOffline);
     assert.equal(sub.watermark, beforeOffline + 2);
     supervisor.emit(1, { kind: 'watermark_after' });
@@ -172,7 +186,7 @@ test('wire e2e: HTTP jobs endpoints and full websocket projection matrix', { tim
   });
 
   await t.test('oversized and malformed ids are rejected without authority contact or healthy subscription impact', async () => {
-    const isolate = new WebSocket(`ws://127.0.0.1:${port}/ws`); await once(isolate, 'open'); const messages = observe(isolate);
+    const isolate = connect(); await once(isolate, 'open'); const messages = observe(isolate);
     const before = authorityCalls;
     isolate.send(JSON.stringify({ protocolVersion: 1, type: 'gjc.job.subscribe', jobId: 'x'.repeat(129), after: 0 }));
     const oversized = await messages.wait(frame => frame.kind === 'gjc_job_error', 'oversized id rejection'); assert.equal(oversized.code, 'invalid_request');
@@ -186,7 +200,7 @@ test('wire e2e: HTTP jobs endpoints and full websocket projection matrix', { tim
   });
 
   await t.test('authority outage rejects only GJC while legacy chat remains available', async () => {
-    const socket = new WebSocket(`ws://127.0.0.1:${port}/ws`); await once(socket, 'open'); const messages = observe(socket); authorityDown = true;
+    const socket = connect(); await once(socket, 'open'); const messages = observe(socket); authorityDown = true;
     socket.send(JSON.stringify({ protocolVersion: 1, type: 'gjc.job.subscribe', jobId, after: 0 }));
     const error = await messages.wait(frame => frame.kind === 'gjc_job_error', 'authority unavailable'); assert.equal(error.code, 'authority_unavailable'); assert.equal(error.retryable, true);
     socket.send(JSON.stringify({ type: 'chat.subscribe', sessions: [{ sessionId: 'legacy-session', lastSeq: 0 }] }));
@@ -195,7 +209,7 @@ test('wire e2e: HTTP jobs endpoints and full websocket projection matrix', { tim
   });
 
   await t.test('throwing projection callback preserves durable state and isolates other websocket traffic', async () => {
-    const socket = new WebSocket(`ws://127.0.0.1:${port}/ws`); await once(socket, 'open'); const messages = observe(socket);
+    const socket = connect(); await once(socket, 'open'); const messages = observe(socket);
     const cursor = (await jobs.get({ jobId }) as any).lastSequence;
     const publish = projection.publish.bind(projection);
     (projection as any).publish = () => { throw new Error('projection callback failed'); };
@@ -204,7 +218,7 @@ test('wire e2e: HTTP jobs endpoints and full websocket projection matrix', { tim
     (projection as any).publish = publish;
     socket.send(JSON.stringify({ type: 'chat.subscribe', sessions: [{ sessionId: 'legacy-session', lastSeq: 0 }] }));
     await messages.wait(frame => frame.kind === 'chat_subscribed', 'legacy traffic');
-    const recovery = new WebSocket(`ws://127.0.0.1:${port}/ws`); await once(recovery, 'open'); const recoveryMessages = observe(recovery);
+    const recovery = connect(); await once(recovery, 'open'); const recoveryMessages = observe(recovery);
     const recovered = await subscribe(recovery, recoveryMessages, jobId, cursor); const chunk = await replay(recovery, recoveryMessages, jobId, recovered.subscriptionId, cursor);
     assert.equal(chunk.events.length, 1); assert.equal(chunk.events[0].payload.kind, 'broadcast_throw');
     supervisor.emit(1, { kind: 'other_subscriber_live' }); await recoveryMessages.wait(frame => frame.kind === 'gjc_job_event' && frame.event.payload.kind === 'other_subscriber_live', 'recovered subscriber after throw');
@@ -219,7 +233,7 @@ test('wire e2e: HTTP jobs endpoints and full websocket projection matrix', { tim
     await writeFile(join(snapshot.worktreeId, 'selected.txt'), 'selected\n'); await writeFile(join(snapshot.worktreeId, 'unselected.txt'), 'unselected\n');
     const baseHead = (await git(root, ['rev-parse', 'HEAD'])).stdout.trim();
     const diff = await request(`/api/gjc/jobs/${jobId}/git/diff`); assert.equal(diff.status, 200); const diffDto = await diff.json() as any; assert.match(diffDto.text, /selected\.txt/u); assert.match(diffDto.text, /unselected\.txt/u); assert.deepEqual(diffDto.paths.sort(), ['selected.txt', 'unselected.txt']);
-    const socket = new WebSocket(`ws://127.0.0.1:${port}/ws`); await once(socket, 'open'); const messages = observe(socket);
+    const socket = connect(); await once(socket, 'open'); const messages = observe(socket);
     const cursor = (await jobs.get({ jobId }) as any).lastSequence; const sub = await subscribe(socket, messages, jobId, cursor); await replay(socket, messages, jobId, sub.subscriptionId, cursor);
     const committed = await request(`/api/gjc/jobs/${jobId}/git/commit`, 'POST', { message: 'selected only', paths: ['selected.txt'] }); assert.equal(committed.status, 201); const dto = await committed.json() as any;
     assert.notEqual(dto.commit, baseHead); assert.equal((await git(root, ['rev-parse', 'HEAD'])).stdout.trim(), baseHead);

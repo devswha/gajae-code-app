@@ -26,7 +26,11 @@ test('quotes Windows argv values without losing quotes or trailing slashes', () 
 
 test('CodeDom compilation uses explicit private temp files with the original elevated protections', () => {
   const script = windowsCodeDomCompileScript('public class PrivateCompilerFixture {}');
-  assert.match(script, /\[IO.Directory\]::CreateDirectory\(\$compilerTemp, \$compilerSecurity\)/);
+  assert.match(script, /\[GajaeCodeDomFileApi\]::CreateDirectoryW\(\$compilerTemp, \$compilerAttributesPointer\)/);
+  assert.match(script, /RawSecurityDescriptor\]::new\(\$compilerSddl\)/);
+  assert.match(script, /GetField\('SetLastError'\)/);
+  assert.match(script, /CharSet\]::Unicode/);
+  assert.match(script, /GetFileSecurityW\(\$compilerTemp, 0x14/);
   assert.match(script, /D:\(D;OI;SD;;;/);
   assert.match(script, /\(A;OICI;FA;;;BA\)S:\(ML;OI;NW;;;HI\)/);
   assert.match(script, /GenerateInMemory = \$true/);
@@ -34,7 +38,7 @@ test('CodeDom compilation uses explicit private temp files with the original ele
   assert.match(script, /TempFileCollection\]::new\(\$compilerTemp, \$false\)/);
   assert.match(script, /Add-Type -CompilerParameters \$compilerParameters/);
   assert.doesNotMatch(script, /DisableTempFileCollectionDirectoryFeature|SetSwitch|junction|ShortPath/i);
-  assert.ok(script.indexOf('SetSecurityDescriptorSddlForm($compilerSddl)') < script.indexOf('[IO.Directory]::CreateDirectory'));
+  assert.ok(script.indexOf('GetBinaryForm($compilerDescriptorBytes, 0)') < script.indexOf('[GajaeCodeDomFileApi]::CreateDirectoryW'));
   assert.ok(script.indexOf('[IO.Directory]::SetAccessControl') < script.indexOf('$compilerParameters.TempFiles.Delete()'));
   assert.ok(script.indexOf('$compilerParameters.TempFiles.Delete()') < script.indexOf('[IO.Directory]::Delete'));
 });

@@ -24,7 +24,6 @@ $compilerTemp = [IO.Path]::Combine([IO.Path]::GetTempPath(), ('gajae-code-dom-' 
 $compilerParameters = $null
 $compilerTempCreated = $false
 try {
-    $compilerSecurity = [Security.AccessControl.DirectorySecurity]::new()
     if ($compilerElevated) {
         # Exact SDDL used by .NET TempFileCollection.CreateTempDirectoryWithAce:
         # inherited deny-delete, administrator access, and a high-integrity label.
@@ -32,11 +31,64 @@ try {
     } else {
         $compilerSddl = 'D:P(A;OICI;FA;;;' + $compilerSid + ')(A;OICI;FA;;;SY)'
     }
-    $compilerSecurity.SetSecurityDescriptorSddlForm($compilerSddl)
-    # System.IO uses the wide API; the CodeDom helper uses an ANSI import.
-    $null = [IO.Directory]::CreateDirectory($compilerTemp, $compilerSecurity)
+    # DirectorySecurity canonicalizes its SystemAcl as auditing ACEs and drops
+    # the mandatory label, producing an empty SACL that needs SeSecurityPrivilege.
+    # Preserve the raw descriptor and call the wide API directly instead. Emit
+    # imports without Add-Type, which is the compiler we are bootstrapping.
+    if (-not ('GajaeCodeDomFileApi' -as [type])) {
+        $compilerAssembly = [AppDomain]::CurrentDomain.DefineDynamicAssembly([Reflection.AssemblyName]::new('GajaeCodeDomFileApi'), [Reflection.Emit.AssemblyBuilderAccess]::Run)
+        $compilerModule = $compilerAssembly.DefineDynamicModule('GajaeCodeDomFileApi')
+        $compilerType = $compilerModule.DefineType('GajaeCodeDomFileApi', [Reflection.TypeAttributes]::Public -bor [Reflection.TypeAttributes]::Sealed -bor [Reflection.TypeAttributes]::Abstract)
+        function Add-GajaeCompilerImport($builder, [string]$name, [string]$library, [type[]]$parameters) {
+            $method = $builder.DefineMethod($name, [Reflection.MethodAttributes]::Public -bor [Reflection.MethodAttributes]::Static -bor [Reflection.MethodAttributes]::PinvokeImpl, [bool], $parameters)
+            $attributeType = [Runtime.InteropServices.DllImportAttribute]
+            $constructor = $attributeType.GetConstructor([type[]]@([string]))
+            $fields = [Reflection.FieldInfo[]]@($attributeType.GetField('EntryPoint'), $attributeType.GetField('CharSet'), $attributeType.GetField('ExactSpelling'), $attributeType.GetField('SetLastError'), $attributeType.GetField('CallingConvention'))
+            $values = [object[]]@($name, [Runtime.InteropServices.CharSet]::Unicode, $true, $true, [Runtime.InteropServices.CallingConvention]::Winapi)
+            $method.SetCustomAttribute([Reflection.Emit.CustomAttributeBuilder]::new($constructor, [object[]]@($library), $fields, $values))
+            $method.SetImplementationFlags([Reflection.MethodImplAttributes]::PreserveSig)
+            if ($name -eq 'GetFileSecurityW') { $null = $method.DefineParameter(3, [Reflection.ParameterAttributes]::Out, 'securityDescriptor') }
+        }
+        Add-GajaeCompilerImport $compilerType 'CreateDirectoryW' 'kernel32.dll' ([type[]]@([string], [IntPtr]))
+        Add-GajaeCompilerImport $compilerType 'GetFileSecurityW' 'advapi32.dll' ([type[]]@([string], [uint32], [byte[]], [uint32], [uint32].MakeByRefType()))
+        $null = $compilerType.CreateType()
+    }
+    $compilerSecurity = [Security.AccessControl.RawSecurityDescriptor]::new($compilerSddl)
+    $compilerDescriptorBytes = [byte[]]::new($compilerSecurity.BinaryLength)
+    $compilerSecurity.GetBinaryForm($compilerDescriptorBytes, 0)
+    $compilerDescriptorPointer = [IntPtr]::Zero
+    $compilerAttributesPointer = [IntPtr]::Zero
+    try {
+        $compilerDescriptorPointer = [Runtime.InteropServices.Marshal]::AllocHGlobal($compilerDescriptorBytes.Length)
+        [Runtime.InteropServices.Marshal]::Copy($compilerDescriptorBytes, 0, $compilerDescriptorPointer, $compilerDescriptorBytes.Length)
+        # SECURITY_ATTRIBUTES has pointer-aligned length, descriptor and BOOL
+        # fields: 24 bytes on x64, 12 on x86. Zero padding and handle inheritance.
+        $compilerAttributesLength = 3 * [IntPtr]::Size
+        $compilerAttributesPointer = [Runtime.InteropServices.Marshal]::AllocHGlobal($compilerAttributesLength)
+        [Runtime.InteropServices.Marshal]::Copy([byte[]]::new($compilerAttributesLength), 0, $compilerAttributesPointer, $compilerAttributesLength)
+        [Runtime.InteropServices.Marshal]::WriteInt32($compilerAttributesPointer, $compilerAttributesLength)
+        [Runtime.InteropServices.Marshal]::WriteIntPtr($compilerAttributesPointer, [IntPtr]::Size, $compilerDescriptorPointer)
+        if (-not [GajaeCodeDomFileApi]::CreateDirectoryW($compilerTemp, $compilerAttributesPointer)) {
+            throw [ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error())
+        }
+    } finally {
+        if ($compilerAttributesPointer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::FreeHGlobal($compilerAttributesPointer) }
+        if ($compilerDescriptorPointer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::FreeHGlobal($compilerDescriptorPointer) }
+    }
     $compilerTempCreated = $true
-    ${diagnostics ? `[Console]::Out.WriteLine((@{ compilerTemp = $compilerTemp; elevated = $compilerElevated; compilerSddl = $compilerSecurity.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::All) } | ConvertTo-Json -Compress))` : ''}
+    # Query DACL + LABEL, not auditing SACL: label-only access requires no
+    # SeSecurityPrivilege, and RawSecurityDescriptor retains the mandatory ACE.
+    [uint32]$compilerSecurityLength = 0
+    $null = [GajaeCodeDomFileApi]::GetFileSecurityW($compilerTemp, 0x14, $null, 0, [ref]$compilerSecurityLength)
+    if ($compilerSecurityLength -eq 0 -or $compilerSecurityLength -gt 65536) { throw 'Could not size compiler directory security descriptor.' }
+    $compilerActualBytes = [byte[]]::new($compilerSecurityLength)
+    if (-not [GajaeCodeDomFileApi]::GetFileSecurityW($compilerTemp, 0x14, $compilerActualBytes, $compilerActualBytes.Length, [ref]$compilerSecurityLength)) {
+        throw [ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error())
+    }
+    $compilerActualSecurity = [Security.AccessControl.RawSecurityDescriptor]::new($compilerActualBytes, 0)
+    $compilerActualSddl = $compilerActualSecurity.GetSddlForm([Security.AccessControl.AccessControlSections]::All)
+    if ($compilerElevated -and $compilerActualSddl -notmatch '\(ML;[^;]*;NW;;;HI\)') { throw 'Compiler directory high-integrity label was not preserved.' }
+    ${diagnostics ? `[Console]::Out.WriteLine((@{ compilerTemp = $compilerTemp; elevated = $compilerElevated; compilerSddl = $compilerActualSddl } | ConvertTo-Json -Compress))` : ''}
     $compilerParameters = [CodeDom.Compiler.CompilerParameters]::new()
     $compilerParameters.GenerateInMemory = $true
     $compilerParameters.ReferencedAssemblies.AddRange([string[]]@('System.dll', 'System.Core.dll'))

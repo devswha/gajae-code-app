@@ -92,7 +92,7 @@ test('real Windows Add-Type works with baseline and isolated Unicode profile, cw
       if (result.elevated) {
         assert.match(result.compilerSddl, /\(D;OI;SD;;;/);
         assert.match(result.compilerSddl, /\(A;OICI;FA;;;BA\)/);
-        assert.match(result.compilerSddl, /S:\(ML;OI;NW;;;HI\)/);
+        assert.match(result.compilerSddl, /\(ML;[^;]*;NW;;;HI\)/);
       }
       await assert.rejects(fs.access(result.compilerTemp), { code: 'ENOENT' });
       if (label === 'isolated Unicode') {

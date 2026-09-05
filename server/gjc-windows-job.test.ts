@@ -12,6 +12,7 @@ import {
   quoteWindowsArgument,
   windowsCodeDomCompileScript,
   windowsCodeDomLabelValidationScript,
+  windowsCodeDomPathValidationScript,
 } from './gjc-windows-job.js';
 
 test('quotes Windows argv values without losing quotes or trailing slashes', () => {
@@ -36,12 +37,33 @@ test('CodeDom compilation uses explicit private temp files with the original ele
   assert.match(script, /\(A;OICI;FA;;;BA\)S:\(ML;OI;NW;;;HI\)/);
   assert.match(script, /GenerateInMemory = \$true/);
   assert.match(script, /'System.dll', 'System.Core.dll'/);
-  assert.match(script, /TempFileCollection\]::new\(\$compilerTemp, \$false\)/);
+  assert.match(script, /TempFileCollection\]::new\(\$compilerPath, \$false\)/);
   assert.match(script, /Add-Type -CompilerParameters \$compilerParameters/);
-  assert.doesNotMatch(script, /DisableTempFileCollectionDirectoryFeature|SetSwitch|junction|ShortPath/i);
+  assert.doesNotMatch(script, /DisableTempFileCollectionDirectoryFeature|SetSwitch|junction/i);
   assert.ok(script.indexOf('GetBinaryForm($compilerDescriptorBytes, 0)') < script.indexOf('[GajaeCodeDomFileApi]::CreateDirectoryW'));
   assert.ok(script.indexOf('[IO.Directory]::SetAccessControl') < script.indexOf('$compilerParameters.TempFiles.Delete()'));
   assert.ok(script.indexOf('$compilerParameters.TempFiles.Delete()') < script.indexOf('[IO.Directory]::Delete'));
+});
+
+test('compiler filenames use a verified same-directory alias and restore process TEMP before workers launch', () => {
+  const script = windowsCodeDomCompileScript('public class CompilerPathFixture {}', true);
+  assert.ok(script.includes(windowsCodeDomPathValidationScript()));
+  assert.match(script, /GetShortPathNameW\(\$compilerTemp,/);
+  assert.match(script, /GetLongPathNameW\(\$compilerPath,/);
+  assert.match(script, /Assert-GajaeCompilerPath \$compilerTemp \$compilerPath \$compilerLongPath/);
+  assert.match(script, /OutputAssembly = \[IO.Path\]::Combine\(\$compilerPath,/);
+  assert.match(script, /TempFiles.AddFile\(\$compilerParameters.OutputAssembly, \$false\)/);
+  assert.match(script, /short-name generation may be disabled/);
+  assert.match(script, /SetEnvironmentVariable\('TEMP', \$compilerPath, 'Process'\)/);
+  assert.match(script, /SetEnvironmentVariable\('TMP', \$compilerPath, 'Process'\)/);
+  assert.match(script, /SetEnvironmentVariable\('TEMP', \$compilerOriginalTemp, 'Process'\)/);
+  assert.match(script, /SetEnvironmentVariable\('TMP', \$compilerOriginalTmp, 'Process'\)/);
+  assert.doesNotMatch(script, /SetEnvironmentVariable\([^\n]+, '(?:User|Machine)'\)/);
+  assert.ok(script.indexOf('$compilerElevated -and -not $compilerActualLabels.hasHighLabel')
+    < script.indexOf('$compilerPath = Assert-GajaeCompilerPath'));
+  assert.ok(script.indexOf('$compilerPath = Assert-GajaeCompilerPath') < script.indexOf('Add-Type -CompilerParameters'));
+  assert.ok(script.indexOf("SetEnvironmentVariable('TEMP', $compilerOriginalTemp, 'Process')") > script.indexOf('Add-Type -CompilerParameters'));
+  assert.match(script, /\[IO.Directory\]::Delete\(\$compilerTemp, \$true\)/);
 });
 
 test('generated PowerShell enforces raw mandatory ACE fields and reports diagnostics before rejection', () => {

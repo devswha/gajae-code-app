@@ -46,10 +46,26 @@ function Get-GajaeCompilerLabelState([Security.AccessControl.RawSecurityDescript
 `.trim();
 }
 
+/** An existing short name must resolve back to the protected compiler directory. */
+export function windowsCodeDomPathValidationScript(): string {
+  return String.raw`
+function Assert-GajaeCompilerPath([string]$directory, [string]$alias, [string]$resolved) {
+    if ([String]::IsNullOrWhiteSpace($alias) -or $alias -match '[^\x20-\x7e]' -or -not [IO.Path]::IsPathRooted($alias) -or [IO.Path]::GetPathRoot($alias).Length -lt 3) {
+        throw ('No compiler-compatible ASCII 8.3 path is available for the protected Unicode directory; short-name generation may be disabled on this volume. Directory: ' + $directory)
+    }
+    if ([String]::IsNullOrWhiteSpace($resolved) -or -not ([StringComparer]::OrdinalIgnoreCase).Equals([IO.Path]::GetFullPath($directory), [IO.Path]::GetFullPath($resolved))) {
+        throw ('Compiler short path did not resolve to the same protected directory. Directory: ' + $directory + '; alias: ' + $alias + '; resolved: ' + $resolved)
+    }
+    return $alias
+}
+`.trim();
+}
+
 /** Compiles trusted constant C# without CodeDom's ANSI elevated-temp helper. */
 export function windowsCodeDomCompileScript(typeDefinition: string, diagnostics = false): string {
   return String.raw`
 ${windowsCodeDomLabelValidationScript()}
+${windowsCodeDomPathValidationScript()}
 $compilerIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $compilerSid = $compilerIdentity.User.Value
 $compilerPrincipal = [Security.Principal.WindowsPrincipal]::new($compilerIdentity)
@@ -57,6 +73,9 @@ $compilerElevated = $compilerPrincipal.IsInRole([Security.Principal.WindowsBuilt
 $compilerTemp = [IO.Path]::Combine([IO.Path]::GetTempPath(), ('gajae-code-dom-' + [Guid]::NewGuid().ToString('N')))
 $compilerParameters = $null
 $compilerTempCreated = $false
+$compilerOriginalTemp = [Environment]::GetEnvironmentVariable('TEMP', 'Process')
+$compilerOriginalTmp = [Environment]::GetEnvironmentVariable('TMP', 'Process')
+$compilerEnvironmentChanged = $false
 try {
     if ($compilerElevated) {
         # Exact SDDL used by .NET TempFileCollection.CreateTempDirectoryWithAce:
@@ -73,8 +92,8 @@ try {
         $compilerAssembly = [AppDomain]::CurrentDomain.DefineDynamicAssembly([Reflection.AssemblyName]::new('GajaeCodeDomFileApi'), [Reflection.Emit.AssemblyBuilderAccess]::Run)
         $compilerModule = $compilerAssembly.DefineDynamicModule('GajaeCodeDomFileApi')
         $compilerType = $compilerModule.DefineType('GajaeCodeDomFileApi', [Reflection.TypeAttributes]::Public -bor [Reflection.TypeAttributes]::Sealed -bor [Reflection.TypeAttributes]::Abstract)
-        function Add-GajaeCompilerImport($builder, [string]$name, [string]$library, [type[]]$parameters) {
-            $method = $builder.DefineMethod($name, [Reflection.MethodAttributes]::Public -bor [Reflection.MethodAttributes]::Static -bor [Reflection.MethodAttributes]::PinvokeImpl, [bool], $parameters)
+        function Add-GajaeCompilerImport($builder, [string]$name, [string]$library, [type[]]$parameters, [type]$returnType = [bool]) {
+            $method = $builder.DefineMethod($name, [Reflection.MethodAttributes]::Public -bor [Reflection.MethodAttributes]::Static -bor [Reflection.MethodAttributes]::PinvokeImpl, $returnType, $parameters)
             $attributeType = [Runtime.InteropServices.DllImportAttribute]
             $constructor = $attributeType.GetConstructor([type[]]@([string]))
             $fields = [Reflection.FieldInfo[]]@($attributeType.GetField('EntryPoint'), $attributeType.GetField('CharSet'), $attributeType.GetField('ExactSpelling'), $attributeType.GetField('SetLastError'), $attributeType.GetField('CallingConvention'))
@@ -82,9 +101,12 @@ try {
             $method.SetCustomAttribute([Reflection.Emit.CustomAttributeBuilder]::new($constructor, [object[]]@($library), $fields, $values))
             $method.SetImplementationFlags([Reflection.MethodImplAttributes]::PreserveSig)
             if ($name -eq 'GetFileSecurityW') { $null = $method.DefineParameter(3, [Reflection.ParameterAttributes]::Out, 'securityDescriptor') }
+            if ($name -eq 'GetShortPathNameW' -or $name -eq 'GetLongPathNameW') { $null = $method.DefineParameter(2, [Reflection.ParameterAttributes]::Out, 'pathBuffer') }
         }
         Add-GajaeCompilerImport $compilerType 'CreateDirectoryW' 'kernel32.dll' ([type[]]@([string], [IntPtr]))
         Add-GajaeCompilerImport $compilerType 'GetFileSecurityW' 'advapi32.dll' ([type[]]@([string], [uint32], [byte[]], [uint32], [uint32].MakeByRefType()))
+        Add-GajaeCompilerImport $compilerType 'GetShortPathNameW' 'kernel32.dll' ([type[]]@([string], [Text.StringBuilder], [uint32])) ([uint32])
+        Add-GajaeCompilerImport $compilerType 'GetLongPathNameW' 'kernel32.dll' ([type[]]@([string], [Text.StringBuilder], [uint32])) ([uint32])
         $null = $compilerType.CreateType()
     }
     $compilerSecurity = [Security.AccessControl.RawSecurityDescriptor]::new($compilerSddl)
@@ -130,15 +152,51 @@ try {
     if ($compilerElevated -and -not $compilerActualLabels.hasHighLabel) {
         throw ('Compiler directory high-integrity label was not preserved. ' + $compilerSecurityReport)
     }
+    # Keep the directory, ACL and profile intact. Compiler filenames use an
+    # existing 8.3 spelling of that same protected directory.
+    $compilerPath = $compilerTemp
+    $compilerLongPath = $compilerTemp
+    if ($compilerTemp -match '[^\x20-\x7e]') {
+        $shortLength = [GajaeCodeDomFileApi]::GetShortPathNameW($compilerTemp, $null, 0)
+        if ($shortLength -eq 0 -or $shortLength -gt 32768) { throw ('Could not obtain a compiler short-name alias for: ' + $compilerTemp) }
+        $shortBuffer = [Text.StringBuilder]::new([int]$shortLength)
+        $shortWritten = [GajaeCodeDomFileApi]::GetShortPathNameW($compilerTemp, $shortBuffer, $shortBuffer.Capacity)
+        if ($shortWritten -eq 0 -or $shortWritten -ge $shortBuffer.Capacity) { throw ('Invalid compiler short-name alias for: ' + $compilerTemp) }
+        $compilerPath = $shortBuffer.ToString()
+        $longLength = [GajaeCodeDomFileApi]::GetLongPathNameW($compilerPath, $null, 0)
+        if ($longLength -eq 0 -or $longLength -gt 32768) { throw 'Could not verify the compiler short-name alias.' }
+        $longBuffer = [Text.StringBuilder]::new([int]$longLength)
+        $longWritten = [GajaeCodeDomFileApi]::GetLongPathNameW($compilerPath, $longBuffer, $longBuffer.Capacity)
+        if ($longWritten -eq 0 -or $longWritten -ge $longBuffer.Capacity) { throw 'Invalid compiler short-name round trip.' }
+        $compilerLongPath = $longBuffer.ToString()
+    }
+    $compilerPath = Assert-GajaeCompilerPath $compilerTemp $compilerPath $compilerLongPath
     $compilerParameters = [CodeDom.Compiler.CompilerParameters]::new()
     $compilerParameters.GenerateInMemory = $true
     $compilerParameters.ReferencedAssemblies.AddRange([string[]]@('System.dll', 'System.Core.dll'))
-    $compilerParameters.TempFiles = [CodeDom.Compiler.TempFileCollection]::new($compilerTemp, $false)
+    # Explicit TempDir is retained as BasePath; GetFullPath is used only for its
+    # permission demand. OutputAssembly prevents a later implicit long filename.
+    $compilerParameters.TempFiles = [CodeDom.Compiler.TempFileCollection]::new($compilerPath, $false)
+    $compilerParameters.OutputAssembly = [IO.Path]::Combine($compilerPath, 'gajae-code-dom.dll')
+    $compilerParameters.TempFiles.AddFile($compilerParameters.OutputAssembly, $false)
+    $compilerBasePath = $compilerParameters.TempFiles.BasePath
+    if ($compilerBasePath -match '[^\x20-\x7e]') { throw ('CodeDom did not retain its explicit short-name temp path: ' + $compilerBasePath) }
+    ${diagnostics ? `[Console]::Out.WriteLine((@{ compilerPath = $compilerPath; compilerLongPath = $compilerLongPath; compilerBasePath = $compilerBasePath; compilerOutputAssembly = $compilerParameters.OutputAssembly; compilerPathVerified = $true } | ConvertTo-Json -Compress))` : ''}
+    # The native metadata writer may consult TEMP independently of OutputAssembly.
+    # Scope the alias to this guard process during compilation; children must
+    # inherit the original application environment after this helper returns.
+    $compilerEnvironmentChanged = $true
+    [Environment]::SetEnvironmentVariable('TEMP', $compilerPath, 'Process')
+    [Environment]::SetEnvironmentVariable('TMP', $compilerPath, 'Process')
     $null = Add-Type -CompilerParameters $compilerParameters -TypeDefinition @'
 ${typeDefinition}
 '@
 } finally {
     try {
+        if ($compilerEnvironmentChanged) {
+            [Environment]::SetEnvironmentVariable('TEMP', $compilerOriginalTemp, 'Process')
+            [Environment]::SetEnvironmentVariable('TMP', $compilerOriginalTmp, 'Process')
+        }
         if ($compilerTempCreated) {
             # Restore deletion rights only after compilation. Change the DACL
             # alone so high integrity remains in force until removal completes.
@@ -152,6 +210,9 @@ ${typeDefinition}
         $compilerIdentity.Dispose()
     }
 }
+$compilerEnvironmentRestored = ($compilerOriginalTemp -ceq [Environment]::GetEnvironmentVariable('TEMP', 'Process')) -and ($compilerOriginalTmp -ceq [Environment]::GetEnvironmentVariable('TMP', 'Process'))
+if (-not $compilerEnvironmentRestored) { throw 'The compiler did not restore its original process TEMP/TMP.' }
+${diagnostics ? `[Console]::Out.WriteLine((@{ compilerEnvironmentRestored = $compilerEnvironmentRestored; compilerRestoredTemp = [Environment]::GetEnvironmentVariable('TEMP', 'Process'); compilerRestoredTmp = [Environment]::GetEnvironmentVariable('TMP', 'Process') } | ConvertTo-Json -Compress))` : ''}
 `.trim();
 }
 

@@ -207,7 +207,7 @@ try {
     });
     const records = stdout.trim().split(/\r?\n/).map(line => JSON.parse(line));
     if (records.at(-1)?.compiled !== 42) throw new Error('Add-Type did not return its compiled result.');
-    return { ...records[0], ...records.find(record => record.compilerTemp) };
+    return Object.assign({}, ...records.slice(0, -1));
   } catch (error) {
     // Do not echo execFile's command field (production guards use huge encoded
     // commands). The bounded stdout/stderr contain the useful native evidence.

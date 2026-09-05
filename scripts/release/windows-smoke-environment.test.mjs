@@ -95,6 +95,37 @@ foreach ($case in ($env:GAJAE_LABEL_FIXTURES | ConvertFrom-Json)) {
   assert.deepEqual(results[0].aces, [{ type: 0x11, size: 20, flags: 1, mask: 1, sid: 'S-1-16-12288' }]);
 });
 
+test('Windows compiler path policy accepts only ASCII aliases of the same protected directory', {
+  skip: process.platform !== 'win32', timeout: 45_000,
+}, async () => {
+  const { tsImport } = await import('tsx/esm/api');
+  const { windowsCodeDomPathValidationScript } = await tsImport(new URL('../../server/gjc-windows-job.ts', import.meta.url).href, import.meta.url);
+  const original = String.raw`C:\private 가재\compiler`;
+  const cases = [
+    { name: 'verified alias', original, alias: String.raw`C:\PRIVAT~1\compiler`, resolved: original, valid: true },
+    { name: 'case-insensitive round trip', original, alias: String.raw`C:\PRIVAT~1\compiler`, resolved: String.raw`c:\PRIVATE 가재\COMPILER`, valid: true },
+    { name: 'short names unavailable', original, alias: original, resolved: original, valid: false },
+    { name: 'empty alias', original, alias: '', resolved: original, valid: false },
+    { name: 'relative alias', original, alias: 'PRIVAT~1', resolved: original, valid: false },
+    { name: 'different target', original, alias: String.raw`C:\PRIVAT~1\compiler`, resolved: String.raw`C:\another\compiler`, valid: false },
+  ];
+  const source = `$ErrorActionPreference = 'Stop'
+${windowsCodeDomPathValidationScript()}
+foreach ($case in ($env:GAJAE_PATH_FIXTURES | ConvertFrom-Json)) {
+    try { $null = Assert-GajaeCompilerPath $case.original $case.alias $case.resolved; $valid = $true; $reason = '' }
+    catch { $valid = $false; $reason = $_.Exception.Message }
+    [Console]::Out.WriteLine((@{ name = $case.name; valid = $valid; reason = $reason } | ConvertTo-Json -Compress))
+}`;
+  const systemRoot = process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows';
+  const { stdout } = await promisify(execFile)(path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), [
+    '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(source, 'utf16le').toString('base64'),
+  ], { env: { ...process.env, GAJAE_PATH_FIXTURES: JSON.stringify(cases) }, windowsHide: true, shell: false, timeout: 30_000 });
+  const results = stdout.trim().split(/\r?\n/).map(line => JSON.parse(line));
+  assert.deepEqual(results.map(({ name, valid }) => ({ name, valid })), cases.map(({ name, valid }) => ({ name, valid })));
+  assert.match(results[2].reason, /short-name generation may be disabled/);
+  assert.match(results[5].reason, /same protected directory/);
+});
+
 test('real Windows Add-Type works with baseline and isolated Unicode profile, cwd and temp', {
   skip: process.platform !== 'win32', timeout: 140_000,
 }, async t => {
@@ -123,6 +154,14 @@ test('real Windows Add-Type works with baseline and isolated Unicode profile, cw
       assert.equal(result.tempExists, true);
       assert.ok(result.runtime);
       assert.ok(path.resolve(result.compilerTemp).startsWith(path.resolve(result.temp) + path.sep));
+      assert.equal(result.compilerPathVerified, true);
+      assert.equal(path.resolve(result.compilerLongPath).toLowerCase(), path.resolve(result.compilerTemp).toLowerCase());
+      assert.match(result.compilerPath, /^[\x20-\x7e]+$/);
+      assert.ok(result.compilerBasePath.startsWith(result.compilerPath + path.sep));
+      assert.ok(result.compilerOutputAssembly.startsWith(result.compilerPath + path.sep));
+      assert.equal(result.compilerEnvironmentRestored, true);
+      assert.equal(result.compilerRestoredTemp, candidate.TEMP);
+      assert.equal(result.compilerRestoredTmp, candidate.TMP);
       if (result.elevated) {
         assert.match(result.compilerSddl, /\(D;OI;SD;;;/);
         assert.match(result.compilerSddl, /\(A;OICI;FA;;;BA\)/);

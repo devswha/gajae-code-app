@@ -506,8 +506,11 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
   model steps or 120 minutes. Model-facing goal operations do not reset that lease. The interview
   and independently reviewed Ralplan plan reached their requested approval
   stopping points; autoresearch persisted its verdict, completed the goal and
-  retired the mission. Ultragoal and final integrated acceptance are recorded
-  in `plans/followup-acceptance.md`; do not infer completion from an output file.
+  retired the mission. Ultragoal also passed native aggregate evidence and
+  completed its real goal. Final acceptance is recorded in
+  `plans/followup-acceptance.md`. #3 remains open for original Cursor/Anthropic
+  live qualification and upstream workflow/CLI efficiency, outside the
+  requested Astra-only test lane.
 - **CI signing awaits owner-provided credentials.** `gh secret list --env
   release` returned no environment secrets on September 5. The workflow
   and the five required names are documented in

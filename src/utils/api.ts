@@ -70,7 +70,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-    replay: (jobId: string, after: number = 0) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/replay?after=${encodeURIComponent(after)}`),
+    replay: (jobId: string, after: number = 0) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/events?after=${encodeURIComponent(after)}`),
     diff: (jobId: string) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/git/diff`),
     commit: (jobId: string, input: JsonBody) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/git/commit`, {
       method: 'POST',

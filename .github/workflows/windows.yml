@@ -67,14 +67,30 @@ jobs:
           npm run check:licenses
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Test Windows packaging helpers
+        id: packaging
+        run: node --test scripts/fetch-bun.test.mjs scripts/release/windows-payload.test.mjs scripts/release/windows-smoke-environment.test.mjs
+
       - name: Verify Rust core
-        run: npm run check:core
+        id: core
+        if: ${{ !cancelled() && steps.source.outcome == 'success' }}
+        run: |
+          npm run check:core 2>&1 | Tee-Object -FilePath (Join-Path $env:RUNNER_TEMP 'gajae-core-windows.log')
+          exit $LASTEXITCODE
+
+      - name: Upload failed core diagnostics
+        if: ${{ !cancelled() && steps.core.outcome == 'failure' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-core-diagnostics
+          path: ${{ runner.temp }}/gajae-core-windows.log
+          retention-days: 7
 
       - name: Build payload and installer
         id: build
         # Gather independent Windows failures in one run. A failed core check
         # still fails the job and prevents the final artifact upload.
-        if: ${{ !cancelled() && steps.source.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.source.outcome == 'success' && steps.packaging.outcome == 'success' }}
         run: npm run desktop:build:windows
 
       - name: Test Windows runtime

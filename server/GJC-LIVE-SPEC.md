@@ -219,12 +219,15 @@ method or frame changes; the policy travels inside existing payloads:
 ## Process and terminal lifecycle
 
 - On POSIX (Linux and macOS), the application starts the Rust core as a detached
-  process-group leader. The Node worker and GJC children inherit that group;
+  process-group leader. The Bun worker and GJC children inherit that group;
   reaping requires direct-child close and process-group `ESRCH`.
-- Windows is a v2 non-target and runtime-frozen per this brief: CI and a
-  verified desktop machine are unavailable. No `taskkill /T /F` fallback is
-  part of the v2 contract. Windows cleanup is fail-closed as `unconfirmed`, so
-  it cannot release a lease or admit a replacement generation.
+- The Windows x64 preview extends this contract with an atomic Job Object
+  guard. Each worker generation owns a named kill-on-close job; cleanup must
+  verify guard exit and independently verify that the owned job is empty.
+  An unowned child or failed reap still blocks lease release and replacement.
+  The Tauri shell separately owns the complete server tree in an unnamed job
+  and requests graceful shutdown through its private stdin bootstrap. Native
+  CI and desktop acceptance are tracked in `docs/WINDOWS-DESKTOP.md`.
 - `worker.initialize` covers the whole SDK bootstrap (runtime manifest check,
   model registry build, online model discovery), which takes several seconds on
   a loaded machine. The application bounds it at 60 s

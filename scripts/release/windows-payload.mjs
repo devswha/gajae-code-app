@@ -122,15 +122,31 @@ export function windowsBuildEnvironment(nodeDirectory, inherited = process.env) 
 
 export function windowsSmokeEnvironment(nodeDirectory, stateDir, inherited = process.env) {
   const env = {};
-  for (const name of ['SystemRoot', 'WINDIR', 'ComSpec', 'PATHEXT', 'SystemDrive', 'OS', 'PROCESSOR_ARCHITECTURE', 'NUMBER_OF_PROCESSORS']) {
+  // Keep Windows/.NET installation and account metadata needed by OS tools.
+  // User homes, module search paths, caches and credentials stay isolated below.
+  for (const name of [
+    'SystemRoot', 'WINDIR', 'ComSpec', 'PATHEXT', 'SystemDrive', 'OS',
+    'PROCESSOR_ARCHITECTURE', 'PROCESSOR_IDENTIFIER', 'PROCESSOR_LEVEL', 'PROCESSOR_REVISION', 'NUMBER_OF_PROCESSORS',
+    'ProgramFiles', 'ProgramFiles(x86)', 'ProgramW6432', 'CommonProgramFiles', 'CommonProgramFiles(x86)', 'CommonProgramW6432',
+    'ProgramData', 'ALLUSERSPROFILE', 'COMPUTERNAME', 'USERNAME', 'USERDOMAIN',
+  ]) {
     const key = Object.keys(inherited).find(key => key.toLowerCase() === name.toLowerCase());
     if (key) env[name] = inherited[key];
   }
-  const systemRoot = env.SystemRoot || 'C:\\Windows';
+  const systemRoot = env.SystemRoot || env.WINDIR || 'C:\\Windows';
+  const powershellDirectory = path.win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0');
   return {
     ...env,
     SystemRoot: systemRoot,
-    PATH: [nodeDirectory, path.win32.join(systemRoot, 'System32'), systemRoot].join(';'),
+    WINDIR: systemRoot,
+    ComSpec: env.ComSpec || path.win32.join(systemRoot, 'System32', 'cmd.exe'),
+    SystemDrive: env.SystemDrive || path.win32.parse(systemRoot).root.replace(/\\$/, ''),
+    PATHEXT: env.PATHEXT || '.COM;.EXE;.BAT;.CMD',
+    PATH: [nodeDirectory, path.win32.join(systemRoot, 'System32'), systemRoot, powershellDirectory].join(';'),
+    PSModulePath: [
+      ...(env.ProgramFiles ? [path.win32.join(env.ProgramFiles, 'WindowsPowerShell', 'Modules')] : []),
+      path.win32.join(powershellDirectory, 'Modules'),
+    ].join(';'),
     HOME: stateDir, USERPROFILE: stateDir,
     HOMEDRIVE: path.win32.parse(stateDir).root.replace(/\\$/, ''),
     HOMEPATH: stateDir.slice(path.win32.parse(stateDir).root.length - 1),
@@ -140,4 +156,56 @@ export function windowsSmokeEnvironment(nodeDirectory, stateDir, inherited = pro
     DATABASE_PATH: path.join(stateDir, 'auth.db'), GJC_WORKER_AGENT_DIR: path.join(stateDir, 'agent'),
     WORKSPACES_ROOT: path.join(stateDir, 'workspaces'), HOST: '127.0.0.1', NODE_ENV: 'production',
   };
+}
+
+/** Test Windows PowerShell's actual .NET compiler without a built server payload. */
+export async function verifyWindowsSmokeEnvironment(env, cwd, { execute = promisify(execFile) } = {}) {
+  const powershell = path.win32.join(env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  const source = String.raw`
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+[Console]::Error.WriteLine('Checking isolated Windows PowerShell/.NET compiler environment.')
+try {
+    $runtime = [System.Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()
+    $temporary = [System.IO.Path]::GetTempPath()
+    $compiler = [System.IO.Path]::Combine($runtime, 'csc.exe')
+    $details = [ordered]@{
+        powershell = $PSVersionTable.PSVersion.ToString()
+        clr = [Environment]::Version.ToString()
+        runtime = $runtime
+        compiler = $compiler
+        compilerExists = [System.IO.File]::Exists($compiler)
+        cwd = [Environment]::CurrentDirectory
+        temp = $temporary
+        tempExists = [System.IO.Directory]::Exists($temporary)
+        userProfile = $env:USERPROFILE
+        systemRoot = $env:SystemRoot
+    }
+    [Console]::Out.WriteLine(($details | ConvertTo-Json -Compress))
+    if (!$details.compilerExists) { throw 'The Windows .NET Framework csc.exe compiler is missing.' }
+    if (!$details.tempExists) { throw 'The isolated .NET temporary directory does not exist.' }
+    $probe = [System.IO.Path]::Combine($temporary, ('gajae-' + [Guid]::NewGuid().ToString() + '.tmp'))
+    [System.IO.File]::WriteAllText($probe, 'isolated-temp-writable')
+    [System.IO.File]::Delete($probe)
+    Add-Type -TypeDefinition 'public static class GajaeSmokeEnvironmentProbe { public static int Value() { return 42; } }'
+    [Console]::Out.WriteLine(('{"compiled":' + [GajaeSmokeEnvironmentProbe]::Value() + '}'))
+} catch {
+    [Console]::Error.WriteLine($_.Exception.ToString())
+    exit 1
+}
+`.trim();
+  try {
+    const encoded = Buffer.from(source, 'utf16le').toString('base64');
+    const { stdout } = await execute(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], {
+      cwd, env, windowsHide: true, shell: false, encoding: 'utf8', timeout: 60_000, maxBuffer: 64 * 1024,
+    });
+    const records = stdout.trim().split(/\r?\n/).map(line => JSON.parse(line));
+    if (records.at(-1)?.compiled !== 42) throw new Error('Add-Type did not return its compiled result.');
+    return records[0];
+  } catch (error) {
+    // Do not echo execFile's command field (production guards use huge encoded
+    // commands). The bounded stdout/stderr contain the useful native evidence.
+    throw new Error(`Isolated Windows Add-Type preflight failed (exit ${error.code ?? 'unknown'}${error.killed ? ', timed out' : ''}).\n${String(error.stdout ?? '').slice(-16_384)}\n${String(error.stderr ?? (error.cmd ? '' : error.message)).slice(-16_384)}`);
+  }
 }

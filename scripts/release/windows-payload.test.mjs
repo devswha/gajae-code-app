@@ -322,3 +322,34 @@ test('outer smoke reaps its named Job after success, failure, invalid prelude an
     assert.equal(reaped[0].jobName, 'fixture-job');
   }
 });
+
+test('a failing reaper preserves Add-Type startup diagnostics without dumping encoded commands', async t => {
+  const root = await fixture(t);
+  const guard = path.join(root, 'failed guard.mjs');
+  await fs.writeFile(guard, 'process.stderr.write("Add-Type: invalid Unicode compiler path\\n", () => process.exit(1));');
+  let reaped = false;
+  const jobRuntime = {
+    GJC_WINDOWS_JOB_GUARD_READY: 'fixture-ready', GJC_WINDOWS_JOB_GUARD_ACK: 'fixture-ack',
+    createWindowsJobLaunch: (_node, _args, env) => ({ command: process.execPath, args: [guard], env, jobName: 'fixture-job' }),
+    killWindowsJobGuard: async () => {
+      reaped = true;
+      throw new Error('Windows job termination could not be verified.', { cause: Object.assign(
+        new Error('huge-encoded-command-must-not-appear'), { killed: true, stderr: 'reaper diagnostic', cmd: 'huge-encoded-command-must-not-appear' },
+      ) });
+    },
+  };
+  await assert.rejects(runGuardedSmoke({ nodePath: process.execPath, args: [], cwd: root,
+    env: windowsSmokeEnvironment(path.dirname(process.execPath), root), jobRuntime,
+    stdout: { write() {} }, stderr: { write() {} },
+  }), error => {
+    assert.ok(error instanceof AggregateError);
+    assert.equal(error.errors.length, 2);
+    assert.match(error.message, /Add-Type: invalid Unicode compiler path/);
+    assert.match(error.message, /reaper timed out/);
+    assert.match(error.message, /reaper diagnostic/);
+    assert.ok(!error.message.includes('huge-encoded-command-must-not-appear'));
+    assert.ok(error.errors.every(entry => entry.cause === undefined));
+    return true;
+  });
+  assert.equal(reaped, true);
+});

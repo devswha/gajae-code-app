@@ -40,6 +40,8 @@
     "desktop:dev": "node src-tauri/scripts/tauri.mjs dev",
     "server:bundle": "npm run build && node scripts/release/build-server-bundle.js",
     "server:payload:macos": "node scripts/fetch-bun.mjs && npm run build && node scripts/release/build-macos-server-payload.mjs",
+    "server:payload:linux": "node scripts/fetch-bun.mjs && npm run build && node scripts/release/build-linux-server-payload.mjs",
+    "desktop:build:linux": "node scripts/release/build-linux-desktop.mjs",
     "tauri": "node src-tauri/scripts/tauri.mjs",
     "desktop:sign:macos": "node scripts/release/finalize-macos-app.mjs",
     "desktop:dmg:macos": "node scripts/release/make-macos-dmg.mjs",

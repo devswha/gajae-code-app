@@ -1,0 +1,237 @@
+name: Linux desktop
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-linux-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Build artifacts only. Publishing remains a separate release decision.
+jobs:
+  build:
+    name: Build Linux x64 deb and AppImage (glibc 2.35)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    outputs:
+      asset_stem: ${{ steps.metadata.outputs.asset_stem }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.22.2'
+          architecture: x64
+          cache: npm
+
+      - name: Check build host and define canonical assets
+        id: metadata
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test "$(getconf GNU_LIBC_VERSION)" = "glibc 2.35"
+          test "$(node --version)" = v22.22.2
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "asset_stem=gajae-app-desktop-${VERSION}-linux-x64" >> "$GITHUB_OUTPUT"
+
+      - name: Install Tauri 2 Linux prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential pkg-config curl wget file unzip git ca-certificates \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            libxdo-dev libssl-dev librsvg2-dev patchelf xdg-utils libnss3
+
+      - name: Set up Rust
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.85.1 --profile minimal --component rustfmt
+          rustup default 1.85.1
+          rustup target add x86_64-unknown-linux-gnu
+          rustc --version
+
+      - name: Seed verified ripgrep install cache
+        run: node scripts/release/prime-ripgrep-cache.mjs
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch and check pinned Bun runtime
+        run: |
+          set -euo pipefail
+          node scripts/fetch-bun.mjs
+          test "$(dist-native/bun --version)" = 1.4.0
+
+      - name: Check product identity
+        run: npm run check:identity
+
+      - name: Build bundled Linux desktop packages
+        env:
+          # Allow AppImage build tools to run on runners without a FUSE mount.
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: env -u CI npm run desktop:build:linux
+
+      - name: Check Tauri formatting and tests
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          cargo test --locked --manifest-path src-tauri/Cargo.toml
+
+      - name: Verify canonical package names and checksums
+        env:
+          ASSET_STEM: ${{ steps.metadata.outputs.asset_stem }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob dotglob
+          assets=(release/desktop/*)
+          if [ "${#assets[@]}" -ne 4 ]; then
+            echo "Expected only the canonical deb, AppImage, and their checksums." >&2
+            exit 1
+          fi
+          for extension in deb AppImage; do
+            test -f "release/desktop/$ASSET_STEM.$extension"
+            test -f "release/desktop/$ASSET_STEM.$extension.sha256"
+            (
+              cd release/desktop
+              sha256sum --check "$ASSET_STEM.$extension.sha256"
+            )
+          done
+          test "$(dpkg-deb --field "release/desktop/$ASSET_STEM.deb" Architecture)" = amd64
+          dpkg-deb --info "release/desktop/$ASSET_STEM.deb"
+
+      - name: Upload Linux desktop build artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gajae-app-desktop-linux-x64
+          path: release/desktop/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  package-smoke:
+    name: Check packaged server and GUI on ${{ matrix.os }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - ubuntu-24.04
+    env:
+      ASSET_STEM: ${{ needs.build.outputs.asset_stem }}
+    steps:
+      - name: Checkout smoke harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js for the smoke harness
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.22.2'
+          architecture: x64
+
+      - name: Install Linux desktop libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            libxdo-dev libssl-dev librsvg2-dev xdg-utils git ca-certificates libnss3 \
+            python3 python3-gi python3-xlib gir1.2-gtk-3.0 \
+            xvfb xauth dbus-x11 libgl1-mesa-dri fontconfig fonts-dejavu-core \
+            tesseract-ocr tesseract-ocr-eng
+
+      - name: Check GUI smoke regression tests
+        run: node --test scripts/release/smoke-linux-desktop.test.mjs
+
+      - name: Download Linux desktop build artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: gajae-app-desktop-linux-x64
+          path: release/desktop
+
+      - name: Verify downloaded package checksums
+        run: |
+          set -euo pipefail
+          shopt -s nullglob dotglob
+          assets=(release/desktop/*)
+          if [ "${#assets[@]}" -ne 4 ]; then
+            echo "Smoke job received non-canonical desktop assets." >&2
+            exit 1
+          fi
+          for extension in deb AppImage; do
+            test -f "release/desktop/$ASSET_STEM.$extension"
+            test -f "release/desktop/$ASSET_STEM.$extension.sha256"
+            (
+              cd release/desktop
+              sha256sum --check "$ASSET_STEM.$extension.sha256"
+            )
+          done
+          test "$(dpkg-deb --field "release/desktop/$ASSET_STEM.deb" Architecture)" = amd64
+
+      - name: Smoke extracted deb server and GUI outside the checkout
+        run: |
+          set -euo pipefail
+          LINUX_ROOT="$(mktemp -d "$RUNNER_TEMP/gajae-deb.XXXXXX")"
+          trap 'rm -rf "$LINUX_ROOT"' EXIT
+          dpkg-deb -x "release/desktop/$ASSET_STEM.deb" "$LINUX_ROOT"
+          test -x "$LINUX_ROOT/usr/bin/gajae-app-desktop"
+          npm run smoke:packaged-server -- --linux-root "$LINUX_ROOT"
+          npm run smoke:packaged-server -- --linux-root "$LINUX_ROOT" --data-survival
+          python3 scripts/release/smoke-linux-desktop.py \
+            --linux-root "$LINUX_ROOT" --format deb \
+            --artifacts "$RUNNER_TEMP/gajae-gui-smoke/deb"
+
+      - name: Smoke extracted AppImage server and GUI outside the checkout
+        run: |
+          set -euo pipefail
+          APPIMAGE="$GITHUB_WORKSPACE/release/desktop/$ASSET_STEM.AppImage"
+          EXTRACT_DIR="$(mktemp -d "$RUNNER_TEMP/gajae-appimage.XXXXXX")"
+          trap 'rm -rf "$EXTRACT_DIR"' EXIT
+          chmod +x "$APPIMAGE"
+          (
+            cd "$EXTRACT_DIR"
+            "$APPIMAGE" --appimage-extract > "$RUNNER_TEMP/gajae-appimage-extract.log"
+          )
+          test -x "$EXTRACT_DIR/squashfs-root/AppRun"
+          test -x "$EXTRACT_DIR/squashfs-root/usr/bin/gajae-app-desktop"
+          npm run smoke:packaged-server -- --linux-root "$EXTRACT_DIR/squashfs-root"
+          npm run smoke:packaged-server -- --linux-root "$EXTRACT_DIR/squashfs-root" --data-survival
+          npm run smoke:packaged-server -- --linux-root "$EXTRACT_DIR/squashfs-root" --appimage-env
+          python3 scripts/release/smoke-linux-desktop.py \
+            --linux-root "$EXTRACT_DIR/squashfs-root" --format appimage \
+            --artifacts "$RUNNER_TEMP/gajae-gui-smoke/appimage"
+
+      - name: Verify installed Debian launcher and URI registration
+        run: |
+          set -euo pipefail
+          sudo apt-get install --no-install-recommends -y "./release/desktop/$ASSET_STEM.deb"
+          DESKTOP_NAME="$(node -p "require('./package.json').productName")"
+          desktop-file-validate "/usr/share/applications/$DESKTOP_NAME.desktop"
+          python3 -c 'import json; from gi.repository import Gio; name=json.load(open("package.json"))["productName"]; app=Gio.DesktopAppInfo.new_from_filename("/usr/share/applications/"+name+".desktop"); assert app and app.supports_uris(); assert Gio.AppInfo.get_default_for_uri_scheme("gajae-app") is not None'
+          python3 scripts/release/smoke-linux-desktop.py \
+            --linux-root / --format deb \
+            --artifacts "$RUNNER_TEMP/gajae-gui-smoke/installed-deb"
+
+      - name: Upload GUI smoke evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gajae-linux-gui-${{ matrix.os }}
+          path: ${{ runner.temp }}/gajae-gui-smoke/
+          if-no-files-found: warn
+          retention-days: 14

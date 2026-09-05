@@ -352,47 +352,74 @@ type ProductionWorkerResult = {
 async function runProductionWorker(env: NodeJS.ProcessEnv = {}): Promise<ProductionWorkerResult> {
   const bun = join(process.cwd(), 'dist-native', 'bun');
   const worker = join(process.cwd(), 'server', 'gjc-bun-worker.ts');
-  return new Promise((resolve, reject) => {
-    const child = spawn(bun, [worker], {
-      cwd: process.cwd(),
-      env: { ...process.env, ...env },
-      stdio: ['pipe', 'pipe', 'pipe'],
+  const home = await mkdtemp(join(tmpdir(), 'gjc-worker-home-'));
+  const agentDirectory = env.GJC_WORKER_AGENT_DIR ?? join(home, 'agent');
+  // GJC_WORKER_AGENT_DIR isolates AuthStorage, but the SDK's global registry
+  // and preset cache use getAgentDir(). Inheriting the operator's profile made
+  // this handshake load their accepted model registry and exceed Bun's 5s
+  // test deadline. Provider keys also triggered unrelated online discovery.
+  const inherited = Object.fromEntries(
+    ['PATH', 'SystemRoot', 'WINDIR', 'COMSPEC', 'PATHEXT', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TERM']
+      .filter((name) => process.env[name] !== undefined)
+      .map((name) => [name, process.env[name]]),
+  );
+  try {
+    return await new Promise((resolve, reject) => {
+      const child = spawn(bun, ['--no-env-file', worker], {
+        cwd: process.cwd(),
+        env: {
+          ...inherited,
+          ...env,
+          HOME: home,
+          USERPROFILE: home,
+          XDG_CONFIG_HOME: join(home, '.config'),
+          XDG_DATA_HOME: join(home, '.local', 'share'),
+          XDG_STATE_HOME: join(home, '.local', 'state'),
+          XDG_CACHE_HOME: join(home, '.cache'),
+          GJC_WORKER_AGENT_DIR: agentDirectory,
+          GJC_CODING_AGENT_DIR: agentDirectory,
+          PI_CODING_AGENT_DIR: agentDirectory,
+        },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      const frames: Array<Record<string, unknown>> = [];
+      let stderr = '';
+      let stdout = '';
+      let initialized = false;
+      const timeout = setTimeout(() => {
+        child.kill();
+        reject(new Error('Production Bun worker timed out.'));
+      }, 10_000);
+      child.stdout.setEncoding('utf8');
+      child.stderr.setEncoding('utf8');
+      child.stdout.on('data', (chunk: string) => {
+        stdout += chunk;
+        const lines = stdout.split('\n');
+        stdout = lines.pop()!;
+        for (const line of lines) {
+          if (line) frames.push(JSON.parse(line) as Record<string, unknown>);
+        }
+        const init = frames.find((frame) => frame.kind === 'response' && frame.id === 'entry-init');
+        if (init && !initialized) {
+          initialized = true;
+          child.stdin.write(`${JSON.stringify(request('worker.shutdown', 'entry-shutdown'))}\n`);
+          child.stdin.end();
+        }
+      });
+      child.stderr.on('data', (chunk: string) => { stderr += chunk; });
+      child.once('error', (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+      child.once('close', (exitCode) => {
+        clearTimeout(timeout);
+        resolve({ frames, stderr, exitCode });
+      });
+      child.stdin.write(`${JSON.stringify(request('worker.initialize', 'entry-init'))}\n`);
     });
-    const frames: Array<Record<string, unknown>> = [];
-    let stderr = '';
-    let stdout = '';
-    let initialized = false;
-    const timeout = setTimeout(() => {
-      child.kill();
-      reject(new Error('Production Bun worker timed out.'));
-    }, 10_000);
-    child.stdout.setEncoding('utf8');
-    child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => {
-      stdout += chunk;
-      const lines = stdout.split('\n');
-      stdout = lines.pop()!;
-      for (const line of lines) {
-        if (line) frames.push(JSON.parse(line) as Record<string, unknown>);
-      }
-      const init = frames.find((frame) => frame.kind === 'response' && frame.id === 'entry-init');
-      if (init && !initialized) {
-        initialized = true;
-        child.stdin.write(`${JSON.stringify(request('worker.shutdown', 'entry-shutdown'))}\n`);
-        child.stdin.end();
-      }
-    });
-    child.stderr.on('data', (chunk: string) => { stderr += chunk; });
-    child.once('error', (error) => {
-      clearTimeout(timeout);
-      reject(error);
-    });
-    child.once('close', (exitCode) => {
-      clearTimeout(timeout);
-      resolve({ frames, stderr, exitCode });
-    });
-    child.stdin.write(`${JSON.stringify(request('worker.initialize', 'entry-init'))}\n`);
-  });
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 }
 
 process.env.GJC_RUNTIME_API_KEY ??= 'contract-test-key';

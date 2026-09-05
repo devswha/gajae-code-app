@@ -140,7 +140,7 @@
         "live": "Live",
         "offline": "Offline"
       },
-      "unsupported": "Automation preview needs Apple Silicon with macOS 14 or newer.",
+      "unsupported": "Workspace Browser is available in the macOS arm64 and Linux x64 desktop apps.",
       "error": "Could not start browser automation.",
       "downloadBlocked": "Blocked download: {{filename}}. This preview cannot save downloads.",
       "downloadUnknown": "download",

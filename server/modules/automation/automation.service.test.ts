@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import { AutomationGrantStore } from './automation-grants.js';
-import { AutomationService } from './automation.service.js';
+import { AutomationService, automationSupport } from './automation.service.js';
 
 function memoryStorage() {
   const values = new Map<string, string>();
@@ -13,6 +16,108 @@ function memoryStorage() {
     set: (key: string, value: string) => { values.set(key, value); },
   };
 }
+
+test('Linux desktop enables the browser without widening native computer support', () => {
+  assert.deepEqual(automationSupport('linux', 'x64', { GJC_DESKTOP: '1' }), { browser: true, computer: false });
+  assert.deepEqual(automationSupport('darwin', 'arm64', { GJC_DESKTOP: '1' }), { browser: true, computer: true });
+  for (const [platform, arch] of [['linux', 'arm64'], ['darwin', 'x64'], ['win32', 'x64']] as const) {
+    assert.deepEqual(automationSupport(platform, arch, { GJC_DESKTOP: '1' }), { browser: false, computer: false });
+  }
+  assert.deepEqual(automationSupport('linux', 'x64', {}), { browser: false, computer: false });
+  assert.deepEqual(automationSupport('linux', 'x64', { GAJAE_AUTOMATION: '1' }), { browser: true, computer: true });
+});
+
+test('Linux desktop status and browser calls work without inspecting or calling CUA', { skip: process.platform !== 'linux' || process.arch !== 'x64' }, async () => {
+  const previous = { GJC_DESKTOP: process.env.GJC_DESKTOP, GAJAE_AUTOMATION: process.env.GAJAE_AUTOMATION };
+  process.env.GJC_DESKTOP = '1';
+  delete process.env.GAJAE_AUTOMATION;
+  try {
+    const service = new AutomationService();
+    service.cua.status = async () => { throw new Error('Linux browser must not inspect CUA'); };
+    service.cua.call = async () => { throw new Error('Linux browser must not call CUA'); };
+    service.browser.status = async () => ({ state: 'idle', installed: false, buildId: 'fixture' });
+    service.browser.open = async (sessionId, payload) => ({ sessionId, url: payload.url });
+    const status = await service.status();
+    assert.equal(status.supported, true);
+    assert.equal(status.computerSupported, false);
+    assert.deepEqual(await service.openBrowser('linux-session', { url: 'http://localhost:5173' }), { sessionId: 'linux-session', url: 'http://localhost:5173' });
+    await assert.rejects(service.callComputer('linux-session', 'list_apps', {}), /Native computer automation is not enabled/);
+    await assert.rejects(service.authorizeComputer('linux-session', { tool: 'list_apps' }), /Native computer automation is not enabled/);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
+test('shutdown of an unstarted service preserves an existing configured socket path and another bridge environment', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'gajae-bridge-owner-'));
+  const socket = join(directory, 'automation.sock');
+  await writeFile(socket, 'owned by another instance');
+  const previous = { GAJAE_AUTOMATION_SOCKET: process.env.GAJAE_AUTOMATION_SOCKET, GJC_AUTOMATION_SOCKET: process.env.GJC_AUTOMATION_SOCKET, GJC_AUTOMATION_TOKEN: process.env.GJC_AUTOMATION_TOKEN };
+  Object.assign(process.env, { GAJAE_AUTOMATION_SOCKET: socket, GJC_AUTOMATION_SOCKET: socket, GJC_AUTOMATION_TOKEN: 'another-bridge' });
+  try {
+    await new AutomationService().shutdown();
+    assert.equal(await readFile(socket, 'utf8'), 'owned by another instance');
+    assert.equal(process.env.GJC_AUTOMATION_TOKEN, 'another-bridge');
+    assert.equal(process.env.GJC_AUTOMATION_SOCKET, socket);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('starting on an occupied Unix socket fails without disconnecting its existing owner', { skip: process.platform === 'win32' }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'gajae-bridge-in-use-'));
+  const socket = join(directory, 'automation.sock');
+  const owner = net.createServer(client => client.end('existing owner'));
+  owner.listen(socket);
+  await once(owner, 'listening');
+  const previous = { GAJAE_AUTOMATION: process.env.GAJAE_AUTOMATION, GAJAE_AUTOMATION_SOCKET: process.env.GAJAE_AUTOMATION_SOCKET };
+  Object.assign(process.env, { GAJAE_AUTOMATION: '1', GAJAE_AUTOMATION_SOCKET: socket });
+  try {
+    const service = new AutomationService();
+    await assert.rejects(service.startBridge(), { code: 'EADDRINUSE' });
+    await service.shutdown();
+    const client = net.createConnection(socket);
+    const [data] = await once(client, 'data');
+    assert.equal(data.toString(), 'existing owner');
+    client.destroy();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    await new Promise<void>(resolve => owner.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('shutdown closes idle automation clients instead of waiting forever for them', { skip: process.platform === 'win32', timeout: 2000 }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'gajae-bridge-idle-'));
+  const socket = join(directory, 'automation.sock');
+  const previous = { GAJAE_AUTOMATION: process.env.GAJAE_AUTOMATION, GAJAE_AUTOMATION_SOCKET: process.env.GAJAE_AUTOMATION_SOCKET };
+  Object.assign(process.env, { GAJAE_AUTOMATION: '1', GAJAE_AUTOMATION_SOCKET: socket });
+  const service = new AutomationService();
+  let client: net.Socket | undefined;
+  try {
+    await service.startBridge();
+    client = net.createConnection(socket);
+    await once(client, 'connect');
+    const closed = once(client, 'close');
+    await service.shutdown();
+    await closed;
+    await assert.rejects(readFile(socket), { code: 'ENOENT' });
+  } finally {
+    client?.destroy();
+    await service.shutdown();
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('browser authorization is origin-scoped and can persist for one session', async () => {
   const previous = process.env.GAJAE_AUTOMATION;

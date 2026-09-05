@@ -21,6 +21,7 @@ import {
   normalizeBrowserViewport,
   type BrowserViewportSize,
 } from '../../../../shared/browserViewport';
+import { openBrowserUrl } from '../../../utils/externalLink';
 
 type BrowserTab = {
   id: string;
@@ -108,6 +109,10 @@ function BrowserSession({ sessionId, navigationRequest, onNavigationHandled }: B
     () => state?.tabs.find((tab) => tab.id === state.activeTabId) ?? null,
     [state],
   );
+
+  const openInBrowser = async () => {
+    if (activeTab && !await openBrowserUrl(activeTab.url)) setError(t('workspace.browser.error'));
+  };
 
   useEffect(() => {
     if (activeTab?.url && activeTab.url !== 'about:blank') setAddress(activeTab.url);
@@ -440,7 +445,7 @@ function BrowserSession({ sessionId, navigationRequest, onNavigationHandled }: B
           <input value={address} onChange={(event) => setAddress(event.target.value)} aria-label={t('workspace.browser.address')} className="h-7 w-full rounded-md border border-border/70 bg-background px-2 text-xs text-foreground outline-hidden focus:border-primary" />
         </form>
         <span title={t(`workspace.browser.connection.${connection}`)} aria-label={t(`workspace.browser.connection.${connection}`)} className={`h-2 w-2 rounded-full ${connection === 'live' ? 'bg-primary' : connection === 'connecting' ? 'bg-foreground/50' : 'bg-muted-foreground/40'}`} />
-        <button type="button" disabled={!activeTab} onClick={() => activeTab && window.open(activeTab.url, '_blank', 'noopener,noreferrer')} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label={t('workspace.browser.external')}><ExternalLink className="h-3.5 w-3.5" /></button>
+        <button type="button" disabled={!activeTab} onClick={() => void openInBrowser()} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label={t('workspace.browser.external')}><ExternalLink className="h-3.5 w-3.5" /></button>
         <button type="button" disabled={!state || busy} onClick={() => void stop()} className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30" aria-label={t('workspace.browser.stop')}><Square className="h-3.5 w-3.5" /></button>
       </div>
 

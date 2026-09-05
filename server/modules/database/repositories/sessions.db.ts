@@ -65,9 +65,18 @@ export const sessionsDb = {
     const db = getConnection();
     const mapped = db.prepare('SELECT session_id FROM sessions WHERE provider = ? AND provider_session_id = ? LIMIT 1')
       .get(provider, providerSessionId) as { session_id: string } | undefined;
+    const worktree = sessionWorktreesDb.get(mapped?.session_id ?? providerSessionId);
+    if (worktree && !mapped) {
+      const existing = db.prepare('SELECT provider, provider_session_id FROM sessions WHERE session_id = ?')
+        .get(providerSessionId) as { provider: string; provider_session_id: string | null } | undefined;
+      if (!existing || existing.provider !== provider || (existing.provider_session_id && existing.provider_session_id !== providerSessionId)) {
+        throw new Error('Transcript identity conflicts with a bound worktree session.');
+      }
+    }
     // The provider transcript owns execution cwd; the app binding owns project
-    // grouping and permissions. A worktree transcript must not move its parent.
-    const storedProjectPath = (mapped && sessionWorktreesDb.get(mapped.session_id)?.repository_root) || providerProjectPath(provider, projectPath);
+    // grouping and permissions. Protect both the provider-mapped UPDATE and
+    // direct app-id UPSERT, including a transcript observed before announcement.
+    const storedProjectPath = worktree?.repository_root ?? providerProjectPath(provider, projectPath);
     const created = isoTimestamp(createdAt);
     const updated = isoTimestamp(updatedAt);
     projectsDb.ensureProjectPathForSession(storedProjectPath);
@@ -104,6 +113,9 @@ export const sessionsDb = {
       }
       const other = db.prepare(`SELECT ${rowColumns} FROM sessions WHERE provider = ? AND (session_id = ? OR provider_session_id = ?) AND session_id <> ? LIMIT 1`)
         .get(provider, providerSessionId, providerSessionId, sessionId) as SessionRow | undefined;
+      if (other && sessionWorktreesDb.get(other.session_id)) {
+        throw new Error('Provider session identity already belongs to a bound worktree session.');
+      }
       const result = db.prepare(`UPDATE sessions SET provider_session_id = ?, jsonl_path = COALESCE(jsonl_path, ?), name_source = CASE WHEN custom_name IS NULL AND ? IS NOT NULL THEN ? ELSE name_source END, custom_name = COALESCE(custom_name, ?), updated_at = CURRENT_TIMESTAMP WHERE session_id = ? AND provider = ?`)
         .run(providerSessionId, other?.jsonl_path ?? null, other?.custom_name ?? null, other?.name_source ?? null, other?.custom_name ?? null, sessionId, provider);
       if (result.changes !== 1) {

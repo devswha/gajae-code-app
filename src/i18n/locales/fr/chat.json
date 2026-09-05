@@ -78,6 +78,7 @@
       "label": "En file d'attente",
       "willSend": "Envoie lorsque l'exécution en cours se termine",
       "willFollow": "Envoie après les messages ci-dessus",
+      "awaitingSteer": "En attente de confirmation de la consigne",
       "edit": "Modifier l'élément en file d'attente",
       "delete": "Supprimer l'élément en file d'attente",
       "moveUp": "Remonter dans la file d'attente",

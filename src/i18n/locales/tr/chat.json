@@ -78,6 +78,7 @@
       "label": "Sıraya alındı",
       "willSend": "Geçerli çalıştırma bittiğinde gönderilir",
       "willFollow": "Yukarıdaki mesajlardan sonra gönderilir",
+      "awaitingSteer": "Yönlendirme onayı bekleniyor",
       "edit": "Sıraya alınmış öğeyi düzenle",
       "delete": "Sıraya alınmış öğeyi kaldır",
       "moveUp": "Sırada yukarı git",

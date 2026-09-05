@@ -204,6 +204,36 @@ test('chat.permission-response with always remembers the provider\'s tool for th
   });
 });
 
+test('non-boolean approval values cannot grant or persist tool permissions', async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('typed-permissions', 'gjc', '/workspace/typed-permissions');
+    const socket = new FakeWebSocket();
+    const decisions: boolean[] = [];
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'typed-permissions', provider: 'gjc', providerSessionId: null,
+      connection: socket as unknown as WebSocket, userId: 'user-1',
+    });
+    assert.ok(run);
+    handleChatConnection(socket as unknown as WebSocket, { user: { id: 'user-1' } } as never, {
+      spawnFns: {} as never, abortFns: {} as never,
+      resolveToolApproval: (_id, decision) => { decisions.push(decision.allow); },
+      getPendingApprovalsForSession: () => [],
+    });
+    try {
+      for (const [index, allow] of ['false', 'true', 1, [], {}, null].entries()) {
+        const requestId = `typed-${index}`;
+        run.writer.send({ kind: 'permission_request', requestId, toolName: 'bash' });
+        socket.emit('message', JSON.stringify({ type: 'chat.permission-response', requestId, allow, always: true }));
+      }
+      await flushMessages();
+      assert.deepEqual(decisions, [false, false, false, false, false, false]);
+      assert.deepEqual(projectPermissionsDb.get('/workspace/typed-permissions').allow_always, []);
+    } finally {
+      socket.emit('close');
+    }
+  });
+});
+
 test('chat.send prefers the session\'s persisted model choice over the client\'s global default', async () => {
   await withIsolatedDatabase(async () => {
     sessionsDb.createAppSession('model-override-session', 'gjc', '/workspace/model-project');

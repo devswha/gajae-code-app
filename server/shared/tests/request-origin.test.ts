@@ -36,11 +36,25 @@ test('a malformed origin is rejected rather than guessed at', () => {
   assert.equal(isAllowedRequestOrigin('://', loopback), false);
 });
 
-test('a missing origin is allowed, because only non-browsers omit it', () => {
-  // The Tauri shell, a CLI and the tests all omit it; a browser cannot omit it
-  // cross-origin, so rejecting this would cost reach and buy no safety.
+test('a missing origin is allowed for a permitted Host, including same-origin browser GETs', () => {
   assert.equal(isAllowedRequestOrigin(undefined, loopback), true);
   assert.equal(isAllowedRequestOrigin('', loopback), true);
+});
+
+test('matching Host and Origin cannot bypass an explicitly configured DNS host list', () => {
+  const policy = { hostHeader: 'attacker.example:3001', allowedHosts: ['studio.example'] };
+  assert.equal(isAllowedRequestOrigin('http://attacker.example:3001', policy), false);
+  assert.equal(isAllowedRequestOrigin(undefined, policy), false);
+  assert.equal(isAllowedRequestOrigin('', policy), false);
+  assert.equal(isAllowedRequestOrigin('https://studio.example', policy), false);
+});
+
+test('unconfigured DNS domains fail closed even with a matching HTTPS Origin', () => {
+  const policy = { hostHeader: 'published.example', allowedHosts: undefined };
+  assert.equal(isAllowedRequestOrigin('https://published.example', policy), false);
+  assert.equal(isAllowedRequestOrigin('http://published.example', policy), false);
+  assert.equal(isAllowedRequestOrigin(undefined, policy), false);
+  assert.equal(isAllowedRequestOrigin('https://other.example', policy), false);
 });
 
 test('the dev client on another port is allowed', () => {
@@ -111,9 +125,10 @@ test('an address this machine does not hold is still foreign', () => {
   assert.equal(isAllowedRequestOrigin('http://198.51.100.7:5173', loopback), false);
 });
 
-test('an unknown Host header falls back to the configured list alone', () => {
-  const policy = { hostHeader: undefined, allowedHosts: ['studio.example'] } as const;
-
-  assert.equal(isAllowedRequestOrigin('https://studio.example', policy), true);
-  assert.equal(isAllowedRequestOrigin('http://198.51.100.7:5173', policy), false);
+test('missing or malformed Host headers cannot borrow trust from a listed Origin', () => {
+  for (const hostHeader of [undefined, '', 'studio.example/path', 'attacker.example@studio.example', 'studio.example?x', 'studio.example#x', 'studio.example:bad']) {
+    const policy = { hostHeader, allowedHosts: ['studio.example'] };
+    assert.equal(isAllowedRequestOrigin('https://studio.example', policy), false, String(hostHeader));
+    assert.equal(isAllowedRequestOrigin(undefined, policy), false, String(hostHeader));
+  }
 });

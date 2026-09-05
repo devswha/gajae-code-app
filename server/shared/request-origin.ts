@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import { networkInterfaces } from 'node:os';
 
 import { isLoopbackHost } from '../../shared/networkHosts.js';
@@ -14,17 +15,22 @@ import { isLoopbackHost } from '../../shared/networkHosts.js';
  *
  * The rules, and why each one is what it is:
  *
- * - **No Origin header: allowed.** Browsers always send `Origin` on a WebSocket
- *   handshake and on every cross-origin fetch, so an absent Origin is a
- *   non-browser caller - the Tauri shell, a CLI, a test. Rejecting it would
- *   break those without stopping anything a browser can do.
+ * - **Host admission comes first and defaults closed for DNS names.** Only
+ *   loopback names and literal IP addresses work without ALLOWED_HOSTS. Other
+ *   DNS names must be listed even when Origin matches Host or is omitted;
+ *   otherwise a rebinding page can nominate its own hostname as trusted.
+ *   IP literals cannot be rebound through DNS. Reverse-proxy deployments must
+ *   list their published names; `*` explicitly opts out of host admission.
+ * - **No Origin header: allowed after Host admission.** Same-origin GETs,
+ *   native callers and navigations can omit it. Checking Host first prevents
+ *   a rebinding page's GET from evading host admission.
  * - **`null`: rejected.** That is the opaque origin a sandboxed iframe, a
  *   `file://` page or a `data:` document sends. Nothing legitimate here uses it.
  * - **Same hostname as the request's Host: allowed, on any port.** In
  *   development the browser talks to Vite on 5173 and Vite proxies to 3001,
  *   forwarding the original Origin - so the ports never match and comparing
- *   them would break every dev session. The relaxation is bounded to one
- *   hostname: a remote site is a different hostname and is still rejected.
+ *   them would break every dev session. DNS names still have to pass the
+ *   Host admission above; equality alone is not evidence of trust.
  * - **Loopback to loopback: allowed.** `localhost` and `127.0.0.1` are the same
  *   machine, and which one appears depends on how the user typed the URL.
  * - **One of this machine's own addresses: allowed.** Reaching the app over a
@@ -39,7 +45,7 @@ import { isLoopbackHost } from '../../shared/networkHosts.js';
 export type OriginPolicy = {
   /** Value of the request's `Host` header. */
   hostHeader: string | undefined;
-  /** Parsed `ALLOWED_HOSTS`: `true` allows any, a list admits those names. */
+  /** Parsed `ALLOWED_HOSTS`: `true` allows any; absent means no extra DNS names. */
   allowedHosts: readonly string[] | true | undefined;
 };
 
@@ -47,7 +53,7 @@ export type OriginPolicy = {
 function hostnameOf(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
-  if (!trimmed) return undefined;
+  if (!trimmed || /[\\/?#@\s]/u.test(trimmed)) return undefined;
   try {
     return new URL(`http://${trimmed}`).hostname;
   } catch {
@@ -95,6 +101,13 @@ export function isAllowedRequestOrigin(
   origin: string | undefined,
   { hostHeader, allowedHosts }: OriginPolicy,
 ): boolean {
+  const requestHostname = hostnameOf(hostHeader)?.toLowerCase();
+  if (!requestHostname) return false;
+  if (!isLoopbackHost(requestHostname)
+      && !isIP(requestHostname.replace(/^\[|\]$/g, ''))
+      && !matchesAllowedHost(requestHostname, allowedHosts)) {
+    return false;
+  }
   if (origin === undefined || origin === '') return true;
   if (origin === 'null') return false;
 
@@ -106,9 +119,8 @@ export function isAllowedRequestOrigin(
   }
   if (!originHostname) return false;
 
-  const requestHostname = hostnameOf(hostHeader)?.toLowerCase();
-  if (requestHostname && originHostname === requestHostname) return true;
-  if (requestHostname && isLoopbackHost(originHostname) && isLoopbackHost(requestHostname)) return true;
+  if (originHostname === requestHostname) return true;
+  if (isLoopbackHost(originHostname) && isLoopbackHost(requestHostname)) return true;
   if (isOwnAddress(originHostname)) return true;
 
   return matchesAllowedHost(originHostname, allowedHosts);

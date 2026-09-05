@@ -571,6 +571,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           systemPrompt: (defaults: string[]) => [...defaults, GAJAE_APP_ENV_NOTE],
           cwd: config.cwd,
           sessionManager,
+          // The SDK defaults provider/cache identity to this manager's logical
+          // ID, including on exact-ID resume. Supplying the same ID explicitly
+          // instead makes SDK 0.15.6 expose a transcript-path endpoint tuple as
+          // tool getSessionId()/GJC_SESSION_ID, which workflow skills reject.
+          // Keep the SDK's default logical endpoint and transition rekeying.
           settings,
           authStorage: this.authStorage,
           modelRegistry: this.modelRegistry,
@@ -580,7 +585,6 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
               ? { thinkingLevel: config.effort }
               : {}
           ),
-          providerSessionId: resumedId ?? sessionManager.getSessionId(),
           ...(resolvedCredential.credentialSelector
             ? { credentialSelector: resolvedCredential.credentialSelector }
             : {}),

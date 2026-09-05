@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { isolatedQaEnvironment } from '../start-isolated-dev.mjs';
+
 import { describeDistributionExclusions, removeExcludedDistributionPackages, removeNonAsciiPaths } from './distribution-exclusions.mjs';
 import { withOutOfTreeCopy } from './out-of-tree.mjs';
 
@@ -169,8 +171,6 @@ async function smoke(payloadNode) {
   const smoke = `
     import { createRequire } from 'node:module';
     import { spawn, spawnSync } from 'node:child_process';
-    import { mkdtemp, rm } from 'node:fs/promises';
-    import os from 'node:os';
     import path from 'node:path';
     const require = createRequire(import.meta.url);
     const Database = require('better-sqlite3');
@@ -185,7 +185,7 @@ async function smoke(payloadNode) {
     });
     const bun = path.join(process.cwd(), 'dist-native', 'bun');
     if (spawnSync(bun, ['--version'], { encoding: 'utf8' }).stdout.trim() !== '${BUN_VERSION}') throw new Error('Bundled Bun version mismatch');
-    const agentDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-payload-agent-'));
+    const agentDir = process.env.GJC_WORKER_AGENT_DIR;
     await new Promise((resolve, reject) => {
       const worker = spawn(bun, [path.join(process.cwd(), 'dist-server/server/gjc-bun-worker.js')], { env: { ...process.env, GJC_WORKER_AGENT_DIR: agentDir }, stdio: ['pipe', 'pipe', 'pipe'] });
       let buffered = ''; let initialized = false; let shutdown = false; let stderr = '';
@@ -197,7 +197,6 @@ async function smoke(payloadNode) {
       worker.once('error', fail); worker.once('close', code => { clearTimeout(timer); code === 0 && initialized && shutdown && !stderr ? resolve() : reject(new Error('Bun worker handshake failed (exit ' + code + '): ' + stderr)); });
       setTimeout(() => worker.stdin.write(JSON.stringify({ protocolVersion: 1, kind: 'request', id: 'init', method: 'worker.initialize', payload: {} }) + '\\n'), 25);
     });
-    await rm(agentDir, { recursive: true, force: true });
     const port = 39000 + Math.floor(Math.random() * 1000);
     const server = spawn(process.execPath, ['dist-server/server/index.js'], { env: { ...process.env, PATH: path.dirname(process.execPath) + ':/usr/bin:/bin', SERVER_PORT: String(port), HOST: '127.0.0.1', GJC_WORKER_AGENT_DIR: agentDir }, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = ''; server.stdout.setEncoding('utf8'); server.stderr.setEncoding('utf8'); server.stdout.on('data', chunk => { output += chunk; }); server.stderr.on('data', chunk => { output += chunk; });
@@ -211,7 +210,16 @@ async function smoke(payloadNode) {
   const buildOnlyNode = path.join(payloadDir, 'node');
   await withOutOfTreeCopy(payloadDir, 'macOS server payload', async (copyDir) => {
     console.log(`Smoking the payload from ${copyDir} (outside the repository tree).`);
-    await run(payloadNode, ['--input-type=module', '--eval', smoke], { cwd: copyDir, env: { ...process.env, PATH: `${path.dirname(payloadNode)}:/usr/bin:/bin` } });
+    const qaHome = await fs.mkdtemp(path.join(os.tmpdir(), 'gajae-payload-smoke-'));
+    try {
+      const environment = isolatedQaEnvironment({ parentEnv: process.env, qaHome, host: '127.0.0.1', serverPort: 3001, vitePort: 5173, remote: false });
+      await run(payloadNode, ['--input-type=module', '--eval', smoke], {
+        cwd: copyDir,
+        env: { ...environment, PATH: `${path.dirname(payloadNode)}:/usr/bin:/bin` },
+      });
+    } finally {
+      await fs.rm(qaHome, { recursive: true, force: true });
+    }
   }, { filter: (source) => source !== buildOnlyNode && !source.startsWith(`${buildOnlyNode}${path.sep}`) });
 }
 

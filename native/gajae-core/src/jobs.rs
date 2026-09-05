@@ -360,22 +360,8 @@ impl PersistentAuthority {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|_| AuthorityError::Storage)?;
         verify_lease(&tx, id, lease)?;
-        let exists: bool = tx
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM runs WHERE run_id=?1 AND job_id=?2)",
-                params![run_id, id],
-                |r| r.get(0),
-            )
-            .map_err(|_| AuthorityError::Storage)?;
-        if !exists {
-            return Err(AuthorityError::InvalidTransition);
-        }
-        let event = append(&tx, id, event_id, &payload)?;
-        tx.execute(
-            "UPDATE job_events SET run_id=?3 WHERE job_id=?1 AND event_id=?2",
-            params![id, event_id, run_id],
-        )
-        .map_err(|_| AuthorityError::Storage)?;
+        verify_current_run(&tx, id, run_id)?;
+        let event = append_for_run(&tx, id, run_id, event_id, &payload)?;
         tx.commit().map_err(|_| AuthorityError::Storage)?;
         Ok(event)
     }
@@ -803,6 +789,7 @@ impl PersistentAuthority {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|_| AuthorityError::Storage)?;
         verify_lease(&tx, id, lease)?;
+        verify_current_run(&tx, id, run_id)?;
         let existing: Option<Option<String>> = tx
             .query_row(
                 "SELECT provider_session_id FROM runs WHERE run_id=?1 AND job_id=?2",
@@ -848,6 +835,7 @@ impl PersistentAuthority {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|_| AuthorityError::Storage)?;
         verify_lease(&tx, id, lease)?;
+        verify_current_run(&tx, id, run_id)?;
         if !matches!(state(&tx, id)?, JobState::Queued | JobState::Running) {
             return Err(AuthorityError::InvalidTransition);
         }
@@ -971,16 +959,12 @@ impl PersistentAuthority {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|_| AuthorityError::Storage)?;
         verify_lease(&tx, id, lease)?;
+        verify_current_run(&tx, id, run_id)?;
         let updated = tx.execute("UPDATE runs SET state=?3,outcome=?3 WHERE run_id=?1 AND job_id=?2 AND state NOT IN ('succeeded','failed','aborted','interrupted')", params![run_id, id, next.as_str()]).map_err(|_| AuthorityError::Storage)?;
         if updated != 1 {
             return Err(AuthorityError::InvalidTransition);
         }
-        append(&tx, id, event_id, &payload)?;
-        tx.execute(
-            "UPDATE job_events SET run_id=?3 WHERE job_id=?1 AND event_id=?2",
-            params![id, event_id, run_id],
-        )
-        .map_err(|_| AuthorityError::Storage)?;
+        append_for_run(&tx, id, run_id, event_id, &payload)?;
         let job_state = if next == JobState::Interrupted {
             "interrupted"
         } else {
@@ -1128,6 +1112,57 @@ fn verify_lease(tx: &Transaction<'_>, id: &str, lease: &Lease) -> Result<(), Aut
         }
         _ => Err(AuthorityError::StaleLease),
     }
+}
+
+fn verify_current_run(tx: &Transaction<'_>, id: &str, run_id: &str) -> Result<(), AuthorityError> {
+    let current: Option<(String, String)> = tx
+        .query_row(
+            "SELECT run_id,state FROM runs WHERE job_id=?1 ORDER BY rowid DESC LIMIT 1",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|_| AuthorityError::Storage)?;
+    match current {
+        Some((current_run, state))
+            if current_run == run_id
+                && !matches!(
+                    state.as_str(),
+                    "succeeded" | "failed" | "aborted" | "interrupted"
+                ) =>
+        {
+            Ok(())
+        }
+        _ => Err(AuthorityError::InvalidTransition),
+    }
+}
+
+fn append_for_run(
+    tx: &Transaction<'_>,
+    id: &str,
+    run_id: &str,
+    event_id: &str,
+    payload: &Value,
+) -> Result<JobEvent, AuthorityError> {
+    validate_id(event_id)?;
+    let existing_run: Option<Option<String>> = tx
+        .query_row(
+            "SELECT run_id FROM job_events WHERE job_id=?1 AND event_id=?2",
+            params![id, event_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| AuthorityError::Storage)?;
+    if existing_run.is_some_and(|existing| existing.as_deref() != Some(run_id)) {
+        return Err(AuthorityError::EventConflict);
+    }
+    let event = append(tx, id, event_id, payload)?;
+    tx.execute(
+        "UPDATE job_events SET run_id=?3 WHERE job_id=?1 AND event_id=?2",
+        params![id, event_id, run_id],
+    )
+    .map_err(|_| AuthorityError::Storage)?;
+    Ok(event)
 }
 
 fn is_unique_constraint(error: &rusqlite::Error) -> bool {
@@ -3163,6 +3198,148 @@ mod tests {
         assert_eq!(a.resolve_binding("p", "app"), Err(AuthorityError::NotFound));
         std::fs::remove_dir_all(d).unwrap();
     }
+
+    fn admit_test_run(authority: &mut PersistentAuthority) -> Lease {
+        let lease = authority
+            .reserve_start("j", "p", "app", "owner", None, 4)
+            .unwrap()
+            .lease
+            .unwrap();
+        authority
+            .prepare("j", &lease, "/tmp/tree", "job/j", "base", "/tmp")
+            .unwrap();
+        authority.admit("j", &lease, "r1", "app").unwrap();
+        authority
+            .transition("j", &lease, JobState::Running)
+            .unwrap();
+        lease
+    }
+
+    #[test]
+    fn a_readmitted_lease_cannot_mutate_the_previous_run() {
+        let (d, p) = db();
+        let mut a = PersistentAuthority::open(&p).unwrap();
+        let old_lease = admit_test_run(&mut a);
+        a.transition("j", &old_lease, JobState::Interrupted)
+            .unwrap();
+        let current = a.readmit("j", "next-owner", "r2", "app", 4).unwrap();
+        let lease = current.lease.as_ref().unwrap();
+        assert_eq!(
+            a.append_event_for_run("j", lease, "r1", "late-output", json!("old")),
+            Err(AuthorityError::InvalidTransition)
+        );
+        assert_eq!(
+            a.bind_provider_session("j", lease, "r1", "old-provider-session"),
+            Err(AuthorityError::InvalidTransition)
+        );
+        assert_eq!(
+            a.mark_dispatching("j", lease, "r1"),
+            Err(AuthorityError::InvalidTransition)
+        );
+        assert_eq!(
+            a.finalize_run(
+                "j",
+                lease,
+                "r1",
+                JobState::Succeeded,
+                "late-final",
+                json!(null)
+            ),
+            Err(AuthorityError::InvalidTransition)
+        );
+        assert_eq!(a.snapshot("j").unwrap(), current);
+        assert_eq!(
+            a.resolve_binding("p", "app").unwrap().provider_session_id,
+            None
+        );
+        a.bind_provider_session("j", lease, "r2", "current-provider-session")
+            .unwrap();
+        a.mark_dispatching("j", lease, "r2").unwrap();
+        a.append_event_for_run("j", lease, "r2", "current-output", json!("new"))
+            .unwrap();
+        assert_eq!(
+            a.finalize_run(
+                "j",
+                lease,
+                "r2",
+                JobState::Succeeded,
+                "current-final",
+                json!(null)
+            )
+            .unwrap()
+            .state,
+            JobState::Ready
+        );
+        drop(a);
+        std::fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn event_retries_cannot_reassign_history_to_another_run() {
+        let (d, p) = db();
+        let mut a = PersistentAuthority::open(&p).unwrap();
+        let lease = admit_test_run(&mut a);
+        let event = a
+            .append_event_for_run("j", &lease, "r1", "shared-event", json!(1))
+            .unwrap();
+        assert_eq!(
+            a.append_event_for_run("j", &lease, "r1", "shared-event", json!(1))
+                .unwrap(),
+            event
+        );
+        a.finalize_run(
+            "j",
+            &lease,
+            "r1",
+            JobState::Succeeded,
+            "r1-final",
+            json!(null),
+        )
+        .unwrap();
+        let current = a.turn_admit("j", "app", "next-owner", "r2", 4).unwrap();
+        let lease = current.lease.as_ref().unwrap();
+        assert_eq!(
+            a.append_event_for_run("j", lease, "r2", "shared-event", json!(1)),
+            Err(AuthorityError::EventConflict)
+        );
+        assert_eq!(
+            a.finalize_run(
+                "j",
+                lease,
+                "r2",
+                JobState::Succeeded,
+                "r1-final",
+                json!(null)
+            ),
+            Err(AuthorityError::EventConflict)
+        );
+        assert_eq!(a.snapshot("j").unwrap(), current);
+        let run: String = a
+            .connection
+            .query_row(
+                "SELECT run_id FROM job_events WHERE event_id='shared-event'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(run, "r1");
+        assert_eq!(
+            a.finalize_run(
+                "j",
+                lease,
+                "r2",
+                JobState::Succeeded,
+                "r2-final",
+                json!(null)
+            )
+            .unwrap()
+            .state,
+            JobState::Ready
+        );
+        drop(a);
+        std::fs::remove_dir_all(d).unwrap();
+    }
+
     #[test]
     fn accepts_a_64_kib_request_body() {
         let (d, p) = db();

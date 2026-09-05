@@ -123,3 +123,18 @@ test('automation routes exercise a fake CUA backend and persistent grant revoke 
     await server.close();
   }
 });
+
+test('invalid grant revoke filters return 400 without calling the grant store', async () => {
+  const calls: RecordedCall[] = [];
+  const server = await serve(createAutomationRouter(fakeService(calls)));
+  try {
+    for (const body of [[], { scope: 'session' }, { scope: 'invalid' }, { sessionId: '../outside' }, { value: '' }, { kind: null }, { scpoe: 'always' }]) {
+      const response = await server.request('/grants', { ...json(body), method: 'DELETE' });
+      assert.equal(response.status, 400, JSON.stringify(body));
+      await response.text();
+    }
+    assert.deepEqual(calls, []);
+  } finally {
+    await server.close();
+  }
+});

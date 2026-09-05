@@ -15,12 +15,12 @@ test('WebSocket authentication runs the desktop-key gate before attaching the im
     }
   };
 
-  assert.equal(verifyWebSocketClient({ req: { url: '/ws', headers: {} } }, dependencies), false);
+  assert.equal(verifyWebSocketClient({ req: { url: '/ws', headers: { host: '127.0.0.1:3001' } } }, dependencies), false);
   assert.equal(authenticated, false);
 });
 
 test('WebSocket authentication attaches the implicit owner after the desktop-key gate passes', () => {
-  const request = { url: '/ws', headers: {} };
+  const request = { url: '/ws', headers: { host: '127.0.0.1:3001' } };
   const dependencies = {
     desktopAuth: {
       authenticateWebSocket: () => true

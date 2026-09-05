@@ -27,13 +27,14 @@ export type StatusCommandData = { version?: string; packageName?: string; uptime
 export type HelpCommandData = { content?: string; format?: string; commands?: Array<{ name: string; description?: string; namespace?: string }>; };
 type CommandModalKind = 'help' | 'models' | 'cost' | 'status';
 export type CommandModalPayload = { kind: CommandModalKind; data: HelpCommandData | ModelCommandData | CostCommandData | StatusCommandData; };
-export type QueuedDraft = { content: string; images: File[]; options?: QueuedSendOptions; pendingSteer?: boolean; };
+export type QueuedDraft = { id?: string; content: string; images: File[]; options?: QueuedSendOptions; pendingSteer?: boolean; };
 export type PendingCommandGate = CommandGate & { text: string };
 
 const TURN_START_GRACE = 5000;
 const STEER_REPLY_GRACE = 5000;
 const syntheticSubmit = () => ({ preventDefault() {} }) as unknown as FormEvent<HTMLFormElement>;
-const storedQueue = (id: string): QueuedDraft[] => readQueuedMessages(id).map(({ content, options }) => ({ content, options, images: [] }));
+const storedQueue = (id: string): QueuedDraft[] => readQueuedMessages(id).map((draft) => ({ ...draft, images: [] }));
+const steerKey = (sessionId: string, content: string) => JSON.stringify([sessionId, content]);
 const shorten = (text: string) => { const compact = text.replace(/\s+/g, ' ').trim(); return compact ? (compact.length > 80 ? `${compact.slice(0, 77)}...` : compact) : null; };
 const sessionLabel = (session: ProjectSession | null, input: string) => shorten(String(session?.summary || session?.name || session?.title || '')) || shorten(input);
 const resetBox = (setInput: (value: string) => void, value: MutableRefObject<string>, setImages: (files: File[]) => void, setUploads: (items: Map<string, number>) => void, setErrors: (items: Map<string, string>) => void, resetCommands: () => void, setExpanded: (open: boolean) => void, area: RefObject<HTMLTextAreaElement | null>) => { setInput(''); value.current = ''; setImages([]); setUploads(new Map()); setErrors(new Map()); resetCommands(); setExpanded(false); if (area.current) area.current.style.height = 'auto'; };
@@ -58,7 +59,7 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   const inputRef = useRef(input);
   const lineHeight = useRef<number | null>(null);
   const resized = useRef<string | null>(null);
-  const submitRef = useRef<((event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>) => Promise<void>) | null>(null);
+  const submitRef = useRef<((event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>, queued?: QueuedDraft) => Promise<void>) | null>(null);
   const queueOwner = useRef<string | null>(conversation);
   const queueInFlight = useRef(false);
   const dispatchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -66,7 +67,7 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   const priorConversation = useRef(conversation);
   const bypassGate = useRef(false);
   const gateRef = useRef<PendingCommandGate | null>(null);
-  const steerAnswer = useRef<(content: string, accepted: boolean) => void>(() => undefined);
+  const steerAnswer = useRef<(content: string, accepted: boolean, sessionId: string) => void>(() => undefined);
   const steerWaiting = useRef(new Map<string, Array<{ draft: QueuedDraft; timer: ReturnType<typeof setTimeout> }>>());
 
   const eraseDraft = useCallback((settled?: string | null) => { if (projectId) draftKeysToClear(projectId, conversation, settled).forEach((key) => safeLocalStorage.removeItem(key)); }, [conversation, projectId]);
@@ -92,29 +93,72 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   const descend = useCallback(async (target: WorkspaceCandidate): Promise<Project> => { const response = await authenticatedFetch(`/api/projects/${encodeURIComponent(selectedProject!.projectId)}/descend`, { method: 'POST', body: JSON.stringify({ path: target.path }) }); if (!response.ok) { const body = await response.json().catch(() => ({})) as { error?: string | { message?: string } }; const error = body.error; throw new Error(typeof error === 'string' ? error : error?.message ?? `Failed to switch to ${target.name} (${response.status})`); } return (await response.json())?.data as Project; }, [selectedProject]);
   const allocate = useCallback(async (summary: string | null, text: string) => { let id = selectedSession ? (selectedSession.__provider === 'gjc' ? selectedSession.id : null) : currentSessionId; if (id) return id; const target = await resolveForSend(text); const project = target ? await descend(target) : selectedProject; const response = await authenticatedFetch('/api/providers/sessions', { method: 'POST', body: JSON.stringify({ provider: 'gjc', projectPath: project?.fullPath || project?.path || '' }) }); if (!response.ok) throw new Error(`Failed to create session (${response.status})`); id = (await response.json())?.data?.sessionId || null; if (!id) throw new Error('no session id returned.'); onSessionEstablished?.(id, { provider: 'gjc', project: project!, summary }); return id; }, [currentSessionId, descend, onSessionEstablished, resolveForSend, selectedProject, selectedSession]);
 
-  const handleSubmit = useCallback(async (event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>) => {
-    event.preventDefault(); const text = inputRef.current; if (!text.trim() || !selectedProject) return;
+  const handleSubmit = useCallback(async (event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>, queued?: QueuedDraft) => {
+    event.preventDefault(); const text = queued?.content ?? inputRef.current; if (!text.trim() || !selectedProject) return;
+    const sendOptions = queued?.options ?? optionsFor(text);
+    const files = queued?.images ?? attachedImages;
     const signIn = /^\/login(?:\s+(.*))?$/.exec(text.trim()); if (signIn) { login(signIn[1]?.trim() || undefined); resetCommandMenuState(); return; }
-    if (isLoading) { queueOwner.current = conversation; setQueuedDrafts((q) => [...q, { content: text, images: attachedImages, options: optionsFor(text) }]); clearComposer(); eraseDraft(); return; }
+    if (isLoading) { queueOwner.current = conversation; setQueuedDrafts((q) => [...q, { content: text, images: files, options: sendOptions }]); clearComposer(); eraseDraft(); return; }
     const candidate = text.trimEnd(); const help = candidate.trim().toLowerCase() === 'help';
     if (candidate.startsWith('/') || help) { const gap = candidate.indexOf(' '); const name = help ? '/help' : gap > 0 ? candidate.slice(0, gap) : candidate; const commandArgs = gap > 0 ? candidate.slice(gap).trim() : ''; const app = findAppUiCommand(resolveCommandAlias(name)); if (app && (app.interceptWithArgs !== false || !commandArgs)) { clearComposer(); applyAppCommand(app); return; } const notice = getLocalCommandNotice(name, commandArgs); if (notice) { clearComposer(); addMessage({ type: 'assistant', content: notice, timestamp: Date.now() }); return; } if (!bypassGate.current) { const gate = gateForCommand(resolveCommandAlias(name), commandArgs); if (gate) { clearComposer(); announceGate({ ...gate, text: candidate }); return; } } bypassGate.current = false; }
-    let images: unknown[]; try { images = await upload(attachedImages); } catch (error) { const message = error instanceof Error ? error.message : 'Unknown error'; console.error('Image upload failed:', error); addMessage({ type: 'error', content: `Failed to upload images: ${message}`, timestamp: new Date() }); return; }
+    let images: unknown[]; try { images = await upload(files); } catch (error) { const message = error instanceof Error ? error.message : 'Unknown error'; console.error('Image upload failed:', error); addMessage({ type: 'error', content: `Failed to upload images: ${message}`, timestamp: new Date() }); return; }
     const summary = sessionLabel(selectedSession, text); let id: string; try { id = await allocate(summary, text); } catch (error) { const message = error instanceof Error ? error.message : 'Unknown error'; console.error('Session creation failed:', error); addMessage({ type: 'error', content: `Failed to start a new session: ${message}`, timestamp: new Date() }); return; }
-    addMessage({ type: 'user', content: text, images: images as any, timestamp: new Date() }); onSessionProcessing?.(id, { statusText: null, canInterrupt: true }); setIsUserScrolledUp(false); setTimeout(scrollToBottom, 100); sendMessage({ type: 'chat.send', sessionId: id, content: text, options: { ...optionsFor(text), images } }); clearComposer(); eraseDraft(id);
+    addMessage({ type: 'user', content: text, images: images as any, timestamp: new Date() }); onSessionProcessing?.(id, { statusText: null, canInterrupt: true }); setIsUserScrolledUp(false); setTimeout(scrollToBottom, 100); sendMessage({ type: 'chat.send', sessionId: id, content: text, options: { ...sendOptions, images } }); clearComposer(); eraseDraft(id);
   }, [addMessage, allocate, announceGate, applyAppCommand, attachedImages, clearComposer, conversation, eraseDraft, isLoading, login, onSessionProcessing, optionsFor, resetCommandMenuState, scrollToBottom, selectedProject, selectedSession, sendMessage, setIsUserScrolledUp, upload]);
   useEffect(() => { submitRef.current = handleSubmit; }, [handleSubmit]);
 
-  const handleSteer = useCallback((event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>) => { event.preventDefault(); const text = inputRef.current; const id = selectedSession?.id || currentSessionId || null; if (!isLoading || !text.trim() || !selectedProject || !id || attachedImages.length || !isAutoSendable(classifyCommandInput(text))) return; const draft = { content: text, images: [], options: optionsFor(text) }; const timer = setTimeout(() => steerAnswer.current(text, false), STEER_REPLY_GRACE); const pending = steerWaiting.current.get(text) || []; pending.push({ draft, timer }); steerWaiting.current.set(text, pending); queueOwner.current = conversation; setQueuedDrafts((q) => [...q, { ...draft, pendingSteer: true }]); sendMessage({ type: 'chat.steer', sessionId: id, content: text }); clearComposer(); eraseDraft(id); }, [attachedImages.length, clearComposer, conversation, currentSessionId, eraseDraft, isLoading, optionsFor, selectedProject, selectedSession?.id, sendMessage]);
-  const resolveSteerResult = useCallback((content: string, accepted: boolean) => { const list = steerWaiting.current.get(content); const pending = list?.shift(); if (!pending) return; if (!list?.length) steerWaiting.current.delete(content); clearTimeout(pending.timer); if (!accepted) { setQueuedDrafts((q) => { const at = q.findIndex((item) => item.pendingSteer && item.content === content); if (at < 0) return [...q, pending.draft]; const copy = q.slice(); copy[at] = { ...copy[at], pendingSteer: false }; return copy; }); return; } setQueuedDrafts((q) => { const at = q.findIndex((item) => item.pendingSteer && item.content === content); return at < 0 ? q : q.filter((_, index) => index !== at); }); addMessage({ type: 'user', content: pending.draft.content, timestamp: new Date() } as never); const id = selectedSession?.id || currentSessionId; if (id) onSessionProcessing?.(id, { statusText: null, canInterrupt: true }); scrollToBottom(); }, [addMessage, currentSessionId, onSessionProcessing, scrollToBottom, selectedSession?.id]);
+  const restoreQueue = useCallback((id: string) => storedQueue(id).map((draft) => ({
+    ...draft,
+    pendingSteer: Boolean(draft.id && steerWaiting.current.get(steerKey(id, draft.content))?.some((pending) => pending.draft.id === draft.id)),
+  })), []);
+  const handleSteer = useCallback((event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    const text = inputRef.current;
+    const id = selectedSession?.id || currentSessionId || null;
+    if (!isLoading || !text.trim() || !selectedProject || !id || attachedImages.length || !isAutoSendable(classifyCommandInput(text))) return;
+    const draft: QueuedDraft = { id: `steer_${Date.now()}_${Math.random().toString(36).slice(2)}`, content: text, images: [], options: optionsFor(text) };
+    const timer = setTimeout(() => steerAnswer.current(text, false, id), STEER_REPLY_GRACE);
+    const key = steerKey(id, text);
+    const pending = steerWaiting.current.get(key) || [];
+    pending.push({ draft, timer });
+    steerWaiting.current.set(key, pending);
+    queueOwner.current = conversation;
+    setQueuedDrafts((q) => [...q, { ...draft, pendingSteer: true }]);
+    sendMessage({ type: 'chat.steer', sessionId: id, content: text });
+    clearComposer();
+    eraseDraft(id);
+  }, [attachedImages.length, clearComposer, conversation, currentSessionId, eraseDraft, isLoading, optionsFor, selectedProject, selectedSession?.id, sendMessage]);
+  const resolveSteerResult = useCallback((content: string, accepted: boolean, sessionId: string | null = conversation) => {
+    if (!sessionId) return;
+    const key = steerKey(sessionId, content);
+    const list = steerWaiting.current.get(key);
+    const pending = list?.shift();
+    if (!pending) return;
+    if (!list?.length) steerWaiting.current.delete(key);
+    clearTimeout(pending.timer);
+    const settle = (queue: QueuedDraft[]) => accepted
+      ? queue.filter((item) => item.id !== pending.draft.id)
+      : queue.map((item) => item.id === pending.draft.id ? { ...item, pendingSteer: false } : item);
+    if (sessionId === conversation) {
+      setQueuedDrafts(settle);
+      if (accepted) {
+        addMessage({ type: 'user', content: pending.draft.content, timestamp: new Date() });
+        scrollToBottom();
+      }
+    } else if (accepted) {
+      writeQueuedMessages(sessionId, settle(storedQueue(sessionId)));
+    }
+    if (accepted) onSessionProcessing?.(sessionId, { statusText: null, canInterrupt: true });
+  }, [addMessage, conversation, onSessionProcessing, scrollToBottom]);
   useEffect(() => { steerAnswer.current = resolveSteerResult; }, [resolveSteerResult]);
   useEffect(() => () => { for (const list of steerWaiting.current.values()) list.forEach(({ timer }) => clearTimeout(timer)); steerWaiting.current.clear(); }, []);
 
-  useEffect(() => { const switched = priorConversation.current !== conversation; priorConversation.current = conversation; const wasBusy = priorLoading.current; priorLoading.current = isLoading; if (isLoading) { queueInFlight.current = false; if (dispatchTimer.current) clearTimeout(dispatchTimer.current); } const head = queuedDrafts[0]; const verdict = decideQueueFlush({ sessionSwitched: switched, isLoading, wasLoading: wasBusy, queueLength: queuedDrafts.length, awaitingDispatchedTurn: queueInFlight.current, composerHasInput: Boolean(input.trim()), headAwaitingSteer: Boolean(head?.pendingSteer) }); if (verdict.action !== 'flush' || !head) return; const timer = setTimeout(() => { const disk = conversation ? readQueuedMessages(conversation) : []; if (conversation && disk.length < queuedDrafts.length) { setQueuedDrafts(storedQueue(conversation)); return; } queueInFlight.current = true; if (dispatchTimer.current) clearTimeout(dispatchTimer.current); dispatchTimer.current = setTimeout(() => { queueInFlight.current = false; setQueuePulse((n) => n + 1); }, TURN_START_GRACE); setQueuedDrafts((q) => q.slice(1)); setInput(head.content); inputRef.current = head.content; setAttachedImages(head.images); setTimeout(() => void submitRef.current?.(syntheticSubmit()), 0); }, verdict.delayMs); return () => clearTimeout(timer); }, [conversation, input, isLoading, queuePulse, queuedDrafts]);
+  useEffect(() => { const switched = priorConversation.current !== conversation; priorConversation.current = conversation; const wasBusy = priorLoading.current; priorLoading.current = isLoading; if (isLoading) { queueInFlight.current = false; if (dispatchTimer.current) clearTimeout(dispatchTimer.current); } const head = queuedDrafts[0]; const verdict = decideQueueFlush({ sessionSwitched: switched, isLoading, wasLoading: wasBusy, queueLength: queuedDrafts.length, awaitingDispatchedTurn: queueInFlight.current, composerHasInput: Boolean(input.trim()), headAwaitingSteer: Boolean(head?.pendingSteer) }); if (verdict.action !== 'flush' || !head) return; const timer = setTimeout(() => { const disk = conversation ? readQueuedMessages(conversation) : []; if (conversation && disk.length < queuedDrafts.length) { setQueuedDrafts(restoreQueue(conversation)); return; } queueInFlight.current = true; if (dispatchTimer.current) clearTimeout(dispatchTimer.current); dispatchTimer.current = setTimeout(() => { queueInFlight.current = false; setQueuePulse((n) => n + 1); }, TURN_START_GRACE); setQueuedDrafts((q) => q.slice(1)); setInput(head.content); inputRef.current = head.content; setAttachedImages(head.images); setTimeout(() => { if (queueOwner.current === conversation) void submitRef.current?.(syntheticSubmit(), head); }, 0); }, verdict.delayMs); return () => clearTimeout(timer); }, [conversation, input, isLoading, queuePulse, queuedDrafts, restoreQueue]);
   useEffect(() => () => { if (dispatchTimer.current) clearTimeout(dispatchTimer.current); }, []);
   useEffect(() => { if (!projectId) return; const value = safeLocalStorage.getItem(draftInputKey(projectId, conversation)) || ''; setInput((old) => { inputRef.current = value; return old === value ? old : value; }); }, [conversation, projectId]);
   useEffect(() => { if (!projectId) return; const key = draftInputKey(projectId, conversation); if (input) safeLocalStorage.setItem(key, input); else safeLocalStorage.removeItem(key); }, [conversation, input, projectId]);
-  useEffect(() => { if (conversation && queueOwner.current === conversation) { if (queuedDrafts.length) writeQueuedMessages(conversation, queuedDrafts.map(({ content, options }) => ({ content, options }))); else clearQueuedMessages(conversation); } }, [conversation, queuedDrafts]);
-  useEffect(() => { queueOwner.current = conversation; queueInFlight.current = false; setQueuedDrafts(conversation ? storedQueue(conversation) : []); }, [conversation]);
+  useEffect(() => { if (conversation && queueOwner.current === conversation) { if (queuedDrafts.length) writeQueuedMessages(conversation, queuedDrafts.map(({ id, content, options }) => ({ id, content, options }))); else clearQueuedMessages(conversation); } }, [conversation, queuedDrafts]);
+  useEffect(() => { queueOwner.current = conversation; queueInFlight.current = false; setQueuedDrafts(conversation ? restoreQueue(conversation) : []); }, [conversation, restoreQueue]);
 
   const resize = useCallback((target: HTMLTextAreaElement) => { target.style.height = 'auto'; const height = Math.max(22, target.scrollHeight); target.style.height = `${height}px`; if (!lineHeight.current) { const parsed = parseInt(window.getComputedStyle(target).lineHeight); lineHeight.current = Number.isFinite(parsed) ? parsed : 24; } setExpanded(height > lineHeight.current * 2); resized.current = target.value; }, []);
   useEffect(() => { if (textareaRef.current && resized.current !== input) resize(textareaRef.current); }, [input, resize]);

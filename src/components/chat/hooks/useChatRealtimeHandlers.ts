@@ -28,7 +28,7 @@ interface UseChatRealtimeHandlersArgs {
   onSessionProcessing?: MarkSessionProcessing;
   onSessionIdle?: MarkSessionIdle;
   onWebSocketReconnect?: () => void;
-  onSteerResult?: (content: string, steered: boolean) => void;
+  onSteerResult?: (content: string, steered: boolean, sessionId: string | null) => void;
   sessionStore: SessionStore;
 }
 
@@ -102,7 +102,7 @@ export function useChatRealtimeHandlers({
       }
       if (event.kind === 'chat_steered') {
         const content = typeof event.content === 'string' ? event.content : '';
-        if (content) onSteerResult?.(content, event.steered === true);
+        if (content) onSteerResult?.(content, event.steered === true, sessionId);
         return;
       }
       if (event.kind === 'protocol_error') {
@@ -121,6 +121,12 @@ export function useChatRealtimeHandlers({
       if (event.kind === 'stream_delta') {
         const content = (event.content as string) || '';
         if (!content) return;
+        // Only the displayed session owns the composer's stream accumulator.
+        // Other subscribed runs keep their deltas in their own store window.
+        if (sessionId !== visible) {
+          if (sessionId) sessionStore.appendRealtime(sessionId, event as unknown as NormalizedMessage);
+          return;
+        }
         accumulatedStreamRef.current += content;
         // Deltas land many times a frame; one paint per frame carries them
         // all. A fixed 100 ms timer painted the answer in ten steps a second,
@@ -132,7 +138,6 @@ export function useChatRealtimeHandlers({
             if (sessionId) sessionStore.updateStreaming(sessionId, accumulatedStreamRef.current, provider);
           });
         }
-        if (sessionId && sessionId !== visible) sessionStore.appendRealtime(sessionId, event as unknown as NormalizedMessage);
         return;
       }
       if (event.kind === 'stream_end') {
@@ -141,6 +146,16 @@ export function useChatRealtimeHandlers({
         // did not stream has none at all - without this the answer stayed on
         // disk until the next full reload.
         const content = typeof event.content === 'string' ? event.content : '';
+        if (sessionId !== visible) {
+          if (sessionId && content) sessionStore.appendRealtime(sessionId, {
+            ...event,
+            // Finalized live text uses the same identity convention as
+            // finalizeStreaming so a later disk window can absorb its echo.
+            id: `text_${sessionId}_${event.id || event.seq || `${Date.now()}_${Math.random().toString(36).slice(2)}`}`,
+            kind: 'text', role: 'assistant', content,
+          } as unknown as NormalizedMessage);
+          return;
+        }
         if (content) accumulatedStreamRef.current = content;
         flushStreaming(sessionId, true);
         return;
@@ -149,7 +164,7 @@ export function useChatRealtimeHandlers({
       if (sessionId && !skipsStore.has(event.kind)) sessionStore.appendRealtime(sessionId, event as unknown as NormalizedMessage);
 
       if (event.kind === 'complete') {
-        flushStreaming(sessionId, false);
+        if (sessionId === visible) flushStreaming(sessionId, false);
         onSessionIdle?.(sessionId);
         if (sessionId === visible) commitPermissions([]);
         if (event.aborted) return;
@@ -187,9 +202,9 @@ export function useChatRealtimeHandlers({
       }
       if (event.kind === 'status') {
         if (event.text === 'token_budget' && event.tokenBudget) {
-          setTokenBudget(event.tokenBudget as Record<string, unknown>);
+          if (sessionId === visible) setTokenBudget(event.tokenBudget as Record<string, unknown>);
         } else if (event.text === 'session_state' && event.sessionState) {
-          setSessionState?.((previous) => ({ ...(previous ?? {}), ...(event.sessionState as Record<string, unknown>) }));
+          if (sessionId === visible) setSessionState?.((previous) => ({ ...(previous ?? {}), ...(event.sessionState as Record<string, unknown>) }));
         } else if (typeof event.text === 'string' && sessionId) {
           onSessionProcessing?.(sessionId, { statusText: event.text || null, canInterrupt: event.canInterrupt !== false });
         }

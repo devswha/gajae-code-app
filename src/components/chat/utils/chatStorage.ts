@@ -28,7 +28,7 @@ export const safeLocalStorage = {
 };
 
 export type QueuedSendOptions = Record<string, unknown>;
-export type StoredQueuedMessage = { content: string; options?: QueuedSendOptions };
+export type StoredQueuedMessage = { id?: string; content: string; options?: QueuedSendOptions };
 
 const sessionDraftKey = (sessionId: string) => `${DRAFT_KEY_PREFIX}session_${sessionId}`;
 export const queuedMessageKey = (sessionId: string) => `${QUEUE_KEY_PREFIX}${sessionId}`;
@@ -42,9 +42,9 @@ export function draftKeysToClear(projectId: string, sessionId?: string | null, s
 
 function validQueuedMessage(value: unknown): StoredQueuedMessage | null {
   if (!value || typeof value !== 'object') return null;
-  const { content, options } = value as StoredQueuedMessage;
+  const { id, content, options } = value as StoredQueuedMessage;
   if (typeof content !== 'string' || !content.trim()) return null;
-  return options === undefined ? { content } : { content, options };
+  return { ...(typeof id === 'string' && id ? { id } : {}), content, ...(options === undefined ? {} : { options }) };
 }
 
 export function readQueuedMessages(sessionId: string): StoredQueuedMessage[] {

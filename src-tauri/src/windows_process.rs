@@ -544,8 +544,10 @@ mod tests {
                 "server should complete its SIGTERM handler"
             );
             assert!(output.contains("graceful-shutdown"), "{output}");
+            // Job accounting can reach zero just before the kernel signals
+            // the last process handle. Require that signal within a bound.
             assert_eq!(
-                unsafe { WaitForSingleObject(descendant.as_raw_handle(), 0) },
+                unsafe { WaitForSingleObject(descendant.as_raw_handle(), 5_000) },
                 WAIT_OBJECT_0
             );
             assert!(process.tree_is_empty().unwrap());

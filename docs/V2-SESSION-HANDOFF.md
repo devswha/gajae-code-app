@@ -478,10 +478,10 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
   [`plans/adversarial-skills-e2e-2026-09-05.md`](plans/adversarial-skills-e2e-2026-09-05.md).
   DNS deployments now require explicit `ALLOWED_HOSTS`; see `SELF-HOST.md`.
   The app avoids the SDK workflow-ID defect by omitting the redundant explicit
-  provider ID, and restores skill requests from transcript metadata. Delegation
-  remains disabled because an offline real-SDK test proved that children bypass
-  their parent's permission policy. Research/file artifacts do not mean that
-  `ralplan`, `ultragoal` or the autoresearch goal lifecycle completed.
+  provider ID, and restores skill requests from transcript metadata. The raw
+  SDK delegation path remains unsafe. The follow-up implementation replaces
+  it with app-owned children that inherit permissions, account, model/effort,
+  workflow guards and cancellation; see `GJC-DELEGATION-CONTRACT.md`.
 - The parallel correctness pass is recorded in
   [`plans/code-review-2026-09-05.md`](plans/code-review-2026-09-05.md), including
   session/queue isolation, transcript turns and transport, scratch startup,
@@ -499,18 +499,26 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
   response/abort smoke passed. The existing redundant-ID mitigation stays in
   place. The real-SDK child permission-bypass regression still reproduces on
   0.16.4; the identity fix does not qualify unrestricted delegation.
-- **Issue #3 now has a live matrix, with unresolved capability blockers.** The bundled `gjc`
-  shim is already in the app; the issue's older "shim in progress" comment
-  is no longer current. Nine skills were actually invoked, including user
-  skills. The interview produced its pending-approval spec; mandatory
-  delegation and goal-mode restrictions still prevent complete execution of
-  the other bundled workflows. Keep #3 open for those recorded limitations.
+- **Issue #3 has a follow-up implementation and renewed live qualification.**
+  Goal state now comes from the SDK transcript, with authenticated, scoped
+  pause/resume/cancel controls and app-owned delegation. The initial 20-step
+  lease stopped ordinary workflow preparation; the visible limit is now 200
+  model steps or 120 minutes. Model-facing goal operations do not reset that lease. The interview
+  and independently reviewed Ralplan plan reached their requested approval
+  stopping points; autoresearch persisted its verdict, completed the goal and
+  retired the mission. Ultragoal and final integrated acceptance are recorded
+  in `plans/followup-acceptance.md`; do not infer completion from an output file.
 - **CI signing awaits owner-provided credentials.** `gh secret list --env
   release` returned no environment secrets on September 5. The workflow
   and the five required names are documented in
   `DESKTOP-TAURI-VERIFICATION.md`; the first signed CI dispatch remains
-  unverified. This is separate from the locally signed releases that shipped.
-- Session worktree selection still depends on the runtime's Slice 3.
+  unverified. Local signing readiness and exact-draft asset verification are
+  available in `scripts/release/SIGNING-READINESS.md` and
+  `scripts/release/LOCAL-RELEASE.md`, without exporting signing credentials.
+- Managed session worktree selection is implemented on the existing native job
+  runtime, including persisted project/cwd identity, per-run validation and
+  cancellation. It does not await a future SDK Slice 3. See
+  `plans/session-worktree-goal-acceptance.md`.
   Conversation forks and split-pane workspaces remain deferred product
   decisions, not missing implementations from the completed plans.
 

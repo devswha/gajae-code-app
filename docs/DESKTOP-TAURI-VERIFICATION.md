@@ -1,5 +1,9 @@
 # Tauri Desktop (macOS arm64) — Verification Record
 
+Linux x86_64 `.deb`/`.AppImage` builds and their separate validation procedure
+are documented in [DESKTOP-LINUX.md](DESKTOP-LINUX.md). The macOS results below
+do not establish Linux package or GUI compatibility.
+
 > **Status (2026-07-22): beta.3 rename and reinstall QA passed; C7
 > complete, C8 void, C9 complete.** The beta.3 installed-app smoke covered the
 > visible rename, project/session navigation, preset and skill-command UI,

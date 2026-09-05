@@ -2,55 +2,14 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import crypto from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { mkdir, rm, symlink } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 import net from 'node:net';
-import os from 'node:os';
 import path from 'node:path';
 
-import { ancestorNodeModules, assertOutOfTree } from './out-of-tree.mjs';
+import { createSmokeDataDirectory, packagedTargets, parseSmokeOptions, smokeEnvironment, smokeLocation } from './packaged-server-paths.mjs';
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const args = process.argv.slice(2);
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
-
-function option(name) {
-  const index = args.indexOf(name);
-  return index < 0 ? null : args[index + 1] || null;
-}
-
-function usage() {
-  throw new Error('Usage: node scripts/release/smoke-packaged-server.mjs --tauri-app <path> [--project-dir <path>] [--data-survival] [--from-copy]');
-}
-
-/**
- * Where the app is smoked from.
- *
- * An app bundle inside this checkout (`src-tauri/target/…`) has the
- * repository's `node_modules` above it, and Node and Bun resolve anything the
- * payload lacks from there - so a smoke run in place passes while the same app
- * copied to /Applications, or mounted from the DMG, fails. Such an app is
- * copied to the temp directory first; `--from-copy` forces the copy for any
- * location. A mounted image or an installed app has no such ancestor and runs
- * where it is.
- */
-async function smokeLocation(app) {
-  const shadow = await ancestorNodeModules(app);
-  if (!shadow && !args.includes('--from-copy')) return { app, cleanup: async () => {} };
-  const stagingDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-packaged-smoke-app-'));
-  await assertOutOfTree(stagingDir, 'packaged app copy');
-  const copy = path.join(stagingDir, path.basename(app));
-  console.log(shadow
-    ? `App sits below ${shadow}; copying it to ${copy} so the smoke cannot resolve packages from the repository.`
-    : `Copying the app to ${copy} (--from-copy).`);
-  await new Promise((resolve, reject) => {
-    // ditto preserves the bundle exactly: symlinks, permissions, extended attributes.
-    const child = spawn('ditto', [app, copy], { stdio: ['ignore', 'inherit', 'inherit'] });
-    child.once('error', reject);
-    child.once('close', code => code === 0 ? resolve() : reject(new Error(`ditto exited with code ${code}`)));
-  });
-  return { app: copy, cleanup: () => rm(stagingDir, { recursive: true, force: true }) };
-}
 
 function request(url, { headers, method = 'GET', body, redirect = 'manual' } = {}) {
   // Force a fresh connection per request: the packaged server may close
@@ -86,19 +45,29 @@ async function waitForHealth(baseUrl, output) {
   throw new Error(`Packaged server did not become healthy:\n${output.value}`);
 }
 
-function packagedTargets(app) {
-  // Tauri v2 nests bundle.resources under Contents/Resources/resources/.
-  const candidates = [
-    path.join(app, 'Contents', 'Resources', 'resources', 'server-payload'),
-    path.join(app, 'Contents', 'Resources', 'server-payload'),
-  ];
-  const payload = candidates.find(candidate => existsSync(candidate));
-  if (!payload) throw new Error(`Tauri server-payload not found under ${app}/Contents/Resources (checked resources/server-payload and server-payload)`);
-  return {
-    label: 'Tauri', cwd: payload, command: path.join(app, 'Contents', 'MacOS', 'gajae-app-server'),
-    args: [path.join(payload, 'dist-server', 'server', 'index.js')],
-    extraEnv: {},
-  };
+async function prepareSmoke(target, dataDirectory, suppliedProjectDir) {
+  const env = smokeEnvironment(target, dataDirectory);
+  for (const directory of [path.join(dataDirectory, 'bin'), env.TMPDIR, env.GJC_WORKER_AGENT_DIR]) await mkdir(directory, { recursive: true });
+  // Scripts invoking `node` through PATH must use the shipped sidecar too.
+  await symlink(target.command, path.join(dataDirectory, 'bin', 'node'));
+  const projectDir = suppliedProjectDir || path.join(dataDirectory, 'project');
+  if (!suppliedProjectDir) {
+    await mkdir(projectDir);
+    for (const args of [
+      ['init', '--quiet', '--initial-branch=main'],
+      ['-c', 'user.name=Packaged Smoke', '-c', 'user.email=packaged-smoke@localhost', '-c', 'commit.gpgsign=false', 'commit', '--quiet', '--allow-empty', '-m', 'Packaged smoke fixture'],
+    ]) {
+      await new Promise((resolve, reject) => {
+        const child = spawn('git', args, { cwd: projectDir, env, stdio: ['ignore', 'pipe', 'pipe'] });
+        let stderr = '';
+        child.stderr.setEncoding('utf8');
+        child.stderr.on('data', chunk => { stderr += chunk; });
+        child.once('error', reject);
+        child.once('close', code => code === 0 ? resolve() : reject(new Error(`Packaged smoke project setup failed (${code}): ${stderr}`)));
+      });
+    }
+  }
+  return { target: { ...target, env }, projectDir };
 }
 
 function launch(target, dataDirectory, projectDir) {
@@ -111,7 +80,7 @@ function launch(target, dataDirectory, projectDir) {
     const child = spawn(target.command, target.args, {
       cwd: target.cwd,
       env: {
-        ...process.env, ...target.extraEnv,
+        ...target.env,
         DATABASE_PATH: path.join(dataDirectory, 'auth.db'),
         GJC_WORKER_AGENT_DIR: path.join(dataDirectory, 'agent'),
         GJC_DESKTOP: '1', GJC_DESKTOP_API_KEY: apiKey, GJC_DESKTOP_BOOTSTRAP_NONCE: nonce,
@@ -122,6 +91,7 @@ function launch(target, dataDirectory, projectDir) {
     child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
     child.stdout.on('data', chunk => { output.value += chunk; });
     child.stderr.on('data', chunk => { output.value += chunk; });
+    child.once('error', error => { output.value += `\n${error.message}`; });
     return { child, baseUrl, nonce, output };
   });
 }
@@ -129,6 +99,8 @@ function launch(target, dataDirectory, projectDir) {
 async function nativeClosureSmoke(target) {
   const source = `
     import { createRequire } from 'node:module';
+    import { createHash } from 'node:crypto';
+    import { spawnSync } from 'node:child_process';
     import { readFileSync } from 'node:fs';
     import path from 'node:path';
     const require = createRequire(import.meta.url);
@@ -140,11 +112,23 @@ async function nativeClosureSmoke(target) {
     database.close();
     lightningcss.transform({ filename: 'smoke.css', code: Buffer.from('a { color: red; }') });
     const manifest = JSON.parse(readFileSync(path.join(process.cwd(), 'server/gjc-runtime-manifest.json'), 'utf8'));
-    const nativeEntry = manifest.platforms['darwin-arm64'].files.find(entry => entry.path.endsWith('.node'));
-    if (!nativeEntry) throw new Error('Gajae native manifest entry is missing');
+    const platform = process.platform + '-' + process.arch;
+    const closure = manifest.platforms[platform]?.files ?? [];
+    if (!closure.length) throw new Error('Gajae native manifest is missing for ' + platform);
+    for (const entry of closure) {
+      const filename = path.join(process.cwd(), 'node_modules', entry.package, entry.path);
+      if (createHash('sha256').update(readFileSync(filename)).digest('hex') !== entry.sha256) {
+        throw new Error('Packaged native hash mismatch: ' + entry.package + '/' + entry.path);
+      }
+    }
+    const natives = manifest.platforms[platform]?.files.filter(entry => entry.path.endsWith('.node')) ?? [];
+    const nativeEntry = natives.find(entry => entry.path.includes('-baseline.node')) ?? natives[0];
+    if (!nativeEntry) throw new Error('Gajae native manifest entry is missing for ' + platform);
     const nativeBindings = require(path.join(process.cwd(), 'node_modules', nativeEntry.package, nativeEntry.path));
     const sentinel = '__piNativesV' + manifest.natives.replace(/[^A-Za-z0-9]/g, '_');
     if (typeof nativeBindings[sentinel] !== 'function') throw new Error('Gajae native version sentinel is missing');
+    const bun = spawnSync(path.join(process.cwd(), 'dist-native', 'bun'), ['--version'], { encoding: 'utf8', timeout: 10000 });
+    if (bun.error || bun.status !== 0 || bun.stdout.trim() !== manifest.bun) throw new Error('Bundled Bun version mismatch: ' + (bun.error?.message ?? bun.stderr ?? bun.stdout));
     await new Promise((resolve, reject) => {
       const terminal = pty.spawn(process.execPath, ['-e', 'process.exit(0)'], { name: 'xterm-256color', cols: 80, rows: 24, cwd: process.cwd(), env: process.env });
       const timer = setTimeout(() => { terminal.kill(); reject(new Error('node-pty native smoke timed out')); }, 5000);
@@ -154,7 +138,7 @@ async function nativeClosureSmoke(target) {
   await new Promise((resolve, reject) => {
     const child = spawn(target.command, ['--input-type=module', '--eval', source], {
       cwd: target.cwd,
-      env: { ...process.env, ...target.extraEnv },
+      env: target.env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
@@ -181,6 +165,7 @@ async function bootstrap(instance) {
 }
 
 async function stop(instance) {
+  if (!instance.child.pid) return;
   if (instance.child.exitCode !== null || instance.child.signalCode !== null) return;
   const closed = new Promise(resolve => instance.child.once('close', resolve));
   instance.child.kill('SIGTERM');
@@ -198,7 +183,7 @@ async function sqliteSnapshot(target, database) {
   const source = `import { createRequire } from 'node:module'; const require = createRequire(import.meta.url); const Database = require('better-sqlite3'); const db = new Database(process.argv[1], { readonly: true }); const schema = db.prepare("SELECT name, type, sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type, name").all(); const userVersion = db.pragma('user_version', { simple: true }); console.log(JSON.stringify({ userVersion, schema })); db.close();`;
   const output = await new Promise((resolve, reject) => {
     const child = spawn(target.command, ['--input-type=module', '--eval', source, database], {
-      cwd: target.cwd, env: { ...process.env, ...target.extraEnv }, stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: target.cwd, env: target.env, stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = ''; let stderr = '';
     child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
@@ -212,7 +197,7 @@ async function createV6JobsFixture(target, database) {
   const source = `import { createRequire } from 'node:module'; const require = createRequire(import.meta.url); const Database = require('better-sqlite3'); const db = new Database(process.argv[1]); db.pragma('foreign_keys = ON'); db.exec("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY NOT NULL, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); INSERT INTO schema_migrations(version) VALUES(5),(6); CREATE TABLE jobs (id TEXT PRIMARY KEY NOT NULL, provider TEXT NOT NULL, state TEXT NOT NULL, lease_owner TEXT NULL, lease_generation INTEGER NOT NULL DEFAULT 0, next_lease_generation INTEGER NOT NULL DEFAULT 1, worktree_id TEXT NULL, branch TEXT NULL, base_commit TEXT NULL, repository_root TEXT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, prompt TEXT NULL); CREATE TABLE runs (run_id TEXT PRIMARY KEY NOT NULL, job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE, app_session_id TEXT NULL, provider_session_id TEXT NULL, state TEXT NOT NULL DEFAULT 'queued', outcome TEXT NULL, dispatched_at TEXT NULL); CREATE TABLE job_events (job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE, sequence INTEGER NOT NULL, event_id TEXT NOT NULL, payload TEXT NOT NULL, run_id TEXT NULL REFERENCES runs(run_id), UNIQUE(job_id,sequence), UNIQUE(job_id,event_id)); CREATE INDEX job_events_job_sequence ON job_events(job_id,sequence); CREATE TABLE session_job_bindings (provider TEXT NOT NULL, app_session_id TEXT NOT NULL, job_id TEXT NOT NULL REFERENCES jobs(id), provider_session_id TEXT NULL, bound_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, released_at TEXT NULL, UNIQUE(job_id)); CREATE UNIQUE INDEX active_session_job_bindings ON session_job_bindings(provider,app_session_id) WHERE released_at IS NULL;"); db.prepare("INSERT INTO jobs(id,provider,state,lease_owner,lease_generation,next_lease_generation,created_at,prompt) VALUES(?, 'gjc', 'succeeded', NULL, 0, 1, '2026-01-01T00:00:00.000Z', 'preserved packaged v6 job')").run(process.argv[2]); db.prepare("INSERT INTO runs(run_id,job_id,app_session_id,state,outcome,dispatched_at) VALUES('packaged-v6-run', ?, 'packaged-v6-session', 'succeeded', 'succeeded', '2026-01-01T00:00:01.000Z')").run(process.argv[2]); db.prepare("INSERT INTO job_events(job_id,sequence,event_id,payload,run_id) VALUES(?, 1, 'packaged-v6-event', '{\\"type\\":\\"completed\\"}', 'packaged-v6-run')").run(process.argv[2]); db.close();`;
   await new Promise((resolve, reject) => {
     const child = spawn(target.command, ['--input-type=module', '--eval', source, database, 'packaged-v6-preserved-job'], {
-      cwd: target.cwd, env: { ...process.env, ...target.extraEnv }, stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: target.cwd, env: target.env, stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stderr = '';
     child.stderr.setEncoding('utf8');
@@ -226,7 +211,7 @@ async function v7MigrationSnapshot(target, database) {
   const source = `import { createRequire } from 'node:module'; const require = createRequire(import.meta.url); const Database = require('better-sqlite3'); const db = new Database(process.argv[1], { readonly: true }); const migrationVersion = db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get().version; const archivedAt = db.prepare('SELECT archived_at AS archivedAt FROM jobs WHERE id=?').get(process.argv[2])?.archivedAt; console.log(JSON.stringify({ migrationVersion, archivedAt })); db.close();`;
   const output = await new Promise((resolve, reject) => {
     const child = spawn(target.command, ['--input-type=module', '--eval', source, database, 'packaged-v6-preserved-job'], {
-      cwd: target.cwd, env: { ...process.env, ...target.extraEnv }, stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: target.cwd, env: target.env, stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = ''; let stderr = '';
     child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
@@ -237,12 +222,12 @@ async function v7MigrationSnapshot(target, database) {
   return JSON.parse(output.trim());
 }
 
-async function smoke(target) {
-  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'gajae-packaged-smoke-'));
-  const projectDir = path.resolve(option('--project-dir') || rootDir);
+async function smoke(packagedTarget, suppliedProjectDir) {
+  const temporaryDirectory = await createSmokeDataDirectory();
   const jobsDatabase = path.join(temporaryDirectory, 'jobs.sqlite3');
   let instance;
   try {
+    const { target, projectDir } = await prepareSmoke(packagedTarget, temporaryDirectory, suppliedProjectDir);
     await nativeClosureSmoke(target);
     await createV6JobsFixture(target, jobsDatabase);
     instance = await launch(target, temporaryDirectory, projectDir);
@@ -268,15 +253,15 @@ async function smoke(target) {
   }
 }
 
-async function dataSurvivalSmoke(target) {
-  const dataDirectory = await mkdtemp(path.join(os.tmpdir(), 'gajae-packaged-data-survival-'));
-  const projectDir = path.resolve(option('--project-dir') || rootDir);
+async function dataSurvivalSmoke(packagedTarget, suppliedProjectDir) {
+  const dataDirectory = await createSmokeDataDirectory();
   const authDatabase = path.join(dataDirectory, 'auth.db');
   const jobsDatabase = path.join(dataDirectory, 'jobs.sqlite3');
   const customName = `data-survival-${crypto.randomUUID()}`;
   let first;
   let second;
   try {
+    const { target, projectDir } = await prepareSmoke(packagedTarget, dataDirectory, suppliedProjectDir);
     await nativeClosureSmoke(target);
     first = await launch(target, dataDirectory, projectDir);
     const firstSession = await bootstrap(first);
@@ -306,7 +291,7 @@ async function dataSurvivalSmoke(target) {
     if (JSON.stringify(schemaAfterFirstBoot) !== JSON.stringify(schemaAfterSecondBoot)) throw new Error('SQLite schema changed across restart; migration was not idempotent.');
     const authRows = await new Promise((resolve, reject) => {
       const source = `import { createRequire } from 'node:module'; const require = createRequire(import.meta.url); const Database = require('better-sqlite3'); const db = new Database(process.argv[1], { readonly: true }); console.log(JSON.stringify(db.prepare('SELECT custom_project_name FROM projects WHERE custom_project_name = ?').all(process.argv[2]))); db.close();`;
-      const child = spawn(target.command, ['--input-type=module', '--eval', source, authDatabase, customName], { cwd: target.cwd, env: { ...process.env, ...target.extraEnv }, stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawn(target.command, ['--input-type=module', '--eval', source, authDatabase, customName], { cwd: target.cwd, env: target.env, stdio: ['ignore', 'pipe', 'pipe'] });
       let stdout = ''; let stderr = ''; child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8'); child.stdout.on('data', chunk => { stdout += chunk; }); child.stderr.on('data', chunk => { stderr += chunk; }); child.once('error', reject); child.once('close', code => code === 0 ? resolve(JSON.parse(stdout.trim())) : reject(new Error(`Durable auth row inspection failed (${code}): ${stderr}`)));
     });
     if (!Array.isArray(authRows) || authRows.length !== 1) throw new Error('Durable auth.db project row did not survive restart.');
@@ -318,12 +303,15 @@ async function dataSurvivalSmoke(target) {
   }
 }
 
-const tauriApp = option('--tauri-app');
-if (!tauriApp) usage();
-const location = await smokeLocation(path.resolve(tauriApp));
-try {
-  const target = packagedTargets(location.app);
-  await (args.includes('--data-survival') ? dataSurvivalSmoke(target) : smoke(target));
-} finally {
-  await location.cleanup();
+export async function runPackagedSmoke(args = process.argv.slice(2)) {
+  const options = parseSmokeOptions(args);
+  const location = await smokeLocation(options.app, options);
+  try {
+    const target = await packagedTargets(location.app, options);
+    await (options.dataSurvival ? dataSurvivalSmoke(target, options.projectDir) : smoke(target, options.projectDir));
+  } finally {
+    await location.cleanup();
+  }
 }
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) await runPackagedSmoke();

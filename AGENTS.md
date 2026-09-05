@@ -29,6 +29,10 @@ job projection protocol). `scripts/` holds build/release/verify tooling.
 - Server binds loopback by default (fail-closed; it can run shell commands).
   `SERVER_PORT` defaults to 3001, Vite dev on 5173. Do not export `SERVER_PORT=0`.
 - Tauri builds choke on `CI=1`: use `env -u CI npm run tauri -- build`.
+- Linux desktop packaging targets native `x86_64-unknown-linux-gnu`, bundles
+  Node **22.22.2** and Bun **1.4.0**, and needs GTK 3/WebKitGTK 4.1 plus the
+  prerequisites in `docs/DESKTOP-LINUX.md`. CI builds on Ubuntu 22.04/glibc 2.35;
+  local Ubuntu 24.04/glibc 2.39 artifacts do not establish that compatibility floor.
 
 ## Commands
 
@@ -41,6 +45,10 @@ npm run check:core       # cargo fmt --check + clippy -D warnings + cargo test
 npm run verify           # FULL GATE: audit + typecheck + check:core + test + lint + check:identity + build
 npm run test:e2e:gjc     # 7 GJC wire/browser e2e tests (separate from npm test)
 npm run desktop:dev      # Tauri dev shell
+npm run server:payload:linux # Linux x64 payload + pinned runtimes
+env -u CI npm run desktop:build:linux # payload + Tauri deb/AppImage + release/desktop staging
+npm run smoke:packaged-server -- --linux-root <extracted-dir> # extracted deb or squashfs-root
+npm run smoke:packaged-server -- --linux-root <extracted-dir> --data-survival
 ```
 
 Run a single test file (match the runner's env):
@@ -57,6 +65,21 @@ dist-native/bun test src/shared/view/ui/ActionMenu.dom.bun.test.tsx
 ```
 
 `npm test` has a `pretest` that builds the Rust core (debug); tests fail without it.
+
+Linux desktop CI is `.github/workflows/desktop-linux.yml`: manual/PR/push-main
+builds, with package smokes on Ubuntu 22.04 and 24.04. After the bundle build,
+it runs `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` and
+`cargo test --locked --manifest-path src-tauri/Cargo.toml`; `npm run verify`
+does not cover these desktop shell checks. It only uploads build
+artifacts; it does not publish or announce releases. Stage Linux packages as
+`release/desktop/gajae-app-desktop-${package.version}-linux-x64.deb` and
+`.AppImage`, each with `.sha256`. Extract outside the checkout before smoking
+to prevent repository `node_modules` from masking missing bundled dependencies.
+Keep standard smoke and `--data-survival` as separate invocations. Record
+packaging, server smoke, and interactive GUI results separately.
+`desktop:build:linux` restores the verified AppImage runtime after linuxdeploy
+and before staging/checksums; preserve this step so ELF rewriting cannot break
+the runtime manifest hashes.
 
 ## Frontend stack
 
@@ -168,4 +191,6 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
 - `server/GJC-LIVE-SPEC.md` — GJC provider/worker contract.
 - `docs/DESKTOP-TAURI-VERIFICATION.md` — desktop packaging/verification (incl. the
   human-gated notarization step).
+- `docs/DESKTOP-LINUX.md` — Linux x64 desktop prerequisites, package builds,
+  installation, compatibility floor, and validation procedure.
 - `docs/SELF-HOST.md`, `CONTRIBUTING.md` — install/update lifecycle and PR rules.

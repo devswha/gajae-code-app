@@ -15,6 +15,12 @@ struct SingleInstanceLock {
 
 fn acquire_single_instance_lock() -> Result<SingleInstanceLock, String> {
     let lock_path = std::env::temp_dir().join("gajae-app-desktop.lock");
+    acquire_single_instance_lock_at(&lock_path)
+}
+
+fn acquire_single_instance_lock_at(
+    lock_path: &std::path::Path,
+) -> Result<SingleInstanceLock, String> {
     let file = OpenOptions::new()
         .create(true)
         .truncate(false)
@@ -49,6 +55,53 @@ fn deep_link_route(url: &tauri::Url) -> Option<String> {
     }
 }
 
+#[cfg(any(target_os = "linux", test))]
+struct StartupDeepLinks(std::sync::Mutex<Vec<tauri::Url>>);
+
+#[cfg(any(target_os = "linux", test))]
+impl StartupDeepLinks {
+    fn new(urls: Vec<tauri::Url>) -> Self {
+        Self(std::sync::Mutex::new(
+            urls.into_iter()
+                .filter(|url| deep_link_route(url).is_some())
+                .collect(),
+        ))
+    }
+
+    fn take_for_page(
+        &self,
+        label: &str,
+        url: &tauri::Url,
+        event: tauri::webview::PageLoadEvent,
+    ) -> Vec<tauri::Url> {
+        // The navigation policy already restricts HTTP pages to the assigned
+        // loopback origin. Wait for bootstrap's redirect to the app root;
+        // recovery and nonce-exchange documents cannot consume startup links.
+        if label != "main"
+            || event != tauri::webview::PageLoadEvent::Finished
+            || url.scheme() != "http"
+            || url.host_str() != Some("127.0.0.1")
+            || url.path() != "/"
+        {
+            return Vec::new();
+        }
+        std::mem::take(&mut *self.0.lock().expect("startup deep-link lock poisoned"))
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn route_startup_deep_links(
+    webview: &tauri::Webview,
+    payload: &tauri::webview::PageLoadPayload<'_>,
+) {
+    let app = webview.app_handle();
+    if let Some(startup) = app.try_state::<StartupDeepLinks>() {
+        for url in startup.take_for_page(webview.label(), payload.url(), payload.event()) {
+            route_deep_link(app, url);
+        }
+    }
+}
+
 fn route_deep_link(app: &tauri::AppHandle, url: tauri::Url) {
     use tauri::{Emitter, Manager};
 
@@ -78,17 +131,19 @@ fn retry_desktop_server(app: tauri::AppHandle) {
 fn main() {
     use tauri_plugin_deep_link::DeepLinkExt;
 
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(navigation::plugin())
-        .on_window_event(lifecycle::hide_on_close)
+        .on_window_event(lifecycle::handle_close_request)
         .invoke_handler(tauri::generate_handler![retry_desktop_server])
         .setup(|app| {
             // A held lock means another instance is running. Setup errors
             // abort inside did_finish_launching (panic_cannot_unwind ->
             // SIGABRT -> crash-reporter dialog), so exit cleanly instead;
-            // LaunchServices already focuses the running instance on reopen.
+            // macOS LaunchServices focuses the running instance on reopen.
+            // Linux second-launch URLs still need interprocess forwarding;
+            // the file lock prevents duplicate servers but cannot relay URLs.
             let lock = match acquire_single_instance_lock() {
                 Ok(lock) => lock,
                 Err(message) => {
@@ -105,16 +160,38 @@ fn main() {
                     route_deep_link(&app_handle, url);
                 }
             });
+            #[cfg(target_os = "linux")]
+            {
+                // The plugin handles Linux argv before this setup callback,
+                // so on_open_url alone misses the initial launch event.
+                let urls = app.deep_link().get_current().unwrap_or_else(|error| {
+                    eprintln!("could not read desktop startup deep links: {error}");
+                    None
+                });
+                app.manage(StartupDeepLinks::new(urls.unwrap_or_default()));
+            }
             supervisor::start(app.handle().clone());
             Ok(())
-        })
+        });
+    #[cfg(target_os = "linux")]
+    let builder = builder.on_page_load(route_startup_deep_links);
+    let app = builder
         .build(tauri::generate_context!())
         .expect("failed to run Gajae Code App desktop shell");
     app.run(
         |app: &tauri::AppHandle<tauri::Wry>, event: tauri::RunEvent| match event {
             tauri::RunEvent::ExitRequested { api, .. } => {
-                api.prevent_exit();
-                lifecycle::graceful_quit(app.clone());
+                // graceful_quit finishes with app.exit(), which requests exit
+                // again on Linux. Let that request through only after the
+                // sidecar is gone; otherwise closing can never release the
+                // single-instance lock for the next launch.
+                if !app
+                    .state::<lifecycle::SidecarLifecycle>()
+                    .shutdown_complete()
+                {
+                    api.prevent_exit();
+                    lifecycle::graceful_quit(app.clone());
+                }
             }
             tauri::RunEvent::Exit => {
                 // macOS Quit Apple events (Cmd-Q, AppleScript quit) bypass a
@@ -139,6 +216,83 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn startup_deep_links_wait_for_the_main_app_after_bootstrap_and_are_consumed_once() {
+        use tauri::webview::PageLoadEvent::{Finished, Started};
+
+        let link: tauri::Url = "gajae-app://open/job/job-123".parse().unwrap();
+        let startup = StartupDeepLinks::new(vec![link.clone()]);
+        for (label, url, event) in [
+            ("main", "tauri://localhost/", Finished),
+            (
+                "main",
+                "http://127.0.0.1:43123/desktop/bootstrap?nonce=test",
+                Finished,
+            ),
+            ("main", "https://example.com/", Finished),
+            ("other", "http://127.0.0.1:43123/", Finished),
+            ("main", "http://127.0.0.1:43123/", Started),
+        ] {
+            assert!(startup
+                .take_for_page(label, &url.parse().unwrap(), event)
+                .is_empty());
+        }
+        let app_url = "http://127.0.0.1:43123/".parse().unwrap();
+        assert_eq!(
+            startup.take_for_page("main", &app_url, Finished),
+            vec![link]
+        );
+        assert!(startup.take_for_page("main", &app_url, Finished).is_empty());
+    }
+
+    #[test]
+    fn startup_deep_links_validate_cli_urls_before_queueing() {
+        let startup = StartupDeepLinks::new(
+            [
+                "https://example.com/",
+                "gajae-app://other/job/123",
+                "gajae-app://open/job/bad%20id",
+                "gajae-app://open/job/job-123",
+            ]
+            .into_iter()
+            .map(|url| url.parse().unwrap())
+            .collect(),
+        );
+        assert_eq!(
+            startup.take_for_page(
+                "main",
+                &"http://127.0.0.1:43123/".parse().unwrap(),
+                tauri::webview::PageLoadEvent::Finished,
+            ),
+            vec!["gajae-app://open/job/job-123"
+                .parse::<tauri::Url>()
+                .unwrap()]
+        );
+    }
+
+    #[test]
+    fn single_instance_lock_is_released_for_a_fresh_launch() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let lock_path = std::env::temp_dir().join(format!(
+            "gajae-app-desktop-test-{}-{unique}.lock",
+            std::process::id()
+        ));
+        let first = acquire_single_instance_lock_at(&lock_path).unwrap();
+        assert!(acquire_single_instance_lock_at(&lock_path).is_err());
+        drop(first);
+
+        // The lock file persists after shutdown; its presence alone must not
+        // stop the next launch once the previous shell releases its handle.
+        assert!(lock_path.exists());
+        let relaunched = acquire_single_instance_lock_at(&lock_path)
+            .expect("a stopped shell must not prevent relaunch");
+        drop(relaunched);
+        std::fs::remove_file(lock_path).unwrap();
+    }
 
     #[test]
     fn deep_link_router_accepts_only_the_registered_scheme() {

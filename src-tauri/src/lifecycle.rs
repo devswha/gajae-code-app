@@ -56,6 +56,12 @@ impl SidecarLifecycle {
             .is_some()
     }
 
+    /// The final app.exit() must be allowed through ExitRequested, but only
+    /// after Quit has fenced off new spawns and the tracked server has exited.
+    pub fn shutdown_complete(&self) -> bool {
+        self.is_shutting_down() && !self.has_sidecar()
+    }
+
     pub fn begin_shutdown(&self) -> Option<u32> {
         let pid = self.pid.lock().expect("sidecar lifecycle lock poisoned");
         if self.shutting_down.swap(true, Ordering::SeqCst) {
@@ -150,9 +156,19 @@ pub fn blocking_shutdown(app: &AppHandle) {
     }
 }
 
-pub fn hide_on_close(window: &Window, event: &tauri::WindowEvent) {
+pub fn handle_close_request(window: &Window, event: &tauri::WindowEvent) {
     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        // Keep the window alive until the server finishes: shutdown errors
+        // still need a visible window, and destroying it must not skip Quit.
         api.prevent_close();
+
+        // Linux has no macOS Reopen event (and no tray UI in this app). Hiding
+        // the last window would leave the server and instance lock invisible.
+        #[cfg(target_os = "linux")]
+        graceful_quit(window.app_handle().clone());
+
+        // Preserve macOS close-to-hide and its Dock/Reopen behavior.
+        #[cfg(not(target_os = "linux"))]
         let _ = window.hide();
     }
 }
@@ -197,6 +213,51 @@ mod tests {
         lifecycle.start(|| Ok((42, ()))).unwrap();
         assert_eq!(lifecycle.begin_shutdown(), Some(42));
         assert_eq!(lifecycle.begin_shutdown(), None);
+    }
+
+    #[test]
+    fn shell_exit_requires_shutdown_even_before_the_server_starts() {
+        let lifecycle = SidecarLifecycle::default();
+        assert!(!lifecycle.shutdown_complete());
+        assert_eq!(lifecycle.begin_shutdown(), None);
+        assert!(lifecycle.shutdown_complete());
+        assert_eq!(
+            lifecycle.start::<()>(|| panic!("closing during startup must prevent a late spawn")),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    fn repeated_close_cannot_release_the_shutdown_fence_early() {
+        let lifecycle = SidecarLifecycle::default();
+        lifecycle.start(|| Ok((42, ()))).unwrap();
+        assert!(!lifecycle.shutdown_complete());
+        assert_eq!(lifecycle.begin_shutdown(), Some(42));
+        assert!(!lifecycle.shutdown_complete());
+        assert_eq!(lifecycle.begin_shutdown(), None);
+        assert!(!lifecycle.shutdown_complete());
+
+        lifecycle.exited(43);
+        assert!(!lifecycle.shutdown_complete());
+        lifecycle.exited(42);
+        assert!(
+            lifecycle.shutdown_complete(),
+            "the final app.exit() must proceed"
+        );
+        assert_eq!(
+            lifecycle.start::<()>(|| panic!("a completed shutdown must still reject Retry")),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    fn unexpected_server_exit_does_not_count_as_a_requested_shutdown() {
+        let lifecycle = SidecarLifecycle::default();
+        lifecycle.start(|| Ok((42, ()))).unwrap();
+        lifecycle.exited(42);
+        assert!(!lifecycle.shutdown_complete());
+        assert_eq!(lifecycle.begin_shutdown(), None);
+        assert!(lifecycle.shutdown_complete());
     }
 
     #[test]
@@ -275,15 +336,25 @@ mod tests {
         lifecycle.start(|| Ok((42, ()))).unwrap();
         assert_eq!(lifecycle.begin_shutdown(), Some(42));
         tauri::async_runtime::block_on(async {
+            let mut waiting = Box::pin(lifecycle.wait_for_exit());
             assert!(
-                tokio::time::timeout(Duration::from_millis(20), lifecycle.wait_for_exit())
+                tokio::time::timeout(Duration::from_millis(20), &mut waiting)
                     .await
                     .is_err()
             );
             lifecycle.exited(43);
             assert!(lifecycle.has_sidecar());
+            assert!(
+                tokio::time::timeout(Duration::from_millis(20), &mut waiting)
+                    .await
+                    .is_err()
+            );
             lifecycle.exited(42);
-            lifecycle.wait_for_exit().await.unwrap();
+            tokio::time::timeout(Duration::from_millis(100), waiting)
+                .await
+                .expect("the existing shutdown waiter must wake when the tracked server exits")
+                .unwrap();
+            assert!(lifecycle.shutdown_complete());
         });
     }
 }

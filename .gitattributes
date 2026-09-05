@@ -1,0 +1,3 @@
+# Keep source and checksum-protected LICENSE/NOTICE bytes identical on Windows.
+# Binary assets retain their bytes through Git's automatic text detection.
+* text=auto eol=lf

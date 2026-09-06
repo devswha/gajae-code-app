@@ -244,12 +244,13 @@ fn main() {
     }
     let context = tauri::generate_context!();
     #[cfg(target_os = "macos")]
-    let context = {
+    let (context, qa_windows) = {
         let mut context = context;
-        if let Some(profile) = &qa_profile {
-            profile.configure(context.config_mut());
-        }
-        context
+        let windows = qa_profile
+            .as_ref()
+            .map(|profile| profile.configure(context.config_mut()))
+            .unwrap_or_default();
+        (context, windows)
     };
 
     #[cfg(target_os = "linux")]
@@ -280,13 +281,14 @@ fn main() {
             #[cfg(not(target_os = "linux"))]
             let lock_result = {
                 #[cfg(target_os = "macos")]
-                if let Some(profile) = &qa_profile {
-                    acquire_single_instance_lock_at(&profile.lock_path())
+                if qa_profile.is_some() {
+                    // QaProfile already owns its lock, before window creation.
+                    Ok(None)
                 } else {
-                    acquire_single_instance_lock()
+                    acquire_single_instance_lock().map(Some)
                 }
                 #[cfg(not(target_os = "macos"))]
-                acquire_single_instance_lock()
+                acquire_single_instance_lock().map(Some)
             };
             #[cfg(not(target_os = "linux"))]
             let lock = match lock_result {
@@ -297,7 +299,9 @@ fn main() {
                 }
             };
             #[cfg(not(target_os = "linux"))]
-            app.manage(lock);
+            if let Some(lock) = lock {
+                app.manage(lock);
+            }
             #[cfg(target_os = "macos")]
             if let Some(profile) = qa_profile {
                 app.manage(profile);
@@ -305,6 +309,10 @@ fn main() {
             app.manage(navigation::LoopbackOrigin::default());
             app.manage(lifecycle::SidecarLifecycle::default());
             app.manage(supervisor::RecoveryScreen::default());
+            #[cfg(target_os = "macos")]
+            if let Some(profile) = app.try_state::<qa_profile::QaProfile>() {
+                profile.create_windows(app, &qa_windows)?;
+            }
             #[cfg(target_os = "linux")]
             {
                 app.manage(StartupDeepLinks::new(

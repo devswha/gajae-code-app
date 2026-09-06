@@ -10,8 +10,9 @@ artifacts; it does not create a GitHub Release. Windows may show an unknown
 publisher warning until a Windows signing certificate is configured.
 
 The merged source targets package `2.0.0-beta.9` and desktop version `0.2.3`.
-No Windows build, CI result, or interactive acceptance result for this merged
-source is claimed below; the verification record is explicitly historical.
+The integration record below separates passing build/payload checks from the
+unresolved Windows SDK runtime gate. Neither that record nor the historical
+beta.8 record establishes interactive acceptance for the merged source.
 
 ## Build on Windows
 
@@ -77,6 +78,11 @@ The `Windows desktop` workflow in `.github/workflows/windows.yml` runs on
 Rust core tests, a Windows runtime regression suite, and desktop lifecycle tests.
 An initial compiler job probes both ordinary and isolated Unicode temporary
 paths before the build job installs npm dependencies.
+The runtime lane probes the pinned SDK's public file-lock primitives in a
+separate Bun process on both temporary and checkout paths, then runs the full
+SDK and delegation contract suites even if that probe fails. Native refusals,
+NTSTATUS values and retained paths remain failures; no deletion retries or
+extended session-disposal deadlines hide them.
 It builds the NSIS installer, installs it into a temporary directory containing
 spaces and Korean text, then verifies the installed server payload before
 uploading the installer and checksum.
@@ -117,6 +123,37 @@ validated public release:
 
 Native macOS computer-control integration is separate from the browser and
 terminal tools; this port does not add a Windows native computer-control driver.
+
+## Integration verification — beta.9 / commit `6edef4a` — September 6, 2026
+
+- Windows runs `34054572083` and `34054569808` (attempt 2) passed compiler
+  preflight, source/build-tool checks, Rust core tests, NSIS construction,
+  desktop lifecycle tests, staging, silent installation under a Unicode path,
+  and installed-server payload smoke.
+- The Node Windows runtime tests passed: 126 passed, three existing skips.
+  The complete Bun SDK/delegation lane failed identically in both runs:
+  93 passed, one skipped, 25 failed. SDK file-lock release reports
+  `sharing_violation` / `EACCES`; session teardown exceeds its bounded deadline
+  waiting for coordinator persistence. The retained workflow/configuration
+  lock trees are not evidence of the earlier detached-broker defect.
+- These failures block the preview-installer upload. They must not be hidden
+  by fixture deletion retries, indefinite disposal waits, disabled persistence,
+  antivirus exclusions, or reduced Windows test coverage.
+- The isolated probe at `11bee00`, Windows run `34056951959`, reproduced the
+  failure without creating any `AgentSession`: on Windows build `10.0.20348`,
+  native `snapshotDirectoryTree` succeeds but `exactRemoveDirectoryTree`
+  returns `ok: false`, `code: sharing_violation`, with `detachedPath` still
+  equal to the original lock path. Native removal, SDK release, and concurrent
+  SDK release fail on both C: temporary and D: checkout paths. The six cases
+  pass locally on Windows 11 build `10.0.26200`. This isolates a pinned native
+  SDK filesystem failure; it does not identify the handle holder or justify
+  changing antivirus settings. No dependency has been patched or upgraded.
+- Linux CI `34054572060` passed the Node 22/24 verification gate; Linux archive
+  `34054572042` passed. Linux desktop `34054572039` passed deb/AppImage builds
+  and packaged server/GUI checks on Ubuntu 22.04 and 24.04.
+- Local Windows 11 passes do not establish Windows Server 2022 correctness.
+  Interactive Windows GUI, provider sign-in, a real agent turn, deep-link and
+  reinstall/uninstall acceptance, and signing remain unverified.
 
 ## HISTORICAL verification record — beta.8 / commit `2889326` — September 5, 2026
 

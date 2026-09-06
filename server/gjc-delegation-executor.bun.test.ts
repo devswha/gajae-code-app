@@ -183,8 +183,17 @@ async function fixture(
       for (const result of await Promise.allSettled(executors.map((executor) => executor.dispose()))) {
         if (result.status === 'rejected') errors.push(result.reason);
       }
+      let sessionsDisposed = true;
+      for (const session of new Set([...allRoots, ...children])) {
+        try { await session.dispose(); }
+        catch (error) { sessionsDisposed = false; errors.push(error); }
+      }
+      // A rejected public deadline can leave SDK teardown running. Keep its
+      // shared stores and root intact; the failed test must not race that owner.
+      if (!sessionsDisposed) {
+        throw new AggregateError(errors, `SDK session disposal unconfirmed; retained fixture root: ${root}`);
+      }
       for (const cleanup of [
-        ...[...new Set([...allRoots, ...children])].map((session) => () => session.dispose()),
         () => registry.dispose(),
         () => authStorage.close(),
         () => settings.close(),
@@ -314,6 +323,32 @@ test('delegated settings flush completes before the child becomes reusable', { t
     if (childSettings && originalFlush) childSettings.flushOrThrow = originalFlush;
     await f.close();
   }
+});
+
+test('fixture retains shared stores and root until session disposal is confirmed', { timeout: 30_000 }, async () => {
+  const f = await fixture();
+  const originalDispose = f.parent.dispose.bind(f.parent);
+  const failure = new Error('Fixture session disposal is unconfirmed.');
+  const closed: string[] = [];
+  const disposeRegistry = f.registry.dispose.bind(f.registry);
+  const closeAuth = f.authStorage.close.bind(f.authStorage);
+  const closeSettings = f.settings.close.bind(f.settings);
+  f.registry.dispose = async () => { closed.push('registry'); await disposeRegistry(); };
+  f.authStorage.close = () => { closed.push('auth'); return closeAuth(); };
+  f.settings.close = async () => { closed.push('settings'); await closeSettings(); };
+  f.parent.dispose = async () => { throw failure; };
+  try {
+    await assert.rejects(f.close(), (error: unknown) => error instanceof AggregateError
+      && error.errors.includes(failure)
+      && error.message.includes(f.root));
+    assert.deepEqual(closed, []);
+    assert.equal(await realpath(f.root), f.root);
+  } finally {
+    f.parent.dispose = originalDispose;
+    await f.close();
+  }
+  assert.deepEqual(closed, ['registry', 'auth', 'settings']);
+  await assert.rejects(realpath(f.root), { code: 'ENOENT' });
 });
 
 test('delegated SDK creation failure flushes and closes the unowned child scope', { timeout: 30_000 }, async () => {

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import { test } from 'node:test';
 
+import { BlobStore } from '@gajae-code/coding-agent/session/blob-store';
 import { ACP_BUILTIN_SLASH_COMMANDS } from '@gajae-code/coding-agent/slash-commands/acp-builtins';
 import { createAgentSession, discoverAuthStorage } from '@gajae-code/coding-agent/sdk/session';
 import { ModelRegistry } from '@gajae-code/coding-agent/config/model-registry';
@@ -1365,6 +1366,77 @@ for (const status of [null, 'active', 'paused', 'complete'] as const) {
     }
   });
 }
+
+for (const destination of ['managed', 'explicit'] as const) {
+  test(`goal inspection preserves compacted ${destination} session sidecars on success and rejection`, async () => {
+    const f = await fixture();
+    const cwd = await realpath(f.root);
+    const manager = SessionManager.create(cwd, destination === 'managed'
+      ? SessionManager.managedDestination(cwd, join(f.root, 'agent')) : f.root);
+    try {
+      const first = manager.appendMessage({ role: 'user', content: 'Before compaction', timestamp: Date.now() });
+      manager.appendMessage(identityAnswer('A compacted answer'));
+      manager.appendCompaction('Retain the current goal', undefined, first, 100);
+      const goal = { id: 'compacted-goal', objective: 'Preserve sidecars', status: 'active',
+        tokensUsed: 1, timeUsedSeconds: 1, createdAt: 100, updatedAt: 200 };
+      manager.appendModeChange('goal', { goal });
+      await manager.flush();
+      const path = manager.getSessionFile()!;
+      const sidecarDir = path.slice(0, -6);
+      await mkdir(sidecarDir, { recursive: true });
+      const sidecars = [`${path}.spill.idx`, ...['idx', 'tail', 'commit', 'capture-probe.tmp']
+        .map((suffix) => join(sidecarDir, `.session-memory.spill.${suffix}`))];
+      for (const file of sidecars) await writeFile(file, `External writer owns ${file}`);
+      const originals = await Promise.all([path, ...sidecars].map(goalTranscriptSnapshot));
+      const inventory = (await readdir(sidecarDir)).sort();
+      const scope = { appSessionId: 'compacted-inspection', owner: 'number:1', cwd };
+      const snapshot = await f.adapter.inspectGjcGoal(scope, manager.getSessionId(), manager.getSessionDir());
+      assert.deepEqual(snapshot.goal, goal);
+      assert.equal(snapshot.resumeRequired, true);
+      await assert.rejects(f.adapter.inspectGjcGoal({ ...scope, cwd: join(cwd, 'other') },
+        manager.getSessionId(), manager.getSessionDir()), /working directory does not match/);
+      assert.deepEqual(await Promise.all([path, ...sidecars].map(goalTranscriptSnapshot)), originals);
+      assert.deepEqual((await readdir(sidecarDir)).sort(), inventory);
+      const id = manager.appendMessage({ role: 'user', content: 'Continue after inspection', timestamp: Date.now() });
+      await manager.flush();
+      assert.equal(JSON.parse((await readFile(path, 'utf8')).trimEnd().split('\n').at(-1)!).id, id);
+      assert.deepEqual(f.sessions, []);
+    } finally {
+      try { assert.equal((await manager.closeStrict()).kind, 'closed'); }
+      finally { await f.close(); }
+    }
+  });
+}
+
+test('goal inspection never materializes image blobs or rewrites their shared store', async () => {
+  const f = await fixture();
+  const originalPut = BlobStore.prototype.putSync;
+  let writes = 0;
+  BlobStore.prototype.putSync = () => {
+    writes++;
+    throw new Error('Goal inspection attempted a shared blob write');
+  };
+  try {
+    const cwd = await realpath(f.root);
+    const id = 'image-goal';
+    const path = join(cwd, 'image.jsonl');
+    const records = [
+      { type: 'session', version: CURRENT_SESSION_VERSION, starredPatchVersion: 1, id, cwd, timestamp: new Date().toISOString() },
+      { type: 'message', id: 'image-message', parentId: null, timestamp: new Date().toISOString(),
+        message: { role: 'user', timestamp: Date.now(), content: [
+          { type: 'image', mimeType: 'image/png', data: Buffer.alloc(128 * 1024, 1).toString('base64') },
+        ] } },
+    ];
+    await writeFile(path, `${records.map((record) => JSON.stringify(record)).join('\n')}\n`);
+    const before = await goalTranscriptSnapshot(path);
+    const scope = { appSessionId: id, owner: 'number:1', cwd };
+    const result = await f.adapter.inspectGjcGoal(scope, id, cwd);
+    assert.equal(result.goal, null);
+    await assert.rejects(f.adapter.inspectGjcGoal({ ...scope, cwd: join(cwd, 'wrong') }, id, cwd), /working directory does not match/);
+    assert.equal(writes, 0, 'goal reads must not hydrate images into the filesystem BlobStore');
+    assert.deepEqual(await goalTranscriptSnapshot(path), before);
+  } finally { BlobStore.prototype.putSync = originalPut; await f.close(); }
+});
 
 test('goal inspection inventory leaves orphan backups and missing targets untouched', async () => {
   const f = await fixture();

@@ -103,20 +103,18 @@ mod tests {
     }
 
     #[test]
-    fn first_verified_port_is_reused_after_restart() {
+    fn verified_port_persists_across_profile_reload() {
         let directory = Temp::new();
         let first = DesktopOrigin::load(directory.0.clone()).unwrap();
         assert_eq!(first.requested_port(), 0);
         assert!(!directory.0.exists());
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
+        // The supervisor supplies this only after its PID/health handshake.
+        // Socket release/rebind belongs to the installed-app lifecycle drill:
+        // another parallel test may acquire a port immediately after close.
+        let port = 49152;
         first.persist_verified_port(port).unwrap();
         let next = DesktopOrigin::load(directory.0.clone()).unwrap();
         assert_eq!(next.requested_port(), port);
-        assert!(std::net::TcpListener::bind(("127.0.0.1", next.requested_port())).is_err());
-        drop(listener);
-        let restarted = std::net::TcpListener::bind(("127.0.0.1", next.requested_port())).unwrap();
-        assert_eq!(restarted.local_addr().unwrap().port(), port);
         next.persist_verified_port(port).unwrap();
         assert!(next
             .persist_verified_port(if port == 65535 { port - 1 } else { port + 1 })

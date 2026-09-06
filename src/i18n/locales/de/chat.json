@@ -125,6 +125,8 @@
   "session": {
     "loading": {
       "olderMessages": "Frühere Nachrichten abrufen…",
+      "olderMessagesFailed": "Frühere Nachrichten konnten nicht abgerufen werden.",
+      "retry": "Erneut versuchen",
       "sessionMessages": "Konversationsnachrichten werden abgerufen…"
     },
     "messages": {

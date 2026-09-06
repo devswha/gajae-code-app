@@ -127,6 +127,8 @@
   "session": {
     "loading": {
       "olderMessages": "Получение предыдущих сообщений…",
+      "olderMessagesFailed": "Не удалось получить предыдущие сообщения.",
+      "retry": "Повторить",
       "sessionMessages": "Получение сообщений беседы…"
     },
     "messages": {

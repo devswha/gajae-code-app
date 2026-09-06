@@ -129,6 +129,23 @@ test('a passive scroll away from the bottom does not stop following', () => {
   assertAtBottom(container);
 });
 
+test('scrollbar interaction stops following growth', () => {
+  const { container, grow } = setup();
+  fireEvent.pointerDown(container);
+  container.scrollTop = 30;
+  fireEvent.scroll(container);
+  grow();
+  assert.equal(container.scrollTop, 30);
+});
+
+test('PageUp from a transcript child stops following', () => {
+  const { container, content, grow } = setup();
+  container.scrollTop = 30;
+  fireEvent.keyDown(content, { key: 'PageUp' });
+  grow();
+  assert.equal(container.scrollTop, 30);
+});
+
 after(() => {
   globalThis.ResizeObserver = NativeResizeObserver;
 });

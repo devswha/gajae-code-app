@@ -125,6 +125,8 @@
   "session": {
     "loading": {
       "olderMessages": "正在取得較早的訊息…",
+      "olderMessagesFailed": "無法取得較早的訊息。",
+      "retry": "重試",
       "sessionMessages": "正在取得對話中的訊息…"
     },
     "messages": {

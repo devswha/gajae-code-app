@@ -443,7 +443,7 @@ test('gjc sessions provider returns a folded tool call for the newest one-messag
   }
 });
 
-test('gjc sessions provider keeps only the bounded normalized history tail', { concurrency: false }, async () => {
+test('gjc sessions provider bounds page payloads without hiding older history', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'gjc-session-ring-history-'));
   const workspacePath = path.join(tempRoot, 'workspace');
   const sessionsDir = path.join(tempRoot, '.gjc', 'agent', 'sessions', '-workspace');
@@ -475,13 +475,18 @@ test('gjc sessions provider keeps only the bounded normalized history tail', { c
     await withIsolatedDatabase(async () => {
       await new GjcSessionSynchronizer().synchronize();
 
-      const history = await new GjcSessionsProvider().fetchHistory('gjc-ring-history');
-
-      assert.equal(history.total, 5_000);
+      const provider = new GjcSessionsProvider();
+      await assert.rejects(provider.fetchHistory('gjc-ring-history'), { code: 'HISTORY_PAGE_TOO_LARGE' });
+      const history = await provider.fetchHistory('gjc-ring-history', { limit: 5_000 });
+      assert.equal(history.total, 5_001);
       assert.equal(history.messages.length, 5_000);
       assert.equal(history.messages[0]?.content, 'message-1');
       assert.equal(history.messages.at(-1)?.content, 'message-5000');
       assert.equal(history.hasMore, true);
+      const oldest = await provider.fetchHistory('gjc-ring-history', { limit: 20, offset: 5_000 });
+      assert.equal(oldest.messages[0]?.content, 'message-0');
+      assert.equal(oldest.total, 5_001);
+      assert.equal(oldest.hasMore, false);
     });
   } finally {
     restoreLiveSessionDir();
@@ -752,6 +757,70 @@ test('history transport truncates oversized gjc tool output and serves the full 
 
       const full = await sessionsService.fetchToolResult('gjc-transport', 'call-large');
       assert.equal(full.toolResult.content, output);
+    });
+  } finally {
+    restoreLiveSessionDir();
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('GJC pages count visible rows, preserve results and reach history beyond the old buffer', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'gjc-visible-pages-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreLiveSessionDir = patchLiveSessionDir(path.join(tempRoot, 'live-sessions'));
+  try {
+    const sessionId = 'visible-pages';
+    const filePath = await writeGjcTranscript(tempRoot, sessionId, workspacePath, { firstUserMessage: 'oldest prompt' });
+    const records: string[] = [];
+    for (let i = 0; i < 300; i++) {
+      const time = new Date(Date.UTC(2026, 6, 9, 0, 0, 10 + i)).toISOString();
+      records.push(JSON.stringify({ type: 'message', id: `call-${i}`, parentId: 'msg-1', timestamp: time,
+        message: { role: 'assistant', content: [{ type: 'toolCall', toolName: 'read', toolCallId: `tool-${i}`, toolInput: { path: `file-${i}` } }] } }));
+      records.push(JSON.stringify({ type: 'message', id: `result-${i}`, parentId: `call-${i}`, timestamp: time,
+        message: { role: 'toolResult', toolCallId: `tool-${i}`, content: [{ type: 'text', text: `output-${i}` }], details: { index: i } } }));
+    }
+    await appendFile(filePath, `${records.join('\n')}\n`, 'utf8');
+    await withIsolatedDatabase(async () => {
+      await new GjcSessionSynchronizer().synchronize();
+      const provider = new GjcSessionsProvider();
+      let offset = 0;
+      let more = true;
+      const ids = new Set<string>();
+      while (more) {
+        const page = await provider.fetchHistory(sessionId, { limit: 20, offset });
+        assert.equal(page.total, 301);
+        assert.ok(page.messages.length > 0, `page at ${offset} must make progress`);
+        for (const row of page.messages) {
+          assert.equal(ids.has(row.id), false);
+          ids.add(row.id);
+          if (row.kind === 'tool_use') {
+            const i = Number(row.toolId!.split('-')[1]);
+            assert.equal(row.toolResult?.content, `output-${i}`);
+            assert.deepEqual(row.toolResult?.toolUseResult, { index: i });
+          }
+        }
+        offset += page.messages.length;
+        more = page.hasMore;
+      }
+      assert.equal(ids.size, 301);
+      assert.ok(ids.has('msg-1:0:text'));
+      const exhausted = await provider.fetchHistory(sessionId, { limit: 20, offset: 400 });
+      assert.equal(exhausted.hasMore, false);
+      assert.equal(exhausted.messages.length, 0);
+      assert.equal(exhausted.total, 301);
+
+      // Deep offset must not be capped by the number of payloads retained.
+      const later = Array.from({ length: 5100 }, (_, i) => JSON.stringify({ type: 'message', id: `later-${i}`, parentId: 'msg-1',
+        timestamp: new Date(Date.UTC(2026, 6, 10, 0, 0, i)).toISOString(), message: { role: 'assistant', content: [{ type: 'text', text: `later ${i}` }] } }));
+      await appendFile(filePath, `${later.join('\n')}\n`, 'utf8');
+      const oldest = await provider.fetchHistory(sessionId, { limit: 20, offset: 5400 });
+      assert.equal(oldest.total, 5401);
+      assert.equal(oldest.hasMore, false);
+      assert.equal(oldest.messages[0]?.content, 'oldest prompt');
+      await assert.rejects(provider.fetchHistory(sessionId), { code: 'HISTORY_PAGE_TOO_LARGE' });
     });
   } finally {
     restoreLiveSessionDir();

@@ -125,6 +125,8 @@
   "session": {
     "loading": {
       "olderMessages": "正在检索早期消息……",
+      "olderMessagesFailed": "无法获取更早的消息。",
+      "retry": "重试",
       "sessionMessages": "正在检索对话消息……"
     },
     "messages": {

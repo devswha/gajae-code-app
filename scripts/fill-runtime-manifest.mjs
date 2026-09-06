@@ -18,7 +18,7 @@ const resolverFrom = path.join(rootDir, 'server');
 const argv = process.argv.slice(2);
 const update = argv.includes('--update');
 // Runtime v2 supports Linux x64 and macOS arm64 only; Windows remains intentionally frozen out.
-const SUPPORTED_PLATFORMS = new Set(['linux-x64', 'darwin-arm64']);
+const SUPPORTED_PLATFORMS = new Set(['linux-x64', 'darwin-arm64', 'linux-arm64']);
 
 /**
  * Fill the closure for a platform this machine is not.

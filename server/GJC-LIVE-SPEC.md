@@ -134,6 +134,18 @@ terminal behavior remain unchanged.
 The worker does not own or mutate application database, browser WebSocket,
 replay, or notification state.
 
+Root and delegated SDK sessions set `sdkHostModeSupported: false`: the private
+worker protocol is the app's control endpoint, not the SDK's detached broker.
+Workflow identity, file-based resume and in-process async ownership remain active.
+
+Each run owns its Settings clone's pending writes, but not the shared parent
+storage. Teardown awaits `flushOrThrow()` after the final session writer stops;
+failure fences the worker instead of publishing completion or permitting reuse.
+Delegated model selection uses runtime-only `overrideModelRoles`, preserving
+other roles and the user's global model configuration. Failed SDK construction
+also drains the clone and closes its caller-owned SessionManager; after successful
+construction, the SDK session owns that manager.
+
 ### Identity model
 
 Three IDs are intentionally separate:

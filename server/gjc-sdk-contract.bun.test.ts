@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import { test } from 'node:test';
@@ -12,11 +12,10 @@ import { Settings } from '@gajae-code/coding-agent/config/settings';
 import { SessionManager } from '@gajae-code/coding-agent/session/session-manager';
 import { AsyncJobManager } from '@gajae-code/coding-agent/async/job-manager';
 import { registerCustomApi, unregisterCustomApis } from '@gajae-code/ai/api-registry';
-import { closeModelCache } from '@gajae-code/ai/model-cache';
 import { AssistantMessageEventStream } from '@gajae-code/ai/utils/event-stream';
 import type { AssistantMessage, Context } from '@gajae-code/ai/types';
 
-
+import { removeSdkFixture } from './gjc-sdk-fixture-cleanup.js';
 import {
   GJC_APP_BUILTIN_COMMANDS,
   GJC_APP_BUILTIN_COMMAND_ALIASES,
@@ -133,6 +132,8 @@ test('runtime aliases with text handlers are dispatchable but not advertised', (
 
 /** Scriptable SDK-shaped session; prompt owns the turn lifetime exactly as production does. */
 class FakeAgentSession {
+  constructor(readonly sessionManager: SessionManager) {}
+
   readonly sessionFile = 'fake-session.jsonl';
   readonly promptStarted = deferred<void>();
   readonly abortStarted = deferred<void>();
@@ -204,6 +205,7 @@ class FakeAgentSession {
   }
   async dispose(): Promise<void> {
     this.disposed = true;
+    await this.sessionManager.close();
     if (this.disposeError) throw this.disposeError;
   }
   async setModelTemporary(model: unknown, thinkingLevel: unknown, options: unknown): Promise<void> {
@@ -299,7 +301,8 @@ async function fixture(
   };
   const factory = (async (input: Record<string, unknown>) => {
     factoryOptions.push(input);
-    const session = new FakeAgentSession();
+    assert.ok(input.sessionManager instanceof SessionManager);
+    const session = new FakeAgentSession(input.sessionManager);
     sessions.push(session);
     return { session, setToolUIContext: session.setToolUIContext.bind(session) };
   }) as unknown as GjcAgentSessionFactory;
@@ -312,6 +315,7 @@ async function fixture(
     getModelRole: () => defaultModel || undefined,
     override: (key: string, value: unknown) => { overrides.set(key, value); },
     get: (key: string) => overrides.get(key),
+    flushOrThrow: async () => undefined,
   });
   const settings = {
     getModelRole: () => defaultModel || undefined,
@@ -347,27 +351,6 @@ async function fixture(
 function methods(frames: Array<Record<string, unknown>>): string[] { return frames.filter((frame) => frame.kind === 'event').map((frame) => frame.method as string); }
 function response(frames: Array<Record<string, unknown>>, id: string): Record<string, unknown> { return frames.find((frame) => frame.kind === 'response' && frame.id === id)!; }
 
-async function removeRealSdkFixture(root: string, modelCacheClosed: boolean): Promise<void> {
-  // Bun 1.4.0 defers cached SQLite statement finalization beyond the
-  // public Database.close() call. Force finalization only after every fixture
-  // owner has closed its session, registry, cache, auth, and settings handles;
-  // this is required for Windows to release the files before rm().
-  if (process.platform === 'win32') {
-    const bun = (globalThis as typeof globalThis & { Bun?: { gc(force?: boolean): void } }).Bun;
-    if (!bun) throw new Error('Windows SDK fixture requires Bun.gc(true).');
-    bun.gc(true);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  try {
-    await rm(root, { recursive: true, force: true });
-  } catch (error) {
-    const remaining = await readdir(root, { recursive: true })
-      .catch((listingError: unknown) => [`Cannot list retained files: ${String(listingError)}`]);
-    throw new Error(`SDK fixture cleanup failed: ${JSON.stringify({
-      modelCacheClosed, cwd: process.cwd(), remaining: remaining.slice(0, 50), remainingCount: remaining.length,
-    })}`, { cause: error });
-  }
-}
 async function firstSession(sessions: FakeAgentSession[]): Promise<FakeAgentSession> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     if (sessions[0]) return sessions[0];
@@ -1327,7 +1310,6 @@ async function identityFixture() {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'gjc-sdk-identity-')));
   const cwd = join(root, 'project');
   const agentDir = join(root, 'agent');
-  const modelCachePath = join(agentDir, 'models.db');
   await mkdir(cwd);
   const authStorage = await discoverAuthStorage(agentDir);
   const settings = await Settings.loadForScope({ cwd, agentDir });
@@ -1404,13 +1386,9 @@ async function identityFixture() {
       for (const session of sessions) await session.dispose();
       await host.close();
       await registry.dispose();
-      // ModelRegistry.dispose() cancels discovery but the SDK's shared SQLite
-      // model cache is an independent @gajae-code/ai resource. Close the exact
-      // cache owned by this fixture before removing its temporary agent root.
-      const modelCacheClosed = closeModelCache(modelCachePath);
       authStorage.close();
       await settings.close();
-      await removeRealSdkFixture(root, modelCacheClosed);
+      await removeSdkFixture(root);
     },
   };
 }
@@ -1597,6 +1575,8 @@ test('app-shaped real SDK handoff rekeys logical ownership while retaining provi
     await f.run('identity-handoff-resume', async (session) => {
       assert.equal((await assertSdkIdentity(session)).id, successorId);
     }, successorId);
+    assert.ok(f.factoryOptions.every((options) => options?.sdkHostModeSupported === false));
+    await assert.rejects(readFile(join(f.root, 'agent', 'sdk', 'broker.json')), { code: 'ENOENT' });
   } finally { unregisterCustomApis(f.root); await f.close(); }
 });
 
@@ -1607,7 +1587,6 @@ async function rawSdkDelegationFixture() {
   const root = await mkdtemp(join(scratch, 'raw-sdk-delegation-'));
   const cwd = join(root, 'project');
   const agentDir = join(root, 'agent');
-  const modelCachePath = join(agentDir, 'models.db');
   await mkdir(cwd);
   const authStorage = await discoverAuthStorage(agentDir);
   const settings = await Settings.loadForScope({ cwd, agentDir });
@@ -1630,18 +1609,16 @@ async function rawSdkDelegationFixture() {
     model: registry.find('openai-codex', 'gpt-6-astra'), thinkingLevel: 'xhigh',
     sessionManager: SessionManager.create(cwd, join(root, 'sessions')),
     toolNames: ['bash', 'task', 'subagent'], spawns: 'executor',
+    sdkHostModeSupported: false,
     enableMcpAutoload: false, enableLsp: false, skipPythonPreflight: true, disableExtensionDiscovery: true,
     skills: [], rules: [], contextFiles: [], promptTemplates: [], slashCommands: [],
   });
   return { root, session, async close() {
     await session.dispose();
     await registry.dispose();
-    // ModelRegistry.dispose() does not own the shared @gajae-code/ai cache
-    // handle; release this fixture's exact database before deleting its root.
-    const modelCacheClosed = closeModelCache(modelCachePath);
     authStorage.close();
     await settings.close();
-    await removeRealSdkFixture(root, modelCacheClosed);
+    await removeSdkFixture(root);
   } };
 }
 
@@ -1815,6 +1792,7 @@ test('settings loader resolves the current default model role for each run', asy
       getModelRole: () => `contract-provider/${modelId}`,
       override: () => undefined,
       get: () => undefined,
+      flushOrThrow: async () => undefined,
     }),
   });
   const f = await fixture(
@@ -2274,6 +2252,108 @@ test('successful chat completion waits for SDK session cleanup', async () => {
     assert.equal(session.disposed, true);
   } finally { release.resolve(); await f.close(); }
 });
+
+test('successful chat completion waits for scoped settings writes', async () => {
+  const f = await fixture();
+  const release = deferred<void>();
+  let flushing = false;
+  const run = f.host.handle(request('session.start', 'flush-before-complete', { message: 'hello', options: f.options }));
+  try {
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    const settings = f.factoryOptions[0]!.settings as Settings;
+    settings.flushOrThrow = async () => { flushing = true; await release.promise; };
+    session.complete();
+    await waitFor(() => flushing || undefined);
+    assert.equal(session.disposed, true, 'the final session writer stops before its settings drain');
+    assert.equal(methods(f.frames).includes('turn.completed'), false);
+    release.resolve();
+    await run;
+    assert.equal(methods(f.frames).filter(method => method === 'turn.completed').length, 1);
+    assert.equal((response(f.frames, 'flush-before-complete').payload as { ok: boolean }).ok, true);
+  } finally {
+    release.resolve();
+    await run;
+    await f.close();
+  }
+});
+
+for (const phase of ['construction', 'setup'] as const) {
+  test(`SDK ${phase} failure closes the manager exactly once and drains its clone`, async () => {
+    const f = await fixture();
+    const originalFactory = f.adapter['options'].createSessionFactory!;
+    let closes = 0;
+    let flushes = 0;
+    f.adapter['options'].createSessionFactory = async (input) => {
+      assert.ok(input?.sessionManager);
+      assert.ok(input.settings);
+      const manager = input.sessionManager;
+      const close = manager.close.bind(manager);
+      manager.close = async () => { closes += 1; await close(); };
+      input.settings.flushOrThrow = async () => { flushes += 1; };
+      if (phase === 'construction') throw new Error('SDK construction failed');
+      return { ...await originalFactory(input), modelFallbackMessage: 'Unexpected model fallback' };
+    };
+    try {
+      const id = `ownership-${phase}`;
+      await f.host.handle(request('session.start', id, { message: 'hello', options: f.options }));
+      assert.equal(closes, 1, 'the manager has one owner on either side of SDK construction');
+      assert.equal(flushes, 1);
+      assert.equal(f.sessions.length, phase === 'setup' ? 1 : 0);
+      if (phase === 'setup') assert.equal(f.sessions[0]!.disposed, true);
+      const payload = response(f.frames, id).payload as { ok: boolean; error: { code: string } };
+      assert.equal(payload.ok, false);
+      assert.notEqual(payload.error.code, GJC_CLEANUP_UNCONFIRMED_CODE,
+        'successful teardown preserves an ordinary startup failure');
+      assert.equal(methods(f.frames).includes('turn.completed'), false);
+    } finally { await f.close(); }
+  });
+}
+
+for (const phase of ['construction', 'prompt'] as const) {
+  test(`scoped settings flush failure after ${phase} fences worker reuse`, async () => {
+    const f = await fixture();
+    const originalFactory = f.adapter['options'].createSessionFactory!;
+    const originalError = console.error;
+    const diagnostics: unknown[][] = [];
+    let factoryCalls = 0;
+    let flushCalls = 0;
+    console.error = (...args: unknown[]) => { diagnostics.push(args); };
+    f.adapter['options'].createSessionFactory = async (input) => {
+      factoryCalls += 1;
+      assert.ok(input?.settings);
+      input.settings.flushOrThrow = async () => {
+        flushCalls += 1;
+        throw new Error('private settings failure detail');
+      };
+      if (phase === 'construction') throw new Error('SDK construction failed');
+      return originalFactory(input);
+    };
+    try {
+      const id = `flush-fails-${phase}`;
+      const run = f.host.handle(request('session.start', id, { message: 'hello', options: f.options }));
+      if (phase === 'prompt') {
+        const session = await firstSession(f.sessions);
+        await session.promptStarted.promise;
+        session.complete();
+      }
+      await run;
+      assert.equal(flushCalls, 1);
+      assert.equal(((response(f.frames, id).payload as Record<string, unknown>).error as { code: string }).code,
+        GJC_CLEANUP_UNCONFIRMED_CODE);
+      assert.equal(methods(f.frames).includes('turn.completed'), false);
+      assert.equal(JSON.stringify(f.frames).includes('private settings failure detail'), false);
+      assert.deepEqual(diagnostics, phase === 'prompt' ? [['GJC SDK session disposal failed.']] : []);
+      await f.host.handle(request('session.start', `${id}-reuse`, { message: 'again', options: f.options }));
+      assert.equal(factoryCalls, 1, 'an unflushed owner prevents another SDK session from being created');
+      assert.equal(((response(f.frames, `${id}-reuse`).payload as Record<string, unknown>).error as { code: string }).code,
+        GJC_CLEANUP_UNCONFIRMED_CODE);
+    } finally {
+      console.error = originalError;
+      await f.close();
+    }
+  });
+}
 
 test('explicit SDK configuration rejects missing fields, unresolvable credentials, and model mismatches without invoking the factory', async () => {
   const f = await fixture();

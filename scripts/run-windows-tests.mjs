@@ -66,9 +66,20 @@ try {
     if (await versionOf(bun) !== BUN_VERSION) {
       throw new Error(`Bun ${BUN_VERSION} is required; run node scripts/fetch-bun.mjs.`);
     }
-    const result = spawnSync(bun, ['test', 'server/gjc-sdk-contract.bun.test.ts'], {
+    // Workflow evidence runs Bun in child shells too. Use the same pinned
+    // runtime there without changing the operator's process environment.
+    const bunEnv = { ...env };
+    const pathKey = Object.keys(bunEnv).find(key => key.toLowerCase() === 'path');
+    const previousPath = pathKey ? bunEnv[pathKey] : '';
+    for (const key of Object.keys(bunEnv)) {
+      if (key.toLowerCase() === 'path') delete bunEnv[key];
+    }
+    bunEnv.PATH = [path.dirname(bun), previousPath].filter(Boolean).join(path.delimiter);
+    const result = spawnSync(bun, [
+      'test', 'server/gjc-sdk-contract.bun.test.ts', 'server/gjc-delegation-executor.bun.test.ts',
+    ], {
       cwd: root,
-      env,
+      env: bunEnv,
       stdio: ['ignore', 'inherit', 'inherit'],
     });
     if (result.error) throw result.error;

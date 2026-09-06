@@ -213,16 +213,15 @@ impl QaProfile {
     }
 
     pub(crate) fn configure(&self, config: &mut Config) -> Vec<WindowConfig> {
-        let mut windows = Vec::new();
-        for window in &mut config.app.windows {
+        // Remove every window before handing the context to Tauri. The pinned
+        // runtime drops the UUID in WindowConfig -> WebviewAttributes, so no
+        // configured window may reach automatic creation, regardless of how
+        // the framework interprets its `create` flag.
+        let mut windows = std::mem::take(&mut config.app.windows);
+        windows.retain(|window| window.create);
+        for window in &mut windows {
             window.data_store_identifier = Some(self.webkit_store);
             window.title = format!("{} — QA", window.title);
-            if window.create {
-                windows.push(window.clone());
-            }
-            // tauri-runtime 2.7 drops the UUID in WindowConfig ->
-            // WebviewAttributes. Build QA windows with the explicit setter.
-            window.create = false;
         }
         windows
     }
@@ -366,14 +365,10 @@ mod tests {
             .push(tauri::utils::config::WindowConfig::default());
         let windows = profile.configure(&mut config);
         assert_eq!(windows.len(), 1);
-        assert!(config
-            .app
-            .windows
-            .iter()
-            .all(
-                |window| window.data_store_identifier == Some(profile.webkit_store)
-                    && window.title.ends_with(" — QA")
-            ));
+        assert!(config.app.windows.is_empty());
+        assert!(windows.iter().all(|window| window.data_store_identifier
+            == Some(profile.webkit_store)
+            && window.title.ends_with(" — QA")));
         let environment = profile.environment();
         for (name, value) in &environment {
             if name != "PATH" && name != "LANG" {
@@ -406,9 +401,9 @@ mod tests {
         let windows = profile.configure(&mut config);
         // The pinned runtime drops the UUID in its config conversion. Such
         // windows must not reach Tauri's automatic window creation path.
-        let attributes = tauri_runtime::webview::WebviewAttributes::from(&config.app.windows[0]);
+        let attributes = tauri_runtime::webview::WebviewAttributes::from(&windows[0]);
         assert_eq!(attributes.data_store_identifier, None);
-        assert!(config.app.windows.iter().all(|window| !window.create));
+        assert!(config.app.windows.is_empty());
         assert_eq!(
             windows
                 .iter()

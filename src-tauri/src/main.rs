@@ -11,6 +11,8 @@ use tauri::Manager;
 mod instance;
 mod lifecycle;
 mod navigation;
+#[cfg(any(target_os = "macos", test))]
+mod qa_profile;
 mod supervisor;
 
 #[cfg(not(target_os = "linux"))]
@@ -216,6 +218,40 @@ fn retry_desktop_server(app: tauri::AppHandle) {
 fn main() {
     use tauri_plugin_deep_link::DeepLinkExt;
 
+    #[cfg(target_os = "macos")]
+    let qa_profile = (|| -> Result<Option<qa_profile::QaProfile>, String> {
+        let Some(root) = qa_profile::requested_root(std::env::args().skip(1))? else {
+            return Ok(None);
+        };
+        let version = std::process::Command::new("/usr/bin/sw_vers")
+            .arg("-productVersion")
+            .output()
+            .map_err(|error| format!("Could not check macOS QA support: {error}"))?;
+        if !version.status.success() {
+            return Err("Could not check macOS QA support.".into());
+        }
+        qa_profile::require_supported_os(&String::from_utf8_lossy(&version.stdout))?;
+        qa_profile::QaProfile::open(&root).map(Some)
+    })()
+    .unwrap_or_else(|error| {
+        eprintln!("{error}");
+        std::process::exit(1);
+    });
+    #[cfg(not(target_os = "macos"))]
+    if std::env::args().any(|arg| arg == "--qa-profile" || arg.starts_with("--qa-profile=")) {
+        eprintln!("--qa-profile is currently supported only on macOS 14 or newer.");
+        std::process::exit(1);
+    }
+    let context = tauri::generate_context!();
+    #[cfg(target_os = "macos")]
+    let context = {
+        let mut context = context;
+        if let Some(profile) = &qa_profile {
+            profile.configure(context.config_mut());
+        }
+        context
+    };
+
     #[cfg(target_os = "linux")]
     let (instance, activation) = {
         let activation = instance::Activation::from_args(std::env::args().skip(1));
@@ -242,7 +278,18 @@ fn main() {
             // SIGABRT -> crash-reporter dialog), so exit cleanly instead;
             // macOS LaunchServices focuses the running instance on reopen.
             #[cfg(not(target_os = "linux"))]
-            let lock = match acquire_single_instance_lock() {
+            let lock_result = {
+                #[cfg(target_os = "macos")]
+                if let Some(profile) = &qa_profile {
+                    acquire_single_instance_lock_at(&profile.lock_path())
+                } else {
+                    acquire_single_instance_lock()
+                }
+                #[cfg(not(target_os = "macos"))]
+                acquire_single_instance_lock()
+            };
+            #[cfg(not(target_os = "linux"))]
+            let lock = match lock_result {
                 Ok(lock) => lock,
                 Err(message) => {
                     eprintln!("{message}");
@@ -251,6 +298,10 @@ fn main() {
             };
             #[cfg(not(target_os = "linux"))]
             app.manage(lock);
+            #[cfg(target_os = "macos")]
+            if let Some(profile) = qa_profile {
+                app.manage(profile);
+            }
             app.manage(navigation::LoopbackOrigin::default());
             app.manage(lifecycle::SidecarLifecycle::default());
             app.manage(supervisor::RecoveryScreen::default());
@@ -312,7 +363,7 @@ fn main() {
             Ok(())
         });
     let app = builder
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("failed to run Gajae Code App desktop shell");
     app.run(
         |app: &tauri::AppHandle<tauri::Wry>, event: tauri::RunEvent| match event {

@@ -428,19 +428,34 @@ pub fn start(app: AppHandle) {
                 .0
                 .lock()
                 .expect("recovery screen lock poisoned") = None;
-            let (events, child) = app
+            let command = app
                 .shell()
                 .sidecar("gajae-app-server")
                 .map_err(|error| format!("could not prepare server sidecar: {error}"))?
-                .arg(entrypoint.to_string_lossy().as_ref())
+                .arg(entrypoint.to_string_lossy().as_ref());
+            #[cfg(target_os = "macos")]
+            let command = if let Some(profile) = app.try_state::<crate::qa_profile::QaProfile>() {
+                if payload.join(".env").exists() {
+                    return Err(
+                        "QA refuses a server payload containing an environment file.".into(),
+                    );
+                }
+                command
+                    .env_clear()
+                    .envs(profile.environment())
+                    .current_dir(profile.home())
+            } else {
+                command.env("HOME", &home).env("PATH", &path)
+            };
+            #[cfg(not(target_os = "macos"))]
+            let command = command.env("HOME", &home).env("PATH", &path);
+            let (events, child) = command
                 .env("HOST", "127.0.0.1")
                 .env("SERVER_PORT", "0")
                 .env("NODE_ENV", "production")
                 .env("GJC_DESKTOP", "1")
                 .env("GJC_DESKTOP_API_KEY", api_key)
                 .env("GJC_DESKTOP_BOOTSTRAP_NONCE", &nonce)
-                .env("HOME", home)
-                .env("PATH", path)
                 .spawn()
                 .map_err(|error| format!("could not start server sidecar: {error}"))?;
             Ok((child.pid(), (events, child)))

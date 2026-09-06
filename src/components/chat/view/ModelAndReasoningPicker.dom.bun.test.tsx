@@ -1,0 +1,174 @@
+import assert from 'node:assert/strict';
+import { afterEach, test } from 'node:test';
+
+import { createElement } from 'react';
+import { cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
+
+import '../../../i18n/config';
+import { useEscapeToAbort } from '../hooks/useEscapeToAbort';
+
+import ModelAndReasoningPicker from './ModelAndReasoningPicker';
+import type { ReasoningEffort } from './reasoningEffort';
+
+afterEach(cleanup);
+
+const searchName = 'Search providers and models';
+
+async function openPicker() {
+  const selectedModels: string[] = [];
+  const selectedEfforts: ReasoningEffort[] = [];
+  const view = render(createElement(ModelAndReasoningPicker, {
+    value: 'openai-codex/astra',
+    presetOptions: [],
+    modelOptions: [{
+      value: 'openai-codex/astra',
+      label: 'Astra',
+      effort: { values: [{ value: 'xhigh' }] },
+    }],
+    onSelect: (modelId) => { selectedModels.push(modelId); },
+    reasoningEffort: 'xhigh',
+    onSelectReasoningEffort: (effort) => { selectedEfforts.push(effort); },
+  }));
+  const trigger = screen.getByRole('button', { name: 'Model and reasoning settings' });
+  fireEvent.click(trigger);
+  const search = screen.getByRole<HTMLInputElement>('textbox', { name: searchName });
+  await waitFor(() => assert.equal(document.activeElement === search, true));
+  return { ...view, trigger, search, selectedModels, selectedEfforts };
+}
+
+function assertDismissed(trigger: HTMLElement) {
+  assert.equal(trigger.getAttribute('aria-expanded'), 'false');
+  assert.equal(screen.queryByRole('textbox', { name: searchName }) === null, true);
+  assert.equal(document.activeElement === trigger, true);
+}
+
+function AbortProbe({ canAbort, onAbort }: { canAbort: boolean; onAbort: () => void }) {
+  useEscapeToAbort(canAbort, onAbort);
+  return null;
+}
+
+test('Escape from an empty search dismisses the portal, restores trigger focus, and allows reopening', async () => {
+  const { trigger, search, selectedModels, selectedEfforts } = await openPicker();
+
+  fireEvent.keyDown(search, { key: 'Escape' });
+
+  assertDismissed(trigger);
+  assert.deepEqual(selectedModels, []);
+  assert.deepEqual(selectedEfforts, []);
+
+  const closedEscape = createEvent.keyDown(trigger, { key: 'Escape' });
+  fireEvent(trigger, closedEscape);
+  assert.equal(closedEscape.defaultPrevented, false, 'the closed picker releases Escape');
+
+  fireEvent.click(trigger);
+  const reopenedSearch = screen.getByRole('textbox', { name: searchName });
+  await waitFor(() => assert.equal(document.activeElement === reopenedSearch, true));
+  fireEvent.keyDown(reopenedSearch, { key: 'Escape' });
+  assertDismissed(trigger);
+});
+
+for (const query of ['astra', 'no-such-model']) {
+  test(`Escape first clears the search "${query}" without dismissing, then dismisses on the next press`, async () => {
+    const { trigger, search } = await openPicker();
+    fireEvent.change(search, { target: { value: query } });
+    assert.equal(search.value, query);
+
+    fireEvent.keyDown(search, { key: 'Escape' });
+
+    assert.equal(search.value, '');
+    assert.equal(trigger.getAttribute('aria-expanded'), 'true');
+    assert.equal(document.activeElement === search, true);
+    assert.equal(screen.queryByRole('option', { name: 'Astra' }) !== null, true);
+
+    fireEvent.keyDown(search, { key: 'Escape' });
+    assertDismissed(trigger);
+  });
+}
+
+for (const optionName of ['ChatGPT', 'Astra', 'Extra high']) {
+  test(`Escape from the focused "${optionName}" option dismisses and restores trigger focus`, async () => {
+    const { trigger, selectedModels, selectedEfforts } = await openPicker();
+    const option = screen.getByRole('option', { name: optionName });
+    option.focus();
+    assert.equal(document.activeElement === option, true);
+
+    fireEvent.keyDown(option, { key: 'Escape' });
+
+    assertDismissed(trigger);
+    assert.deepEqual(selectedModels, []);
+    assert.deepEqual(selectedEfforts, []);
+  });
+}
+
+test('Escape outside the search restores trigger focus even when the filter has no matches', async () => {
+  const { trigger, search } = await openPicker();
+  fireEvent.change(search, { target: { value: 'no-such-model' } });
+  assert.equal(trigger.hasAttribute('disabled'), true);
+  const defaultOption = screen.getByRole('button', { name: /Keep current configuration/ });
+  defaultOption.focus();
+  assert.equal(document.activeElement === defaultOption, true);
+
+  fireEvent.keyDown(defaultOption, { key: 'Escape' });
+
+  assert.equal(trigger.hasAttribute('disabled'), false);
+  assertDismissed(trigger);
+});
+
+for (const query of ['', 'astra']) {
+  test(`an already-prevented Escape leaves the picker and search "${query}" alone`, async () => {
+    const { trigger, search } = await openPicker();
+    fireEvent.change(search, { target: { value: query } });
+    const escape = createEvent.keyDown(search, { key: 'Escape' });
+    escape.preventDefault();
+
+    fireEvent(search, escape);
+
+    assert.equal(trigger.getAttribute('aria-expanded'), 'true');
+    assert.equal(search.value, query);
+    assert.equal(document.activeElement === search, true);
+  });
+
+  test(`global Stop owns Escape with search "${query}" until the run is no longer stoppable`, async () => {
+    const { trigger, search } = await openPicker();
+    fireEvent.change(search, { target: { value: query } });
+    let aborts = 0;
+    const onAbort = () => { aborts++; };
+    // Register the real capture listener after the popup's bubble listener.
+    const abortView = render(createElement(AbortProbe, { canAbort: true, onAbort }));
+    const escape = createEvent.keyDown(search, { key: 'Escape' });
+
+    fireEvent(search, escape);
+
+    assert.equal(aborts, 1);
+    assert.equal(escape.defaultPrevented, true);
+    assert.equal(trigger.getAttribute('aria-expanded'), 'true');
+    assert.equal(search.value, query);
+    assert.equal(document.activeElement === search, true);
+
+    abortView.rerender(createElement(AbortProbe, { canAbort: false, onAbort }));
+    if (query) {
+      fireEvent.keyDown(search, { key: 'Escape' });
+      assert.equal(search.value, '');
+      assert.equal(trigger.getAttribute('aria-expanded'), 'true');
+      assert.equal(document.activeElement === search, true);
+    }
+    fireEvent.keyDown(search, { key: 'Escape' });
+    assertDismissed(trigger);
+    assert.equal(aborts, 1);
+  });
+}
+
+test('other keys leave the popup open and outside clicks dismiss without stealing focus', async () => {
+  const { trigger, search } = await openPicker();
+  fireEvent.keyDown(search, { key: 'ArrowDown' });
+  assert.equal(trigger.getAttribute('aria-expanded'), 'true');
+
+  render(createElement('button', null, 'Outside'));
+  const outside = screen.getByRole('button', { name: 'Outside' });
+  outside.focus();
+  fireEvent.mouseDown(outside);
+
+  assert.equal(trigger.getAttribute('aria-expanded'), 'false');
+  assert.equal(screen.queryByRole('textbox', { name: searchName }) === null, true);
+  assert.equal(document.activeElement === outside, true);
+});

@@ -115,6 +115,43 @@ test('an empty tool_execution_update emits nothing', () => {
   assert.equal(all(messages, 'tool_result').length, 0);
 });
 
+test('tool_execution_update preserves structured output even without display text', () => {
+  // The SDK bash tool emits the live terminal ID before any stdout exists.
+  const details = { terminalId: 'terminal-1' };
+  const { messages } = forward([
+    { type: 'tool_execution_start', toolCallId: 'terminal-call', toolName: 'bash', args: { command: 'pwd' } },
+    { type: 'tool_execution_update', toolCallId: 'terminal-call', partialResult: { content: [], details } },
+  ]);
+  assert.deepEqual(first(messages, 'tool_result'), {
+    kind: 'tool_result', toolId: 'terminal-call', content: '', isError: false, isFinal: false, toolUseResult: details,
+  });
+});
+
+test('a background tool update keeps its latest structured result after tool_execution_end', () => {
+  const running = { async: { state: 'running', jobId: 'job-1', type: 'bash' } };
+  const completed = { async: { state: 'completed', jobId: 'job-1', type: 'bash' } };
+  const { messages } = forward([
+    { type: 'tool_execution_end', toolCallId: 'bg-1', toolName: 'bash', result: { content: [{ type: 'text', text: 'Background job started' }], details: running } },
+    { type: 'tool_execution_update', toolCallId: 'bg-1', partialResult: { content: [{ type: 'text', text: 'done' }], details: completed } },
+  ]);
+  const result = all(messages, 'tool_result').at(-1);
+  assert.equal(result?.toolId, 'bg-1');
+  assert.equal(result?.content, 'done');
+  assert.deepEqual(result?.toolUseResult, completed);
+});
+
+test('tool_execution_update preserves explicit errors on the SDK result envelope', () => {
+  for (const content of [[], [{ type: 'text', text: 'Partial execution failed' }]]) {
+    const { messages } = forward([
+      { type: 'tool_execution_update', toolCallId: 'failed', partialResult: { content, isError: true } },
+    ]);
+    const result = first(messages, 'tool_result');
+    assert.ok(result, 'an error-only update still reaches the app');
+    assert.equal(result.isError, true);
+    assert.equal(result.isFinal, false, 'an error update does not invent a terminal event');
+  }
+});
+
 test('a failed turn forwards the provider reason instead of the fixed string', () => {
   const { messages, state } = forward([
     { type: 'message_end', message: { role: 'assistant', stopReason: 'error', errorMessage: 'context window exceeded', content: [] } },

@@ -12,7 +12,7 @@ export type Provider = LLMProvider;
 export type PermissionMode = 'default' | 'acceptEdits' | 'auto' | 'bypassPermissions' | 'plan';
 
 export interface ChatImage { data?: string; mimeType?: string; name?: string; path?: string; }
-export interface ToolResult { content?: unknown; isError?: boolean; timestamp?: string | number | Date; toolUseResult?: unknown; [key: string]: unknown; }
+export interface ToolResult { content?: unknown; isError?: boolean; isFinal?: boolean; timestamp?: string | number | Date; toolUseResult?: unknown; [key: string]: unknown; }
 export interface SubagentChildTool { timestamp: Date; toolId: string; toolInput: unknown; toolName: string; toolResult?: ToolResult | null; }
 interface SubagentState { childTools: SubagentChildTool[]; currentToolIndex: number; isComplete: boolean; }
 

@@ -18,10 +18,10 @@ const serverName = `gajae-app-server-${version}-linux-x64-node22.tar.gz`;
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const packageFor = value => ({ name: 'gajae-app', version: value, desktopVersion: '0.2.2' });
 
-async function fixture(t, { serverVersion = version } = {}) {
+async function fixture(t, { serverVersion = version, serverPackage = 'gajae-app-server' } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'gajae-release-test-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
-  await writeFile(join(directory, 'package.json'), JSON.stringify(packageFor(serverVersion)));
+  await writeFile(join(directory, 'package.json'), JSON.stringify({ name: serverPackage, version: serverVersion }));
   const archive = join(directory, serverName);
   await releaseCommand('tar', ['-czf', archive, '-C', directory, 'package.json']);
   const files = new Map([[dmgName, Buffer.from('signed image fixture')], [serverName, await readFile(archive)]]);
@@ -190,6 +190,9 @@ test('source commit and server archive version mismatches prevent publication ev
   const wrongServer = await fixture(t, { serverVersion: '1.0.0' });
   await assert.rejects(wrongServer.execute({ publish: true }), /Server archive package/);
   assert.deepEqual(wrongServer.mutations, []);
+  const sourcePackageInArchive = await fixture(t, { serverPackage: 'gajae-app' });
+  await assert.rejects(sourcePackageInArchive.execute({ publish: true }), /Server archive package/);
+  assert.deepEqual(sourcePackageInArchive.mutations, []);
 });
 
 test('macOS signature/acceptance failure never calls the publication API', async t => {

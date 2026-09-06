@@ -1,6 +1,7 @@
 export const PRODUCT_NAME = 'Gajae Code App';
 export const PRODUCT_TOKEN = 'gajae-app';
 export const PACKAGE_NAME = PRODUCT_TOKEN;
+export const SERVER_PACKAGE_NAME = `${PACKAGE_NAME}-server`;
 export const CLI_NAME = PRODUCT_TOKEN;
 export const DATA_ROOT = '~/.gajae-app';
 export const SYSTEMD_SERVICE_NAME = 'gajae-app.service';

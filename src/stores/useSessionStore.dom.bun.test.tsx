@@ -6,8 +6,10 @@ import { act, cleanup, render } from '@testing-library/react';
 import { createElement } from 'react';
 
 import { useLastTurnChanges, type LastTurnFile } from '../components/workspace/hooks/useLastTurnChanges';
+import { normalizedToChatMessages } from '../components/chat/hooks/useChatMessages';
+import { isToolCallRunning } from '../components/chat/utils/toolActivity';
 
-import { useSessionStore, type SessionSlot, type SessionStore } from './useSessionStore';
+import { useSessionStore, type NormalizedMessage, type SessionSlot, type SessionStore } from './useSessionStore';
 
 type PendingRequest = {
   url: string;
@@ -37,6 +39,64 @@ function createStore(): SessionStore {
 }
 
 afterEach(cleanup);
+
+for (const delivery of ['live', 'replay'] as const) {
+  test(`${delivery} metadata-only tool updates retain output and merge partial details until final completion`, () => {
+    const store = createStore();
+    const base = { sessionId: 'session', timestamp: '2026-09-06T00:00:00Z', provider: 'gjc' as const, toolId: 'tool-1' };
+    const frames: NormalizedMessage[] = [
+      { ...base, id: 'call', kind: 'tool_use', toolName: 'bash', toolInput: { command: 'pwd' } },
+      { ...base, id: 'output', kind: 'tool_result', content: 'Already streamed output', isError: false, isFinal: false,
+        toolUseResult: { async: { jobId: 'job-1', type: 'bash' }, files: ['old'] } },
+      { ...base, id: 'metadata', kind: 'tool_result', content: '', isError: false, isFinal: false,
+        toolUseResult: { terminalId: 'terminal-1', async: { state: 'running' }, files: ['new'] } },
+    ];
+    act(() => {
+      if (delivery === 'replay') store.appendRealtimeBatch('session', frames);
+      else frames.forEach((frame) => store.appendRealtime('session', frame));
+    });
+    const [running] = normalizedToChatMessages(store.getMessages('session'));
+    assert.equal(running.toolResult?.content, 'Already streamed output');
+    assert.equal(running.toolResult?.isFinal, false);
+    assert.equal(isToolCallRunning(running), true);
+    assert.deepEqual(running.toolResult?.toolUseResult, {
+      terminalId: 'terminal-1', async: { jobId: 'job-1', type: 'bash', state: 'running' }, files: ['new'],
+    });
+    assert.deepEqual(frames[1].toolUseResult, { async: { jobId: 'job-1', type: 'bash' }, files: ['old'] }, 'earlier frames stay immutable');
+    assert.equal(normalizedToChatMessages(store.getMessages('session'))[0], running, 'unchanged merged rows retain render identity');
+
+    act(() => store.appendRealtime('session', { ...base, id: 'more-output', kind: 'tool_result', content: 'New output', isError: false, isFinal: false }));
+    const updated = normalizedToChatMessages(store.getMessages('session'))[0];
+    assert.equal(updated.toolResult?.content, 'New output', 'nonempty partial output replaces the cumulative display');
+    assert.deepEqual(updated.toolResult?.toolUseResult, running.toolResult?.toolUseResult, 'omitted details preserve the previous result');
+
+    act(() => store.appendRealtime('session', { ...base, id: 'final', kind: 'tool_result', content: '', isError: false, isFinal: true, toolUseResult: { exitCode: 0 } }));
+    const finished = normalizedToChatMessages(store.getMessages('session'))[0];
+    assert.equal(finished.toolResult?.content, '', 'an authoritative final result can deliberately clear output');
+    assert.deepEqual(finished.toolResult?.toolUseResult, { exitCode: 0 }, 'final details replace partial metadata');
+    assert.equal(isToolCallRunning(finished), false);
+
+    act(() => store.appendRealtime('session', { ...base, id: 'late-metadata', kind: 'tool_result', content: '', isError: false, isFinal: false, toolUseResult: { async: { state: 'completed' } } }));
+    const late = normalizedToChatMessages(store.getMessages('session'))[0];
+    assert.equal(late.toolResult?.isFinal, true, 'late metadata does not reopen a finished invocation');
+    assert.deepEqual(late.toolResult?.toolUseResult, { exitCode: 0, async: { state: 'completed' } });
+  });
+}
+
+test('replacing a realtime tool result ID retains its earlier output and details', () => {
+  const store = createStore();
+  const base = { sessionId: 'session', timestamp: '2026-09-06T00:00:00Z', provider: 'gjc' as const, toolId: 'tool-1' };
+  act(() => store.appendRealtimeBatch('session', [
+    { ...base, id: 'call', kind: 'tool_use', toolName: 'read', toolInput: { path: 'a.ts' } },
+    { ...base, id: 'result', kind: 'tool_result', content: 'file text', isError: false, isFinal: false, toolUseResult: { resolvedPath: '/repo/a.ts' } },
+    { ...base, id: 'result', kind: 'tool_result', content: '', isError: false, isFinal: false, toolUseResult: { truncated: true } },
+  ]));
+  const messages = store.getMessages('session');
+  assert.equal(messages.length, 2);
+  const result = normalizedToChatMessages(messages)[0].toolResult;
+  assert.equal(result?.content, 'file text');
+  assert.deepEqual(result?.toolUseResult, { resolvedPath: '/repo/a.ts', truncated: true });
+});
 
 test('a shared session store exposes completed mutations to the Last turn hook', () => {
   let store: SessionStore | undefined;

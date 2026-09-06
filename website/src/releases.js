@@ -9,10 +9,10 @@ export const GAJAE_CODE_URL = 'https://github.com/devswha/gajae-code';
 export const APPLE_GATEKEEPER_HELP_URL = 'https://support.apple.com/102445';
 
 export const RELEASE = {
-  version: '2.0.0-beta.8',
-  tag: 'v2.0.0-beta.8',
+  version: '2.0.0-beta.9',
+  tag: 'v2.0.0-beta.9',
   channel: 'beta',
-  publishedLabel: '2026-08-31',
+  publishedLabel: '2026-09-06',
 };
 
 function releaseDownloadBase(tag = RELEASE.tag) {

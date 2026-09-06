@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import type { NormalizedMessage } from '../../../stores/useSessionStore';
 import { normalizedToChatMessages } from '../hooks/useChatMessages';
+import { isToolCallRunning } from '../utils/toolActivity';
 
 /*
  * The conversion is what the transcript renders from, and the pane's rows
@@ -71,4 +72,19 @@ test('a text row that yields two messages yields the same two next time', () => 
   const second = normalizedToChatMessages([notice]);
   assert.equal(second[0], first[0]);
   assert.equal(second[1], first[1]);
+});
+
+test('partial tool results preserve their running state through chat conversion', () => {
+  for (const toolName of ['bash', 'Task']) {
+    const call = row({ kind: 'tool_use', toolId: 'partial-tool', toolName, toolInput: {} });
+    const partial = row({ kind: 'tool_result', toolId: 'partial-tool', content: '', isError: false, isFinal: false });
+    const running = normalizedToChatMessages([call, partial])[0];
+    assert.equal(running.toolResult?.isFinal, false);
+    assert.equal(isToolCallRunning(running), true);
+    if (toolName === 'Task') assert.equal(running.subagentState?.isComplete, false);
+    const final = row({ kind: 'tool_result', toolId: 'partial-tool', content: '', isError: false, isFinal: true });
+    const finished = normalizedToChatMessages([call, partial, final])[0];
+    assert.equal(isToolCallRunning(finished), false);
+    if (toolName === 'Task') assert.equal(finished.subagentState?.isComplete, true);
+  }
 });

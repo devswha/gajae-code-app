@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
-import { ARTIFACT_PREFIX, PACKAGE_NAME } from '../../shared/productIdentity.js';
+import { ARTIFACT_PREFIX, PACKAGE_NAME, SERVER_PACKAGE_NAME } from '../../shared/productIdentity.js';
 
 import { releaseCommand } from './local-release-command.mjs';
 import { verifyMacosRelease } from './local-release-macos.mjs';
@@ -141,7 +141,7 @@ export async function processLocalRelease(options, {
     const members = (await run('tar', ['-tzf', archive])).stdout.split('\n').filter(name => name === 'package.json' || name === './package.json');
     demand(members.length === 1, 'Server archive must have exactly one root package.json.');
     const server = JSON.parse((await run('tar', ['-xOzf', archive, '--', members[0]])).stdout);
-    demand(server.name === PACKAGE_NAME && server.version === options.version, 'Server archive package/version does not match the release tag.');
+    demand(server.name === SERVER_PACKAGE_NAME && server.version === options.version, 'Server archive package/version does not match the release tag.');
     await verifyMac({ dmg: join(root, options.dmgName), root, teamId: options.teamId,
       version: options.version, desktopVersion: source.desktopVersion }, { run });
 

@@ -1,15 +1,73 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { constants, existsSync } from 'node:fs';
 import crypto from 'node:crypto';
-import { mkdir, realpath, rm, symlink } from 'node:fs/promises';
+import { access, lstat, mkdir, readdir, readFile, realpath, rm, stat, symlink } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 import path from 'node:path';
 
-import { APPIMAGE_ENV_MARKER, appImageLaunchTarget, createSmokeDataDirectory, packagedTargets, parseSmokeOptions, smokeEnvironment, smokeLocation } from './packaged-server-paths.mjs';
+import { SERVER_PACKAGE_NAME } from '../../shared/productIdentity.js';
+
+import { assertOutOfTree } from './out-of-tree.mjs';
+import { APPIMAGE_ENV_MARKER, appImageLaunchTarget, createSmokeDataDirectory, packagedTargets, parseSmokeOptions as parseDesktopSmokeOptions, smokeEnvironment, smokeLocation } from './packaged-server-paths.mjs';
 
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+
+export function parseSmokeOptions(args) {
+  if (!args.includes('--server-archive-root')) return parseDesktopSmokeOptions(args);
+  const usage = 'Usage: --server-archive-root <extracted-dir> [--data-survival] [--from-copy]; archive checks require a disposable fixture project.';
+  if (args.some(arg => ['--linux-root', '--tauri-app', '--project-dir', '--appimage-env'].includes(arg))) throw new Error(usage);
+  try {
+    // Reuse the portable copy/cleanup and argument validation used by Linux
+    // desktop packages. An archive has a different target and authentication.
+    return { ...parseDesktopSmokeOptions(args.map(arg => arg === '--server-archive-root' ? '--linux-root' : arg)), serverArchive: true };
+  } catch (error) { throw new Error(usage, { cause: error }); }
+}
+
+export function assertServerArchiveHost({ platform = process.platform, arch = process.arch, node = process.versions.node, glibc = process.report.getReport().header.glibcVersionRuntime } = {}) {
+  const [major, minor, patch] = node.split('.').map(Number);
+  if (platform !== 'linux' || arch !== 'x64' || major !== 22 || !(minor > 22 || (minor === 22 && patch >= 2))) {
+    throw new Error('Server archive smoke requires Linux x64 and Node 22.22.2+ within Node 22.');
+  }
+  const [libcMajor, libcMinor] = (glibc ?? '').split('.').map(Number);
+  if (libcMajor !== 2 || !(libcMinor >= 35)) throw new Error('Server archive smoke requires glibc 2.35 or newer.');
+}
+
+export async function serverArchiveTarget(root) {
+  root = await realpath(root);
+  await assertOutOfTree(root, 'server archive smoke');
+  const checkContained = async filename => {
+    const relative = path.relative(root, await realpath(filename));
+    if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error(`Server archive path escapes extracted root: ${filename}`);
+  };
+  const checkLinks = async directory => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const filename = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) await checkContained(filename);
+      else if (entry.isDirectory()) await checkLinks(filename);
+    }
+  };
+  await checkLinks(root);
+  try {
+    await lstat(path.join(root, '.env'));
+    throw new Error('Server archive smoke refuses a payload containing .env; it could load live credentials.');
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  const required = ['package.json', 'scripts/gajae-app-runtime.mjs', 'dist/index.html', 'dist-server/server/index.js', 'dist-server/server/cli.js', 'dist-server/server/gjc-bun-worker.js', 'dist-server/server/gjc-runtime-manifest.json', 'dist-native/bun', 'dist-native/gajae-core'];
+  for (const relative of required) {
+    const filename = path.join(root, relative);
+    await checkContained(filename);
+    if (!(await stat(filename)).isFile()) throw new Error(`Server archive requires a regular file: ${filename}`);
+  }
+  for (const relative of ['dist-native/bun', 'dist-native/gajae-core']) await access(path.join(root, relative), constants.X_OK);
+  const metadata = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+  if (metadata.name !== SERVER_PACKAGE_NAME || typeof metadata.version !== 'string' || !metadata.version) throw new Error('Expected canonical gajae-app-server archive metadata.');
+  return {
+    label: 'Linux server archive', serverArchive: true, cwd: root, command: process.execPath,
+    bun: path.join(root, 'dist-native/bun'), args: [path.join(root, 'scripts/gajae-app-runtime.mjs'), 'start'],
+    expectedVersion: metadata.version,
+  };
+}
 
 function request(url, { headers, method = 'GET', body, redirect = 'manual' } = {}) {
   // Force a fresh connection per request: the packaged server may close
@@ -73,7 +131,7 @@ async function prepareSmoke(target, dataDirectory, suppliedProjectDir) {
   return { target: { ...target, env }, projectDir };
 }
 
-function launch(target, dataDirectory, projectDir) {
+export function launch(target, dataDirectory, projectDir) {
   const portPromise = freePort();
   return portPromise.then(port => {
     const baseUrl = `http://127.0.0.1:${port}`;
@@ -86,7 +144,7 @@ function launch(target, dataDirectory, projectDir) {
         ...target.env,
         DATABASE_PATH: path.join(dataDirectory, 'auth.db'),
         GJC_WORKER_AGENT_DIR: path.join(dataDirectory, 'agent'),
-        GJC_DESKTOP: '1', GJC_DESKTOP_API_KEY: apiKey, GJC_DESKTOP_BOOTSTRAP_NONCE: nonce,
+        ...(target.serverArchive ? { API_KEY: apiKey } : { GJC_DESKTOP: '1', GJC_DESKTOP_API_KEY: apiKey, GJC_DESKTOP_BOOTSTRAP_NONCE: nonce }),
         HOME: dataDirectory, WORKSPACES_ROOT: projectDir, HOST: '127.0.0.1', NODE_ENV: 'production', SERVER_PORT: String(port),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -95,7 +153,7 @@ function launch(target, dataDirectory, projectDir) {
     child.stdout.on('data', chunk => { output.value += chunk; });
     child.stderr.on('data', chunk => { output.value += chunk; });
     child.once('error', error => { output.error = error; output.value += `\n${error.message}`; });
-    return { child, baseUrl, nonce, output, appImageEnv: target.appImageEnv };
+    return { child, baseUrl, nonce, apiKey, output, appImageEnv: target.appImageEnv, serverArchive: target.serverArchive, expectedVersion: target.expectedVersion };
   });
 }
 
@@ -114,7 +172,7 @@ async function nativeClosureSmoke(target) {
     if (database.prepare('SELECT 1 AS value').get().value !== 1) throw new Error('better-sqlite3 native smoke failed');
     database.close();
     lightningcss.transform({ filename: 'smoke.css', code: Buffer.from('a { color: red; }') });
-    const manifest = JSON.parse(readFileSync(path.join(process.cwd(), 'server/gjc-runtime-manifest.json'), 'utf8'));
+    const manifest = JSON.parse(readFileSync(path.join(process.cwd(), ${JSON.stringify(target.serverArchive ? 'dist-server/server/gjc-runtime-manifest.json' : 'server/gjc-runtime-manifest.json')}), 'utf8'));
     const platform = process.platform + '-' + process.arch;
     const closure = manifest.platforms[platform]?.files ?? [];
     if (!closure.length) throw new Error('Gajae native manifest is missing for ' + platform);
@@ -132,6 +190,14 @@ async function nativeClosureSmoke(target) {
     if (typeof nativeBindings[sentinel] !== 'function') throw new Error('Gajae native version sentinel is missing');
     const bun = spawnSync(path.join(process.cwd(), 'dist-native', 'bun'), ['--version'], { encoding: 'utf8', timeout: 10000 });
     if (bun.error || bun.status !== 0 || bun.stdout.trim() !== manifest.bun) throw new Error('Bundled Bun version mismatch: ' + (bun.error?.message ?? bun.stderr ?? bun.stdout));
+    if (${Boolean(target.serverArchive)}) {
+      if (manifest.bun !== '1.4.0') throw new Error('Server archive must pin Bun 1.4.0');
+      const core = spawnSync(path.join(process.cwd(), 'dist-native', 'gajae-core'), ['--version'], { encoding: 'utf8', timeout: 10000 });
+      if (core.error || core.status !== 0 || !core.stdout.startsWith('gajae-core ')) throw new Error('Bundled Rust core failed to execute');
+      const { rgPath } = require('@vscode/ripgrep');
+      const rg = spawnSync(rgPath, ['--version'], { encoding: 'utf8', timeout: 10000 });
+      if (rg.error || rg.status !== 0 || !rg.stdout.startsWith('ripgrep ')) throw new Error('Bundled ripgrep failed to execute');
+    }
     await new Promise((resolve, reject) => {
       const terminal = pty.spawn(process.execPath, ['-e', 'process.exit(0)'], { name: 'xterm-256color', cols: 80, rows: 24, cwd: process.cwd(), env: process.env });
       const timer = setTimeout(() => { terminal.kill(); reject(new Error('node-pty native smoke timed out')); }, 5000);
@@ -155,10 +221,64 @@ async function nativeClosureSmoke(target) {
       ? resolve()
       : reject(new Error(`Packaged native closure smoke failed (${code}): ${stderr || stdout}`)));
   });
+  if (target.serverArchive) await workerInitializationSmoke(target);
 }
 
-async function bootstrap(instance) {
+export async function workerInitializationSmoke(target, { timeoutMs = 45_000 } = {}) {
+  await new Promise((resolve, reject) => {
+    const child = spawn(target.bun, [path.join(target.cwd, 'dist-server/server/gjc-bun-worker.js')], {
+      cwd: target.cwd, env: target.env, stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let pending = ''; let diagnostic = ''; let failure; let phase = 'initialize';
+    const fail = error => { failure ??= error; child.kill('SIGKILL'); };
+    const timer = setTimeout(() => fail(new Error('Bun worker initialization/shutdown timed out.')), timeoutMs);
+    const send = method => child.stdin.write(`${JSON.stringify({ protocolVersion: 1, kind: 'request', id: `archive-${method}`, method: `worker.${method}`, payload: {} })}\n`);
+    child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
+    child.stderr.on('data', chunk => { diagnostic += chunk; });
+    child.once('error', fail);
+    child.stdin.on('error', fail);
+    child.stdout.on('data', chunk => {
+      pending += chunk;
+      const lines = pending.split('\n'); pending = lines.pop();
+      try {
+        for (const line of lines.filter(Boolean)) {
+          const frame = JSON.parse(line);
+          if (frame.protocolVersion !== 1 || frame.kind !== 'response' || frame.id !== `archive-${phase}` || frame.payload?.ok !== true) throw new Error(`Bun worker rejected ${phase}: ${line}`);
+          if (phase === 'initialize') { phase = 'shutdown'; send('shutdown'); child.stdin.end(); }
+          else if (phase === 'shutdown') phase = 'closed';
+          else throw new Error('Unexpected extra Bun worker response.');
+        }
+      } catch (error) { fail(error); }
+    });
+    child.once('close', (code, signal) => {
+      clearTimeout(timer);
+      if (failure || code !== 0 || signal || phase !== 'closed' || pending.trim()) reject(new Error(`Packaged Bun worker handshake failed: ${failure?.message ?? `phase=${phase}, exit=${code}, signal=${signal}`}\n${diagnostic}`));
+      else resolve();
+    });
+    send('initialize');
+  });
+  console.log('Packaged Bun worker initialize/shutdown handshake passed.');
+}
+
+export async function bootstrap(instance) {
   const health = await waitForHealth(instance.baseUrl, instance.output, instance.child);
+  if (instance.serverArchive) {
+    if (health.version !== instance.expectedVersion) throw new Error('Running server version does not match archive metadata.');
+    const headers = { 'x-api-key': instance.apiKey, origin: instance.baseUrl };
+    for (const invalid of [{}, { 'x-api-key': 'invalid-smoke-key' }]) {
+      const denied = await request(`${instance.baseUrl}/api/auth/user`, { headers: invalid });
+      if (denied.status !== 401) throw new Error('Server archive accepted a missing or invalid API key.');
+    }
+    const owner = await json(await request(`${instance.baseUrl}/api/auth/user`, { headers }), 'Server archive owner authentication');
+    if (!owner.user?.id || owner.shell?.desktop !== false) throw new Error('Server archive did not boot with normal server authentication.');
+    const page = await request(`${instance.baseUrl}/`, { headers });
+    const html = await page.text();
+    const asset = html.match(/<script\b[^>]*\bsrc="(\/assets\/[^"?#]+\.js)"/);
+    if (!page.ok || !page.headers.get('content-type')?.includes('text/html') || !asset) throw new Error('Server archive did not serve the built frontend.');
+    const script = await request(`${instance.baseUrl}${asset[1]}`, { headers });
+    if (!script.ok || !script.headers.get('content-type')?.includes('javascript') || !(await script.text()).trim()) throw new Error('Server archive frontend asset is missing.');
+    return { health, headers };
+  }
   if (instance.appImageEnv) {
     if (!instance.output.value.split('\n').includes(APPIMAGE_ENV_MARKER)) throw new Error('AppImage smoke did not execute the instrumented GUI launcher through AppRun.');
     console.log(APPIMAGE_ENV_MARKER);
@@ -256,8 +376,8 @@ async function v7MigrationSnapshot(target, database) {
   return JSON.parse(output.trim());
 }
 
-// Run with the shipped Node and ws module, so checkout dependencies cannot mask
-// a broken package. Every socket uses the disposable desktop boot credential.
+// Resolve ws from the payload, so checkout dependencies cannot mask a broken
+// package. Sockets use only the disposable boot credential for this target.
 async function packagedProtocolChecks() {
   const { default: assert } = await import('node:assert/strict');
   const { once } = await import('node:events');
@@ -265,9 +385,10 @@ async function packagedProtocolChecks() {
   const { test } = await import('node:test');
   const { WebSocket } = createRequire(`${process.cwd()}/package.json`)('ws');
   const base = process.env.GAJAE_SMOKE_URL;
-  const cookie = process.env.GAJAE_SMOKE_COOKIE;
+  const serverArchive = process.env.GAJAE_SMOKE_SERVER_ARCHIVE === '1';
   const project = process.env.GAJAE_SMOKE_PROJECT;
-  const headers = { cookie, origin: base };
+  const headers = JSON.parse(process.env.GAJAE_SMOKE_HEADERS);
+  const cookie = headers.cookie;
   const sockets = new Set();
   const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   const get = (pathname, requestHeaders = headers) => fetch(`${base}${pathname}`, { headers: { ...requestHeaders, connection: 'close' }, signal: AbortSignal.timeout(5_000) });
@@ -307,16 +428,22 @@ async function packagedProtocolChecks() {
       },
     };
   }
-  await test('packaged desktop HTTP, WebSocket and terminal integration', { timeout: 45_000 }, async t => {
+  await test('packaged HTTP, WebSocket and terminal integration', { timeout: 45_000 }, async t => {
     t.after(() => { for (const socket of sockets) socket.terminate(); });
-    await t.test('HTTP cookie and exact-origin rejection preserve authenticated access', async () => {
-      for (const invalid of [{}, { cookie: 'gajae_desktop_api_key=invalid' }, { cookie, origin: 'http://localhost:1' }]) {
-        assert.equal((await get('/api/gjc/jobs', invalid)).status, 401);
+    await t.test('HTTP rejects invalid credentials and preserves authenticated access', async () => {
+      const invalidHeaders = serverArchive
+        ? [{}, { 'x-api-key': 'invalid-smoke-key' }]
+        : [{}, { cookie: 'gajae_desktop_api_key=invalid' }, { cookie, origin: 'http://localhost:1' }];
+      for (const invalid of invalidHeaders) assert.equal((await get('/api/gjc/jobs', invalid)).status, 401);
+      if (serverArchive) {
+        assert.equal((await get('/api/gjc/jobs', { ...headers, origin: 'https://archive-smoke.invalid' })).status, 403);
+        assert.equal((await get('/api/gjc/jobs', { 'x-api-key': headers['x-api-key'] })).status, 200);
+      } else {
+        assert.equal((await get('/api/gjc/jobs', { cookie })).status, 200);
       }
-      assert.equal((await get('/api/gjc/jobs', { cookie })).status, 200);
       assert.equal((await get('/api/gjc/jobs')).status, 200);
     });
-    if (process.platform === 'linux') {
+    if (process.platform === 'linux' && !serverArchive) {
       await t.test('Linux desktop exposes Workspace Browser without enabling native computer automation', async () => {
         const response = await get('/api/automation/status');
         assert.equal(response.status, 200);
@@ -342,8 +469,11 @@ async function packagedProtocolChecks() {
       }
     }
     for (const pathname of ['/ws', '/shell']) {
-      await t.test(`${pathname} rejects missing/invalid cookie and absent/foreign origin`, async () => {
-        for (const invalid of [{ origin: base }, { origin: base, cookie: 'gajae_desktop_api_key=invalid' }, { cookie }, { cookie, origin: 'http://localhost:1' }]) {
+      await t.test(`${pathname} rejects invalid credentials and foreign origin`, async () => {
+        const invalidHeaders = serverArchive
+          ? [{ origin: base }, { origin: base, 'x-api-key': 'invalid-smoke-key' }, { ...headers, origin: 'https://archive-smoke.invalid' }]
+          : [{ origin: base }, { origin: base, cookie: 'gajae_desktop_api_key=invalid' }, { cookie }, { cookie, origin: 'http://localhost:1' }];
+        for (const invalid of invalidHeaders) {
           await assert.rejects(connect(pathname, invalid), /Unexpected server response: 401/);
         }
       });
@@ -435,7 +565,7 @@ async function protocolSmoke(target, instance, headers, projectDir) {
   await new Promise((resolve, reject) => {
     const child = spawn(target.command, ['--input-type=module', '--eval', source], {
       cwd: target.cwd,
-      env: { ...target.env, GAJAE_SMOKE_URL: instance.baseUrl, GAJAE_SMOKE_COOKIE: headers.cookie, GAJAE_SMOKE_PROJECT: projectDir, GAJAE_SMOKE_APPIMAGE_ENV: target.appImageEnv ? '1' : '0' },
+      env: { ...target.env, GAJAE_SMOKE_URL: instance.baseUrl, GAJAE_SMOKE_HEADERS: JSON.stringify(headers), GAJAE_SMOKE_SERVER_ARCHIVE: target.serverArchive ? '1' : '0', GAJAE_SMOKE_PROJECT: projectDir, GAJAE_SMOKE_APPIMAGE_ENV: target.appImageEnv ? '1' : '0' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';
@@ -450,6 +580,39 @@ async function protocolSmoke(target, instance, headers, projectDir) {
       else reject(new Error(`Packaged protocol checks failed (${code}).\n${instance.output.value}`));
     });
   });
+}
+
+function isCompleteUniqueReplay(replay) {
+  return replay?.nextCursor === null && Array.isArray(replay.events) && replay.events.length > 0
+    && replay.events.every((event, index) => event?.sequence === index + 1 && typeof event.eventId === 'string' && event.eventId.length > 0)
+    && new Set(replay.events.map(event => event.eventId)).size === replay.events.length;
+}
+
+export function verifyAbortedReplay(replay, runId) {
+  const terminalId = `run-terminal:${runId}`;
+  const terminals = Array.isArray(replay?.events) ? replay.events.filter(event => event?.eventId === terminalId || event?.payload?.kind === 'job_terminal') : [];
+  const terminal = terminals[0];
+  // Native JobEvent exposes eventId/sequence/payload; the orchestrator puts
+  // the run identity in JobTerminalPayload, not on the outer replay event.
+  if (typeof runId !== 'string' || !runId || !isCompleteUniqueReplay(replay) || terminals.length !== 1
+      || terminal.eventId !== terminalId || terminal.payload?.schemaVersion !== 1
+      || terminal.payload.runId !== runId || terminal.payload.kind !== 'job_terminal'
+      || terminal.payload.outcome !== 'aborted' || terminal.payload.jobState !== 'aborted') {
+    throw new Error(`Aborted GJC event replay was not gap-free and durable: ${JSON.stringify(replay)}`);
+  }
+}
+
+export function verifyInterruptedReplay(replay, runId) {
+  const terminalId = `shutdown-interrupted:${runId}`;
+  const interruptions = Array.isArray(replay?.events) ? replay.events.filter(event => event?.eventId === terminalId || event?.payload?.type === 'interrupted') : [];
+  const interruption = interruptions[0];
+  // Shutdown reconciliation is authored by the native authority. Unlike an
+  // orchestrator terminal payload, its run identity is only in eventId.
+  if (typeof runId !== 'string' || !runId || !isCompleteUniqueReplay(replay) || interruptions.length !== 1
+      || interruption.eventId !== terminalId || interruption.payload?.type !== 'interrupted'
+      || interruption.payload.reason !== 'shutdown') {
+    throw new Error(`Restarted GJC event replay was not gap-free, unique, and shutdown-preserved: ${JSON.stringify(replay)}`);
+  }
 }
 
 async function smoke(packagedTarget, suppliedProjectDir) {
@@ -471,9 +634,15 @@ async function smoke(packagedTarget, suppliedProjectDir) {
     if (!preservedJob || preservedJob.state !== 'succeeded' || preservedJob.lastSequence !== 1 || listedJobs.nextCursor !== null || Object.hasOwn(preservedJob, 'archivedAt')) throw new Error(`v6 GJC job list was not preserved after migration: ${JSON.stringify(listedJobs)}`);
     const create = await request(`${instance.baseUrl}/api/gjc/jobs`, { headers: { ...headers, 'content-type': 'application/json' }, method: 'POST', body: JSON.stringify({ appSessionId: `smoke-${crypto.randomUUID()}`, projectPath: projectDir, message: 'packaged server smoke' }) });
     const job = await json(create, 'GJC job creation');
-    if (create.status !== 202 || typeof job.jobId !== 'string') throw new Error(`GJC job creation returned an invalid response: ${JSON.stringify(job)}`);
+    if (create.status !== 202 || typeof job.jobId !== 'string' || typeof job.runId !== 'string' || !job.runId) throw new Error(`GJC job creation returned an invalid response: ${JSON.stringify(job)}`);
     const abort = await request(`${instance.baseUrl}/api/gjc/jobs/${encodeURIComponent(job.jobId)}/abort`, { headers, method: 'POST' });
     if (abort.status !== 202) throw new Error(`GJC job abort failed (${abort.status}).`);
+    if (target.serverArchive) {
+      const result = await json(abort, 'GJC job abort');
+      if (result.aborted !== true) throw new Error('Archive GJC job abort was not confirmed.');
+      const replay = await json(await request(`${instance.baseUrl}/api/gjc/jobs/${encodeURIComponent(job.jobId)}/events?cursor=0`, { headers }), 'Aborted GJC event replay');
+      verifyAbortedReplay(replay, job.runId);
+    }
     await stop(instance);
     const migration = await v7MigrationSnapshot(target, jobsDatabase);
     if (migration.migrationVersion !== 7 || migration.archivedAt !== null) throw new Error(`v6 jobs.sqlite3 did not migrate to v7 with archived_at NULL: ${JSON.stringify(migration)}`);
@@ -501,20 +670,23 @@ async function dataSurvivalSmoke(packagedTarget, suppliedProjectDir) {
     if (!(await json(project, 'Durable project creation')).success) throw new Error('Durable project creation did not report success.');
     const created = await request(`${first.baseUrl}/api/gjc/jobs`, { headers: { ...firstSession.headers, 'content-type': 'application/json' }, method: 'POST', body: JSON.stringify({ appSessionId: `data-survival-${crypto.randomUUID()}`, projectPath: projectDir, message: 'data survival shutdown fence' }) });
     const job = await json(created, 'Durable GJC job creation');
-    if (created.status !== 202 || typeof job.jobId !== 'string' || typeof job.appSessionId !== 'string') throw new Error(`Durable GJC job creation returned an invalid response: ${JSON.stringify(job)}`);
+    if (created.status !== 202 || typeof job.jobId !== 'string' || typeof job.appSessionId !== 'string' || typeof job.runId !== 'string' || !job.runId) throw new Error(`Durable GJC job creation returned an invalid response: ${JSON.stringify(job)}`);
     await stop(first); first = undefined;
 
     const schemaAfterFirstBoot = { auth: await sqliteSnapshot(target, authDatabase), jobs: await sqliteSnapshot(target, jobsDatabase) };
     second = await launch(target, dataDirectory, projectDir);
     const secondSession = await bootstrap(second);
-    const staleCookie = await request(`${second.baseUrl}/api/gjc/jobs`, { headers: { ...firstSession.headers, origin: second.baseUrl } });
-    const staleNonce = await request(`${second.baseUrl}/desktop/bootstrap?nonce=${encodeURIComponent(firstNonce)}`);
-    if (staleCookie.status !== 401 || staleNonce.status !== 401 || staleNonce.headers.has('set-cookie')) throw new Error('Desktop credentials from the previous boot were accepted.');
+    const staleCredential = await request(`${second.baseUrl}/api/gjc/jobs`, { headers: { ...firstSession.headers, origin: second.baseUrl } });
+    if (staleCredential.status !== 401) throw new Error('The replaced smoke credential from the previous boot was accepted.');
+    if (!target.serverArchive) {
+      const staleNonce = await request(`${second.baseUrl}/desktop/bootstrap?nonce=${encodeURIComponent(firstNonce)}`);
+      if (staleNonce.status !== 401 || staleNonce.headers.has('set-cookie')) throw new Error('Desktop nonce from the previous boot was accepted.');
+    }
     const list = await json(await request(`${second.baseUrl}/api/gjc/jobs`, { headers: secondSession.headers }), 'Restarted GJC job list');
     if (!Array.isArray(list.items) || !list.items.some(item => item?.jobId === job.jobId && item.state === 'interrupted')) throw new Error(`Restarted GJC job was not preserved as interrupted: ${JSON.stringify(list)}`);
     const replayBeforeResume = await json(await request(`${second.baseUrl}/api/gjc/jobs/${encodeURIComponent(job.jobId)}/events?cursor=0`, { headers: secondSession.headers }), 'Restarted GJC event replay');
-    const sequences = replayBeforeResume.events?.map(event => event.sequence);
-    if (!Array.isArray(sequences) || sequences.length === 0 || new Set(sequences).size !== sequences.length || !sequences.every((sequence, index) => sequence === index + 1) || !replayBeforeResume.events.some(event => event?.payload?.type === 'interrupted')) throw new Error(`Restarted GJC event replay was not gap-free, unique, and shutdown-preserved: ${JSON.stringify(replayBeforeResume)}`);
+    verifyInterruptedReplay(replayBeforeResume, job.runId);
+    const sequences = replayBeforeResume.events.map(event => event.sequence);
     const resumed = await request(`${second.baseUrl}/api/gjc/jobs/${encodeURIComponent(job.jobId)}/resume`, { headers: { ...secondSession.headers, 'content-type': 'application/json' }, method: 'POST', body: JSON.stringify({ appSessionId: job.appSessionId, message: 'data survival resume admission' }) });
     const resumedJob = await json(resumed, 'Interrupted GJC job resume');
     if (resumed.status !== 202 || typeof resumedJob.runId !== 'string') throw new Error(`Interrupted GJC job resume returned an invalid response: ${JSON.stringify(resumedJob)}`);
@@ -541,9 +713,10 @@ async function dataSurvivalSmoke(packagedTarget, suppliedProjectDir) {
 
 export async function runPackagedSmoke(args = process.argv.slice(2)) {
   const options = parseSmokeOptions(args);
+  if (options.serverArchive) assertServerArchiveHost();
   const location = await smokeLocation(options.app, options);
   try {
-    let target = await packagedTargets(location.app, options);
+    let target = options.serverArchive ? await serverArchiveTarget(location.app) : await packagedTargets(location.app, options);
     if (options.appImageEnv) target = await appImageLaunchTarget(location, target);
     await (options.dataSurvival ? dataSurvivalSmoke(target, options.projectDir) : smoke(target, options.projectDir));
   } finally {

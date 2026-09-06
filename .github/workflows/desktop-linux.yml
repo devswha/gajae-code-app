@@ -26,6 +26,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - name: Set up pinned Node.js
@@ -37,8 +38,12 @@ jobs:
 
       - name: Check build host and define canonical assets
         id: metadata
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          echo "Desktop source commit: $SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
           test "$(uname -s)" = Linux
           test "$(uname -m)" = x86_64
           test "$(getconf GNU_LIBC_VERSION)" = "glibc 2.35"
@@ -137,6 +142,7 @@ jobs:
       - name: Checkout smoke harness
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - name: Set up Node.js for the smoke harness

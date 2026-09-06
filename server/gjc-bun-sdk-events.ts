@@ -268,11 +268,16 @@ export function forwardSdkEvent(
     case 'tool_execution_update': {
       // Streaming tool output (and a backgrounded job's real result, which only
       // ever arrives here) otherwise leaves the card frozen on its start state.
-      // The payload field is `partialResult`, and an in-flight update carries no
-      // error flag. Results are keyed by `toolId`, so each update supersedes the
-      // last.
+      // The event has no error flag, but its AgentToolResult envelope can carry
+      // one as well as structured details, even before stdout exists. Results
+      // are keyed by `toolId`, so each update supersedes the last.
       const content = stringifyToolOutput(event.partialResult);
-      if (content) writer.send({ kind: 'tool_result', toolId: str(event.toolCallId), content, isError: false, isFinal: false });
+      const details = toolResultDetails(event.partialResult);
+      const isError = object(event.partialResult) && event.partialResult.isError === true;
+      if (content || details !== undefined || isError) writer.send({
+        kind: 'tool_result', toolId: str(event.toolCallId), content, isError, isFinal: false,
+        ...(details === undefined ? {} : { toolUseResult: details }),
+      });
       return;
     }
     case 'tool_execution_end': {

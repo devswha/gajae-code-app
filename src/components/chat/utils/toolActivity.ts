@@ -116,13 +116,14 @@ export function currentTurnMessages(messages: ChatMessage[]): ChatMessage[] {
 }
 
 /**
- * A call is in flight until its result lands. A subagent container is in
+ * A call is in flight until its final result lands. A subagent container is in
  * flight until the task reports completion, whatever its child tools did.
  */
 export const isToolCallRunning = (message: ChatMessage): boolean => {
   if (!message.isToolUse) return false;
-  if (message.isSubagentContainer) return !message.toolResult && !message.subagentState?.isComplete;
-  return !message.toolResult;
+  const pending = !message.toolResult || message.toolResult.isFinal === false;
+  if (message.isSubagentContainer) return pending && !message.subagentState?.isComplete;
+  return pending;
 };
 
 export function runningToolCalls(messages: ChatMessage[]): ChatMessage[] {

@@ -1,6 +1,20 @@
 # gajae-app v2 — Session Handoff (resume state)
 
-Last updated: 2026-09-05 (adversarial review and nine-skill live acceptance). Supersedes the 2026-07-18 handoff.
+Last updated: 2026-09-06 (post-#39 app and release acceptance). Supersedes the 2026-07-18 handoff.
+
+## Current task scope
+
+PRs #30, #35, #38 and #39 are merged. The owner has excluded OMG skill testing;
+do not carry cross-model or user-skill execution forward as required remaining
+work. Historical issue #3 is not thereby proven resolved. App-owned tool-result
+delivery, desktop persistence and release artifacts remain in scope.
+
+The beta.9 candidate adds dedicated macOS QA profiles and Linux server archive
+acceptance. See `DESKTOP-QA-PROFILE.md`, `SERVER-LINUX-ACCEPTANCE.md` and
+`scripts/release/LOCAL-RELEASE.md`. Local signing uses the existing identity and
+notary profile without exporting credentials; hosted signing secrets are still
+absent. Verify actual publication in GitHub rather than inferring it from the
+candidate package version. The older session records below are historical.
 
 ## TL;DR
 

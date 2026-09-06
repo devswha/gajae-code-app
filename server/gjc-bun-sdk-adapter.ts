@@ -568,7 +568,17 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
 
   async inspectGjcGoal(scope: GjcGoalScope, providerSessionId: string, sessionRoot: string): Promise<GjcGoalSnapshot> {
     this.#assertHealthy();
-    const manager = await resumeManager(providerSessionId, sessionRoot);
+    // list/open can recover backups and persist replay sanitation. A goal read must
+    // never acquire write ownership of a transcript an external CLI may be using.
+    const matches = (await SessionManager.listForResumePickerReadOnly('', sessionRoot))
+      .filter((session) => session.id === providerSessionId);
+    if (matches.length !== 1) throw new Error(FAILURE);
+    const inspected = await SessionManager.inspectSessionTailReadOnly(matches[0].path);
+    if (inspected.kind === 'error' || inspected.identity.sessionId !== providerSessionId) throw new Error(FAILURE);
+    const hydrated = await SessionManager.openExistingForRecoveryHydrationStrict(inspected.identity, sessionRoot);
+    if (hydrated.kind !== 'hydrated') throw new Error(FAILURE);
+    // Keep hydration unpromoted: SDK branch semantics, with no persistence rights.
+    const manager = hydrated.manager;
     try {
       const { state, scope: owner } = readPersistedGjcGoal(manager);
       const actualCwd = await realpath(manager.getCwd());

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import { test } from 'node:test';
@@ -9,7 +9,7 @@ import { ACP_BUILTIN_SLASH_COMMANDS } from '@gajae-code/coding-agent/slash-comma
 import { createAgentSession, discoverAuthStorage } from '@gajae-code/coding-agent/sdk/session';
 import { ModelRegistry } from '@gajae-code/coding-agent/config/model-registry';
 import { Settings } from '@gajae-code/coding-agent/config/settings';
-import { SessionManager } from '@gajae-code/coding-agent/session/session-manager';
+import { CURRENT_SESSION_VERSION, SessionManager } from '@gajae-code/coding-agent/session/session-manager';
 import { AsyncJobManager } from '@gajae-code/coding-agent/async/job-manager';
 import { registerCustomApi, unregisterCustomApis } from '@gajae-code/ai/api-registry';
 import { AssistantMessageEventStream } from '@gajae-code/ai/utils/event-stream';
@@ -1294,6 +1294,122 @@ test('resume opens the sole exact session file and never re-emits session.create
     assert.equal(Object.hasOwn(f.factoryOptions[0]!, 'providerSessionId'), false,
       'the SDK must derive provider identity from the resumed logical session');
     assert.equal(methods(f.frames).includes('session.created'), false);
+  } finally { await f.close(); }
+});
+
+async function goalTranscriptSnapshot(path: string) {
+  const bytes = await readFile(path);
+  const { ino, size, mtimeNs, ctimeNs } = await stat(path, { bigint: true });
+  return { bytes, identity: { ino, size, mtimeNs, ctimeNs } };
+}
+
+for (const status of [null, 'active', 'paused', 'complete'] as const) {
+  test(`goal inspection is read-only for a live managed transcript: ${status ?? 'no goal on current branch'}`, async () => {
+    const f = await fixture();
+    let manager: SessionManager | undefined;
+    try {
+      await mkdir(join(f.root, 'project'));
+      const cwd = await realpath(join(f.root, 'project'));
+      const scope = { appSessionId: 'goal-inspection', owner: 'number:1', cwd };
+      manager = SessionManager.create(cwd, SessionManager.managedDestination(cwd, join(f.root, 'agent')));
+      assert.equal(manager.isManagedDestination(), true);
+      manager.appendMessage({ role: 'user', content: 'Keep the external CLI session active', timestamp: Date.now() });
+      const answer: AssistantMessage = {
+        ...identityAnswer('Offline response'), api: 'openai-responses', provider: 'openai',
+        content: [{ type: 'thinking', thinking: 'Offline reasoning', thinkingSignature: 'live-provider-signature' },
+          { type: 'text', text: 'Offline response' }],
+        providerPayload: { type: 'openaiResponsesHistory', provider: 'openai',
+          items: [{ type: 'reasoning', id: 'rs_live', encrypted_content: 'live-provider-payload', summary: [] }] },
+      };
+      const branchPoint = manager.appendMessage(answer);
+      const goal = { id: 'persisted-goal', objective: 'Preserve the live CLI transcript', status: status ?? 'active',
+        tokensUsed: 17, timeUsedSeconds: 3, createdAt: 100, updatedAt: 200 };
+      manager.appendCustomEntry('gajae-goal-owner-v1', status ? scope : { ...scope, owner: 'abandoned-owner' });
+      manager.appendModeChange(status === 'paused' ? 'goal_paused' : 'goal', { goal });
+      if (status === null) {
+        // A goal on an abandoned branch must not leak into the current leaf's projection.
+        manager.branch(branchPoint);
+        manager.appendMessage({ role: 'user', content: 'Continue without the abandoned goal', timestamp: Date.now() });
+      }
+      await manager.flush();
+      const path = manager.getSessionFile()!;
+      const before = await goalTranscriptSnapshot(path);
+      assert.match(before.bytes.toString(), /live-provider-signature/);
+      assert.match(before.bytes.toString(), /live-provider-payload/);
+      const inspect = (owner = scope) => f.adapter.inspectGjcGoal(owner, manager!.getSessionId(), manager!.getSessionDir());
+      const snapshot = await inspect();
+      const after = await goalTranscriptSnapshot(path);
+      assert.deepEqual(after.bytes, before.bytes, 'goal inspection must not persist replay sanitation');
+      assert.deepEqual(after.identity, before.identity, 'goal inspection must not touch the transcript');
+      assert.deepEqual(snapshot, {
+        supported: true, goal: status ? goal : null, runId: null, canControl: true, resumeRequired: status === 'active',
+      });
+      if (status) {
+        assert.deepEqual(await inspect({ ...scope, owner: 'number:2' }), { ...snapshot, canControl: false });
+      } else {
+        await assert.rejects(inspect({ ...scope, cwd: f.root }), /working directory does not match/);
+      }
+      assert.deepEqual(await goalTranscriptSnapshot(path), before);
+      assert.deepEqual(f.sessions, [], 'goal inspection must not construct a provider session');
+      const message = { role: 'user' as const, content: 'The original CLI owner can still append', timestamp: Date.now() };
+      const id = manager.appendMessage(message);
+      await manager.flush();
+      const continued = await readFile(path);
+      assert.deepEqual(continued.subarray(0, before.bytes.length), before.bytes);
+      const last = JSON.parse(continued.toString().trimEnd().split('\n').at(-1)!);
+      assert.equal(last.id, id);
+      assert.deepEqual(last.message, message, 'the original managed writer must persist its next append');
+    } finally {
+      try { if (manager) assert.equal((await manager.closeStrict()).kind, 'closed'); }
+      finally { await f.close(); }
+    }
+  });
+}
+
+test('goal inspection inventory leaves orphan backups and missing targets untouched', async () => {
+  const f = await fixture();
+  try {
+    const scope = { appSessionId: 'goal-inventory', owner: 'number:1', cwd: await realpath(f.root) };
+    const header = { type: 'session', version: CURRENT_SESSION_VERSION, id: 'orphan-goal', cwd: scope.cwd,
+      timestamp: new Date().toISOString() };
+    const target = join(f.root, 'orphan.jsonl');
+    const backup = `${target}.123.bak`;
+    await writeFile(backup, `${JSON.stringify(header)}\n`);
+    const before = await goalTranscriptSnapshot(backup);
+    const inventory = await readdir(f.root);
+    await assert.rejects(f.adapter.inspectGjcGoal(scope, 'missing-goal', f.root));
+    assert.deepEqual(await readdir(f.root), inventory, 'read-only inventory must not recover orphan backups');
+    assert.deepEqual(await goalTranscriptSnapshot(backup), before);
+    await assert.rejects(f.adapter.inspectGjcGoal(scope, header.id, f.root));
+    await assert.rejects(stat(target), { code: 'ENOENT' });
+    const missingRoot = join(f.root, 'missing-sessions');
+    await assert.rejects(f.adapter.inspectGjcGoal(scope, 'missing-goal', missingRoot));
+    await assert.rejects(stat(missingRoot), { code: 'ENOENT' });
+    assert.deepEqual(await goalTranscriptSnapshot(backup), before);
+    assert.deepEqual(f.sessions, []);
+  } finally { await f.close(); }
+});
+
+test('goal inspection rejects malformed and ambiguous transcripts without mutation', async () => {
+  const f = await fixture();
+  try {
+    const scope = { appSessionId: 'goal-invalid', owner: 'number:1', cwd: await realpath(f.root) };
+    const header = { type: 'session', version: CURRENT_SESSION_VERSION, id: 'malformed-goal', cwd: scope.cwd,
+      timestamp: new Date().toISOString() };
+    const malformed = join(f.root, 'malformed.jsonl');
+    await writeFile(malformed, `${JSON.stringify(header)}\n{"type":\n`);
+    const before = await goalTranscriptSnapshot(malformed);
+    await assert.rejects(f.adapter.inspectGjcGoal(scope, header.id, f.root));
+    assert.deepEqual(await goalTranscriptSnapshot(malformed), before);
+    const first = join(f.root, 'first.jsonl');
+    const duplicate = join(f.root, 'duplicate.jsonl');
+    await writeFile(first, `${JSON.stringify({ ...header, id: 'duplicate-goal' })}\n`);
+    await copyFile(first, duplicate);
+    const originals = await Promise.all([first, duplicate].map(goalTranscriptSnapshot));
+    await assert.rejects(f.adapter.inspectGjcGoal(scope, 'duplicate-goal', f.root));
+    assert.deepEqual(await Promise.all([first, duplicate].map(goalTranscriptSnapshot)), originals);
+    assert.deepEqual(await goalTranscriptSnapshot(malformed), before);
+    assert.deepEqual(f.sessions, []);
   } finally { await f.close(); }
 });
 

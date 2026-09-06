@@ -57,6 +57,16 @@ test('the SDK declarations that back the fan-in are present and readable', () =>
   assert.match(coreEvents, /type\s*:\s*"tool_execution_start"/u);
 });
 
+test('SDK tool updates carry content, structured details and errors on the result envelope', () => {
+  const result = /export interface AgentToolResult[^{]*\{([\s\S]*?)\n\}/u.exec(coreEvents)?.[1];
+  assert.ok(result, 'the SDK still declares its tool result envelope');
+  assert.match(result, /\bcontent\s*:/u);
+  assert.match(result, /\bdetails\?\s*:/u);
+  assert.match(result, /\bisError\?\s*:\s*boolean/u);
+  assert.ok(/type AgentToolUpdateCallback[^\n]*=\s*\(partialResult:\s*AgentToolResult</u.test(coreEvents),
+    'the update callback must deliver the same AgentToolResult envelope');
+});
+
 for (const [eventType, fields] of Object.entries(SDK_EVENT_FIELDS_READ)) {
   test(`SDK event ${eventType} still declares every field the fan-in reads`, () => {
     const body = eventMemberBody(sessionEvents, eventType) ?? eventMemberBody(coreEvents, eventType);

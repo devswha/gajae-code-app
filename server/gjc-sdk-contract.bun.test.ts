@@ -466,6 +466,45 @@ test('golden protocol order: session, stream, tool, ask, usage, terminal, respon
   } finally { await f.close(); }
 });
 
+test('streaming tool metadata and errors survive the app worker protocol', async () => {
+  const f = await fixture('astra', undefined, { id: 'astra', provider: 'contract-provider' });
+  const run = f.host.handle(request('session.start', 'tool-updates', {
+    message: 'Offline tool event delivery', options: { ...f.options, modelId: 'astra', effort: 'xhigh' },
+  }));
+  try {
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    const details = { terminalId: 'terminal-1' };
+    session.emit({ type: 'tool_execution_start', toolCallId: 'call-1', toolName: 'bash', args: { command: 'pwd' } });
+    session.emit({ type: 'tool_execution_update', toolCallId: 'call-1', partialResult: { content: [], details } });
+    session.emit({ type: 'tool_execution_update', toolCallId: 'call-1', partialResult: {
+      content: [{ type: 'text', text: 'Partial execution failed' }], details, isError: true,
+    } });
+    session.emit({ type: 'tool_execution_end', toolCallId: 'call-1', toolName: 'bash', result: {
+      content: [{ type: 'text', text: 'Execution failed' }], details,
+    }, isError: true });
+    session.complete();
+    await run;
+    const messages = f.frames.map((frame) => parseGjcWorkerFrame(JSON.stringify(frame)))
+      .flatMap((frame) => frame.kind === 'event' ? [frame.payload.message as Record<string, unknown> | undefined] : []);
+    const results = messages.filter((message) => message?.kind === 'tool_result');
+    assert.equal(results.length, 3);
+    assert.deepEqual(results.map((result) => ({
+      toolId: result!.toolId, content: result!.content, isError: result!.isError,
+      isFinal: result!.isFinal, toolUseResult: result!.toolUseResult,
+    })), [
+      { toolId: 'call-1', content: '', isError: false, isFinal: false, toolUseResult: details },
+      { toolId: 'call-1', content: 'Partial execution failed', isError: true, isFinal: false, toolUseResult: details },
+      { toolId: 'call-1', content: 'Execution failed', isError: true, isFinal: true, toolUseResult: details },
+    ]);
+    assert.equal((response(f.frames, 'tool-updates').payload as { ok: boolean }).ok, true);
+  } finally {
+    f.sessions.forEach((session) => session.complete());
+    await run;
+    await f.close();
+  }
+});
+
 test('advertised GJC builtins execute in the SDK worker without becoming model prompts', async () => {
   const f = await fixture(
     'contract-model',

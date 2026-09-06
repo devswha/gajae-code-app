@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 import { ancestorNodeModules } from './out-of-tree.mjs';
 import { smokeEnvironment, smokeLocation } from './packaged-server-paths.mjs';
-import { assertServerArchiveHost, bootstrap, launch, parseSmokeOptions, serverArchiveTarget, stop, verifyAbortedReplay, workerInitializationSmoke } from './smoke-packaged-server.mjs';
+import { assertServerArchiveHost, bootstrap, launch, parseSmokeOptions, serverArchiveTarget, stop, verifyAbortedReplay, verifyInterruptedReplay, workerInitializationSmoke } from './smoke-packaged-server.mjs';
 
 async function temporary(t) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'gajae-archive-test-'));
@@ -191,11 +191,86 @@ test('archive launch authenticates normal server mode, serves assets and rotates
   await assert.rejects(bootstrap(second), /does not match archive metadata/);
 });
 
-test('abort acceptance requires ordered durable terminal evidence for this run', () => {
-  const terminal = { sequence: 2, runId: 'run-1', payload: { kind: 'job_terminal', outcome: 'aborted', jobState: 'aborted' } };
-  const valid = { events: [{ sequence: 1 }, terminal] };
-  assert.doesNotThrow(() => verifyAbortedReplay(valid, 'run-1'));
-  for (const replay of [{}, { events: [] }, { events: [terminal] }, { events: [{ sequence: 1 }, { ...terminal, sequence: 1 }] }, { events: [{ sequence: 1 }, { ...terminal, runId: 'another-run' }] }, { events: [{ sequence: 1 }, { ...terminal, payload: { type: 'aborted' } }] }]) {
-    assert.throws(() => verifyAbortedReplay(replay, 'run-1'), /not gap-free and durable/);
+// Exact replay from the Ubuntu 22.04 beta.9 archive acceptance failure.
+const nativeAbortReplay = {
+  events: [{
+    eventId: 'run-terminal:run-4bd96697-1602-499b-bb50-ecf1e09b16ec',
+    payload: {
+      appSessionId: 'smoke-66188f1a-77c0-4540-81bd-d388b07679f2',
+      jobState: 'aborted', kind: 'job_terminal', outcome: 'aborted', reason: 'aborted',
+      runId: 'run-4bd96697-1602-499b-bb50-ecf1e09b16ec', schemaVersion: 1,
+    },
+    sequence: 1,
+  }],
+  nextCursor: null,
+};
+
+test('abort acceptance reads the run identity from the actual native replay payload', () => {
+  const terminal = nativeAbortReplay.events[0];
+  const runId = terminal.payload.runId;
+  assert.equal(Object.hasOwn(terminal, 'runId'), false);
+  assert.doesNotThrow(() => verifyAbortedReplay(nativeAbortReplay, runId));
+  const prior = { eventId: 'worker-event', sequence: 1, payload: { type: 'output' } };
+  assert.doesNotThrow(() => verifyAbortedReplay({ events: [prior, { ...terminal, sequence: 2 }], nextCursor: null }, runId));
+  for (const mutate of [
+    replay => { replay.events[0].payload.runId = 'another-run'; },
+    replay => { replay.events[0].eventId = 'run-terminal:another-run'; },
+    replay => { replay.events[0].runId = runId; delete replay.events[0].payload.runId; },
+    replay => { replay.events[0].payload.schemaVersion = 2; },
+    replay => { replay.events[0].payload.kind = 'other'; },
+    replay => { replay.events[0].payload.outcome = 'failed'; },
+    replay => { replay.events[0].payload.jobState = 'failed'; },
+    replay => { replay.events.push({ ...terminal, sequence: 2, eventId: 'duplicate-terminal' }); },
+  ]) {
+    const replay = structuredClone(nativeAbortReplay);
+    mutate(replay);
+    assert.throws(() => verifyAbortedReplay(replay, runId), /not gap-free and durable/);
+  }
+});
+
+// jobs.rs::reconcile emits this event; native shutdown does not emit the
+// orchestrator's job_terminal payload or an outer runId field.
+const nativeInterruptedReplay = {
+  events: [{ eventId: 'shutdown-interrupted:run-before-restart', payload: { type: 'interrupted', reason: 'shutdown' }, sequence: 1 }],
+  nextCursor: null,
+};
+
+test('data survival requires the native shutdown event for the interrupted run', () => {
+  const runId = 'run-before-restart';
+  assert.doesNotThrow(() => verifyInterruptedReplay(nativeInterruptedReplay, runId));
+  for (const mutate of [
+    replay => { replay.events[0].eventId = 'shutdown-interrupted:another-run'; },
+    replay => { replay.events[0].payload.type = 'completed'; },
+    replay => { replay.events[0].payload.reason = 'other'; },
+    replay => { replay.events[0].payload = { schemaVersion: 1, kind: 'job_terminal', runId, outcome: 'interrupted', jobState: 'interrupted' }; },
+    replay => { replay.events.push({ ...replay.events[0], sequence: 2, eventId: 'duplicate-interruption' }); },
+  ]) {
+    const replay = structuredClone(nativeInterruptedReplay);
+    mutate(replay);
+    assert.throws(() => verifyInterruptedReplay(replay, runId), /not gap-free, unique, and shutdown-preserved/);
+  }
+});
+
+test('abort and shutdown replay checks reject gaps, duplicates, partial pages and missing run identity', () => {
+  for (const [verify, fixture, runId] of [
+    [verifyAbortedReplay, nativeAbortReplay, nativeAbortReplay.events[0].payload.runId],
+    [verifyInterruptedReplay, nativeInterruptedReplay, 'run-before-restart'],
+  ]) {
+    for (const value of [undefined, '', 1]) assert.throws(() => verify(fixture, value));
+    for (const replay of [null, {}, { events: [], nextCursor: null }]) assert.throws(() => verify(replay, runId));
+    for (const mutate of [
+      replay => { replay.events[0].sequence = 2; },
+      replay => { replay.events[0].sequence = 0; },
+      replay => { replay.events.push({ ...replay.events[0] }); },
+      replay => { replay.events.unshift({ eventId: 'earlier', sequence: 2, payload: {} }); replay.events[1].sequence = 1; },
+      replay => { replay.events.push({ eventId: replay.events[0].eventId, sequence: 2, payload: {} }); },
+      replay => { replay.nextCursor = 1; },
+      replay => { delete replay.nextCursor; },
+      replay => { delete replay.events[0].eventId; },
+    ]) {
+      const replay = structuredClone(fixture);
+      mutate(replay);
+      assert.throws(() => verify(replay, runId));
+    }
   }
 });

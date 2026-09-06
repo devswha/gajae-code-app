@@ -582,11 +582,36 @@ async function protocolSmoke(target, instance, headers, projectDir) {
   });
 }
 
+function isCompleteUniqueReplay(replay) {
+  return replay?.nextCursor === null && Array.isArray(replay.events) && replay.events.length > 0
+    && replay.events.every((event, index) => event?.sequence === index + 1 && typeof event.eventId === 'string' && event.eventId.length > 0)
+    && new Set(replay.events.map(event => event.eventId)).size === replay.events.length;
+}
+
 export function verifyAbortedReplay(replay, runId) {
-  if (!Array.isArray(replay.events) || !replay.events.length
-      || !replay.events.every((event, index) => event.sequence === index + 1)
-      || !replay.events.some(event => event.runId === runId && event.payload?.kind === 'job_terminal' && event.payload.outcome === 'aborted' && event.payload.jobState === 'aborted')) {
+  const terminalId = `run-terminal:${runId}`;
+  const terminals = Array.isArray(replay?.events) ? replay.events.filter(event => event?.eventId === terminalId || event?.payload?.kind === 'job_terminal') : [];
+  const terminal = terminals[0];
+  // Native JobEvent exposes eventId/sequence/payload; the orchestrator puts
+  // the run identity in JobTerminalPayload, not on the outer replay event.
+  if (typeof runId !== 'string' || !runId || !isCompleteUniqueReplay(replay) || terminals.length !== 1
+      || terminal.eventId !== terminalId || terminal.payload?.schemaVersion !== 1
+      || terminal.payload.runId !== runId || terminal.payload.kind !== 'job_terminal'
+      || terminal.payload.outcome !== 'aborted' || terminal.payload.jobState !== 'aborted') {
     throw new Error(`Aborted GJC event replay was not gap-free and durable: ${JSON.stringify(replay)}`);
+  }
+}
+
+export function verifyInterruptedReplay(replay, runId) {
+  const terminalId = `shutdown-interrupted:${runId}`;
+  const interruptions = Array.isArray(replay?.events) ? replay.events.filter(event => event?.eventId === terminalId || event?.payload?.type === 'interrupted') : [];
+  const interruption = interruptions[0];
+  // Shutdown reconciliation is authored by the native authority. Unlike an
+  // orchestrator terminal payload, its run identity is only in eventId.
+  if (typeof runId !== 'string' || !runId || !isCompleteUniqueReplay(replay) || interruptions.length !== 1
+      || interruption.eventId !== terminalId || interruption.payload?.type !== 'interrupted'
+      || interruption.payload.reason !== 'shutdown') {
+    throw new Error(`Restarted GJC event replay was not gap-free, unique, and shutdown-preserved: ${JSON.stringify(replay)}`);
   }
 }
 
@@ -609,7 +634,7 @@ async function smoke(packagedTarget, suppliedProjectDir) {
     if (!preservedJob || preservedJob.state !== 'succeeded' || preservedJob.lastSequence !== 1 || listedJobs.nextCursor !== null || Object.hasOwn(preservedJob, 'archivedAt')) throw new Error(`v6 GJC job list was not preserved after migration: ${JSON.stringify(listedJobs)}`);
     const create = await request(`${instance.baseUrl}/api/gjc/jobs`, { headers: { ...headers, 'content-type': 'application/json' }, method: 'POST', body: JSON.stringify({ appSessionId: `smoke-${crypto.randomUUID()}`, projectPath: projectDir, message: 'packaged server smoke' }) });
     const job = await json(create, 'GJC job creation');
-    if (create.status !== 202 || typeof job.jobId !== 'string') throw new Error(`GJC job creation returned an invalid response: ${JSON.stringify(job)}`);
+    if (create.status !== 202 || typeof job.jobId !== 'string' || typeof job.runId !== 'string' || !job.runId) throw new Error(`GJC job creation returned an invalid response: ${JSON.stringify(job)}`);
     const abort = await request(`${instance.baseUrl}/api/gjc/jobs/${encodeURIComponent(job.jobId)}/abort`, { headers, method: 'POST' });
     if (abort.status !== 202) throw new Error(`GJC job abort failed (${abort.status}).`);
     if (target.serverArchive) {
@@ -645,7 +670,7 @@ async function dataSurvivalSmoke(packagedTarget, suppliedProjectDir) {
     if (!(await json(project, 'Durable project creation')).success) throw new Error('Durable project creation did not report success.');
     const created = await request(`${first.baseUrl}/api/gjc/jobs`, { headers: { ...firstSession.headers, 'content-type': 'application/json' }, method: 'POST', body: JSON.stringify({ appSessionId: `data-survival-${crypto.randomUUID()}`, projectPath: projectDir, message: 'data survival shutdown fence' }) });
     const job = await json(created, 'Durable GJC job creation');
-    if (created.status !== 202 || typeof job.jobId !== 'string' || typeof job.appSessionId !== 'string') throw new Error(`Durable GJC job creation returned an invalid response: ${JSON.stringify(job)}`);
+    if (created.status !== 202 || typeof job.jobId !== 'string' || typeof job.appSessionId !== 'string' || typeof job.runId !== 'string' || !job.runId) throw new Error(`Durable GJC job creation returned an invalid response: ${JSON.stringify(job)}`);
     await stop(first); first = undefined;
 
     const schemaAfterFirstBoot = { auth: await sqliteSnapshot(target, authDatabase), jobs: await sqliteSnapshot(target, jobsDatabase) };
@@ -660,8 +685,8 @@ async function dataSurvivalSmoke(packagedTarget, suppliedProjectDir) {
     const list = await json(await request(`${second.baseUrl}/api/gjc/jobs`, { headers: secondSession.headers }), 'Restarted GJC job list');
     if (!Array.isArray(list.items) || !list.items.some(item => item?.jobId === job.jobId && item.state === 'interrupted')) throw new Error(`Restarted GJC job was not preserved as interrupted: ${JSON.stringify(list)}`);
     const replayBeforeResume = await json(await request(`${second.baseUrl}/api/gjc/jobs/${encodeURIComponent(job.jobId)}/events?cursor=0`, { headers: secondSession.headers }), 'Restarted GJC event replay');
-    const sequences = replayBeforeResume.events?.map(event => event.sequence);
-    if (!Array.isArray(sequences) || sequences.length === 0 || new Set(sequences).size !== sequences.length || !sequences.every((sequence, index) => sequence === index + 1) || !replayBeforeResume.events.some(event => event?.payload?.type === 'interrupted')) throw new Error(`Restarted GJC event replay was not gap-free, unique, and shutdown-preserved: ${JSON.stringify(replayBeforeResume)}`);
+    verifyInterruptedReplay(replayBeforeResume, job.runId);
+    const sequences = replayBeforeResume.events.map(event => event.sequence);
     const resumed = await request(`${second.baseUrl}/api/gjc/jobs/${encodeURIComponent(job.jobId)}/resume`, { headers: { ...secondSession.headers, 'content-type': 'application/json' }, method: 'POST', body: JSON.stringify({ appSessionId: job.appSessionId, message: 'data survival resume admission' }) });
     const resumedJob = await json(resumed, 'Interrupted GJC job resume');
     if (resumed.status !== 202 || typeof resumedJob.runId !== 'string') throw new Error(`Interrupted GJC job resume returned an invalid response: ${JSON.stringify(resumedJob)}`);

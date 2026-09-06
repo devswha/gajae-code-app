@@ -12,7 +12,7 @@ export interface NormalizedMessage {
   id: string; sessionId: string; timestamp: string; provider: LLMProvider; kind: MessageKind; seq?: number; replayGeneration?: string;
   role?: 'user' | 'assistant'; content?: string; displayText?: string; commandName?: string; commandMessage?: string; commandArgs?: string;
   isLocalCommand?: boolean; isLocalCommandStdout?: boolean; isCompactSummary?: boolean; images?: Array<{ path?: string; data?: string; name?: string }>;
-  toolName?: string; toolInput?: unknown; toolId?: string; toolResult?: { content: string; isError: boolean; toolUseResult?: unknown } | null;
+  toolName?: string; toolInput?: unknown; toolId?: string; toolResult?: { content: string; isError: boolean; isFinal?: boolean; toolUseResult?: unknown } | null; toolUseResult?: unknown;
   toolResultTruncated?: boolean; toolResultBytes?: number; isError?: boolean; level?: 'info' | 'warning' | 'error'; text?: string; tokens?: number;
   canInterrupt?: boolean; tokenBudget?: unknown; requestId?: string; input?: unknown; context?: unknown; newSessionId?: string; status?: string;
   summary?: string; exitCode?: number; actualSessionId?: string; parentToolUseId?: string; subagentTools?: unknown[]; isFinal?: boolean; sequence?: number; rowid?: number;
@@ -45,6 +45,32 @@ const messageTime = (message: NormalizedMessage) => {
 };
 const chronological = (left: NormalizedMessage, right: NormalizedMessage) => (messageTime(left) ?? 0) - (messageTime(right) ?? 0);
 const userContent = (message: NormalizedMessage) => message.kind === 'text' && message.role === 'user' && message.content?.trim() ? message.content.trim() : null;
+
+type ToolResultUpdate = Pick<NormalizedMessage, 'content' | 'isError' | 'isFinal' | 'toolUseResult'>;
+
+/** Partial details patch records; arrays and explicit null remain replacements. */
+function mergeToolDetails(previous: unknown, update: unknown): unknown {
+  if (update === undefined) return previous;
+  const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
+  if (!record(previous) || !record(update)) return update;
+  return Object.fromEntries([
+    ...Object.entries(previous),
+    ...Object.entries(update).map(([key, value]) => [key, mergeToolDetails(Object.prototype.hasOwnProperty.call(previous, key) ? previous[key] : undefined, value)]),
+  ]);
+}
+
+function mergeToolUpdate(previous: ToolResultUpdate | undefined, update: NormalizedMessage): NormalizedMessage {
+  // Missing isFinal is the legacy final-result contract. Only explicit partial
+  // frames are patches; a final result can clear text and replace all details.
+  if (!previous || update.isFinal !== false) return update;
+  return {
+    ...update,
+    content: update.content || previous.content || '',
+    toolUseResult: mergeToolDetails(previous.toolUseResult, update.toolUseResult),
+    isError: previous.isError === true || update.isError === true,
+    isFinal: previous.isFinal !== false,
+  };
+}
 
 function withoutRepeatedIds(messages: NormalizedMessage[]) {
   const retained = new Set<string>();
@@ -328,7 +354,36 @@ export function useSessionStore() {
     } finally { slot._pendingRequests -= 1; if (slot._fetchMoreTicket === ticket) slot._fetchMoreTicket = null; if (slot._loadingTicket === ticket) slot._loadingTicket = null; evict(); }
   }, [emitSession, evict, queryClient, remember]);
 
-  const append = useCallback((id: string, messages: NormalizedMessage[]) => { if (!messages.length) return; const slot = getSlot(id); const index = new Map<string, number>(); const next = [...slot.realtimeMessages]; next.forEach((row, position) => { const key = messageKey(row); if (key) index.set(key, position); }); messages.forEach((row) => { const normalized = row.sessionId === id ? row : { ...row, sessionId: id }; const key = messageKey(normalized); const position = key ? index.get(key) : undefined; if (position === undefined) { if (key) index.set(key, next.length); next.push(normalized); } else next[position] = normalized; }); slot.realtimeMessages = next.length > MAX_REALTIME_MESSAGES ? next.slice(-MAX_REALTIME_MESSAGES) : next; refreshMerged(slot); emitSession(id); }, [emitSession, getSlot]);
+  const append = useCallback((id: string, messages: NormalizedMessage[]) => {
+    if (!messages.length) return;
+    const slot = getSlot(id);
+    refreshMerged(slot);
+    const results = new Map<string, ToolResultUpdate>();
+    for (const row of slot.merged) {
+      if (!row.toolId) continue;
+      if (row.kind === 'tool_use' && row.toolResult) results.set(row.toolId, row.toolResult);
+      else if (row.kind === 'tool_result') results.set(row.toolId, row);
+    }
+    const index = new Map<string, number>();
+    const next = [...slot.realtimeMessages];
+    next.forEach((row, position) => { const key = messageKey(row); if (key) index.set(key, position); });
+    messages.forEach((row) => {
+      let normalized = row.sessionId === id ? row : { ...row, sessionId: id };
+      if (normalized.toolId && normalized.kind === 'tool_result') {
+        normalized = mergeToolUpdate(results.get(normalized.toolId), normalized);
+        results.set(normalized.toolId!, normalized);
+      } else if (normalized.toolId && normalized.kind === 'tool_use' && normalized.toolResult) {
+        results.set(normalized.toolId, normalized.toolResult);
+      }
+      const key = messageKey(normalized);
+      const position = key ? index.get(key) : undefined;
+      if (position === undefined) { if (key) index.set(key, next.length); next.push(normalized); }
+      else next[position] = normalized;
+    });
+    slot.realtimeMessages = next.length > MAX_REALTIME_MESSAGES ? next.slice(-MAX_REALTIME_MESSAGES) : next;
+    refreshMerged(slot);
+    emitSession(id);
+  }, [emitSession, getSlot]);
   const appendRealtime = useCallback((id: string, message: NormalizedMessage) => append(id, [message]), [append]);
   const appendRealtimeBatch = useCallback((id: string, messages: NormalizedMessage[]) => append(id, messages), [append]);
 

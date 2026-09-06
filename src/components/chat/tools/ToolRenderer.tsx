@@ -22,7 +22,7 @@ function decodeToolData(value: unknown): unknown {
 }
 
 function statusFor(result: any): ToolStatus {
-  if (!result) return 'running';
+  if (!result || result.isFinal === false) return 'running';
   if (!result.isError) return 'completed';
   const message = String(result.content || '').toLowerCase().trim();
   return deniedPhrases.some((phrase) => message.includes(phrase)) ? 'denied' : 'error';
@@ -125,7 +125,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({ toolName, toolInput,
   const helpers = { selectedProject, createDiff, onFileOpen, toolResult };
   const contentProps = displayConfig.getContentProps?.(parsedData, helpers) || {};
   if (displayConfig.type === 'plan') {
-    return <PlanDisplay title={titleFrom(displayConfig, parsedData, 'Plan', helpers)} content={contentProps.content || ''} defaultOpen={collapsibleStartsOpen(rules, displayConfig.defaultOpen ?? false)} isStreaming={mode === 'input' && !toolResult} showRawParameters={mode === 'input' && showRawParameters} rawContent={rawToolInput} toolName={toolName} toolId={toolId} />;
+    return <PlanDisplay title={titleFrom(displayConfig, parsedData, 'Plan', helpers)} content={contentProps.content || ''} defaultOpen={collapsibleStartsOpen(rules, displayConfig.defaultOpen ?? false)} isStreaming={toolStatus === 'running'} showRawParameters={mode === 'input' && showRawParameters} rawContent={rawToolInput} toolName={toolName} toolId={toolId} />;
   }
   if (displayConfig.type !== 'collapsible') return null;
 

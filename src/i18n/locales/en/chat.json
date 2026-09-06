@@ -125,6 +125,8 @@
   "session": {
     "loading": {
       "olderMessages": "Retrieving earlier messages…",
+      "olderMessagesFailed": "Earlier messages could not be retrieved.",
+      "retry": "Retry",
       "sessionMessages": "Retrieving conversation messages…"
     },
     "messages": {

@@ -125,6 +125,8 @@
   "session": {
     "loading": {
       "olderMessages": "이전 메시지 로딩 중...",
+      "olderMessagesFailed": "이전 메시지를 불러오지 못했습니다.",
+      "retry": "다시 시도",
       "sessionMessages": "대화 메시지 로딩 중..."
     },
     "messages": {

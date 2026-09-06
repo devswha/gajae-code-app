@@ -337,6 +337,7 @@ function ChatInterface({
           <>
             <ChatMessagesPane
               scrollContainerRef={session.scrollContainerRef}
+              preserveScrollPosition={session.isUserScrolledUp && !session.isLoadingSessionMessages}
               onWheel={session.handleScroll}
               onTouchMove={session.handleScroll}
               isLoadingSessionMessages={session.isLoadingSessionMessages}
@@ -348,9 +349,10 @@ function ChatInterface({
               currentSessionId={session.currentSessionId}
               provider="gjc"
               isLoadingMoreMessages={session.isLoadingMoreMessages}
+              historyLoadError={session.historyLoadError}
+              retryOlderMessages={session.retryOlderMessages}
               hasMoreMessages={session.hasMoreMessages}
               totalMessages={session.totalMessages}
-              sessionMessagesCount={session.chatMessages.length}
               visibleMessageCount={session.visibleMessageCount}
               visibleMessages={session.visibleMessages}
               loadEarlierMessages={session.loadEarlierMessages}

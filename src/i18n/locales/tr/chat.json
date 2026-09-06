@@ -125,6 +125,8 @@
   "session": {
     "loading": {
       "olderMessages": "Önceki mesajlar alınıyor…",
+      "olderMessagesFailed": "Önceki mesajlar alınamadı.",
+      "retry": "Yeniden dene",
       "sessionMessages": "Konuşma mesajları alınıyor…"
     },
     "messages": {

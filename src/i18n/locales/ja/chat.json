@@ -125,6 +125,8 @@
   "session": {
     "loading": {
       "olderMessages": "過去のメッセージを読み込んでいます...。",
+      "olderMessagesFailed": "過去のメッセージを読み込めませんでした。",
+      "retry": "再試行",
       "sessionMessages": "セッションメッセージを読み込んでいます...。"
     },
     "messages": {

@@ -2,6 +2,15 @@
 
 Windows x64 has a separate [preview build and verification guide](WINDOWS-DESKTOP.md).
 The acceptance records on this page apply to macOS.
+Linux x86_64 `.deb`/`.AppImage` builds and their separate validation procedure
+are documented in [DESKTOP-LINUX.md](DESKTOP-LINUX.md). The macOS results below
+do not establish Linux package or GUI compatibility.
+
+This page is a historical macOS verification record. The merged source currently
+targets package `2.0.0-beta.9`, desktop version `0.2.3`, GJC SDK `0.16.4`, and
+Bun `1.4.0`; no macOS package or interactive acceptance result for that source
+tree is claimed here. Each result below remains scoped to the commit and
+versions named in its own record.
 
 > **Status (2026-07-22): beta.3 rename and reinstall QA passed; C7
 > complete, C8 void, C9 complete.** The beta.3 installed-app smoke covered the

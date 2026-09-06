@@ -15,6 +15,7 @@ import {
   resolveGjcResumeSessionRoot,
 } from './gjc-worker-client.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE } from './gjc-model-resolution.js';
+import { GJC_CLEANUP_UNCONFIRMED_CODE } from './gjc-engine.js';
 import {
   GJC_WINDOWS_JOB_GUARD_ACK,
   GJC_WINDOWS_JOB_GUARD_READY,
@@ -555,7 +556,8 @@ test('aborts an issued run by runId and waits for its terminal start response', 
   const peer = new FakePeer(child);
   replyToHandshake(peer);
   const supervisor = new GjcWorkerSupervisor(runtime(child, 'app-abort'));
-  const run = spawn(supervisor, 'hello', {}, { send() {} });
+  const sent: unknown[] = [];
+  const run = spawn(supervisor, 'hello', {}, { send: value => sent.push(value) });
   const start = await peer.waitFor('session.start');
   let settled = false;
   void run.then(() => { settled = true; });
@@ -568,9 +570,10 @@ test('aborts an issued run by runId and waits for its terminal start response', 
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(settled, false);
 
-  peer.respond(start, { ok: true, result: { runId: start.id } });
+  peer.respond(start, { ok: true, result: { runId: start.id, aborted: true } });
   await run;
   assert.equal(settled, true);
+  assert.equal(sent.length, 0, 'the explicit abort caller retains terminal ownership');
 });
 
 test('keeps a run active when the worker cannot confirm abort', async () => {
@@ -764,6 +767,113 @@ test('failed tree cleanup permanently blocks a replacement worker generation', a
   assert.equal(spawnCalls, 1);
 });
 
+test('fatal cleanup fences every scope and same-batch terminal until the shared worker is reaped', async () => {
+  const first = new FakeChild(); const replacement = new FakeChild();
+  const peer = new FakePeer(first); const nextPeer = new FakePeer(replacement);
+  replyToHandshake(peer); nextPeer.handle((request) => nextPeer.respond(request));
+  let releaseReap!: () => void;
+  const reap = new Promise<void>((resolve) => { releaseReap = resolve; });
+  let spawnCalls = 0; let killCalls = 0;
+  const processKills: number[] = [];
+  const messages: Array<Record<string, unknown>> = [];
+  const supervisor = new GjcWorkerSupervisor({
+    ...runtime(first), spawn: () => ++spawnCalls === 1 ? first : replacement,
+    killTree: async (child) => { killCalls += 1; await reap; child.kill(); },
+    killProcessTree: (id) => { processKills.push(id); },
+  });
+  const a = supervisor.spawnRun({ runId: 'fatal-a', appSessionId: 'scope-a', message: 'a', writer: { send: (value) => messages.push(value as Record<string, unknown>) } });
+  const b = supervisor.spawnRun({ runId: 'fatal-b', appSessionId: 'scope-b', message: 'b', writer: { send: (value) => messages.push(value as Record<string, unknown>) } });
+  let completionsSettled = false; let outcomesSettled = false;
+  const completions = Promise.allSettled([a.completion, b.completion]).then((value) => { completionsSettled = true; return value; });
+  const outcomes = Promise.all([a.outcome!, b.outcome!]).then((value) => { outcomesSettled = true; return value; });
+  const startA = await peer.waitFor('session.start');
+  const startB = await peer.waitFor('session.start', 2);
+  peer.status('scope-a', startA.id, 4101); peer.status('scope-b', startB.id, 4102);
+  peer.event('scope-b', startB.id, 'ask.presented', { message: { kind: 'permission_request', requestId: 'held-approval' } });
+  // Even a preceding abort acknowledgement cannot prove final cleanup once
+  // this generation subsequently reports the fatal cleanup condition.
+  const abort = supervisor.abort(a.abortHandle);
+  peer.respond(await peer.waitFor('turn.abort'), { ok: true, result: { runId: a.abortHandle, aborted: true } });
+  assert.equal(await abort, 'aborted');
+  const fatal: GjcWorkerResponseFrame = {
+    protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'response', id: startA.id, method: 'session.start', sessionId: 'scope-a',
+    payload: { ok: false, error: { code: GJC_CLEANUP_UNCONFIRMED_CODE, message: 'Cleanup is unconfirmed.' } },
+  };
+  const late: GjcWorkerEventFrame = {
+    protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'event', id: 'late-terminal', method: 'turn.completed', sessionId: 'scope-b',
+    payload: { runId: startB.id, message: { kind: 'complete', exitCode: 0 } },
+  };
+  first.stdout.write(serializeGjcWorkerFrame(fatal) + serializeGjcWorkerFrame(late));
+  const c = supervisor.spawnRun({ runId: 'after-reap', appSessionId: 'scope-c', message: 'c', writer: { send() {} } });
+  let catalogSettled = false;
+  const catalog = supervisor.modelCatalog().then((value) => { catalogSettled = true; return value; });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(killCalls, 1); assert.equal(spawnCalls, 1);
+  assert.deepEqual(processKills.sort(), [4101, 4102]);
+  assert.equal(completionsSettled, false); assert.equal(outcomesSettled, false); assert.equal(catalogSettled, false);
+  assert.equal(supervisor.isActive(a.abortHandle), true); assert.equal(supervisor.isActive(b.abortHandle), true);
+  assert.equal(messages.some((message) => message.kind === 'complete'), false);
+  assert.equal(supervisor.resolveApproval('held-approval', { allow: true }), false);
+  assert.deepEqual(supervisor.pendingApprovals('scope-b'), []);
+  peer.event('scope-b', startB.id, 'turn.completed', { message: { kind: 'complete', exitCode: 0 } });
+  releaseReap();
+  assert.deepEqual(await outcomes, ['reaped', 'reaped']);
+  assert.deepEqual((await completions).map((value) => value.status), ['rejected', 'rejected']);
+  assert.deepEqual(messages.filter((message) => message.kind === 'complete').map((message) => message.exitCode), [1, 1]);
+  assert.equal(messages.some((message) => message.aborted === true), false);
+  await c.completion; assert.equal((await catalog).ok, true);
+  assert.equal(spawnCalls, 2); assert.equal(killCalls, 1);
+  await supervisor.shutdown();
+});
+
+test('unconfirmed fatal reap retains uncertain runs and blocks new work across scopes', async () => {
+  const child = new FakeChild(); const peer = new FakePeer(child); replyToHandshake(peer);
+  let spawnCalls = 0;
+  const messages: unknown[] = [];
+  const supervisor = new GjcWorkerSupervisor({
+    ...runtime(child), spawn: () => { spawnCalls += 1; return child; },
+    killTree: async () => { throw new Error('process group remains alive'); },
+  });
+  const run = supervisor.spawnRun({ runId: 'uncertain', appSessionId: 'scope-a', message: 'a', writer: { send: (value) => messages.push(value) } });
+  let settled = false;
+  void run.completion.then(() => { settled = true; }, () => { settled = true; });
+  const start = await peer.waitFor('session.start');
+  peer.respond(start, { ok: false, error: { code: GJC_CLEANUP_UNCONFIRMED_CODE, message: 'Cleanup is unconfirmed.' } });
+  assert.equal(await run.outcome, 'unconfirmed');
+  assert.equal(await supervisor.terminate(run.abortHandle), 'unconfirmed');
+  assert.equal(run.phase!(), 'request_issued');
+  assert.equal(supervisor.isActive(run.abortHandle), true);
+  assert.equal(settled, false);
+  assert.deepEqual(messages, []);
+  const next = supervisor.spawnRun({ runId: 'blocked-next', appSessionId: 'scope-b', message: 'b', writer: { send() {} } });
+  await assert.rejects(next.completion, /GJC worker failed/);
+  assert.equal(await next.outcome, 'not_started');
+  await assert.rejects(supervisor.modelCatalog(), /GJC worker failed/);
+  assert.equal(spawnCalls, 1);
+  assert.equal(supervisor.isActive(run.abortHandle), true);
+  assert.equal(settled, false);
+  await assert.rejects(supervisor.shutdown(), /GJC worker failed/);
+});
+
+test('an ordinary failed run cannot poison a healthy worker by imitating cleanup text', async () => {
+  const child = new FakeChild(); const peer = new FakePeer(child); replyToHandshake(peer);
+  let kills = 0;
+  const supervisor = new GjcWorkerSupervisor({ ...runtime(child), killTree: () => { kills += 1; child.kill(); } });
+  const failed = spawn(supervisor, 'first', {}, { send() {} });
+  const rejected = assert.rejects(failed, /GJC worker failed/);
+  peer.respond(await peer.waitFor('session.start'), { ok: false, error: {
+    code: 'run_failed', message: `${GJC_CLEANUP_UNCONFIRMED_CODE}: GjcCleanupUnconfirmedError`,
+  } });
+  await rejected;
+  assert.equal(kills, 0);
+  const healthy = spawn(supervisor, 'second', {}, { send() {} });
+  peer.respond(await peer.waitFor('session.start', 2));
+  await healthy;
+  assert.equal(kills, 0);
+  peer.handle((request) => peer.respond(request));
+  await supervisor.shutdown();
+});
+
 test('a timed-out auxiliary request does not corrupt other request correlation', async () => {
   const child = new FakeChild();
   const peer = new FakePeer(child);
@@ -846,6 +956,32 @@ test('forwards one worker terminal event without synthesizing a duplicate', asyn
 
   assert.deepEqual(sent, [terminal]);
   assert.equal(failures, 1);
+});
+
+test('runtime-owned goal stops preserve aborted outcomes and emit one truthful chat terminal', async () => {
+  for (const aborted of [true, 'true'] as const) {
+    const child = new FakeChild();
+    const peer = new FakePeer(child);
+    replyToHandshake(peer);
+    const sent: Array<Record<string, unknown>> = [];
+    const reasons: string[] = [];
+    const supervisor = new GjcWorkerSupervisor({
+      ...runtime(child, 'app-goal-stop'),
+      notifyRunStopped: event => reasons.push(event.stopReason),
+    });
+    const run = supervisor.spawnRun({ runId: 'goal-stop', appSessionId: 'app-goal-stop', message: 'work', options: {}, writer: { send: value => sent.push(value as Record<string, unknown>) } });
+    const start = await peer.waitFor('session.start');
+    peer.respond(start, { ok: true, result: { runId: start.id, aborted } });
+    await run.completion;
+    assert.equal(await run.outcome, aborted === true ? 'aborted' : 'completed');
+    assert.equal(sent.length, 1);
+    const terminal = sent[0];
+    assert.ok(terminal);
+    assert.equal(terminal.kind, 'complete');
+    assert.equal(terminal.aborted, aborted === true);
+    assert.equal(terminal.exitCode, 0);
+    assert.deepEqual(reasons, [aborted === true ? 'aborted' : 'completed']);
+  }
 });
 test('durable-job notification ownership suppresses direct GJC terminal sends', async () => {
   const child = new FakeChild();

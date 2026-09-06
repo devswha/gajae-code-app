@@ -1,3 +1,5 @@
+import { realpath } from 'node:fs/promises';
+
 import { createAgentSession, discoverAuthStorage } from '@gajae-code/coding-agent/sdk/session';
 import { ModelRegistry } from '@gajae-code/coding-agent/config/model-registry';
 import { mergeModelProfiles, resolveProfileBindings } from '@gajae-code/coding-agent/config/model-profiles';
@@ -11,17 +13,23 @@ import { initTheme, theme } from '@gajae-code/coding-agent/modes/theme/theme';
 import { generateSessionTitle } from '@gajae-code/coding-agent/utils/title-generator';
 import { getSupportedEfforts } from '@gajae-code/ai/model-thinking';
 
+import { parseGjcGoalCommand, type GjcGoalCommand, type GjcGoalSnapshot } from '../shared/gjc-goal.js';
+
 import { appendImagesInputTag } from './shared/image-attachments.js';
 import { GjcBunOAuthController, type GjcBunOAuthControllerOptions } from './gjc-bun-oauth-controller.js';
 import { GJC_APP_BUILTIN_COMMAND_NAMES } from './gjc-command-surface.generated.js';
 import type { GjcWorkerOAuthRuntime, GjcWorkerRuntime, GjcWorkerWriter } from './gjc-worker.js';
 import { GjcBunAskController } from './gjc-bun-ask-controller.js';
+import { GjcCleanupUnconfirmedError, isGjcCleanupUnconfirmedError } from './gjc-cleanup-error.js';
+import { GjcDelegationExecutor, GJC_APP_DELEGATION_TOOL_NAMES, serializeGjcDelegationAutomationTools } from './gjc-delegation-executor.js';
 import { createGjcPermissionProvider, type GjcPermissionProvider } from './gjc-bun-permission-gate.js';
 import { forwardPromptTerminal, forwardSdkEvent, normalizeBuiltinCommandStdout, type SdkRunState } from './gjc-bun-sdk-events.js';
 import { parseGjcRunPermissions, type GjcRunPermissions } from './gjc-permission-policy.js';
 import { GjcModelResolutionError } from './gjc-model-resolution.js';
 import { resolveContainedExportCommand } from './gjc-export-path.js';
 import { readSessionSnapshot } from './gjc-session-state.js';
+import { GjcGoalSession, GJC_GOAL_MODEL_OPERATIONS, matchesGjcGoalOwner, readPersistedGjcGoal, type GjcGoalScope } from './gjc-goal-session.js';
+import { installGjcGoalTool } from './gjc-goal-tool.js';
 import { installGjcCliShim } from './gjc-cli-shim.js';
 import {
   closeGjcAutomationSession,
@@ -46,6 +54,9 @@ export type SdkRunConfig = {
   spawns: string;
   bashPolicy: AppBashPolicy;
   appSessionId?: string;
+  goalUiVersion?: number;
+  goalOwner?: string;
+  goalCommand?: GjcGoalCommand;
   /** Image attachments the client sent with this message (`{path, name?, mimeType?}` descriptors). */
   images?: unknown;
   /**
@@ -82,6 +93,9 @@ export type GjcBunSdkAdapterOptions = {
 };
 
 type ActiveRun = {
+  goals?: GjcGoalSession;
+  goalScope?: GjcGoalScope;
+  markAborted?: () => void;
   session: {
     prompt(message: string, options?: { streamingBehavior?: 'steer' | 'followUp' }): Promise<void>;
     abort(): Promise<void>;
@@ -98,6 +112,7 @@ type ActiveRun = {
   state: SdkRunState;
   abortState: 'idle' | 'aborting' | 'aborted';
   appSessionId?: string;
+  delegation?: GjcDelegationExecutor;
 };
 
 const FAILURE = 'GJC SDK configuration is invalid.';
@@ -124,9 +139,8 @@ const RUNTIME_CREDENTIAL_ENV_VARS = new Set([
 ]);
 
 export function applyGjcToolSettingsPolicy(settings: Settings): void {
-  // Goal mode writes artifacts the app cannot display, then injects hidden
-  // continuation turns until completion. The app projects no goal state, so
-  // users have no badge, pause, or cancel control for that self-restarting loop.
+  // Default closed. The adapter enables this only after admitting a capable,
+  // owned app view with scoped controls, persistence and a continuation limit.
   settings.override('goal.enabled', false);
 
   // ast_edit only previews rewrites and queues hidden `resolve` to apply them.
@@ -190,7 +204,15 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
   // `invalid_permissions` code so the worker can answer with that code and the
   // app can tell the user why the run never started.
   const permissions = parseGjcRunPermissions(candidate.permissions);
-  return { ...(candidate as unknown as SdkRunConfig), ...(permissions ? { permissions } : {}) };
+  if (candidate.goalCommand !== undefined) parseGjcGoalCommand(candidate.goalCommand);
+  if (candidate.goalOwner !== undefined && (typeof candidate.goalOwner !== 'string' || !candidate.goalOwner)) throw new Error(FAILURE);
+  return {
+    ...(candidate as unknown as SdkRunConfig),
+    // The SDK resolves builtin names case-insensitively. Canonicalize before
+    // selecting app replacements so TASK cannot reach its builtin executor.
+    toolNames: candidate.toolNames.map((name: string) => name.toLowerCase()),
+    ...(permissions ? { permissions } : {}),
+  };
 }
 
 async function modelsForCredential(
@@ -362,6 +384,33 @@ async function resumeManager(providerSessionId: string, sessionRoot: string): Pr
 
 /** In-process, serial-only SDK runtime. AuthStorage and ModelRegistry are app-owned singleton inputs. */
 export class GjcBunSdkAdapter implements GjcWorkerRuntime {
+  #cleanupFailure?: GjcCleanupUnconfirmedError;
+
+  #assertHealthy(): void {
+    if (this.#cleanupFailure) throw this.#cleanupFailure;
+  }
+
+  #poison(): GjcCleanupUnconfirmedError {
+    if (this.#cleanupFailure) return this.#cleanupFailure;
+    const failure = this.#cleanupFailure = new GjcCleanupUnconfirmedError();
+    // Fence every session in this shared runtime immediately. These are only
+    // best-effort aborts; the Node supervisor must prove whole-worker reaping.
+    for (const starting of this.#starting.values()) starting.abortRequested = true;
+    for (const run of this.#runs.values()) {
+      run.abortState = 'aborting';
+      run.state.abortPending = true;
+      for (const stop of [
+        () => run.goals?.fenceMutations(),
+        () => run.askController.dispose(),
+        () => run.delegation?.dispose(),
+        () => run.session.abort(),
+      ]) {
+        try { void Promise.resolve(stop()).catch(() => {}); }
+        catch { /* The fatal fault already requires OS-level termination. */ }
+      }
+    }
+    return failure;
+  }
   readonly #runs = new Map<string, ActiveRun>();
   /** Runs accepted but not yet holding a session; an abort can still reach them. */
   readonly #starting = new Map<string, { abortRequested: boolean }>();
@@ -386,16 +435,12 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   }
 
   async modelCatalog() {
+    this.#assertHealthy();
     const seen = new Set<string>();
     const models = [];
     const candidates = await modelsForCredential(this.authStorage, this.modelRegistry, { kind: 'stored' });
 
-    const selections = this.modelRegistry.getCanonicalModelSelections({
-      availableOnly: true,
-      candidates,
-    });
-    for (const { record, model } of selections) {
-      if (!model) continue;
+    for (const model of candidates) {
       const value = `${model.provider}/${model.id}`;
       if (seen.has(value)) continue;
       seen.add(value);
@@ -404,11 +449,12 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         efforts = getSupportedEfforts(model);
       }
       const defaultEffort = MODEL_ID_EFFORT.exec(model.id)?.[1];
+      const canonicalId = this.modelRegistry.getCanonicalId(model);
       models.push({
         value,
-        label: record.name || model.name || model.id,
+        label: model.name || model.id,
         group: model.provider,
-        canonicalId: record.id,
+        ...(canonicalId ? { canonicalId } : {}),
         effort: {
           ...(defaultEffort ? { default: defaultEffort } : {}),
           values: efforts.map((effort) => ({ value: effort })),
@@ -419,12 +465,22 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   }
 
   spawnGjc(message: string, options: Record<string, unknown>, writer: GjcWorkerWriter): Promise<void> & { abortHandle?: string; processId?: number } {
+    this.#assertHealthy();
     if (isAppOAuthCommand(message)) throw new Error(FAILURE);
     const runId = typeof options.runHandle === 'string' && options.runHandle ? options.runHandle : '';
     const config = configFromOptions(options);
     if (!runId || this.#runs.has(runId) || this.#starting.has(runId)) throw new Error(FAILURE);
     this.#starting.set(runId, { abortRequested: false });
-    const task = this.#run(runId, message, options, config, writer).finally(() => this.#starting.delete(runId));
+    const guardedWriter: GjcWorkerWriter = {
+      send: (value) => { if (!this.#cleanupFailure) writer.send(value); },
+      ...(writer.setSessionId ? { setSessionId: (id: string) => { if (!this.#cleanupFailure) writer.setSessionId!(id); } } : {}),
+      ...(writer.setCredential ? { setCredential: (credential: Parameters<NonNullable<GjcWorkerWriter['setCredential']>>[0]) => {
+        if (!this.#cleanupFailure) writer.setCredential!(credential);
+      } } : {}),
+      ...(writer.setModel ? { setModel: (model: string) => { if (!this.#cleanupFailure) writer.setModel!(model); } } : {}),
+      ...(writer.setAborted ? { setAborted: () => { if (!this.#cleanupFailure) writer.setAborted!(); } } : {}),
+    };
+    const task = this.#run(runId, message, options, config, guardedWriter).finally(() => this.#starting.delete(runId));
     return Object.assign(task, { abortHandle: runId });
   }
 
@@ -442,6 +498,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
    * has already seen, so the caller queues the message instead.
    */
   async steerGjcSession(runHandle: string, message: string): Promise<boolean> {
+    this.#assertHealthy();
     const run = this.#runs.get(runHandle);
     if (!run || run.abortState !== 'idle') return false;
     if (run.session.isStreaming === false) return false;
@@ -457,6 +514,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   }
 
   async abortGjcSession(sessionId: string): Promise<boolean> {
+    this.#assertHealthy();
     const run = this.#runs.get(sessionId);
     if (!run) {
       // Stop pressed while the session is still being built (model and
@@ -482,10 +540,14 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       ? closeAutomation(run.appSessionId).catch(() => {})
       : Promise.resolve();
     try {
-      await run.session.abort();
+      await Promise.all([
+        run.goals ? run.goals.stop() : run.session.abort(),
+        run.delegation?.dispose(),
+      ]);
       run.askController.dispose();
       run.abortState = 'aborted';
       run.state.abortRequested = true;
+      run.markAborted?.();
       await automationCleanup;
       return true;
     } catch {
@@ -497,10 +559,49 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   }
 
   resolveGjcToolApproval(requestId: string, decision: unknown): boolean {
+    this.#assertHealthy();
     for (const run of this.#runs.values()) {
       if (run.askController.resolve(requestId, decision)) return true;
     }
     return false;
+  }
+
+  async inspectGjcGoal(scope: GjcGoalScope, providerSessionId: string, sessionRoot: string): Promise<GjcGoalSnapshot> {
+    this.#assertHealthy();
+    const manager = await resumeManager(providerSessionId, sessionRoot);
+    try {
+      const { state, scope: owner } = readPersistedGjcGoal(manager);
+      const actualCwd = await realpath(manager.getCwd());
+      if (actualCwd !== (owner?.cwd ?? scope.cwd)) throw new Error('Goal working directory does not match the persisted session.');
+      return {
+        supported: true, goal: state?.goal ?? null, runId: null,
+        canControl: owner ? matchesGjcGoalOwner(owner, scope) : !state,
+        resumeRequired: state?.goal.status === 'active',
+      };
+    } finally { await manager.close(); }
+  }
+
+  async controlGjcGoal(runId: string, scope: GjcGoalScope, command?: GjcGoalCommand, stopAfterMutation = true): Promise<GjcGoalSnapshot> {
+    this.#assertHealthy();
+    const run = this.#runs.get(runId);
+    if (!run || run.abortState !== 'idle' || !matchesGjcGoalOwner(run.goalScope, scope)) throw new Error('No controllable goal exists for this run.');
+    if (!run.goals) {
+      if (command) throw new Error('Start a goal after this run finishes.');
+      return { supported: true, goal: null, runId, canControl: false, resumeRequired: false };
+    }
+    if (!command) return run.goals.snapshot();
+    const snapshot = await run.goals.control(command);
+    if (command.operation === 'pause' || command.operation === 'drop') {
+      if (!stopAfterMutation) {
+        // The native worktree runtime owns this run's cancellation/finalization.
+        // Freeze further model changes while its caller stops that authority.
+        run.goals.fenceMutations();
+        return { ...snapshot, canControl: false };
+      }
+      if (!await this.abortGjcSession(runId)) throw new Error('The goal changed, but stopping the run could not be confirmed.');
+      return { ...snapshot, runId: null, resumeRequired: command.operation === 'pause' };
+    }
+    return snapshot;
   }
 
   async #run(runId: string, message: string, options: Record<string, unknown>, config: SdkRunConfig, writer: GjcWorkerWriter): Promise<void> {
@@ -511,6 +612,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
     try {
       await this.#runInner(runId, options, config, writer, message, (value) => { active = value; });
     } catch (error) {
+      if (isGjcCleanupUnconfirmedError(error)) throw this.#poison();
       // Diagnostics stay opt-in and never reach Protocol frames.
       if (process.env.GJC_BUN_ADAPTER_DEBUG === '1') {
         console.error('[gjc-bun-adapter]', error instanceof Error ? `${error.name}: ${error.message}\n${error.stack ?? ''}` : String(error));
@@ -519,17 +621,26 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       didRunFail = true;
     }
     if (active) {
-      active.unsubscribe();
-      active.askController.dispose();
-      this.#runs.delete(runId);
-      try {
-        await active.session.dispose();
-      } catch {
-        console.error('GJC SDK session disposal failed.');
-        disposalError = new Error(FAILURE);
+      const run = active;
+      for (const cleanup of [
+        () => run.goals?.dispose(),
+        () => run.unsubscribe(),
+        () => run.askController.dispose(),
+        () => run.delegation?.dispose(),
+        () => run.session.dispose(),
+      ]) {
+        try { await cleanup(); }
+        catch { disposalError ??= new Error(FAILURE); }
       }
+      if (disposalError) {
+        console.error('GJC SDK session disposal failed.');
+        throw this.#poison();
+      }
+      this.#assertHealthy();
+      this.#runs.delete(runId);
+      forwardPromptTerminal(writer, run.state, didRunFail ? runError ?? new Error(FAILURE) : undefined);
     }
-    if (disposalError) throw disposalError;
+    this.#assertHealthy();
     if (didRunFail) throw runError;
   }
 
@@ -558,11 +669,24 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       // sessions, and the clone keeps their project settings and overrides isolated.
       const settings = await globalSettings.cloneForCwd(config.cwd);
       applyGjcToolSettingsPolicy(settings);
+      const goalScope = config.appSessionId && config.goalOwner
+        ? { appSessionId: config.appSessionId, owner: config.goalOwner, cwd: await realpath(config.cwd),
+            projectPath: await realpath(typeof options.projectPath === 'string' ? options.projectPath : config.cwd) }
+        : undefined;
+      // Requested delegation names are replaced below by the checked app
+      // executor. Its children explicitly disable goal lifecycle operations.
+      const goalEnabled = config.goalUiVersion === 1 && Boolean(goalScope);
+      if (config.goalCommand && !goalEnabled) throw new Error('Goal controls are unavailable in this view.');
+      settings.override('goal.enabled', goalEnabled);
       const askController = new GjcBunAskController(writer);
       const model = await modelForWithRefresh(this.modelRegistry, configuredModelId);
       const resolvedCredential = await credentialFor(this.authStorage, config.credential, model);
+      let delegation: GjcDelegationExecutor | undefined;
       try {
-        const result = await (this.options.createSessionFactory ?? createAgentSession)({
+        const permissionProvider = config.permissions
+          ? createGjcPermissionProvider(config.permissions, askController, writer)
+          : undefined;
+        const sessionOptions: Parameters<typeof createAgentSession>[0] = {
           // The app hosts the runtime in-process; the model must not reach for
           // the gjc CLI (absent on most app installs) or hand-edit ~/.gjc when
           // asked to configure sign-in, models or permissions — those live in
@@ -571,6 +695,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           systemPrompt: (defaults: string[]) => [...defaults, GAJAE_APP_ENV_NOTE],
           cwd: config.cwd,
           sessionManager,
+          // The SDK defaults provider/cache identity to this manager's logical
+          // ID, including on exact-ID resume. Supplying the same ID explicitly
+          // instead makes SDK 0.15.6 expose a transcript-path endpoint tuple as
+          // tool getSessionId()/GJC_SESSION_ID, which workflow skills reject.
+          // Keep the SDK's default logical endpoint and transition rekeying.
           settings,
           authStorage: this.authStorage,
           modelRegistry: this.modelRegistry,
@@ -580,23 +709,42 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
               ? { thinkingLevel: config.effort }
               : {}
           ),
-          providerSessionId: resumedId ?? sessionManager.getSessionId(),
           ...(resolvedCredential.credentialSelector
             ? { credentialSelector: resolvedCredential.credentialSelector }
             : {}),
-          toolNames: [...new Set([...config.toolNames, 'ask'])],
+          toolNames: [...new Set([...config.toolNames, 'ask', ...(goalEnabled ? ['goal'] : [])])],
           spawns: config.spawns,
+          goalToolAllowedOps: goalEnabled ? GJC_GOAL_MODEL_OPERATIONS : [],
           bashAllowedPrefixes: config.bashPolicy.allowedPrefixes,
           ...(config.bashPolicy.restrictionProfile ? { bashRestrictionProfile: config.bashPolicy.restrictionProfile } : {}),
           hasUI: true,
           ...(config.appSessionId ? {
-            automationTools: createGjcAutomationTools(
+            automationTools: serializeGjcDelegationAutomationTools(createGjcAutomationTools(
               config.appSessionId,
               askController.uiContext,
               this.options.automationBridge,
-            ),
+            )),
           } : {}),
+        };
+        if (config.toolNames.some((name) => GJC_APP_DELEGATION_TOOL_NAMES.includes(name as 'task' | 'subagent'))) {
+          delegation = new GjcDelegationExecutor({
+            parent: sessionManager, session: () => result.session, sessionOptions,
+            permissionProvider, createSession: this.options.createSessionFactory,
+          });
+          delegation.setToolUIContext(askController.uiContext);
+        }
+        this.#assertHealthy();
+        const result = await (this.options.createSessionFactory ?? createAgentSession)({
+          ...sessionOptions,
+          // CustomTool is the public SDK replacement API. Never construct the
+          // built-in executor: it does not inherit the app permission boundary.
+          toolNames: sessionOptions.toolNames!.filter((name) => !GJC_APP_DELEGATION_TOOL_NAMES.includes(name as 'task' | 'subagent')),
+          ...(delegation ? { customTools: delegation.tools() } : {}),
+          // The app executor above receives the configured role policy. Only
+          // native SDK spawning is denied for goal/delegation-capable sessions.
+          spawns: delegation || goalEnabled ? 'deny' : sessionOptions.spawns,
         });
+        this.#assertHealthy();
         if (config.modelProfile) {
           await activateModelProfile({
             session: result.session,
@@ -641,28 +789,44 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
             throw new Error(FAILURE);
           }
           session.setSdkPermissionMode('prompt');
-          session.setSdkPermissionProvider(createGjcPermissionProvider(config.permissions, askController, writer));
+          session.setSdkPermissionProvider(permissionProvider);
         }
         const state: SdkRunState = { abortRequested: false, abortPending: false, terminalEmitted: false, finalError: false };
         // The adapter is the only place holding the live session, so the
         // footer snapshot is read here and handed to the event mapper.
-        const unsubscribe = result.session.subscribe((event: unknown) => forwardSdkEvent(
-          event,
-          writer,
-          state,
-          () => readSessionSnapshot(result.session, sessionManager),
-        ));
+        let goals: GjcGoalSession | undefined;
+        const unsubscribe = result.session.subscribe((event: unknown) => {
+          goals?.onEvent(event);
+          forwardSdkEvent(
+            event,
+            writer,
+            state,
+            () => ({ ...readSessionSnapshot(result.session, sessionManager), ...(goals ? { goal: goals.snapshot() } : {}) }),
+          );
+        });
         const activeRun: ActiveRun = {
+          markAborted: writer.setAborted,
+          ...(goalScope ? { goalScope } : {}),
           session: result.session,
           sessionManager,
           unsubscribe,
           askController,
           state,
           abortState: 'idle',
+          ...(delegation ? { delegation } : {}),
           ...(config.appSessionId ? { appSessionId: config.appSessionId } : {}),
         };
         setActive(activeRun);
         this.#runs.set(runId, activeRun);
+        if (goalEnabled && goalScope) {
+          goals = new GjcGoalSession(result.session, sessionManager, goalScope, runId,
+            (goal) => writer.send({ kind: 'status', text: 'session_state', sessionState: { goal } }),
+            () => this.abortGjcSession(runId));
+          activeRun.goals = goals;
+          activeRun.goalScope = goalScope;
+          await goals.restore();
+          await installGjcGoalTool(result.session, goals);
+        }
         if (this.#starting.get(runId)?.abortRequested) {
           // Aborted before it had a session. No prompt, no terminal frame
           // (the app already completed the run as aborted when the abort was
@@ -674,7 +838,15 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           return;
         }
         if (!resumedId) writer.setSessionId?.(sessionManager.getSessionId());
+        const initialSnapshot = readSessionSnapshot(result.session, sessionManager);
+        if (goals) writer.send({ kind: 'status', text: 'session_state', sessionState: { ...initialSnapshot, goal: goals.snapshot() } });
         let promptMessage: string | null = message;
+        if (config.goalCommand) {
+          const goal = await goals!.control(config.goalCommand);
+          promptMessage = config.goalCommand.operation === 'create' || config.goalCommand.operation === 'resume'
+            ? `Work on this goal: ${goal.goal!.objective}`
+            : null;
+        }
         const commandMatch = /^\/([^\s]+)(?:\s+(.*))?$/.exec(message.trim());
         const commandName = commandMatch?.[1];
         if (commandName && GJC_APP_BUILTIN_COMMAND_NAMES.has(commandName)) {
@@ -744,6 +916,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         let promptError: unknown;
         try {
           if (promptMessage !== null) {
+            this.#assertHealthy();
             // Attachments ride as an <images_input> block: the title above used
             // the bare user text, the model reads the files its own way.
             await result.session.prompt(appendImagesInputTag(promptMessage, config.images));
@@ -756,10 +929,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           await Promise.race([titleTask, new Promise<void>((resolve) => { grace = setTimeout(resolve, SESSION_TITLE_GRACE_MS); })]);
           clearTimeout(grace);
         }
-        forwardPromptTerminal(writer, state, promptError);
+        await delegation?.dispose();
         if (promptError !== undefined) throw promptError;
       } finally {
-        resolvedCredential.dispose();
+        try { await delegation?.dispose(); }
+        finally { resolvedCredential.dispose(); }
       }
     }
   }

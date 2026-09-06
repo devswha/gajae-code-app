@@ -70,7 +70,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-    replay: (jobId: string, after: number = 0) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/replay?after=${encodeURIComponent(after)}`),
+    replay: (jobId: string, after: number = 0) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/events?after=${encodeURIComponent(after)}`),
     diff: (jobId: string) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/git/diff`),
     commit: (jobId: string, input: JsonBody) => authenticatedFetch(`/api/gjc/jobs/${encodeURIComponent(jobId)}/git/commit`, {
       method: 'POST',
@@ -87,8 +87,8 @@ export const api = {
   archivedProjects: () => authenticatedFetch('/api/projects/archived'),
   // Read-only working-tree summary for the Workspace status tab: branch plus
   // the files git reports as changed. Never writes to the repository.
-  gitStatus: (projectId: string) =>
-    authenticatedFetch(`/api/git/status?project=${encodeURIComponent(projectId)}`),
+  gitStatus: (projectId: string, sessionId?: string) =>
+    authenticatedFetch(`/api/git/status?project=${encodeURIComponent(projectId)}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ''}`),
   // Home-relative directory autocomplete ({ home, suggestions }).
   dirSuggestions: (prefix: string) =>
     authenticatedFetch(`/api/providers/fs/dir-suggestions?prefix=${encodeURIComponent(prefix)}`),
@@ -179,8 +179,9 @@ export const api = {
       method: 'DELETE',
     });
   },
-  searchConversationsUrl: (query: string, limit: number = 50) => {
+  searchConversationsUrl: (query: string, limit: number = 50, projectId?: string) => {
     const params = new URLSearchParams({ q: query, limit: String(limit) });
+    if (projectId !== undefined) params.set('projectId', projectId);
     return `/api/providers/search/sessions?${params.toString()}`;
   },
   createProject: (projectData: JsonBody) =>
@@ -204,8 +205,8 @@ export const api = {
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/toggle-star`, {
       method: 'POST',
     }),
-  getFiles: (projectId: string, options: RequestInit = {}) =>
-    authenticatedFetch(`/api/projects/${projectId}/files`, options),
+  getFiles: (projectId: string, options: RequestInit = {}, sessionId?: string) =>
+    authenticatedFetch(`/api/projects/${projectId}/files${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''}`, options),
 
 
   // Browse filesystem for project suggestions

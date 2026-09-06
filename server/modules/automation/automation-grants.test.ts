@@ -34,3 +34,31 @@ test('persisted grants are normalized and individually revocable', () => {
   store.revoke({ kind: 'application', value: 'com.example.App', scope: 'always' });
   assert.deepEqual(store.list().always.applications, []);
 });
+
+test('revoking always grants preserves session grants, and invalid scopes never revoke anything', () => {
+  const store = new AutomationGrantStore(memoryStorage());
+  store.grant({ kind: 'origin', value: 'https://example.com', scope: 'always' });
+  store.grant({ kind: 'application', value: 'com.example.App', scope: 'session', sessionId: 'session-a' });
+  store.revoke({ scope: 'always' });
+  assert.equal(store.has('origin', 'https://example.com', 'session-a'), false);
+  assert.equal(store.has('application', 'com.example.App', 'session-a'), true);
+
+  for (const input of [{ scope: 'session' }, { scope: 'invalid' }, { kind: null }, { value: '' }, [], { scpoe: 'always' }]) {
+    assert.throws(() => store.revoke(input as never), /Invalid automation grant filter/);
+    assert.equal(store.has('application', 'com.example.App', 'session-a'), true);
+  }
+  store.revoke({ scope: 'session', sessionId: 'session-a' });
+  assert.equal(store.has('application', 'com.example.App', 'session-a'), false);
+});
+
+test('a session-only revoke filter cannot remove persistent or another session grants', () => {
+  const store = new AutomationGrantStore(memoryStorage());
+  store.grant({ kind: 'origin', value: 'https://example.com', scope: 'always' });
+  for (const sessionId of ['session-a', 'session-b']) {
+    store.grant({ kind: 'application', value: 'com.example.App', scope: 'session', sessionId });
+  }
+  store.revoke({ sessionId: 'session-a' });
+  assert.equal(store.has('application', 'com.example.App', 'session-a'), false);
+  assert.equal(store.has('application', 'com.example.App', 'session-b'), true);
+  assert.equal(store.has('origin', 'https://example.com', 'session-a'), true);
+});

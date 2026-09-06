@@ -132,6 +132,7 @@ function convertRow(message: NormalizedMessage, attachedResult: AttachedResult):
     const toolResult = attachedResult ? {
       content: toolOutputText(attachedResult.content),
       isError: Boolean(attachedResult.isError),
+      isFinal: attachedResult.isFinal,
       toolUseResult: (attachedResult as any).toolUseResult,
       // When the result landed, so a finished turn can say how long it worked.
       timestamp: (attachedResult as { timestamp?: string }).timestamp,
@@ -146,7 +147,7 @@ function convertRow(message: NormalizedMessage, attachedResult: AttachedResult):
       toolResultTruncated: Boolean(message.toolResultTruncated || (attachedResult as { toolResultTruncated?: unknown } | null)?.toolResultTruncated),
       toolResultBytes: message.toolResultBytes ?? (attachedResult as { toolResultBytes?: number } | null)?.toolResultBytes,
       isSubagentContainer: isTask,
-      subagentState: isTask ? { childTools, currentToolIndex: childTools.length ? childTools.length - 1 : -1, isComplete: Boolean(toolResult) } : undefined,
+      subagentState: isTask ? { childTools, currentToolIndex: childTools.length ? childTools.length - 1 : -1, isComplete: Boolean(toolResult && toolResult.isFinal !== false) } : undefined,
       ...common,
     });
     return output;

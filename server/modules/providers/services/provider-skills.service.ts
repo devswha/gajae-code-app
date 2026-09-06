@@ -14,10 +14,10 @@ const createProviderSkillsService = (dependencies: ProviderSkillsServiceDependen
   const resolveProjectPath = dependencies.resolveProjectPath ?? projectsDb.getProjectPathById;
 
   return {
-    async listProviderSkills(provider: LLMProvider, projectId?: string): Promise<ProviderSkill[]> {
-      let workspacePath: string | undefined;
+    async listProviderSkills(provider: LLMProvider, projectId?: string, sessionWorkspace?: string): Promise<ProviderSkill[]> {
+      let workspacePath: string | undefined = sessionWorkspace;
       if (projectId) {
-        workspacePath = resolveProjectPath(projectId) ?? undefined;
+        workspacePath ??= resolveProjectPath(projectId) ?? undefined;
         if (!workspacePath) {
           throw new AppError(`Project "${projectId}" was not found.`, {
             code: 'PROJECT_NOT_FOUND',

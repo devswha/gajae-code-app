@@ -1206,7 +1206,7 @@ dependencies = [
 
 [[package]]
 name = "gajae-app-desktop"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "fs2",
  "getrandom 0.2.17",

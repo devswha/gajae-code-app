@@ -32,6 +32,9 @@ export const PLATFORMS = {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
+const WINDOWS_FILE_OPERATION_MAX_ATTEMPTS = 4;
+const WINDOWS_FILE_OPERATION_RETRY_DELAY_MS = 100;
+const WINDOWS_TRANSIENT_FILE_ERRORS = new Set(['EBUSY', 'EPERM', 'EACCES']);
 
 export async function versionOf(binary) {
   return new Promise((resolve) => {
@@ -44,6 +47,29 @@ export async function versionOf(binary) {
     child.once('error', () => resolve(null));
     child.once('close', (code) => resolve(code === 0 ? output.trim() : null));
   });
+}
+
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+function isTransientWindowsFileError(error) {
+  return WINDOWS_TRANSIENT_FILE_ERRORS.has(error?.code);
+}
+
+async function runFileOperation(operation, windows, retrySleep) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!windows || !isTransientWindowsFileError(error) || attempt >= WINDOWS_FILE_OPERATION_MAX_ATTEMPTS) {
+        throw error;
+      }
+      await retrySleep(WINDOWS_FILE_OPERATION_RETRY_DELAY_MS);
+    }
+  }
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function extractBinary(archivePath, archiveBinaryPath, destinationPath, platformKey) {
@@ -73,6 +99,8 @@ export async function fetchBun({
   download = downloadVerifiedArchive,
   extract = extractBinary,
   probe = versionOf,
+  fsModule = fs,
+  retrySleep = wait,
 } = {}) {
   const platform = PLATFORMS[platformKey];
   if (!platform) {
@@ -84,27 +112,53 @@ export async function fetchBun({
     console.log(`Bun ${BUN_VERSION} is already available at ${destination}.`);
     return destination;
   }
-  await fs.mkdir(path.dirname(destination), { recursive: true });
-  const temporaryDir = await fs.mkdtemp(path.join(os.tmpdir(), 'gajae-bun-'));
+  await fsModule.mkdir(path.dirname(destination), { recursive: true });
+  const temporaryDir = await fsModule.mkdtemp(path.join(os.tmpdir(), 'gajae-bun-'));
   const archivePath = path.join(temporaryDir, platform.archive);
   // Windows CreateProcess needs the executable suffix even before installation.
   const temporaryBinary = path.join(path.dirname(destination), `.bun-${path.basename(temporaryDir)}.tmp${windows ? '.exe' : ''}`);
 
+  let failure;
   try {
     console.log(`Downloading Bun ${BUN_VERSION} for ${platformKey}...`);
     await download(`${RELEASE_BASE_URL}/${platform.archive}`, archivePath, platform.archiveSha256);
     await extract(archivePath, platform.binary, temporaryBinary, platformKey);
-    if (!windows) await fs.chmod(temporaryBinary, 0o755);
+    if (!windows) await fsModule.chmod(temporaryBinary, 0o755);
     if (await probe(temporaryBinary) !== BUN_VERSION) {
       throw new Error('Extracted Bun binary did not report the requested version.');
     }
-    await fs.rename(temporaryBinary, destination);
-    console.log(`Installed Bun ${BUN_VERSION} at ${destination}.`);
-    return destination;
-  } finally {
-    await fs.rm(temporaryBinary, { force: true });
-    await fs.rm(temporaryDir, { recursive: true, force: true });
+    await runFileOperation(() => fsModule.rename(temporaryBinary, destination), windows, retrySleep);
+  } catch (error) {
+    failure = error;
   }
+
+  const cleanupErrors = [];
+  try {
+    await runFileOperation(() => fsModule.rm(temporaryBinary, { force: true }), windows, retrySleep);
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+  try {
+    await runFileOperation(() => fsModule.rm(temporaryDir, { recursive: true, force: true }), windows, retrySleep);
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+
+  if (failure) {
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(
+        [failure, ...cleanupErrors],
+        `${errorMessage(failure)}\nBun temporary cleanup also failed: ${cleanupErrors.map(errorMessage).join('\n')}`,
+      );
+    }
+    throw failure;
+  }
+  if (cleanupErrors.length > 0) {
+    if (cleanupErrors.length === 1) throw cleanupErrors[0];
+    throw new AggregateError(cleanupErrors, `Bun temporary cleanup failed: ${cleanupErrors.map(errorMessage).join('\n')}`);
+  }
+  console.log(`Installed Bun ${BUN_VERSION} at ${destination}.`);
+  return destination;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await fetchBun();

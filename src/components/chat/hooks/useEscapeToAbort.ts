@@ -11,6 +11,10 @@ export function useEscapeToAbort(canAbort: boolean, onAbort: () => void): void {
     if (!canAbort) return undefined;
     const interceptEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) return;
+      // A modal owns Escape. Check the event path too: an earlier dialog
+      // listener may already have removed the panel during this same event.
+      const modal = '[role="dialog"][aria-modal="true"]';
+      if (document.querySelector(modal) || event.composedPath().some((node) => node instanceof Element && node.matches(modal))) return;
       event.preventDefault();
       onAbort();
     };

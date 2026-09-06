@@ -22,7 +22,13 @@ export type JobAuthority = {
 };
 export type GitWorktrees = { create(params: Record<string, unknown>): Promise<unknown>; list(params?: Record<string, unknown>): Promise<unknown>; status(params?: Record<string, unknown>): Promise<unknown> };
 export type JobSupervisor = { spawnRun(input: GjcWorkerSpawnRun): GjcWorkerRun; abort(alias: string): Promise<GjcWorkerAbortOutcome>; terminate?(alias: string): Promise<GjcWorkerReapOutcome> };
-export type JobOrchestratorOptions = GjcWorkerOptions & { writer: GjcWorkerWriter; jobId?: string; cap?: number; dispatched?: boolean };
+export type JobOrchestratorOptions = GjcWorkerOptions & {
+  writer: GjcWorkerWriter; jobId?: string; cap?: number; dispatched?: boolean;
+  signal?: AbortSignal;
+  onPrepared?: (cwd: string) => Promise<void>;
+  onRun?: (run: GjcWorkerRun) => void;
+  retainWorkspaceOnFailure?: boolean;
+};
 export type JobRunHandle = { jobId: string; runId?: string; state: string; started: Promise<void>; completion: Promise<void>; abortHandle: string };
 export type JobOrchestratorDependencies = { jobs: JobAuthority; git?: GitWorktrees; gitForProject?: (projectRoot: string) => GitWorktrees; supervisor: JobSupervisor; owner?: string; createId?: () => string; broadcast?: (jobId: string, event: JobProjectionEvent) => void; stopCompletionTimeoutMs?: number };
 export class GjcCapacityExhaustedError extends Error { constructor(public readonly jobId: string) { super(`GJC job ${jobId} is waiting for capacity.`); this.name = 'GjcCapacityExhaustedError'; } }
@@ -127,7 +133,12 @@ export class JobOrchestrator {
   private writer(jobId: string, current: JobSnapshot, runId: string, writer: GjcWorkerWriter, scope: PersistenceScope): GjcWorkerWriter {
     return {
       ...writer,
-      send: (payload) => this.enqueueEvent(jobId, current, runId, payload, writer, scope),
+      send: (payload) => {
+        if (safe(payload) && payload.kind === 'complete' && typeof payload.exitCode === 'number' && payload.exitCode !== 0) {
+          scope.failure ??= new Error('Worker reported an unsuccessful turn.');
+        }
+        this.enqueueEvent(jobId, current, runId, payload, writer, scope);
+      },
       setSessionId: (providerSessionId) => {
         const expected = lease(current);
         this.trackPersistence(scope, () => this.serial(jobId, async () => {
@@ -139,35 +150,43 @@ export class JobOrchestrator {
       },
     };
   }
-  private completion(jobId: string, runId: string, expected: Lease, run: GjcWorkerRun, scope: PersistenceScope): Promise<void> {
+  private completion(jobId: string, runId: string, expected: Lease, run: GjcWorkerRun, scope: PersistenceScope, signal?: AbortSignal): Promise<void> {
     return run.completion.then(
       async () => {
         await this.drainPersistence(scope);
+        const outcome = await run.outcome;
+        if (outcome === 'unconfirmed') throw new GjcJobsClientError('Worker termination is unconfirmed.', 'worker_stop_unconfirmed');
         return this.serial(jobId, async () => {
           const fresh = snapshot(await this.deps.jobs.get({ jobId }));
           if (!sameFence(fresh, runId, expected)) return;
-          await this.finalize(jobId, fresh, runId, scope.failure ? 'failed' : 'succeeded', scope.failure ? failureError(scope.failure).message : 'completed');
+          const aborted = outcome === 'aborted' || signal?.aborted;
+          if (!aborted && (outcome === 'not_started' || outcome === 'reaped')) scope.failure ??= new Error('Worker stopped without completing the turn.');
+          await this.finalize(jobId, fresh, runId, scope.failure ? 'failed' : aborted ? 'aborted' : 'succeeded', scope.failure ? failureError(scope.failure).message : aborted ? 'aborted' : 'completed');
           this.activeRuns.delete(jobId);
           if (scope.failure) throw failureError(scope.failure);
         });
       },
       async (error) => {
         await this.drainPersistence(scope);
+        if (await run.outcome === 'unconfirmed') throw failureError(error);
         await this.serial(jobId, async () => {
           const fresh = snapshot(await this.deps.jobs.get({ jobId }));
           if (!sameFence(fresh, runId, expected)) return;
-          await this.finalize(jobId, fresh, runId, 'failed', failureError(scope.failure ?? error).message);
+          await this.finalize(jobId, fresh, runId, signal?.aborted ? 'aborted' : 'failed', failureError(scope.failure ?? error).message);
           this.activeRuns.delete(jobId);
         });
         throw failureError(error);
       },
     );
   }
-  private async failRun(jobId: string, runId: string, expected: Lease, run: GjcWorkerRun | undefined, error: unknown): Promise<void> {
+  private async failRun(jobId: string, runId: string, expected: Lease, run: GjcWorkerRun | undefined, error: unknown, retainWorkspace = false): Promise<void> {
     const outcome = await settledOutcome(run);
     if (outcome === 'not_started' || run?.phase?.() === 'registered') {
       const fresh = snapshot(await this.deps.jobs.get({ jobId }));
-      if (sameFence(fresh, runId, expected)) await this.cancelAdmission(jobId, fresh, error, runId);
+      if (sameFence(fresh, runId, expected)) {
+        if (retainWorkspace && fresh.worktreeId && fresh.repositoryRoot) await this.finalize(jobId, fresh, runId, 'failed', failureError(error).message);
+        else await this.cancelAdmission(jobId, fresh, error, runId);
+      }
       this.activeRuns.delete(jobId);
       return;
     }
@@ -226,16 +245,33 @@ export class JobOrchestrator {
   private async dispatch(jobId: string, current: JobSnapshot, runId: string, appSessionId: string, message: string, options: JobOrchestratorOptions, cwd: string, sessionId?: string | null): Promise<JobRunHandle> {
     let run: GjcWorkerRun | undefined;
     let expected: Lease | undefined;
+    const { signal, onPrepared: _prepared, onRun, writer: _writer, retainWorkspaceOnFailure, ...workerOptions } = options;
+    let unsubscribe = () => {};
+    const admissionLease = lease(current);
+    const cancelled = async (): Promise<JobRunHandle> => {
+      const fresh = snapshot(await this.deps.jobs.get({ jobId }));
+      if (sameFence(fresh, runId, admissionLease)) await this.finalize(jobId, fresh, runId, 'aborted', 'aborted before dispatch');
+      this.activeRuns.delete(jobId);
+      return { jobId, runId, state: 'ready', started: Promise.resolve(), completion: Promise.resolve(), abortHandle: runId };
+    };
     try {
+      if (signal?.aborted) return await cancelled();
       current = await this.mutate(jobId, () => this.deps.jobs.markDispatching({ ...this.params(jobId, current), runId }), (fresh) => Boolean(fresh.dispatchCheckpoint));
       expected = lease(current);
+      if (signal?.aborted) return await cancelled();
       const scope: PersistenceScope = { pending: new Set() };
-      run = this.deps.supervisor.spawnRun({ runId, appSessionId, message, options: { ...options, cwd, sessionId, notificationOwner: 'terminal-adapter' }, writer: this.writer(jobId, current, runId, options.writer, scope) });
+      run = this.deps.supervisor.spawnRun({ runId, appSessionId, message, options: { ...workerOptions, cwd, sessionId, notificationOwner: 'terminal-adapter' }, writer: this.writer(jobId, current, runId, options.writer, scope) });
       this.activeRuns.set(jobId, { runId, lease: expected, abortHandle: run.abortHandle, run });
+      const ownedRun = run;
+      const abort = () => { void this.stopRun(ownedRun); };
+      signal?.addEventListener('abort', abort, { once: true });
+      unsubscribe = () => signal?.removeEventListener('abort', abort);
+      onRun?.(run);
+      if (signal?.aborted) abort();
       void run.completion.catch(() => {});
       await run.started;
       current = await this.mutate(jobId, () => this.deps.jobs.transition({ ...this.params(jobId, current), state: 'running' }), (fresh) => lower(fresh.state) === 'running');
-      const completion = this.completion(jobId, runId, expected, run, scope);
+      const completion = this.completion(jobId, runId, expected, run, scope, signal).finally(unsubscribe);
       // REST job routes respond 202 and drop the handle without awaiting
       // completion (unlike the chat WebSocket path). The terminal failure is
       // already durably recorded by finalize(), so mark the wrapper handled to
@@ -244,13 +280,16 @@ export class JobOrchestrator {
       void completion.catch(() => {});
       return { jobId, runId, state: current.state, started: run.started, completion, abortHandle: run.abortHandle };
     } catch (error) {
-      if (expected) await this.failRun(jobId, runId, expected, run, error);
+      unsubscribe();
+      if (signal?.aborted && expected && (!run || await this.stopRun(run))) return cancelled();
+      if (expected) await this.failRun(jobId, runId, expected, run, error, retainWorkspaceOnFailure);
       throw error;
     }
   }
   private ensureAdmission(): void { if (this.admissionBlocked) throw new GjcJobsClientError('GJC job authority is unavailable.', 'authority_unavailable'); }
   async start(provider: 'gjc', appSessionId: string, projectRoot: string, message: string, options: JobOrchestratorOptions): Promise<JobRunHandle> {
     if (provider !== 'gjc' || !appSessionId) throw new Error('GJC provider and app session are required.');
+    options.signal?.throwIfAborted();
     this.ensureAdmission();
     const suffix = this.createId().replace(/[^a-z0-9]/giu, '').toLowerCase().slice(-12); const jobId = options.jobId ?? `job-${suffix}`;
     // Cap by UTF-16 units but never split a surrogate pair: a trailing lone
@@ -273,6 +312,7 @@ export class JobOrchestrator {
         const created = worktree(await this.git(projectRoot).create({ jobId, path, branch }));
         if (!created.head) throw new Error('worktree.create did not return a base commit.');
         current = await this.mutate(jobId, () => this.deps.jobs.prepare({ ...this.params(jobId, current), worktreeId: created.worktreeId, branch, baseCommit: created.head, repositoryRoot: projectRoot }), (fresh) => fresh.worktreeId === created.worktreeId);
+        await options.onPrepared?.(created.path);
         const runId = `run-${this.createId()}`;
         current = await this.mutate(jobId, () => this.deps.jobs.admit({ ...this.params(jobId, current), runId, appSessionId }), (fresh) => fresh.currentRun?.runId === runId);
         dispatched = true;
@@ -285,6 +325,7 @@ export class JobOrchestrator {
   }
   async turnStart(provider: 'gjc', appSessionId: string, message: string, options: JobOrchestratorOptions): Promise<JobRunHandle> {
     if (provider !== 'gjc' || !appSessionId) throw new Error('GJC provider and app session are required.');
+    options.signal?.throwIfAborted();
     this.ensureAdmission();
     const bound = binding(await this.deps.jobs.bindingResolve({ provider, appSessionId }));
     if (lower(bound.state) !== 'ready') throw new Error('Only ready jobs can start a new turn.');
@@ -298,9 +339,14 @@ export class JobOrchestrator {
       }
       let dispatched = false;
       try {
-        if (!current.worktreeId || !current.repositoryRoot) throw new Error('Ready job has no stored repository root and worktree.');
-        const cwd = worktreePath(await this.git(current.repositoryRoot).list({}), current.worktreeId);
+        if (!current.worktreeId || !current.repositoryRoot || !current.branch) throw new Error('Ready job has no stored repository root, branch and worktree.');
+        const git = this.git(current.repositoryRoot);
+        const cwd = worktreePath(await git.list({}), current.worktreeId);
         if (!cwd) throw new Error('Stored worktree is no longer available.');
+        // Listing is discovery, not authorization: its path can have been
+        // replaced since the previous turn. Revalidate the registered Git
+        // pointer and repository ownership just as interrupted resume does.
+        await git.status({ jobId: bound.jobId, branch: current.branch, path: cwd });
         dispatched = true;
         return await this.dispatch(bound.jobId, current, runId, appSessionId, message, options, cwd, bound.providerSessionId);
       } catch (error) {
@@ -311,6 +357,7 @@ export class JobOrchestrator {
   }
   async resume(jobId: string, appSessionId: string, message: string, options: JobOrchestratorOptions): Promise<JobRunHandle> {
     if (!appSessionId) throw new Error('GJC app session is required.');
+    options.signal?.throwIfAborted();
     this.ensureAdmission();
     return this.serial(jobId, async () => {
       const current = snapshot(await this.deps.jobs.get({ jobId }));

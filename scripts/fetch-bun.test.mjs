@@ -42,6 +42,111 @@ test('Windows Bun is installed through an executable .exe staging path with the 
   await assert.rejects(fs.access(path.dirname(archive)), { code: 'ENOENT' });
 });
 
+test('Windows retries transient rename and staging cleanup failures within a bound', async t => {
+  const root = await fixture(t);
+  const realFs = fs;
+  const fsModule = Object.create(realFs);
+  let renameAttempts = 0;
+  let cleanupAttempts = 0;
+  fsModule.rename = async (...args) => {
+    renameAttempts += 1;
+    if (renameAttempts < 3) {
+      const error = new Error('executable is still locked');
+      error.code = 'EBUSY';
+      throw error;
+    }
+    return realFs.rename(...args);
+  };
+  fsModule.rm = async (target, options) => {
+    if (target.includes('.tmp.exe')) {
+      cleanupAttempts += 1;
+      if (cleanupAttempts < 3) {
+        const error = new Error('staging executable is still locked');
+        error.code = 'EPERM';
+        throw error;
+      }
+    }
+    return realFs.rm(target, options);
+  };
+
+  const installed = await fetchBun({
+    root, platformKey: 'win32-x64', fsModule, retrySleep: async () => {},
+    download: async (_url, target) => fs.writeFile(target, 'zip'),
+    extract: async (_archive, _member, target) => fs.writeFile(target, 'verified Bun'),
+    probe: async target => target.endsWith('.tmp.exe') ? BUN_VERSION : null,
+  });
+  assert.equal(installed, path.join(root, 'dist-native', 'bun.exe'));
+  assert.equal(renameAttempts, 3);
+  assert.equal(cleanupAttempts, 3);
+  assert.deepEqual(await fs.readdir(path.dirname(installed)), ['bun.exe']);
+});
+
+test('a permanent Windows rename failure is reported and preserves the previous executable', async t => {
+  const root = await fixture(t);
+  const nativeDir = path.join(root, 'dist-native');
+  await fs.mkdir(nativeDir);
+  const installed = path.join(nativeDir, 'bun.exe');
+  await fs.writeFile(installed, 'previous Bun');
+  const realFs = fs;
+  const fsModule = Object.create(realFs);
+  const renameFailure = Object.assign(new Error('rename denied permanently'), { code: 'EIO' });
+  let renameAttempts = 0;
+  fsModule.rename = async () => {
+    renameAttempts += 1;
+    throw renameFailure;
+  };
+  let archive;
+
+  await assert.rejects(fetchBun({
+    root, platformKey: 'win32-x64', fsModule, retrySleep: async () => {},
+    download: async (_url, target) => { archive = target; await fs.writeFile(target, 'zip'); },
+    extract: async (_archive, _member, target) => fs.writeFile(target, 'verified Bun'),
+    probe: async target => target.endsWith('.tmp.exe') ? BUN_VERSION : null,
+  }), error => {
+    assert.equal(error, renameFailure);
+    return true;
+  });
+  assert.equal(renameAttempts, 1);
+  assert.equal(await fs.readFile(installed, 'utf8'), 'previous Bun');
+  assert.deepEqual(await fs.readdir(nativeDir), ['bun.exe']);
+  await assert.rejects(fs.access(path.dirname(archive)), { code: 'ENOENT' });
+});
+
+test('a permanent staging cleanup failure does not mask version validation and still cleans the archive', async t => {
+  const root = await fixture(t);
+  const realFs = fs;
+  const fsModule = Object.create(realFs);
+  const cleanupFailure = Object.assign(new Error('staging unlink failed permanently'), { code: 'EIO' });
+  let archive;
+  let binaryCleanupAttempts = 0;
+  let archiveCleanupAttempted = false;
+  fsModule.rm = async (target, options) => {
+    if (target.includes('.tmp.exe')) {
+      binaryCleanupAttempts += 1;
+      throw cleanupFailure;
+    }
+    archiveCleanupAttempted = true;
+    return realFs.rm(target, options);
+  };
+
+  let failure;
+  await assert.rejects(fetchBun({
+    root, platformKey: 'win32-x64', fsModule, retrySleep: async () => {},
+    download: async (_url, target) => { archive = target; await fs.writeFile(target, 'zip'); },
+    extract: async (_archive, _member, target) => fs.writeFile(target, 'incorrect Bun'),
+    probe: async () => '0.0.0',
+  }), error => {
+    failure = error;
+    return true;
+  });
+  assert.ok(failure instanceof AggregateError);
+  assert.match(failure.message, /did not report the requested version/);
+  assert.equal(failure.errors[1], cleanupFailure);
+  assert.equal(binaryCleanupAttempts, 1);
+  assert.equal(archiveCleanupAttempted, true);
+  await assert.rejects(fs.access(path.dirname(archive)), { code: 'ENOENT' });
+});
+
 test('a wrong extracted version preserves the previous executable and cleans staging', async t => {
   const root = await fixture(t);
   const nativeDir = path.join(root, 'dist-native');

@@ -33,6 +33,12 @@ job projection protocol). `scripts/` holds build/release/verify tooling.
 - Windows desktop packaging runs natively on x64 with MSVC, a Windows SDK,
   and WebView2. See `docs/WINDOWS-DESKTOP.md`. Bundled Windows executables use
   `.exe`; native-manifest paths always use forward slashes on every host.
+- Direct Tauri CLI invocations reject `CI=1`; the repository wrapper normalizes
+  it for the CLI, and Linux desktop packaging clears `CI` before its build.
+- Linux desktop packaging targets native `x86_64-unknown-linux-gnu`, bundles
+  Node **22.22.2** and Bun **1.4.0**, and needs GTK 3/WebKitGTK 4.1 plus the
+  prerequisites in `docs/DESKTOP-LINUX.md`. CI builds on Ubuntu 22.04/glibc 2.35;
+  local Ubuntu 24.04/glibc 2.39 artifacts do not establish that compatibility floor.
 
 ## Commands
 
@@ -47,6 +53,11 @@ npm run test:e2e:gjc     # 7 GJC wire/browser e2e tests (separate from npm test)
 npm run desktop:dev      # Tauri dev shell
 npm run desktop:build:windows # Windows x64 payload + NSIS installer (on Windows)
 npm run test:windows     # focused runtime/packaging tests; build the core first
+npm run server:payload:linux # Linux x64 payload + pinned runtimes
+env -u CI npm run desktop:build:linux # payload + Tauri deb/AppImage + release/desktop staging
+npm run smoke:packaged-server -- --linux-root <extracted-dir> # extracted deb or squashfs-root
+npm run smoke:packaged-server -- --linux-root <extracted-dir> --data-survival
+npm run smoke:packaged-server -- --linux-root <squashfs-root> --appimage-env # AppRun + real Python/gio terminal probes
 ```
 
 Run a single test file (match the runner's env):
@@ -63,6 +74,21 @@ dist-native/bun test src/shared/view/ui/ActionMenu.dom.bun.test.tsx
 ```
 
 `npm test` has a `pretest` that builds the Rust core (debug); tests fail without it.
+
+Linux desktop CI is `.github/workflows/desktop-linux.yml`: manual/PR/push-main
+builds, with package smokes on Ubuntu 22.04 and 24.04. After the bundle build,
+it runs `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` and
+`cargo test --locked --manifest-path src-tauri/Cargo.toml`; `npm run verify`
+does not cover these desktop shell checks. It only uploads build
+artifacts; it does not publish or announce releases. Stage Linux packages as
+`release/desktop/gajae-app-desktop-${package.version}-linux-x64.deb` and
+`.AppImage`, each with `.sha256`. Extract outside the checkout before smoking
+to prevent repository `node_modules` from masking missing bundled dependencies.
+Keep standard smoke and `--data-survival` as separate invocations. Record
+packaging, server smoke, and interactive GUI results separately.
+`desktop:build:linux` restores the verified AppImage runtime after linuxdeploy
+and before staging/checksums; preserve this step so ELF rewriting cannot break
+the runtime manifest hashes.
 
 ## Frontend stack
 
@@ -175,4 +201,6 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
 - `docs/DESKTOP-TAURI-VERIFICATION.md` — desktop packaging/verification (incl. the
   human-gated notarization step).
 - `docs/WINDOWS-DESKTOP.md` — Windows preview build, CI and desktop acceptance.
+- `docs/DESKTOP-LINUX.md` — Linux x64 desktop prerequisites, package builds,
+  installation, compatibility floor, and validation procedure.
 - `docs/SELF-HOST.md`, `CONTRIBUTING.md` — install/update lifecycle and PR rules.

@@ -1,4 +1,24 @@
 {
+  "goal": {
+    "region": "Obiettivo della sessione",
+    "title": "Obiettivo",
+    "active": "In corso",
+    "paused": "In pausa",
+    "complete": "Completato",
+    "cancelled": "Annullato",
+    "tokens": "{{value}} token",
+    "pause": "Pausa",
+    "resume": "Riprendi",
+    "cancel": "Annulla obiettivo",
+    "new": "Nuovo obiettivo",
+    "objective": "Descrizione dell’obiettivo",
+    "placeholder": "Che cosa deve completare l’agente?",
+    "start": "Avvia obiettivo",
+    "refresh": "Aggiorna obiettivo",
+    "reconnect": "Riconnettiti per gestire gli obiettivi.",
+    "unavailable": "I controlli dell’obiettivo non sono disponibili per questa esecuzione o questo utente.",
+    "guidance": "Ogni esecuzione si sospende dopo {{turns}} passaggi del modello o {{minutes}} minuti. Stop sospende l’obiettivo. Riprendi avvia una nuova esecuzione se nessuna è attiva. Le attività delegate usano lo stesso modello e le stesse autorizzazioni."
+  },
   "codeBlock": {
     "copy": "Copia negli appunti",
     "copied": "Copiato",
@@ -44,6 +64,13 @@
     "stopSpeaking": "Fermati",
     "loading": "Caricamento…"
   },
+  "sessionWorktree": {
+    "label": "Directory di esecuzione",
+    "project": "Progetto",
+    "newWorktree": "Nuovo worktree",
+    "worktree": "Worktree",
+    "preparing": "Preparazione del worktree"
+  },
   "input": {
     "placeholder": "Chiedi {{provider}}, usa / per i comandi o @ per aggiungere file...",
     "modelReasoning": {
@@ -78,6 +105,7 @@
       "label": "In coda",
       "willSend": "Invia al termine dell'esecuzione corrente",
       "willFollow": "Invia dopo i messaggi sopra",
+      "awaitingSteer": "In attesa della conferma dell’istruzione",
       "edit": "Modifica elemento in coda",
       "delete": "Rimuovi l'elemento in coda",
       "moveUp": "Salire in coda",
@@ -101,6 +129,7 @@
     },
     "messages": {
       "showingOf": "Visualizzazione di {{shown}} di messaggi {{total}}",
+      "loadedCount": "Messaggi caricati: {{shown}}",
       "scrollToLoad": "Scorri verso l'alto per ulteriori informazioni",
       "showingLast": "Visualizzazione degli ultimi messaggi {{count}} di {{total}}",
       "loadEarlier": "Ricevi messaggi precedenti",

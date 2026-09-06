@@ -88,6 +88,20 @@ export function createSystemRouter({ opener = createSystemOpener() } = {}) {
     }
   });
 
+  // Workspace Browser also visits local HTTP development servers. Keep that
+  // explicit action separate from the HTTPS-only sign-in/docs link contract.
+  router.post('/open-browser-url', async (req, res) => {
+    const target = safeBrowserUrl(req.body?.url);
+    if (!target) return res.status(400).json({ error: 'An HTTP or HTTPS page URL is required.' });
+    try {
+      await opener(target);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to open browser page externally:', error);
+      return res.status(500).json({ error: 'Failed to open the page' });
+    }
+  });
+
   /**
    * Everything a bug report about a session needs, in one paste: the DB row,
    * the tail of the transcript and the worker log. QA feedback used to be a
@@ -167,10 +181,15 @@ async function buildDebugBundle(sessionId) {
 }
 
 export function safeExternalUrl(value) {
+  const url = safeBrowserUrl(value);
+  return url?.startsWith('https:') ? url : null;
+}
+
+export function safeBrowserUrl(value) {
   if (typeof value !== 'string' || value.length > 4096) return null;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && url.hostname ? url.href : null;
+    return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname ? url.href : null;
   } catch {
     return null;
   }

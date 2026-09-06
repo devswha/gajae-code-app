@@ -96,6 +96,9 @@ function ChatMessagesPane({
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
   const displayProvider = selectedSession?.provider ?? selectedSession?.__provider ?? provider;
+  // Realtime rows can outgrow the last persisted count; that total then says
+  // nothing about how many older messages remain to be loaded.
+  const canShowTotal = totalMessages > 0 && sessionMessagesCount <= totalMessages;
   // The live turn has a block from the moment it starts (empty until its first
   // call), so the run's status has one place in the transcript. Where blocks
   // are off, a bare running row stands in that place instead.
@@ -146,12 +149,12 @@ function ChatMessagesPane({
           {/* Indicator showing there are more messages to load (hide when all loaded) */}
           {hasMoreMessages && !isLoadingMoreMessages && !allMessagesLoaded && (
             <div className="border-b border-border py-2 text-center text-sm text-muted-foreground">
-              {totalMessages > 0 && (
-                <span>
-                  {t('session.messages.showingOf', { shown: sessionMessagesCount, total: totalMessages })}{' '}
-                  <span className="text-xs">{t('session.messages.scrollToLoad')}</span>
-                </span>
-              )}
+              <span>
+                {canShowTotal
+                  ? t('session.messages.showingOf', { shown: sessionMessagesCount, total: totalMessages })
+                  : t('session.messages.loadedCount', { shown: sessionMessagesCount })}{' '}
+                <span className="text-xs">{t('session.messages.scrollToLoad')}</span>
+              </span>
             </div>
           )}
 
@@ -159,7 +162,7 @@ function ChatMessagesPane({
             showLoadAllOverlay={showLoadAllOverlay}
             isLoadingAllMessages={isLoadingAllMessages}
             loadAllJustFinished={loadAllJustFinished}
-            totalMessages={totalMessages}
+            totalMessages={canShowTotal ? totalMessages : 0}
             onLoadAllMessages={loadAllMessages}
           />
 

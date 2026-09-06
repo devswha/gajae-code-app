@@ -1,13 +1,17 @@
 # Windows desktop preview
 
 The Windows port builds an x64 NSIS installer from this branch. It includes
-Node, Bun 1.4.0, the Rust core, the server, and the web UI. Windows ARM64 and
-32-bit builds are not supported by this payload.
+Node 22.22.2, Bun 1.4.0, GJC SDK 0.16.4, the Rust core, the server, and the
+web UI. Windows ARM64 and 32-bit builds are not supported by this payload.
 
 This is a preview build path. It is not part of the signed macOS release lane.
 The Windows workflow uploads an unsigned installer and SHA-256 file as Actions
 artifacts; it does not create a GitHub Release. Windows may show an unknown
 publisher warning until a Windows signing certificate is configured.
+
+The merged source targets package `2.0.0-beta.9` and desktop version `0.2.3`.
+No Windows build, CI result, or interactive acceptance result for this merged
+source is claimed below; the verification record is explicitly historical.
 
 ## Build on Windows
 
@@ -87,11 +91,11 @@ The existing complete `npm run verify` suite remains the Linux regression gate.
 A successful focused Windows check does not imply every legacy test fixture is
 portable to Windows.
 
-To compare the downloaded installer against the companion checksum:
+To compare a downloaded beta.9 installer against its companion checksum:
 
 ```powershell
-Get-FileHash .\gajae-app-desktop-2.0.0-beta.8-windows-x64-setup.exe -Algorithm SHA256
-Get-Content .\gajae-app-desktop-2.0.0-beta.8-windows-x64-setup.exe.sha256
+Get-FileHash .\gajae-app-desktop-2.0.0-beta.9-windows-x64-setup.exe -Algorithm SHA256
+Get-Content .\gajae-app-desktop-2.0.0-beta.9-windows-x64-setup.exe.sha256
 ```
 
 ## Interactive acceptance before release
@@ -114,7 +118,13 @@ validated public release:
 Native macOS computer-control integration is separate from the browser and
 terminal tools; this port does not add a Windows native computer-control driver.
 
-## Verification record — September 5, 2026
+## HISTORICAL verification record — beta.8 / commit `2889326` — September 5, 2026
+
+> **Historical evidence only.** The record below applies to package
+> `2.0.0-beta.8`, desktop version `0.2.2`, and the Windows source at commit
+> `2889326`. It does not verify the merged package `2.0.0-beta.9`, desktop
+> version `0.2.3`, or GJC SDK `0.16.4`; no current Windows CI or interactive
+> acceptance result is claimed here.
 
 - Linux x64, Node 24.18.0, code commit `21ac3b6`: `npm run verify` passed,
   including 1,440 JavaScript and Bun tests and 59 Rust unit tests plus four

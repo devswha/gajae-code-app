@@ -1,8 +1,8 @@
 {
   "name": "gajae-app",
   "private": true,
-  "version": "2.0.0-beta.8",
-  "desktopVersion": "0.2.2",
+  "version": "2.0.0-beta.9",
+  "desktopVersion": "0.2.3",
   "productName": "Gajae Code App",
   "description": "A self-hosted web and desktop interface for GJC",
   "type": "module",
@@ -42,6 +42,8 @@
     "server:payload:macos": "node scripts/fetch-bun.mjs && npm run build && node scripts/release/build-macos-server-payload.mjs",
     "server:payload:windows": "node scripts/fetch-bun.mjs && npm run build && node scripts/release/build-windows-server-payload.mjs",
     "desktop:build:windows": "npm run server:payload:windows && npm run tauri -- build --target x86_64-pc-windows-msvc --bundles nsis",
+    "server:payload:linux": "node scripts/fetch-bun.mjs && npm run build && node scripts/release/build-linux-server-payload.mjs",
+    "desktop:build:linux": "node scripts/release/build-linux-desktop.mjs",
     "tauri": "node src-tauri/scripts/tauri.mjs",
     "desktop:sign:macos": "node scripts/release/finalize-macos-app.mjs",
     "desktop:dmg:macos": "node scripts/release/make-macos-dmg.mjs",
@@ -129,7 +131,7 @@
     }
   },
   "dependencies": {
-    "@gajae-code/coding-agent": "0.15.6",
+    "@gajae-code/coding-agent": "0.16.4",
     "@octokit/rest": "^22.0.0",
     "@puppeteer/browsers": "^2.13.2",
     "@tailwindcss/typography": "^0.5.16",

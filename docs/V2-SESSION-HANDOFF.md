@@ -1,6 +1,20 @@
 # gajae-app v2 — Session Handoff (resume state)
 
-Last updated: 2026-09-05 (parallel correctness review and follow-up status). Supersedes the 2026-07-18 handoff.
+Last updated: 2026-09-06 (post-#39 app and release acceptance). Supersedes the 2026-07-18 handoff.
+
+## Current task scope
+
+PRs #30, #35, #38 and #39 are merged. The owner has excluded OMG skill testing;
+do not carry cross-model or user-skill execution forward as required remaining
+work. Historical issue #3 is not thereby proven resolved. App-owned tool-result
+delivery, desktop persistence and release artifacts remain in scope.
+
+The beta.9 candidate adds dedicated macOS QA profiles and Linux server archive
+acceptance. See `DESKTOP-QA-PROFILE.md`, `SERVER-LINUX-ACCEPTANCE.md` and
+`scripts/release/LOCAL-RELEASE.md`. Local signing uses the existing identity and
+notary profile without exporting credentials; hosted signing secrets are still
+absent. Verify actual publication in GitHub rather than inferring it from the
+candidate package version. The older session records below are historical.
 
 ## TL;DR
 
@@ -474,6 +488,14 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
 
 ## Current follow-ups (rechecked 2026-09-05)
 
+- The subsequent adversarial pass and all nine live skill outcomes are in
+  [`plans/adversarial-skills-e2e-2026-09-05.md`](plans/adversarial-skills-e2e-2026-09-05.md).
+  DNS deployments now require explicit `ALLOWED_HOSTS`; see `SELF-HOST.md`.
+  The app avoids the SDK workflow-ID defect by omitting the redundant explicit
+  provider ID, and restores skill requests from transcript metadata. The raw
+  SDK delegation path remains unsafe. The follow-up implementation replaces
+  it with app-owned children that inherit permissions, account, model/effort,
+  workflow guards and cancellation; see `GJC-DELEGATION-CONTRACT.md`.
 - The parallel correctness pass is recorded in
   [`plans/code-review-2026-09-05.md`](plans/code-review-2026-09-05.md), including
   session/queue isolation, transcript turns and transport, scratch startup,
@@ -482,22 +504,38 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
   start, and runtime edit-result diffs have shipped. The older unchecked
   public-distribution checklist in `V2-PLAN.md` is historical; signed and
   notarized beta.7/beta.8 images were already published on September 3.
-- **PR #30 / issue #18 remain blocked on the upstream SDK release.** The npm
-  registry still reports `@gajae-code/coding-agent` latest `0.16.3`, which
-  predates the workflow identity fix (`Yeachan-Heo/gajae-code#5282`, merged
-  into `dev` at `2250239de9e565df2d3cb12ba365d65ff9f0555d`). Keep the existing
-  `0.15.6` app pin until a published runtime carries that change, then finish
-  the prepared regression test, manifest and dependency updates in #30.
-- **Issue #3 needs its skill matrix re-run after #30.** The bundled `gjc`
-  shim is already in the app; the issue's older "shim in progress" comment
-  is no longer current. Do not close the workflow issue based only on
-  transport tests or on successful skill selection.
+- **SDK 0.16.4 qualifies the workflow identity fix in PR #30.** The published
+  runtime includes `Yeachan-Heo/gajae-code#5282`, and the app now pins 0.16.4.
+  The original explicit-provider-ID reproducer passes, including the separate
+  `getAsyncEndpointId()` accessor and path-safe deep-interview state. Both
+  supported native platform closures, command catalog and notices are updated.
+  Full `npm run verify`, eight GJC E2Es and an isolated Astra/xhigh live
+  response/abort smoke passed. The existing redundant-ID mitigation stays in
+  place. The real-SDK child permission-bypass regression still reproduces on
+  0.16.4; the identity fix does not qualify unrestricted delegation.
+- **Issue #3 has a follow-up implementation and renewed live qualification.**
+  Goal state now comes from the SDK transcript, with authenticated, scoped
+  pause/resume/cancel controls and app-owned delegation. The initial 20-step
+  lease stopped ordinary workflow preparation; the visible limit is now 200
+  model steps or 120 minutes. Model-facing goal operations do not reset that lease. The interview
+  and independently reviewed Ralplan plan reached their requested approval
+  stopping points; autoresearch persisted its verdict, completed the goal and
+  retired the mission. Ultragoal also passed native aggregate evidence and
+  completed its real goal. Final acceptance is recorded in
+  `plans/followup-acceptance.md`. #3 remains open for original Cursor/Anthropic
+  live qualification and upstream workflow/CLI efficiency, outside the
+  requested Astra-only test lane.
 - **CI signing awaits owner-provided credentials.** `gh secret list --env
   release` returned no environment secrets on September 5. The workflow
   and the five required names are documented in
   `DESKTOP-TAURI-VERIFICATION.md`; the first signed CI dispatch remains
-  unverified. This is separate from the locally signed releases that shipped.
-- Session worktree selection still depends on the runtime's Slice 3.
+  unverified. Local signing readiness and exact-draft asset verification are
+  available in `scripts/release/SIGNING-READINESS.md` and
+  `scripts/release/LOCAL-RELEASE.md`, without exporting signing credentials.
+- Managed session worktree selection is implemented on the existing native job
+  runtime, including persisted project/cwd identity, per-run validation and
+  cancellation. It does not await a future SDK Slice 3. See
+  `plans/session-worktree-goal-acceptance.md`.
   Conversation forks and split-pane workspaces remain deferred product
   decisions, not missing implementations from the completed plans.
 

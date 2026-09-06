@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
@@ -10,7 +11,7 @@ import type { LLMProvider, NormalizedMessage, RealtimeClientConnection } from '@
 type ChatRunStatus = 'running' | 'completed';
 type ChatRun = {
   appSessionId: string; provider: LLMProvider; providerSessionId: string | null;
-  status: ChatRunStatus; lastSeq: number; events: NormalizedMessage[];
+  status: ChatRunStatus; replayGeneration: string; lastSeq: number; events: NormalizedMessage[];
   writer: ChatSessionWriter; startedAt: number; completedAt: number | null;
   /** Approval requests the browser has been shown and has not answered yet, by request id. */
   pendingApprovals: Map<string, PendingApproval>;
@@ -33,15 +34,15 @@ const completedRunLifetime = 5 * 60 * 1000;
 const eventBufferLimit = 5000;
 const runsByAppSession = new Map<string, ChatRun>();
 
-function scheduleCompletedRunRemoval(sessionId: string): void {
+function scheduleCompletedRunRemoval(run: ChatRun): void {
   const timer = setTimeout(() => {
-    const completedRun = runsByAppSession.get(sessionId);
-    if (completedRun?.status === 'completed') runsByAppSession.delete(sessionId);
+    if (runsByAppSession.get(run.appSessionId) === run && run.status === 'completed') runsByAppSession.delete(run.appSessionId);
   }, completedRunLifetime);
   void timer.unref?.();
 }
 
 function decorateRunEvent(run: ChatRun, event: NormalizedMessage): NormalizedMessage | null {
+  if (runsByAppSession.get(run.appSessionId) !== run) return null;
   if (run.status === 'completed' && event.kind === 'complete') return null;
 
   const sequence = ++run.lastSeq;
@@ -50,6 +51,7 @@ function decorateRunEvent(run: ChatRun, event: NormalizedMessage): NormalizedMes
     id: event.id || generateMessageId(event.kind),
     timestamp: event.timestamp || new Date().toISOString(),
     sessionId: run.appSessionId,
+    replayGeneration: run.replayGeneration,
     seq: sequence,
   };
 
@@ -69,7 +71,7 @@ function decorateRunEvent(run: ChatRun, event: NormalizedMessage): NormalizedMes
     publishedEvent.actualSessionId = run.appSessionId;
     run.pendingApprovals.clear();
     Object.assign(run, { status: 'completed' as ChatRunStatus, completedAt: Date.now() });
-    scheduleCompletedRunRemoval(run.appSessionId);
+    scheduleCompletedRunRemoval(run);
   }
 
   run.events.push(publishedEvent);
@@ -150,6 +152,7 @@ function createRun(input: StartRunInput): ChatRun {
     provider: input.provider,
     providerSessionId: input.providerSessionId,
     status: 'running' as ChatRunStatus,
+    replayGeneration: randomUUID(),
     lastSeq: 0,
     events: [],
     writer: null as unknown as ChatSessionWriter,
@@ -236,10 +239,14 @@ export const chatRunRegistry = {
     for (const run of runsByAppSession.values()) run.writer.detachConnection(connection);
   },
 
-  replayEvents(appSessionId: AppSessionId, afterSeq: number): NormalizedMessage[] {
+  replayEvents(appSessionId: AppSessionId, afterSeq: number, replayGeneration?: unknown): NormalizedMessage[] {
     const run = runsByAppSession.get(appSessionId);
     if (!run) return [];
-    return run.events.filter((event) => typeof event.seq === 'number' && event.seq > afterSeq);
+    // A sequence is meaningful only inside its run. This also makes legacy
+    // callers and clients returning after a server restart replay from zero.
+    const cursor = replayGeneration === run.replayGeneration && Number.isSafeInteger(afterSeq)
+      && afterSeq >= 0 && afterSeq <= run.lastSeq ? afterSeq : 0;
+    return run.events.filter((event) => typeof event.seq === 'number' && event.seq > cursor);
   },
 
   completeRun(appSessionId: AppSessionId, opts: RunCompletion): void {

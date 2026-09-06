@@ -6,8 +6,8 @@ const TEST_FILE_PATTERN = /\.(?:test|spec)\.(?:js|mjs|ts|tsx)$/;
 // `.tsx` too: component tests that need a DOM run on Bun as well, under
 // `*.dom.bun.test.tsx`.
 const BUN_TEST_FILE_PATTERN = /\.bun\.(?:test|spec)\.tsx?$/;
-// Roots are source/test directories, so scripts/release is real tooling, not
-// the repository's generated release/ output directory.
+// scripts/release contains source tests for the shipped packages. Only skip
+// generated/dependency trees; top-level release artifacts are never test roots.
 const SKIPPED_DIRECTORIES = new Set(['dist', 'dist-server', 'node_modules']);
 
 const [nodeMajor, nodeMinor, nodePatch] = process.versions.node.split('.').map(Number);

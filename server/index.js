@@ -17,7 +17,7 @@ import {
     resolveProjectFileForRead,
     resolveProjectFileForWrite
 } from '@/shared/project-file-containment.js';
-import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
+import { closeSessionsWatcher, configureSessionWorktrees, initializeSessionsWatcher } from '@/modules/providers/index.js';
 
 import { getConnectableHost } from '../shared/networkHosts.js';
 
@@ -36,6 +36,8 @@ import {
     spawnGjcRun,
 } from './gjc-worker-client.js';
 import { getProductionJobAuthority, getProductionJobOrchestrator } from './services/gjc-job-orchestrator.js';
+import { readSessionLocation, resolveSessionWorkspacePath, validateSessionRepository } from './services/session-worktree-paths.js';
+import { abortSessionWorktreeRun, prepareSessionWorktreeRun, sessionWorktreeWorkerHandle } from './services/session-worktree-runtime.js';
 import { getProductionGjcJobGitService } from './services/gjc-job-git.service.js';
 import {
     stripAnsiSequences,
@@ -98,6 +100,7 @@ function getPendingProviderApprovalsForSession(sessionId) {
 }
 
 const gjcJobAuthority = getProductionJobAuthority();
+configureSessionWorktrees({ validateRepository: validateSessionRepository, readLocation: readSessionLocation, resolveWorkspace: resolveSessionWorkspacePath });
 const gjcJobOrchestrator = getProductionJobOrchestrator();
 const gjcJobProjection = new GjcJobProjectionService({
     get: (params) => gjcJobAuthority.get(params),
@@ -152,7 +155,9 @@ const { app, server, wss } = createGjcAppFactory({
         resolveToolApproval: resolveProviderToolApproval,
         getPendingApprovalsForSession: getPendingProviderApprovalsForSession,
         oauthSupervisor: getGjcWorkerSupervisor(),
+        goalSupervisor: getGjcWorkerSupervisor(),
         gjcProjection: gjcJobProjection,
+        sessionWorktrees: { prepare: prepareSessionWorktreeRun, abort: abortSessionWorktreeRun, workerHandle: sessionWorktreeWorkerHandle, resolveWorkspace: resolveSessionWorkspacePath },
     },
     shell: {
         resolveProviderSessionId: (sessionId, provider) => {
@@ -386,7 +391,7 @@ app.get('/api/projects/:projectId/file', authenticateToken, async (req, res) => 
 
         // Resolve the absolute project root via the DB-backed helper; the
         // caller passes the DB-assigned `projectId`, not a folder name.
-        const projectRoot = await projectsDb.getProjectPathById(projectId);
+        const projectRoot = await resolveSessionWorkspacePath(projectId, req.query.sessionId);
         if (!projectRoot) {
             return res.status(404).json({ error: 'Project not found' });
         }
@@ -409,7 +414,9 @@ app.get('/api/projects/:projectId/file', authenticateToken, async (req, res) => 
         res.json({ content, path: readablePath });
     } catch (error) {
         console.error('Error reading file:', error);
-        if (error.code === 'ENOENT') {
+        if (error.statusCode) {
+            res.status(error.statusCode).json({ error: error.message, code: error.code });
+        } else if (error.code === 'ENOENT') {
             res.status(404).json({ error: 'File not found' });
         } else if (error.code === 'EACCES') {
             res.status(403).json({ error: 'Permission denied' });
@@ -432,7 +439,7 @@ app.get('/api/projects/:projectId/files/content', authenticateToken, async (req,
         }
 
         // Projects are now addressed by DB `projectId`, resolved to their path here.
-        const projectRoot = await projectsDb.getProjectPathById(projectId);
+        const projectRoot = await resolveSessionWorkspacePath(projectId, req.query.sessionId);
         if (!projectRoot) {
             return res.status(404).json({ error: 'Project not found' });
         }
@@ -477,7 +484,7 @@ app.get('/api/projects/:projectId/files/content', authenticateToken, async (req,
     } catch (error) {
         console.error('Error serving binary file:', error);
         if (!res.headersSent) {
-            res.status(500).json({ error: error.message });
+            res.status(error.statusCode || 500).json({ error: error.message });
         }
     }
 });
@@ -566,7 +573,7 @@ app.get('/api/projects/:projectId/files', authenticateToken, async (req, res) =>
 
         // Resolve the project's absolute path through the DB (projectId is the
         // primary key of the `projects` table after the identifier migration).
-        const actualPath = await projectsDb.getProjectPathById(req.params.projectId);
+        const actualPath = await resolveSessionWorkspacePath(req.params.projectId, req.query.sessionId);
         if (!actualPath) {
             return res.status(404).json({ error: 'Project not found' });
         }
@@ -588,7 +595,7 @@ app.get('/api/projects/:projectId/files', authenticateToken, async (req, res) =>
         res.json(files);
     } catch (error) {
         console.error('[ERROR] File tree error:', error.message);
-        res.status(500).json({ error: error.message });
+        res.status(error.statusCode || 500).json({ error: error.message });
     }
 });
 

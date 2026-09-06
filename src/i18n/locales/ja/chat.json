@@ -1,4 +1,24 @@
 {
+  "goal": {
+    "region": "会話の目標",
+    "title": "目標",
+    "active": "実行中",
+    "paused": "一時停止",
+    "complete": "完了",
+    "cancelled": "キャンセル済み",
+    "tokens": "{{value}} トークン",
+    "pause": "一時停止",
+    "resume": "再開",
+    "cancel": "目標をキャンセル",
+    "new": "新しい目標",
+    "objective": "目標の内容",
+    "placeholder": "エージェントに何を完了させますか？",
+    "start": "目標を開始",
+    "refresh": "目標を更新",
+    "reconnect": "目標を操作するには再接続してください。",
+    "unavailable": "この実行またはユーザーでは目標を操作できません。",
+    "guidance": "各実行は {{turns}} モデルステップまたは {{minutes}} 分で一時停止します。停止すると目標が一時停止します。再開すると、実行中の処理がなければ新しい実行を開始します。委任したタスクも同じモデルと権限を使用します。"
+  },
   "codeBlock": {
     "copy": "コピー。",
     "copied": "コピーしました。",
@@ -44,6 +64,13 @@
     "stopSpeaking": "停止。",
     "loading": "読み込み中…"
   },
+  "sessionWorktree": {
+    "label": "実行場所",
+    "project": "プロジェクト",
+    "newWorktree": "新しいワークツリー",
+    "worktree": "ワークツリー",
+    "preparing": "ワークツリーを準備中"
+  },
   "input": {
     "placeholder": "/ でコマンド、@ でファイル指定、または {{provider}} に何でも聞いてください...。",
     "modelReasoning": {
@@ -78,6 +105,7 @@
       "label": "待機中。",
       "willSend": "現在の処理が終わったら送信。",
       "willFollow": "上のメッセージの後に送信。",
+      "awaitingSteer": "追加指示の受理待ち",
       "edit": "待機中のメッセージを編集。",
       "delete": "待機中のメッセージを削除。",
       "moveUp": "キューの前へ移動。",
@@ -101,6 +129,7 @@
     },
     "messages": {
       "showingOf": "{{total}}件中{{shown}}件を表示。",
+      "loadedCount": "読み込み済みメッセージ: {{shown}}件",
       "scrollToLoad": "上にスクロールしてさらに読み込む。",
       "showingLast": "最新{{count}}件を表示（全{{total}}件）。",
       "loadEarlier": "過去のメッセージを読み込む。",

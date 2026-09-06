@@ -6,6 +6,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { SERVER_PACKAGE_NAME } from '../../shared/productIdentity.js';
+import { isolatedQaEnvironment } from '../start-isolated-dev.mjs';
+
 import { describeDistributionExclusions, removeExcludedDistributionPackages } from './distribution-exclusions.mjs';
 import { withOutOfTreeCopy } from './out-of-tree.mjs';
 
@@ -280,7 +283,7 @@ async function writeInstallPackageJson(stageDir, packageJson) {
 
 async function writeRuntimePackageJson(stageDir, packageJson) {
   const runtimePackageJson = {
-    name: 'gajae-app-server',
+    name: SERVER_PACKAGE_NAME,
     version: packageJson.version,
     private: true,
     description: 'Gajae Code App server runtime',
@@ -447,7 +450,10 @@ async function smokeNativeRuntime(stageDir) {
   // `.gjc-smoke-agent` scratch directory out of the archive.
   await withOutOfTreeCopy(stageDir, 'server bundle stage', async (copyDir) => {
     console.log(`Smoking the staged runtime from ${copyDir} (outside the repository tree).`);
-    await execute(process.execPath, ['--input-type=module', '--eval', smokeSource], { cwd: copyDir });
+    const qaHome = path.join(copyDir, '.smoke-home');
+    await fs.mkdir(qaHome, { recursive: true });
+    const env = isolatedQaEnvironment({ parentEnv: process.env, qaHome, host: '127.0.0.1', serverPort: 3001, vitePort: 5173, remote: false });
+    await execute(process.execPath, ['--input-type=module', '--eval', smokeSource], { cwd: copyDir, env });
   });
 }
 

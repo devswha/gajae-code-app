@@ -39,6 +39,33 @@ Useful commands:
 | `npm test` | Run the repository test suite. |
 | `npm run lint` | Check JavaScript and TypeScript style. |
 | `npm run check:identity` | Validate the product and release identity. |
+| `npm run server:payload:linux` | Build the Linux x64 server payload with pinned Node 22.22.2 and Bun 1.4.0. |
+| `env -u CI npm run desktop:build:linux` | Build and stage Linux x64 `.deb` and `.AppImage` packages with checksums. |
+
+### Linux desktop development
+
+Use native x86_64 Linux with Rust and the GTK 3/WebKitGTK 4.1 development
+libraries listed in [docs/DESKTOP-LINUX.md](docs/DESKTOP-LINUX.md). Use Node
+**22.22.2** to match desktop CI; the packaged app includes its own Node and Bun.
+`npm run desktop:build:linux` builds the payload, runs Tauri for
+`x86_64-unknown-linux-gnu`, and stages packages in `release/desktop/` using
+`package.json.version` in the filenames.
+
+The separate `.github/workflows/desktop-linux.yml` workflow runs on pull
+requests, pushes to `main`, and manual dispatch. It builds on Ubuntu 22.04
+(glibc 2.35), then extracts and smokes both package formats on Ubuntu 22.04
+and 24.04. It uploads build artifacts without publishing a release or sending
+announcements. It also checks Tauri Rust formatting and runs the shell's locked
+Cargo tests after the bundle build. Ordinary source verification remains in
+the existing CI workflow; `npm run verify` covers the Rust core, not the Tauri
+shell tests.
+
+For desktop changes, follow the Linux guide's out-of-checkout package smoke
+and `--data-survival` commands, then record the host, commit, package hashes,
+and results. An Ubuntu 24.04 local build uses glibc 2.39; only a successful
+Ubuntu 22.04 build and smoke provide evidence for the glibc 2.35 floor.
+Headless server checks do not verify the desktop window: report interactive
+GUI checks separately, and do not describe unrun checks as passed.
 
 ## Repository map
 

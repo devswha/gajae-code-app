@@ -13,6 +13,7 @@ export type WorkspaceStatusTabProps = {
   projectName?: string;
   projectPath?: string;
   projectId?: string;
+  sessionId?: string;
   /** The project's permission mode; null while it is still loading. */
   permissionMode?: PermissionMode | null;
   /** The Status tab is the visible one; git is only read while it is. */
@@ -31,12 +32,13 @@ export default function WorkspaceStatusTab({
   projectName,
   projectPath,
   projectId,
+  sessionId,
   permissionMode = null,
   active,
 }: WorkspaceStatusTabProps) {
   const { t } = useTranslation();
   const { t: tChat } = useTranslation('chat');
-  const { state: gitState, refresh: refreshGit } = useProjectGitSummary(projectId, active);
+  const { state: gitState, refresh: refreshGit } = useProjectGitSummary(projectId, active, sessionId, projectPath);
 
   const unreported = <span className="text-muted-foreground/70">{t('workspace.statusTab.unreported')}</span>;
   const PermissionIcon = permissionMode ? PERMISSION_MODE_ICONS[permissionMode] : null;

@@ -5,6 +5,7 @@ import { lstat, readdir, realpath, stat } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 
 import { appConfigDb, sessionsDb } from '@/modules/database/index.js';
+import { readGjcTranscriptMessage } from '@/modules/providers/list/gjc/gjc-transcript-message.js';
 import {
   deriveSessionTitle,
   extractFirstValidJsonlData,
@@ -457,8 +458,8 @@ export class GjcSessionSynchronizer implements IProviderSessionSynchronizer {
   /**
    * Returns the first user message text in a gjc transcript.
    *
-   * Only `type:"message"` lines with `role:"user"` are considered, and the
-   * text is joined from the message's content parts.
+   * Includes visible, explicitly user-attributed skill requests reconstructed
+   * from metadata. Expanded skill instructions are never used as the title.
    */
   private async extractFirstUserMessageFromStart(
     filePath: string,
@@ -489,13 +490,8 @@ export class GjcSessionSynchronizer implements IProviderSessionSynchronizer {
           continue;
         }
 
-        const data = parsed as Record<string, unknown>;
-        if (data.type !== 'message') {
-          continue;
-        }
-
-        const message = data.message as Record<string, unknown> | undefined;
-        if (!message || message.role !== 'user') {
+        const message = readGjcTranscriptMessage(parsed);
+        if (!message || message.role !== 'user' || message.display === false) {
           continue;
         }
 

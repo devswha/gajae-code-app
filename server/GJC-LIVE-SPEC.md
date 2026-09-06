@@ -1,7 +1,13 @@
 # GJC live provider specification
 
 Status: Production Bun SDK worker, native host/watcher, durable jobs, and native
-PTY slices implemented (updated 2026-09-01)
+PTY slices implemented (updated 2026-09-06)
+
+The current source release pins GJC SDK `0.16.4` and Bun `1.4.0` in
+`server/gjc-runtime-manifest.json`; packaged workers must continue to match
+that manifest. The Windows x64 implementation remains a preview path, with
+native CI and interactive acceptance tracked separately in
+`docs/WINDOWS-DESKTOP.md`.
 
 GJC is the only provider routed through an isolated provider worker. Claude,
 Codex, Cursor, and OpenCode retain their existing execution paths.

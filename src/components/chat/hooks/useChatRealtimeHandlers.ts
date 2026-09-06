@@ -23,7 +23,6 @@ interface UseChatRealtimeHandlersArgs {
   setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
   streamTimerRef: MutableRefObject<number | null>;
   accumulatedStreamRef: MutableRefObject<string>;
-  lastSeqRef: MutableRefObject<Map<string, number>>;
   statusCheckSentAtRef: MutableRefObject<Map<string, number>>;
   onSessionProcessing?: MarkSessionProcessing;
   onSessionIdle?: MarkSessionIdle;
@@ -37,7 +36,7 @@ const skipsStore = new Set(['complete', 'status', 'permission_request', 'permiss
 export function useChatRealtimeHandlers({
   subscribe, provider, selectedSession, currentSessionId, setTokenBudget, setSessionState,
   pendingPermissionRequests, setPendingPermissionRequests, streamTimerRef, accumulatedStreamRef,
-  lastSeqRef, statusCheckSentAtRef, onSessionProcessing, onSessionIdle, onWebSocketReconnect,
+  statusCheckSentAtRef, onSessionProcessing, onSessionIdle, onWebSocketReconnect,
   onSteerResult, sessionStore,
 }: UseChatRealtimeHandlersArgs) {
   const displayedSession = useRef<string | null>(selectedSession?.id || currentSessionId || null);
@@ -47,6 +46,10 @@ export function useChatRealtimeHandlers({
   useEffect(() => { pendingRequests.current = pendingPermissionRequests; }, [pendingPermissionRequests]);
 
   useEffect(() => {
+    const subscribedSession = selectedSession?.id || currentSessionId || null;
+    let pendingStreamTimestamp: unknown;
+    const storedStream = (sessionId: string) => sessionStore.getSessionSlot(sessionId)?.realtimeMessages
+      .find(message => message.id === `__streaming_${sessionId}`)?.content ?? '';
     const stopStreamTimer = () => {
       if (streamTimerRef.current) {
         cancelAnimationFrame(streamTimerRef.current);
@@ -56,30 +59,39 @@ export function useChatRealtimeHandlers({
     const resolveSession = (event: ServerEvent) => {
       const visible = displayedSession.current;
       const sessionId = typeof event.sessionId === 'string' && event.sessionId ? event.sessionId : visible;
-      if (sessionId && typeof event.seq === 'number') {
-        const seen = lastSeqRef.current.get(sessionId) ?? 0;
-        if (event.seq > seen) lastSeqRef.current.set(sessionId, event.seq);
-      }
       return { sessionId, visible };
     };
     const commitPermissions = (next: PendingPermissionRequest[]) => {
       pendingRequests.current = next;
       setPendingPermissionRequests(next);
     };
-    const flushStreaming = (sessionId: string | null | undefined, finalizeEmpty: boolean) => {
+    const flushStreaming = (sessionId: string | null | undefined, finalizeEmpty: boolean, timestamp?: unknown) => {
       stopStreamTimer();
       if (sessionId && (accumulatedStreamRef.current || finalizeEmpty)) {
         if (accumulatedStreamRef.current) {
-          sessionStore.updateStreaming(sessionId, accumulatedStreamRef.current, provider);
+          sessionStore.updateStreaming(sessionId, accumulatedStreamRef.current, provider, timestamp ?? pendingStreamTimestamp);
         }
         sessionStore.finalizeStreaming(sessionId);
       }
       accumulatedStreamRef.current = '';
+      pendingStreamTimestamp = undefined;
     };
 
     const receive = (event: ServerEvent) => {
       if (!event.kind) return;
       const { sessionId, visible } = resolveSession(event);
+      if (sessionId) {
+        const before = sessionStore.getReplayCursor(sessionId).replayGeneration;
+        if (!sessionStore.trackReplayFrame(sessionId, event)) return;
+        const after = sessionStore.getReplayCursor(sessionId).replayGeneration;
+        if (before !== after) {
+          if (sessionId === visible) flushStreaming(sessionId, true);
+          else sessionStore.finalizeStreaming(sessionId);
+        }
+      }
+      // Subscription responses may race and replay the same frames twice.
+      // Deduplicate before converting stream_end into a new synthetic text id.
+      if (sessionId && !sessionStore.acceptRealtimeEvent(sessionId, event.id)) return;
 
       if (event.kind === 'websocket_reconnected') {
         onWebSocketReconnect?.();
@@ -122,20 +134,23 @@ export function useChatRealtimeHandlers({
         const content = (event.content as string) || '';
         if (!content) return;
         // Only the displayed session owns the composer's stream accumulator.
-        // Other subscribed runs keep their deltas in their own store window.
+        // Other subscribed runs extend their own reserved row, including a
+        // partial answer retained when the user navigated away.
         if (sessionId !== visible) {
-          if (sessionId) sessionStore.appendRealtime(sessionId, event as unknown as NormalizedMessage);
+          if (sessionId) sessionStore.updateStreaming(sessionId, storedStream(sessionId) + content, provider, event.timestamp);
           return;
         }
+        if (!accumulatedStreamRef.current && sessionId) accumulatedStreamRef.current = storedStream(sessionId);
         accumulatedStreamRef.current += content;
         // Deltas land many times a frame; one paint per frame carries them
         // all. A fixed 100 ms timer painted the answer in ten steps a second,
         // which read as stutter, and a hidden tab paints nothing until it
         // is looked at again (`stream_end` flushes regardless).
         if (!streamTimerRef.current) {
+          pendingStreamTimestamp = event.timestamp;
           streamTimerRef.current = requestAnimationFrame(() => {
             streamTimerRef.current = null;
-            if (sessionId) sessionStore.updateStreaming(sessionId, accumulatedStreamRef.current, provider);
+            if (sessionId) sessionStore.updateStreaming(sessionId, accumulatedStreamRef.current, provider, event.timestamp);
           });
         }
         return;
@@ -151,13 +166,13 @@ export function useChatRealtimeHandlers({
             // A formerly visible session can still own a reserved streaming
             // row. Retire it even on an empty end so the next turn gets a new
             // position and timestamp, without touching the visible accumulator.
-            if (content) sessionStore.updateStreaming(sessionId, content, provider);
+            if (content) sessionStore.updateStreaming(sessionId, content, provider, event.timestamp);
             sessionStore.finalizeStreaming(sessionId);
           }
           return;
         }
         if (content) accumulatedStreamRef.current = content;
-        flushStreaming(sessionId, true);
+        flushStreaming(sessionId, true, event.timestamp);
         return;
       }
 
@@ -211,11 +226,21 @@ export function useChatRealtimeHandlers({
       }
     };
 
-    return subscribe(receive);
+    const unsubscribe = subscribe(receive);
+    return () => {
+      unsubscribe();
+      // The cursor already acknowledges received deltas. Save an unpainted
+      // one before navigation/unmount clears the view's accumulator, so a
+      // later subscription can safely resume after that cursor.
+      if (streamTimerRef.current && subscribedSession && accumulatedStreamRef.current) {
+        sessionStore.updateStreaming(subscribedSession, accumulatedStreamRef.current, provider, pendingStreamTimestamp);
+      }
+      stopStreamTimer();
+    };
   }, [
     subscribe, provider, selectedSession, currentSessionId, setTokenBudget, setSessionState,
     pendingPermissionRequests, setPendingPermissionRequests, streamTimerRef, accumulatedStreamRef,
-    lastSeqRef, statusCheckSentAtRef, onSessionProcessing, onSessionIdle, onWebSocketReconnect,
+    statusCheckSentAtRef, onSessionProcessing, onSessionIdle, onWebSocketReconnect,
     onSteerResult, sessionStore,
   ]);
 }

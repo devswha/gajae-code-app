@@ -11,7 +11,7 @@ import {
 } from '../../shared/gjc-job-projection-protocol';
 import { useAuth } from '../components/auth/context/AuthContext';
 
-export type ServerEvent = { kind?: string; type?: string; sessionId?: string; seq?: number; [key: string]: unknown };
+export type ServerEvent = { kind?: string; type?: string; sessionId?: string; seq?: number; replayGeneration?: string | null; [key: string]: unknown };
 type JobSubscription = {
   jobId: string;
   getCursor: () => number;
@@ -24,7 +24,7 @@ type JobIntent = JobSubscription & { owners: number; subscriptionId: string | nu
 type ServerEventListener = (event: ServerEvent) => void;
 type WebSocketContextType = {
   ws: WebSocket | null;
-  sendMessage: (message: unknown) => void;
+  sendMessage: (message: unknown) => boolean;
   subscribe: (listener: ServerEventListener) => () => void;
   registerJobSubscription: (subscription: JobSubscription) => () => void;
   latestMessage: ServerEvent | null;
@@ -250,8 +250,14 @@ const useWebSocketConnection = (): WebSocketContextType => {
 
   const sendMessage = useCallback((message: unknown) => {
     const socket = currentSocket.current;
-    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
-    else console.warn('WebSocket not connected');
+    if (socket?.readyState !== WebSocket.OPEN) return false;
+    try {
+      socket.send(JSON.stringify(message));
+      return true;
+    } catch (error) {
+      console.error('WebSocket send failed:', error);
+      return false;
+    }
   }, []);
 
   const subscribe = useCallback((listener: ServerEventListener) => {

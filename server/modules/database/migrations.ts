@@ -10,6 +10,7 @@ import {
   PROJECT_PERMISSIONS_TABLE_SCHEMA_SQL,
   PROJECTS_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
+  SESSION_WORKTREES_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
 } from '@/modules/database/schema.js';
 
@@ -310,6 +311,7 @@ const migrationPlan: readonly Migration[] = [
   addProjectsForSessions,
   removeLegacyIndexes,
   createProjectPermissions,
+  (database) => { database.exec(SESSION_WORKTREES_TABLE_SCHEMA_SQL); },
 ];
 
 export const runMigrations = (db: Database): void => {

@@ -1,4 +1,24 @@
 {
+  "goal": {
+    "region": "對話目標",
+    "title": "目標",
+    "active": "進行中",
+    "paused": "已暫停",
+    "complete": "已完成",
+    "cancelled": "已取消",
+    "tokens": "{{value}} 個 token",
+    "pause": "暫停",
+    "resume": "繼續",
+    "cancel": "取消目標",
+    "new": "新增目標",
+    "objective": "目標內容",
+    "placeholder": "希望代理完成什麼？",
+    "start": "開始目標",
+    "refresh": "重新整理目標",
+    "reconnect": "請重新連線以管理目標。",
+    "unavailable": "目前的執行或使用者無法控制此目標。",
+    "guidance": "每次執行在 {{turns}} 個模型步驟或 {{minutes}} 分鐘後暫停。停止會暫停目標。沒有正在執行的工作時，繼續會啟動新一輪執行。委派的工作使用相同的模型與權限。"
+  },
   "codeBlock": {
     "copy": "複製",
     "copied": "已複製",
@@ -44,6 +64,13 @@
     "stopSpeaking": "停止",
     "loading": "載入中…"
   },
+  "sessionWorktree": {
+    "label": "執行位置",
+    "project": "專案",
+    "newWorktree": "新增工作樹",
+    "worktree": "工作樹",
+    "preparing": "正在準備工作樹"
+  },
   "input": {
     "placeholder": "請問 {{provider}}，使用 / 進行指令，或 @ 添加檔案…",
     "modelReasoning": {
@@ -78,6 +105,7 @@
       "label": "已佇列",
       "willSend": "於當前執行結束後發送",
       "willFollow": "於上方訊息之後發送",
+      "awaitingSteer": "等待引導指令確認",
       "edit": "編輯佇列中的項目",
       "delete": "移除佇列中的項目",
       "moveUp": "在佇列中上移",
@@ -101,6 +129,7 @@
     },
     "messages": {
       "showingOf": "顯示 {{shown}} 共計 {{total}} 筆訊息",
+      "loadedCount": "已載入訊息：{{shown}} 筆",
       "scrollToLoad": "向上捲動以查看更多",
       "showingLast": "顯示最新 {{count}} 筆共計 {{total}} 筆訊息",
       "loadEarlier": "取得較早的訊息",

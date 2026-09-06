@@ -6,8 +6,10 @@ import { act, cleanup, render } from '@testing-library/react';
 import { createElement } from 'react';
 
 import { useLastTurnChanges, type LastTurnFile } from '../components/workspace/hooks/useLastTurnChanges';
+import { normalizedToChatMessages } from '../components/chat/hooks/useChatMessages';
+import { isToolCallRunning } from '../components/chat/utils/toolActivity';
 
-import { useSessionStore, type SessionSlot, type SessionStore } from './useSessionStore';
+import { useSessionStore, type NormalizedMessage, type SessionSlot, type SessionStore } from './useSessionStore';
 
 type PendingRequest = {
   url: string;
@@ -37,6 +39,64 @@ function createStore(): SessionStore {
 }
 
 afterEach(cleanup);
+
+for (const delivery of ['live', 'replay'] as const) {
+  test(`${delivery} metadata-only tool updates retain output and merge partial details until final completion`, () => {
+    const store = createStore();
+    const base = { sessionId: 'session', timestamp: '2026-09-06T00:00:00Z', provider: 'gjc' as const, toolId: 'tool-1' };
+    const frames: NormalizedMessage[] = [
+      { ...base, id: 'call', kind: 'tool_use', toolName: 'bash', toolInput: { command: 'pwd' } },
+      { ...base, id: 'output', kind: 'tool_result', content: 'Already streamed output', isError: false, isFinal: false,
+        toolUseResult: { async: { jobId: 'job-1', type: 'bash' }, files: ['old'] } },
+      { ...base, id: 'metadata', kind: 'tool_result', content: '', isError: false, isFinal: false,
+        toolUseResult: { terminalId: 'terminal-1', async: { state: 'running' }, files: ['new'] } },
+    ];
+    act(() => {
+      if (delivery === 'replay') store.appendRealtimeBatch('session', frames);
+      else frames.forEach((frame) => store.appendRealtime('session', frame));
+    });
+    const [running] = normalizedToChatMessages(store.getMessages('session'));
+    assert.equal(running.toolResult?.content, 'Already streamed output');
+    assert.equal(running.toolResult?.isFinal, false);
+    assert.equal(isToolCallRunning(running), true);
+    assert.deepEqual(running.toolResult?.toolUseResult, {
+      terminalId: 'terminal-1', async: { jobId: 'job-1', type: 'bash', state: 'running' }, files: ['new'],
+    });
+    assert.deepEqual(frames[1].toolUseResult, { async: { jobId: 'job-1', type: 'bash' }, files: ['old'] }, 'earlier frames stay immutable');
+    assert.equal(normalizedToChatMessages(store.getMessages('session'))[0], running, 'unchanged merged rows retain render identity');
+
+    act(() => store.appendRealtime('session', { ...base, id: 'more-output', kind: 'tool_result', content: 'New output', isError: false, isFinal: false }));
+    const updated = normalizedToChatMessages(store.getMessages('session'))[0];
+    assert.equal(updated.toolResult?.content, 'New output', 'nonempty partial output replaces the cumulative display');
+    assert.deepEqual(updated.toolResult?.toolUseResult, running.toolResult?.toolUseResult, 'omitted details preserve the previous result');
+
+    act(() => store.appendRealtime('session', { ...base, id: 'final', kind: 'tool_result', content: '', isError: false, isFinal: true, toolUseResult: { exitCode: 0 } }));
+    const finished = normalizedToChatMessages(store.getMessages('session'))[0];
+    assert.equal(finished.toolResult?.content, '', 'an authoritative final result can deliberately clear output');
+    assert.deepEqual(finished.toolResult?.toolUseResult, { exitCode: 0 }, 'final details replace partial metadata');
+    assert.equal(isToolCallRunning(finished), false);
+
+    act(() => store.appendRealtime('session', { ...base, id: 'late-metadata', kind: 'tool_result', content: '', isError: false, isFinal: false, toolUseResult: { async: { state: 'completed' } } }));
+    const late = normalizedToChatMessages(store.getMessages('session'))[0];
+    assert.equal(late.toolResult?.isFinal, true, 'late metadata does not reopen a finished invocation');
+    assert.deepEqual(late.toolResult?.toolUseResult, { exitCode: 0, async: { state: 'completed' } });
+  });
+}
+
+test('replacing a realtime tool result ID retains its earlier output and details', () => {
+  const store = createStore();
+  const base = { sessionId: 'session', timestamp: '2026-09-06T00:00:00Z', provider: 'gjc' as const, toolId: 'tool-1' };
+  act(() => store.appendRealtimeBatch('session', [
+    { ...base, id: 'call', kind: 'tool_use', toolName: 'read', toolInput: { path: 'a.ts' } },
+    { ...base, id: 'result', kind: 'tool_result', content: 'file text', isError: false, isFinal: false, toolUseResult: { resolvedPath: '/repo/a.ts' } },
+    { ...base, id: 'result', kind: 'tool_result', content: '', isError: false, isFinal: false, toolUseResult: { truncated: true } },
+  ]));
+  const messages = store.getMessages('session');
+  assert.equal(messages.length, 2);
+  const result = normalizedToChatMessages(messages)[0].toolResult;
+  assert.equal(result?.content, 'file text');
+  assert.deepEqual(result?.toolUseResult, { resolvedPath: '/repo/a.ts', truncated: true });
+});
 
 test('a shared session store exposes completed mutations to the Last turn hook', () => {
   let store: SessionStore | undefined;
@@ -672,4 +732,96 @@ test('a viewer that joined mid-turn keeps only the final text, not the stream ta
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('a replayed complete answer is reconciled when the user anchor is outside the history window', () => {
+  const { store, queryClient } = createHarness();
+  act(() => {
+    store.setActiveSession('session');
+    queryClient.setQueryData(['messages', 'session'], {
+      messages: [{ id: 'disk-answer', sessionId: 'session', timestamp: '2026-01-01T00:00:05Z', kind: 'text', role: 'assistant', content: 'Interview threshold: 5%', provider: 'gjc' }],
+      total: 42, hasMore: true, offset: 1,
+    });
+    store.updateStreaming('session', 'Interview threshold: 5%', 'gjc');
+    store.finalizeStreaming('session');
+  });
+  assert.equal(store.getMessages('session').filter(message => message.content === 'Interview threshold: 5%').length, 1);
+});
+
+test('a new user turn preserves an identical reply when the older user anchor is outside the window', () => {
+  const { store, queryClient } = createHarness();
+  act(() => {
+    store.setActiveSession('session');
+    queryClient.setQueryData(['messages', 'session'], {
+      messages: [{ id: 'disk-answer', sessionId: 'session', timestamp: '2026-01-01T00:00:05Z', kind: 'text', role: 'assistant', content: 'Yes.', provider: 'gjc' }],
+      total: 42, hasMore: true, offset: 1,
+    });
+    store.appendRealtime('session', { id: 'local_new-question', sessionId: 'session', timestamp: '2026-01-01T00:01:00Z', kind: 'text', role: 'user', content: 'And the other one?', provider: 'gjc' });
+    store.updateStreaming('session', 'Yes.', 'gjc');
+    store.finalizeStreaming('session');
+  });
+  assert.equal(store.getMessages('session').filter(message => message.content === 'Yes.').length, 2);
+});
+
+test('old replay uses its event time to reconcile before a newer persisted question', () => {
+  const { store, queryClient } = createHarness();
+  act(() => {
+    store.setActiveSession('session');
+    queryClient.setQueryData(['messages', 'session'], {
+      messages: [
+        { id: 'disk-answer', sessionId: 'session', timestamp: '2026-01-01T00:00:05Z', kind: 'text', role: 'assistant', content: 'Earlier answer.', provider: 'gjc' },
+        { id: 'next-question', sessionId: 'session', timestamp: '2026-01-01T00:01:00Z', kind: 'text', role: 'user', content: 'Another question.', provider: 'gjc' },
+        { id: 'next-answer', sessionId: 'session', timestamp: '2026-01-01T00:01:05Z', kind: 'text', role: 'assistant', content: 'Later answer.', provider: 'gjc' },
+      ],
+      total: 42, hasMore: true, offset: 3,
+    });
+    store.updateStreaming('session', 'Earlier answer.', 'gjc', '2026-01-01T00:00:04Z');
+    store.finalizeStreaming('session');
+  });
+  assert.deepEqual(store.getMessages('session').map(message => message.id), ['disk-answer', 'next-question', 'next-answer']);
+});
+
+test('background replay separated from its persisted answer by reasoning never duplicates prose', () => {
+  const { store, queryClient } = createHarness();
+  const common = { sessionId: 'session', provider: 'gjc' as const };
+  act(() => {
+    store.setActiveSession('session');
+    queryClient.setQueryData(['messages', 'session'], {
+      messages: [
+        { ...common, id: 'disk-thought', timestamp: '2026-01-01T00:00:05Z', kind: 'thinking', content: 'Reasoning.' },
+        { ...common, id: 'disk-answer', timestamp: '2026-01-01T00:00:05Z', kind: 'text', role: 'assistant', content: 'Complete answer.' },
+      ], total: 42, hasMore: true, offset: 2,
+    });
+    store.appendRealtimeBatch('session', [
+      { ...common, id: 'delta-1', timestamp: '2026-01-01T00:00:01Z', kind: 'stream_delta', content: 'Complete ' },
+      { ...common, id: 'delta-2', timestamp: '2026-01-01T00:00:02Z', kind: 'stream_delta', content: 'answer.' },
+      { ...common, id: 'live-thought', timestamp: '2026-01-01T00:00:05Z', kind: 'thinking', content: 'Reasoning.' },
+    ]);
+    store.updateStreaming('session', 'Complete answer.', 'gjc', '2026-01-01T00:00:06Z');
+    store.finalizeStreaming('session');
+  });
+  assert.equal(store.getMessages('session').filter(message => message.content === 'Complete answer.').length, 1);
+  assert.equal(store.getMessages('session').filter(message => message.content === 'Reasoning.').length, 1);
+});
+
+test('thinking reconciliation preserves repeated reasoning in a new turn and never matches assistant prose', () => {
+  const { store, queryClient } = createHarness();
+  const common = { sessionId: 'session', provider: 'gjc' as const };
+  act(() => {
+    queryClient.setQueryData(['messages', 'session'], {
+      messages: [
+        { ...common, id: 'prior-thought', timestamp: '2026-01-01T00:00:05Z', kind: 'thinking', content: 'Repeated reasoning.' },
+        { ...common, id: 'prior-thought-2', timestamp: '2026-01-01T00:00:06Z', kind: 'thinking', content: 'Repeated reasoning.' },
+        { ...common, id: 'prior-text', timestamp: '2026-01-01T00:00:07Z', kind: 'text', role: 'assistant', content: 'Prose is separate.' },
+      ], total: 42, hasMore: true, offset: 3,
+    });
+    store.appendRealtimeBatch('session', [
+      { ...common, id: 'thinking-prose', timestamp: '2026-01-01T00:00:07Z', kind: 'thinking', content: 'Prose is separate.' },
+      { ...common, id: 'local_next', timestamp: '2026-01-01T00:01:00Z', kind: 'text', role: 'user', content: 'Next question' },
+      { ...common, id: 'next-thought', timestamp: '2026-01-01T00:01:05Z', kind: 'thinking', content: 'Repeated reasoning.' },
+    ]);
+  });
+  assert.deepEqual(store.getMessages('session').map(row => row.id), [
+    'prior-thought', 'prior-thought-2', 'prior-text', 'thinking-prose', 'local_next', 'next-thought',
+  ]);
 });

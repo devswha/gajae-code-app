@@ -10,6 +10,7 @@ import { useWebSocket } from '../../../contexts/WebSocketContext';
 import { useLegacySkipPermissionsMigration, useProjectPermissions } from '../../../hooks/useProjectPermissions';
 import type { ProjectSession } from '../../../types/app';
 import { useChatComposerState } from '../hooks/useChatComposerState';
+import { useSessionLocation } from '../hooks/useSessionLocation';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatSessionState } from '../hooks/useChatSessionState';
@@ -18,8 +19,11 @@ import { useOAuthLogin } from '../hooks/useOAuthLogin';
 import type { ChatInterfaceProps } from '../types/types';
 import { deriveLiveActivity } from '../utils/toolActivity';
 import OAuthLoginDialog from '../OAuthLoginDialog';
+import { useGoalControls } from '../hooks/useGoalControls';
 
+import GoalControls from './GoalControls';
 import ChatComposer from './ChatComposer';
+import SessionWorktreePicker from './SessionWorktreePicker';
 import ChatMessagesPane from './ChatMessagesPane';
 import CommandResultModal from './CommandResultModal';
 import type { ReasoningEffort } from './reasoningEffort';
@@ -58,7 +62,6 @@ function ChatInterface({
   const streamTimerRef = useRef<number | null>(null);
   const accumulatedStreamRef = useRef('');
   const statusCheckSentAtRef = useRef(new Map<string, number>());
-  const lastSeqRef = useRef(new Map<string, number>());
 
   const clearStreaming = useCallback(() => {
     const timer = streamTimerRef.current;
@@ -84,11 +87,13 @@ function ChatInterface({
 
   const session = useChatSessionState({
     selectedProject, selectedSession, ws, sendMessage, newSessionTrigger, processingSessions,
-    onSessionIdle, resetStreamingState: clearStreaming, statusCheckSentAtRef, lastSeqRef,
+    onSessionIdle, resetStreamingState: clearStreaming, statusCheckSentAtRef,
     sessionStore, showImagePreviews,
   });
 
   const { setCurrentSessionId } = session;
+  const locationSessionId = selectedSession?.id ?? session.currentSessionId;
+  const sessionLocation = useSessionLocation(locationSessionId);
   const establishSession = useCallback<NonNullable<ChatInterfaceProps['onSessionEstablished']>>((id, context) => {
     setCurrentSessionId(id);
     onSessionEstablished?.(id, context);
@@ -96,6 +101,7 @@ function ChatInterface({
   }, [onNavigateToSession, onSessionEstablished, setCurrentSessionId]);
 
   const composer = useChatComposerState({
+    executionCwd: sessionLocation.data?.cwd,
     selectedProject,
     selectedSession,
     currentSessionId: session.currentSessionId,
@@ -149,7 +155,7 @@ function ChatInterface({
     statusCheckSentAtRef.current.set(selectedSession.id, Date.now());
     sendMessage({
       type: 'chat.subscribe',
-      sessions: [{ sessionId: selectedSession.id, lastSeq: lastSeqRef.current.get(selectedSession.id) ?? 0 }],
+      sessions: [{ sessionId: selectedSession.id, ...sessionStore.getReplayCursor(selectedSession.id) }],
     });
   }, [selectedProject, selectedSession, sendMessage, sessionStore]);
 
@@ -164,7 +170,6 @@ function ChatInterface({
     setPendingPermissionRequests,
     streamTimerRef,
     accumulatedStreamRef,
-    lastSeqRef,
     statusCheckSentAtRef,
     onSessionProcessing,
     onSessionIdle,
@@ -218,6 +223,7 @@ function ChatInterface({
   usePublishSessionStatus(sessionStatusSnapshot);
 
   const historicalSession = isHistoricalNonGjcReadOnlySession(selectedSession);
+  const goalControls = useGoalControls(historicalSession ? null : session.currentSessionId ?? selectedSession?.id ?? null, selectedProject?.projectId ?? null);
   const showLanding = !historicalSession
     && !selectedSession
     && !session.currentSessionId
@@ -240,6 +246,7 @@ function ChatInterface({
 
   const composerNode = (
     <ComposerSurface
+      sessionLocationControl={<SessionWorktreePicker value={composer.useWorktree} onChange={composer.setUseWorktree} sessionId={locationSessionId} location={sessionLocation.data} disabled={session.isProcessing} />}
       pendingPermissionRequests={pendingPermissionRequests}
       handlePermissionDecision={composer.handlePermissionDecision}
       isLoading={session.isProcessing}
@@ -313,6 +320,7 @@ function ChatInterface({
   return (
     <PermissionContext.Provider value={permissionContextValue}>
       <div className="flex h-full min-h-0 flex-col">
+        {!historicalSession && (session.currentSessionId || selectedSession?.id) && <GoalControls key={`${selectedProject.projectId}:${session.currentSessionId ?? selectedSession?.id}`} {...goalControls} />}
         {showLanding ? (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-[10vh] sm:px-6">
             <div className="w-full max-w-184">

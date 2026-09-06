@@ -36,6 +36,9 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
+      - name: Seed verified ripgrep install cache
+        run: node scripts/release/prime-ripgrep-cache.mjs
+
       - name: Install dependencies
         run: npm ci
 

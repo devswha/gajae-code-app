@@ -40,7 +40,7 @@ function readSummary(body: Record<string, unknown>): GitSummary {
  * summary refreshes when the project changes, when the tab is opened, and when
  * the user asks.
  */
-export function useProjectGitSummary(projectId: string | undefined, enabled: boolean) {
+export function useProjectGitSummary(projectId: string | undefined, enabled: boolean, sessionId?: string, executionCwd?: string) {
   const [state, setState] = useState<GitSummaryState>({ kind: 'idle' });
   const requestRef = useRef(0);
 
@@ -59,26 +59,26 @@ export function useProjectGitSummary(projectId: string | undefined, enabled: boo
 
     publish({ kind: 'loading' });
     try {
-      const response = await api.gitStatus(projectId);
+      const response = await api.gitStatus(projectId, sessionId);
       const body = await response.json() as Record<string, unknown>;
-      if (typeof body.error === 'string') {
+      if (!response.ok || typeof body.error === 'string') {
         // The endpoint answers 200 with an error string for a directory that is
         // simply not a repository, which is a normal state, not a failure.
-        publish(/not a git repository/i.test(body.error) ? { kind: 'not-a-repository' } : { kind: 'unavailable' });
+        publish(typeof body.error === 'string' && /not a git repository/i.test(body.error) ? { kind: 'not-a-repository' } : { kind: 'unavailable' });
         return;
       }
       publish({ kind: 'ready', summary: readSummary(body) });
     } catch {
       publish({ kind: 'unavailable' });
     }
-  }, [projectId]);
+  }, [projectId, sessionId]);
 
   useEffect(() => {
     if (!enabled) {
       return;
     }
     void load();
-  }, [enabled, load]);
+  }, [enabled, load, executionCwd]);
 
   return { state, refresh: load };
 }

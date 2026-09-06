@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
-  "gjcSdk": "0.15.6",
+  "gjcSdk": "0.16.4",
   "bun": "1.4.0",
-  "natives": "0.15.6",
+  "natives": "0.16.4",
   "platforms": {
     "linux-x64": {
       "files": [
         {
           "package": "@gajae-code/natives-linux-x64",
           "path": "native/pi_natives.linux-x64-baseline.node",
-          "sha256": "9546cfdcb93545f0376f603439b571bb6f64ab1f8d781cfd8616f07318dfa2d6"
+          "sha256": "dcc7639b0edb4617c32bc2d322105e30126f5c5e7ae75d7f3d93d43776e2c267"
         },
         {
           "package": "@gajae-code/natives-linux-x64",
           "path": "native/pi_natives.linux-x64-modern.node",
-          "sha256": "d30926f409d9100c39c19a69daeafada91ec4514d84befea824c554665010a4f"
+          "sha256": "c75ddb2f46d63c3ad13f8a7a6daaa0ff49bcb3ab28c087e3917c7fe3f4eec2f2"
         },
         {
           "package": "@gajae-code/natives",
@@ -24,7 +24,7 @@
         {
           "package": "@gajae-code/natives",
           "path": "native/index.js",
-          "sha256": "fc427ab3a07197c24d690880cadea22c1b546f7d4121892000056f0ea4adb67f"
+          "sha256": "516e4316618c77843058bc7f1c1c723ce8d24aa0e1c90fbea64ed20ace71a863"
         },
         {
           "package": "@gajae-code/natives",
@@ -38,7 +38,7 @@
         {
           "package": "@gajae-code/natives-darwin-arm64",
           "path": "native/pi_natives.darwin-arm64.node",
-          "sha256": "8070b5a8fd06b75bb99c1af407d3a1a48ebc73ff61dbc39d59f84f18e552f3c8"
+          "sha256": "6dc61753c3bbdb8d22900c41aa621f3bd1ada142fa5e3715c3199a92b65a79cf"
         },
         {
           "package": "@gajae-code/natives",
@@ -48,7 +48,7 @@
         {
           "package": "@gajae-code/natives",
           "path": "native/index.js",
-          "sha256": "fc427ab3a07197c24d690880cadea22c1b546f7d4121892000056f0ea4adb67f"
+          "sha256": "516e4316618c77843058bc7f1c1c723ce8d24aa0e1c90fbea64ed20ace71a863"
         },
         {
           "package": "@gajae-code/natives",
@@ -62,7 +62,7 @@
         {
           "package": "@gajae-code/natives-win32-x64",
           "path": "native/pi_natives.win32-x64-baseline.node",
-          "sha256": "984ee1162a39edd4312c58f194866522117ff3a01d4ab86d7d41064ccae8a8c5"
+          "sha256": "682f8e1a4c6e0239f89336d9e1cdb466d2ff1b13af3b5635119a43bbae7098b6"
         },
         {
           "package": "@gajae-code/natives",
@@ -72,7 +72,7 @@
         {
           "package": "@gajae-code/natives",
           "path": "native/index.js",
-          "sha256": "fc427ab3a07197c24d690880cadea22c1b546f7d4121892000056f0ea4adb67f"
+          "sha256": "516e4316618c77843058bc7f1c1c723ce8d24aa0e1c90fbea64ed20ace71a863"
         },
         {
           "package": "@gajae-code/natives",

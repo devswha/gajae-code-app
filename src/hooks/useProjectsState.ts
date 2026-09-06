@@ -291,17 +291,18 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
     try {
       await query.refetch();
       const refreshed = client.getQueryData<Project[]>(PROJECTS_QUERY_KEY) ?? [];
-      const project = selectedProject && refreshed.find((candidate) => candidate.projectId === selectedProject.projectId);
+      const current = useAppShellStore.getState();
+      const project = current.selectedProject && refreshed.find((candidate) => candidate.projectId === current.selectedProject?.projectId);
       if (!project) return;
-      if (encode(project) !== encode(selectedProject)) setSelectedProject(project);
-      const session = selectedSession && rowsOf(project).find((candidate) => candidate.id === selectedSession.id);
+      if (encode(project) !== encode(current.selectedProject)) setSelectedProject(project);
+      const session = current.selectedSession && rowsOf(project).find((candidate) => candidate.id === current.selectedSession?.id);
       if (!session) return;
-      const normalized = session.__provider || !selectedSession?.__provider ? session : { ...session, __provider: selectedSession.__provider };
-      if (encode(normalized) !== encode(selectedSession)) setSelectedSession(normalized);
+      const normalized = session.__provider || !current.selectedSession?.__provider ? session : { ...session, __provider: current.selectedSession.__provider };
+      if (encode(normalized) !== encode(current.selectedSession)) setSelectedSession(normalized);
     } catch (error) {
       console.error('Error refreshing sidebar:', error);
     }
-  }, [client, query, selectedProject, selectedSession, setSelectedProject, setSelectedSession]);
+  }, [client, query, setSelectedProject, setSelectedSession]);
 
   const loadMoreProjectSessions = useCallback(async (projectId: string) => {
     const project = projects.find((candidate) => candidate.projectId === projectId);
@@ -322,8 +323,8 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
       selected = merged;
       return merged;
     }));
-    if (selectedProject?.projectId === projectId && selected) setSelectedProject(selected);
-  }, [client, projects, selectedProject?.projectId, setSelectedProject]);
+    if (selected) setSelectedProject((current) => current?.projectId === projectId ? selected : current);
+  }, [client, projects, setSelectedProject]);
 
   const handleProjectDelete = useCallback((projectId: string) => {
     if (selectedProject?.projectId === projectId) {

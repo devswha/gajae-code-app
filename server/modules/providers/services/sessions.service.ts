@@ -4,6 +4,8 @@ import path from 'node:path';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
+import { resolveSessionProjectPath } from '@/modules/providers/services/session-project-path.service.js';
+import { sessionTranscriptWorkspace } from '@/modules/providers/services/session-worktrees.service.js';
 import { chatRunRegistry } from '@/modules/websocket/index.js';
 import type { FetchHistoryOptions, FetchHistoryResult, LLMProvider, NormalizedMessage } from '@/shared/types.js';
 import { boundToolResultDetails, prepareMessagesForTransport } from '@/shared/tool-output-transport.js';
@@ -55,11 +57,8 @@ export const sessionsService = {
     return providerRegistry.resolveProvider(providerName).sessions.normalizeMessage(raw, sessionId);
   },
 
-  createAppSession(provider: LLMProvider, projectPath: string): CreateAppSessionResult {
-    const project = projectPath.trim();
-    if (!project) {
-      throw new AppError('projectPath is required.', { code: 'PROJECT_PATH_REQUIRED', statusCode: 400 });
-    }
+  async createAppSession(provider: LLMProvider, projectPath: string): Promise<CreateAppSessionResult> {
+    const project = await resolveSessionProjectPath(projectPath);
     const sessionId = randomUUID();
     sessionsDb.createAppSession(sessionId, provider, project);
     return { sessionId, provider, projectPath: project };
@@ -75,7 +74,7 @@ export const sessionsService = {
     const history = await provider.sessions.fetchHistory(sessionId, {
       limit,
       offset,
-      projectPath: row.project_path ?? '',
+      projectPath: sessionTranscriptWorkspace(sessionId, row.project_path ?? ''),
       providerSessionId: row.provider_session_id,
     });
     const remapped = history.messages.map((message) => ({ ...message, sessionId }));
@@ -88,7 +87,7 @@ export const sessionsService = {
     const history = await providerRegistry.resolveProvider(row.provider as LLMProvider).sessions.fetchHistory(sessionId, {
       limit: null,
       offset: 0,
-      projectPath: row.project_path ?? '',
+      projectPath: sessionTranscriptWorkspace(sessionId, row.project_path ?? ''),
       providerSessionId: row.provider_session_id,
     });
     const embedded = history.messages.find((message) => message.kind === 'tool_use' && message.toolId === toolId && message.toolResult)?.toolResult;

@@ -1,4 +1,24 @@
 {
+  "goal": {
+    "region": "대화 목표",
+    "title": "목표",
+    "active": "진행 중",
+    "paused": "일시정지",
+    "complete": "완료",
+    "cancelled": "취소됨",
+    "tokens": "토큰 {{value}}개",
+    "pause": "일시정지",
+    "resume": "재개",
+    "cancel": "목표 취소",
+    "new": "새 목표",
+    "objective": "목표 내용",
+    "placeholder": "에이전트가 무엇을 완료해야 하나요?",
+    "start": "목표 시작",
+    "refresh": "목표 새로고침",
+    "reconnect": "목표를 제어하려면 다시 연결하세요.",
+    "unavailable": "현재 실행이나 사용자에게 목표 제어 권한이 없습니다.",
+    "guidance": "한 번의 실행은 모델 처리 {{turns}}단계 또는 {{minutes}}분 후 일시정지됩니다. 중지는 목표를 일시정지하고, 재개는 실행 중인 작업이 없으면 새 실행을 시작합니다. 위임한 작업도 같은 모델과 권한을 사용합니다."
+  },
   "codeBlock": {
     "copy": "복사하기",
     "copied": "복사됨",
@@ -44,6 +64,13 @@
     "stopSpeaking": "중단",
     "loading": "불러오는 중…"
   },
+  "sessionWorktree": {
+    "label": "실행 위치",
+    "project": "프로젝트",
+    "newWorktree": "새 워크트리",
+    "worktree": "워크트리",
+    "preparing": "워크트리 준비 중"
+  },
   "input": {
     "placeholder": "{{provider}}에게 질문하세요, /로 명령어를 사용하거나 @로 파일을 추가하세요…",
     "modelReasoning": {
@@ -84,7 +111,8 @@
       "moveDown": "큐 하단으로 이동",
       "images_one": "{{count}} 개의 이미지 추가됨",
       "images_other": "{{count}} 개의 이미지 추가됨",
-      "steerNow": "현재 턴을 조종"
+      "steerNow": "현재 턴을 조종",
+      "awaitingSteer": "조종 요청 확인 대기 중"
     },
     "skills": {
       "label": "스킬 선택",
@@ -101,6 +129,7 @@
     },
     "messages": {
       "showingOf": "{{shown}}개 중 {{total}}개의 메시지를 표시",
+      "loadedCount": "불러온 메시지: {{shown}}개",
       "scrollToLoad": "더 많은 내용을 위해 위로 스크롤하세요",
       "showingLast": "{{count}}개 중 {{total}}개의 최신 메시지를 표시",
       "loadEarlier": "이전 메시지 가져오기",

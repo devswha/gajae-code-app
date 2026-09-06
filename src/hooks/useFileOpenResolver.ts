@@ -8,6 +8,7 @@ type FileEntry = { name: string; path: string };
 type OnFileOpen = (filePath: string, diffInfo?: any) => void;
 
 const slashPath = (path: string) => path.replace(/\\/g, '/');
+const isAbsolute = (path: string) => path.startsWith('/') || path.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(path);
 
 function collectFiles(tree: FileNode[]): FileEntry[] {
   const files: FileEntry[] = [];
@@ -29,6 +30,7 @@ function collectFiles(tree: FileNode[]): FileEntry[] {
 }
 
 function resolveReference(files: FileEntry[], reference: string): string | undefined {
+  if (isAbsolute(reference)) return files.find((file) => slashPath(file.path) === slashPath(reference))?.path;
   const relativePath = slashPath(reference).trim().replace(/^\.\//, '').replace(/^\/+/, '');
   if (relativePath.length === 0) return undefined;
 
@@ -37,25 +39,28 @@ function resolveReference(files: FileEntry[], reference: string): string | undef
     if (candidate === relativePath || candidate.endsWith(`/${relativePath}`)) return file.path;
   }
 
-  const filename = relativePath.split('/').at(-1);
-  return files.find((file) => file.name === filename)?.path;
+  if (relativePath.includes('/')) return undefined;
+  const matches = files.filter((file) => file.name === relativePath);
+  return matches.length === 1 ? matches[0].path : undefined;
 }
 
-async function fetchProjectFiles(projectId: string): Promise<FileEntry[]> {
+async function fetchProjectFiles(projectId: string, sessionId?: string): Promise<FileEntry[] | null> {
   try {
-    const response = await api.getFiles(projectId);
-    if (!response.ok) return [];
+    const response = await api.getFiles(projectId, {}, sessionId);
+    if (!response.ok) return null;
     const payload: unknown = await response.json();
     return collectFiles(Array.isArray(payload) ? payload as FileNode[] : []);
   } catch {
     // Resolution remains best-effort when the project tree cannot be read.
-    return [];
+    return null;
   }
 }
 
 export function useFileOpenResolver(
   selectedProject: Project | null | undefined,
   onFileOpen: OnFileOpen,
+  sessionId?: string,
+  executionCwd?: string | null,
 ): OnFileOpen {
   const selectedId = selectedProject?.projectId;
   const cachedRequest = useRef<{ id: string | undefined; result: Promise<FileEntry[]> | undefined }>({
@@ -67,16 +72,25 @@ export function useFileOpenResolver(
     if (!selectedId) return Promise.resolve([]);
 
     const cache = cachedRequest.current;
-    if (cache.id === selectedId && cache.result) return cache.result;
+    const identity = `${selectedId}:${sessionId ?? ''}:${executionCwd ?? ''}`;
+    if (cache.id === identity && cache.result) return cache.result;
 
-    const result = fetchProjectFiles(selectedId);
-    cachedRequest.current = { id: selectedId, result };
+    const result = fetchProjectFiles(selectedId, sessionId).then((files) => {
+      // A pending worktree or transient failure must remain retryable.
+      if (files === null && cachedRequest.current.result === result) cachedRequest.current.result = undefined;
+      return files ?? [];
+    });
+    cachedRequest.current = { id: identity, result };
     return result;
-  }, [selectedId]);
+  }, [selectedId, sessionId, executionCwd]);
 
   return useCallback((filePath: string, diffInfo?: any) => {
     void filesForSelectedProject().then((files) => {
-      onFileOpen(resolveReference(files, filePath) ?? filePath, diffInfo);
+      const resolved = resolveReference(files, filePath);
+      // A relative reference in a session must not fall through to the server
+      // process cwd when its selected workspace is pending or unavailable.
+      const absolute = isAbsolute(filePath);
+      if (resolved || !sessionId || absolute) onFileOpen(resolved ?? filePath, diffInfo);
     });
-  }, [filesForSelectedProject, onFileOpen]);
+  }, [filesForSelectedProject, onFileOpen, sessionId]);
 }

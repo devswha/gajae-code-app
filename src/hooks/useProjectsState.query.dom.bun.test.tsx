@@ -385,3 +385,58 @@ test('sidebar shared props contain only navigation dependencies while the hook r
     fetch.restore();
   }
 });
+
+test('a late session page updates its cache without switching the selected project back', async () => {
+  const originalFetch = globalThis.fetch;
+  const first = { ...project(), sessionMeta: { total: 2, hasMore: true } };
+  const second = { ...project(), projectId: 'project-2', displayName: 'Project two' };
+  let resolvePage!: (response: Response) => void;
+  globalThis.fetch = async (url) => String(url).includes('/sessions?')
+    ? new Promise<Response>((resolve) => { resolvePage = resolve; })
+    : new Response(JSON.stringify([first, second]));
+  try {
+    const harness = renderHarness();
+    await waitFor(() => assert.equal(harness.getState().projects.length, 2));
+    act(() => harness.getState().handleProjectSelect(first));
+    let loading!: Promise<void>;
+    act(() => { loading = harness.getState().loadMoreProjectSessions(first.projectId); });
+    act(() => harness.getState().handleProjectSelect(second));
+    await act(async () => {
+      resolvePage(new Response(JSON.stringify({ sessions: [{ id: 'late-session' }], sessionMeta: { total: 2, hasMore: true } })));
+      await loading;
+    });
+    await waitFor(() => assert.equal(harness.getState().projects[0].sessions?.[0]?.id, 'late-session'));
+    assert.equal(harness.getState().selectedProject?.projectId, second.projectId);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a late sidebar refresh cannot restore the project or session the viewer left', async () => {
+  const originalFetch = globalThis.fetch;
+  const first = project([{ id: 'first-session', summary: 'Before' }]);
+  const second = { ...project(), projectId: 'project-2', displayName: 'Project two' };
+  let resolveRefresh!: (response: Response) => void;
+  let calls = 0;
+  globalThis.fetch = async () => calls++ === 0
+    ? new Response(JSON.stringify([first, second]))
+    : new Promise<Response>((resolve) => { resolveRefresh = resolve; });
+  try {
+    const harness = renderHarness();
+    await waitFor(() => assert.equal(harness.getState().projects.length, 2));
+    act(() => harness.getState().handleProjectSelect(first));
+    act(() => harness.getState().handleSessionSelect(first.sessions![0]));
+    let refreshing!: Promise<void>;
+    act(() => { refreshing = harness.getState().handleSidebarRefresh(); });
+    act(() => harness.getState().handleProjectSelect(second));
+    await act(async () => {
+      resolveRefresh(new Response(JSON.stringify([{ ...first, displayName: 'Renamed', sessions: [{ id: 'first-session', summary: 'After' }] }, second])));
+      await refreshing;
+    });
+    await waitFor(() => assert.equal(harness.getState().projects[0].displayName, 'Renamed'));
+    assert.equal(harness.getState().selectedProject?.projectId, second.projectId);
+    assert.equal(harness.getState().selectedSession, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

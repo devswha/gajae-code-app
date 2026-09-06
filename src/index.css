@@ -384,11 +384,6 @@
   }
 }
 
-@utility bg-transparent {
-  .dark &textarea { -webkit-text-fill-color: rgb(243 244 246) !important; color: rgb(243 244 246) !important; background-color: transparent !important; }
-  .dark &textarea::placeholder { -webkit-text-fill-color: rgb(75 85 99) !important; opacity: 1 !important; color: rgb(75 85 99) !important; }
-}
-
 @utility chat-input-placeholder {
   display: block !important;
   scrollbar-width: thin;

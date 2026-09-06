@@ -63,6 +63,7 @@ interface SlashCommand {
 }
 
 interface ChatComposerProps {
+  sessionLocationControl?: ReactNode;
   pendingPermissionRequests: PendingPermissionRequest[];
   handlePermissionDecision: (requestIds: string | string[], decision: PermissionDecision) => void;
   /** A run is in flight for the viewed session: the primary button is Stop, Enter queues. */
@@ -131,7 +132,7 @@ interface ChatComposerProps {
   onSelectModelPreset?: (value: string) => Promise<unknown> | unknown;
   reasoningEffort?: ReasoningEffort;
   onSelectReasoningEffort?: (value: ReasoningEffort) => void;
-  /** The selected project's permission policy; null hides the picker. */
+  /** The selected project's permission policy; null reserves its toolbar slot. */
   permissions?: ProjectPermissions | null;
   onSelectPermissionMode?: (update: PermissionModeUpdate) => Promise<unknown> | unknown;
   permissionsBusy?: boolean;
@@ -144,6 +145,7 @@ interface ChatComposerProps {
 }
 
 export default function ChatComposer({
+  sessionLocationControl,
   pendingPermissionRequests,
   handlePermissionDecision,
   isLoading,
@@ -308,6 +310,7 @@ export default function ChatComposer({
           key={`${index}:${draft.content}`}
           content={draft.content}
           imageCount={draft.images.length}
+          pendingSteer={draft.pendingSteer}
           position={index + 1}
           total={queuedDrafts.length}
           onEdit={() => onEditQueuedDraft(index)}
@@ -428,15 +431,18 @@ export default function ChatComposer({
             />
         </PromptInputBody>
 
-        <PromptInputFooter>
+        <PromptInputFooter className="flex-wrap items-end gap-y-1">
           {/*
             Wraps rather than clips. This row carries attach, voice, two model
             controls, skills and context usage; `overflow-hidden` meant a narrow
             viewport silently cut the trailing ones off with nothing to show
             that they existed. Wrapping costs a second line on narrow screens
-            and keeps every control reachable.
+            and keeps every control reachable. Keep metadata-dependent slots
+            mounted so loading cannot reposition the controls; the action group
+            can wrap separately when a split pane leaves too little room.
           */}
-          <PromptInputTools className="min-w-0 flex-wrap gap-y-1">
+          <PromptInputTools className="min-w-32 flex-1 basis-0 flex-wrap gap-y-1">
+            {sessionLocationControl}
 
             <PromptInputButton
               tooltip={{ content: t('input.attachImages') }}
@@ -450,38 +456,35 @@ export default function ChatComposer({
               <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />
             )}
 
-            {modelPresetOptions.length > 0 && (
-              <ModelAndReasoningPicker
-                value={modelPreset}
-                currentModel={displayedModel}
-                presetOptions={modelPresetOptions}
-                modelOptions={modelOptions}
-                availabilityKnown={availabilityKnown}
-                loading={modelPresetsLoading}
-                onSelect={onSelectModelPreset}
-                reasoningEffort={reasoningEffort}
-                onSelectReasoningEffort={onSelectReasoningEffort}
-              />
-            )}
+            <ModelAndReasoningPicker
+              value={modelPreset}
+              currentModel={displayedModel}
+              presetOptions={modelPresetOptions}
+              modelOptions={modelOptions}
+              availabilityKnown={availabilityKnown}
+              loading={modelPresetsLoading}
+              onSelect={onSelectModelPreset}
+              reasoningEffort={reasoningEffort}
+              onSelectReasoningEffort={onSelectReasoningEffort}
+            />
 
-            {modelPresetOptions.length > 0 && (
-              <AgentConfigurationPicker
-                value={modelPreset}
-                options={modelPresetOptions}
-                loading={modelPresetsLoading}
-                openTrigger={modelPickerOpenTrigger}
-                iconOnly
-                onSelect={onSelectModelPreset}
-              />
-            )}
+            <AgentConfigurationPicker
+              value={modelPreset}
+              options={modelPresetOptions}
+              loading={modelPresetsLoading}
+              openTrigger={modelPickerOpenTrigger}
+              iconOnly
+              onSelect={onSelectModelPreset}
+            />
 
-            {permissions && (
+            {permissions ? (
               <PermissionModePicker
                 permissions={permissions}
                 onSelectMode={onSelectPermissionMode}
                 busy={permissionsBusy}
+                className="w-28 shrink-0"
               />
-            )}
+            ) : <div className="h-8 w-28 shrink-0" aria-hidden />}
 
             <SkillPicker
               skills={skillCommands}
@@ -492,16 +495,7 @@ export default function ChatComposer({
 
           </PromptInputTools>
 
-          <div className="flex shrink-0 items-center gap-2">
-            {(canQueueDraft || sendByCtrlEnter) && (
-              <div
-                className={`hidden text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
-                  input.trim() && !canQueueDraft ? 'opacity-0' : 'opacity-100'
-                }`}
-              >
-                {submitHint}
-              </div>
-            )}
+          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
             {canSteer && (
               <PromptInputButton
                 onClick={onSteer}
@@ -568,6 +562,18 @@ export default function ChatComposer({
             )}
           </div>
         </PromptInputFooter>
+        {/* Opacity keeps the hint's space while typing. Give it its own row so
+            even invisible translated text cannot squeeze the toolbar. */}
+        {(canQueueDraft || sendByCtrlEnter) && (
+          <div
+            data-slot="prompt-input-submit-hint"
+            className={`hidden min-w-0 px-3 pb-2 text-right text-xs wrap-anywhere text-muted-foreground/50 transition-opacity duration-200 lg:block ${
+              input.trim() && !canQueueDraft ? 'opacity-0' : 'opacity-100'
+            }`}
+          >
+            {submitHint}
+          </div>
+        )}
       </PromptInput>
       </div>}
     </div>

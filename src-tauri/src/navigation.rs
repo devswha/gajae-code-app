@@ -9,6 +9,10 @@ use tauri::{
 pub struct LoopbackOrigin(Mutex<Option<String>>);
 
 impl LoopbackOrigin {
+    pub(crate) fn clear(&self) {
+        *self.0.lock().expect("loopback origin lock poisoned") = None;
+    }
+
     pub fn set(&self, origin: String) {
         *self.0.lock().expect("loopback origin lock poisoned") = Some(origin);
     }
@@ -95,5 +99,8 @@ mod navigation_policy_tests {
         assert!(origin.permits(&"http://127.0.0.1:43123/api/jobs".parse().unwrap()));
         assert!(!origin.permits(&"http://127.0.0.1:43124/".parse().unwrap()));
         assert!(!origin.permits(&"https://example.com/".parse().unwrap()));
+        origin.clear();
+        assert!(!origin.permits(&"http://127.0.0.1:43123/".parse().unwrap()));
+        assert!(origin.permits(&"tauri://localhost/".parse().unwrap()));
     }
 }

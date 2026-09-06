@@ -1,11 +1,20 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { copyFile, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import { test } from 'node:test';
 
 import { ACP_BUILTIN_SLASH_COMMANDS } from '@gajae-code/coding-agent/slash-commands/acp-builtins';
+import { createAgentSession, discoverAuthStorage } from '@gajae-code/coding-agent/sdk/session';
+import { ModelRegistry } from '@gajae-code/coding-agent/config/model-registry';
+import { Settings } from '@gajae-code/coding-agent/config/settings';
+import { SessionManager } from '@gajae-code/coding-agent/session/session-manager';
+import { AsyncJobManager } from '@gajae-code/coding-agent/async/job-manager';
+import { registerCustomApi, unregisterCustomApis } from '@gajae-code/ai/api-registry';
+import { closeModelCache } from '@gajae-code/ai/model-cache';
+import { AssistantMessageEventStream } from '@gajae-code/ai/utils/event-stream';
+import type { AssistantMessage, Context } from '@gajae-code/ai/types';
 
 
 import {
@@ -28,6 +37,7 @@ import {
 } from './gjc-worker-protocol.js';
 import { GjcWorkerHost } from './gjc-worker.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE } from './gjc-model-resolution.js';
+import { GJC_CLEANUP_UNCONFIRMED_CODE } from './gjc-cleanup-error.js';
 
 type Listener = (event: unknown) => void;
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: Error): void };
@@ -260,16 +270,31 @@ async function fixture(
     authStorage,
     getAll: () => models,
     getAvailable: () => models,
-    getCanonicalModelSelections: (query: { candidates?: typeof models } = {}) =>
-      (query.candidates ?? models).map((model) => ({
+    getCanonicalId: (model: typeof models[number]): string | undefined => model.id,
+    getCanonicalModelSelections: (query: { candidates?: typeof models } = {}) => {
+      // The SDK selects one concrete provider per canonical record. Returning
+      // every candidate here hid the catalog's original variant collapse.
+      const groups = new Map<string, typeof models>();
+      for (const model of query.candidates ?? models) {
+        const variants = groups.get(model.id) ?? [];
+        variants.push(model);
+        groups.set(model.id, variants);
+      }
+      return [...groups].map(([id, variants]) => ({
         record: {
-          id: model.id,
-          name: 'name' in model && typeof model.name === 'string' ? model.name : model.id,
-          variants: [{ canonicalId: model.id, selector: `${model.provider}/${model.id}`, model, source: 'bundled' }],
+          id,
+          name: 'name' in variants[0] && typeof variants[0].name === 'string' ? variants[0].name : id,
+          variants: variants.map((model) => ({ canonicalId: id, selector: `${model.provider}/${model.id}`, model, source: 'bundled' })),
         },
-        model,
-      })),
-    getModelProfile: () => undefined,
+        model: variants[0],
+      }));
+    },
+    getModelProfile: (name: string) => name === 'contract-profile' ? {
+      name,
+      requiredProviders: ['contract-provider'],
+      modelMapping: { default: 'contract-provider/contract-model:xhigh' },
+      source: 'user' as const,
+    } : undefined,
     async refresh() { trace.push('modelRegistry.refresh'); },
   };
   const factory = (async (input: Record<string, unknown>) => {
@@ -337,47 +362,74 @@ type ProductionWorkerResult = {
 async function runProductionWorker(env: NodeJS.ProcessEnv = {}): Promise<ProductionWorkerResult> {
   const bun = join(process.cwd(), 'dist-native', process.platform === 'win32' ? 'bun.exe' : 'bun');
   const worker = join(process.cwd(), 'server', 'gjc-bun-worker.ts');
-  return new Promise((resolve, reject) => {
-    const child = spawn(bun, [worker], {
-      cwd: process.cwd(),
-      env: { ...process.env, ...env },
-      stdio: ['pipe', 'pipe', 'pipe'],
+  const home = await mkdtemp(join(tmpdir(), 'gjc-worker-home-'));
+  const agentDirectory = env.GJC_WORKER_AGENT_DIR ?? join(home, 'agent');
+  // GJC_WORKER_AGENT_DIR isolates AuthStorage, but the SDK's global registry
+  // and preset cache use getAgentDir(). Inheriting the operator's profile made
+  // this handshake load their accepted model registry and exceed Bun's 5s
+  // test deadline. Provider keys also triggered unrelated online discovery.
+  const inherited = Object.fromEntries(
+    ['PATH', 'SystemRoot', 'WINDIR', 'COMSPEC', 'PATHEXT', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TERM']
+      .filter((name) => process.env[name] !== undefined)
+      .map((name) => [name, process.env[name]]),
+  );
+  try {
+    return await new Promise((resolve, reject) => {
+      const child = spawn(bun, ['--no-env-file', worker], {
+        cwd: process.cwd(),
+        env: {
+          ...inherited,
+          ...env,
+          HOME: home,
+          USERPROFILE: home,
+          XDG_CONFIG_HOME: join(home, '.config'),
+          XDG_DATA_HOME: join(home, '.local', 'share'),
+          XDG_STATE_HOME: join(home, '.local', 'state'),
+          XDG_CACHE_HOME: join(home, '.cache'),
+          GJC_WORKER_AGENT_DIR: agentDirectory,
+          GJC_CODING_AGENT_DIR: agentDirectory,
+          PI_CODING_AGENT_DIR: agentDirectory,
+        },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      const frames: Array<Record<string, unknown>> = [];
+      let stderr = '';
+      let stdout = '';
+      let initialized = false;
+      const timeout = setTimeout(() => {
+        child.kill();
+        reject(new Error('Production Bun worker timed out.'));
+      }, 10_000);
+      child.stdout.setEncoding('utf8');
+      child.stderr.setEncoding('utf8');
+      child.stdout.on('data', (chunk: string) => {
+        stdout += chunk;
+        const lines = stdout.split('\n');
+        stdout = lines.pop()!;
+        for (const line of lines) {
+          if (line) frames.push(JSON.parse(line) as Record<string, unknown>);
+        }
+        const init = frames.find((frame) => frame.kind === 'response' && frame.id === 'entry-init');
+        if (init && !initialized) {
+          initialized = true;
+          child.stdin.write(`${JSON.stringify(request('worker.shutdown', 'entry-shutdown'))}\n`);
+          child.stdin.end();
+        }
+      });
+      child.stderr.on('data', (chunk: string) => { stderr += chunk; });
+      child.once('error', (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+      child.once('close', (exitCode) => {
+        clearTimeout(timeout);
+        resolve({ frames, stderr, exitCode });
+      });
+      child.stdin.write(`${JSON.stringify(request('worker.initialize', 'entry-init'))}\n`);
     });
-    const frames: Array<Record<string, unknown>> = [];
-    let stderr = '';
-    let stdout = '';
-    let initialized = false;
-    const timeout = setTimeout(() => {
-      child.kill();
-      reject(new Error('Production Bun worker timed out.'));
-    }, 60_000);
-    child.stdout.setEncoding('utf8');
-    child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => {
-      stdout += chunk;
-      const lines = stdout.split('\n');
-      stdout = lines.pop()!;
-      for (const line of lines) {
-        if (line) frames.push(JSON.parse(line) as Record<string, unknown>);
-      }
-      const init = frames.find((frame) => frame.kind === 'response' && frame.id === 'entry-init');
-      if (init && !initialized) {
-        initialized = true;
-        child.stdin.write(`${JSON.stringify(request('worker.shutdown', 'entry-shutdown'))}\n`);
-        child.stdin.end();
-      }
-    });
-    child.stderr.on('data', (chunk: string) => { stderr += chunk; });
-    child.once('error', (error) => {
-      clearTimeout(timeout);
-      reject(error);
-    });
-    child.once('close', (exitCode) => {
-      clearTimeout(timeout);
-      resolve({ frames, stderr, exitCode });
-    });
-    child.stdin.write(`${JSON.stringify(request('worker.initialize', 'entry-init'))}\n`);
-  });
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 }
 
 process.env.GJC_RUNTIME_API_KEY ??= 'contract-test-key';
@@ -413,6 +465,45 @@ test('golden protocol order: session, stream, tool, ask, usage, terminal, respon
     assert.equal(methods(f.frames).filter((method) => method === 'turn.completed').length, 1);
     assert.equal(response(f.frames, 'golden').payload instanceof Object, true);
   } finally { await f.close(); }
+});
+
+test('streaming tool metadata and errors survive the app worker protocol', async () => {
+  const f = await fixture('astra', undefined, { id: 'astra', provider: 'contract-provider' });
+  const run = f.host.handle(request('session.start', 'tool-updates', {
+    message: 'Offline tool event delivery', options: { ...f.options, modelId: 'astra', effort: 'xhigh' },
+  }));
+  try {
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    const details = { terminalId: 'terminal-1' };
+    session.emit({ type: 'tool_execution_start', toolCallId: 'call-1', toolName: 'bash', args: { command: 'pwd' } });
+    session.emit({ type: 'tool_execution_update', toolCallId: 'call-1', partialResult: { content: [], details } });
+    session.emit({ type: 'tool_execution_update', toolCallId: 'call-1', partialResult: {
+      content: [{ type: 'text', text: 'Partial execution failed' }], details, isError: true,
+    } });
+    session.emit({ type: 'tool_execution_end', toolCallId: 'call-1', toolName: 'bash', result: {
+      content: [{ type: 'text', text: 'Execution failed' }], details,
+    }, isError: true });
+    session.complete();
+    await run;
+    const messages = f.frames.map((frame) => parseGjcWorkerFrame(JSON.stringify(frame)))
+      .flatMap((frame) => frame.kind === 'event' ? [frame.payload.message as Record<string, unknown> | undefined] : []);
+    const results = messages.filter((message) => message?.kind === 'tool_result');
+    assert.equal(results.length, 3);
+    assert.deepEqual(results.map((result) => ({
+      toolId: result!.toolId, content: result!.content, isError: result!.isError,
+      isFinal: result!.isFinal, toolUseResult: result!.toolUseResult,
+    })), [
+      { toolId: 'call-1', content: '', isError: false, isFinal: false, toolUseResult: details },
+      { toolId: 'call-1', content: 'Partial execution failed', isError: true, isFinal: false, toolUseResult: details },
+      { toolId: 'call-1', content: 'Execution failed', isError: true, isFinal: true, toolUseResult: details },
+    ]);
+    assert.equal((response(f.frames, 'tool-updates').payload as { ok: boolean }).ok, true);
+  } finally {
+    f.sessions.forEach((session) => session.complete());
+    await run;
+    await f.close();
+  }
 });
 
 test('advertised GJC builtins execute in the SDK worker without becoming model prompts', async () => {
@@ -690,6 +781,147 @@ test('model catalog reports the runtime-supported reasoning levels', async () =>
     });
   } finally {
     await f.close();
+  }
+});
+
+test('model catalog preserves credentialed provider-qualified models with the same bare id', async () => {
+  const f = await fixture(
+    'cliproxy/gpt-5.6-terra',
+    undefined,
+    [
+      { id: 'gpt-5.6-terra', name: 'CLiProxy Terra', provider: 'cliproxy', reasoning: true, thinking: { minLevel: 'low', maxLevel: 'high', levels: ['low', 'high'], mode: 'effort' } },
+      { id: 'gpt-5.6-terra', name: 'ChatGPT Terra', provider: 'openai-codex', reasoning: true, thinking: { minLevel: 'medium', maxLevel: 'xhigh', levels: ['medium', 'xhigh'], mode: 'effort' } },
+      { id: 'gpt-5.6-terra', name: 'Unavailable Terra', provider: 'other-provider' },
+    ] as never,
+  );
+  try {
+    f.authStorage.credentials.push({ id: 1, provider: 'cliproxy' }, { id: 2, provider: 'openai-codex' });
+    await f.host.handle(request('models.catalog', 'distinct-provider-models'));
+    const payload = response(f.frames, 'distinct-provider-models').payload as { result: { models: Array<{ value: string; label: string; group: string; effort: { values: Array<{ value: string }> } }> } };
+
+    assert.deepEqual(payload.result.models, [
+      { value: 'cliproxy/gpt-5.6-terra', label: 'CLiProxy Terra', group: 'cliproxy', canonicalId: 'gpt-5.6-terra', effort: { values: [{ value: 'low' }, { value: 'high' }] } },
+      { value: 'openai-codex/gpt-5.6-terra', label: 'ChatGPT Terra', group: 'openai-codex', canonicalId: 'gpt-5.6-terra', effort: { values: [{ value: 'medium' }, { value: 'xhigh' }] } },
+    ]);
+  } finally {
+    await f.close();
+  }
+});
+
+test('model catalog deduplicates qualified IDs and preserves aliases and uncanonicalized models', async () => {
+  const primary = { id: 'gpt-6-astra', name: 'Astra', provider: 'openai-codex' };
+  const alias = { id: 'gpt-6-astra-xhigh', name: 'Astra xhigh', provider: 'openai-codex' };
+  const custom = { id: 'openai/gpt-6-astra', provider: 'custom' };
+  const f = await fixture('openai-codex/gpt-6-astra', undefined, [primary, alias, { ...primary }, custom]);
+  try {
+    f.authStorage.credentials.push({ id: 9, provider: 'openai-codex' }, { id: 4, provider: 'openai-codex' });
+    f.authStorage.resolvableProviders.add('custom');
+    f.modelRegistry.getCanonicalId = (model) => model.provider === 'custom' ? undefined : 'gpt-6-astra';
+
+    const first = await f.adapter.modelCatalog();
+    assert.deepEqual(first.models, [
+      { value: 'openai-codex/gpt-6-astra', label: 'Astra', group: 'openai-codex', canonicalId: 'gpt-6-astra', effort: { values: [] } },
+      { value: 'openai-codex/gpt-6-astra-xhigh', label: 'Astra xhigh', group: 'openai-codex', canonicalId: 'gpt-6-astra', effort: { default: 'xhigh', values: [] } },
+      { value: 'custom/openai/gpt-6-astra', label: 'openai/gpt-6-astra', group: 'custom', effort: { values: [] } },
+    ]);
+    assert.deepEqual(await f.adapter.modelCatalog(), first);
+
+    // Registry order and credential order must not change a model's ID or
+    // metadata, even when the same canonical model has several selectors.
+    f.modelRegistry.getAvailable = () => [custom, { ...primary }, alias, primary];
+    f.authStorage.credentials.reverse();
+    const reordered = await f.adapter.modelCatalog();
+    const byValue = (a: { value: string }, b: { value: string }) => a.value.localeCompare(b.value);
+    assert.deepEqual([...reordered.models].sort(byValue), [...first.models].sort(byValue));
+  } finally {
+    await f.close();
+  }
+});
+
+test('model catalog honors registry availability and credential changes independently for each provider', async () => {
+  const codex = { id: 'gpt-6-astra', provider: 'openai-codex' };
+  const proxy = { id: 'gpt-6-astra', provider: 'cliproxy' };
+  const disabled = { id: 'gpt-6-astra', provider: 'disabled-provider' };
+  const f = await fixture('openai-codex/gpt-6-astra', undefined, [codex, proxy, disabled]);
+  try {
+    f.authStorage.credentials.push({ id: 4, provider: 'openai-codex' }, { id: 5, provider: 'disabled-provider' });
+    f.authStorage.resolvableProviders.add('cliproxy');
+    f.modelRegistry.getAvailable = () => [codex, proxy];
+    assert.deepEqual((await f.adapter.modelCatalog()).models.map((model) => model.value), [
+      'openai-codex/gpt-6-astra', 'cliproxy/gpt-6-astra',
+    ]);
+
+    f.authStorage.credentials = [];
+    assert.deepEqual((await f.adapter.modelCatalog()).models.map((model) => model.value), ['cliproxy/gpt-6-astra']);
+    f.authStorage.resolvableProviders.clear();
+    assert.deepEqual((await f.adapter.modelCatalog()).models, []);
+  } finally {
+    await f.close();
+  }
+});
+
+test('provider-qualified catalog choices and the default select the matching stored credential', async (t) => {
+  const cases = [
+    { name: 'explicit proxy', modelId: 'cliproxy/gpt-6-astra', credential: { kind: 'stored' }, provider: 'cliproxy', credentialId: 1 },
+    { name: 'explicit codex', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored' }, provider: 'openai-codex', credentialId: 4 },
+    { name: 'pinned codex credential', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored', providerId: 'openai-codex', credentialId: 9 }, provider: 'openai-codex', credentialId: 9 },
+    { name: 'configured default', modelId: 'default', credential: { kind: 'stored' }, provider: 'openai-codex', credentialId: 4 },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const f = await fixture('openai-codex/gpt-6-astra:xhigh', undefined, [
+        { id: 'gpt-6-astra', provider: 'cliproxy' },
+        { id: 'gpt-6-astra', provider: 'openai-codex' },
+      ]);
+      try {
+        f.authStorage.credentials.push({ id: 9, provider: 'openai-codex' }, { id: 1, provider: 'cliproxy' }, { id: 4, provider: 'openai-codex' });
+        const run = f.host.handle(request('session.start', 'variant-credential', {
+          message: 'hello',
+          options: { ...f.options, modelId: scenario.modelId, credential: scenario.credential, effort: 'xhigh' },
+        }));
+        const session = await firstSession(f.sessions);
+        session.complete();
+        await run;
+        assert.deepEqual(f.factoryOptions[0]!.model, { id: 'gpt-6-astra', provider: scenario.provider });
+        assert.deepEqual(f.factoryOptions[0]!.credentialSelector, {
+          provider: scenario.provider,
+          selector: { kind: 'id', value: String(scenario.credentialId) },
+          raw: `id:${scenario.credentialId}`,
+        });
+        const payload = response(f.frames, 'variant-credential').payload as { ok: boolean; result: { credential: unknown } };
+        assert.equal(payload.ok, true);
+        assert.deepEqual(payload.result.credential, { kind: 'stored', providerId: scenario.provider, credentialId: scenario.credentialId });
+      } finally {
+        await f.close();
+      }
+    });
+  }
+});
+
+test('same-name provider variants reject ambiguous bare IDs and mismatched credential pins', async (t) => {
+  const cases = [
+    { name: 'ambiguous bare ID', modelId: 'gpt-6-astra', credential: { kind: 'stored' } },
+    { name: 'mismatched provider', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored', providerId: 'cliproxy' } },
+    { name: 'other provider credential ID', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored', credentialId: 1 } },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const f = await fixture('openai-codex/gpt-6-astra', undefined, [
+        { id: 'gpt-6-astra', provider: 'cliproxy' },
+        { id: 'gpt-6-astra', provider: 'openai-codex' },
+      ]);
+      try {
+        f.authStorage.credentials.push({ id: 1, provider: 'cliproxy' }, { id: 4, provider: 'openai-codex' });
+        await f.host.handle(request('session.start', 'invalid-variant', {
+          message: 'hello',
+          options: { ...f.options, modelId: scenario.modelId, credential: scenario.credential, effort: 'xhigh' },
+        }));
+        assert.equal((response(f.frames, 'invalid-variant').payload as { ok: boolean }).ok, false);
+        assert.equal(f.factoryOptions.length, 0);
+      } finally {
+        await f.close();
+      }
+    });
   }
 });
 
@@ -1060,8 +1292,390 @@ test('resume opens the sole exact session file and never re-emits session.create
     session.complete();
     await run;
     assert.equal((f.factoryOptions[0]!.sessionManager as { getSessionId(): string }).getSessionId(), providerSessionId);
+    assert.equal(Object.hasOwn(f.factoryOptions[0]!, 'providerSessionId'), false,
+      'the SDK must derive provider identity from the resumed logical session');
     assert.equal(methods(f.frames).includes('session.created'), false);
   } finally { await f.close(); }
+});
+
+/** Real SDK construction; prompts are intercepted before any model transport can run. */
+async function identityFixture() {
+  const root = await mkdtemp(join(tmpdir(), 'gjc-sdk-identity-'));
+  const cwd = join(root, 'project');
+  const agentDir = join(root, 'agent');
+  const modelCachePath = join(agentDir, 'models.db');
+  await mkdir(cwd);
+  const authStorage = await discoverAuthStorage(agentDir);
+  const settings = await Settings.loadForScope({ cwd, agentDir });
+  settings.override('memory.enabled', false);
+  settings.override('skills.enabled', false);
+  const registry = new ModelRegistry(authStorage, join(agentDir, 'models.yml'), settings, { agentDir });
+  // This synthetic Astra fixture has no registered transport and no real credentials.
+  registry.registerProvider('identity-contract', {
+    api: 'identity-contract',
+    apiKey: 'offline-identity-test-key',
+    baseUrl: 'http://127.0.0.1:1',
+    models: [{
+      id: 'astra', name: 'Offline Astra identity fixture', reasoning: true,
+      thinking: { mode: 'effort', minLevel: 'xhigh', maxLevel: 'xhigh', levels: ['xhigh'] },
+      input: ['text'], contextWindow: 100000, maxTokens: 1000,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    }],
+  });
+  type Session = Awaited<ReturnType<typeof createAgentSession>>['session'];
+  const sessions: Session[] = [];
+  const factoryOptions: Array<Parameters<typeof createAgentSession>[0]> = [];
+  const inspections: Array<(session: Session) => Promise<void>> = [];
+  const failures: unknown[] = [];
+  const adapter = new GjcBunSdkAdapter(authStorage, registry, {
+    settings,
+    generateSessionTitle: async () => null,
+    createSessionFactory: async (input) => {
+      const sdkOptions = {
+        ...input,
+        agentDir,
+        enableMcpAutoload: false,
+        enableLsp: false,
+        skipPythonPreflight: true,
+        disableExtensionDiscovery: true,
+        skills: [], rules: [], contextFiles: [], promptTemplates: [], slashCommands: [],
+        systemPrompt: ['Offline session identity contract.'],
+      };
+      factoryOptions.push(sdkOptions);
+      try {
+        const result = await createAgentSession(sdkOptions);
+        sessions.push(result.session);
+        const inspect = inspections.shift();
+        assert.ok(inspect, 'each SDK session needs an explicit offline prompt handler');
+        result.session.prompt = async () => {
+          try { await inspect(result.session); }
+          catch (error) { failures.push(error); throw error; }
+        };
+        return result;
+      } catch (error) { failures.push(error); throw error; }
+    },
+  });
+  const frames: Array<Record<string, unknown>> = [];
+  const host = new GjcWorkerHost({ runtime: async () => adapter, emit: (frame) => frames.push(frame as Record<string, unknown>) });
+  await host.handle(request('worker.initialize', 'identity-init'));
+  const options = {
+    cwd, sessionRoot: join(root, 'sessions'),
+    credential: { kind: 'runtime-env', envVar: 'GJC_RUNTIME_API_KEY' },
+    modelId: 'identity-contract/astra', effort: 'xhigh',
+    toolNames: ['bash', 'skill'], spawns: 'deny', bashPolicy: { allowedPrefixes: [] },
+  };
+  return {
+    root, options, factoryOptions, host, frames,
+    enqueueInspection(inspect: (session: Session) => Promise<void>) { inspections.push(inspect); },
+    async run(id: string, inspect: (session: Session) => Promise<void>, providerSessionId?: string) {
+      inspections.push(inspect);
+      await host.handle(request(providerSessionId ? 'session.resume' : 'session.start', id, {
+        message: 'offline identity inspection', options,
+        ...(providerSessionId ? { providerSessionId } : {}),
+      }));
+      if (failures.length) throw failures[0];
+      assert.equal((response(frames, id).payload as { ok: boolean }).ok, true);
+    },
+    async close() {
+      for (const session of sessions) await session.dispose();
+      await host.close();
+      await registry.dispose();
+      // ModelRegistry.dispose() cancels discovery but the SDK's shared SQLite
+      // model cache is an independent @gajae-code/ai resource. Close the exact
+      // cache owned by this fixture before removing its temporary agent root.
+      closeModelCache(modelCachePath);
+      authStorage.close();
+      await settings.close();
+      await rm(root, { recursive: true, force: true });
+    },
+  };
+}
+
+test('goal-capable production sessions delegate safely and defer worktree abort to their owner', { timeout: 15_000 }, async () => {
+  const f = await identityFixture();
+  Object.assign(f.options, { toolNames: ['read', 'task', 'subagent'], spawns: '*', goalUiVersion: 1, goalOwner: 'number:1' });
+  try {
+    await f.run('goal-delegation', async (parent) => {
+      assert.equal(parent.settings.get('goal.enabled'), true);
+      const rootOptions = f.factoryOptions[0];
+      assert.ok(rootOptions);
+      assert.equal(rootOptions.spawns, 'deny', 'native SDK spawning stays denied');
+      const created = await parent.getToolByName('goal')!.execute('create-goal', { op: 'create', objective: 'Delegate one bounded check' });
+      let checkedChild = false;
+      f.enqueueInspection(async (child) => {
+        assert.equal(child.settings.get('goal.enabled'), false);
+        assert.equal(child.getActiveToolNames().includes('goal'), false);
+        assert.equal(child.thinkingLevel, 'xhigh');
+        checkedChild = true;
+      });
+      const launched = await parent.getToolByName('task')!.execute('start-child', {
+        agent: 'planner', context: null, tasks: [{ id: 'inspect', description: 'Bounded check', assignment: 'Return after the offline check.', executionMode: 'default', repositoryBinding: null }],
+      });
+      const childId = launched.details.subagents[0].id;
+      const settled = await parent.getToolByName('subagent')!.execute('await-child', { action: 'await', id: childId, timeout_ms: 5000 });
+      assert.equal(settled.details.subagents[0].status, 'completed');
+      assert.equal(checkedChild, true);
+      let aborts = 0;
+      const originalAbort = parent.abort.bind(parent);
+      parent.abort = async () => { aborts++; await originalAbort(); };
+      await f.host.handle(request('goal.control', 'pause-goal-native', {
+        owner: 'number:1', cwd: await realpath(f.options.cwd), runId: 'goal-delegation',
+        command: { operation: 'pause', goalId: created.details.goal.id }, stopAfterMutation: false,
+      }));
+      assert.equal((response(f.frames, 'pause-goal-native').payload as { ok: boolean }).ok, true);
+      assert.equal(aborts, 0, 'the SDK does not bypass the native job abort authority');
+      await assert.rejects(parent.getToolByName('goal')!.execute('resume-too-soon', { op: 'resume' }), /app goal controls/);
+      await f.host.handle(request('turn.abort', 'owner-abort', { runId: 'goal-delegation' }));
+      assert.equal(aborts, 1);
+    });
+    assert.equal((response(f.frames, 'goal-delegation').payload as { result: { aborted?: boolean } }).result.aborted, true);
+  } finally { await f.close(); }
+});
+
+test('a goal-owned stop reports an aborted worker outcome without a separate turn.abort request', async () => {
+  const f = await identityFixture();
+  Object.assign(f.options, { goalUiVersion: 1, goalOwner: 'number:1' });
+  try {
+    await f.run('goal-internal-stop', async (session) => {
+      const created = await session.getToolByName('goal')!.execute('create', { op: 'create', objective: 'Stop this scoped goal' });
+      await f.host.handle(request('goal.control', 'stop-from-goal', {
+        owner: 'number:1', cwd: await realpath(f.options.cwd), runId: 'goal-internal-stop',
+        command: { operation: 'pause', goalId: created.details.goal.id },
+      }));
+      assert.equal((response(f.frames, 'stop-from-goal').payload as { ok: boolean }).ok, true);
+    });
+    assert.equal((response(f.frames, 'goal-internal-stop').payload as { result: { aborted?: boolean } }).result.aborted, true);
+  } finally { await f.close(); }
+});
+
+async function assertSdkIdentity(
+  session: Awaited<ReturnType<typeof createAgentSession>>['session'],
+  providerId = session.sessionManager.getSessionId(),
+) {
+  const id = session.sessionManager.getSessionId();
+  const bash = session.getToolByName('bash');
+  assert.ok(bash, 'the real SDK must construct its bash tool');
+  const output: { content: Array<{ type: string; text?: string }> } =
+    await bash.execute('identity-env', { command: 'printenv GJC_SESSION_ID' });
+  const text = output.content.filter((item) => item.type === 'text').map((item) => item.text).join('\n');
+  assert.equal(text.trim(), id,
+    'workflow tools and GJC_SESSION_ID need the logical ID, never an async endpoint tuple');
+  assert.equal(session.sessionId, id);
+  assert.equal(session.agent.sessionId, id);
+  assert.equal(session.agent.providerSessionId, providerId, 'omission must preserve provider cache identity');
+  assert.equal(session.credentialSessionId, providerId, 'omission must preserve credential affinity');
+  const manager = AsyncJobManager.forEndpoint(id);
+  assert.ok(manager);
+  assert.equal(AsyncJobManager.endpointIdOf(manager), id);
+  return { id, manager };
+}
+
+function identityAnswer(text: string): AssistantMessage {
+  return {
+    role: 'assistant', content: [{ type: 'text', text }],
+    api: 'identity-contract', provider: 'identity-contract', model: 'astra',
+    stopReason: 'stop', timestamp: Date.now(),
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+  };
+}
+
+async function persistIdentityTurn(session: Awaited<ReturnType<typeof createAgentSession>>['session']) {
+  session.sessionManager.appendMessage({ role: 'user', content: 'persist for resume', timestamp: Date.now() });
+  session.sessionManager.appendMessage(identityAnswer('offline answer'));
+  await session.sessionManager.flush();
+}
+
+test('app-shaped real SDK start and resume keep workflow, provider and async identities aligned', async () => {
+  const f = await identityFixture();
+  try {
+    let first: Awaited<ReturnType<typeof assertSdkIdentity>> | undefined;
+    await f.run('identity-start', async (session) => {
+      first = await assertSdkIdentity(session);
+      assert.equal(Object.hasOwn(f.factoryOptions[0]!, 'providerSessionId'), false);
+      await persistIdentityTurn(session);
+    });
+    assert.ok(first);
+    assert.equal(AsyncJobManager.forEndpoint(first.id), undefined, 'completed runs release ownership');
+    await f.run('identity-resume', async (session) => {
+      const resumed = await assertSdkIdentity(session);
+      assert.equal(resumed.id, first!.id);
+      assert.notEqual(resumed.manager, first!.manager, 'resume must acquire a fresh manager');
+    }, first.id);
+    assert.equal(AsyncJobManager.forEndpoint(first.id), undefined);
+  } finally { await f.close(); }
+});
+
+test('app-shaped real SDK sessions isolate async ownership and reject duplicate live resumes', async () => {
+  const a = await identityFixture();
+  const b = await identityFixture();
+  b.options.cwd = a.options.cwd;
+  b.options.sessionRoot = a.options.sessionRoot;
+  try {
+    await a.run('identity-a', async (sessionA) => {
+      const first = await assertSdkIdentity(sessionA);
+      await persistIdentityTurn(sessionA);
+      await b.run('identity-b', async (sessionB) => {
+        const second = await assertSdkIdentity(sessionB);
+        assert.notEqual(first.id, second.id);
+        assert.notEqual(first.manager, second.manager);
+        assert.equal(AsyncJobManager.forEndpoint(first.id), first.manager);
+        const duplicate = await SessionManager.open(sessionA.sessionFile!, a.options.sessionRoot);
+        try {
+          await assert.rejects(
+            createAgentSession({ ...a.factoryOptions[0], sessionManager: duplicate }),
+            /endpoint id is already held by another live async job manager/,
+          );
+        } finally {
+          await duplicate.close();
+        }
+        assert.equal(AsyncJobManager.forEndpoint(first.id), first.manager);
+        assert.equal(AsyncJobManager.forEndpoint(second.id), second.manager);
+        assert.equal(AsyncJobManager.instance(), second.manager,
+          'a rejected duplicate must not replace the active global manager');
+      });
+      assert.equal(AsyncJobManager.forEndpoint(first.id), first.manager,
+        'disposing a different session must not release this session');
+    });
+  } finally { await b.close(); await a.close(); }
+});
+
+test('app-shaped real SDK handoff rekeys logical ownership while retaining provider affinity', async () => {
+  const f = await identityFixture();
+  let handoffCalls = 0;
+  let successorId: string | undefined;
+  // Deterministic local completion exercises the actual handoff transaction;
+  // there is no network transport or live model call in this test.
+  registerCustomApi('identity-contract', (model) => {
+    assert.equal(model.id, 'astra');
+    handoffCalls += 1;
+    const stream = new AssistantMessageEventStream();
+    const message = identityAnswer('Offline handoff document.');
+    stream.push({ type: 'done', reason: 'stop', message });
+    stream.end(message);
+    return stream;
+  }, f.root);
+  try {
+    await f.run('identity-handoff', async (session) => {
+      const before = await assertSdkIdentity(session);
+      await persistIdentityTurn(session);
+      const handoff = await session.handoff('Offline identity contract');
+      assert.ok(handoff);
+      assert.equal(handoffCalls, 1);
+      const after = await assertSdkIdentity(session, before.id);
+      successorId = after.id;
+      assert.notEqual(after.id, before.id);
+      assert.equal(after.manager, before.manager, 'handoff rekeys the existing owner');
+      assert.equal(AsyncJobManager.forEndpoint(before.id), undefined);
+    });
+    assert.ok(successorId);
+    assert.equal(AsyncJobManager.forEndpoint(successorId), undefined);
+    await f.run('identity-handoff-resume', async (session) => {
+      assert.equal((await assertSdkIdentity(session)).id, successorId);
+    }, successorId);
+  } finally { unregisterCustomApis(f.root); await f.close(); }
+});
+
+/** Direct SDK construction: this fixture never passes through the app adapter. */
+async function rawSdkDelegationFixture() {
+  const scratch = join(await realpath(process.cwd()), '.tmp');
+  await mkdir(scratch, { recursive: true });
+  const root = await mkdtemp(join(scratch, 'raw-sdk-delegation-'));
+  const cwd = join(root, 'project');
+  const agentDir = join(root, 'agent');
+  const modelCachePath = join(agentDir, 'models.db');
+  await mkdir(cwd);
+  const authStorage = await discoverAuthStorage(agentDir);
+  const settings = await Settings.loadForScope({ cwd, agentDir });
+  settings.override('memory.enabled', false);
+  settings.override('skills.enabled', false);
+  settings.override('goal.enabled', false);
+  settings.override('task.agentModelOverrides', { executor: 'openai-codex/gpt-6-astra' });
+  settings.override('task.maxRuntimeMs', 3000);
+  settings.override('task.maxRecursionDepth', 1);
+  const registry = new ModelRegistry(authStorage, join(agentDir, 'models.yml'), settings, { agentDir });
+  registry.registerProvider('openai-codex', {
+    api: 'raw-sdk-delegation-contract', apiKey: 'offline-raw-sdk-key', baseUrl: 'http://127.0.0.1:1',
+    models: [{ id: 'gpt-6-astra', name: 'Offline Astra contract', reasoning: true,
+      thinking: { mode: 'effort', minLevel: 'xhigh', maxLevel: 'xhigh', levels: ['xhigh'] },
+      input: ['text'], contextWindow: 100000, maxTokens: 1000,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
+  });
+  const { session } = await createAgentSession({
+    cwd, agentDir, settings, authStorage, modelRegistry: registry,
+    model: registry.find('openai-codex', 'gpt-6-astra'), thinkingLevel: 'xhigh',
+    sessionManager: SessionManager.create(cwd, join(root, 'sessions')),
+    toolNames: ['bash', 'task', 'subagent'], spawns: 'executor',
+    enableMcpAutoload: false, enableLsp: false, skipPythonPreflight: true, disableExtensionDiscovery: true,
+    skills: [], rules: [], contextFiles: [], promptTemplates: [], slashCommands: [],
+  });
+  return { root, session, async close() {
+    await session.dispose();
+    await registry.dispose();
+    // ModelRegistry.dispose() does not own the shared @gajae-code/ai cache
+    // handle; release this fixture's exact database before deleting its root.
+    closeModelCache(modelCachePath);
+    authStorage.close();
+    await settings.close();
+    await rm(root, { recursive: true, force: true });
+  } };
+}
+
+test('raw SDK builtin delegation bypasses parent permissions; app replacement remains necessary', { timeout: 15_000 }, async () => {
+  const f = await rawSdkDelegationFixture();
+  let calls = 0;
+  let issuedTool = false;
+  const observedToolResults: Array<{ isError: boolean; content: unknown }> = [];
+  // Exercise the pinned SDK's real child lifecycle with a deterministic local
+  // transport. Its only shell command prints a fixed canary to stdout.
+  registerCustomApi('raw-sdk-delegation-contract', (model, context: Context, options) => {
+    assert.equal(model.provider, 'openai-codex');
+    assert.equal(model.id, 'gpt-6-astra');
+    assert.equal(options?.reasoning, 'xhigh');
+    calls += 1;
+    observedToolResults.push(...context.messages.filter((message) => message.role === 'toolResult'));
+    const message = identityAnswer('Offline child finished.');
+    message.api = 'raw-sdk-delegation-contract';
+    message.provider = 'openai-codex';
+    message.model = 'gpt-6-astra';
+    if (!issuedTool && context.tools?.some((tool) => tool.name === 'bash')) {
+      issuedTool = true;
+      message.content = [{
+        type: 'toolCall', id: 'child-permission-canary', name: 'bash',
+        arguments: { command: 'printf child-allowed' },
+      }];
+      message.stopReason = 'toolUse';
+    }
+    const stream = new AssistantMessageEventStream();
+    stream.push({ type: 'done', reason: message.stopReason as 'stop' | 'toolUse', message });
+    stream.end(message);
+    return stream;
+  }, f.root);
+  try {
+    const session = f.session;
+      session.setSdkPermissionMode('deny');
+      const bash = session.getToolForExecution('bash');
+      assert.ok(bash);
+      await assert.rejects(
+        bash.execute('parent-permission-canary', { command: 'printf child-allowed' }),
+        /rejected by session permission policy/,
+      );
+      const task = session.getToolByName('task');
+      const subagent = session.getToolByName('subagent');
+      assert.ok(task);
+      assert.ok(subagent);
+      const launch = await task.execute('offline-delegation', {
+        agent: 'executor', tasks: [{ id: 'permission-probe', description: 'Offline permission contract', assignment: 'Offline fixture.' }],
+      });
+      const settled = await subagent.execute('offline-await', { action: 'await', timeout_ms: 5000 });
+      assert.ok(calls > 0, JSON.stringify({ launch, settled }));
+      assert.ok(observedToolResults.some((result) => !result.isError
+        && JSON.stringify(result.content).includes('child-allowed')),
+      JSON.stringify({ calls, issuedTool, observedToolResults, launch, settled }));
+      // The application has its own independent positive safety fixture in
+      // gjc-delegation-executor.bun.test.ts. Never convert this unsafe SDK
+      // result into an assertion about the app's current tool names.
+  } finally { unregisterCustomApis(f.root); await f.close(); }
 });
 test('session effort is passed to the SDK as the turn thinking level', async () => {
   const f = await fixture();
@@ -1273,7 +1887,7 @@ test('default model fallback skips providers that do not match the stored creden
   } finally { await f.close(); }
 });
 test('default model profile resolves its selector without the thinking suffix', async () => {
-  const f = await fixture('', 'claude-fable', { id: 'claude-fable-5', provider: 'anthropic' });
+  const f = await fixture('', 'contract-profile');
   try {
     const run = f.host.handle(request('session.start', 'default-model-profile', {
       message: 'hello',
@@ -1282,8 +1896,8 @@ test('default model profile resolves its selector without the thinking suffix', 
     const session = await firstSession(f.sessions);
     session.complete();
     await run;
-    assert.equal(f.factoryOptions[0]!.model && (f.factoryOptions[0]!.model as { id: string }).id, 'claude-fable-5');
-    assert.equal(((response(f.frames, 'default-model-profile').payload as Record<string, unknown>).result as Record<string, unknown>).model, 'claude-fable-5');
+    assert.equal(f.factoryOptions[0]!.model && (f.factoryOptions[0]!.model as { id: string }).id, 'contract-model');
+    assert.equal(((response(f.frames, 'default-model-profile').payload as Record<string, unknown>).result as Record<string, unknown>).model, 'contract-model');
   } finally { await f.close(); }
 });
 test('default model role fails closed when settings do not configure it', async () => {
@@ -1604,10 +2218,37 @@ test('rejecting session disposal emits the fixed diagnostic and fails the run', 
     await run;
     assert.equal((response(f.frames, 'dispose-rejects').payload as Record<string, unknown>).ok, false);
     assert.deepEqual(diagnostics, [['GJC SDK session disposal failed.']]);
+    const terminals = f.frames.flatMap(frame => {
+      const message = (frame.payload as { message?: Record<string, unknown> })?.message;
+      return message?.kind === 'complete' ? [message.exitCode] : [];
+    });
+    assert.deepEqual(terminals, [], 'Node must emit the failure terminal only after verified worker reaping');
+    assert.equal(((response(f.frames, 'dispose-rejects').payload as Record<string, unknown>).error as { code: string }).code,
+      GJC_CLEANUP_UNCONFIRMED_CODE);
   } finally {
     console.error = originalError;
     await f.close();
   }
+});
+
+test('successful chat completion waits for SDK session cleanup', async () => {
+  const f = await fixture();
+  const release = deferred<void>();
+  let closing = false;
+  try {
+    const run = f.host.handle(request('session.start', 'dispose-before-complete', { message: 'hello', options: f.options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    const originalDispose = session.dispose.bind(session);
+    session.dispose = async () => { closing = true; await release.promise; await originalDispose(); };
+    session.complete();
+    await waitFor(() => closing || undefined);
+    assert.equal(methods(f.frames).includes('turn.completed'), false);
+    release.resolve();
+    await run;
+    assert.equal(methods(f.frames).filter(method => method === 'turn.completed').length, 1);
+    assert.equal(session.disposed, true);
+  } finally { release.resolve(); await f.close(); }
 });
 
 test('explicit SDK configuration rejects missing fields, unresolvable credentials, and model mismatches without invoking the factory', async () => {
@@ -1838,7 +2479,10 @@ test('production Bun worker rejects a tampered test-only manifest override', { t
   }
 });
 
-test('live pinned SDK smoke (set GJC_CONTRACT_LIVE=1)', { skip: process.env.GJC_CONTRACT_LIVE === '1' ? false : 'requires GJC_CONTRACT_LIVE=1' }, async () => {
+test('live pinned SDK smoke (set GJC_CONTRACT_LIVE=1)', {
+  skip: process.env.GJC_CONTRACT_LIVE === '1' ? false : 'requires GJC_CONTRACT_LIVE=1',
+  timeout: 180_000, // Real provider initialization and reasoning exceed Bun's default 5s.
+}, async () => {
   const root = await mkdtemp(join(tmpdir(), 'gjc-contract-live-'));
   try {
     const modelId = process.env.GJC_CONTRACT_LIVE_MODEL_ID;

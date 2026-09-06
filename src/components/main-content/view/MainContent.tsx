@@ -9,6 +9,7 @@ import { useProjectPermissions } from '../../../hooks/useProjectPermissions';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useWorkspacePanel } from '../../workspace/hooks/useWorkspacePanel';
 import { api } from '../../../utils/api';
+import { useSessionLocation } from '../../chat/hooks/useSessionLocation';
 
 import MainContentHeader from './MainContentHeader';
 import MainContentStateView from './MainContentStateView';
@@ -51,6 +52,7 @@ function MainContent({
   const [pendingBrowserNavigation, setPendingBrowserNavigation] = useState<{ id: number; url: string } | null>(null);
   const navigationSequence = useRef(0);
   const { permissions: projectPermissions } = useProjectPermissions(selectedProject?.projectId);
+  const sessionLocation = useSessionLocation(selectedSession?.id);
 
   const revealFile = useCallback((path: string) => {
     void api.system.openFile(path).catch((error) => {
@@ -58,7 +60,7 @@ function MainContent({
     });
   }, []);
 
-  const resolveFile = useFileOpenResolver(selectedProject, revealFile);
+  const resolveFile = useFileOpenResolver(selectedProject, revealFile, selectedSession?.id, sessionLocation.data?.cwd);
 
   useEffect(() => {
     if (activeTab === 'shell' || activeTab === 'git' || activeTab === 'files') {
@@ -124,7 +126,7 @@ function MainContent({
                   selectedSession={selectedSession}
                   ws={ws}
                   sendMessage={sendMessage}
-                  onFileOpen={revealFile}
+                  onFileOpen={resolveFile}
                   onInputFocusChange={onInputFocusChange}
                   onSessionProcessing={onSessionProcessing}
                   onSessionIdle={onSessionIdle}
@@ -151,7 +153,7 @@ function MainContent({
               expanded={expanded}
               isMobile={isMobile}
               projectName={selectedProject.displayName}
-              projectPath={selectedProject.path}
+              projectPath={selectedSession ? sessionLocation.data?.cwd ?? undefined : selectedProject.fullPath}
               projectId={selectedProject.projectId}
               sessionId={selectedSession?.id}
               onComposerInsert={handleComposerInsert}

@@ -1,10 +1,10 @@
 /**
  * Which of the runtime's builtin tools this app turns on.
  *
- * The tools are not built here — `@gajae-code/coding-agent` owns the registry —
- * so the only decision the app makes is which ones a browser-hosted session
- * should have. Every current registry entry must appear in exactly one list
- * below; the partition test makes an upstream addition a deliberate decision.
+ * `@gajae-code/coding-agent` owns the builtin registry. The adapter substitutes
+ * app-owned task/subagent implementations and automation transports for the
+ * selected names. Every current registry entry must appear in exactly one
+ * list below; the partition test makes an upstream addition deliberate.
  *
  * An allowlist is right here, unlike the command catalog: a tool carries real
  * cost or reach (extra model calls, a spawned browser, an SSH connection, a
@@ -39,6 +39,12 @@ export const GJC_AGENT_TOOL_NAMES: readonly string[] = [
   // session, and it makes multi-step work legible in the transcript.
   'todo_write',
 
+  // The adapter replaces these names through the public CustomTool API and
+  // excludes the SDK builtins. App children inherit policy/model/credentials,
+  // remain owned by their calling transcript and end with the owner's turn.
+  'task',
+  'subagent',
+
   // Structural code search. Read-only, and materially better than regex on
   // real refactors.
   'ast_grep',
@@ -69,12 +75,10 @@ export const GJC_AGENT_TOOL_NAMES: readonly string[] = [
  * widening this set needs to know which is which.
  */
 export const GJC_AGENT_TOOLS_WITHHELD: Readonly<Record<string, string>> = {
-  task: 'Delegates to sub-agents, so every call multiplies model spend. Wanted for the ralplan review loop, but that is a cost decision, not a default.',
-  subagent: 'Same sub-agent spend as task.',
   job: 'Produces background work the app has no screen for; the /jobs surface tracks the app\u2019s own orchestrator, not this tool.',
   monitor: 'Long-lived watchers with nowhere to surface in the app.',
   cron: 'Schedules work that outlives the session with no UI to review or cancel it.',
-  goal: 'Goal-mode artifacts accumulate as files the app cannot display. Enable together with a goals view.',
+  goal: 'Enabled conditionally by the SDK adapter for a capable app view with scoped lifecycle controls and bounded continuation; excluded from delegated sessions and clients without controls.',
   ssh: 'Opens connections to other machines from a UI with no session-scoped confirmation for them.',
   telegram_send: 'Sends messages off this machine.',
   irc: 'Network chat unrelated to coding in this app.',

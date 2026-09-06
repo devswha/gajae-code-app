@@ -1,7 +1,10 @@
-import { readdirSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+
+import { BUN_VERSION, versionOf } from './fetch-bun.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const options = process.argv.slice(2);
@@ -35,15 +38,43 @@ const groups = [
   ...(!options.includes('--scripts-only') ? [[serverTests, 'server/tsconfig.json']] : []),
   ...(!options.includes('--server-only') ? [[scriptTests, null]] : []),
 ];
-for (const [files, tsconfig] of groups) {
-  const result = spawnSync(process.execPath, [
-    ...(tsconfig ? ['--import', 'tsx'] : []),
-    '--test', '--test-concurrency=1', ...files,
-  ], {
-    cwd: root,
-    env: tsconfig ? { ...process.env, TSX_TSCONFIG_PATH: tsconfig } : process.env,
-    stdio: 'inherit',
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) process.exit(result.status ?? 1);
+const stateDirectory = mkdtempSync(path.join(os.tmpdir(), 'gajae-windows-tests-'));
+const env = { ...process.env, DATABASE_PATH: path.join(stateDirectory, 'auth.db') };
+// SDK fixtures must not overwrite the operator's active terminal breadcrumb.
+for (const name of ['TMUX', 'TMUX_PANE', 'KITTY_WINDOW_ID', 'TERM_SESSION_ID', 'WT_SESSION']) {
+  delete env[name];
 }
+let exitCode = 0;
+try {
+  for (const [files, tsconfig] of groups) {
+    const result = spawnSync(process.execPath, [
+      ...(tsconfig ? ['--import', 'tsx'] : []),
+      '--test', '--test-concurrency=1', ...files,
+    ], {
+      cwd: root,
+      env: tsconfig ? { ...env, TSX_TSCONFIG_PATH: tsconfig } : env,
+      stdio: 'inherit',
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      exitCode = result.status ?? 1;
+      break;
+    }
+  }
+  if (exitCode === 0 && !options.includes('--scripts-only')) {
+    const bun = path.join(root, 'dist-native', process.platform === 'win32' ? 'bun.exe' : 'bun');
+    if (await versionOf(bun) !== BUN_VERSION) {
+      throw new Error(`Bun ${BUN_VERSION} is required; run node scripts/fetch-bun.mjs.`);
+    }
+    const result = spawnSync(bun, ['test', 'server/gjc-sdk-contract.bun.test.ts'], {
+      cwd: root,
+      env,
+      stdio: ['ignore', 'inherit', 'inherit'],
+    });
+    if (result.error) throw result.error;
+    exitCode = result.status ?? 1;
+  }
+} finally {
+  rmSync(stateDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+}
+process.exitCode = exitCode;

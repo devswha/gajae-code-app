@@ -13,8 +13,10 @@ const execute = promisify(execFile);
 const directory = dirname(dirname(fileURLToPath(import.meta.url)));
 const windows = { platform: 'win32', arch: 'x64', version: '0.2.2' };
 const mac = { ...windows, platform: 'darwin', arch: 'arm64' };
+const linux = { ...windows, platform: 'linux', arch: 'x64' };
 const windowsTarget = 'x86_64-pc-windows-msvc';
 const macTarget = 'aarch64-apple-darwin';
+const linuxTarget = 'x86_64-unknown-linux-gnu';
 const overlay = ['--config', '{"version":"0.2.2"}'];
 const payloadInputs = [
   'binaries/gajae-app-server-x86_64-pc-windows-msvc.exe',
@@ -30,12 +32,19 @@ async function fixture(t) {
   await writeFile(join(root, 'package.json'), JSON.stringify({ desktopVersion: '0.2.2' }));
   await writeFile(join(fixtureDirectory, 'Cargo.toml'), '[package]\r\nname = "gajae-app"\r\nversion = "0.2.2"\r\n\r\n[dependencies]\r\n');
   await writeFile(join(fixtureDirectory, 'tauri.conf.json'), '{"bundle":{"targets":["dmg"]}}');
+  await writeFile(join(fixtureDirectory, 'tauri.linux.conf.json'), JSON.stringify({
+    bundle: { targets: ['deb', 'appimage'], linux: { deb: { depends: ['git', 'libc6 (>= 2.35)'] } } },
+  }));
   const cliPath = join(root, 'fake tauri cli.mjs');
   const outputPath = join(root, 'result.json');
   await writeFile(cliPath, `
-    import { writeFile } from 'node:fs/promises';
+    import { readFile, writeFile } from 'node:fs/promises';
+    const args = process.argv.slice(2);
+    const configIndex = args.indexOf('--config');
     await writeFile(process.env.TAURI_TEST_RESULT, JSON.stringify({
-      executable: process.execPath, args: process.argv.slice(2), cwd: process.cwd(), ci: process.env.CI,
+      executable: process.execPath, args, cwd: process.cwd(), ci: process.env.CI,
+      configPath: configIndex === -1 ? null : args[configIndex + 1],
+      config: configIndex === -1 ? null : JSON.parse(await readFile(args[configIndex + 1], 'utf8')),
     }));
     process.exitCode = Number(process.env.TAURI_TEST_EXIT ?? 0);
   `);
@@ -55,10 +64,11 @@ async function stagePayload(fixtureDirectory) {
   }
 }
 
-test('native Windows builds and separate bundling select MSVC; macOS keeps arm64', () => {
+test('native Linux, Windows, and macOS builds select their host targets', () => {
   for (const command of ['build', 'bundle']) {
     assert.deepEqual(prepareTauriArgs([command], windows), [command, ...overlay, '--target', windowsTarget]);
     assert.deepEqual(prepareTauriArgs([command], mac), [command, ...overlay, '--target', macTarget]);
+    assert.deepEqual(prepareTauriArgs([command], linux), [command, ...overlay, '--target', linuxTarget]);
   }
   assert.deepEqual(prepareTauriArgs(['build', '--bundles', 'app'], mac), [
     'build', ...overlay, '--bundles', 'app', '--target', macTarget,
@@ -66,8 +76,7 @@ test('native Windows builds and separate bundling select MSVC; macOS keeps arm64
 });
 
 test('all Tauri target flag forms are honored and incompatible targets rejected', () => {
-  for (const options of [windows, mac]) {
-    const target = options === windows ? windowsTarget : macTarget;
+  for (const [options, target] of [[windows, windowsTarget], [mac, macTarget], [linux, linuxTarget]]) {
     for (const value of [target, 'x86_64-pc-windows-gnu', options === windows ? macTarget : windowsTarget]) {
       for (const flags of [['--target', value], [`--target=${value}`], ['-t', value], [`-t=${value}`], [`-t${value}`]]) {
         if (value === target) {
@@ -87,13 +96,15 @@ test('missing and repeated targets fail rather than silently selecting a sidecar
   assert.throws(() => prepareTauriArgs(['build', '-t', windowsTarget, '--target', windowsTarget], windows), /only once/);
 });
 
-test('packaging rejects non-native Windows architectures and unsupported hosts', () => {
+test('packaging rejects non-native architectures and unsupported hosts', () => {
   for (const options of [
     { platform: 'win32', arch: 'arm64' },
     { platform: 'win32', arch: 'ia32' },
-    { platform: 'linux', arch: 'x64' },
+    { platform: 'linux', arch: 'arm64' },
+    { platform: 'darwin', arch: 'x64' },
+    { platform: 'freebsd', arch: 'x64' },
   ]) {
-    assert.throws(() => prepareTauriArgs(['build'], { ...windows, ...options }), /requires macOS.*native Windows x64 MSVC/);
+    assert.throws(() => prepareTauriArgs(['build'], { ...windows, ...options }), /requires Linux x64.*native Windows x64 MSVC/);
   }
 });
 
@@ -109,7 +120,7 @@ test('version and default target stay before the Cargo argument separator', () =
   ]);
 });
 
-test('dev overlays the version without forcing a packaging target or a temporary config', () => {
+test('dev overlays the version without forcing a packaging target', () => {
   assert.deepEqual(prepareTauriArgs(['dev', '--no-watch'], windows), ['dev', ...overlay, '--no-watch']);
 });
 
@@ -128,7 +139,12 @@ test('actual Node subprocess works with spaces, preserves arguments, propagates 
   const result = JSON.parse(await readFile(f.outputPath, 'utf8'));
   assert.equal(result.executable, process.execPath);
   assert.equal(result.cwd, f.directory);
-  assert.deepEqual(result.args, prepareTauriArgs(args, windows));
+  assert.equal(result.args[result.args.indexOf('--config') + 1], result.configPath);
+  assert.deepEqual(result.config, { version: '0.2.2' });
+  assert.deepEqual(result.args, [
+    'build', '--config', result.configPath, '--config', join(f.root, 'custom config.json'),
+    '--target', windowsTarget, '--', '--locked',
+  ]);
   assert.equal(result.ci, 'true');
   assert.equal(env.CI, '1');
   assert.equal((await readdir(f.directory)).some((file) => file.startsWith('.tauri-config-')), false);
@@ -139,7 +155,27 @@ test('macOS invokes the same Node CLI and keeps macOS bundle overrides', async (
   const args = ['build', '--bundles', 'app'];
   assert.equal(await runTauri(args, { ...f, ...mac, env: { ...f.env, CI: '0' } }), 0);
   const result = JSON.parse(await readFile(f.outputPath, 'utf8'));
-  assert.deepEqual(result.args, prepareTauriArgs(args, mac));
+  assert.deepEqual(result.config, { version: '0.2.2' });
+  assert.deepEqual(result.args, [
+    'build', '--config', result.configPath, '--bundles', 'app', '--target', macTarget,
+  ]);
+  assert.equal(result.ci, 'false');
+});
+
+test('Linux overlays the host libc floor without replacing Linux bundle configuration', async (t) => {
+  const f = await fixture(t);
+  const args = ['build', '--bundles', 'deb,appimage', '--', '--locked'];
+  assert.equal(await runTauri(args, {
+    ...f, ...linux, glibcVersion: '2.39', env: { ...f.env, CI: '0' },
+  }), 0);
+  const result = JSON.parse(await readFile(f.outputPath, 'utf8'));
+  assert.deepEqual(result.config, {
+    version: '0.2.2',
+    bundle: { linux: { deb: { depends: ['git', 'libc6 (>= 2.35)', 'libc6 (>= 2.39)'] } } },
+  });
+  assert.deepEqual(result.args, [
+    'build', '--config', result.configPath, '--bundles', 'deb,appimage', '--target', linuxTarget, '--', '--locked',
+  ]);
   assert.equal(result.ci, 'false');
 });
 
@@ -185,6 +221,7 @@ test('spawn errors reject rather than reporting a successful build', async (t) =
 test('Windows overlay selects NSIS and ICO while preserving sidecar, payload layout, and macOS config', async () => {
   const base = JSON.parse(await readFile(join(directory, 'tauri.conf.json'), 'utf8'));
   const platformConfig = JSON.parse(await readFile(join(directory, 'tauri.windows.conf.json'), 'utf8'));
+  const linuxConfig = JSON.parse(await readFile(join(directory, 'tauri.linux.conf.json'), 'utf8'));
   const merged = { ...base, ...platformConfig, bundle: { ...base.bundle, ...platformConfig.bundle } };
   assert.deepEqual(base.bundle.targets, ['dmg']);
   assert.ok(base.bundle.icon.every((icon) => icon.endsWith('.png')));
@@ -199,6 +236,8 @@ test('Windows overlay selects NSIS and ICO while preserving sidecar, payload lay
   assert.equal('version' in platformConfig, false);
   const configArgument = prepareTauriArgs(['build'], windows)[2];
   assert.deepEqual({ ...merged, ...JSON.parse(configArgument) }.bundle.targets, ['nsis']);
+  assert.deepEqual(JSON.parse(prepareTauriArgs(['build'], linux)[2]), { version: '0.2.2' });
+  assert.deepEqual(linuxConfig.bundle.targets, ['deb', 'appimage']);
 });
 
 test('the installed Tauri CLI version and build help work through the wrapper without PATH shims', async () => {

@@ -4,7 +4,7 @@ use std::io::{self, Read, Write};
 use std::process::{Child, Command, ExitCode, ExitStatus, Stdio};
 use std::thread;
 
-use gajae_core::{Command as CliCommand, git, jobs, map_exit_status, parse_args, pty, watcher};
+use gajae_core::{git, jobs, map_exit_status, parse_args, pty, watcher, Command as CliCommand};
 
 const USAGE_ERROR: &[u8] = b"gajae-core: usage error\n";
 const SPAWN_ERROR: &[u8] = b"gajae-core: spawn failed\n";

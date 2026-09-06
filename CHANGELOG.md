@@ -4,6 +4,23 @@ All notable changes to Gajae Code App are documented in this file. Current and
 future desktop and server artifacts are published only through
 [GitHub Releases](https://github.com/devswha/gajae-code-app/releases).
 
+## 2.0.0-beta.9 (2026-09-06)
+
+- Managed session worktrees and visible, persistent goals with pause, resume
+  and cancellation. Delegated work inherits the parent's account, model,
+  permissions and cancellation through app-owned sessions.
+- GJC conversation search, provider-qualified model choices, stable model
+  picker layout, and correct replay/history reconciliation across reconnects.
+- Preserve streaming tool metadata and errors, and wait for confirmed worker
+  cleanup before reporting a stopped run.
+- Native Linux deb/AppImage packaging and separate Linux server archive
+  acceptance on Ubuntu 22.04 and 24.04.
+- Desktop UI preferences survive relaunch through a preserved loopback origin.
+  macOS acceptance supports separate WebKit and server profiles without copying
+  the user's data or credentials.
+- GJC SDK 0.16.4, signed-release validation, exact server archive identity
+  checks, and source-bound artifact verification.
+
 ## 2.0.0-beta.8 (2026-09-03)
 
 Same-day follow-up to beta.7, driven by first-install testing on a clean

@@ -230,7 +230,9 @@ export default function ModelAndReasoningPicker({
   /** Model whose reasoning levels the third column offers. */
   const [activeModel, setActiveModel] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
+  const returnFocus = useRef(false);
   const [popupPosition, setPopupPosition] = useState({ bottom: 0, left: 0 });
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
@@ -274,8 +276,20 @@ export default function ModelAndReasoningPicker({
       const target = event.target as Node;
       if (!rootRef.current?.contains(target) && !popupRef.current?.contains(target)) setOpen(false);
     };
+    const closeForEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      returnFocus.current = true;
+      // Clear the filter before restoring focus: no matches disables the trigger.
+      setQuery('');
+      setOpen(false);
+    };
     document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    document.addEventListener('keydown', closeForEscape);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', closeForEscape);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -283,6 +297,8 @@ export default function ModelAndReasoningPicker({
       setActiveProvider(null);
       setActiveModel(null);
       setQuery('');
+      if (returnFocus.current) triggerRef.current?.focus();
+      returnFocus.current = false;
       return;
     }
     window.requestAnimationFrame(() => searchRef.current?.focus());
@@ -326,6 +342,7 @@ export default function ModelAndReasoningPicker({
   return (
     <div ref={rootRef} className="relative w-40 max-w-full shrink-0 sm:w-56">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((current) => !current)}
         disabled={loading || selecting || groups.length === 0}
@@ -375,7 +392,12 @@ export default function ModelAndReasoningPicker({
               ref={searchRef}
               value={query}
               onChange={(event) => { setQuery(event.target.value); setActiveProvider(null); }}
-              onKeyDown={(event) => { if (event.key === 'Escape' && query) { event.stopPropagation(); setQuery(''); } }}
+              onKeyDown={(event) => {
+                if (event.key !== 'Escape' || event.defaultPrevented || !query) return;
+                event.preventDefault();
+                event.stopPropagation();
+                setQuery('');
+              }}
               placeholder={t('input.modelReasoning.search')}
               aria-label={t('input.modelReasoning.search')}
               className="h-7 w-full rounded-md border border-input bg-background pr-2 pl-7 text-xs outline-hidden placeholder:text-muted-foreground focus:border-ring"

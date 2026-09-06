@@ -3253,14 +3253,21 @@ mod tests {
         std::fs::remove_dir_all(d).unwrap();
     }
 
-    fn admit_test_run(authority: &mut PersistentAuthority) -> Lease {
+    fn admit_test_run(authority: &mut PersistentAuthority, root: &Path) -> Lease {
         let lease = authority
             .reserve_start("j", "p", "app", "owner", None, 4)
             .unwrap()
             .lease
             .unwrap();
         authority
-            .prepare("j", &lease, "/tmp/tree", "job/j", "base", "/tmp")
+            .prepare(
+                "j",
+                &lease,
+                root.join("tree").to_str().unwrap(),
+                "job/j",
+                "base",
+                root.to_str().unwrap(),
+            )
             .unwrap();
         authority.admit("j", &lease, "r1", "app").unwrap();
         authority
@@ -3273,7 +3280,7 @@ mod tests {
     fn a_readmitted_lease_cannot_mutate_the_previous_run() {
         let (d, p) = db();
         let mut a = PersistentAuthority::open(&p).unwrap();
-        let old_lease = admit_test_run(&mut a);
+        let old_lease = admit_test_run(&mut a, &d);
         a.transition("j", &old_lease, JobState::Interrupted)
             .unwrap();
         let current = a.readmit("j", "next-owner", "r2", "app", 4).unwrap();
@@ -3332,7 +3339,7 @@ mod tests {
     fn event_retries_cannot_reassign_history_to_another_run() {
         let (d, p) = db();
         let mut a = PersistentAuthority::open(&p).unwrap();
-        let lease = admit_test_run(&mut a);
+        let lease = admit_test_run(&mut a, &d);
         let event = a
             .append_event_for_run("j", &lease, "r1", "shared-event", json!(1))
             .unwrap();

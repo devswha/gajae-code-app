@@ -347,15 +347,30 @@ async function fixture(
 function methods(frames: Array<Record<string, unknown>>): string[] { return frames.filter((frame) => frame.kind === 'event').map((frame) => frame.method as string); }
 function response(frames: Array<Record<string, unknown>>, id: string): Record<string, unknown> { return frames.find((frame) => frame.kind === 'response' && frame.id === id)!; }
 
-function collectWindowsSqliteHandles(): void {
-  if (process.platform !== 'win32') return;
+async function removeRealSdkFixture(root: string): Promise<void> {
+  if (process.platform !== 'win32') {
+    await rm(root, { recursive: true, force: true });
+    return;
+  }
   // Bun 1.4.0 defers cached SQLite statement finalization beyond the
   // public Database.close() call. Force finalization only after every fixture
   // owner has closed its session, registry, cache, auth, and settings handles;
   // this is required for Windows to release the files before rm().
   const bun = (globalThis as typeof globalThis & { Bun?: { gc(force?: boolean): void } }).Bun;
   if (!bun) throw new Error('Windows SDK fixture requires Bun.gc(true).');
-  bun.gc(true);
+  for (let attempt = 0; ; attempt += 1) {
+    bun.gc(true);
+    // Let deferred native finalizers run before removal. Bun 1.4.0 ignores
+    // fs.rm's retry options, so bound transient Windows cleanup explicitly.
+    await new Promise((resolve) => setTimeout(resolve, attempt * 50));
+    try {
+      await rm(root, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (attempt === 4 || !['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(code ?? '')) throw error;
+    }
+  }
 }
 async function firstSession(sessions: FakeAgentSession[]): Promise<FakeAgentSession> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -1397,8 +1412,7 @@ async function identityFixture() {
       closeModelCache(modelCachePath);
       authStorage.close();
       await settings.close();
-      collectWindowsSqliteHandles();
-      await rm(root, { recursive: true, force: true });
+      await removeRealSdkFixture(root);
     },
   };
 }
@@ -1629,8 +1643,7 @@ async function rawSdkDelegationFixture() {
     closeModelCache(modelCachePath);
     authStorage.close();
     await settings.close();
-    collectWindowsSqliteHandles();
-    await rm(root, { recursive: true, force: true });
+    await removeRealSdkFixture(root);
   } };
 }
 

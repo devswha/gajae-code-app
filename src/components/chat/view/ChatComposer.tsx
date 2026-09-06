@@ -431,7 +431,7 @@ export default function ChatComposer({
             />
         </PromptInputBody>
 
-        <PromptInputFooter className="flex-wrap gap-y-1">
+        <PromptInputFooter className="flex-wrap items-end gap-y-1">
           {/*
             Wraps rather than clips. This row carries attach, voice, two model
             controls, skills and context usage; `overflow-hidden` meant a narrow
@@ -496,15 +496,6 @@ export default function ChatComposer({
           </PromptInputTools>
 
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
-            {(canQueueDraft || sendByCtrlEnter) && (
-              <div
-                className={`hidden text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
-                  input.trim() && !canQueueDraft ? 'opacity-0' : 'opacity-100'
-                }`}
-              >
-                {submitHint}
-              </div>
-            )}
             {canSteer && (
               <PromptInputButton
                 onClick={onSteer}
@@ -571,6 +562,18 @@ export default function ChatComposer({
             )}
           </div>
         </PromptInputFooter>
+        {/* Opacity keeps the hint's space while typing. Give it its own row so
+            even invisible translated text cannot squeeze the toolbar. */}
+        {(canQueueDraft || sendByCtrlEnter) && (
+          <div
+            data-slot="prompt-input-submit-hint"
+            className={`hidden min-w-0 px-3 pb-2 text-right text-xs wrap-anywhere text-muted-foreground/50 transition-opacity duration-200 lg:block ${
+              input.trim() && !canQueueDraft ? 'opacity-0' : 'opacity-100'
+            }`}
+          >
+            {submitHint}
+          </div>
+        )}
       </PromptInput>
       </div>}
     </div>

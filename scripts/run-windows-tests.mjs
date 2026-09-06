@@ -17,6 +17,7 @@ const serverTests = [
   'server/gjc-windows-job.test.ts',
   'server/gjc-worker-client.test.ts',
   'server/gjc-core-host.test.ts',
+  'server/gjc-engine-manifest.test.ts',
   'server/gjc-cli-shim.test.ts',
   'server/gjc-worker-protocol.test.ts',
   'server/gjc-worker-protocol-spec.test.ts',

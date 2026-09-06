@@ -1,8 +1,9 @@
+#[cfg(windows)]
+use std::ffi::OsString;
 use std::fmt::Write as _;
 use std::{
     collections::VecDeque,
     env,
-    ffi::OsString,
     io::{Read, Write},
     net::TcpStream,
     path::PathBuf,
@@ -483,6 +484,7 @@ pub fn start(app: AppHandle) {
         };
         let entrypoint = payload.join("dist-server/server/index.js");
         let requested_port = desktop_origin.requested_port().to_string();
+        #[cfg(windows)]
         let mut environment: Vec<(OsString, OsString)> = [
             ("HOST", "127.0.0.1"),
             ("SERVER_PORT", requested_port.as_str()),
@@ -502,7 +504,8 @@ pub fn start(app: AppHandle) {
             .map(|path| path.into_os_string())
             .or_else(|| env::var_os("HOME"))
             .unwrap_or_default();
-        environment.push(("HOME".into(), home.clone()));
+        #[cfg(windows)]
+        environment.push(("HOME".into(), home));
         let native = payload.join("dist-native");
         let inherited_path = env::var_os("PATH").unwrap_or_default();
         let path =
@@ -514,6 +517,7 @@ pub fn start(app: AppHandle) {
                 return;
             }
         };
+        #[cfg(windows)]
         environment.push(("PATH".into(), path));
         let command = lifecycle.start(|| {
             reset_desktop_readiness(&app);

@@ -76,15 +76,20 @@ try {
       if (key.toLowerCase() === 'path') delete bunEnv[key];
     }
     bunEnv.PATH = [path.dirname(bun), previousPath].filter(Boolean).join(path.delimiter);
-    const result = spawnSync(bun, [
-      'test', 'server/gjc-sdk-contract.bun.test.ts', 'server/gjc-delegation-executor.bun.test.ts',
-    ], {
-      cwd: root,
-      env: bunEnv,
-      stdio: ['ignore', 'inherit', 'inherit'],
-    });
-    if (result.error) throw result.error;
-    exitCode = result.status ?? 1;
+    for (const args of [
+      ['scripts/probe-windows-sdk-locks.mjs'],
+      ['test', 'server/gjc-sdk-contract.bun.test.ts', 'server/gjc-delegation-executor.bun.test.ts'],
+    ]) {
+      const result = spawnSync(bun, args, {
+        cwd: root,
+        env: bunEnv,
+        stdio: ['ignore', 'inherit', 'inherit'],
+        ...(args[0] === 'test' ? {} : { timeout: 30_000 }),
+      });
+      if (result.error) throw result.error;
+      // Keep the full suites enabled even when the isolated native probe fails.
+      if (result.status !== 0) exitCode = result.status ?? 1;
+    }
   }
 } finally {
   rmSync(stateDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });

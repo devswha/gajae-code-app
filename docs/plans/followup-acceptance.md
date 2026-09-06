@@ -1,5 +1,12 @@
 # Remaining-work integration and acceptance
 
+The owner subsequently excluded OMG skill testing on September 6. The skill
+results below are historical evidence, not outstanding acceptance work. Current
+work covers app behavior and release acceptance, including ordinary tool-result
+delivery and desktop persistence. Cross-model OMG qualification is not required
+for that scope, and the historical upstream issue is not marked fixed by this
+scope change.
+
 This follows PRs #30, #35 and #38, all merged after their required checks.
 All implementation/review agents and actual model requests used Astra with
 xhigh reasoning. Offline tests use controlled transports rather than another
@@ -82,9 +89,11 @@ delegation returned the fixture heading through task/subagent.
   `APPLE_APP_PASSWORD`. Local identity/profile readiness does not configure CI.
 - Windows execution and full interactive GNOME/KDE sessions are not claimed.
   Conversation forks and split panes remain separately deferred product scope.
-- Fresh macOS GUI acceptance requires a disposable macOS account: existing
-  environment overrides do not isolate the WebKit data store. Browser UI and
-  package/signature checks are separate evidence.
+- HOME/database overrides alone did not isolate WebKit. The subsequent
+  `--qa-profile` implementation adds a dedicated persistent WebKit store and
+  server paths for macOS 14+. See `../DESKTOP-QA-PROFILE.md`. Clean-machine
+  permissions and LaunchServices coverage still require a separate OS account;
+  profile GUI, browser UI and package/signature checks remain separate evidence.
 - Issue #3 remains open for the original Cursor/Anthropic live qualification
   and native skill/CLI efficiency. The requested Astra-only lane now completes
   the bundled workflows; it does not establish those other-provider results or

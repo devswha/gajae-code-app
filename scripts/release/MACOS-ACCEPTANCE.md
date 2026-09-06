@@ -7,8 +7,7 @@ draft, public release, workflow run, or export signing credentials. Run the
 blocks in order in the same **Bash** shell on the existing arm64 Mac. Keep the
 output directory until the acceptance record and artifacts are handed off.
 
-The release review checkout still has SDK 0.15.6 installed and no bundled Bun;
-it is not a final build input. The candidate below requires SDK **0.16.4** in
+The candidate below requires SDK **0.16.4** in
 the selected source, installed dependencies, and packaged copy. A future SDK
 upgrade requires reviewing that expectation before using these commands.
 
@@ -170,12 +169,18 @@ isolated home/project data and removes inherited provider credentials. Leave
 These startup, admission/abort, replay and persistence checks do not establish
 a successful live model response.
 
-The parent must finish GUI acceptance from this exact copied app in a
-disposable macOS account: sign-in link, launch/quit/relaunch, persistence, and
-confirmation that the child server exits with the app. Record that result
+The parent must finish GUI acceptance from this exact copied app using a
+disposable macOS account or, on macOS 14+, the explicit `--qa-profile` mode in
+`docs/DESKTOP-QA-PROFILE.md`: sign-in link, launch/quit/relaunch, persistence,
+profile separation and confirmation that the child server exits with the app.
+The QA mode uses the public Webview builder setter because the pinned runtime
+does not carry the data-store UUID through its configuration conversion. An
+environment-only HOME override is insufficient. Record the GUI result
 separately from build, notarization, and packaged-server results. Any authorized
 live provider test must use only `openai/gpt-6-astra` with effort `xhigh` and
-retain the app permission guard; do not enable raw SDK child delegation.
+retain the app permission guard; do not enable raw SDK child delegation. OMG
+skill testing is excluded by the current user instruction. Profile-based GUI
+acceptance does not establish fresh OS permissions or clean-machine behavior.
 
 Record the full commit, package/desktop/SDK and bundled runtime versions, DMG
 hash, both notarization submission IDs, and each acceptance result. Linux

@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 import path from 'node:path';
 
+import { SERVER_PACKAGE_NAME } from '../../shared/productIdentity.js';
+
 import { assertOutOfTree } from './out-of-tree.mjs';
 import { APPIMAGE_ENV_MARKER, appImageLaunchTarget, createSmokeDataDirectory, packagedTargets, parseSmokeOptions as parseDesktopSmokeOptions, smokeEnvironment, smokeLocation } from './packaged-server-paths.mjs';
 
@@ -59,7 +61,7 @@ export async function serverArchiveTarget(root) {
   }
   for (const relative of ['dist-native/bun', 'dist-native/gajae-core']) await access(path.join(root, relative), constants.X_OK);
   const metadata = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
-  if (metadata.name !== 'gajae-app-server' || typeof metadata.version !== 'string' || !metadata.version) throw new Error('Expected canonical gajae-app-server archive metadata.');
+  if (metadata.name !== SERVER_PACKAGE_NAME || typeof metadata.version !== 'string' || !metadata.version) throw new Error('Expected canonical gajae-app-server archive metadata.');
   return {
     label: 'Linux server archive', serverArchive: true, cwd: root, command: process.execPath,
     bun: path.join(root, 'dist-native/bun'), args: [path.join(root, 'scripts/gajae-app-runtime.mjs'), 'start'],

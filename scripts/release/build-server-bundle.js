@@ -6,6 +6,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { SERVER_PACKAGE_NAME } from '../../shared/productIdentity.js';
 import { isolatedQaEnvironment } from '../start-isolated-dev.mjs';
 
 import { describeDistributionExclusions, removeExcludedDistributionPackages } from './distribution-exclusions.mjs';
@@ -282,7 +283,7 @@ async function writeInstallPackageJson(stageDir, packageJson) {
 
 async function writeRuntimePackageJson(stageDir, packageJson) {
   const runtimePackageJson = {
-    name: 'gajae-app-server',
+    name: SERVER_PACKAGE_NAME,
     version: packageJson.version,
     private: true,
     description: 'Gajae Code App server runtime',

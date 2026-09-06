@@ -52,6 +52,7 @@
     "server/gjc-delegation-executor.bun.test.ts",
     "server/gjc-export-path.test.ts",
     "server/gjc-goal-session.bun.test.ts",
+    "server/gjc-goal-session.test.ts",
     "server/gjc-goal-protocol.test.ts",
     "server/gjc-permission-policy.test.ts",
     "server/gjc-sdk-bridge.test.ts",

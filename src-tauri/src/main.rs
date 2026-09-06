@@ -7,6 +7,7 @@ use std::fs::OpenOptions;
 use fs2::FileExt;
 use tauri::Manager;
 
+mod desktop_origin;
 #[cfg(target_os = "linux")]
 mod instance;
 mod lifecycle;

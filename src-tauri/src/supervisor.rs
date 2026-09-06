@@ -398,6 +398,24 @@ pub fn start(app: AppHandle) {
         if lifecycle.is_shutting_down() || lifecycle.has_sidecar() {
             return;
         }
+        let origin_directory = app.path().app_local_data_dir();
+        #[cfg(target_os = "macos")]
+        let origin_directory =
+            if let Some(profile) = app.try_state::<crate::qa_profile::QaProfile>() {
+                Ok(profile.home().join(".gajae-app"))
+            } else {
+                origin_directory
+            };
+        let desktop_origin = match origin_directory
+            .map_err(|error| error.to_string())
+            .and_then(crate::desktop_origin::DesktopOrigin::load)
+        {
+            Ok(origin) => origin,
+            Err(error) => {
+                show_error(&window, &error, true);
+                return;
+            }
+        };
         let payload = match payload_root(&app) {
             Ok(payload) => payload,
             Err(error) => {
@@ -451,7 +469,7 @@ pub fn start(app: AppHandle) {
             let command = command.env("HOME", &home).env("PATH", &path);
             let (events, child) = command
                 .env("HOST", "127.0.0.1")
-                .env("SERVER_PORT", "0")
+                .env("SERVER_PORT", desktop_origin.requested_port().to_string())
                 .env("NODE_ENV", "production")
                 .env("GJC_DESKTOP", "1")
                 .env("GJC_DESKTOP_API_KEY", api_key)
@@ -560,8 +578,11 @@ pub fn start(app: AppHandle) {
                                 if lifecycle.is_shutting_down() {
                                     break;
                                 }
-                                if let Err(error) =
-                                    navigate_and_show(&app, &window, ready_frame.port, &nonce)
+                                if let Err(error) = desktop_origin
+                                    .persist_verified_port(ready_frame.port)
+                                    .and_then(|()| {
+                                        navigate_and_show(&app, &window, ready_frame.port, &nonce)
+                                    })
                                 {
                                     handle_sidecar_failure(
                                         &app, &window, child, events, error, false,

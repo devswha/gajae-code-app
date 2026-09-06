@@ -23,6 +23,13 @@ copy the normal agent credential database into QA. The profile does not grant
 credentials, change app permissions, or disable workflow guards.
 
 Quit and relaunch the same binary with the same argument to check persistence.
+The desktop stores its first verified loopback port in `desktop-port` in the
+profile's app data directory and reuses it. This keeps local UI settings on the
+same origin. Per-launch API credentials still rotate, and PID/health identity
+verification precedes navigation. An occupied saved port causes recovery rather
+than silently choosing a different origin; release the conflicting listener
+and Retry. The normal desktop uses its own app-local data directory for this
+record. A first launch cannot recover preferences from older random ports.
 Use a second empty profile to check that sidebar data and appearance settings
 are independent. Verify the supervised Node process exits after quitting.
 The dedicated WebKit store is managed by macOS and persists independently of

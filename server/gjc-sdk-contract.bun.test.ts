@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import { test } from 'node:test';
@@ -347,29 +347,25 @@ async function fixture(
 function methods(frames: Array<Record<string, unknown>>): string[] { return frames.filter((frame) => frame.kind === 'event').map((frame) => frame.method as string); }
 function response(frames: Array<Record<string, unknown>>, id: string): Record<string, unknown> { return frames.find((frame) => frame.kind === 'response' && frame.id === id)!; }
 
-async function removeRealSdkFixture(root: string): Promise<void> {
-  if (process.platform !== 'win32') {
-    await rm(root, { recursive: true, force: true });
-    return;
-  }
+async function removeRealSdkFixture(root: string, modelCacheClosed: boolean): Promise<void> {
   // Bun 1.4.0 defers cached SQLite statement finalization beyond the
   // public Database.close() call. Force finalization only after every fixture
   // owner has closed its session, registry, cache, auth, and settings handles;
   // this is required for Windows to release the files before rm().
-  const bun = (globalThis as typeof globalThis & { Bun?: { gc(force?: boolean): void } }).Bun;
-  if (!bun) throw new Error('Windows SDK fixture requires Bun.gc(true).');
-  for (let attempt = 0; ; attempt += 1) {
+  if (process.platform === 'win32') {
+    const bun = (globalThis as typeof globalThis & { Bun?: { gc(force?: boolean): void } }).Bun;
+    if (!bun) throw new Error('Windows SDK fixture requires Bun.gc(true).');
     bun.gc(true);
-    // Let deferred native finalizers run before removal. Bun 1.4.0 ignores
-    // fs.rm's retry options, so bound transient Windows cleanup explicitly.
-    await new Promise((resolve) => setTimeout(resolve, attempt * 50));
-    try {
-      await rm(root, { recursive: true, force: true });
-      return;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (attempt === 4 || !['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(code ?? '')) throw error;
-    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  try {
+    await rm(root, { recursive: true, force: true });
+  } catch (error) {
+    const remaining = await readdir(root, { recursive: true })
+      .catch((listingError: unknown) => [`Cannot list retained files: ${String(listingError)}`]);
+    throw new Error(`SDK fixture cleanup failed: ${JSON.stringify({
+      modelCacheClosed, cwd: process.cwd(), remaining: remaining.slice(0, 50), remainingCount: remaining.length,
+    })}`, { cause: error });
   }
 }
 async function firstSession(sessions: FakeAgentSession[]): Promise<FakeAgentSession> {
@@ -1326,7 +1322,9 @@ test('resume opens the sole exact session file and never re-emits session.create
 
 /** Real SDK construction; prompts are intercepted before any model transport can run. */
 async function identityFixture() {
-  const root = await mkdtemp(join(tmpdir(), 'gjc-sdk-identity-'));
+  // SDK goal control and repository bindings use canonical directories. Match
+  // their identity before opening any stores, including Windows short TEMP paths.
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'gjc-sdk-identity-')));
   const cwd = join(root, 'project');
   const agentDir = join(root, 'agent');
   const modelCachePath = join(agentDir, 'models.db');
@@ -1409,10 +1407,10 @@ async function identityFixture() {
       // ModelRegistry.dispose() cancels discovery but the SDK's shared SQLite
       // model cache is an independent @gajae-code/ai resource. Close the exact
       // cache owned by this fixture before removing its temporary agent root.
-      closeModelCache(modelCachePath);
+      const modelCacheClosed = closeModelCache(modelCachePath);
       authStorage.close();
       await settings.close();
-      await removeRealSdkFixture(root);
+      await removeRealSdkFixture(root, modelCacheClosed);
     },
   };
 }
@@ -1640,10 +1638,10 @@ async function rawSdkDelegationFixture() {
     await registry.dispose();
     // ModelRegistry.dispose() does not own the shared @gajae-code/ai cache
     // handle; release this fixture's exact database before deleting its root.
-    closeModelCache(modelCachePath);
+    const modelCacheClosed = closeModelCache(modelCachePath);
     authStorage.close();
     await settings.close();
-    await removeRealSdkFixture(root);
+    await removeRealSdkFixture(root, modelCacheClosed);
   } };
 }
 

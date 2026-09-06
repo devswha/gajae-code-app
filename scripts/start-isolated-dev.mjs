@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { npmInvocation } from './lib/npm-cli.mjs';
+
 const SAFE_AGENT_FILES = Object.freeze(['config.yml', 'models.yml']);
 
 export function isLoopbackHost(host) {
@@ -95,7 +97,8 @@ export async function main() {
     console.log(`[isolated-qa] UI: http://${host}:${vitePort}`);
     console.log(`[isolated-qa] API: http://${host}:${serverPort}`);
 
-    const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], {
+    const npm = npmInvocation(['run', 'dev']);
+    const child = spawn(npm.command, npm.args, {
       cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'),
       env,
       stdio: 'inherit',

@@ -96,6 +96,7 @@ type ActiveRun = {
   goals?: GjcGoalSession;
   goalScope?: GjcGoalScope;
   markAborted?: () => void;
+  settings: Settings;
   session: {
     prompt(message: string, options?: { streamingBehavior?: 'steer' | 'followUp' }): Promise<void>;
     abort(): Promise<void>;
@@ -378,8 +379,14 @@ async function resumeManager(providerSessionId: string, sessionRoot: string): Pr
   const matches = (await SessionManager.list('', sessionRoot)).filter((session) => session.id === providerSessionId);
   if (matches.length !== 1) throw new Error(FAILURE);
   const manager = await SessionManager.open(matches[0].path, sessionRoot);
-  if (manager.getSessionId() !== providerSessionId) throw new Error(FAILURE);
-  return manager;
+  try {
+    if (manager.getSessionId() !== providerSessionId) throw new Error(FAILURE);
+    return manager;
+  } catch (error) {
+    try { await manager.close(); }
+    catch { throw new GjcCleanupUnconfirmedError(); }
+    throw error;
+  }
 }
 
 /** In-process, serial-only SDK runtime. AuthStorage and ModelRegistry are app-owned singleton inputs. */
@@ -628,6 +635,10 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         () => run.askController.dispose(),
         () => run.delegation?.dispose(),
         () => run.session.dispose(),
+        // The SDK session does not own the app's per-run Settings clone.
+        // Drain it after every session writer has stopped; never close the
+        // shared parent Settings/storage here.
+        () => run.settings.flushOrThrow(),
       ]) {
         try { await cleanup(); }
         catch { disposalError ??= new Error(FAILURE); }
@@ -645,11 +656,17 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
   }
 
   async #runInner(runId: string, options: Record<string, unknown>, config: SdkRunConfig, writer: GjcWorkerWriter, message: string, setActive: (run: ActiveRun) => void): Promise<void> {
-    {
+    let flushUnownedSettings: (() => Promise<void>) | undefined;
+    let closeUnownedManager: (() => Promise<void>) | undefined;
+    let unownedSession: ActiveRun['session'] | undefined;
+    let settingsTransferred = false;
+    let managerTransferred = false;
+    try {
       const resumedId = typeof options.sessionId === 'string' && options.sessionId ? options.sessionId : undefined;
       const sessionManager = resumedId
         ? await resumeManager(resumedId, config.sessionRoot)
         : SessionManager.create(config.cwd, config.sessionRoot);
+      closeUnownedManager = () => sessionManager.close();
       const globalSettings = this.options.settings
         ?? await this.options.loadSettings?.()
         ?? await Settings.init(
@@ -668,6 +685,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       // clone before session creation. A Bun worker can serve multiple project
       // sessions, and the clone keeps their project settings and overrides isolated.
       const settings = await globalSettings.cloneForCwd(config.cwd);
+      flushUnownedSettings = () => settings.flushOrThrow();
       applyGjcToolSettingsPolicy(settings);
       const goalScope = config.appSessionId && config.goalOwner
         ? { appSessionId: config.appSessionId, owner: config.goalOwner, cwd: await realpath(config.cwd),
@@ -718,6 +736,9 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           bashAllowedPrefixes: config.bashPolicy.allowedPrefixes,
           ...(config.bashPolicy.restrictionProfile ? { bashRestrictionProfile: config.bashPolicy.restrictionProfile } : {}),
           hasUI: true,
+          // GjcWorkerHost owns app session/control admission. Do not publish a
+          // second SDK endpoint through a detached, independently owned broker.
+          sdkHostModeSupported: false,
           ...(config.appSessionId ? {
             automationTools: serializeGjcDelegationAutomationTools(createGjcAutomationTools(
               config.appSessionId,
@@ -744,6 +765,9 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           // native SDK spawning is denied for goal/delegation-capable sessions.
           spawns: delegation || goalEnabled ? 'deny' : sessionOptions.spawns,
         });
+        unownedSession = result.session;
+        // AgentSession owns the caller-created manager from this point.
+        managerTransferred = true;
         this.#assertHealthy();
         if (config.modelProfile) {
           await activateModelProfile({
@@ -807,6 +831,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         const activeRun: ActiveRun = {
           markAborted: writer.setAborted,
           ...(goalScope ? { goalScope } : {}),
+          settings,
           session: result.session,
           sessionManager,
           unsubscribe,
@@ -817,6 +842,8 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           ...(config.appSessionId ? { appSessionId: config.appSessionId } : {}),
         };
         setActive(activeRun);
+        unownedSession = undefined;
+        settingsTransferred = true;
         this.#runs.set(runId, activeRun);
         if (goalEnabled && goalScope) {
           goals = new GjcGoalSession(result.session, sessionManager, goalScope, runId,
@@ -935,6 +962,25 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         try { await delegation?.dispose(); }
         finally { resolvedCredential.dispose(); }
       }
+    } finally {
+      let cleanupFailed = false;
+      if (!settingsTransferred && unownedSession) {
+        try { await unownedSession.dispose(); }
+        catch { cleanupFailed = true; }
+      }
+      if (!settingsTransferred) {
+        try { await flushUnownedSettings?.(); }
+        catch { cleanupFailed = true; }
+      }
+      // A session created by the SDK owns this manager; only close it directly
+      // when creation never handed ownership to a session.
+      if (!managerTransferred) {
+        try { await closeUnownedManager?.(); }
+        catch { cleanupFailed = true; }
+      }
+      // #run checks health before publishing success or the original error.
+      // Fence here without replacing an in-flight exception from finally.
+      if (cleanupFailed) this.#poison();
     }
   }
 }

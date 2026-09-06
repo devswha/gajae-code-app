@@ -5,6 +5,11 @@ export function getModuleDir(importMetaUrl) {
   return path.dirname(fileURLToPath(importMetaUrl));
 }
 
+export function getBundledExecutablePath(importMetaUrl, executable, platform = process.platform) {
+  return path.join(findAppRoot(getModuleDir(importMetaUrl)), 'dist-native',
+    platform === 'win32' ? `${executable}.exe` : executable);
+}
+
 function findServerRoot(startDir) {
   // Source files live under /server, while compiled files live under /dist-server/server.
   // Walking up to the nearest "server" folder gives every backend module one stable anchor

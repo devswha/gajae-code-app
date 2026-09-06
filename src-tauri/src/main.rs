@@ -15,6 +15,14 @@ mod navigation;
 #[cfg(any(target_os = "macos", test))]
 mod qa_profile;
 mod supervisor;
+#[cfg(windows)]
+mod windows_process;
+
+#[derive(Default)]
+struct PendingDeepLink {
+    url: std::sync::Mutex<Option<tauri::Url>>,
+    ui_ready: std::sync::atomic::AtomicBool,
+}
 
 #[cfg(not(target_os = "linux"))]
 struct SingleInstanceLock {
@@ -47,7 +55,14 @@ fn is_gajae_deep_link(url: &tauri::Url) -> bool {
 }
 
 fn deep_link_route(url: &tauri::Url) -> Option<String> {
-    if !is_gajae_deep_link(url) || url.host_str() != Some("open") {
+    if !is_gajae_deep_link(url)
+        || url.host_str() != Some("open")
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
         return None;
     }
     let segments: Vec<&str> = url.path_segments()?.filter(|s| !s.is_empty()).collect();
@@ -159,8 +174,33 @@ fn route_startup_deep_links(
 }
 
 fn desktop_page_load(webview: &tauri::Webview, payload: &tauri::webview::PageLoadPayload<'_>) {
+    let app = webview.app_handle();
+    if payload.event() == tauri::webview::PageLoadEvent::Started {
+        app.state::<PendingDeepLink>()
+            .ui_ready
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+    }
     if payload.event() == tauri::webview::PageLoadEvent::Finished {
         supervisor::restore_recovery(webview);
+        if payload.url().host_str() == Some("127.0.0.1")
+            && payload.url().path() != "/desktop/bootstrap"
+            && app
+                .state::<navigation::LoopbackOrigin>()
+                .permits(payload.url())
+        {
+            app.state::<PendingDeepLink>()
+                .ui_ready
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            let pending = app
+                .state::<PendingDeepLink>()
+                .url
+                .lock()
+                .expect("deep-link lock poisoned")
+                .take();
+            if let Some(url) = pending {
+                route_deep_link(app, url);
+            }
+        }
     }
     #[cfg(target_os = "linux")]
     route_startup_deep_links(webview, payload);
@@ -196,6 +236,34 @@ fn route_deep_link(app: &tauri::AppHandle, url: tauri::Url) {
 
     if deep_link_route(&url).is_none() {
         return;
+    }
+    if app.get_webview_window("main").is_none() {
+        *app.state::<PendingDeepLink>()
+            .url
+            .lock()
+            .expect("deep-link lock poisoned") = Some(url);
+        return;
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        let on_server = app
+            .state::<PendingDeepLink>()
+            .ui_ready
+            .load(std::sync::atomic::Ordering::SeqCst)
+            && window.url().ok().is_some_and(|current| {
+                current.host_str() == Some("127.0.0.1")
+                    && current.path() != "/desktop/bootstrap"
+                    && app.state::<navigation::LoopbackOrigin>().permits(&current)
+            });
+        if !on_server {
+            *app.state::<PendingDeepLink>()
+                .url
+                .lock()
+                .expect("deep-link lock poisoned") = Some(url);
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+            return;
+        }
     }
     let _ = app.emit_to("main", "desktop://deep-link", url.as_str());
     if let Some(window) = app.get_webview_window("main") {
@@ -268,6 +336,22 @@ fn main() {
     };
 
     let builder = tauri::Builder::default()
+        .manage(PendingDeepLink::default())
+        .manage(navigation::LoopbackOrigin::default())
+        .manage(lifecycle::SidecarLifecycle::default())
+        .manage(supervisor::RecoveryScreen::default());
+    // Windows protocol activation starts a second process. Forward to the
+    // running instance before its setup lock can reject the activation.
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        if args.len() == 2 {
+            if let Ok(url) = args[1].parse() {
+                route_deep_link(app, url);
+            }
+        }
+        focus_main_window(app);
+    }));
+    let builder = builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(navigation::plugin())
@@ -307,9 +391,6 @@ fn main() {
             if let Some(profile) = qa_profile {
                 app.manage(profile);
             }
-            app.manage(navigation::LoopbackOrigin::default());
-            app.manage(lifecycle::SidecarLifecycle::default());
-            app.manage(supervisor::RecoveryScreen::default());
             #[cfg(target_os = "macos")]
             if let Some(profile) = app.try_state::<qa_profile::QaProfile>() {
                 profile.create_windows(app, &qa_windows)?;
@@ -368,6 +449,13 @@ fn main() {
             app.deep_link().on_open_url(move |event| {
                 receive_deep_links(&app_handle, event.urls());
             });
+            // The plugin captures cold-start arguments before this listener.
+            #[cfg(not(target_os = "linux"))]
+            if let Some(urls) = app.deep_link().get_current()? {
+                for url in urls {
+                    route_deep_link(app.handle(), url);
+                }
+            }
             supervisor::start(app.handle().clone());
             Ok(())
         });
@@ -378,9 +466,8 @@ fn main() {
         |app: &tauri::AppHandle<tauri::Wry>, event: tauri::RunEvent| match event {
             tauri::RunEvent::ExitRequested { api, .. } => {
                 // graceful_quit finishes with app.exit(), which requests exit
-                // again on Linux. Let that request through only after the
-                // sidecar is gone; otherwise closing can never release the
-                // single-instance lock for the next launch.
+                // again on every supported platform. Let that request through
+                // only after the sidecar tree is gone.
                 if !app
                     .state::<lifecycle::SidecarLifecycle>()
                     .shutdown_complete()
@@ -558,6 +645,10 @@ mod tests {
             "gajae-app://open/job/bad%20id",
             "gajae-app://open/job/a/b",
             "https://example.com/open/job/x",
+            "gajae-app://user@open/job/x",
+            "gajae-app://open:123/job/x",
+            "gajae-app://open/job/x?redirect=evil",
+            "gajae-app://open/job/x#evil",
         ] {
             assert_eq!(
                 deep_link_route(&rejected.parse().unwrap()),

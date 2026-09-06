@@ -302,14 +302,22 @@ mod tests {
         for args in [
             vec!["--qa-profile"],
             vec!["--qa-profile", "relative"],
-            vec!["--qa-profile", "/a", "--qa-profile", "/b"],
             vec!["--qa-profile=/tmp/a"],
         ] {
             assert!(requested_root(args.into_iter().map(str::to_owned)).is_err());
         }
+        let root = Temp::new();
+        let absolute_path = root.0.to_string_lossy().into_owned();
+        assert!(requested_root(vec![
+            "--qa-profile".into(),
+            absolute_path.clone(),
+            "--qa-profile".into(),
+            absolute_path.clone(),
+        ])
+        .is_err());
         assert_eq!(
-            requested_root(vec!["--qa-profile".into(), "/tmp/qa".into()]).unwrap(),
-            Some(PathBuf::from("/tmp/qa"))
+            requested_root(vec!["--qa-profile".into(), absolute_path]).unwrap(),
+            Some(root.0.clone())
         );
         for version in ["13.6.9", "11.0", "", "unknown"] {
             assert!(require_supported_os(version).is_err());

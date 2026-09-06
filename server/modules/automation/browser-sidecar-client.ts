@@ -5,6 +5,8 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { getBundledExecutablePath } from '../../utils/runtime-paths.js';
+
 import {
   BROWSER_PROTOCOL_VERSION,
   BrowserNdjsonDecoder,
@@ -133,7 +135,7 @@ export class BrowserSidecarClient {
       const compiled = !import.meta.url.endsWith('.ts');
       const sidecarPath = this.options.sidecarPath
         ?? fileURLToPath(new URL(compiled ? './browser-sidecar.js' : './browser-sidecar.ts', import.meta.url));
-      const bundledBun = fileURLToPath(new URL(compiled ? '../../../../dist-native/bun' : '../../../dist-native/bun', import.meta.url));
+      const bundledBun = getBundledExecutablePath(import.meta.url, 'bun');
       const bunPath = this.options.runtimePath
         ?? process.env.GAJAE_BROWSER_BUN_PATH
         ?? (existsSync(bundledBun) ? bundledBun : undefined)

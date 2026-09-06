@@ -37,7 +37,7 @@ test('creates an executable gjc shim and prepends it to PATH', () => {
     assert.match(shim, new RegExp(BUN_PATH));
     assert.match(shim, new RegExp(BIN_PATH));
     assert.match(shim, /"\$@"/);
-    assert.equal(statSync(path.join(installed.shimDir, 'gjc')).mode & 0o777, 0o755);
+    if (process.platform !== 'win32') assert.equal(statSync(path.join(installed.shimDir, 'gjc')).mode & 0o777, 0o755);
     assert.equal(env.PATH, `${installed.shimDir}${path.delimiter}/existing/bin`);
   });
 });
@@ -66,7 +66,7 @@ test('rewrites a shim whose content drifted', () => {
   });
 });
 
-test('restores executable mode when replacing stale shim content', () => {
+test('restores executable mode when replacing stale shim content', { skip: process.platform === 'win32' }, () => {
   withTempHome((homeDir) => {
     const installed = install(homeDir);
     assert.ok(installed);
@@ -110,7 +110,7 @@ test('uses the existing case-insensitive PATH key on win32', () => {
       resolveRuntimeBin: () => BIN_PATH,
     });
     assert.ok(installed);
-    assert.equal(env.Path, `${installed.shimDir}${path.delimiter}/existing/bin`);
+    assert.equal(env.Path, `${installed.shimDir};/existing/bin`);
     assert.equal(env.PATH, undefined);
   });
 });
@@ -118,6 +118,7 @@ test('uses the existing case-insensitive PATH key on win32', () => {
 test('writes a cmd shim on win32', () => {
   withTempHome((homeDir) => {
     const installed = installGjcCliShim({
+      env: {},
       homeDir,
       bunPath: BUN_PATH,
       platform: 'win32',
@@ -126,8 +127,31 @@ test('writes a cmd shim on win32', () => {
     assert.ok(installed);
     assert.equal(
       readFileSync(path.join(installed.shimDir, 'gjc.cmd'), 'utf8'),
-      `@echo off\r\n"${BUN_PATH}" "${BIN_PATH}" %*\r\n`,
+      `@echo off\r\nsetlocal DisableDelayedExpansion\r\n"${BUN_PATH}" "${BIN_PATH}" %*\r\n`,
     );
+  });
+});
+
+test('Windows shim preserves percent and bang characters in installed runtime paths', () => {
+  withTempHome((homeDir) => {
+    const bunPath = 'C:\\Users\\100%TEMP%!user!\\bun.exe';
+    const binPath = 'C:\\Program Files\\Gajae & Tools\\gjc.js';
+    const installed = installGjcCliShim({ homeDir, env: {}, platform: 'win32', bunPath, resolveRuntimeBin: () => binPath });
+    assert.ok(installed);
+    assert.equal(readFileSync(path.join(installed.shimDir, 'gjc.cmd'), 'utf8'),
+      '@echo off\r\nsetlocal DisableDelayedExpansion\r\n"C:\\Users\\100%%TEMP%%!user!\\bun.exe" "C:\\Program Files\\Gajae & Tools\\gjc.js" %*\r\n');
+    const shell = readFileSync(path.join(installed.shimDir, 'gjc'), 'utf8');
+    assert.ok(shell.includes("'C:/Users/100%TEMP%!user!/bun.exe'"));
+  });
+});
+
+test('Windows PATH is deduplicated across key casing and always prefers the bundled shim', () => {
+  withTempHome((homeDir) => {
+    const shimDir = path.join(homeDir, '.gajae-app', 'gjc-cli-shim');
+    const env = { Path: `C:\\tools;${shimDir.toUpperCase()}`, PATH: 'C:\\global;C:/TOOLS' } as NodeJS.ProcessEnv;
+    assert.ok(installGjcCliShim({ env, homeDir, platform: 'win32', bunPath: BUN_PATH, resolveRuntimeBin: () => BIN_PATH }));
+    assert.equal(env.PATH, `${shimDir};C:\\global;C:/TOOLS`);
+    assert.equal(env.Path, undefined);
   });
 });
 

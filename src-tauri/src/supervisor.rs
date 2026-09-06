@@ -1,3 +1,5 @@
+#[cfg(windows)]
+use std::ffi::OsString;
 use std::fmt::Write as _;
 use std::{
     collections::VecDeque,
@@ -11,10 +13,9 @@ use std::{
 use getrandom::getrandom;
 use serde::Deserialize;
 use tauri::{AppHandle, Manager, WebviewWindow};
-use tauri_plugin_shell::{
-    process::{CommandChild, CommandEvent},
-    ShellExt,
-};
+use tauri_plugin_shell::process::CommandEvent;
+#[cfg(unix)]
+use tauri_plugin_shell::ShellExt;
 use tokio::time;
 
 const READY_KIND: &str = "gajae-desktop-ready";
@@ -98,7 +99,9 @@ fn payload_root(app: &AppHandle) -> Result<PathBuf, String> {
     let root = ["server-payload", "resources/server-payload"]
         .iter()
         .map(|relative| resources.join(relative))
-        .find_map(|candidate| candidate.canonicalize().ok())
+        // Keep ordinary Windows paths: canonicalize adds a verbatim prefix
+        // that third-party Node tools do not consistently accept.
+        .find(|candidate| candidate.is_dir())
         .ok_or_else(|| "server payload is missing".to_owned())?;
     for relative in [
         "dist-server/server/index.js",
@@ -112,6 +115,12 @@ fn payload_root(app: &AppHandle) -> Result<PathBuf, String> {
                 "server payload is incomplete (missing {})",
                 path.display()
             ));
+        }
+    }
+    #[cfg(windows)]
+    for relative in ["dist-native/bun.exe", "dist-native/gajae-core.exe"] {
+        if !root.join(relative).is_file() {
+            return Err(format!("server payload is incomplete (missing {relative})"));
         }
     }
     if !root.is_dir() {
@@ -266,29 +275,36 @@ pub(crate) fn restore_recovery(webview: &tauri::Webview<tauri::Wry>) {
 }
 
 async fn wait_for_sidecar_exit(
+    lifecycle: &crate::lifecycle::SidecarLifecycle,
     pid: u32,
     events: &mut tauri::async_runtime::Receiver<CommandEvent>,
     timeout: Duration,
 ) -> bool {
     let deadline = Instant::now() + timeout;
     loop {
+        if lifecycle.reap_if_stopped(pid) {
+            return true;
+        }
         let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return lifecycle.reap_if_stopped(pid);
+        }
         let event = time::timeout(remaining.min(PROCESS_POLL_INTERVAL), events.recv()).await;
-        if matches!(event, Ok(Some(CommandEvent::Terminated(_)))) {
+        if matches!(event, Ok(Some(CommandEvent::Terminated(_)))) && lifecycle.reap_if_stopped(pid)
+        {
             return true;
         }
         // The plugin reaps before waiting for output readers, so inherited
         // pipes can delay Terminated even though the child is already gone.
         #[cfg(unix)]
-        if !crate::lifecycle::process_alive(pid) {
+        if !crate::lifecycle::process_alive(pid) && lifecycle.reap_if_stopped(pid) {
             return true;
         }
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            return false;
-        }
         if matches!(event, Ok(None)) {
-            time::sleep(remaining.min(PROCESS_POLL_INTERVAL)).await;
+            time::sleep(
+                PROCESS_POLL_INTERVAL.min(deadline.saturating_duration_since(Instant::now())),
+            )
+            .await;
         }
     }
 }
@@ -301,34 +317,32 @@ async fn stop_failed_sidecar(
     grace: Duration,
     kill_timeout: Duration,
 ) -> Result<(), String> {
-    let term_error = lifecycle.terminate(pid).err();
-    if wait_for_sidecar_exit(pid, events, grace).await {
-        lifecycle.exited(pid);
+    let term_error = lifecycle.stop(pid, false).err();
+    if wait_for_sidecar_exit(lifecycle, pid, events, grace).await {
         return Ok(());
     }
     let Some(force_stop) = force_stop else {
-        return Err(format!("Desktop server {pid} did not complete graceful shutdown. Retry remains disabled until it exits."));
+        return Err(format!(
+            "Desktop server {pid} did not complete graceful shutdown. Retry remains disabled until it exits."
+        ));
     };
-    // Use the owned child handle, never a raw SIGKILL against a stale PID.
-    // The shell plugin's independent waiter remains responsible for reaping.
     let kill_error = force_stop().err();
-    if wait_for_sidecar_exit(pid, events, kill_timeout).await {
-        lifecycle.exited(pid);
+    if wait_for_sidecar_exit(lifecycle, pid, events, kill_timeout).await {
         return Ok(());
     }
-    // Signals and closed output are not proof of exit. Keep Retry fenced if
-    // force termination fails or the OS has not completed the reap deadline.
     let detail = kill_error
         .or(term_error)
         .unwrap_or_else(|| "exit was not confirmed".to_owned());
-    Err(format!("Desktop server {pid} could not be stopped: {detail}. Retry remains disabled until it exits."))
+    Err(format!(
+        "Desktop server {pid} could not be stopped: {detail}. Retry remains disabled until it exits."
+    ))
 }
 
 async fn handle_sidecar_failure(
     app: &AppHandle,
     window: &WebviewWindow,
-    child: CommandChild,
-    mut events: tauri::async_runtime::Receiver<CommandEvent>,
+    pid: u32,
+    events: &mut tauri::async_runtime::Receiver<CommandEvent>,
     message: String,
     was_ready: bool,
 ) {
@@ -339,12 +353,11 @@ async fn handle_sidecar_failure(
         &format!("{message}\n\nStopping the previous server…"),
         false,
     );
-    let pid = child.pid();
     let result = stop_failed_sidecar(
         &lifecycle,
         pid,
-        &mut events,
-        (!was_ready).then_some(|| child.kill().map_err(|error| error.to_string())),
+        events,
+        (!was_ready).then_some(|| lifecycle.stop(pid, true)),
         if was_ready {
             SESSION_STOP_GRACE
         } else {
@@ -357,10 +370,42 @@ async fn handle_sidecar_failure(
         show_error(window, &format!("{message}\n\n{error}"), false);
         // Cleanup has reported its bounded failure. Keep observing without
         // signalling again so a late exit can still release Quit and Retry.
-        while !wait_for_sidecar_exit(pid, &mut events, Duration::from_secs(1)).await {}
-        lifecycle.exited(pid);
+        while !wait_for_sidecar_exit(&lifecycle, pid, events, Duration::from_secs(1)).await {}
     }
     show_error(window, &message, true);
+}
+
+/// Pipes are byte streams: JSON can be split across reads, including UTF-8.
+/// An overlong line is discarded through its newline, never parsed as a suffix.
+#[derive(Default)]
+struct ReadyLines {
+    pending: Vec<u8>,
+    discarding: bool,
+}
+
+impl ReadyLines {
+    fn push(&mut self, bytes: &[u8]) -> Vec<ReadyFrame> {
+        let mut frames = Vec::new();
+        for &byte in bytes {
+            if byte == b'\n' {
+                if !self.discarding {
+                    if let Ok(frame) = serde_json::from_slice::<ReadyFrame>(&self.pending) {
+                        frames.push(frame);
+                    }
+                }
+                self.pending.clear();
+                self.discarding = false;
+            } else if !self.discarding {
+                if self.pending.len() == OUTPUT_LIMIT {
+                    self.pending.clear();
+                    self.discarding = true;
+                } else {
+                    self.pending.push(byte);
+                }
+            }
+        }
+        frames
+    }
 }
 
 fn navigate_and_show(
@@ -437,15 +482,50 @@ pub fn start(app: AppHandle) {
                 return;
             }
         };
-        let home = env::var("HOME").unwrap_or_default();
-        let path = env::var("PATH").unwrap_or_default();
         let entrypoint = payload.join("dist-server/server/index.js");
+        let requested_port = desktop_origin.requested_port().to_string();
+        #[cfg(windows)]
+        let mut environment: Vec<(OsString, OsString)> = [
+            ("HOST", "127.0.0.1"),
+            ("SERVER_PORT", requested_port.as_str()),
+            ("NODE_ENV", "production"),
+            ("GJC_DESKTOP", "1"),
+            ("GJC_DESKTOP_API_KEY", &api_key),
+            ("GJC_DESKTOP_BOOTSTRAP_NONCE", &nonce),
+        ]
+        .into_iter()
+        .map(|(key, value)| (key.into(), value.into()))
+        .collect();
+        // Preserve the user's inherited environment and Unicode home directory.
+        let home = app
+            .path()
+            .home_dir()
+            .ok()
+            .map(|path| path.into_os_string())
+            .or_else(|| env::var_os("HOME"))
+            .unwrap_or_default();
+        #[cfg(windows)]
+        environment.push(("HOME".into(), home));
+        let native = payload.join("dist-native");
+        let inherited_path = env::var_os("PATH").unwrap_or_default();
+        let path =
+            env::join_paths(std::iter::once(native).chain(env::split_paths(&inherited_path)));
+        let path = match path {
+            Ok(path) => path,
+            Err(error) => {
+                show_error(&window, &format!("invalid server PATH: {error}"), true);
+                return;
+            }
+        };
+        #[cfg(windows)]
+        environment.push(("PATH".into(), path));
         let command = lifecycle.start(|| {
             reset_desktop_readiness(&app);
             *app.state::<RecoveryScreen>()
                 .0
                 .lock()
                 .expect("recovery screen lock poisoned") = None;
+            #[cfg(unix)]
             let command = app
                 .shell()
                 .sidecar("gajae-app-server")
@@ -463,22 +543,55 @@ pub fn start(app: AppHandle) {
                     .envs(profile.environment())
                     .current_dir(profile.home())
             } else {
-                command.env("HOME", &home).env("PATH", &path)
+                command
+                    .env("HOME", &home)
+                    .env("PATH", &path)
+                    .current_dir(&payload)
             };
-            #[cfg(not(target_os = "macos"))]
-            let command = command.env("HOME", &home).env("PATH", &path);
+            #[cfg(all(unix, not(target_os = "macos")))]
+            let command = command
+                .env("HOME", &home)
+                .env("PATH", &path)
+                .current_dir(&payload);
+            #[cfg(unix)]
             let (events, child) = command
                 .env("HOST", "127.0.0.1")
-                .env("SERVER_PORT", desktop_origin.requested_port().to_string())
+                .env("SERVER_PORT", &requested_port)
                 .env("NODE_ENV", "production")
                 .env("GJC_DESKTOP", "1")
-                .env("GJC_DESKTOP_API_KEY", api_key)
+                .env("GJC_DESKTOP_API_KEY", &api_key)
                 .env("GJC_DESKTOP_BOOTSTRAP_NONCE", &nonce)
+                .set_raw_out(true)
                 .spawn()
                 .map_err(|error| format!("could not start server sidecar: {error}"))?;
-            Ok((child.pid(), (events, child)))
+            #[cfg(unix)]
+            let sidecar_pid = child.pid();
+            #[cfg(unix)]
+            let tracked = crate::lifecycle::Sidecar::unix_owned(child);
+            #[cfg(windows)]
+            let (events, child) = {
+                let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+                let directory = executable
+                    .parent()
+                    .ok_or_else(|| "desktop executable has no directory".to_owned())?;
+                crate::windows_process::spawn(
+                    &directory.join("gajae-app-server.exe"),
+                    &[
+                        "--eval".into(),
+                        include_str!("windows-server-bootstrap.cjs").into(),
+                        entrypoint.into_os_string(),
+                    ],
+                    &payload,
+                    &environment,
+                )?
+            };
+            #[cfg(windows)]
+            let sidecar_pid = child.pid();
+            #[cfg(windows)]
+            let tracked = crate::lifecycle::Sidecar::windows(std::sync::Arc::clone(&child));
+            Ok((tracked, (events, sidecar_pid)))
         });
-        let (mut events, child) = match command {
+        let (mut events, sidecar_pid) = match command {
             Ok(Some(child)) => child,
             Ok(None) => return,
             Err(error) => {
@@ -486,17 +599,17 @@ pub fn start(app: AppHandle) {
                 return;
             }
         };
-        let sidecar_pid = child.pid();
         let deadline = Instant::now() + STARTUP_TIMEOUT;
         let mut output = OutputRing::default();
         let mut ready = false;
+        let mut ready_lines = ReadyLines::default();
         loop {
             if !ready && lifecycle.is_shutting_down() {
                 handle_sidecar_failure(
                     &app,
                     &window,
-                    child,
-                    events,
+                    sidecar_pid,
+                    &mut events,
                     "Desktop server startup was cancelled.".to_owned(),
                     false,
                 )
@@ -512,8 +625,8 @@ pub fn start(app: AppHandle) {
                 handle_sidecar_failure(
                     &app,
                     &window,
-                    child,
-                    events,
+                    sidecar_pid,
+                    &mut events,
                     format!(
                         "Desktop server did not become ready before the startup timeout.\n\n{}",
                         output.text()
@@ -525,18 +638,18 @@ pub fn start(app: AppHandle) {
             }
             // Poll even after readiness: an inherited output pipe can delay
             // the plugin's Terminated event after its waiter reaps the server.
-            #[cfg(unix)]
-            if !crate::lifecycle::process_alive(sidecar_pid) {
+            if lifecycle.reap_if_stopped(sidecar_pid) {
                 reset_desktop_readiness(&app);
-                lifecycle.exited(sidecar_pid);
-                show_error(
-                    &window,
-                    &format!(
-                        "Desktop server exited before its output closed.\n\n{}",
-                        output.text()
-                    ),
-                    true,
-                );
+                if !lifecycle.is_shutting_down() {
+                    show_error(
+                        &window,
+                        &format!(
+                            "Desktop server exited before its output closed.\n\n{}",
+                            output.text()
+                        ),
+                        true,
+                    );
+                }
                 return;
             }
             let event =
@@ -548,8 +661,8 @@ pub fn start(app: AppHandle) {
                 handle_sidecar_failure(
                     &app,
                     &window,
-                    child,
-                    events,
+                    sidecar_pid,
+                    &mut events,
                     format!(
                         "Desktop server output closed unexpectedly.\n\n{}",
                         output.text()
@@ -560,15 +673,13 @@ pub fn start(app: AppHandle) {
                 return;
             };
             match event {
-                CommandEvent::Stdout(line) | CommandEvent::Stderr(line) => {
+                CommandEvent::Stderr(line) => output.push(&line),
+                CommandEvent::Stdout(line) => {
                     output.push(&line);
                     if ready || lifecycle.is_shutting_down() {
                         continue;
                     }
-                    for raw_line in String::from_utf8_lossy(&line).lines() {
-                        let Ok(ready_frame) = serde_json::from_str::<ReadyFrame>(raw_line) else {
-                            continue;
-                        };
+                    for ready_frame in ready_lines.push(&line) {
                         if !ready_frame.matches_sidecar(sidecar_pid) {
                             continue;
                         }
@@ -576,7 +687,16 @@ pub fn start(app: AppHandle) {
                             Ok(()) => {
                                 // Quit can arrive during the health request.
                                 if lifecycle.is_shutting_down() {
-                                    break;
+                                    handle_sidecar_failure(
+                                        &app,
+                                        &window,
+                                        sidecar_pid,
+                                        &mut events,
+                                        "Desktop server startup was cancelled.".to_owned(),
+                                        false,
+                                    )
+                                    .await;
+                                    return;
                                 }
                                 if let Err(error) = desktop_origin
                                     .persist_verified_port(ready_frame.port)
@@ -585,7 +705,12 @@ pub fn start(app: AppHandle) {
                                     })
                                 {
                                     handle_sidecar_failure(
-                                        &app, &window, child, events, error, false,
+                                        &app,
+                                        &window,
+                                        sidecar_pid,
+                                        &mut events,
+                                        error,
+                                        false,
                                     )
                                     .await;
                                     return;
@@ -597,8 +722,8 @@ pub fn start(app: AppHandle) {
                                 handle_sidecar_failure(
                                     &app,
                                     &window,
-                                    child,
-                                    events,
+                                    sidecar_pid,
+                                    &mut events,
                                     format!("Desktop server did not pass identity verification: {error}\n\n{}", output.text()),
                                     false,
                                 ).await;
@@ -610,22 +735,39 @@ pub fn start(app: AppHandle) {
                 CommandEvent::Terminated(status) => {
                     reset_desktop_readiness(&app);
                     lifecycle.exited(sidecar_pid);
-                    show_error(
-                        &window,
-                        &format!(
-                            "Desktop server exited unexpectedly ({status:?}).\n\n{}",
-                            output.text()
-                        ),
-                        true,
-                    );
+                    if lifecycle.has_sidecar() {
+                        handle_sidecar_failure(
+                            &app,
+                            &window,
+                            sidecar_pid,
+                            &mut events,
+                            format!(
+                                "Desktop server exited unexpectedly ({status:?}).\n\n{}",
+                                output.text()
+                            ),
+                            false,
+                        )
+                        .await;
+                        return;
+                    }
+                    if !lifecycle.is_shutting_down() {
+                        show_error(
+                            &window,
+                            &format!(
+                                "Desktop server exited unexpectedly ({status:?}).\n\n{}",
+                                output.text()
+                            ),
+                            true,
+                        );
+                    }
                     return;
                 }
                 CommandEvent::Error(error) => {
                     handle_sidecar_failure(
                         &app,
                         &window,
-                        child,
-                        events,
+                        sidecar_pid,
+                        &mut events,
                         format!("Desktop server failed: {error}\n\n{}", output.text()),
                         ready,
                     )
@@ -820,12 +962,14 @@ mod tests {
         }
 
         #[test]
-        fn hung_startup_is_killed_and_reaped_before_retry_can_spawn() {
+        fn hung_startup_cleanup_keeps_retry_fenced_until_exit() {
             tauri::async_runtime::block_on(async {
                 for send_exit in [true, false] {
                     let lifecycle = SidecarLifecycle::default();
                     let (mut child, mut events) = TestChild::spawn(true, send_exit);
-                    lifecycle.start(|| Ok((child.pid, ()))).unwrap();
+                    lifecycle
+                        .start(|| Ok((crate::lifecycle::Sidecar::unmanaged(child.pid), ())))
+                        .unwrap();
                     let mut stopping = Box::pin(stop_failed_sidecar(
                         &lifecycle,
                         child.pid,
@@ -849,7 +993,12 @@ mod tests {
                     assert_eq!(child.status().signal(), Some(9));
                     assert!(!crate::lifecycle::process_alive(child.pid));
                     let (mut retry, mut retry_events) = TestChild::spawn(false, true);
-                    assert_eq!(lifecycle.start(|| Ok((retry.pid, ()))).unwrap(), Some(()));
+                    assert_eq!(
+                        lifecycle
+                            .start(|| Ok((crate::lifecycle::Sidecar::unmanaged(retry.pid), ())))
+                            .unwrap(),
+                        Some(())
+                    );
                     lifecycle.exited(child.pid);
                     assert!(
                         lifecycle.has_sidecar(),
@@ -859,7 +1008,7 @@ mod tests {
                         &lifecycle,
                         retry.pid,
                         &mut retry_events,
-                        Some(|| panic!("a cooperative child must not be killed")),
+                        Some(|| retry.kill()),
                         Duration::from_secs(2),
                         Duration::from_secs(1),
                     )
@@ -875,7 +1024,9 @@ mod tests {
             tauri::async_runtime::block_on(async {
                 let lifecycle = SidecarLifecycle::default();
                 let (mut child, mut events) = TestChild::spawn(true, true);
-                lifecycle.start(|| Ok((child.pid, ()))).unwrap();
+                lifecycle
+                    .start(|| Ok((crate::lifecycle::Sidecar::unmanaged(child.pid), ())))
+                    .unwrap();
                 assert_eq!(lifecycle.begin_shutdown(), Some(child.pid));
                 assert_eq!(lifecycle.begin_shutdown(), None);
                 assert!(!lifecycle.shutdown_complete());
@@ -903,14 +1054,16 @@ mod tests {
             tauri::async_runtime::block_on(async {
                 let lifecycle = SidecarLifecycle::default();
                 let (mut child, mut events) = TestChild::spawn(true, false);
-                lifecycle.start(|| Ok((child.pid, ()))).unwrap();
+                lifecycle
+                    .start(|| Ok((crate::lifecycle::Sidecar::unmanaged(child.pid), ())))
+                    .unwrap();
                 let error = time::timeout(
                     Duration::from_secs(2),
                     stop_failed_sidecar(
                         &lifecycle,
                         child.pid,
                         &mut events,
-                        Some(|| Err("kill denied".to_owned())),
+                        Some(|| Err("injected kill failure".to_owned())),
                         Duration::from_millis(30),
                         Duration::from_millis(30),
                     ),
@@ -918,7 +1071,7 @@ mod tests {
                 .await
                 .unwrap()
                 .unwrap_err();
-                assert!(error.contains("kill denied"));
+                assert!(error.contains("injected kill failure"));
                 assert!(lifecycle.has_sidecar());
                 assert!(crate::lifecycle::process_alive(child.pid));
                 assert_eq!(
@@ -927,7 +1080,13 @@ mod tests {
                 );
                 child.input.write_all(b"exit\n").unwrap();
                 assert!(
-                    wait_for_sidecar_exit(child.pid, &mut events, Duration::from_secs(2)).await
+                    wait_for_sidecar_exit(
+                        &lifecycle,
+                        child.pid,
+                        &mut events,
+                        Duration::from_secs(2)
+                    )
+                    .await
                 );
                 lifecycle.exited(child.pid);
                 assert!(child.status().success());
@@ -940,7 +1099,9 @@ mod tests {
             tauri::async_runtime::block_on(async {
                 let lifecycle = SidecarLifecycle::default();
                 let (mut child, mut events) = TestChild::spawn(true, true);
-                lifecycle.start(|| Ok((child.pid, ()))).unwrap();
+                lifecycle
+                    .start(|| Ok((crate::lifecycle::Sidecar::unmanaged(child.pid), ())))
+                    .unwrap();
                 let result = stop_failed_sidecar(
                     &lifecycle,
                     child.pid,
@@ -955,12 +1116,88 @@ mod tests {
                 assert!(lifecycle.has_sidecar());
                 child.input.write_all(b"exit\n").unwrap();
                 assert!(
-                    wait_for_sidecar_exit(child.pid, &mut events, Duration::from_secs(2)).await
+                    wait_for_sidecar_exit(
+                        &lifecycle,
+                        child.pid,
+                        &mut events,
+                        Duration::from_secs(2)
+                    )
+                    .await
                 );
                 lifecycle.exited(child.pid);
                 assert!(child.status().success());
             });
         }
+    }
+
+    #[test]
+    fn readiness_reassembles_fragmented_and_coalesced_crlf_frames() {
+        let frame = b"{\"kind\":\"gajae-desktop-ready\",\"pid\":1,\"host\":\"127.0.0.1\",\"port\":1234,\"protocolVersion\":1,\"version\":\"0.2.0\"}\r\n";
+        for split in 0..frame.len() {
+            let mut lines = ReadyLines::default();
+            assert!(lines.push(&frame[..split]).is_empty());
+            let ready = lines.push(&frame[split..]);
+            assert_eq!(ready.len(), 1);
+            assert!(ready[0].matches_sidecar(1));
+        }
+        let mut lines = ReadyLines::default();
+        assert_eq!(
+            lines
+                .push(&[b"ordinary log\n".as_slice(), frame, frame].concat())
+                .len(),
+            2
+        );
+        assert!(lines.push(&vec![b'x'; OUTPUT_LIMIT + 1]).is_empty());
+        assert!(
+            lines.push(frame).is_empty(),
+            "an oversized line must not yield a valid suffix"
+        );
+        assert_eq!(lines.push(frame).len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_startup_cleanup_is_bounded_when_output_closes_and_sigterm_is_ignored() {
+        use std::io::BufRead;
+        use std::process::{Command, Stdio};
+        tauri::async_runtime::block_on(async {
+            let mut child = Command::new("/bin/sh")
+                .args(["-c", "trap '' TERM; printf 'ready\\n'; read line"])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let mut line = String::new();
+            std::io::BufReader::new(child.stdout.take().unwrap())
+                .read_line(&mut line)
+                .unwrap();
+            let pid = child.id();
+            let lifecycle = crate::lifecycle::SidecarLifecycle::default();
+            lifecycle
+                .start(|| Ok((crate::lifecycle::Sidecar::unmanaged(pid), ())))
+                .unwrap();
+            let (sender, mut events) = tauri::async_runtime::channel(1);
+            drop(sender);
+            let cleanup = time::timeout(
+                Duration::from_secs(3),
+                stop_failed_sidecar(
+                    &lifecycle,
+                    pid,
+                    &mut events,
+                    None::<fn() -> Result<(), String>>,
+                    Duration::from_millis(100),
+                    Duration::from_secs(2),
+                ),
+            )
+            .await
+            .expect("closed output must not make cleanup loop forever")
+            .unwrap_err();
+            assert!(cleanup.contains("did not complete graceful shutdown"));
+            child.kill().unwrap();
+            assert!(!child.wait().unwrap().success());
+            lifecycle.exited(pid);
+            assert!(!lifecycle.has_sidecar());
+        });
     }
 
     #[test]

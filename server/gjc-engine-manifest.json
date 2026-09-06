@@ -58,6 +58,7 @@
     "server/gjc-sdk-bridge.test.ts",
     "server/gjc-sdk-client.test.ts",
     "server/gjc-sdk-contract.bun.test.ts",
+    "server/gjc-sdk-fixture-cleanup.ts",
     "server/gjc-sdk-workflow-identity.bun.test.ts",
     "server/gjc-session-state.test.ts",
     "server/gjc-session-worktree-contract.bun.test.ts",

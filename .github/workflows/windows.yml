@@ -1,0 +1,175 @@
+name: Windows desktop
+
+on:
+  push:
+    branches:
+      - main
+      - feat/windows-desktop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compiler:
+    name: Windows compiler preflight
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          architecture: x64
+      - name: Verify native compiler without npm dependencies
+        run: node --experimental-strip-types scripts/release/probe-windows-compiler.mjs
+
+  build:
+    name: Windows x64 NSIS installer
+    needs: compiler
+    runs-on: windows-2022
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          architecture: x64
+          cache: npm
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
+        with:
+          workspaces: |
+            native/gajae-core -> target
+            src-tauri -> target
+          cache-on-failure: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch pinned Bun runtime
+        run: node scripts/fetch-bun.mjs
+
+      - name: Audit dependencies
+        run: npm run audit
+
+      - name: Check source
+        id: source
+        run: |
+          npm run typecheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run lint
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run check:identity
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run check:licenses
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Test Windows build tooling
+        id: packaging
+        run: npm run test:windows -- --scripts-only
+
+      - name: Test Windows runtime
+        id: runtime
+        if: ${{ !cancelled() && steps.source.outcome == 'success' }}
+        run: |
+          npm run build:core:dev
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:windows -- --server-only 2>&1 | Tee-Object -FilePath (Join-Path $env:RUNNER_TEMP 'gajae-runtime-windows.log')
+          exit $LASTEXITCODE
+
+      - name: Upload failed runtime diagnostics
+        if: ${{ !cancelled() && steps.runtime.outcome == 'failure' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-runtime-diagnostics
+          path: ${{ runner.temp }}/gajae-runtime-windows.log
+          retention-days: 7
+
+      - name: Verify Rust core
+        id: core
+        if: ${{ !cancelled() && steps.source.outcome == 'success' }}
+        run: |
+          npm run check:core 2>&1 | Tee-Object -FilePath (Join-Path $env:RUNNER_TEMP 'gajae-core-windows.log')
+          exit $LASTEXITCODE
+
+      - name: Upload failed core diagnostics
+        if: ${{ !cancelled() && steps.core.outcome == 'failure' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-core-diagnostics
+          path: ${{ runner.temp }}/gajae-core-windows.log
+          retention-days: 7
+
+      - name: Build payload and installer
+        id: build
+        # Gather independent Windows failures in one run. A failed core check
+        # still fails the job and prevents the final artifact upload.
+        if: ${{ !cancelled() && steps.source.outcome == 'success' && steps.packaging.outcome == 'success' }}
+        run: npm run desktop:build:windows
+
+      - name: Test desktop lifecycle
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --release --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
+
+      - name: Stage installer and checksum
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        id: installer
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installers = @(Get-ChildItem 'src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe')
+          if ($installers.Count -ne 1) { throw "Expected exactly one NSIS installer, found $($installers.Count)." }
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $assetName = "gajae-app-desktop-$version-windows-x64-setup.exe"
+          New-Item -ItemType Directory -Path release/desktop -Force | Out-Null
+          Copy-Item $installers[0].FullName "release/desktop/$assetName"
+          $digest = (Get-FileHash "release/desktop/$assetName" -Algorithm SHA256).Hash.ToLowerInvariant()
+          [System.IO.File]::WriteAllText("$PWD/release/desktop/$assetName.sha256", "$digest  $assetName`n", [System.Text.UTF8Encoding]::new($false))
+          "WINDOWS_INSTALLER=$($installers[0].FullName)" >> $env:GITHUB_ENV
+
+      - name: Verify installed payload
+        if: ${{ !cancelled() && steps.installer.outcome == 'success' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installDir = Join-Path $env:RUNNER_TEMP 'Gajae Windows QA 가재'
+          $installer = Start-Process -FilePath $env:WINDOWS_INSTALLER -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
+          if ($installer.ExitCode -ne 0) { throw "NSIS install failed: $($installer.ExitCode)" }
+          $sidecar = Join-Path $installDir 'gajae-app-server.exe'
+          $payload = Join-Path $installDir 'resources/server-payload'
+          if (!(Test-Path $sidecar)) { throw 'Installed Node sidecar is missing.' }
+          if (!(Test-Path $payload)) { $payload = Join-Path $installDir 'server-payload' }
+          node scripts/release/smoke-windows-server.mjs --payload $payload --node $sidecar
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Windows preview installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gajae-app-desktop-windows-x64
+          path: |
+            release/desktop/*-windows-x64-setup.exe
+            release/desktop/*-windows-x64-setup.exe.sha256
+          if-no-files-found: error
+          retention-days: 14

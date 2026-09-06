@@ -1975,6 +1975,7 @@ mod tests {
                 .execute("INSERT INTO job_events VALUES('j',2,'e','{}')", [])
                 .is_err()
         );
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -1986,10 +1987,10 @@ mod tests {
         a.prepare(
             "job",
             &lease,
-            "/tmp/job-worktree",
+            d.join("job-worktree").to_str().unwrap(),
             "job/job",
             "base",
-            "/tmp/repository",
+            d.join("repository").to_str().unwrap(),
         )
         .unwrap();
         a.admit("job", &lease, "run-1", "session").unwrap();
@@ -2018,6 +2019,7 @@ mod tests {
                 .unwrap(),
             event
         );
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2037,6 +2039,7 @@ mod tests {
             );
             assert_eq!(a.snapshot(id).unwrap().last_sequence, 0);
         }
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2073,6 +2076,7 @@ mod tests {
                 .events
                 .is_empty()
         );
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2110,6 +2114,7 @@ mod tests {
             .unwrap();
         assert_eq!(snapshot.state, JobState::Succeeded);
         assert_eq!(snapshot.lease, None);
+        drop(authority);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2148,6 +2153,7 @@ mod tests {
             Err(AuthorityError::StaleLease)
         );
         assert_eq!(a.snapshot("j").unwrap().lease, Some(new_lease));
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
 
@@ -2163,6 +2169,7 @@ mod tests {
         let r = a.replay("j", 0, 1, "test").unwrap();
         assert_eq!(r.events.len(), 1);
         assert_eq!(r.next_cursor, Some(1));
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2280,6 +2287,7 @@ mod tests {
             a.append_event("run", &l, "stale", json!(1)),
             Err(AuthorityError::StaleLease)
         );
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2380,6 +2388,7 @@ mod tests {
                 .len(),
             5
         );
+        drop(authority);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2486,6 +2495,7 @@ mod tests {
             a.reserve_start("empty", "p", "app", "owner", Some("   "), 1),
             Err(AuthorityError::InvalidIdentifier)
         );
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2509,6 +2519,7 @@ mod tests {
                 .prompt,
             None
         );
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2610,6 +2621,7 @@ mod tests {
             })
             .unwrap();
         assert_eq!(archived_at, None);
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2688,6 +2700,7 @@ mod tests {
             c.query_row("SELECT archived_at FROM jobs LIMIT 1", [], |_| Ok(()))
                 .is_err()
         );
+        drop(c);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2749,6 +2762,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(normalized_count, 0);
+        drop(c);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2773,6 +2787,7 @@ mod tests {
                 .get::<_, String>(0))
                 .is_ok()
         );
+        drop(c);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2809,6 +2824,7 @@ mod tests {
                 )
                 .is_err()
             );
+            drop(c);
             std::fs::remove_dir_all(d).unwrap();
         }
     }
@@ -2859,6 +2875,7 @@ mod tests {
             c.query_row("SELECT base_commit FROM jobs LIMIT 1", [], |_| Ok(()))
                 .is_err()
         );
+        drop(c);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2878,12 +2895,33 @@ mod tests {
         assert_eq!(reserved.state, JobState::Reserved);
         let lease = reserved.lease.unwrap();
 
-        a.prepare("wait", &lease, "/tmp/tree", "job/wait", "base", "/tmp")
-            .unwrap();
-        a.prepare("wait", &lease, "/tmp/tree", "job/wait", "base", "/tmp")
-            .unwrap();
+        a.prepare(
+            "wait",
+            &lease,
+            d.join("tree").to_str().unwrap(),
+            "job/wait",
+            "base",
+            d.to_str().unwrap(),
+        )
+        .unwrap();
+        a.prepare(
+            "wait",
+            &lease,
+            d.join("tree").to_str().unwrap(),
+            "job/wait",
+            "base",
+            d.to_str().unwrap(),
+        )
+        .unwrap();
         assert_eq!(
-            a.prepare("wait", &lease, "/tmp/other", "job/wait", "base", "/tmp"),
+            a.prepare(
+                "wait",
+                &lease,
+                d.join("other").to_str().unwrap(),
+                "job/wait",
+                "base",
+                d.to_str().unwrap()
+            ),
             Err(AuthorityError::WorktreeConflict)
         );
         let admitted = a.admit("wait", &lease, "run", "app").unwrap();
@@ -2919,10 +2957,10 @@ mod tests {
         a.prepare(
             "prepared",
             &prepared_lease,
-            "/tmp/prepared-tree",
+            d.join("prepared-tree").to_str().unwrap(),
             "job/prepared",
             "base",
-            "/tmp",
+            d.to_str().unwrap(),
         )
         .unwrap();
         a.reserve("queued", "p", "o", 64).unwrap();
@@ -2930,10 +2968,10 @@ mod tests {
         a.prepare(
             "queued",
             &queued_lease,
-            "/tmp/queued-tree",
+            d.join("queued-tree").to_str().unwrap(),
             "job/queued",
             "base",
-            "/tmp",
+            d.to_str().unwrap(),
         )
         .unwrap();
         a.admit("queued", &queued_lease, "queued-run", "queued-app")
@@ -2944,9 +2982,12 @@ mod tests {
         assert_eq!(a.snapshot("bare").unwrap().state, JobState::Interrupted);
         let prepared = a.snapshot("prepared").unwrap();
         assert_eq!(prepared.state, JobState::Interrupted);
-        assert_eq!(prepared.worktree_id.as_deref(), Some("/tmp/prepared-tree"));
+        assert_eq!(
+            prepared.worktree_id.as_deref(),
+            d.join("prepared-tree").to_str()
+        );
         assert_eq!(prepared.base_commit.as_deref(), Some("base"));
-        assert_eq!(prepared.repository_root.as_deref(), Some("/tmp"));
+        assert_eq!(prepared.repository_root.as_deref(), d.to_str());
         assert_eq!(a.snapshot("queued").unwrap().state, JobState::Interrupted);
 
         let readmitted = a
@@ -2960,6 +3001,7 @@ mod tests {
                 .unwrap(),
             2
         );
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -3017,10 +3059,10 @@ mod tests {
         a.prepare(
             "replacement",
             &queued_lease,
-            "/canonical/worktree",
+            d.join("worktree").to_str().unwrap(),
             "job/replacement",
             "base",
-            "/canonical",
+            d.to_str().unwrap(),
         )
         .unwrap();
         a.admit("replacement", &queued_lease, "run", "app").unwrap();
@@ -3037,6 +3079,7 @@ mod tests {
             .state,
             JobState::Failed
         );
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
 
@@ -3049,10 +3092,10 @@ mod tests {
         a.prepare(
             "j",
             &lease,
-            "/canonical/worktree",
+            d.join("worktree").to_str().unwrap(),
             "job/j",
             "base",
-            "/canonical",
+            d.to_str().unwrap(),
         )
         .unwrap();
         a.admit("j", &lease, "run", "app").unwrap();
@@ -3067,6 +3110,7 @@ mod tests {
             a.cancel_admission("j", &lease, "cancel-terminal", json!(null), None),
             Err(AuthorityError::StaleLease)
         );
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -3076,16 +3120,23 @@ mod tests {
         a.reserve("j", "gjc", "o", 4).unwrap();
         let lease = a.snapshot("j").unwrap().lease.unwrap();
         assert_eq!(
-            a.prepare("j", &lease, "relative", "job/j", "base", "/canonical"),
+            a.prepare(
+                "j",
+                &lease,
+                "relative",
+                "job/j",
+                "base",
+                d.to_str().unwrap()
+            ),
             Err(AuthorityError::InvalidIdentifier)
         );
         a.prepare(
             "j",
             &lease,
-            "/canonical/worktree",
+            d.join("worktree").to_str().unwrap(),
             "job/j",
             "base",
-            "/canonical",
+            d.to_str().unwrap(),
         )
         .unwrap();
         let admitted = a.admit("j", &lease, "r", "app").unwrap();
@@ -3115,6 +3166,7 @@ mod tests {
                 .provider_session_id,
             Some("provider".to_owned())
         );
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
 
@@ -3146,6 +3198,7 @@ mod tests {
             .len(),
             0
         );
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
 
@@ -3163,10 +3216,10 @@ mod tests {
         a.prepare(
             "j",
             &lease,
-            "/canonical/worktree",
+            d.join("worktree").to_str().unwrap(),
             "job/j",
             "base",
-            "/canonical",
+            d.to_str().unwrap(),
         )
         .unwrap();
         a.admit("j", &lease, "r1", "app").unwrap();
@@ -3196,17 +3249,25 @@ mod tests {
         );
         a.release_binding("j").unwrap();
         assert_eq!(a.resolve_binding("p", "app"), Err(AuthorityError::NotFound));
+        drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
 
-    fn admit_test_run(authority: &mut PersistentAuthority) -> Lease {
+    fn admit_test_run(authority: &mut PersistentAuthority, root: &Path) -> Lease {
         let lease = authority
             .reserve_start("j", "p", "app", "owner", None, 4)
             .unwrap()
             .lease
             .unwrap();
         authority
-            .prepare("j", &lease, "/tmp/tree", "job/j", "base", "/tmp")
+            .prepare(
+                "j",
+                &lease,
+                root.join("tree").to_str().unwrap(),
+                "job/j",
+                "base",
+                root.to_str().unwrap(),
+            )
             .unwrap();
         authority.admit("j", &lease, "r1", "app").unwrap();
         authority
@@ -3219,7 +3280,7 @@ mod tests {
     fn a_readmitted_lease_cannot_mutate_the_previous_run() {
         let (d, p) = db();
         let mut a = PersistentAuthority::open(&p).unwrap();
-        let old_lease = admit_test_run(&mut a);
+        let old_lease = admit_test_run(&mut a, &d);
         a.transition("j", &old_lease, JobState::Interrupted)
             .unwrap();
         let current = a.readmit("j", "next-owner", "r2", "app", 4).unwrap();
@@ -3278,7 +3339,7 @@ mod tests {
     fn event_retries_cannot_reassign_history_to_another_run() {
         let (d, p) = db();
         let mut a = PersistentAuthority::open(&p).unwrap();
-        let lease = admit_test_run(&mut a);
+        let lease = admit_test_run(&mut a, &d);
         let event = a
             .append_event_for_run("j", &lease, "r1", "shared-event", json!(1))
             .unwrap();

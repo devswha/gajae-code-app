@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, realpath, rm, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { mkdir, mkdtemp, realpath, readFile, writeFile } from 'node:fs/promises';
+import { delimiter, dirname, join } from 'node:path';
 import { test } from 'node:test';
 
 import { createAgentSession, discoverAuthStorage, type CreateAgentSessionOptions } from '@gajae-code/coding-agent/sdk/session';
@@ -29,6 +29,7 @@ import { installGjcCliShim } from './gjc-cli-shim.js';
 import { GJC_CLEANUP_UNCONFIRMED_CODE, isGjcCleanupUnconfirmedError } from './gjc-cleanup-error.js';
 import { GjcWorkerHost } from './gjc-worker.js';
 import { GJC_WORKER_PROTOCOL_VERSION, type GjcWorkerRequestFrame } from './gjc-worker-protocol.js';
+import { removeSdkFixture } from './gjc-sdk-fixture-cleanup.js';
 
 type Session = Awaited<ReturnType<typeof createAgentSession>>['session'];
 type Snapshot = { id: string; status: string; resultText: string };
@@ -144,6 +145,7 @@ async function fixture(
       execute: async () => ({ content: [{ type: 'text', text: 'app-override-canary' }] }),
     }],
     enableMcpAutoload: false, enableLsp: false, skipPythonPreflight: true, disableExtensionDiscovery: true,
+    sdkHostModeSupported: false,
     skills: [], rules: [], contextFiles: [], promptTemplates: [], slashCommands: [],
     systemPrompt: ['Offline SDK delegation contract.'],
   };
@@ -177,11 +179,31 @@ async function fixture(
   return { ...current, base, root, calls, children, childInputs, createParent, authStorage, registry, settings, credential, transportErrors,
     browserCalls: () => browserCalls,
     async close() {
-      await Promise.all(executors.map((executor) => executor.dispose()));
-      for (const session of allRoots) await session.dispose();
-      await registry.dispose(); authStorage.close(); await settings.close();
-      unregisterCustomApis(root);
-      await rm(root, { recursive: true, force: true });
+      const errors: unknown[] = [];
+      for (const result of await Promise.allSettled(executors.map((executor) => executor.dispose()))) {
+        if (result.status === 'rejected') errors.push(result.reason);
+      }
+      let sessionsDisposed = true;
+      for (const session of new Set([...allRoots, ...children])) {
+        try { await session.dispose(); }
+        catch (error) { sessionsDisposed = false; errors.push(error); }
+      }
+      // A rejected public deadline can leave SDK teardown running. Keep its
+      // shared stores and root intact; the failed test must not race that owner.
+      if (!sessionsDisposed) {
+        throw new AggregateError(errors, `SDK session disposal unconfirmed; retained fixture root: ${root}`);
+      }
+      for (const cleanup of [
+        () => registry.dispose(),
+        () => authStorage.close(),
+        () => settings.close(),
+        () => unregisterCustomApis(root),
+        () => removeSdkFixture(root),
+      ]) {
+        try { await cleanup(); }
+        catch (error) { errors.push(error); }
+      }
+      if (errors.length) throw new AggregateError(errors, 'SDK delegation fixture cleanup failed.');
     },
   };
 }
@@ -216,6 +238,7 @@ test('real SDK children retain parent permissions, exact Astra identity and app-
       : { outcome: 'selected', optionId: 'reject_once', kind: 'reject_once' };
   });
   try {
+    f.base.sdkHostModeSupported = true;
     f.parent.settings.override('task.agentModelOverrides', { executor: 'unavailable/unsafe' });
     await assert.rejects(f.parent.getToolForExecution('bash')!.execute('parent-denied', { command: 'printf delegation-bypass-canary' }), /rejected/);
     const [started] = await tool(f.parent, 'task', task());
@@ -231,11 +254,147 @@ test('real SDK children retain parent permissions, exact Astra identity and app-
     assert.ok(results.some((message) => !message.isError && JSON.stringify(message.content).includes('app-override-canary')));
     assert.equal(f.childInputs[0]!.automationTools, f.base.automationTools);
     assert.equal(f.childInputs[0]!.spawns, 'deny');
+    assert.equal(f.childInputs[0]!.sdkHostModeSupported, false, 'app-owned children never expose a second SDK control endpoint');
     assert.ok(!f.childInputs[0]!.toolNames!.includes('task'));
     assert.equal(f.children[0]!.sessionManager.getSessionId(), f.children[0]!.agent.sessionId);
     assert.notEqual(f.children[0]!.credentialSessionId, f.parent.credentialSessionId);
     assert.equal(f.children[0]!.isDisposed, true);
   } finally { await f.close(); }
+});
+
+test('delegated model selection overrides only the child runtime role', { timeout: 30_000 }, async () => {
+  const f = await fixture();
+  const roles = {
+    default: 'openai-codex/gpt-6-parent',
+    planner: 'openai-codex/gpt-6-astra',
+  };
+  const configPath = join(f.root, 'agent', 'config.yml');
+  try {
+    f.settings.set('modelRoles', roles);
+    await f.settings.flushOrThrow();
+    const before = await readFile(configPath);
+    const [started] = await tool(f.parent, 'task', task());
+    const [settled] = await tool(f.parent, 'subagent', { action: 'await', id: started!.id });
+    assert.equal(settled!.status, 'completed', JSON.stringify(settled));
+    assert.equal(f.children[0]!.settings.getModelRole('default'), 'openai-codex/gpt-6-astra');
+    assert.equal(f.children[0]!.settings.getModelRole('planner'), roles.planner);
+    assert.equal(f.children[0]!.model?.provider, 'openai-codex');
+    assert.equal(f.children[0]!.model?.id, 'gpt-6-astra');
+    assert.equal(f.children[0]!.thinkingLevel, 'xhigh');
+    assert.equal(f.parent.settings.getModelRole('default'), roles.default);
+    assert.deepEqual(f.settings.getGlobal('modelRoles'), roles);
+    assert.deepEqual(await readFile(configPath), before);
+  } finally { await f.close(); }
+});
+
+test('delegated settings flush completes before the child becomes reusable', { timeout: 30_000 }, async () => {
+  const entered = deferred();
+  const release = deferred();
+  let childSettings: Settings | undefined;
+  let originalFlush: (() => Promise<void>) | undefined;
+  let flushes = 0;
+  const f = await fixture(undefined, undefined, (options) => {
+    const settings = options.settings;
+    assert.ok(settings);
+    childSettings = settings;
+    originalFlush = settings.flushOrThrow.bind(settings);
+    settings.flushOrThrow = async () => {
+      flushes += 1;
+      entered.resolve();
+      await release.promise;
+      await originalFlush!();
+    };
+    return options;
+  });
+  try {
+    const [started] = await tool(f.parent, 'task', task());
+    const awaiting = tool(f.parent, 'subagent', { action: 'await', id: started!.id });
+    await entered.promise;
+    let settled = false;
+    void awaiting.then(() => { settled = true; });
+    await Promise.resolve();
+    assert.equal(settled, false);
+    release.resolve();
+    const [snapshot] = await awaiting;
+    assert.equal(snapshot!.status, 'completed', JSON.stringify(snapshot));
+    assert.equal(flushes, 1);
+  } finally {
+    release.resolve();
+    if (childSettings && originalFlush) childSettings.flushOrThrow = originalFlush;
+    await f.close();
+  }
+});
+
+test('fixture retains shared stores and root until session disposal is confirmed', { timeout: 30_000 }, async () => {
+  const f = await fixture();
+  const originalDispose = f.parent.dispose.bind(f.parent);
+  const failure = new Error('Fixture session disposal is unconfirmed.');
+  const closed: string[] = [];
+  const disposeRegistry = f.registry.dispose.bind(f.registry);
+  const closeAuth = f.authStorage.close.bind(f.authStorage);
+  const closeSettings = f.settings.close.bind(f.settings);
+  f.registry.dispose = async () => { closed.push('registry'); await disposeRegistry(); };
+  f.authStorage.close = () => { closed.push('auth'); return closeAuth(); };
+  f.settings.close = async () => { closed.push('settings'); await closeSettings(); };
+  f.parent.dispose = async () => { throw failure; };
+  try {
+    await assert.rejects(f.close(), (error: unknown) => error instanceof AggregateError
+      && error.errors.includes(failure)
+      && error.message.includes(f.root));
+    assert.deepEqual(closed, []);
+    assert.equal(await realpath(f.root), f.root);
+  } finally {
+    f.parent.dispose = originalDispose;
+    await f.close();
+  }
+  assert.deepEqual(closed, ['registry', 'auth', 'settings']);
+  await assert.rejects(realpath(f.root), { code: 'ENOENT' });
+});
+
+test('delegated SDK creation failure flushes and closes the unowned child scope', { timeout: 30_000 }, async () => {
+  let flushes = 0;
+  const f = await fixture(undefined, undefined, async (options) => {
+    const settings = options.settings;
+    assert.ok(settings);
+    const originalFlush = settings.flushOrThrow.bind(settings);
+    settings.flushOrThrow = async () => {
+      flushes += 1;
+      await originalFlush();
+    };
+    throw new Error('SDK child creation failed');
+  });
+  try {
+    const [started] = await tool(f.parent, 'task', task());
+    const [failed] = await tool(f.parent, 'subagent', { action: 'await', id: started!.id });
+    assert.equal(failed!.status, 'failed', JSON.stringify(failed));
+    assert.equal(flushes, 1);
+  } finally { await f.close(); }
+});
+
+test('delegated settings flush failure fences executor reuse', { timeout: 30_000 }, async () => {
+  let childSettings: Settings | undefined;
+  let originalFlush: (() => Promise<void>) | undefined;
+  const f = await fixture(undefined, undefined, (options) => {
+    const settings = options.settings;
+    assert.ok(settings);
+    childSettings = settings;
+    originalFlush = settings.flushOrThrow.bind(settings);
+    settings.flushOrThrow = async () => { throw new Error('settings flush failure'); };
+    return options;
+  });
+  try {
+    const [started] = await tool(f.parent, 'task', task());
+    const [failed] = await tool(f.parent, 'subagent', { action: 'await', id: started!.id });
+    assert.equal(failed!.status, 'failed', JSON.stringify(failed));
+    await assert.rejects(f.executor.dispose(), /cleanup failed/);
+    await assert.rejects(tool(f.parent, 'task', task()), /App delegation cancelled/);
+  } finally {
+    if (childSettings && originalFlush) childSettings.flushOrThrow = originalFlush;
+    await assert.rejects(f.close(), (error: unknown) => error instanceof AggregateError
+      && error.errors.length === 1
+      && error.errors[0] instanceof Error
+      && error.errors[0].message === 'App delegation cleanup failed.');
+  }
 });
 
 test('saved children resume only under their owning parent with freshly applied policy', { timeout: 30_000 }, async () => {
@@ -969,7 +1128,7 @@ test('native Ralplan consumes app-owned role artifacts and resumed review lanes 
   try {
     const cwd = f.base.cwd!;
     await writeFile(join(cwd, 'requirements.md'), 'Invariant: deny remains denied. Verification: test the child policy.\n');
-    const environment = { ...process.env };
+    const environment = { ...process.env, PATH: process.env.PATH ?? '' };
     assert.ok(installGjcCliShim({ env: environment, homeDir: f.root, bunPath: process.execPath }));
     toolPath = environment.PATH!;
     const owner = f.parent.sessionManager.getSessionId();
@@ -1062,7 +1221,7 @@ test('delegated ask cannot escape the owner Ultragoal guard through a distinct c
       execute: async () => { asks += 1; return { content: [{ type: 'text', text: 'User question reached.' }] }; },
     });
     const { parent } = await f.createParent();
-    const environment = { ...process.env };
+    const environment = { ...process.env, PATH: process.env.PATH ?? '' };
     assert.ok(installGjcCliShim({ env: environment, homeDir: f.root, bunPath: process.execPath }));
     const created = jsonOutput(await nativeBash(parent, 'gjc ultragoal create-goals --brief "Keep work in the owner workflow" --json',
       { PATH: environment.PATH! }));
@@ -1156,9 +1315,9 @@ test('native Ultragoal validates independently produced app-lane evidence and cr
     f.base.toolNames!.push('write');
     const { parent } = await f.createParent();
     const owner = parent.sessionManager.getSessionId();
-    const environment = { ...process.env };
+    const environment = { ...process.env, PATH: process.env.PATH ?? '' };
     assert.ok(installGjcCliShim({ env: environment, homeDir: f.root, bunPath: process.execPath }));
-    toolPath = `${dirname(process.execPath)}:${environment.PATH!}`;
+    toolPath = `${dirname(process.execPath)}${delimiter}${environment.PATH!}`;
     const env = { PATH: toolPath };
     const create = jsonOutput(await nativeBash(parent, 'gjc ultragoal create-goals --brief "Verify the accepted fixture CLI output contract" --json', env));
     assert.equal(create.ok, true);
@@ -1293,7 +1452,7 @@ test('final Codex provider tool schema permits default Planner work and nullable
         executionMode: 'default', repositoryBinding: binding }] });
     const [boundSettled] = await tool(f.parent, 'subagent', { action: 'await', id: bound!.id });
     assert.equal(boundSettled!.status, 'completed');
-    assert.ok(f.calls[2]!.context.systemPrompt?.some((block) => block.includes(binding.worktreeRoot)));
+    assert.ok(f.calls[2]!.context.systemPrompt?.some((block) => block.includes(JSON.stringify(binding.worktreeRoot))));
     await assert.rejects(tool(f.parent, 'task', { agent: 'planner', tasks: [{ ...task().tasks[0], executionMode: 'ultragoal-red-team' }] }),
       /Red-team execution mode requires the executor role/);
     assert.equal(f.childInputs.length, 3, 'invalid red-team mode must not create another child');

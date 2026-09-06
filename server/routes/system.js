@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, win32 } from 'node:path';
 
 import express from 'express';
 
@@ -9,26 +9,45 @@ import { sessionsDb } from '../modules/database/repositories/sessions.db.js';
 
 const PLATFORM_OPENERS = {
   darwin: { command: 'open', args: (target) => [target] },
-  win32: { command: 'cmd', args: (target) => ['/c', 'start', '', target] },
   linux: { command: 'xdg-open', args: (target) => [target] },
 };
 
-function defaultOpener(target) {
-  const opener = PLATFORM_OPENERS[process.platform] ?? PLATFORM_OPENERS.linux;
-  return new Promise((resolve, reject) => {
-    execFile(opener.command, opener.args(target), (error) => {
-      if (error) reject(error);
-      else resolve();
+export function createSystemOpener({ platform = process.platform, env = process.env, execute = execFile } = {}) {
+  return (target) => {
+    const opener = PLATFORM_OPENERS[platform] ?? PLATFORM_OPENERS.linux;
+    let command = opener.command;
+    let args = opener.args(target);
+    if (platform === 'win32') {
+      const rootKey = Object.keys(env).find((key) => key.toLowerCase() === 'systemroot');
+      command = win32.join(env[rootKey] || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+      // cmd/start reinterprets &, %, quotes and other metacharacters in targets.
+      // ShellExecute opens the association directly. Encode the target as data,
+      // including Unicode quotes that PowerShell otherwise treats as delimiters.
+      const encodedTarget = Buffer.from(target, 'utf8').toString('base64');
+      const script = [
+        "$ErrorActionPreference = 'Stop'",
+        '$info = New-Object System.Diagnostics.ProcessStartInfo',
+        `$info.FileName = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodedTarget}'))`,
+        '$info.UseShellExecute = $true',
+        '[void][System.Diagnostics.Process]::Start($info)',
+      ].join('; ');
+      args = ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')];
+    }
+    return new Promise((resolve, reject) => {
+      execute(command, args, { windowsHide: true, shell: false }, (error) => {
+        if (error) reject(error);
+        else resolve();
+      });
     });
-  });
+  };
 }
 
-export function createSystemRouter({ opener = defaultOpener } = {}) {
+export function createSystemRouter({ opener = createSystemOpener() } = {}) {
   const router = express.Router();
 
   router.post('/open-file', async (req, res) => {
     const target = req.body?.path;
-    if (typeof target !== 'string' || !isAbsolute(target)) {
+    if (typeof target !== 'string' || target.includes('\0') || !isAbsolute(target)) {
       return res.status(400).json({ error: 'An absolute path is required.' });
     }
 

@@ -1,7 +1,13 @@
 # GJC live provider specification
 
 Status: Production Bun SDK worker, native host/watcher, durable jobs, and native
-PTY slices implemented (updated 2026-09-01)
+PTY slices implemented (updated 2026-09-06)
+
+The current source release pins GJC SDK `0.16.4` and Bun `1.4.0` in
+`server/gjc-runtime-manifest.json`; packaged workers must continue to match
+that manifest. The Windows x64 implementation remains a preview path, with
+native CI and interactive acceptance tracked separately in
+`docs/WINDOWS-DESKTOP.md`.
 
 GJC is the only provider routed through an isolated provider worker. Claude,
 Codex, Cursor, and OpenCode retain their existing execution paths.
@@ -128,6 +134,18 @@ terminal behavior remain unchanged.
 The worker does not own or mutate application database, browser WebSocket,
 replay, or notification state.
 
+Root and delegated SDK sessions set `sdkHostModeSupported: false`: the private
+worker protocol is the app's control endpoint, not the SDK's detached broker.
+Workflow identity, file-based resume and in-process async ownership remain active.
+
+Each run owns its Settings clone's pending writes, but not the shared parent
+storage. Teardown awaits `flushOrThrow()` after the final session writer stops;
+failure fences the worker instead of publishing completion or permitting reuse.
+Delegated model selection uses runtime-only `overrideModelRoles`, preserving
+other roles and the user's global model configuration. Failed SDK construction
+also drains the clone and closes its caller-owned SessionManager; after successful
+construction, the SDK session owns that manager.
+
 ### Identity model
 
 Three IDs are intentionally separate:
@@ -219,12 +237,15 @@ method or frame changes; the policy travels inside existing payloads:
 ## Process and terminal lifecycle
 
 - On POSIX (Linux and macOS), the application starts the Rust core as a detached
-  process-group leader. The Node worker and GJC children inherit that group;
+  process-group leader. The Bun worker and GJC children inherit that group;
   reaping requires direct-child close and process-group `ESRCH`.
-- Windows is a v2 non-target and runtime-frozen per this brief: CI and a
-  verified desktop machine are unavailable. No `taskkill /T /F` fallback is
-  part of the v2 contract. Windows cleanup is fail-closed as `unconfirmed`, so
-  it cannot release a lease or admit a replacement generation.
+- The Windows x64 preview extends this contract with an atomic Job Object
+  guard. Each worker generation owns a named kill-on-close job; cleanup must
+  verify guard exit and independently verify that the owned job is empty.
+  An unowned child or failed reap still blocks lease release and replacement.
+  The Tauri shell separately owns the complete server tree in an unnamed job
+  and requests graceful shutdown through its private stdin bootstrap. Native
+  CI and desktop acceptance are tracked in `docs/WINDOWS-DESKTOP.md`.
 - `worker.initialize` covers the whole SDK bootstrap (runtime manifest check,
   model registry build, online model discovery), which takes several seconds on
   a loaded machine. The application bounds it at 60 s

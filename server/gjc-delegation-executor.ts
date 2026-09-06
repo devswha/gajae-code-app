@@ -72,6 +72,7 @@ type Job = {
   owner: Owner;
   controller: AbortController;
   session?: Session;
+  manager?: SessionManager;
   abortTask?: Promise<void>;
   done: Promise<void>;
   settled: boolean;
@@ -312,6 +313,7 @@ export class GjcDelegationExecutor {
 
   async #run(job: Job, message: string, resume: boolean): Promise<void> {
     let unsubscribe: (() => void) | undefined;
+    let settings: Awaited<ReturnType<Session['settings']['cloneForCwd']>> | undefined;
     const timeout = setTimeout(() => { void this.#cancel(job.receipt.id).catch(() => {}); }, GJC_DELEGATION_LIMITS.runtimeMs);
     try {
       this.#checkOwner(job.owner, job.controller.signal);
@@ -332,7 +334,7 @@ export class GjcDelegationExecutor {
         ? { kind: 'id' as const, value: String(selectedRow) }
         : authStorage?.hasSessionCredentialAuto(model.provider, parent.credentialSessionId)
           ? undefined : base.credentialSelector?.selector);
-      const settings = await parent.settings.cloneForCwd(parent.sessionManager.getCwd());
+      settings = await parent.settings.cloneForCwd(parent.sessionManager.getCwd());
       // Delegated work never starts independent goal loops or background model roles.
       settings.override('goal.enabled', false);
       settings.override('memory.enabled', false);
@@ -342,7 +344,10 @@ export class GjcDelegationExecutor {
       settings.override('mcp.enableProjectConfig', false);
       settings.override('astEdit.enabled', false);
       settings.override('task.eager', false);
-      settings.setModelRole('default', `${model.provider}/${model.id}`);
+      // Delegation pins the child's default role for this run only. Updating
+      // the global role here would enqueue a debounced config.yml write even
+      // though the child is not allowed to change the user's model defaults.
+      settings.overrideModelRoles({ default: `${model.provider}/${model.id}` });
       const directory = join(this.options.parent.getSessionDir(), '.app-delegation', job.receipt.root, job.receipt.owner);
       let manager: SessionManager;
       if (resume) {
@@ -353,11 +358,13 @@ export class GjcDelegationExecutor {
         const contained = relative(canonicalRoot, canonicalFile);
         if (contained.startsWith(`..${sep}`) || contained === '..' || resolve(canonicalFile) !== file) throw new Error('Invalid child transcript.');
         manager = await SessionManager.open(file, directory);
+        job.manager = manager;
         if (manager.getSessionId() !== job.receipt.childSessionId || manager.getCwd() !== parent.sessionManager.getCwd()) {
           throw new Error('Child transcript identity mismatch.');
         }
       } else {
         manager = SessionManager.create(parent.sessionManager.getCwd(), directory);
+        job.manager = manager;
         job.receipt.childSessionId = manager.getSessionId();
         job.receipt.file = basename(manager.getSessionFile()!);
       }
@@ -417,6 +424,7 @@ export class GjcDelegationExecutor {
         toolNames: allowed.filter((name) => !GJC_APP_DELEGATION_TOOL_NAMES.includes(name as 'task' | 'subagent')),
         customTools, spawns: 'deny', taskDepth: childOwner.depth, currentAgentType: job.receipt.agent,
         enableMcpAutoload: false, disableExtensionDiscovery: true,
+        sdkHostModeSupported: false,
         extensions: [enforceAllowlist], additionalExtensionPaths: [], hookPaths: [], preloadedExtensions: undefined,
         discoverableToolAllowedNames: [], requireYieldTool: false, outputSchema: undefined,
         goalToolAllowedOps: [], masterModeContext: undefined,
@@ -428,6 +436,8 @@ export class GjcDelegationExecutor {
           'Use only the supplied tools. Return final text directly; yield and IRC are unavailable. Goal lifecycle remains owned by the root app session.'],
       });
       job.session = output.session;
+      // AgentSession now owns this manager and closes it with the session.
+      job.manager = undefined;
       this.#checkOwner(job.owner, job.controller.signal);
       checkSignal(job.controller.signal);
       checkSignal(this.#closed.signal);
@@ -474,7 +484,14 @@ export class GjcDelegationExecutor {
         }
         try { await job.session.dispose(); }
         catch { this.#cleanupFailed = true; job.receipt.status = 'failed'; job.receipt.resultText = 'Delegated session cleanup failed.'; }
+      } else if (job.manager) {
+        try { await job.manager.close(); }
+        catch { this.#cleanupFailed = true; job.receipt.status = 'failed'; job.receipt.resultText = 'Delegated session cleanup failed.'; }
       }
+      // Settings clones share the parent's storage but own their pending-save
+      // queue; drain the clone after the child session's final writer.
+      try { await settings?.flushOrThrow(); }
+      catch { this.#cleanupFailed = true; job.receipt.status = 'failed'; job.receipt.resultText = 'Delegated session cleanup failed.'; }
       if (job.controller.signal.aborted || this.#closed.signal.aborted) job.receipt.status = 'cancelled';
       job.owner.manager.appendCustomEntry(RECEIPT, { ...job.receipt });
       await job.owner.manager.flush();

@@ -23,6 +23,10 @@ struct Request {
 }
 
 pub fn run(program: OsString, args: Vec<OsString>) -> bool {
+    let cwd = match std::env::current_dir() {
+        Ok(cwd) => cwd,
+        Err(_) => return false,
+    };
     let pair = match native_pty_system().openpty(PtySize {
         rows: 24,
         cols: 80,
@@ -34,6 +38,8 @@ pub fn run(program: OsString, args: Vec<OsString>) -> bool {
     };
     let mut command = CommandBuilder::new(program);
     command.args(args);
+    // portable-pty defaults to HOME/USERPROFILE, not the host's project cwd.
+    command.cwd(cwd);
     let mut child = match pair.slave.spawn_command(command) {
         Ok(child) => child,
         Err(_) => return false,
@@ -59,6 +65,13 @@ pub fn run(program: OsString, args: Vec<OsString>) -> bool {
     let mut killer = child.clone_killer();
     let output_lock = Arc::new(Mutex::new(()));
     let failed = Arc::new(AtomicBool::new(false));
+
+    // A fast child must not publish output/exit before the protocol handshake.
+    if !write_frame(&output_lock, json!({"protocolVersion": 1, "kind": "ready"})) {
+        let _ = child.kill();
+        let _ = child.wait();
+        return false;
+    }
 
     let reader_output = Arc::clone(&output_lock);
     let reader_failed = Arc::clone(&failed);
@@ -120,12 +133,6 @@ pub fn run(program: OsString, args: Vec<OsString>) -> bool {
             return false;
         }
     };
-
-    if !write_frame(&output_lock, json!({"protocolVersion": 1, "kind": "ready"})) {
-        let _ = killer.kill();
-        let _ = wait_thread.join();
-        return false;
-    }
 
     let stdin = std::io::stdin();
     let mut input = stdin.lock();

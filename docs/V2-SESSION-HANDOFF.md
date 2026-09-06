@@ -2,6 +2,119 @@
 
 Last updated: 2026-09-06 (post-#39 app and release acceptance). Supersedes the 2026-07-18 handoff.
 
+## Windows branch handoff — September 6, 2026
+
+**The owner explicitly stopped implementation and requested this handoff.**
+The proposal to expand into SDK source/dependency changes was **not approved**.
+Do not treat this document as authorization to resume implementation. This
+section governs `feat/windows-desktop`; the main/macOS records below remain
+historical context, not Windows acceptance.
+
+### Checkout and delivery
+
+- Checkout: `C:/tmp/gajae-code-app`, remote
+  `https://github.com/devswha/gajae-code-app.git`.
+- Branch: `feat/windows-desktop`; latest implementation/test evidence commit:
+  `3a9506f6cf02215b747c80afaee92b45a46978c3`. The handoff commit is documentation
+  only. All preceding changes were committed and pushed; the worktree was clean.
+- Draft PR: <https://github.com/devswha/gajae-code-app/pull/44>.
+  Main was merged normally (`9f490f4`), not rebased. No main merge, force push,
+  release or SDK dependency modification is authorized.
+- Pins remain app `2.0.0-beta.9`, desktop `0.2.3`, SDK/native `0.16.4`,
+  Bun `1.4.0`, bundled Windows Node `22.22.2`.
+- Preserve user credentials/configuration and the running psmux session.
+  The PageUp copy-mode binding in `C:/Users/devsw/.psmux.conf` is accepted;
+  do not reopen terminal troubleshooting.
+
+### Completed changes and constraints
+
+- Main integration preserves Windows suspended spawn/Job ownership and proven
+  tree shutdown, plus Linux/macOS origin, launcher, single-instance and QA
+  contracts. Unix graceful timeout does not gain forced escalation.
+- `b2e134c` owns embedded SDK Settings/control endpoints: public
+  `sdkHostModeSupported: false`, runtime-only `overrideModelRoles`, strict
+  clone `flushOrThrow()`, and exact caller-owned SessionManager cleanup on
+  construction failure. A successful SDK session owns its manager.
+- `6edef4a` declares fixture support in the engine manifest. The Windows lane
+  includes the full SDK/delegation suites and pinned Bun in child PATH.
+- `11bee00` adds the separate-process public native/SDK file-lock probe.
+- `3a9506f` retains fixture stores/root after unconfirmed session disposal,
+  preserving the original failure instead of racing live teardown.
+- Do not add cleanup retries, indefinite `awaitDisposeCompletion()` waits,
+  private SDK imports, disabled persistence, antivirus exclusions, weakened
+  assertions or Windows skips. Production keeps bounded disposal followed by
+  `worker_cleanup_unconfirmed` and proven Job-tree reaping before reuse.
+- Pre-fix fixture brokers were reaped by exact argv, creation time and retained
+  process handles. Do not reuse historical PIDs. The new failure below is not
+  evidence of that old broker defect.
+
+### Current blocker: pinned native SDK filesystem release
+
+Windows run <https://github.com/devswha/gajae-code-app/actions/runs/34056951959>
+at `11bee00` reproduces the failure **without any AgentSession**:
+
+- Windows Server 2022, build `10.0.20348`, Bun `1.4.0`, natives `0.16.4`.
+- `snapshotDirectoryTree` succeeds. `exactRemoveDirectoryTree` returns
+  `{ok:false, code:"sharing_violation", detachedPath:<original lock path>}`.
+- Native removal, public SDK `withFileLock` release and concurrent SDK release
+  all fail on both C: temporary and D: checkout paths. One final root removal
+  also reports `EBUSY`; the probe preserves both failures.
+- The same six cases pass on Windows 11 build `10.0.26200`. A physical D:
+  checkout with C: TEMP and two CPUs also passed the first two real delegation
+  tests locally; baseline and modern native variants passed standalone probes.
+- The handle holder and native implementation defect are not established.
+  Do not attribute this to antivirus or increase disposal deadlines.
+- Both SDK and natives still publish `0.16.4` as their latest version.
+  Repository: <https://github.com/Yeachan-Heo/gajae-code>.
+  No dependency patch or upgrade was attempted.
+
+The full suite's `SessionDisposalIncompleteError` waits for coordinator
+persistence under retained workflow locks. SDK `config/file-lock.ts:831`
+reports `EACCES` / `sharing_violation`. This is downstream of a native primitive
+failure, not something fixture deletion or a longer wait can repair.
+
+### Evidence and files
+
+- Local final delegation suite: **32 passed / 0 failed**. Focused ownership
+  regressions, typecheck, ESLint and diff checks passed. Native probe: six
+  cases passed; Windows script suite: 53 passed.
+- At `6edef4a`, Windows PR `34054572083` and push `34054569808` attempt 2
+  passed compiler/source/tooling, Rust core, NSIS build, desktop lifecycle,
+  staging, silent Unicode-path installation and installed-payload smoke.
+  Node runtime: **126 passed / 3 existing skips**. Both full Bun lanes:
+  **93 passed / 1 existing skip / 25 failed**. Installer upload stayed blocked.
+- At `6edef4a`, Linux Node 22/24 verify `34054572060`, archive `34054572042`,
+  and desktop `34054572039` passed, including packaged server/GUI on Ubuntu
+  22.04 and 24.04. These are commit-scoped, not a claim that later CI passed.
+- At handoff, `3a9506f` CI was still running: general `34057790426`, Linux
+  desktop `34057790455`, archive `34057790429`, Windows PR `34057790428`,
+  Windows push `34057788096`. Re-query: the handoff-only commit may supersede
+  these runs. No current all-green result is claimed.
+- Local native verification remains unavailable without
+  `dist-native/gajae-core.exe`; do not suppress the resulting `ENOENT` tests.
+- Key source: `server/gjc-bun-sdk-adapter.ts`,
+  `server/gjc-delegation-executor.ts`, their Bun contract tests,
+  `server/gjc-sdk-fixture-cleanup.ts`, `scripts/run-windows-tests.mjs`,
+  `scripts/probe-windows-sdk-locks.mjs`.
+- Full acceptance record: `docs/WINDOWS-DESKTOP.md`. Local diagnostic:
+  `artifacts/ci-34056951959/runtime/gajae-runtime-windows.log` (probe starts
+  at line 828). Re-download the `windows-runtime-diagnostics` artifact from
+  that run when needed. Local diagnostic artifacts are not committed.
+
+### Remaining work after a new owner instruction
+
+1. Inspect branch/worktree, PR44 and current CI; preserve all unrelated work.
+2. Resolve the SDK source/dependency scope decision before modifying SDK code,
+   packages or pins. No app-side bypass is approved.
+3. After an authorized source fix, retain native and complete delegation
+   coverage; verify exact ownership and bounded shutdown before reuse.
+   The parent runs gates/formatters, not parallel editing agents.
+4. Obtain a current gated installer and complete isolated Windows GUI/login,
+   real provider turn, deep-link, shutdown/persistence, reinstall/uninstall
+   checks without touching the operator profile. Signing remains incomplete.
+5. Update commit-specific evidence and PR44. Keep beta.8 preview evidence
+   historical; build/silent payload smoke does not establish GUI acceptance.
+
 ## Current task scope
 
 PRs #30, #35, #38 and #39 are merged. The owner has excluded OMG skill testing;

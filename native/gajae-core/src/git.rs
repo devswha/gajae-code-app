@@ -238,17 +238,10 @@ fn create(workdir: &Path, params: &Value) -> Result<Value, GitError> {
     let root = managed_root(workdir)?;
     std::fs::create_dir_all(&root).map_err(|_| GitError::InvalidPath)?;
     let base = git_text(workdir, ["rev-parse", "HEAD^{commit}"])?;
+    let git_path = git_path_argument(&path)?;
     let status = git_status(
         workdir,
-        [
-            "worktree",
-            "add",
-            "-b",
-            &branch,
-            "--",
-            path.to_str().ok_or(GitError::UnsupportedEncoding)?,
-            &base,
-        ],
+        ["worktree", "add", "-b", &branch, "--", &git_path, &base],
     );
     if !status {
         return Err(GitError::GitFailed);
@@ -451,15 +444,8 @@ fn prune(workdir: &Path, params: &Value) -> Result<Value, GitError> {
     {
         return Err(GitError::DirtyWorktree);
     }
-    if !git_status(
-        workdir,
-        [
-            "worktree",
-            "remove",
-            "--",
-            path.to_str().ok_or(GitError::UnsupportedEncoding)?,
-        ],
-    ) {
+    let git_path = git_path_argument(&path)?;
+    if !git_status(workdir, ["worktree", "remove", "--", &git_path]) {
         return Err(GitError::GitFailed);
     }
     Ok(json!({"pruned":true,"branchRetained":true}))
@@ -499,6 +485,38 @@ fn valid_id(value: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':'))
 }
 
+fn git_path_argument(path: &Path) -> Result<String, GitError> {
+    let value = path.to_str().ok_or(GitError::UnsupportedEncoding)?;
+    // Keep canonical/verbatim paths for filesystem authorization, but Git's
+    // worktree arguments use its ordinary drive/UNC spelling. Passing \\?\ to
+    // Git for Windows can reject worktree creation despite a valid cwd.
+    Ok(if cfg!(windows) {
+        windows_git_path(value)
+    } else {
+        value.to_owned()
+    })
+}
+
+fn windows_git_path(value: &str) -> String {
+    if let Some(unc) = value.strip_prefix(r"\\?\UNC\") {
+        format!("//{}", unc.replace('\\', "/"))
+    } else if let Some(drive) = value.strip_prefix(r"\\?\") {
+        if drive
+            .as_bytes()
+            .first()
+            .is_some_and(u8::is_ascii_alphabetic)
+            && drive.as_bytes().get(1) == Some(&b':')
+        {
+            drive.replace('\\', "/")
+        } else {
+            // Never turn a device/volume namespace into a relative Git path.
+            value.to_owned()
+        }
+    } else {
+        value.replace('\\', "/")
+    }
+}
+
 fn validate_workdir(workdir: &Path) -> Result<PathBuf, GitError> {
     if !workdir.is_absolute()
         || std::fs::symlink_metadata(workdir)
@@ -511,7 +529,10 @@ fn validate_workdir(workdir: &Path) -> Result<PathBuf, GitError> {
     let canonical = std::fs::canonicalize(workdir).map_err(|_| GitError::InvalidPath)?;
     let top = git_text(&canonical, ["rev-parse", "--show-toplevel"])
         .map_err(|_| GitError::NotRepository)?;
-    let top = PathBuf::from(top);
+    // Git for Windows returns ordinary drive/UNC paths, while Rust returns
+    // verbatim paths (\\?\...) from canonicalize. Compare filesystem identities
+    // instead of rejecting a repository because of its path spelling.
+    let top = canonicalize_git_path(&canonical, top).map_err(|_| GitError::InvalidPath)?;
     if canonical != top {
         return Err(GitError::InvalidPath);
     }
@@ -556,7 +577,11 @@ fn canonicalize_existing_prefix(path: &Path) -> Result<PathBuf, GitError> {
     {
         return Err(GitError::InvalidPath);
     }
-    Ok(canonical_ancestor.join(tail))
+    if tail.as_os_str().is_empty() {
+        Ok(canonical_ancestor)
+    } else {
+        Ok(canonical_ancestor.join(tail))
+    }
 }
 
 fn nearest_existing(path: &Path) -> Result<PathBuf, GitError> {
@@ -573,7 +598,7 @@ fn worktrees(workdir: &Path) -> Result<Vec<Worktree>, GitError> {
         let root = managed_root(workdir)?;
         Ok(parse_nul_worktrees(output.stdout)?
             .into_iter()
-            .filter(|item| is_managed_worktree_path(&root, &item.path))
+            .filter_map(|item| canonical_managed_worktree(&root, item))
             .collect())
     } else {
         parse_registered_newline_worktrees(
@@ -591,11 +616,26 @@ fn parse_registered_newline_worktrees(
     let common_git_dir = common_git_dir(workdir)?;
     Ok(parse_newline_worktrees(bytes)?
         .into_iter()
-        .filter(|item| {
-            is_managed_worktree_path(&root, &item.path)
-                && is_registered_with_common_git_dir(&common_git_dir, &item.path)
-        })
+        .filter_map(|item| canonical_managed_worktree(&root, item))
+        .filter(|item| is_registered_with_common_git_dir(&common_git_dir, &item.path))
         .collect())
+}
+
+fn canonical_managed_worktree(root: &Path, mut item: Worktree) -> Option<Worktree> {
+    if !item.path.is_absolute()
+        || item
+            .path
+            .as_os_str()
+            .to_string_lossy()
+            .chars()
+            .any(char::is_control)
+    {
+        return None;
+    }
+    // Resolve the existing prefix so missing/prunable worktrees remain visible.
+    // Containment is checked after resolution, including symlink targets.
+    item.path = canonicalize_existing_prefix(&item.path).ok()?;
+    is_managed_worktree_path(root, &item.path).then_some(item)
 }
 
 fn common_git_dir(workdir: &Path) -> Result<PathBuf, GitError> {
@@ -770,6 +810,14 @@ where
     if too_large {
         return Err(GitError::OutputTooLarge);
     }
+    #[cfg(test)]
+    if !status.success() && !stderr.is_empty() {
+        eprintln!(
+            "Git test command {:?} failed: {}",
+            command.get_args().collect::<Vec<_>>(),
+            String::from_utf8_lossy(&stderr)
+        );
+    }
     Ok(Output {
         status,
         stdout,
@@ -781,7 +829,14 @@ fn git_environment() -> Vec<(String, String)> {
     ["PATH", "HOME"]
         .into_iter()
         .chain(if cfg!(windows) {
-            vec!["SystemRoot", "TEMP", "TMP"]
+            vec![
+                "SystemRoot",
+                "TEMP",
+                "TMP",
+                "USERPROFILE",
+                "HOMEDRIVE",
+                "HOMEPATH",
+            ]
         } else {
             Vec::new()
         })
@@ -882,7 +937,7 @@ mod tests {
         fn new() -> Self {
             static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
             let path = std::env::temp_dir().join(format!(
-                "gajae-core-git-test-{}-{}-{}",
+                "gajae core git 한글 test-{}-{}-{}",
                 std::process::id(),
                 COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
                 SystemTime::now()
@@ -897,6 +952,14 @@ mod tests {
             assert!(
                 Command::new("git")
                     .args(["init", "--quiet"])
+                    .current_dir(&path)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+            assert!(
+                Command::new("git")
+                    .args(["config", "core.autocrlf", "false"])
                     .current_dir(&path)
                     .status()
                     .unwrap()
@@ -951,6 +1014,116 @@ mod tests {
         let frame = serde_json::to_vec(&request).unwrap();
         assert_eq!(frame.len(), length);
         frame
+    }
+
+    #[test]
+    fn git_arguments_use_ordinary_windows_drive_and_unc_paths() {
+        assert_eq!(
+            windows_git_path(r"\\?\C:\Users\가재 dev\.gjc-worktrees\job-1"),
+            "C:/Users/가재 dev/.gjc-worktrees/job-1"
+        );
+        assert_eq!(
+            windows_git_path(r"\\?\UNC\server\share\가재 dev\job-1"),
+            "//server/share/가재 dev/job-1"
+        );
+        assert_eq!(windows_git_path(r"C:\work\job-1"), "C:/work/job-1");
+        assert_eq!(
+            windows_git_path(r"\\?\Volume{example}\work"),
+            r"\\?\Volume{example}\work"
+        );
+    }
+
+    #[test]
+    fn starts_git_protocol_from_repository_root_but_rejects_subdirectories() {
+        let repo = TestRepo::new();
+        let mut output = Vec::new();
+        assert!(run(&repo.path, Cursor::new(Vec::new()), &mut output));
+        assert_eq!(
+            serde_json::from_slice::<Value>(&output).unwrap(),
+            json!({"protocolVersion": 1, "kind": "ready"})
+        );
+        let nested = repo.path.join("nested");
+        std::fs::create_dir(&nested).unwrap();
+        assert!(matches!(
+            validate_workdir(&nested),
+            Err(GitError::InvalidPath)
+        ));
+    }
+
+    #[test]
+    fn missing_registered_worktrees_remain_listed_and_unmanaged_paths_are_rejected() {
+        let repo = TestRepo::new();
+        let path = repo.path.join(".gjc-worktrees/missing");
+        create(
+            &repo.path,
+            &json!({"jobId": "missing", "branch": "job/missing", "path": path}),
+        )
+        .unwrap();
+        std::fs::remove_dir_all(&path).unwrap();
+        let entries = worktrees(&repo.path).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].path, path);
+        assert!(entries[0].prunable);
+
+        let root = managed_root(&repo.path).unwrap();
+        for invalid in [repo.path.join("unmanaged"), root.join("..\\outside")] {
+            let item = Worktree {
+                path: invalid,
+                head: String::new(),
+                branch: None,
+                locked: false,
+                prunable: true,
+            };
+            assert!(canonical_managed_worktree(&root, item).is_none());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolved_worktree_paths_cannot_escape_through_symlinks() {
+        let repo = TestRepo::new();
+        let root = managed_root(&repo.path).unwrap();
+        std::fs::create_dir(&root).unwrap();
+        let outside = repo.path.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        let linked = root.join("linked");
+        std::os::unix::fs::symlink(outside, &linked).unwrap();
+        let item = Worktree {
+            path: linked,
+            head: String::new(),
+            branch: None,
+            locked: false,
+            prunable: false,
+        };
+        assert!(canonical_managed_worktree(&root, item).is_none());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_git_paths_resolve_to_verbatim_worktree_identity() {
+        let repo = TestRepo::new();
+        let git_root = git_text(&repo.path, ["rev-parse", "--show-toplevel"]).unwrap();
+        assert_ne!(PathBuf::from(&git_root), repo.path);
+        assert_eq!(validate_workdir(Path::new(&git_root)).unwrap(), repo.path);
+        let requested = PathBuf::from(git_root).join(".gjc-worktrees/job-1");
+        let params = json!({"jobId": "job-1", "branch": "job/job-1", "path": requested});
+        let first = create(&repo.path, &params).unwrap();
+        assert_eq!(first["created"], true);
+        assert_eq!(create(&repo.path, &params).unwrap()["created"], false);
+        assert_eq!(
+            registered(&repo.path, "job-1", "job/job-1", &requested).unwrap(),
+            std::fs::canonicalize(&requested).unwrap()
+        );
+        let fallback = parse_registered_newline_worktrees(
+            &repo.path,
+            git_bytes(&repo.path, ["worktree", "list", "--porcelain"]).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(fallback.len(), 1);
+        assert_eq!(fallback[0].path, std::fs::canonicalize(requested).unwrap());
+        let mut prune_params = params;
+        prune_params["confirmed"] = json!(true);
+        assert_eq!(prune(&repo.path, &prune_params).unwrap()["pruned"], true);
     }
 
     #[test]
@@ -1159,7 +1332,14 @@ mod tests {
         let environment = git_environment();
         assert!(environment.iter().all(|(key, _)| matches!(
             key.as_str(),
-            "PATH" | "HOME" | "SystemRoot" | "TEMP" | "TMP"
+            "PATH"
+                | "HOME"
+                | "SystemRoot"
+                | "TEMP"
+                | "TMP"
+                | "USERPROFILE"
+                | "HOMEDRIVE"
+                | "HOMEPATH"
         )));
     }
 

@@ -23,7 +23,9 @@ import {
   GjcWorkerProtocolError,
   GjcWorkerRequestTracker,
   createWindowsJobLaunch,
+  killWindowsJobGuard,
   serializeGjcWorkerFrame,
+  type WindowsJobLaunch,
   type GjcWorkerEventFrame,
   type GjcWorkerGlobalEventMethod,
   type GjcWorkerRequestFrame,
@@ -39,6 +41,11 @@ import {
   getGjcLiveSessionRoot,
   registerGjcRuntimeModelCatalogLoader,
 } from './shared/utils.js';
+import { getBundledExecutablePath } from './utils/runtime-paths.js';
+
+// Only processes created by our atomic Job Object guard can use the Windows
+// reap barrier; an arbitrary child's exit is not evidence about descendants.
+const windowsJobLaunches = new WeakMap<Child, WindowsJobLaunch>();
 
 type RunStoppedNotification = {
   userId: string | number | null;
@@ -327,8 +334,10 @@ export function killWorkerTree(
   kill: (pid: number, signal: NodeJS.Signals | 0) => void = process.kill,
 ): Promise<void> {
   if (platform === 'win32') {
-    // Windows runtime is frozen in v2; no verified tree-reap implementation exists.
-    return Promise.reject(new Error('GJC worker tree reaping is unconfirmed on Windows.'));
+    const launch = windowsJobLaunches.get(child);
+    return launch
+      ? killWindowsJobGuard(child, launch)
+      : Promise.reject(new Error('Windows worker has no owned Job Object.'));
   }
   return new Promise((resolve, reject) => {
     let closed = false;
@@ -643,10 +652,7 @@ export class GjcWorkerSupervisor {
     if (this.starting) return this.starting;
     const compiled = this.runtime.compiled ?? !import.meta.url.endsWith('.ts');
     const workerPath = this.runtime.workerPath ?? fileURLToPath(new URL(compiled ? './gjc-bun-worker.js' : './gjc-bun-worker.ts', import.meta.url));
-    const bundledBunPath = fileURLToPath(new URL(
-      compiled ? '../../dist-native/bun' : '../dist-native/bun',
-      import.meta.url,
-    ));
+    const bundledBunPath = getBundledExecutablePath(import.meta.url, 'bun', this.runtime.platform);
     const bunPath = this.runtime.bunPath
       ?? (existsSync(bundledBunPath) ? bundledBunPath : undefined)
       ?? (!compiled && this.runtime.allowDevelopmentBun ? 'bun' : undefined);
@@ -683,6 +689,7 @@ export class GjcWorkerSupervisor {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     });
+    if ('jobName' in launch) windowsJobLaunches.set(child, launch);
     this.child = child; this.ready = false; this.decoder = new GjcWorkerNdjsonDecoder();
     const usesWindowsJobGuard = this.runtime.platform === 'win32';
     let guardSettled = !usesWindowsJobGuard;
@@ -1179,8 +1186,8 @@ export class GjcWorkerSupervisor {
         terminations.push(Promise.reject(error));
       }
     };
-    // On frozen v2 Windows, tree reaping is deliberately unverified and fails closed.
-    // `guardedProcessExited` cannot establish descendant termination without a tested runtime.
+    // Direct-child exit alone does not prove descendant termination. The
+    // Windows reaper also checks the owned job before releasing this barrier.
     void guardedProcessExited;
     terminate('GJC worker tree termination failed.', () => this.runtime.killTree(child));
     if (!usesWindowsJobGuard) {

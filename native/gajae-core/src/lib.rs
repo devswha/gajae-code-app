@@ -172,7 +172,7 @@ pub fn map_exit_status(code: Option<i32>, signal: Option<i32>) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use super::{map_exit_status, parse_args, Command, ParseError};
+    use super::{Command, ParseError, map_exit_status, parse_args};
     use std::ffi::OsString;
 
     fn os(value: &str) -> OsString {

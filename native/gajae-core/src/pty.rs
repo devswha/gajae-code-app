@@ -5,9 +5,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use base64::Engine;
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 const MAX_FRAME_BYTES: usize = 64 * 1024;
 const MAX_WRITE_BYTES: usize = 48 * 1024;

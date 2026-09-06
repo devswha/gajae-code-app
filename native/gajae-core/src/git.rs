@@ -5,9 +5,9 @@ use std::process::{Command, Output, Stdio};
 use std::sync::mpsc;
 use std::thread;
 
-use base64::{engine::general_purpose::STANDARD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 const MAX_FRAME_BYTES: usize = 64 * 1024;
 const MAX_DIFF_BYTES: usize = 16 * 1024 * 1024;
@@ -949,40 +949,48 @@ mod tests {
             // Canonicalize so expected paths match git's canonical worktree
             // output (macOS resolves /var -> /private/var).
             let path = std::fs::canonicalize(&path).unwrap();
-            assert!(Command::new("git")
-                .args(["init", "--quiet"])
-                .current_dir(&path)
-                .status()
-                .unwrap()
-                .success());
-            assert!(Command::new("git")
-                .args(["config", "core.autocrlf", "false"])
-                .current_dir(&path)
-                .status()
-                .unwrap()
-                .success());
+            assert!(
+                Command::new("git")
+                    .args(["init", "--quiet"])
+                    .current_dir(&path)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+            assert!(
+                Command::new("git")
+                    .args(["config", "core.autocrlf", "false"])
+                    .current_dir(&path)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
             std::fs::write(path.join("tracked.txt"), "before\n").unwrap();
-            assert!(Command::new("git")
-                .args(["add", "tracked.txt"])
-                .current_dir(&path)
-                .status()
-                .unwrap()
-                .success());
-            assert!(Command::new("git")
-                .args([
-                    "-c",
-                    "user.name=Gajae Test",
-                    "-c",
-                    "user.email=gajae@example.test",
-                    "commit",
-                    "--quiet",
-                    "-m",
-                    "initial",
-                ])
-                .current_dir(&path)
-                .status()
-                .unwrap()
-                .success());
+            assert!(
+                Command::new("git")
+                    .args(["add", "tracked.txt"])
+                    .current_dir(&path)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+            assert!(
+                Command::new("git")
+                    .args([
+                        "-c",
+                        "user.name=Gajae Test",
+                        "-c",
+                        "user.email=gajae@example.test",
+                        "commit",
+                        "--quiet",
+                        "-m",
+                        "initial",
+                    ])
+                    .current_dir(&path)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
             Self { path }
         }
     }
@@ -1155,9 +1163,11 @@ mod tests {
             .decode(stream[0]["data"].as_str().unwrap())
             .unwrap();
         assert!(patch.starts_with(b"diff --git "));
-        assert!(patch
-            .windows(b"-before".len())
-            .any(|part| part == b"-before"));
+        assert!(
+            patch
+                .windows(b"-before".len())
+                .any(|part| part == b"-before")
+        );
         assert!(patch.windows(b"+after".len()).any(|part| part == b"+after"));
     }
 

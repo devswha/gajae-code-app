@@ -312,7 +312,7 @@ async fn stop_failed_sidecar(
     lifecycle: &crate::lifecycle::SidecarLifecycle,
     pid: u32,
     events: &mut tauri::async_runtime::Receiver<CommandEvent>,
-    force_stop: bool,
+    force_stop: Option<impl FnOnce() -> Result<(), String>>,
     grace: Duration,
     kill_timeout: Duration,
 ) -> Result<(), String> {
@@ -320,12 +320,12 @@ async fn stop_failed_sidecar(
     if wait_for_sidecar_exit(lifecycle, pid, events, grace).await {
         return Ok(());
     }
-    if !force_stop {
+    let Some(force_stop) = force_stop else {
         return Err(format!(
             "Desktop server {pid} did not complete graceful shutdown. Retry remains disabled until it exits."
         ));
-    }
-    let kill_error = lifecycle.stop(pid, true).err();
+    };
+    let kill_error = force_stop().err();
     if wait_for_sidecar_exit(lifecycle, pid, events, kill_timeout).await {
         return Ok(());
     }
@@ -356,7 +356,7 @@ async fn handle_sidecar_failure(
         &lifecycle,
         pid,
         events,
-        !was_ready,
+        (!was_ready).then_some(|| lifecycle.stop(pid, true)),
         if was_ready {
             SESSION_STOP_GRACE
         } else {
@@ -372,6 +372,39 @@ async fn handle_sidecar_failure(
         while !wait_for_sidecar_exit(&lifecycle, pid, events, Duration::from_secs(1)).await {}
     }
     show_error(window, &message, true);
+}
+
+/// Pipes are byte streams: JSON can be split across reads, including UTF-8.
+/// An overlong line is discarded through its newline, never parsed as a suffix.
+#[derive(Default)]
+struct ReadyLines {
+    pending: Vec<u8>,
+    discarding: bool,
+}
+
+impl ReadyLines {
+    fn push(&mut self, bytes: &[u8]) -> Vec<ReadyFrame> {
+        let mut frames = Vec::new();
+        for &byte in bytes {
+            if byte == b'\n' {
+                if !self.discarding {
+                    if let Ok(frame) = serde_json::from_slice::<ReadyFrame>(&self.pending) {
+                        frames.push(frame);
+                    }
+                }
+                self.pending.clear();
+                self.discarding = false;
+            } else if !self.discarding {
+                if self.pending.len() == OUTPUT_LIMIT {
+                    self.pending.clear();
+                    self.discarding = true;
+                } else {
+                    self.pending.push(byte);
+                }
+            }
+        }
+        frames
+    }
 }
 
 fn navigate_and_show(
@@ -530,7 +563,7 @@ pub fn start(app: AppHandle) {
             #[cfg(unix)]
             let sidecar_pid = child.pid();
             #[cfg(unix)]
-            let tracked = crate::lifecycle::Sidecar::unix(sidecar_pid);
+            let tracked = crate::lifecycle::Sidecar::unix_owned(child);
             #[cfg(windows)]
             let (events, child) = {
                 let executable = std::env::current_exe().map_err(|error| error.to_string())?;
@@ -699,15 +732,19 @@ pub fn start(app: AppHandle) {
                     reset_desktop_readiness(&app);
                     lifecycle.exited(sidecar_pid);
                     if lifecycle.has_sidecar() {
-                        let _ = stop_failed_sidecar(
-                            &lifecycle,
+                        handle_sidecar_failure(
+                            &app,
+                            &window,
                             sidecar_pid,
                             &mut events,
-                            true,
-                            FAILED_STOP_GRACE,
-                            FAILED_KILL_TIMEOUT,
+                            format!(
+                                "Desktop server exited unexpectedly ({status:?}).\n\n{}",
+                                output.text()
+                            ),
+                            false,
                         )
                         .await;
+                        return;
                     }
                     if !lifecycle.is_shutting_down() {
                         show_error(
@@ -921,19 +958,19 @@ mod tests {
         }
 
         #[test]
-        fn hung_startup_is_killed_and_reaped_before_retry_can_spawn() {
+        fn hung_startup_cleanup_keeps_retry_fenced_until_exit() {
             tauri::async_runtime::block_on(async {
                 for send_exit in [true, false] {
                     let lifecycle = SidecarLifecycle::default();
                     let (mut child, mut events) = TestChild::spawn(true, send_exit);
                     lifecycle
-                        .start(|| Ok((crate::lifecycle::Sidecar::unix(child.pid), ())))
+                        .start(|| Ok((crate::lifecycle::Sidecar::unmanaged(child.pid), ())))
                         .unwrap();
                     let mut stopping = Box::pin(stop_failed_sidecar(
                         &lifecycle,
                         child.pid,
                         &mut events,
-                        true,
+                        Some(|| child.kill()),
                         Duration::from_millis(150),
                         Duration::from_secs(2),
                     ));
@@ -951,10 +988,10 @@ mod tests {
                         .unwrap();
                     assert_eq!(child.status().signal(), Some(9));
                     assert!(!crate::lifecycle::process_alive(child.pid));
-                    let (retry, mut retry_events) = TestChild::spawn(false, true);
+                    let (mut retry, mut retry_events) = TestChild::spawn(false, true);
                     assert_eq!(
                         lifecycle
-                            .start(|| Ok((crate::lifecycle::Sidecar::unix(retry.pid), ())))
+                            .start(|| Ok((crate::lifecycle::Sidecar::unmanaged(retry.pid), ())))
                             .unwrap(),
                         Some(())
                     );
@@ -967,7 +1004,7 @@ mod tests {
                         &lifecycle,
                         retry.pid,
                         &mut retry_events,
-                        false,
+                        Some(|| retry.kill()),
                         Duration::from_secs(2),
                         Duration::from_secs(1),
                     )
@@ -984,7 +1021,7 @@ mod tests {
                 let lifecycle = SidecarLifecycle::default();
                 let (mut child, mut events) = TestChild::spawn(true, true);
                 lifecycle
-                    .start(|| Ok((crate::lifecycle::Sidecar::unix(child.pid), ())))
+                    .start(|| Ok((crate::lifecycle::Sidecar::unmanaged(child.pid), ())))
                     .unwrap();
                 assert_eq!(lifecycle.begin_shutdown(), Some(child.pid));
                 assert_eq!(lifecycle.begin_shutdown(), None);
@@ -993,7 +1030,7 @@ mod tests {
                     &lifecycle,
                     child.pid,
                     &mut events,
-                    true,
+                    Some(|| child.kill()),
                     Duration::from_millis(50),
                     Duration::from_secs(2),
                 )
@@ -1014,7 +1051,7 @@ mod tests {
                 let lifecycle = SidecarLifecycle::default();
                 let (mut child, mut events) = TestChild::spawn(true, false);
                 lifecycle
-                    .start(|| Ok((crate::lifecycle::Sidecar::unix(child.pid), ())))
+                    .start(|| Ok((crate::lifecycle::Sidecar::unmanaged(child.pid), ())))
                     .unwrap();
                 let error = time::timeout(
                     Duration::from_secs(2),
@@ -1022,7 +1059,7 @@ mod tests {
                         &lifecycle,
                         child.pid,
                         &mut events,
-                        false,
+                        Some(|| Err("injected kill failure".to_owned())),
                         Duration::from_millis(30),
                         Duration::from_millis(30),
                     ),
@@ -1030,7 +1067,7 @@ mod tests {
                 .await
                 .unwrap()
                 .unwrap_err();
-                assert!(error.contains("did not complete graceful shutdown"));
+                assert!(error.contains("injected kill failure"));
                 assert!(lifecycle.has_sidecar());
                 assert!(crate::lifecycle::process_alive(child.pid));
                 assert_eq!(
@@ -1059,13 +1096,13 @@ mod tests {
                 let lifecycle = SidecarLifecycle::default();
                 let (mut child, mut events) = TestChild::spawn(true, true);
                 lifecycle
-                    .start(|| Ok((crate::lifecycle::Sidecar::unix(child.pid), ())))
+                    .start(|| Ok((crate::lifecycle::Sidecar::unmanaged(child.pid), ())))
                     .unwrap();
                 let result = stop_failed_sidecar(
                     &lifecycle,
                     child.pid,
                     &mut events,
-                    false,
+                    None::<fn() -> Result<(), String>>,
                     Duration::from_millis(30),
                     Duration::from_millis(30),
                 )
@@ -1133,25 +1170,28 @@ mod tests {
             let pid = child.id();
             let lifecycle = crate::lifecycle::SidecarLifecycle::default();
             lifecycle
-                .start(|| Ok((crate::lifecycle::Sidecar::unix(pid), ())))
+                .start(|| Ok((crate::lifecycle::Sidecar::unmanaged(pid), ())))
                 .unwrap();
-            let reaper = std::thread::spawn(move || child.wait().unwrap());
             let (sender, mut events) = tauri::async_runtime::channel(1);
             drop(sender);
-            time::timeout(
+            let cleanup = time::timeout(
                 Duration::from_secs(3),
                 stop_failed_sidecar(
                     &lifecycle,
                     pid,
                     &mut events,
-                    true,
+                    None::<fn() -> Result<(), String>>,
                     Duration::from_millis(100),
                     Duration::from_secs(2),
                 ),
             )
             .await
-            .expect("closed output must not make cleanup loop forever");
-            assert!(!reaper.join().unwrap().success());
+            .expect("closed output must not make cleanup loop forever")
+            .unwrap_err();
+            assert!(cleanup.contains("did not complete graceful shutdown"));
+            child.kill().unwrap();
+            assert!(!child.wait().unwrap().success());
+            lifecycle.exited(pid);
             assert!(!lifecycle.has_sidecar());
         });
     }

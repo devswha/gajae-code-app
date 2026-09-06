@@ -10,27 +10,36 @@ use tauri::{AppHandle, Manager, Window};
 use tokio::sync::Notify;
 
 pub const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
+#[cfg(windows)]
 pub const FORCE_STOP_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub struct Sidecar {
     pub pid: u32,
+    #[cfg(unix)]
+    child: Mutex<Option<tauri_plugin_shell::process::CommandChild>>,
     #[cfg(windows)]
     process: Option<std::sync::Arc<crate::windows_process::OwnedProcess>>,
 }
 
 impl Sidecar {
-    #[cfg(any(unix, test))]
-    fn unmanaged(pid: u32) -> Self {
+    #[cfg(test)]
+    pub(crate) fn unmanaged(pid: u32) -> Self {
         Self {
             pid,
+            #[cfg(unix)]
+            child: Mutex::new(None),
             #[cfg(windows)]
             process: None,
         }
     }
 
     #[cfg(unix)]
-    pub fn unix(pid: u32) -> Self {
-        Self::unmanaged(pid)
+    pub fn unix_owned(child: tauri_plugin_shell::process::CommandChild) -> Self {
+        let pid = child.pid();
+        Self {
+            pid,
+            child: Mutex::new(Some(child)),
+        }
     }
 
     #[cfg(windows)]
@@ -43,7 +52,22 @@ impl Sidecar {
 
     fn stop(&self, force: bool) -> Result<(), String> {
         #[cfg(unix)]
-        return signal_sidecar(self.pid, if force { 9 } else { 15 });
+        {
+            if force {
+                let child = self
+                    .child
+                    .lock()
+                    .expect("sidecar child lock poisoned")
+                    .take();
+                let child = child.ok_or_else(|| {
+                    "desktop server has no owned child for forced shutdown".to_owned()
+                })?;
+                return child
+                    .kill()
+                    .map_err(|error| format!("could not force-stop desktop server: {error}"));
+            }
+            return signal_sidecar(self.pid, 15);
+        }
         #[cfg(windows)]
         {
             let process = self
@@ -135,10 +159,6 @@ impl SidecarLifecycle {
         self.current_pid().is_some()
     }
 
-    pub fn may_exit(&self) -> bool {
-        self.shutdown_complete()
-    }
-
     pub fn shutdown_complete(&self) -> bool {
         self.is_shutting_down() && !self.has_sidecar()
     }
@@ -173,11 +193,6 @@ impl SidecarLifecycle {
         }
     }
 
-    /// Signal only the currently tracked child, while Retry cannot replace it.
-    pub(crate) fn terminate(&self, expected_pid: u32) -> Result<(), String> {
-        self.stop(expected_pid, false)
-    }
-
     pub fn reap_if_stopped(&self, pid: u32) -> bool {
         let mut sidecar = self
             .sidecar
@@ -195,8 +210,8 @@ impl SidecarLifecycle {
         }
     }
 
-    async fn wait_for_exit(&self) -> Result<(), String> {
-        tokio::time::timeout(SHUTDOWN_TIMEOUT, async {
+    async fn wait_for_exit(&self, timeout: Duration) -> Result<(), String> {
+        tokio::time::timeout(timeout, async {
             loop {
                 // Register before checking durable state: exit can happen
                 // before this wait begins or between the check and await.
@@ -222,21 +237,32 @@ impl SidecarLifecycle {
         self.reap_if_stopped(pid)
     }
 
-    pub async fn stop_and_wait(&self, pid: u32) -> Result<(), String> {
-        // The supervisor drains output concurrently. A closed stdin or failed
-        // signal skips directly to the bounded force-stop fallback.
-        if self.stop(pid, false).is_ok() && self.wait_for_exit().await.is_ok() {
-            return Ok(());
+    pub async fn stop_and_wait(&self, pid: u32, grace: Duration) -> Result<(), String> {
+        #[cfg(unix)]
+        {
+            // Unix has no process-tree ownership here. Never SIGKILL a ready
+            // server root: its workers and PTYs would be orphaned. Keep the
+            // sidecar tracked so the caller can report the error and retry.
+            self.stop(pid, false)?;
+            return self.wait_for_exit(grace).await;
         }
-        self.stop(pid, true)?;
-        let deadline = Instant::now() + FORCE_STOP_TIMEOUT;
-        while Instant::now() < deadline {
-            if self.reap_if_stopped(pid) {
+        #[cfg(windows)]
+        {
+            // The supervisor drains output concurrently. A closed stdin or
+            // failed signal skips directly to the bounded Job force-stop.
+            if self.stop(pid, false).is_ok() && self.wait_for_exit(grace).await.is_ok() {
                 return Ok(());
             }
-            tokio::time::sleep(Duration::from_millis(50)).await;
+            self.stop(pid, true)?;
+            let deadline = Instant::now() + FORCE_STOP_TIMEOUT;
+            while Instant::now() < deadline {
+                if self.reap_if_stopped(pid) {
+                    return Ok(());
+                }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            Err("desktop server tree did not exit after forced shutdown".to_owned())
         }
-        Err("desktop server tree did not exit after forced shutdown".to_owned())
     }
 }
 
@@ -256,16 +282,6 @@ fn signal_sidecar(pid: u32, signal: i32) -> Result<(), String> {
 }
 
 #[cfg(unix)]
-pub fn terminate_sidecar(pid: u32) -> Result<(), String> {
-    signal_sidecar(pid, 15)
-}
-
-#[cfg(not(unix))]
-pub fn terminate_sidecar(_pid: u32) -> Result<(), String> {
-    Err("graceful sidecar termination is unavailable on this platform".to_owned())
-}
-
-#[cfg(unix)]
 pub(crate) fn process_alive(pid: u32) -> bool {
     unsafe extern "C" {
         fn kill(pid: i32, signal: i32) -> i32;
@@ -281,11 +297,6 @@ pub(crate) fn process_alive(pid: u32) -> bool {
     }
 }
 
-#[cfg(not(unix))]
-pub(crate) fn process_alive(_pid: u32) -> bool {
-    false
-}
-
 /// macOS Apple-event Quit can bypass ExitRequested in this Tauri version.
 pub fn blocking_shutdown(app: &AppHandle) {
     let lifecycle = app.state::<SidecarLifecycle>();
@@ -293,10 +304,13 @@ pub fn blocking_shutdown(app: &AppHandle) {
         let _ = lifecycle.stop(pid, false);
     }
     if let Some(pid) = lifecycle.current_pid() {
+        #[cfg(windows)]
         if !lifecycle.wait_for_exit_blocking(pid, SHUTDOWN_TIMEOUT) {
             let _ = lifecycle.stop(pid, true);
             lifecycle.wait_for_exit_blocking(pid, FORCE_STOP_TIMEOUT);
         }
+        #[cfg(unix)]
+        let _ = lifecycle.wait_for_exit_blocking(pid, SHUTDOWN_TIMEOUT);
     }
 }
 
@@ -340,7 +354,7 @@ pub fn graceful_quit(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let lifecycle = app.state::<SidecarLifecycle>();
         let result = match pid {
-            Some(pid) => lifecycle.stop_and_wait(pid).await,
+            Some(pid) => lifecycle.stop_and_wait(pid, SHUTDOWN_TIMEOUT).await,
             None => Ok(()),
         };
         // Keep the spawn fence, but let another Close/Quit retry a failed
@@ -432,10 +446,13 @@ mod tests {
         assert_eq!(lifecycle.begin_shutdown(), Some(42));
         lifecycle.exited(42);
         tauri::async_runtime::block_on(async {
-            tokio::time::timeout(Duration::from_millis(100), lifecycle.wait_for_exit())
-                .await
-                .expect("an already exited server must not wait for another notification")
-                .unwrap();
+            tokio::time::timeout(
+                Duration::from_millis(100),
+                lifecycle.wait_for_exit(SHUTDOWN_TIMEOUT),
+            )
+            .await
+            .expect("an already exited server must not wait for another notification")
+            .unwrap();
         });
     }
 
@@ -512,7 +529,7 @@ mod tests {
             .unwrap();
         assert_eq!(lifecycle.begin_shutdown(), Some(42));
         tauri::async_runtime::block_on(async {
-            let mut waiting = Box::pin(lifecycle.wait_for_exit());
+            let mut waiting = Box::pin(lifecycle.wait_for_exit(SHUTDOWN_TIMEOUT));
             assert!(
                 tokio::time::timeout(Duration::from_millis(20), &mut waiting)
                     .await
@@ -532,5 +549,68 @@ mod tests {
                 .unwrap();
             assert!(lifecycle.shutdown_complete());
         });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_graceful_shutdown_timeout_keeps_the_root_alive() {
+        use std::io::{BufRead, BufReader};
+        use std::process::{Child, Command, Stdio};
+
+        struct Fixture(Child);
+        impl Drop for Fixture {
+            fn drop(&mut self) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+        let mut child = Fixture(
+            Command::new("/bin/sh")
+                .args(["-c", "trap '' TERM; printf 'ready\\n'; read line"])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()
+                .unwrap(),
+        );
+        let mut ready = String::new();
+        BufReader::new(child.0.stdout.take().unwrap())
+            .read_line(&mut ready)
+            .unwrap();
+        assert_eq!(ready, "ready\n");
+        let pid = child.0.id();
+        let lifecycle = SidecarLifecycle::default();
+        lifecycle
+            .start(|| Ok((Sidecar::unmanaged(pid), ())))
+            .unwrap();
+
+        tauri::async_runtime::block_on(async {
+            let error = tokio::time::timeout(
+                Duration::from_secs(2),
+                lifecycle.stop_and_wait(pid, Duration::from_millis(50)),
+            )
+            .await
+            .expect("graceful shutdown must report its own timeout")
+            .unwrap_err();
+            assert!(error.contains("did not complete its graceful shutdown"));
+        });
+        assert!(
+            child.0.try_wait().unwrap().is_none(),
+            "Unix graceful Quit must leave the server running, not an unreaped zombie"
+        );
+        assert!(lifecycle.has_sidecar());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_unconfirmed_tree_exit_remains_owned_for_observation() {
+        let lifecycle = SidecarLifecycle::default();
+        lifecycle
+            .start(|| Ok((Sidecar::unmanaged(42), ())))
+            .unwrap();
+        assert!(
+            lifecycle.has_sidecar(),
+            "a sidecar must remain owned until the Job tree is proven empty"
+        );
+        assert!(!lifecycle.reap_if_stopped(42));
     }
 }

@@ -3,7 +3,7 @@ use std::io::{BufRead, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -1965,14 +1965,16 @@ mod tests {
             a.append_event("j", &l, "e", json!(2)),
             Err(AuthorityError::EventConflict)
         );
-        assert!(a
-            .connection
-            .execute("INSERT INTO job_events VALUES('j',1,'x','{}')", [])
-            .is_err());
-        assert!(a
-            .connection
-            .execute("INSERT INTO job_events VALUES('j',2,'e','{}')", [])
-            .is_err());
+        assert!(
+            a.connection
+                .execute("INSERT INTO job_events VALUES('j',1,'x','{}')", [])
+                .is_err()
+        );
+        assert!(
+            a.connection
+                .execute("INSERT INTO job_events VALUES('j',2,'e','{}')", [])
+                .is_err()
+        );
         drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
@@ -2068,11 +2070,12 @@ mod tests {
             Err(AuthorityError::Storage)
         );
         assert_eq!(a.snapshot("rollback").unwrap().state, JobState::Running);
-        assert!(a
-            .replay("rollback", 0, 999, "test")
-            .unwrap()
-            .events
-            .is_empty());
+        assert!(
+            a.replay("rollback", 0, 999, "test")
+                .unwrap()
+                .events
+                .is_empty()
+        );
         drop(a);
         std::fs::remove_dir_all(d).unwrap();
     }
@@ -2408,15 +2411,19 @@ mod tests {
             .collect();
         assert_eq!(responses.len(), 3);
         assert_eq!(responses[1]["result"]["prompt"], json!("draft"));
-        assert!(!responses[1]["result"]["createdAt"]
-            .as_str()
-            .unwrap()
-            .is_empty());
+        assert!(
+            !responses[1]["result"]["createdAt"]
+                .as_str()
+                .unwrap()
+                .is_empty()
+        );
         assert_eq!(responses[2]["result"]["items"][0]["prompt"], json!("draft"));
-        assert!(!responses[2]["result"]["items"][0]["createdAt"]
-            .as_str()
-            .unwrap()
-            .is_empty());
+        assert!(
+            !responses[2]["result"]["items"][0]["createdAt"]
+                .as_str()
+                .unwrap()
+                .is_empty()
+        );
         std::fs::remove_dir_all(d).unwrap();
     }
     #[test]
@@ -2540,10 +2547,12 @@ mod tests {
             .unwrap();
         let archived = a.archive("ready").unwrap();
         assert_eq!(archived.state, JobState::Succeeded);
-        assert!(serde_json::to_value(&archived)
-            .unwrap()
-            .get("archivedAt")
-            .is_none());
+        assert!(
+            serde_json::to_value(&archived)
+                .unwrap()
+                .get("archivedAt")
+                .is_none()
+        );
         let archived_at: Option<String> = a
             .connection
             .query_row("SELECT archived_at FROM jobs WHERE id='ready'", [], |row| {
@@ -2687,9 +2696,10 @@ mod tests {
                 .unwrap(),
             6
         );
-        assert!(c
-            .query_row("SELECT archived_at FROM jobs LIMIT 1", [], |_| Ok(()))
-            .is_err());
+        assert!(
+            c.query_row("SELECT archived_at FROM jobs LIMIT 1", [], |_| Ok(()))
+                .is_err()
+        );
         drop(c);
         std::fs::remove_dir_all(d).unwrap();
     }
@@ -2772,10 +2782,11 @@ mod tests {
                 .unwrap(),
             1
         );
-        assert!(c
-            .query_row("SELECT state_json FROM job_authority WHERE id=1", [], |r| r
+        assert!(
+            c.query_row("SELECT state_json FROM job_authority WHERE id=1", [], |r| r
                 .get::<_, String>(0))
-            .is_ok());
+                .is_ok()
+        );
         drop(c);
         std::fs::remove_dir_all(d).unwrap();
     }
@@ -2860,9 +2871,10 @@ mod tests {
                 .unwrap(),
             2
         );
-        assert!(c
-            .query_row("SELECT base_commit FROM jobs LIMIT 1", [], |_| Ok(()))
-            .is_err());
+        assert!(
+            c.query_row("SELECT base_commit FROM jobs LIMIT 1", [], |_| Ok(()))
+                .is_err()
+        );
         drop(c);
         std::fs::remove_dir_all(d).unwrap();
     }

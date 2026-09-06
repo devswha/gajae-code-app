@@ -2,9 +2,9 @@ use std::collections::VecDeque;
 use std::ffi::OsStr;
 use std::io::{self, Read, Write};
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, TrySendError};
-use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -294,10 +294,10 @@ fn fail() -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        backfill_frames, frame_for_path, frame_for_resolved_path, write_due_backfill_frames,
-        write_event_frames, OutputEvent, MAX_BACKFILL_ENTRIES, MAX_PENDING_BACKFILLS,
+        MAX_BACKFILL_ENTRIES, MAX_PENDING_BACKFILLS, OutputEvent, backfill_frames, frame_for_path,
+        frame_for_resolved_path, write_due_backfill_frames, write_event_frames,
     };
-    use notify::{event::Flag, Event, EventKind};
+    use notify::{Event, EventKind, event::Flag};
     use std::collections::VecDeque;
     use std::fs;
     use std::path::PathBuf;
@@ -345,9 +345,11 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(reported.len(), 2, "{reported:?}");
-        assert!(reported
-            .iter()
-            .all(|frame| frame.contains("\"event\":\"add\"")));
+        assert!(
+            reported
+                .iter()
+                .all(|frame| frame.contains("\"event\":\"add\""))
+        );
         assert!(reported.iter().any(|frame| frame.contains("session.jsonl")));
         assert!(reported.iter().any(|frame| frame.contains("nested.jsonl")));
         assert!(!reported.iter().any(|frame| frame.contains("ignored.txt")));
@@ -369,9 +371,11 @@ mod tests {
         #[cfg(unix)]
         std::os::unix::fs::symlink(&outside, created.join("linked.jsonl")).unwrap();
 
-        assert!(backfill_frames(&created, std::slice::from_ref(&root))
-            .unwrap()
-            .is_empty());
+        assert!(
+            backfill_frames(&created, std::slice::from_ref(&root))
+                .unwrap()
+                .is_empty()
+        );
 
         fs::remove_dir_all(container).unwrap();
     }

@@ -33,6 +33,14 @@ job projection protocol). `scripts/` holds build/release/verify tooling.
   dependency files. Unknown local modifications must fail rather than be replaced.
 - Server binds loopback by default (fail-closed; it can run shell commands).
   `SERVER_PORT` defaults to 3001, Vite dev on 5173. Do not export `SERVER_PORT=0`.
+- A long-lived dev stack may already be running in tmux session `gajae-dev`
+  (check `tmux ls` and `lsof -nP -iTCP:3001 -iTCP:5173 -sTCP:LISTEN`; its log is
+  mirrored to `/tmp/gjc-dev/dev.log` and the address/operating notes live in
+  `/tmp/gjc-dev/README.md`). Reuse it rather than starting a second
+  `npm run dev` on the same ports. On the primary Mac it serves the tailnet:
+  `HOST=$(tailscale ip -4) GAJAE_ALLOW_UNAUTH_REMOTE=1 npm run dev`. That
+  override disables authentication on the bound address, so never combine it
+  with a bind that is reachable outside the tailnet.
 - Tauri builds choke on `CI=1`: use `env -u CI npm run tauri -- build`.
 - A release-profile macOS build refuses to guess its updater mode: set
   `GJC_UPDATE_MODE=disabled` for ad-hoc/manual bundles, or the full production

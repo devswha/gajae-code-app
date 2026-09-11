@@ -1,51 +1,51 @@
 {
   "projects": {
-    "title": "ワークスペース。",
-    "newProject": "プロジェクトを追加。",
-    "deleteProject": "ワークスペースを削除。",
-    "renameProject": "ワークスペースの名前を変更。",
-    "noProjects": "ワークスペースはまだありません。",
+    "title": "ワークスペース",
+    "newProject": "プロジェクトを追加",
+    "deleteProject": "ワークスペースを削除",
+    "renameProject": "ワークスペースの名前を変更",
+    "noProjects": "ワークスペースはまだありません",
     "addFirst": "追加",
     "loadingProjects": "ワークスペースを取得中…",
-    "projectNamePlaceholder": "ワークスペース名。",
-    "untitledSession": "無題のセッション。",
-    "newSession": "会話を開始。",
-    "fetchingProjects": "プロジェクトと会話を取得中。",
-    "projects": "プロジェクト。"
+    "projectNamePlaceholder": "ワークスペース名",
+    "untitledSession": "無題のセッション",
+    "newSession": "会話を開始",
+    "fetchingProjects": "プロジェクトと会話を取得中",
+    "projects": "プロジェクト"
   },
   "sessions": {
-    "work": "作業。",
-    "newTask": "新しい作業項目。",
-    "newSession": "会話を開始。",
-    "deleteSession": "会話を削除。",
-    "renameSession": "会話の名前を変更。",
+    "work": "作業",
+    "newTask": "新しい作業項目",
+    "newSession": "会話を開始",
+    "deleteSession": "会話を削除",
+    "renameSession": "会話の名前を変更",
     "regenerateTitle": "タイトルを再生成",
-    "exportSession": "Markdown でエクスポート。",
+    "exportSession": "Markdown でエクスポート",
     "copyDebugInfo": "デバッグ情報をコピー",
-    "pin": "固定。",
-    "unpin": "固定を解除。",
-    "noSessions": "会話はまだありません。",
+    "pin": "固定",
+    "unpin": "固定を解除",
+    "noSessions": "会話はまだありません",
     "loadingSessions": "会話を取得中…",
-    "unnamed": "名称未設定。",
-    "loading": "読み込み中...。",
-    "showMore": "会話をさらに表示。"
+    "unnamed": "名称未設定",
+    "loading": "読み込み中...",
+    "showMore": "会話をさらに表示"
   },
   "tooltips": {
-    "hideSidebar": "サイドバーを隠す。",
-    "createProject": "プロジェクトを追加。",
-    "createSession": "会話を開始。",
-    "refresh": "プロジェクトと会話を再読み込み (Ctrl+R)。",
-    "renameProject": "プロジェクト名を変更 (F2)。",
-    "deleteProject": "サイドバーからプロジェクトを除去 (Delete)。",
-    "addToFavorites": "お気に入りに追加。",
-    "removeFromFavorites": "お気に入りから削除。",
-    "editSessionName": "会話名を編集。",
-    "sessionActions": "会話の操作。",
-    "deleteSession": "この会話を完全に削除。",
-    "activeSessionIndicator": "最近アクティブなセッション（過去10分以内）。",
-    "save": "保存。",
-    "cancel": "キャンセル。",
-    "attentionRequiredIndicator": "会話に対応が必要です。"
+    "hideSidebar": "サイドバーを隠す",
+    "createProject": "プロジェクトを追加",
+    "createSession": "会話を開始",
+    "refresh": "プロジェクトと会話を再読み込み (Ctrl+R)",
+    "renameProject": "プロジェクト名を変更 (F2)",
+    "deleteProject": "サイドバーからプロジェクトを除去 (Delete)",
+    "addToFavorites": "お気に入りに追加",
+    "removeFromFavorites": "お気に入りから削除",
+    "editSessionName": "会話名を編集",
+    "sessionActions": "会話の操作",
+    "deleteSession": "この会話を完全に削除",
+    "activeSessionIndicator": "最近アクティブなセッション（過去10分以内）",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "attentionRequiredIndicator": "会話に対応が必要です"
   },
   "filter": {
     "placeholder": "会話を絞り込む",
@@ -53,15 +53,15 @@
     "noMatches": "「{{query}}」に一致する会話はありません"
   },
   "actions": {
-    "search": "検索。",
-    "settings": "設定。",
-    "cancel": "キャンセル。",
-    "save": "保存。",
-    "joinCommunity": "コミュニティに参加。",
-    "reportIssue": "問題を報告。"
+    "search": "検索",
+    "settings": "設定",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "joinCommunity": "コミュニティに参加",
+    "reportIssue": "問題を報告"
   },
   "status": {
-    "thinking": "思考中...。",
+    "thinking": "思考中...",
     "running": "実行中",
     "needsInput": "入力待ち",
     "ready": "完了、まだ未確認",
@@ -95,14 +95,14 @@
     "debugInfoError": "デバッグ情報をコピーできませんでした。"
   },
   "version": {
-    "updateAvailable": "アップデートあり。"
+    "updateAvailable": "アップデートあり"
   },
   "deleteConfirmation": {
-    "deleteProject": "ワークスペースを削除。",
-    "deleteSession": "会話を削除。",
-    "confirmDelete": "このプロジェクトをどうしますか：。",
+    "deleteProject": "ワークスペースを削除",
+    "deleteSession": "会話を削除",
+    "confirmDelete": "このプロジェクトをどうしますか：",
     "sessionCount_one": "このプロジェクトには会話が {{count}} 件あります。",
     "sessionCount_other": "このプロジェクトには会話が {{count}} 件あります。",
-    "deleteAllData": "すべてのデータを完全に削除。"
+    "deleteAllData": "すべてのデータを完全に削除"
   }
 }

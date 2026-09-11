@@ -192,7 +192,15 @@
     "open": "Afficher la barre latérale de l'agent",
     "close": "Masquer la barre latérale de l'agent",
     "resize": "Redimensionner la barre latérale de l'agent en la faisant glisser",
-    "empty": "Aucun travail en cours"
+    "environment": {
+      "title": "Environnement",
+      "changes": "Modifications",
+      "branch": "Branche",
+      "directory": "Répertoire",
+      "refresh": "Recharger l'état Git",
+      "notARepository": "Ce dossier n'est pas un dépôt Git",
+      "gitUnavailable": "Impossible de lire l'état Git"
+    }
   },
   "commandPalette": {
     "title": "Palette de commandes",

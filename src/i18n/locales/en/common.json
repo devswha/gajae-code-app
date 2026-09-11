@@ -192,7 +192,15 @@
     "open": "Show agent sidebar",
     "close": "Hide agent sidebar",
     "resize": "Resize the agent sidebar by dragging",
-    "empty": "No active work"
+    "environment": {
+      "title": "Environment",
+      "changes": "Changes",
+      "branch": "Branch",
+      "directory": "Directory",
+      "refresh": "Reload Git status",
+      "notARepository": "This folder is not a Git repository",
+      "gitUnavailable": "Could not read Git status"
+    }
   },
   "commandPalette": {
     "title": "Command palette",

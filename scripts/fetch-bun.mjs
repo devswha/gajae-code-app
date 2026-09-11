@@ -21,6 +21,11 @@ const PLATFORMS = {
     archiveSha256: 'c669e97f6164e1c96e0701748db98dfa77492908cbd8394c7557134a735de381',
     binary: 'bun-darwin-aarch64/bun',
   },
+  'linux-arm64': {
+    archive: 'bun-linux-aarch64.zip',
+    archiveSha256: '4b1a332ee861983eb93bcfe6f770fff94e3e31b2c388bdaea3c8ed35e58eed0e',
+    binary: 'bun-linux-aarch64/bun',
+  },
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -91,7 +96,7 @@ async function extractBinary(archivePath, archiveBinaryPath, destinationPath) {
 }
 
 if (!platform) {
-  throw new Error(`Bun ${BUN_VERSION} is only bundled for linux-x64 and darwin-arm64; received ${platformKey}.`);
+  throw new Error(`Bun ${BUN_VERSION} is only bundled for linux-x64, darwin-arm64 and linux-arm64; received ${platformKey}.`);
 }
 
 if (await versionOf(destination) === BUN_VERSION) {

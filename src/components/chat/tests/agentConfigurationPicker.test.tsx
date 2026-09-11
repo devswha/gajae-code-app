@@ -5,7 +5,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { ProviderModelOption } from '../../../types/app';
-import AgentConfigurationPicker from '../view/AgentConfigurationPicker';
+import AgentConfigurationPicker, { derivePresetAvailability } from '../view/AgentConfigurationPicker';
 
 const options: ProviderModelOption[] = [
   {
@@ -75,4 +75,43 @@ test('picker renders without a roles grid for non-active presets', () => {
 
   assert.doesNotMatch(html, /gpt-5\.6-terra/);
   assert.doesNotMatch(html, /claude-opus-4-8/);
+});
+
+test('derivePresetAvailability keeps a preset lit while any of its role models is runnable', () => {
+  const models: ProviderModelOption[] = [
+    { value: 'openai-codex/gpt-5.6-terra:xhigh', label: 'Terra' },
+    { value: 'kimi-code/k3', label: 'Kimi' },
+  ];
+
+  // Codex presets run on Terra; the CLAUDE preset names nothing runnable.
+  const availability = derivePresetAvailability(options, models, true);
+
+  assert.equal(availability.get('default'), true);
+  assert.equal(availability.get('profile:codex-eco'), true);
+  assert.equal(availability.get('profile:codex-pro'), true);
+  assert.equal(availability.get('profile:claude-opus'), false);
+});
+
+test('derivePresetAvailability dims nothing while availability is unknown', () => {
+  // No MODELS at all (worker unreachable): every preset stays lit.
+  const unknown = derivePresetAvailability(options, [], false);
+  assert.deepEqual([...unknown.values()], options.map(() => true));
+
+  // The runtime answered with nothing: nobody signed in, everything dims.
+  const emptyAnswer = derivePresetAvailability(options, [], true);
+  assert.deepEqual([...emptyAnswer.values()], options.map(() => false));
+});
+
+test('derivePresetAvailability cannot judge presets that name no model', () => {
+  const judged = derivePresetAvailability(
+    [
+      { value: 'profile:empty', label: 'No roles' },
+      { value: 'profile:named', label: 'Profile-name role', roles: { default: 'missing-profile' } },
+    ],
+    [],
+    true,
+  );
+
+  assert.equal(judged.get('profile:empty'), true);
+  assert.equal(judged.get('profile:named'), true);
 });

@@ -16,7 +16,7 @@ const REQUIRED_KEYS = {
     'search',
     'noMatches',
   ],
-  agentConfiguration: ['label', 'title', 'description', 'search', 'noMatches'],
+  agentConfiguration: ['label', 'title', 'description', 'search', 'noMatches', 'signInRequired'],
 } as const;
 
 test('every locale translates the composer model controls', () => {

@@ -82,7 +82,8 @@
       "title": "代理设置",
       "description": "为聊天、规划者、执行器、架构师和批评家角色设置模型.",
       "search": "查找配置",
-      "noMatches": "未找到匹配的配置."
+      "noMatches": "未找到匹配的配置.",
+      "signInRequired": "要使用此预设，请在设置中登录 {{provider}}"
     },
     "attachImages": "添加图片",
     "send": "发送",

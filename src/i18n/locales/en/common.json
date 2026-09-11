@@ -191,7 +191,6 @@
     "title": "Agent",
     "open": "Show agent sidebar",
     "close": "Hide agent sidebar",
-    "resize": "Resize the agent sidebar by dragging",
     "environment": {
       "title": "Environment",
       "changes": "Changes",

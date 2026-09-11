@@ -26,13 +26,10 @@ const workspace: WorkspacePanelProps = {
 };
 
 const agentSidebar: AgentSidebarProps = {
-  width: 384,
   isMobile: false,
   projectId: 'project-alpha',
   projectPath: '/work/alpha',
   sessionId: 'session-alpha',
-  onResizeStart: () => undefined,
-  onResizeKeyDown: () => undefined,
   onClose: () => undefined,
 };
 
@@ -72,13 +69,16 @@ test('with the experiment off the rail is the legacy workspace panel alone', asy
   assert.equal(screen.queryByRole('region', { name: 'agentSidebar.environment.title' }), null);
 });
 
-test('with the experiment on the rail is the agent sidebar alone, with the environment as its body', async () => {
+test('with the experiment on the rail is the compact context panel alone, with the environment as its body', async () => {
   render(createElement(MainContentRightRail, props({ agentSidebarV2: true })));
 
-  await screen.findByRole('complementary', { name: 'agentSidebar.title' });
+  const lane = await screen.findByRole('complementary', { name: 'agentSidebar.title' });
   assert.equal(screen.queryByRole('tablist'), null);
   assert.equal(screen.queryByRole('complementary', { name: 'workspace.title' }), null);
-  assert.equal(screen.getAllByRole('separator').length, 1);
+  // No resize handle and no rail header: the panel is a card in a lane, not a second sidebar.
+  assert.equal(screen.queryByRole('separator'), null);
+  assert.equal(screen.queryByRole('heading', { level: 2 }), null);
+  assert.equal(lane.getAttribute('style'), null);
 
   assert.ok(screen.getByRole('region', { name: 'agentSidebar.environment.title' }));
   await screen.findByText('main');

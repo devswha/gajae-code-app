@@ -7,12 +7,18 @@ import express, { type Router } from 'express';
 
 import type { AutomationService } from './automation.service.js';
 import { createAutomationRouter, createBrowserAutomationRouter } from './automation.routes.js';
+import { BrowserBackendStore } from './browser-backend.js';
 
 type RecordedCall = { method: string; sessionId?: string; payload?: unknown };
 
 function fakeService(calls: RecordedCall[]): AutomationService {
   const grants: Array<Record<string, unknown>> = [];
+  const stored = new Map<string, string>();
   return {
+    browserBackend: new BrowserBackendStore({
+      get: (key) => stored.get(key) ?? null,
+      set: (key, value) => { stored.set(key, value); calls.push({ method: 'browserBackend.set', payload: value }); },
+    }),
     status: async () => ({ supported: true, browser: { state: 'ready' }, cua: { installed: true } }),
     openBrowser: async (sessionId: string, payload: unknown) => {
       calls.push({ method: 'open', sessionId, payload });
@@ -118,6 +124,37 @@ test('automation routes exercise a fake CUA backend and persistent grant revoke 
       { method: 'computer:list_apps', sessionId: 'qa-session', payload: {} },
       { method: 'grant', payload: { kind: 'application', value: 'com.apple.TextEdit', scope: 'always' } },
       { method: 'revoke', payload: { kind: 'application', value: 'com.apple.TextEdit' } },
+    ]);
+  } finally {
+    await server.close();
+  }
+});
+
+test('the browser backend setting defaults to native, persists an explicit Aside choice, and rejects anything else', async () => {
+  const calls: RecordedCall[] = [];
+  const server = await serve(createAutomationRouter(fakeService(calls)));
+  try {
+    const initial = await server.request('/browser-backend');
+    assert.equal(initial.status, 200);
+    assert.deepEqual(await initial.json(), { backend: 'native', backends: ['native', 'aside'] });
+
+    const chosen = await server.request('/browser-backend', { ...json({ backend: 'aside' }), method: 'PUT' });
+    assert.equal(chosen.status, 200);
+    assert.deepEqual(await chosen.json(), { backend: 'aside', backends: ['native', 'aside'] });
+    assert.deepEqual(await (await server.request('/browser-backend')).json(), { backend: 'aside', backends: ['native', 'aside'] });
+
+    for (const body of [{}, { backend: 'puppeteer' }, { backend: 'Aside' }, { backend: null }, { backend: ['aside'] }]) {
+      const response = await server.request('/browser-backend', { ...json(body), method: 'PUT' });
+      assert.equal(response.status, 400, JSON.stringify(body));
+      await response.text();
+    }
+    assert.deepEqual(await (await server.request('/browser-backend')).json(), { backend: 'aside', backends: ['native', 'aside'] });
+
+    const restored = await server.request('/browser-backend', { ...json({ backend: 'native' }), method: 'PUT' });
+    assert.equal(restored.status, 200);
+    assert.deepEqual(calls, [
+      { method: 'browserBackend.set', payload: 'aside' },
+      { method: 'browserBackend.set', payload: 'native' },
     ]);
   } finally {
     await server.close();

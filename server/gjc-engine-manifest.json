@@ -13,6 +13,7 @@
   "engine": [
     "server/gjc-agent-tools.ts",
     "server/gjc-automation-tools.ts",
+    "server/gjc-browser-backend.ts",
     "server/gjc-bun-ask-controller.ts",
     "server/gjc-bun-oauth-controller.ts",
     "server/gjc-bun-permission-gate.ts",
@@ -42,6 +43,8 @@
     "server/gjc-agent-tools.bun.test.ts",
     "server/gjc-ask-decision.bun.test.ts",
     "server/gjc-automation-tools.test.ts",
+    "server/gjc-browser-backend.bun.test.ts",
+    "server/gjc-browser-backend.test.ts",
     "server/gjc-bun-ask-controller.test.ts",
     "server/gjc-bun-oauth-controller.bun.test.ts",
     "server/gjc-bun-permission-gate.test.ts",

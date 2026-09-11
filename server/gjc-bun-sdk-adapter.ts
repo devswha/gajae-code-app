@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { realpath } from 'node:fs/promises';
 
-import { createAgentSession, discoverAuthStorage } from '@gajae-code/coding-agent/sdk/session';
+import { createAgentSession, discoverAuthStorage, type AutomationTools } from '@gajae-code/coding-agent/sdk/session';
+import { resolveBrowserBackend } from '@gajae-code/coding-agent/browser-backend';
 import { ModelRegistry } from '@gajae-code/coding-agent/config/model-registry';
 import { mergeModelProfiles, resolveProfileBindings } from '@gajae-code/coding-agent/config/model-profiles';
 import { activateModelProfile } from '@gajae-code/coding-agent/config/model-profile-activation';
@@ -12,6 +13,7 @@ import { SessionDisposalIncompleteError } from '@gajae-code/coding-agent/session
 import { parseSessionEntries, SessionManager, type SessionEntry } from '@gajae-code/coding-agent/session/session-manager';
 import { MemorySessionStorage } from '@gajae-code/coding-agent/session/session-storage';
 import { executeAcpBuiltinSlashCommand } from '@gajae-code/coding-agent/slash-commands/acp-builtins';
+import { probeAsideCli, type AsideCliProbe } from '@gajae-code/coding-agent/slash-commands/helpers/aside';
 import { initTheme, theme } from '@gajae-code/coding-agent/modes/theme/theme';
 import { generateSessionTitle } from '@gajae-code/coding-agent/utils/title-generator';
 import { getSupportedEfforts } from '@gajae-code/ai/model-thinking';
@@ -31,6 +33,7 @@ import { createGjcPermissionProvider, type GjcPermissionProvider } from './gjc-b
 import { forwardPromptTerminal, forwardSdkEvent, normalizeBuiltinCommandStdout, type SdkRunState } from './gjc-bun-sdk-events.js';
 import { parseGjcRunPermissions, type GjcRunPermissions } from './gjc-permission-policy.js';
 import { GjcModelResolutionError } from './gjc-model-resolution.js';
+import { GjcAsideUnavailableError, isGjcBrowserBackend, type GjcBrowserBackend } from './gjc-browser-backend.js';
 import { resolveContainedExportCommand } from './gjc-export-path.js';
 import { readSessionSnapshot } from './gjc-session-state.js';
 import { GjcGoalSession, GJC_GOAL_MODEL_OPERATIONS, matchesGjcGoalOwner, readPersistedGjcGoal, type GjcGoalScope } from './gjc-goal-session.js';
@@ -58,6 +61,13 @@ export type SdkRunConfig = {
   toolNames: string[];
   spawns: string;
   bashPolicy: AppBashPolicy;
+  /**
+   * The browser backend the app selected for this run. Absent or `native`
+   * leaves the runtime's own `browser.backend` setting untouched; `aside`
+   * overrides it so the runtime hides its built-in browser tool and injects
+   * its Aside routing, and the run refuses to start without an Aside CLI.
+   */
+  browserBackend?: GjcBrowserBackend;
   appSessionId?: string;
   goalUiVersion?: number;
   goalOwner?: string;
@@ -99,6 +109,11 @@ export type GjcBunSdkAdapterOptions = {
   oauth?: GjcBunOAuthControllerOptions;
   automationBridge?: GjcAutomationBridgeTransport;
   closeAutomationSession?: (appSessionId: string) => Promise<void>;
+  /**
+   * The runtime's own Aside CLI discovery (`probeAsideCli`), replaceable so
+   * tests never depend on an Aside installation. Never runs an installer.
+   */
+  probeAsideCli?: () => AsideCliProbe;
 };
 
 export type GjcSdkActivitySnapshot = Readonly<{
@@ -226,6 +241,48 @@ export function applyGjcToolSettingsPolicy(settings: Settings): void {
   settings.override('mcp.enableProjectConfig', false);
 }
 
+/**
+ * Hands the app's browser backend choice to the runtime's own `browser.backend`
+ * setting and returns what the runtime resolved from it.
+ *
+ * `aside` is the only value the app writes: the runtime then hides its built-in
+ * browser tool and appends its `<browser-backend>` Aside routing block, exactly
+ * as it does for `gjc config set browser.backend aside`. `native` (the default)
+ * writes nothing, so the runtime's user configuration decides as it did before
+ * this option existed. An explicit Aside choice with no Aside CLI is refused
+ * up front with a fixed code rather than letting the run continue: a session
+ * that cannot reach Aside must not act in the app's Chromium instead, and the
+ * runtime's own contract is "no fallback to the native browser".
+ */
+export function applyGjcBrowserBackend(
+  settings: Pick<Settings, 'get' | 'override'>,
+  requested: GjcBrowserBackend | undefined,
+  probe: () => AsideCliProbe,
+): ReturnType<typeof resolveBrowserBackend> {
+  if (requested === 'aside') {
+    const found = probe();
+    if (!found.ok) throw new GjcAsideUnavailableError(found.searched);
+    settings.override('browser.backend', 'aside');
+  }
+  return resolveBrowserBackend(settings);
+}
+
+/**
+ * The app-owned browser transport replaces the runtime's built-in browser tool
+ * only while the runtime would expose that tool itself. The SDK registers a
+ * supplied automation tool unconditionally, so without this filter an Aside
+ * session would still carry the app's Chromium tool beside a prompt that says
+ * the built-in browser is disabled.
+ */
+export function selectGjcAutomationTools(
+  tools: AutomationTools,
+  browserBackend: Pick<ReturnType<typeof resolveBrowserBackend>, 'exposesBuiltinTool'>,
+): AutomationTools {
+  if (browserBackend.exposesBuiltinTool) return tools;
+  const { browser: _browser, ...rest } = tools;
+  return rest;
+}
+
 function isAppOAuthCommand(message: string): boolean {
   const commandName = /^\/([^\s]+)/.exec(message.trim())?.[1];
   return commandName === 'login' || commandName === 'logout';
@@ -267,6 +324,7 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
       && candidate.bashPolicy.restrictionProfile !== 'workflow'
       && candidate.bashPolicy.restrictionProfile !== 'read-only')
     || (candidate.appSessionId !== undefined && (typeof candidate.appSessionId !== 'string' || !candidate.appSessionId))
+    || (candidate.browserBackend !== undefined && !isGjcBrowserBackend(candidate.browserBackend))
   ) throw new Error(FAILURE);
   // A malformed policy block throws GjcRunPermissionsError, which keeps its
   // `invalid_permissions` code so the worker can answer with that code and the
@@ -942,6 +1000,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       // sessions, and the clone keeps their project settings and overrides isolated.
       const settings = await globalSettings.cloneForCwd(config.cwd);
       applyGjcToolSettingsPolicy(settings);
+      const browserBackend = applyGjcBrowserBackend(settings, config.browserBackend, this.options.probeAsideCli ?? probeAsideCli);
       const goalScope = config.appSessionId && config.goalOwner
         ? { appSessionId: config.appSessionId, owner: config.goalOwner, cwd: await realpath(config.cwd),
             projectPath: await realpath(typeof options.projectPath === 'string' ? options.projectPath : config.cwd) }
@@ -992,12 +1051,12 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           ...(config.bashPolicy.restrictionProfile ? { bashRestrictionProfile: config.bashPolicy.restrictionProfile } : {}),
           hasUI: true,
           ...(config.appSessionId ? {
-            automationTools: serializeGjcDelegationAutomationTools(createGjcAutomationTools(
+            automationTools: serializeGjcDelegationAutomationTools(selectGjcAutomationTools(createGjcAutomationTools(
               config.appSessionId,
               askController.uiContext,
               this.options.automationBridge,
               config.permissions?.mode,
-            )),
+            ), browserBackend)),
           } : {}),
         };
         if (config.toolNames.some((name) => GJC_APP_DELEGATION_TOOL_NAMES.includes(name as 'task' | 'subagent'))) {

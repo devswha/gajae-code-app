@@ -127,6 +127,17 @@
     "permissions": "权限"
   },
   "automation": {
+    "browserBackend": {
+      "title": "浏览器",
+      "description": "在此启动的 GJC 会话可以控制的浏览器。",
+      "label": "浏览器后端",
+      "native": "原生",
+      "aside": "Aside（实验性）",
+      "nativeDescription": "与浏览器面板共享的内置浏览器工具。",
+      "asideDescription": "GJC 的 Aside 后端：隐藏内置浏览器工具，浏览器操作通过你自行安装的 Aside CLI 在你已登录的浏览器中执行。",
+      "asideNote": "需要你自行安装的 Aside CLI（~/.local/bin/aside 或 Aside CLI 应用）。选择 Aside 期间，找不到它的会话将无法启动，而不会回退到原生浏览器。切换回“原生”即可恢复内置浏览器。",
+      "saveFailed": "无法保存浏览器后端。"
+    },
     "title": "浏览器和原生应用",
     "description": "查看隔离的Chromium运行时以及单独安装的CUA驱动程序。",
     "chromium": "隔离的Chromium运行时",

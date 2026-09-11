@@ -194,6 +194,16 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   lifecycle manifest or hand-edit node_modules. Audit recognition is conditional
   on the actual patch and a current review, not an unconditional advisory skip.
   Its archive-only protection is not a sandbox against concurrent local writers.
+- **The browser backend is the runtime's, not the app's**: `Settings > Automation >
+  Browser backend` (`native` default, `aside` experimental) only writes GJC's own
+  `browser.backend` setting on the per-run settings clone and withholds the app's
+  Chromium `browser` transport when the runtime hides its built-in tool. GJC owns
+  the Aside routing prompt, the repl/exec policy, the CLI discovery and the
+  user-installed `aside` skill. Do not add an Aside tool, prompt, skill copy, MCP
+  server or fallback in the app; a missing Aside CLI fails the run
+  (`aside_unavailable`) instead of falling back to native. See
+  `docs/BROWSER-ASIDE-POC.md` and the "Browser backend" section of
+  `server/GJC-LIVE-SPEC.md`.
 - **Chat tool cards follow the runtime, not Claude**: `src/components/chat/tools/configs/toolConfigs.ts`
   is keyed by the tool's own lowercase name (`bash`, `read`, `edit`, `todo_write`), and
   its accessors read the runtime's parameter schema. `server/gjc-tool-configs.bun.test.ts`

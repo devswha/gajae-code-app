@@ -9,6 +9,7 @@ import type { DesktopWorkAdmission } from '@/shared/interfaces.js';
 import type { DesktopOwnerActivity } from '../../../shared/desktopUpdateProtocol.js';
 
 import { AutomationGrantStore, type AutomationGrant } from './automation-grants.js';
+import { browserBackendStore } from './browser-backend.js';
 import { BrowserSidecarClient, type BrowserEventListener } from './browser-sidecar-client.js';
 import type { BrowserCommand, BrowserInput, BrowserSessionState } from './browser-protocol.js';
 import { automationOrigin } from './automation-url.js';
@@ -143,6 +144,8 @@ export class AutomationService {
     }
   } });
   readonly grants = new AutomationGrantStore();
+  /** The app's browser backend choice for GJC runs; the runtime owns everything it selects. */
+  readonly browserBackend = browserBackendStore;
   private readonly capabilities = automationSupport(process.platform, process.arch, process.env);
   readonly supported = this.capabilities.browser;
   private readonly bridgeToken = randomBytes(32).toString('hex');

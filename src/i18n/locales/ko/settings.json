@@ -127,6 +127,17 @@
     "permissions": "권한"
   },
   "automation": {
+    "browserBackend": {
+      "title": "브라우저",
+      "description": "여기서 시작한 GJC 세션이 제어할 수 있는 브라우저입니다.",
+      "label": "브라우저 백엔드",
+      "native": "네이티브",
+      "aside": "Aside (실험적)",
+      "nativeDescription": "브라우저 패널과 공유되는 내장 브라우저 도구입니다.",
+      "asideDescription": "GJC의 Aside 백엔드: 내장 브라우저 도구를 숨기고, 브라우저 작업은 직접 설치한 Aside CLI를 통해 로그인된 내 브라우저에서 실행됩니다.",
+      "asideNote": "직접 설치한 Aside CLI(~/.local/bin/aside 또는 Aside CLI 앱)가 필요합니다. Aside가 선택된 동안 CLI를 찾지 못한 세션은 네이티브 브라우저로 대체되지 않고 시작에 실패합니다. 내장 브라우저로 돌아가려면 네이티브로 전환하세요.",
+      "saveFailed": "브라우저 백엔드를 저장하지 못했습니다."
+    },
     "title": "브라우저와 네이티브 애플리케이션",
     "description": "격리된 Chromium 런타임과 별도로 설치된 CUA Driver를 검토하세요.",
     "chromium": "독립된 Chromium runtime",

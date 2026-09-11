@@ -39,6 +39,7 @@ import {
 } from './gjc-worker-protocol.js';
 import { GjcWorkerHost } from './gjc-worker.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE } from './gjc-model-resolution.js';
+import { GJC_ASIDE_UNAVAILABLE_CODE, GJC_ASIDE_UNAVAILABLE_MESSAGE } from './gjc-browser-backend.js';
 import { GJC_CLEANUP_UNCONFIRMED_CODE } from './gjc-cleanup-error.js';
 import { isVerifiedSdkPatch, verifyRuntimeManifest } from './gjc-runtime-manifest.js';
 
@@ -2234,6 +2235,84 @@ test('app automation is injected through the SDK built-in automationTools contra
     await run;
   } finally { await f.close(); }
 });
+test('the default browser backend leaves the runtime setting alone, keeps the app browser tool, and never probes Aside', async () => {
+  let probes = 0;
+  const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
+    probeAsideCli: () => { probes += 1; return { ok: true, path: '/never/used/aside' }; },
+  });
+  try {
+    const run = f.host.handle(request('session.start', 'browser-native', {
+      message: 'hello', options: f.options,
+    }, 'app-session-native'));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    assert.equal(f.toolPolicyOverrides.has('browser.backend'), false, 'native writes no browser.backend override');
+    const automationTools = f.factoryOptions[0]!.automationTools as Record<string, { name: string }>;
+    assert.deepEqual(Object.keys(automationTools).sort(), ['browser', 'computer']);
+    assert.equal(probes, 0);
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
+
+test('selecting Aside hands browser.backend=aside to the runtime and withholds the app browser tool', async () => {
+  let probes = 0;
+  const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
+    probeAsideCli: () => { probes += 1; return { ok: true, path: '/fake/.local/bin/aside' }; },
+  });
+  try {
+    const run = f.host.handle(request('session.start', 'browser-aside', {
+      message: 'hello', options: { ...f.options, browserBackend: 'aside' },
+    }, 'app-session-aside'));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    assert.equal(f.toolPolicyOverrides.get('browser.backend'), 'aside');
+    const factoryInput = f.factoryOptions[0]!;
+    const automationTools = factoryInput.automationTools as Record<string, { name: string }>;
+    // The runtime decides the browser tool from its own setting; the app only
+    // stops substituting its Chromium transport for a tool the runtime hides.
+    assert.deepEqual(Object.keys(automationTools), ['computer']);
+    // No app-side Aside tool, prompt, or MCP server is introduced.
+    assert.equal(factoryInput.customTools, undefined);
+    const appended = (factoryInput.systemPrompt as (defaults: string[]) => string[])([]);
+    assert.equal(appended.join('\n').toLowerCase().includes('aside'), false);
+    assert.equal(probes, 1);
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
+
+test('selecting Aside without an Aside CLI refuses the run with its own code and never falls back to the native browser', async () => {
+  const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
+    probeAsideCli: () => ({ ok: false, searched: ['/fake/.local/bin/aside', 'PATH (aside)'], manualInstallCommand: 'curl ... | bash', url: 'https://example.invalid' }),
+  });
+  try {
+    await f.host.handle(request('session.start', 'browser-aside-missing', {
+      message: 'hello', options: { ...f.options, browserBackend: 'aside' },
+    }, 'app-session-aside-missing'));
+    const payload = response(f.frames, 'browser-aside-missing').payload as { ok: boolean; error: { code: string; message: string } };
+    assert.equal(payload.ok, false);
+    assert.deepEqual(payload.error, { code: GJC_ASIDE_UNAVAILABLE_CODE, message: GJC_ASIDE_UNAVAILABLE_MESSAGE });
+    assert.equal(f.sessions.length, 0, 'no session may start with a different backend');
+    assert.equal(f.factoryOptions.length, 0);
+    assert.equal(f.toolPolicyOverrides.has('browser.backend'), false);
+    assert.equal(JSON.stringify(f.frames).includes('/fake/.local/bin'), false, 'probe paths stay out of the wire');
+  } finally { await f.close(); }
+});
+
+test('a malformed browser backend option is rejected before any session starts', async () => {
+  const f = await fixture();
+  try {
+    await f.host.handle(request('session.start', 'browser-bogus', {
+      message: 'hello', options: { ...f.options, browserBackend: 'puppeteer' },
+    }, 'app-session-bogus'));
+    const payload = response(f.frames, 'browser-bogus').payload as { ok: boolean; error: { code: string } };
+    assert.equal(payload.ok, false);
+    assert.equal(payload.error.code, 'run_failed');
+    assert.equal(f.sessions.length, 0);
+  } finally { await f.close(); }
+});
+
 test('the production adapter passes bypass to automation without answering real questions', { timeout: 15_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'gjc-automation-mode-'));
   const socketPath = join(directory, 'bridge.sock');

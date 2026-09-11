@@ -187,6 +187,13 @@
       "permissions": "Permissions"
     }
   },
+  "agentSidebar": {
+    "title": "Agent",
+    "open": "Show agent sidebar",
+    "close": "Hide agent sidebar",
+    "resize": "Resize the agent sidebar by dragging",
+    "empty": "No active work"
+  },
   "commandPalette": {
     "title": "Command palette",
     "pages": {

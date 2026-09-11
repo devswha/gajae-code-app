@@ -185,6 +185,13 @@
       "permissions": "权限"
     }
   },
+  "agentSidebar": {
+    "title": "代理",
+    "open": "显示代理侧边栏",
+    "close": "隐藏代理侧边栏",
+    "resize": "拖动以调整代理侧边栏宽度",
+    "empty": "没有进行中的工作"
+  },
   "commandPalette": {
     "title": "命令面板",
     "pages": {

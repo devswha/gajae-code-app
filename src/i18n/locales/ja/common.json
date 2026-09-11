@@ -185,6 +185,13 @@
       "permissions": "権限"
     }
   },
+  "agentSidebar": {
+    "title": "エージェント",
+    "open": "エージェントサイドバーを表示",
+    "close": "エージェントサイドバーを閉じる",
+    "resize": "ドラッグしてエージェントサイドバーのサイズを変更",
+    "empty": "実行中の作業はありません"
+  },
   "commandPalette": {
     "title": "コマンドパレット",
     "pages": {

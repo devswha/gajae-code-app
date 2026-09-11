@@ -97,12 +97,15 @@
   "preferences": {
     "sections": {
       "toolDisplay": "ツール表示。",
-      "inputSettings": "入力設定。"
+      "inputSettings": "入力設定。",
+      "experimental": "実験的機能"
     },
     "showRawParameters": "生パラメータを表示。",
     "showThinking": "思考を表示。",
     "sendByCtrlEnter": "Ctrl+Enterで送信。",
     "sendByCtrlEnterDescription": "有効にすると、Enterではなく Ctrl+Enter でメッセージを送信します。IMEユーザーの誤送信防止に便利です。",
+    "agentSidebarV2": "エージェントサイドバー（プレビュー）",
+    "agentSidebarV2Description": "ワークスペースパネルを新しいエージェントサイドバーに置き換えます。現時点では空の状態のみ表示されます。",
     "toolOutputDensity": {
       "label": "ツール出力の密度",
       "description": "各ツール呼び出しを開く前に、どこまで表示するかを決めます。",

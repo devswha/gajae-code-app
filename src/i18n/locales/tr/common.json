@@ -187,6 +187,13 @@
       "permissions": "İzinler"
     }
   },
+  "agentSidebar": {
+    "title": "Ajan",
+    "open": "Ajan kenar çubuğunu göster",
+    "close": "Ajan kenar çubuğunu gizle",
+    "resize": "Ajan kenar çubuğunu sürükleyerek yeniden boyutlandır",
+    "empty": "Etkin iş yok"
+  },
   "commandPalette": {
     "title": "Komut paleti",
     "pages": {

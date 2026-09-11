@@ -95,7 +95,8 @@ test('Tab and Shift+Tab stay inside Settings at both ends of the Appearance cont
   view.open();
   const dialog = screen.getByRole('dialog', { name: 'Settings' });
   const first = within(dialog).getByRole('button', { name: 'Close settings' });
-  const last = within(dialog).getByDisplayValue('Alphabetical');
+  // The Experimental section closes the Appearance tab, so its switch is the last control.
+  const last = within(dialog).getByRole('switch', { name: 'Agent sidebar (preview)' });
   await waitForFocus(first, 'Settings close button receives initial focus');
   act(() => last.focus());
   await act(async () => { fireEvent.keyDown(last, { key: 'Tab' }); });

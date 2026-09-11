@@ -10,15 +10,18 @@ import { useSessionStore } from '../../../stores/useSessionStore';
 import { useWorkspacePanel } from '../../workspace/hooks/useWorkspacePanel';
 import { useBrowserAutoReveal } from '../../workspace/hooks/useBrowserAutoReveal';
 import { MIN_WORKSPACE_CHAT_WIDTH } from '../../workspace/workspacePanelState';
+import { useAgentSidebar } from '../../agent-sidebar/hooks/useAgentSidebar';
+import { MIN_AGENT_SIDEBAR_CHAT_WIDTH } from '../../agent-sidebar/agentSidebarState';
 import { api } from '../../../utils/api';
+import { openBrowserUrl } from '../../../utils/externalLink';
 import { useSessionLocation } from '../../chat/hooks/useSessionLocation';
 
 import MainContentHeader from './MainContentHeader';
 import MainContentStateView from './MainContentStateView';
+import MainContentRightRail from './MainContentRightRail';
 import ErrorBoundary from './ErrorBoundary';
 
 const ChatInterface = lazy(() => import('../../chat/view/ChatInterface'));
-const WorkspacePanel = lazy(() => import('../../workspace/view/WorkspacePanel'));
 
 function MainContent({
   selectedProject,
@@ -40,9 +43,11 @@ function MainContent({
   onShowSettings,
   newSessionTrigger,
 }: MainContentProps) {
-  const { showImagePreviews, toolOutputDensity, sendByCtrlEnter } = useUiPreferences().preferences;
+  const { showImagePreviews, toolOutputDensity, sendByCtrlEnter, agentSidebarV2 } = useUiPreferences().preferences;
   const sessionStore = useSessionStore();
   const panel = useWorkspacePanel({ isMobile });
+  // Both rails keep their own state; only the selected one renders.
+  const agentSidebar = useAgentSidebar({ isMobile });
   const composerInsertRef = useRef<((text: string) => void) | null>(null);
   const handleComposerInsert = useCallback((text: string) => {
     const insert = composerInsertRef.current;
@@ -51,6 +56,10 @@ function MainContent({
     return true;
   }, []);
   const { closePanel, containerRef, expanded, handleResizeKeyDown, handleResizeStart, isOpen, resizeHandleRef, setTab, tab, toggleExpanded, togglePanel, width } = panel;
+  const rightRailOpen = agentSidebarV2 ? agentSidebar.isOpen : isOpen;
+  const toggleRightRail = agentSidebarV2 ? agentSidebar.toggle : togglePanel;
+  // The legacy expanded mode must not hide the chat while the experiment is on.
+  const chatHidden = !agentSidebarV2 && expanded;
   const [pendingBrowserNavigation, setPendingBrowserNavigation] = useState<{ id: number; url: string } | null>(null);
   const navigationSequence = useRef(0);
   const { permissions: projectPermissions } = useProjectPermissions(selectedProject?.projectId);
@@ -58,7 +67,8 @@ function MainContent({
   const automationSessionId = selectedProject
     ? selectedSession?.id ?? `project-${selectedProject.projectId}`
     : undefined;
-  useBrowserAutoReveal(isLoading ? undefined : automationSessionId, panel.openPanel);
+  // Auto-reveal only targets the legacy panel; the experimental rail has no browser surface.
+  useBrowserAutoReveal(isLoading || agentSidebarV2 ? undefined : automationSessionId, panel.openPanel);
 
   const revealFile = useCallback((path: string) => {
     void api.system.openFile(path).catch((error) => {
@@ -78,6 +88,13 @@ function MainContent({
     openFile: revealFile,
     openFileInEditor: resolveFile,
     openBrowser: (address: string) => {
+      // The experimental rail has no browser surface yet (follow-up): open the
+      // link in the user's own browser instead of queueing a navigation that
+      // nothing would consume until the legacy panel came back.
+      if (agentSidebarV2) {
+        void openBrowserUrl(address);
+        return;
+      }
       navigationSequence.current += 1;
       setPendingBrowserNavigation({ id: navigationSequence.current, url: address });
       setTab('browser');
@@ -115,13 +132,14 @@ function MainContent({
         selectedSession={selectedSession}
         isMobile={isMobile}
         onMenuClick={onMenuClick}
-        workspaceOpen={isOpen}
-        onToggleWorkspace={togglePanel}
+        workspaceOpen={rightRailOpen}
+        onToggleWorkspace={toggleRightRail}
+        rightRail={agentSidebarV2 ? 'agentSidebar' : 'workspace'}
       />
 
       <SessionStatusProvider>
-      <div ref={containerRef} className="flex min-h-0 flex-1 overflow-hidden">
-        <div style={{ minWidth: MIN_WORKSPACE_CHAT_WIDTH }} className={`flex min-h-0 flex-1 flex-col overflow-hidden ${expanded ? 'hidden' : ''}`}>
+      <div ref={agentSidebarV2 ? agentSidebar.containerRef : containerRef} className="flex min-h-0 flex-1 overflow-hidden">
+        <div style={{ minWidth: agentSidebarV2 ? MIN_AGENT_SIDEBAR_CHAT_WIDTH : MIN_WORKSPACE_CHAT_WIDTH }} className={`flex min-h-0 flex-1 flex-col overflow-hidden ${chatHidden ? 'hidden' : ''}`}>
           <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
             <ErrorBoundary showDetails>
               <Suspense fallback={null}>
@@ -150,32 +168,39 @@ function MainContent({
           </div>
         </div>
 
-        {isOpen && (
-          <Suspense fallback={null}>
-            <WorkspacePanel
-              sessionStore={sessionStore}
-              tab={tab}
-              width={width}
-              expanded={expanded}
-              isMobile={isMobile}
-              projectName={selectedProject.displayName}
-              projectPath={selectedSession ? sessionLocation.data?.cwd ?? undefined : selectedProject.fullPath}
-              projectId={selectedProject.projectId}
-              sessionId={selectedSession?.id}
-              onComposerInsert={handleComposerInsert}
-              permissionMode={projectPermissions?.mode ?? null}
-              automationSessionId={automationSessionId!}
-              browserNavigation={pendingBrowserNavigation}
-              onBrowserNavigationHandled={() => setPendingBrowserNavigation(null)}
-              resizeHandleRef={resizeHandleRef}
-              onTabChange={setTab}
-              onResizeStart={handleResizeStart}
-              onResizeKeyDown={handleResizeKeyDown}
-              onToggleExpand={toggleExpanded}
-              onClose={closePanel}
-            />
-          </Suspense>
-        )}
+        <MainContentRightRail
+          agentSidebarV2={agentSidebarV2}
+          open={rightRailOpen}
+          workspace={{
+            sessionStore,
+            tab,
+            width,
+            expanded,
+            isMobile,
+            projectName: selectedProject.displayName,
+            projectPath: selectedSession ? sessionLocation.data?.cwd ?? undefined : selectedProject.fullPath,
+            projectId: selectedProject.projectId,
+            sessionId: selectedSession?.id,
+            onComposerInsert: handleComposerInsert,
+            permissionMode: projectPermissions?.mode ?? null,
+            automationSessionId: automationSessionId!,
+            browserNavigation: pendingBrowserNavigation,
+            onBrowserNavigationHandled: () => setPendingBrowserNavigation(null),
+            resizeHandleRef,
+            onTabChange: setTab,
+            onResizeStart: handleResizeStart,
+            onResizeKeyDown: handleResizeKeyDown,
+            onToggleExpand: toggleExpanded,
+            onClose: closePanel,
+          }}
+          agentSidebar={{
+            width: agentSidebar.width,
+            isMobile,
+            onResizeStart: agentSidebar.handleResizeStart,
+            onResizeKeyDown: agentSidebar.handleResizeKeyDown,
+            onClose: agentSidebar.close,
+          }}
+        />
       </div>
       </SessionStatusProvider>
     </div>

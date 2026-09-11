@@ -791,6 +791,18 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
   `plans/session-worktree-goal-acceptance.md`.
   Conversation forks and split-pane workspaces remain deferred product
   decisions, not missing implementations from the completed plans.
+- **Agent sidebar shell (experimental).** `src/components/agent-sidebar/` is the
+  presentation-only `{open,width}` rail behind the `agentSidebarV2` UI
+  preference (Settings → Appearance → Experimental; default off; persisted under
+  the separate `agent-sidebar` key). Follow-ups, in order: connect
+  tasks/agent activity/approvals/review from their authoritative sources;
+  decide browser activity (while the flag is on, browser auto-reveal is off and
+  transcript links open in the user's own browser instead of the legacy Browser
+  tab); migrate `workspace-panel` state and remove `WorkspacePanel`,
+  `rightRail`, the preference and the seam in the cutover PR. Both rail hooks
+  mount regardless of the flag, so the `agent-sidebar` key is written with its
+  defaults on every load; if the experiment is abandoned, delete that key with
+  the boundary.
 
 ## How to resume (next session)
 

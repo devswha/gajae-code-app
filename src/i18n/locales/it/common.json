@@ -187,6 +187,13 @@
       "permissions": "Permessi"
     }
   },
+  "agentSidebar": {
+    "title": "Agente",
+    "open": "Mostra la barra laterale dell'agente",
+    "close": "Nascondi la barra laterale dell'agente",
+    "resize": "Ridimensiona la barra laterale dell'agente trascinandola",
+    "empty": "Nessun lavoro attivo"
+  },
   "commandPalette": {
     "title": "Palette dei comandi",
     "pages": {

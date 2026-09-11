@@ -27,6 +27,7 @@ const headerProps = {
   selectedSession: null,
   isMobile: false,
   onMenuClick: () => undefined,
+  rightRail: 'workspace',
   workspaceOpen: false,
   onToggleWorkspace: () => undefined,
 } satisfies MainContentHeaderProps;

@@ -187,6 +187,13 @@
       "permissions": "Berechtigungen"
     }
   },
+  "agentSidebar": {
+    "title": "Agent",
+    "open": "Agent-Seitenleiste anzeigen",
+    "close": "Agent-Seitenleiste ausblenden",
+    "resize": "Agent-Seitenleiste durch Ziehen in der Größe ändern",
+    "empty": "Keine aktive Arbeit"
+  },
   "commandPalette": {
     "title": "Befehlspalette",
     "pages": {

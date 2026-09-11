@@ -165,3 +165,28 @@ test('a level that is not one of the three reads as the default', () => {
 
   assert.equal(readInitialPreferencesForTest(STORAGE_KEY).toolOutputDensity, 'balanced');
 });
+
+/*
+ * `agentSidebarV2` is the experimental switch that swaps the legacy Workspace
+ * panel for the new Agent sidebar shell. It ships off, so a profile that has
+ * never seen it - or that carries something other than a boolean - must read
+ * as off rather than turning the experiment on by accident.
+ */
+
+test('a fresh profile has the agent sidebar experiment off', () => {
+  assert.equal(readInitialPreferencesForTest(STORAGE_KEY).agentSidebarV2, false);
+});
+
+test('a profile that turned the agent sidebar experiment on keeps it on', () => {
+  store.set(STORAGE_KEY, JSON.stringify({ agentSidebarV2: true }));
+  store.set(`${STORAGE_KEY}.version`, String(UI_PREFERENCES_VERSION));
+
+  assert.equal(readInitialPreferencesForTest(STORAGE_KEY).agentSidebarV2, true);
+});
+
+test('a stored value that is not a boolean leaves the experiment off', () => {
+  store.set(STORAGE_KEY, JSON.stringify({ agentSidebarV2: 'maybe' }));
+  store.set(`${STORAGE_KEY}.version`, String(UI_PREFERENCES_VERSION));
+
+  assert.equal(readInitialPreferencesForTest(STORAGE_KEY).agentSidebarV2, false);
+});

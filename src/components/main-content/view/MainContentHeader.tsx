@@ -16,6 +16,7 @@ export default function MainContentHeader({
   selectedSession,
   isMobile,
   onMenuClick,
+  rightRail,
   workspaceOpen,
   onToggleWorkspace,
 }: MainContentHeaderProps) {
@@ -76,8 +77,8 @@ export default function MainContentHeader({
             type="button"
             onClick={onToggleWorkspace}
             aria-expanded={workspaceOpen}
-            aria-label={workspaceOpen ? t('workspace.close') : t('workspace.open')}
-            title={workspaceOpen ? t('workspace.close') : t('workspace.open')}
+            aria-label={workspaceOpen ? t(`${rightRail}.close`) : t(`${rightRail}.open`)}
+            title={workspaceOpen ? t(`${rightRail}.close`) : t(`${rightRail}.open`)}
             className={`shrink-0 rounded-md p-1.5 transition-colors ${
               workspaceOpen
                 ? 'bg-muted text-foreground'

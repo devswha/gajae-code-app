@@ -20,8 +20,8 @@ Sources inspected:
   `src/stores/sessionStatusModel.ts`, `src/stores/useSessionAttentionStore.ts`,
   `src/components/chat/hooks/useSessionTodos.ts`,
   `src/components/app/useRunningSessionsSync.ts`,
-  `src/components/agent-sidebar/*` on `feat/agent-sidebar-shell` (the
-  in-progress sidebar shell, read-only; not on `main` at the time of writing).
+  `src/components/agent-sidebar/*` (the sidebar shell that landed on `main`
+  via #62; read-only here).
 - GJC SDK `@gajae-code/coding-agent` 0.16.4 (full source in
   `node_modules/@gajae-code/coding-agent/src`): `session/agent-session.ts`
   (`AgentSessionEvent`), `@gajae-code/agent-core/src/types.ts` (`AgentEvent`),
@@ -92,7 +92,8 @@ in-memory buffer (5 000 events; completed runs retained 5 min).
 | Managed jobs | native job authority (`gajae-core jobs`), `JobState` reserved/queued/running/aborting/ready/succeeded/failed/aborted/interrupted; orchestrator `server/services/gjc-job-orchestrator.ts` | REST `/api/gjc/jobs*` + WS `gjc.job.subscribe/replay` (job projection, `shared/gjc-job-projection-protocol.ts`) | client projection slot exists in `useSessionStore`; **no component subscribes** | none — jobs UI was removed; projection plumbing is dormant | durable (Rust-owned SQLite + ordered replay) | **A** at source, unused. Note: job `ready` means *workspace awaiting next turn* ("Only ready jobs can start a new turn", gjc-job-orchestrator.ts:427) — it is **not** an attention signal |
 | Worker activity counts | `worker.activity` → `GjcWorkerActivity {generation, complete, starting, queued, running, settling, approvals, retained, unknown}` | worker protocol (host pull) | desktop restart authority only (server/index.js) | none user-visible | per generation | **A** but restart-gating evidence, not a UI signal |
 | Notifications | `notifyRunStopped`/`notifyRunFailed` (`run.stopped`/`run.failed`) | orchestrator service; in-app/desktop/sound, prefs-gated, 20 s dedupe | desktop-notifications WS | toast/title/sound | durable dispatch only for job terminals (ledger + startup catch-up) | **A** trigger sources |
-| AgentSidebar (shell branch) | `src/components/agent-sidebar/agentSidebarState.ts` on `feat/agent-sidebar-shell` | none | localStorage `agent-sidebar` = `{open, width}` only | MainContentRightRail | persists | presentation-only; **consumes zero agent signals today** |
+| AgentSidebar shell | `src/components/agent-sidebar/agentSidebarState.ts` (on `main` since #62) | none | localStorage `agent-sidebar` = `{open, width}` only | MainContentRightRail | persists | presentation-only; **consumes zero agent signals today** |
+
 ## Current GJC Runtime Signals
 
 ### SDK event surface (what the App's worker subscribes to)
@@ -315,34 +316,42 @@ delegation receipt; "job" = a managed durable job (native job authority).
 
 ## Needs Attention
 
-Two categories that must not be conflated:
+In this document, **Needs attention means exactly one thing: the agent is
+waiting for the user** — a run that cannot proceed until the user answers.
+Everything else that merely happened (completed runs, failures, unread
+results, ready changes) is **Review / recent activity**, not attention, no
+matter how much the user may want to look at it.
 
-**1. Immediate user action required** (the run cannot proceed without the user):
+**Needs attention — the run is blocked on the user:**
 
-- Unanswered tool approval — `sdk-permission:` request, mirror-backed
-  `awaitingInput`, reload-safe. **A**.
+- Unanswered tool approval / permission — `sdk-permission:` request,
+  mirror-backed `awaitingInput`, reload-safe. **A**.
 - Unanswered question — `sdk-ask:` request, same pipe/mirror. **A**.
-- Delegation authorize gate — rides the same permission pipe ("Run delegated
+- Delegation authorization — rides the same permission pipe ("Run delegated
   work…?"). **A**.
 - These are exactly `sessionStatusModel`'s `needs_input`, which already
-  outranks everything including the open session.
+  outranks everything including the open session. (The repo's existing
+  `needsAttention()` helper in `sessionStatusModel.ts` additionally folds
+  unread `ready`/`blocked` outcomes into its set for row ordering; this
+  document deliberately does not call those Needs attention — they are
+  Review. No rename is proposed here.)
 
 There is no other runtime-blocked-on-user state: an unanswered ask *is* the
 block, and it is observable through the server mirror (the SDK exposes no
 "waiting for user" event; the host-side bridge is what makes it visible — the
 App already surfaces it).
 
-**2. Something happened that the user may want to review** (no action is
-blocked):
+**Not Needs attention — Review / recent activity** (nothing is blocked; the
+user may want to look):
 
 - Run finished while not looking (`ready` outcome) / run failed (`blocked`
   outcome) — from the authoritative `complete` frame; unread until viewed.
   **A** trigger, client-side memory.
-- Failed delegated child / child results — receipt `status: failed` /
+- Failed delegated child / subagent result ready — receipt `status: failed` /
   `resultText`, but only discoverable at tool boundaries (see gaps). **A/B**.
 - Notifications (`run.failed`, `run.stopped`) — already prefs-gated. **A**.
 
-**Must not** be treated as attention:
+**Must not be surfaced as Needs attention (or Review) at all:**
 
 - Managed job state `ready` ("workspace awaiting next turn") — a lifecycle
   state of the durable job machine, not a user-action request.
@@ -407,9 +416,9 @@ frame), but nothing today needs it.
 
 All class A/C, with zero runtime or protocol changes:
 
-1. **Needs attention** — `needs_input` (approvals/questions) + unread
-   `ready/blocked` outcomes, per session, via the existing status model and
-   attention store. Both categories separately, as above.
+1. **Needs attention (waiting for the user)** — `needs_input` per session
+   (approvals/permissions/questions, including delegation authorization) via
+   the existing status model and attention store.
 2. **Current work** — running state + `statusText` + current tool call
    (`tool_use` frames) for the visible session; todo-derived current task.
    (Render only authoritative status text; do not derive "blocked" labels.)
@@ -418,8 +427,9 @@ All class A/C, with zero runtime or protocol changes:
    `task`/`subagent` tool results in the transcript (id, role, description,
    status at last observation, resultText). Correct as history; explicitly not
    live.
-5. **Review** — failed-run outcomes; delegation results (`resultText`) from the
-   same fold.
+5. **Review / recent activity** — unread finished/failed run outcomes
+   (`ready`/`blocked`, viewed-clears) and delegation results (`resultText`)
+   from the same fold. Not Needs attention: nothing is blocked on the user.
 6. **Browser activity** — `BrowserSessionState` per session (state-mode WS).
 
 Caveat to carry into any PR: the sidebar session rows already need the
@@ -481,6 +491,13 @@ event is added, add delegation settle; launch is already visible today.
 
 ## Recommended PR Sequence
 
+Scope: this sequence delivers only the **agent/subagent activity capability**
+this audit found missing. It is not the overall right-sidebar product
+roadmap. Broader workspace context the product may want — environment, git
+branch, changes, runtime, work/activity, user-required actions — can be
+designed and implemented independently of this sequence, and nothing here
+sequences or gates it.
+
 1. **Client-only Agents/Review history section** — fold delegation receipts
    from existing `task`/`subagent` tool results (transcript + live tool
    results), render statuses with an "as of last update" caveat. No protocol
@@ -494,8 +511,8 @@ event is added, add delegation settle; launch is already visible today.
    message kind; replay/decoration tests (`gjc-worker-client.test.ts`,
    chat-run-registry tests); run-correlation id decided here.
 4. **Live Agents section** — swap the fold's stale status for the event feed
-   (fold remains the reload/history path); Needs-attention wiring for failed
-   children.
+   (fold remains the reload/history path); failed children surface under
+   Review, not Needs attention — nothing waits for the user.
 5. *(Optional, later, product-gated)* child result/progress surfacing and any
    agent-communication feature — separate decisions, not part of this sequence.
 
@@ -504,8 +521,8 @@ event is added, add delegation settle; launch is already visible today.
 - No AgentSidebar implementation, no new stores/components (this PR is docs
   only).
 - No changes to Session A / Aside / Session B in-progress work; the
-  `src/components/agent-sidebar/**` shell on `feat/agent-sidebar-shell` is
-  presentation-only and untouched by this PR.
+  `src/components/agent-sidebar/**` shell (on `main` since #62) is
+  presentation-only and unmodified by this PR.
 - No todo redesign; no moving TODO UI; no jobs UI revival; no browser
   architecture change; no SDK task-system adoption; no IRC enablement.
 - No new websocket messages, SDK events, database columns, runtime events, or
@@ -516,8 +533,8 @@ event is added, add delegation settle; launch is already visible today.
 | Sidebar field | Class | Reasoning |
 | --- | --- | --- |
 | Needs attention: approval/question pending (per session) | A | server mirror `awaitingInput`; reload-safe |
-| Needs attention: failed run to review | A | `complete {success:false}` → `blocked` outcome |
-| Needs attention: finished run unread | A | `ready` outcome, viewed-clears |
+| Review: failed run to review | A | `complete {success:false}` → `blocked` outcome |
+| Review: finished run unread | A | `ready` outcome, viewed-clears |
 | Needs attention: managed job `ready` | E | means "awaiting next turn", not user action |
 | Current work: running / status text | A | run registry + SDK status frames |
 | Current work: current tool call | A | `tool_use` frames |

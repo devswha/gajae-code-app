@@ -8,6 +8,8 @@
  * compare two snapshots without re-rendering the panel on every keystroke.
  */
 
+import { isModelSelectionReference } from '../../shared/model-selectors';
+
 export type SessionTokenTotals = {
   used: number;
   input?: number;
@@ -75,6 +77,20 @@ export function readSessionFacts(sessionState: Record<string, unknown> | null | 
     contextPercent: percent === undefined ? undefined : Math.min(100, percent),
     contextSource: text(sessionState.contextSource),
   };
+}
+
+/**
+ * First candidate usable as a model id for display. A session pin or app
+ * default can be a selection reference (`default`, `profile:name`) that names
+ * a preset rather than a model; those must not reach the status rows, which
+ * would render the raw reference verbatim.
+ */
+export function displayModelId(...candidates: Array<string | null | undefined>): string | undefined {
+  for (const candidate of candidates) {
+    const trimmed = typeof candidate === 'string' ? candidate.trim() : '';
+    if (trimmed && !isModelSelectionReference(trimmed)) return trimmed;
+  }
+  return undefined;
 }
 
 /**

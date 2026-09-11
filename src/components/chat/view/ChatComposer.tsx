@@ -500,6 +500,8 @@ export default function ChatComposer({
             <AgentConfigurationPicker
               value={modelPreset}
               options={modelPresetOptions}
+              modelOptions={modelOptions}
+              availabilityKnown={availabilityKnown}
               loading={modelPresetsLoading}
               openTrigger={modelPickerOpenTrigger}
               iconOnly

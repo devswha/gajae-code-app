@@ -230,12 +230,16 @@ mod tests {
     use super::*;
     use std::time::Duration;
 
+    // Peer-thread round-trip must never race the deadline on a loaded CI runner;
+    // 1s flaked on macos-14 with "updater_backend_unavailable".
+    const TEST_DEADLINE: Duration = Duration::from_secs(30);
+
     #[test]
     fn exact_correlated_exchange_and_retirement() {
         let (native, mut node) = UnixStream::pair().unwrap();
         let backend = Backend::new(native, "a".repeat(64)).unwrap();
         let peer = std::thread::spawn(move || {
-            let request = read_frame(&mut node, Instant::now() + Duration::from_secs(1)).unwrap();
+            let request = read_frame(&mut node, Instant::now() + TEST_DEADLINE).unwrap();
             assert_eq!(request["command"], serde_json::json!({"action":"status"}));
             let reply = serde_json::json!({"protocolVersion":1,"kind":"restartControlResult","epoch":request["epoch"],"id":request["id"],
                 "result":{"ok":true,"state":"open","attemptId":null,"token":null,"expiresInMs":null,"error":null}});
@@ -243,14 +247,14 @@ mod tests {
         });
         assert_eq!(
             backend
-                .request(Control::Status, Instant::now() + Duration::from_secs(1))
+                .request(Control::Status, Instant::now() + TEST_DEADLINE)
                 .unwrap()
                 .state,
             State::Open
         );
         backend.retire();
         assert!(backend
-            .request(Control::Status, Instant::now() + Duration::from_secs(1))
+            .request(Control::Status, Instant::now() + TEST_DEADLINE)
             .is_err());
         peer.join().unwrap();
     }
@@ -264,12 +268,11 @@ mod tests {
             let (native, mut node) = UnixStream::pair().unwrap();
             let backend = Backend::new(native, "b".repeat(64)).unwrap();
             let peer = std::thread::spawn(move || {
-                let request =
-                    read_frame(&mut node, Instant::now() + Duration::from_secs(1)).unwrap();
+                let request = read_frame(&mut node, Instant::now() + TEST_DEADLINE).unwrap();
                 writeln!(node, "{}", serde_json::json!({"protocolVersion":1,"kind":"restartControlResult","epoch":request["epoch"],"id":request["id"],"result":malformed})).unwrap();
             });
             assert!(backend
-                .request(Control::Status, Instant::now() + Duration::from_secs(1))
+                .request(Control::Status, Instant::now() + TEST_DEADLINE)
                 .is_err());
             assert!(!backend.available());
             peer.join().unwrap();

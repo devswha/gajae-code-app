@@ -73,36 +73,36 @@
     }
   },
   "close": "設定を閉じる",
-  "title": "設定。",
+  "title": "設定",
   "account": {
-    "language": "言語。",
-    "languageLabel": "表示言語。",
-    "languageDescription": "インターフェースの表示言語を選択してください。"
+    "language": "言語",
+    "languageLabel": "表示言語",
+    "languageDescription": "インターフェースの表示言語を選択してください"
   },
   "voiceSettings": {
-    "title": "Voice。",
+    "title": "Voice",
     "description": "Speech-to-text input and read-aloud, via an OpenAI-compatible audio backend.。",
-    "enable": "Enable voice。",
+    "enable": "Enable voice",
     "enableDescription": "Show the mic button and the read-aloud button on messages.。",
-    "backendTitle": "Backend。",
+    "backendTitle": "Backend",
     "backendDescription": "Point at OpenAI, Groq, or a local server (LocalAI, Speaches, Kokoro-FastAPI). Leave blank to use the server default.。",
-    "baseUrl": "Base URL。",
-    "apiKey": "API key。",
-    "sttModel": "Speech-to-text model。",
-    "ttsModel": "Text-to-speech model。",
-    "voice": "Voice。",
-    "format": "Audio format。",
+    "baseUrl": "Base URL",
+    "apiKey": "API key",
+    "sttModel": "Speech-to-text model",
+    "ttsModel": "Text-to-speech model",
+    "voice": "Voice",
+    "format": "Audio format",
     "note": "A custom base URL is called directly by your browser and must allow browser CORS requests. Leave it blank to use the server-configured backend.。"
   },
   "preferences": {
     "sections": {
-      "toolDisplay": "ツール表示。",
-      "inputSettings": "入力設定。",
+      "toolDisplay": "ツール表示",
+      "inputSettings": "入力設定",
       "experimental": "実験的機能"
     },
-    "showRawParameters": "生パラメータを表示。",
-    "showThinking": "思考を表示。",
-    "sendByCtrlEnter": "Ctrl+Enterで送信。",
+    "showRawParameters": "生パラメータを表示",
+    "showThinking": "思考を表示",
+    "sendByCtrlEnter": "Ctrl+Enterで送信",
     "sendByCtrlEnterDescription": "有効にすると、Enterではなく Ctrl+Enter でメッセージを送信します。IMEユーザーの誤送信防止に便利です。",
     "agentSidebarV2": "エージェントサイドバー（プレビュー）",
     "agentSidebarV2Description": "ワークスペースパネルを新しいエージェントサイドバーに置き換えます。現時点では空の状態のみ表示されます。",
@@ -118,100 +118,100 @@
     }
   },
   "mainTabs": {
-    "appearance": "外観。",
-    "git": "Git。",
-    "voice": "音声。",
-    "notifications": "通知。",
-    "automation": "Automation。",
-    "about": "概要。",
+    "appearance": "外観",
+    "git": "Git",
+    "voice": "音声",
+    "notifications": "通知",
+    "automation": "Automation",
+    "about": "概要",
     "permissions": "権限"
   },
   "automation": {
-    "title": "ブラウザとネイティブアプリケーション。",
+    "title": "ブラウザとネイティブアプリケーション",
     "description": "分離された Chromium ランタイムと別途インストールされた CUA Driver を確認します。",
-    "chromium": "分離された Chromium ランタイム。",
-    "notDownloaded": "ブラウザパネルを初めて開いたときにダウンロードされます。",
-    "notInstalled": "利用不可。",
-    "installGuide": "セットアップ手順。",
-    "accessibility": "アクセシビリティ。",
-    "screenRecording": "画面を録画。",
-    "granted": "許可済み。",
-    "missing": "未許可。",
-    "unknown": "不明。",
-    "refresh": "診断を再読み込み。",
-    "grants": "常に許可された対象。",
+    "chromium": "分離された Chromium ランタイム",
+    "notDownloaded": "ブラウザパネルを初めて開いたときにダウンロードされます",
+    "notInstalled": "利用不可",
+    "installGuide": "セットアップ手順",
+    "accessibility": "アクセシビリティ",
+    "screenRecording": "画面を録画",
+    "granted": "許可済み",
+    "missing": "未許可",
+    "unknown": "不明",
+    "refresh": "診断を再読み込み",
+    "grants": "常に許可された対象",
     "grantsDescription": "「常に許可」とした対象のみ保存されます。",
     "noGrants": "保存された自動化の承認はありません。",
-    "origin": "サイトのオリジン。",
-    "application": "デスクトップアプリケーション。",
-    "revoke": "承認を削除。"
+    "origin": "サイトのオリジン",
+    "application": "デスクトップアプリケーション",
+    "revoke": "承認を削除"
   },
   "notifications": {
-    "title": "通知。",
+    "title": "通知",
     "description": "受信する通知イベントを設定します。",
     "desktop": {
-      "title": "デスクトップアプリの通知。",
-      "enable": "通知をオンにする。",
-      "disable": "通知をオフにする。",
-      "enabled": "このデスクトップアプリは通知を表示できます。",
+      "title": "デスクトップアプリの通知",
+      "enable": "通知をオンにする",
+      "disable": "通知をオフにする",
+      "enabled": "このデスクトップアプリは通知を表示できます",
       "unsupported": "このシステムはデスクトップ通知に対応していません。"
     },
     "sound": {
-      "title": "サウンド。",
+      "title": "サウンド",
       "description": "チャット実行が完了したときに短い音を再生します。",
-      "enabled": "有効。",
-      "test": "サウンドをテスト。"
+      "enabled": "有効",
+      "test": "サウンドをテスト"
     },
     "events": {
-      "title": "イベント種別。",
-      "actionRequired": "対応が必要。",
-      "stop": "実行停止。",
-      "error": "実行失敗。"
+      "title": "イベント種別",
+      "actionRequired": "対応が必要",
+      "stop": "実行停止",
+      "error": "実行失敗"
     }
   },
   "appearanceSettings": {
     "darkMode": {
-      "label": "ダークモード。",
-      "description": "ライトテーマとダークテーマを切り替えます。"
+      "label": "ダークモード",
+      "description": "ライトテーマとダークテーマを切り替えます"
     },
     "interfaceFontSize": {
-      "label": "インターフェースの文字サイズ。",
-      "description": "チャット、セッション、設定など画面全体の文字サイズを変更します。",
-      "small": "小。",
-      "medium": "中。",
-      "large": "大。"
+      "label": "インターフェースの文字サイズ",
+      "description": "チャット、セッション、設定など画面全体の文字サイズを変更します",
+      "small": "小",
+      "medium": "中",
+      "large": "大"
     },
     "imagePreviews": {
-      "label": "画像プレビュー。",
-      "description": "チャット履歴の添付画像を読み込んで表示します。"
+      "label": "画像プレビュー",
+      "description": "チャット履歴の添付画像を読み込んで表示します"
     },
     "projectSorting": {
-      "label": "プロジェクトの並び順。",
-      "description": "サイドバーでのプロジェクトの並び順を設定します。",
-      "alphabetical": "アルファベット順。",
-      "recentActivity": "最近のアクティビティ順。"
+      "label": "プロジェクトの並び順",
+      "description": "サイドバーでのプロジェクトの並び順を設定します",
+      "alphabetical": "アルファベット順",
+      "recentActivity": "最近のアクティビティ順"
     }
   },
   "saveStatus": {
     "success": "設定を保存しました！"
   },
   "git": {
-    "title": "Git設定。",
+    "title": "Git設定",
     "description": "コミット用のGit IDを設定します。この設定は git config --global で適用されます。",
     "name": {
-      "label": "Git名前。",
-      "help": "コミットに使用する名前。"
+      "label": "Git名前",
+      "help": "コミットに使用する名前"
     },
     "email": {
-      "label": "Gitメールアドレス。",
-      "help": "コミットに使用するメールアドレス。"
+      "label": "Gitメールアドレス",
+      "help": "コミットに使用するメールアドレス"
     },
     "actions": {
-      "save": "設定を保存。",
-      "saving": "保存中...。"
+      "save": "設定を保存",
+      "saving": "保存中..."
     },
     "status": {
-      "success": "保存しました。"
+      "success": "保存しました"
     }
   },
   "permissions": {

@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 
+import { GJC_BROWSER_BACKENDS } from '@/gjc-engine.js';
 import { asyncHandler } from '@/shared/utils.js';
 
 import { safeSessionId, type BrowserCommand, type BrowserInput } from './browser-protocol.js';
@@ -88,6 +89,20 @@ export function createAutomationRouter(service: AutomationService = automationSe
       response.json(await service.status());
     } catch (error) {
       errorResponse(response, error);
+    }
+  }));
+
+  // The browser backend GJC sessions start with. Stored as the app's own
+  // setting; the worker hands it to the runtime's `browser.backend`.
+  router.get('/browser-backend', asyncHandler((_request, response) => {
+    response.json({ backend: service.browserBackend.get(), backends: GJC_BROWSER_BACKENDS });
+  }));
+
+  router.put('/browser-backend', asyncHandler((request, response) => {
+    try {
+      response.json({ backend: service.browserBackend.set(request.body?.backend), backends: GJC_BROWSER_BACKENDS });
+    } catch (error) {
+      response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid browser backend.' });
     }
   }));
 

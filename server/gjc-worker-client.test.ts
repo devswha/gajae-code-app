@@ -22,6 +22,7 @@ import {
   resolveGjcResumeSessionRoot,
 } from './gjc-worker-client.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE } from './gjc-model-resolution.js';
+import { GJC_ASIDE_UNAVAILABLE_CODE, GJC_ASIDE_UNAVAILABLE_MESSAGE } from './gjc-browser-backend.js';
 import { GJC_CLEANUP_UNCONFIRMED_CODE } from './gjc-engine.js';
 import {
   GJC_WINDOWS_JOB_GUARD_ACK,
@@ -1326,6 +1327,39 @@ test('a start refused for an unresolvable model tells the client why', async () 
     ['complete', 1],
   ]);
   assert.deepEqual(failures, [GJC_MODEL_UNRESOLVED_MESSAGE]);
+});
+test('a start refused because the Aside CLI is missing tells the client why instead of falling back', async () => {
+  const child = new FakeChild();
+  const peer = new FakePeer(child);
+  const starts: Array<Record<string, unknown>> = [];
+  peer.handle((request) => {
+    if (request.method === 'worker.initialize') peer.respond(request);
+    else if (request.method === 'session.start') {
+      starts.push(request.payload as Record<string, unknown>);
+      peer.respond(request, { ok: false, error: { code: GJC_ASIDE_UNAVAILABLE_CODE, message: GJC_ASIDE_UNAVAILABLE_MESSAGE } });
+    }
+  });
+  const failures: string[] = [];
+  const supervisor = new GjcWorkerSupervisor({
+    ...runtime(child),
+    // The production enricher reads the app setting; here the app decided Aside.
+    enrichOptions: async (options) => ({ ...options, browserBackend: 'aside' }),
+    notifyRunFailed: ({ error }) => { failures.push(error); },
+  });
+
+  const sent: Array<Record<string, unknown>> = [];
+  await assert.rejects(
+    spawn(supervisor, 'hello', {}, { send(value) { sent.push(value as Record<string, unknown>); } }),
+    (error: unknown) => error instanceof Error && error.message === GJC_ASIDE_UNAVAILABLE_MESSAGE,
+  );
+  assert.equal((starts[0]?.options as Record<string, unknown>)?.browserBackend, 'aside');
+  // Exactly one start was attempted: no second request with a different backend.
+  assert.equal(starts.length, 1);
+  assert.deepEqual(sent.map((message) => [message.kind, message.content ?? message.exitCode]), [
+    ['error', GJC_ASIDE_UNAVAILABLE_MESSAGE],
+    ['complete', 1],
+  ]);
+  assert.deepEqual(failures, [GJC_ASIDE_UNAVAILABLE_MESSAGE]);
 });
 
 function assertDesktopIdle(activity: DesktopOwnerActivity): void {

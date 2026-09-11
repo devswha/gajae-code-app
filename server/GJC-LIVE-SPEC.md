@@ -227,6 +227,54 @@ not auto-answer `ask` questions, approve Chromium installation, or override OS
 permissions or CUA driver restrictions. The mode is captured for the run; no
 implicit grant survives into a later Ask run.
 
+## Browser backend
+
+The runtime owns the browser backend contract: its `browser.backend` setting
+(`native` | `aside`, default `native`) decides whether its built-in browser tool
+is exposed and whether its `<browser-backend>` Aside routing block is appended
+to the system prompt (`@gajae-code/coding-agent/browser-backend`). With `aside`
+the runtime routes every rendered/authenticated browser task through the
+user-installed Aside CLI via its Bash tool and tells the model to load the
+user-installed `aside` skill; the app adds no Aside tool, prompt, skill, MCP
+server or repl/exec policy of its own.
+
+The application stores the choice (`automation.browserBackend.v1`,
+`GET`/`PUT /api/automation/browser-backend`) and the worker enforces it. No
+protocol method or frame changes; the value travels inside existing payloads:
+
+- `session.start` / `session.resume` options carry
+  `browserBackend: 'native' | 'aside'` (`server/gjc-browser-backend.ts`). The
+  application resolves it from its own setting in `enrichGjcSdkRunOptions`,
+  never from the request. Any other value fails the run.
+- `native` (the default) writes nothing: the runtime's own `browser.backend`
+  configuration decides exactly as before this option existed, and the app's
+  Chromium transport keeps replacing the built-in browser tool whenever the
+  runtime would expose that tool.
+- `aside` first runs the runtime's own Aside CLI discovery (`probeAsideCli`:
+  `~/.local/bin/aside`, the `Aside CLI.app` bundle, then `PATH`) and, when it
+  finds nothing, fails the run with the application error code
+  `aside_unavailable` before any session is created; the application relays
+  the fixed text "The Aside CLI was not found, so this session cannot start
+  with the Aside browser backend. Install the Aside CLI, or switch Browser
+  backend back to Native in Settings > Automation.". Searched paths go to the
+  worker diagnostics only. There is no fallback to the native browser.
+- When the CLI is found the adapter writes `settings.override('browser.backend',
+  'aside')` on the per-run settings clone and withholds the app's `browser`
+  automation transport, because the SDK registers a supplied automation tool
+  unconditionally. The runtime then hides the built-in tool (active and
+  discoverable) and appends its routing block; the `computer` transport is
+  unaffected. Delegated children clone the same settings, so they inherit the
+  backend and, through the active-tool intersection, never regain `browser`.
+- Skill discovery is unchanged: the adapter passes no explicit skill list and
+  leaves `skills.enabled` alone, so the runtime scans the project's
+  `.gjc/skills` and the agent dir's `skills/` (`~/.gjc/agent/skills` by
+  default, the same location the CLI uses) and a user-installed `aside` skill
+  is discoverable and loadable through the `skill` tool.
+
+`server/gjc-browser-backend.bun.test.ts` checks the contract against the pinned
+runtime with an injected CLI probe and a fixture skill; no Aside installation
+is required by any test.
+
 ## Process and terminal lifecycle
 
 - On POSIX (Linux and macOS), the application starts the Rust core as a detached
@@ -272,6 +320,8 @@ Focused coverage is in:
 - `server/gjc-bun-permission-gate.test.ts`
 - `server/gjc-windows-job.test.ts`
 - `server/gjc-worker-client.test.ts`
+- `server/gjc-browser-backend.test.ts`
+- `server/gjc-browser-backend.bun.test.ts`
 - `server/modules/websocket/tests/chat-run-registry.test.ts`
 
 Coverage includes start/resume, split and bounded worker NDJSON, SDK asks and

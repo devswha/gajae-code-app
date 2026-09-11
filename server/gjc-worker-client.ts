@@ -11,6 +11,8 @@ import type { DesktopOwnerActivity } from '../shared/desktopUpdateProtocol.js';
 import type { GjcGoalCommand, GjcGoalSnapshot, GjcGoalScope } from '../shared/gjc-goal.js';
 
 import {
+  GJC_ASIDE_UNAVAILABLE_CODE,
+  GJC_ASIDE_UNAVAILABLE_MESSAGE,
   GJC_CLEANUP_UNCONFIRMED_CODE,
   GJC_AGENT_TOOL_NAMES,
   GJC_INVALID_PERMISSIONS_CODE,
@@ -30,6 +32,7 @@ import {
   type GjcWorkerRequestFrame,
   type GjcWorkerRequestMethod,
   type GjcWorkerResponsePayload,
+  type GjcBrowserBackend,
   type GjcWorkerResponseFrame,
   type JsonObject,
 } from './gjc-engine.js';
@@ -209,6 +212,7 @@ class GjcConfigurationError extends Error {}
 function runFailureMessage(response: GjcWorkerResponsePayload): string {
   if (!response.ok && response.error.code === GJC_INVALID_PERMISSIONS_CODE) return GJC_INVALID_PERMISSIONS_MESSAGE;
   if (!response.ok && response.error.code === GJC_MODEL_UNRESOLVED_CODE) return GJC_MODEL_UNRESOLVED_MESSAGE;
+  if (!response.ok && response.error.code === GJC_ASIDE_UNAVAILABLE_CODE) return GJC_ASIDE_UNAVAILABLE_MESSAGE;
   return SAFE_FAILURE;
 }
 
@@ -306,6 +310,16 @@ async function enrichGjcSdkRunOptions(options: GjcWorkerOptions): Promise<GjcWor
   if (typeof modelId !== 'string' || !modelId.trim()) {
     throw new GjcConfigurationError('GJC requires a configured model ID.');
   }
+  // The browser backend is the app's own setting, read here and never taken
+  // from the request, like the permission policy: a client cannot switch a
+  // run to Aside by sending an option.
+  let browserBackend: GjcBrowserBackend;
+  try {
+    const { resolveGjcBrowserBackend } = await import('./modules/automation/index.js');
+    browserBackend = resolveGjcBrowserBackend();
+  } catch {
+    throw new GjcConfigurationError('Unable to resolve the GJC browser backend.');
+  }
 
   const liveSessionRoot = typeof options.sessionRoot === 'string' && options.sessionRoot
     ? options.sessionRoot
@@ -324,6 +338,7 @@ async function enrichGjcSdkRunOptions(options: GjcWorkerOptions): Promise<GjcWor
     toolNames: options.toolNames ?? [...GJC_AGENT_TOOL_NAMES],
     spawns: options.spawns ?? '*',
     bashPolicy: options.bashPolicy ?? { allowedPrefixes: [] },
+    browserBackend,
   };
 }
 

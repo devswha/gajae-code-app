@@ -127,6 +127,17 @@
     "permissions": "İzinler"
   },
   "automation": {
+    "browserBackend": {
+      "title": "Tarayıcı",
+      "description": "Burada başlatılan GJC oturumlarının hangi tarayıcıyı denetleyebileceği.",
+      "label": "Tarayıcı arka ucu",
+      "native": "Yerel",
+      "aside": "Aside (Deneysel)",
+      "nativeDescription": "Tarayıcı paneliyle paylaşılan yerleşik tarayıcı aracı.",
+      "asideDescription": "GJC'nin Aside arka ucu: yerleşik tarayıcı aracı gizlenir ve tarayıcı işleri, kendi oturum açılmış tarayıcınızda yüklediğiniz Aside CLI üzerinden çalışır.",
+      "asideNote": "Kendiniz yüklediğiniz Aside CLI gerekir (~/.local/bin/aside veya Aside CLI uygulaması). Aside seçiliyken onu bulamayan bir oturum yerel tarayıcıya geri dönmek yerine başlatılamaz. Yerleşik tarayıcıyı geri getirmek için Yerel seçeneğine dönün.",
+      "saveFailed": "Tarayıcı arka ucu kaydedilemedi."
+    },
     "title": "Tarayıcı ve yerel uygulamalar",
     "description": "Yalıtılmış Chromium çalışma zamanını ve ayrıca yüklenen CUA Sürücüsünü inceleyin.",
     "chromium": "Yalıtılmış Chromium çalışma zamanı",

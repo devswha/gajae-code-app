@@ -86,6 +86,21 @@ export {
   GJC_MODEL_UNRESOLVED_MESSAGE,
 } from './gjc-model-resolution.js';
 
+// The browser backend a run starts with. The application stores the choice
+// and sends it in the session options; the worker hands it to the runtime's
+// own `browser.backend` setting, so the runtime's Aside routing stays
+// authoritative. An Aside run with no Aside CLI fails with the code below and
+// the fixed text is relayed instead of the generic failure; it never falls
+// back to the app's native browser.
+export {
+  DEFAULT_GJC_BROWSER_BACKEND,
+  GJC_ASIDE_UNAVAILABLE_CODE,
+  GJC_ASIDE_UNAVAILABLE_MESSAGE,
+  GJC_BROWSER_BACKENDS,
+  isGjcBrowserBackend,
+} from './gjc-browser-backend.js';
+export type { GjcBrowserBackend } from './gjc-browser-backend.js';
+
 // The command and skill surface the runtime advertises, generated from the
 // installed runtime rather than hand-listed.
 export { GJC_APP_BUILTIN_COMMANDS, GJC_BUNDLED_SKILLS } from './gjc-command-surface.generated.js';

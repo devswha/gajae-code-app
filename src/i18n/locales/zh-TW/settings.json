@@ -127,6 +127,17 @@
     "permissions": "權限"
   },
   "automation": {
+    "browserBackend": {
+      "title": "瀏覽器",
+      "description": "在此啟動的 GJC 工作階段可以控制的瀏覽器。",
+      "label": "瀏覽器後端",
+      "native": "原生",
+      "aside": "Aside（實驗性）",
+      "nativeDescription": "與瀏覽器面板共用的內建瀏覽器工具。",
+      "asideDescription": "GJC 的 Aside 後端：隱藏內建瀏覽器工具，瀏覽器操作透過你自行安裝的 Aside CLI 在你已登入的瀏覽器中執行。",
+      "asideNote": "需要你自行安裝的 Aside CLI（~/.local/bin/aside 或 Aside CLI 應用程式）。選擇 Aside 期間，找不到它的工作階段將無法啟動，而不會退回原生瀏覽器。切換回「原生」即可恢復內建瀏覽器。",
+      "saveFailed": "無法儲存瀏覽器後端。"
+    },
     "title": "瀏覽器和原生應用程式",
     "description": "檢視隔離的Chromium運行時和單獨安裝的CUA驅動程序。",
     "chromium": "隔離的Chromium運行時",

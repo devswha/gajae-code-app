@@ -127,6 +127,17 @@
     "permissions": "権限"
   },
   "automation": {
+    "browserBackend": {
+      "title": "ブラウザ",
+      "description": "ここで開始した GJC セッションが操作できるブラウザ。",
+      "label": "ブラウザバックエンド",
+      "native": "ネイティブ",
+      "aside": "Aside（実験的）",
+      "nativeDescription": "ブラウザパネルと共有される内蔵ブラウザツール。",
+      "asideDescription": "GJC の Aside バックエンド: 内蔵ブラウザツールを非表示にし、ブラウザ操作はインストール済みの Aside CLI を通じて、ログイン済みの自分のブラウザで実行されます。",
+      "asideNote": "自分でインストールした Aside CLI（~/.local/bin/aside または Aside CLI アプリ）が必要です。Aside を選択している間、CLI が見つからないセッションはネイティブブラウザにフォールバックせず起動に失敗します。内蔵ブラウザに戻すにはネイティブに切り替えてください。",
+      "saveFailed": "ブラウザバックエンドを保存できませんでした。"
+    },
     "title": "ブラウザとネイティブアプリケーション",
     "description": "分離された Chromium ランタイムと別途インストールされた CUA Driver を確認します。",
     "chromium": "分離された Chromium ランタイム",

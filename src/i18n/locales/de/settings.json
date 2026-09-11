@@ -127,6 +127,17 @@
     "permissions": "Berechtigungen"
   },
   "automation": {
+    "browserBackend": {
+      "title": "Browser",
+      "description": "Welchen Browser hier gestartete GJC-Sitzungen steuern dürfen.",
+      "label": "Browser-Backend",
+      "native": "Nativ",
+      "aside": "Aside (experimentell)",
+      "nativeDescription": "Das integrierte Browser-Tool, das mit dem Browser-Panel geteilt wird.",
+      "asideDescription": "Das Aside-Backend von GJC: Das integrierte Browser-Tool wird ausgeblendet und Browserarbeit läuft über die installierte Aside-CLI in Ihrem eigenen angemeldeten Browser.",
+      "asideNote": "Erfordert die von Ihnen selbst installierte Aside-CLI (~/.local/bin/aside oder die Aside-CLI-App). Solange Aside ausgewählt ist, startet eine Sitzung, die sie nicht findet, nicht, statt auf den nativen Browser zurückzufallen. Wechseln Sie zurück zu Nativ, um den integrierten Browser wiederherzustellen.",
+      "saveFailed": "Das Browser-Backend konnte nicht gespeichert werden."
+    },
     "title": "Browser und native Anwendungen",
     "description": "Überprüfen Sie die isolierte Chromium-Laufzeit und die separat installierte CUA Driver.",
     "chromium": "Isolierte Chromium-Laufzeit",

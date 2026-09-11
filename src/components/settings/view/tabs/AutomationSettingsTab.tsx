@@ -3,6 +3,7 @@ import { ExternalLink, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import SettingsCard from '../SettingsCard';
+import SettingsRow from '../SettingsRow';
 import SettingsSection from '../SettingsSection';
 
 type Status = {
@@ -17,25 +18,57 @@ type Grants = {
   always: { origins: string[]; applications: string[] };
 };
 
+/** Mirrors `GJC_BROWSER_BACKENDS` in server/gjc-browser-backend.ts; the server rejects anything else. */
+const BROWSER_BACKENDS = ['native', 'aside'] as const;
+type BrowserBackend = typeof BROWSER_BACKENDS[number];
+
+const selectClass = 'touch-manipulation rounded-lg border border-input bg-card p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary';
+
+function isBrowserBackend(value: unknown): value is BrowserBackend {
+  return typeof value === 'string' && (BROWSER_BACKENDS as readonly string[]).includes(value);
+}
+
 export default function AutomationSettingsTab() {
   const { t } = useTranslation('settings');
   const [status, setStatus] = useState<Status | null>(null);
   const [grants, setGrants] = useState<Grants | null>(null);
   const [loading, setLoading] = useState(true);
+  const [browserBackend, setBrowserBackend] = useState<BrowserBackend | null>(null);
+  const [browserBackendError, setBrowserBackendError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [statusResponse, grantsResponse] = await Promise.all([
+      const [statusResponse, grantsResponse, backendResponse] = await Promise.all([
         fetch('/api/automation/status'),
         fetch('/api/automation/grants'),
+        fetch('/api/automation/browser-backend'),
       ]);
       if (statusResponse.ok) setStatus(await statusResponse.json() as Status);
       if (grantsResponse.ok) setGrants(await grantsResponse.json() as Grants);
+      if (backendResponse.ok) {
+        const { backend } = await backendResponse.json() as { backend: unknown };
+        if (isBrowserBackend(backend)) setBrowserBackend(backend);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const changeBrowserBackend = async (backend: BrowserBackend) => {
+    setBrowserBackendError(null);
+    const response = await fetch('/api/automation/browser-backend', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backend }),
+    });
+    if (!response.ok) {
+      setBrowserBackendError(t('automation.browserBackend.saveFailed'));
+      return;
+    }
+    const saved = await response.json() as { backend: unknown };
+    if (isBrowserBackend(saved.backend)) setBrowserBackend(saved.backend);
+  };
 
   useEffect(() => {
     void refresh().catch(() => setLoading(false));
@@ -63,6 +96,29 @@ export default function AutomationSettingsTab() {
 
   return (
     <div className="space-y-6">
+      <SettingsSection title={t('automation.browserBackend.title')} description={t('automation.browserBackend.description')}>
+        <SettingsCard>
+          <SettingsRow label={t('automation.browserBackend.label')} description={t(`automation.browserBackend.${browserBackend ?? 'native'}Description`)}>
+            <select
+              aria-label={t('automation.browserBackend.label')}
+              value={browserBackend ?? 'native'}
+              disabled={browserBackend === null}
+              onChange={(event) => { if (isBrowserBackend(event.target.value)) void changeBrowserBackend(event.target.value); }}
+              className={`${selectClass} sm:w-48`}
+            >
+              <option value="native">{t('automation.browserBackend.native')}</option>
+              <option value="aside">{t('automation.browserBackend.aside')}</option>
+            </select>
+          </SettingsRow>
+          {browserBackend === 'aside' ? (
+            <p className="px-4 pb-4 text-xs text-muted-foreground">{t('automation.browserBackend.asideNote')}</p>
+          ) : null}
+          {browserBackendError ? (
+            <p className="px-4 pb-4 text-xs text-destructive" role="alert">{browserBackendError}</p>
+          ) : null}
+        </SettingsCard>
+      </SettingsSection>
+
       <SettingsSection title={t('automation.title')} description={t('automation.description')}>
         <SettingsCard divided>
           <div className="flex items-center justify-between gap-4 p-4">

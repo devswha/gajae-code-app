@@ -127,6 +127,17 @@
     "permissions": "Permessi"
   },
   "automation": {
+    "browserBackend": {
+      "title": "Browser",
+      "description": "Quale browser possono controllare le sessioni GJC avviate qui.",
+      "label": "Backend del browser",
+      "native": "Nativo",
+      "aside": "Aside (sperimentale)",
+      "nativeDescription": "Lo strumento browser integrato, condiviso con il pannello Browser.",
+      "asideDescription": "Il backend Aside di GJC: lo strumento browser integrato viene nascosto e il lavoro nel browser passa attraverso la CLI Aside installata, nel tuo browser con accesso effettuato.",
+      "asideNote": "Richiede la CLI Aside installata da te (~/.local/bin/aside o l'app Aside CLI). Finché Aside è selezionato, una sessione che non la trova non si avvia invece di ripiegare sul browser nativo. Torna a Nativo per ripristinare il browser integrato.",
+      "saveFailed": "Impossibile salvare il backend del browser."
+    },
     "title": "Browser e applicazioni native",
     "description": "Esaminare il runtime Chromium isolato e CUA Driver installato separatamente.",
     "chromium": "Runtime Chromium isolato",

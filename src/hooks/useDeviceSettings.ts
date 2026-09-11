@@ -51,3 +51,32 @@ export function useDeviceSettings(options: UseDeviceSettingsOptions = {}) {
 
   return { isMobile, isPWA };
 }
+
+/**
+ * Detect whether the client is a mobile or touch-first device where focusing an
+ * input summons the on-screen virtual keyboard.
+ */
+export function isTouchOrMobileDevice(): boolean {
+  if (!browserAvailable()) return false;
+  return (
+    window.innerWidth < 768
+    || (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches)
+  );
+}
+
+/**
+ * Safely handle focus for popup search inputs: on desktop, focus immediately so
+ * the user can type to filter. On mobile or touch devices, skip autofocus so the
+ * virtual keyboard does not push popups offscreen, and blur any currently focused
+ * element (like the composer textarea) so the viewport stays clean.
+ */
+export function focusSearchInputSafely(input: HTMLInputElement | null): void {
+  if (!input) return;
+  if (isTouchOrMobileDevice()) {
+    if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+      document.activeElement.blur();
+    }
+  } else {
+    window.requestAnimationFrame(() => input.focus());
+  }
+}

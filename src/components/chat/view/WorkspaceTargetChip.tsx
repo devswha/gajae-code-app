@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, FolderGit2, Search } from 'lucide-react';
 
+import { focusSearchInputSafely } from '../../../hooks/useDeviceSettings';
 import { cn } from '../../../utils/cn';
 import type { WorkspaceCandidate } from '../hooks/useWorkspaceTarget';
 
@@ -43,14 +44,18 @@ export default function WorkspaceTargetChip({ workspaceRootName, candidates, tar
   useEffect(() => {
     if (!open) return;
     setQuery('');
-    const rect = rootRef.current?.getBoundingClientRect();
-    if (rect) {
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - POPUP_WIDTH - 8));
-      setPopupPosition(rect.top >= POPUP_MAX_HEIGHT + 16
-        ? { bottom: window.innerHeight - rect.top + 8, left }
-        : { top: rect.bottom + 8, left });
-    }
-    window.requestAnimationFrame(() => searchRef.current?.focus());
+    const updatePosition = () => {
+      const rect = rootRef.current?.getBoundingClientRect();
+      if (rect) {
+        const left = Math.max(8, Math.min(rect.left, window.innerWidth - POPUP_WIDTH - 8));
+        setPopupPosition(rect.top >= POPUP_MAX_HEIGHT + 16
+          ? { bottom: window.innerHeight - rect.top + 8, left }
+          : { top: rect.bottom + 8, left });
+      }
+    };
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    focusSearchInputSafely(searchRef.current);
     const close = (event: MouseEvent) => {
       const node = event.target as Node;
       if (!rootRef.current?.contains(node) && !popupRef.current?.contains(node)) setOpen(false);
@@ -61,6 +66,7 @@ export default function WorkspaceTargetChip({ workspaceRootName, candidates, tar
     document.addEventListener('mousedown', close);
     document.addEventListener('keydown', escape);
     return () => {
+      window.removeEventListener('resize', updatePosition);
       document.removeEventListener('mousedown', close);
       document.removeEventListener('keydown', escape);
     };

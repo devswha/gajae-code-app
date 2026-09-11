@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Boxes, Check, ChevronDown, ChevronRight, Loader2, Search } from 'lucide-react';
 
+import { focusSearchInputSafely } from '../../../hooks/useDeviceSettings';
 import { primaryModelSelector } from '../../../../shared/model-selectors';
 import { cn } from '../../../utils/cn';
 import type { ProviderModelOption } from '../../../types/app';
@@ -119,31 +120,38 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
     if (!open) return;
     setQuery('');
     setExpandedGroup(selected?.group || null);
-    window.requestAnimationFrame(() => searchRef.current?.focus());
+    focusSearchInputSafely(searchRef.current);
   }, [open, selected?.group]);
 
   useEffect(() => {
     if (!open) return;
-    const rect = rootRef.current?.getBoundingClientRect();
-    if (rect) {
-      // Left-anchored and clamped like the model and skill popups: a
-      // right-anchored w-96 popup grows left off the viewport on phones,
-      // cutting off its own list.
-      setPopupPosition({
-        bottom: window.innerHeight - rect.top + 8,
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 384 - 8)),
-        // The role summary makes this popup taller than the model picker.
-        // Bound it to the space above the trigger so its header and first
-        // provider groups never disappear beyond the top of the viewport.
-        maxHeight: Math.max(0, rect.top - 16),
-      });
-    }
+    const updatePosition = () => {
+      const rect = rootRef.current?.getBoundingClientRect();
+      if (rect) {
+        // Left-anchored and clamped like the model and skill popups: a
+        // right-anchored w-96 popup grows left off the viewport on phones,
+        // cutting off its own list.
+        setPopupPosition({
+          bottom: window.innerHeight - rect.top + 8,
+          left: Math.max(8, Math.min(rect.left, window.innerWidth - 384 - 8)),
+          // The role summary makes this popup taller than the model picker.
+          // Bound it to the space above the trigger so its header and first
+          // provider groups never disappear beyond the top of the viewport.
+          maxHeight: Math.max(0, rect.top - 16),
+        });
+      }
+    };
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
     const close = (event: MouseEvent) => {
       const target = event.target as Node;
       if (!rootRef.current?.contains(target) && !popupRef.current?.contains(target)) setOpen(false);
     };
     document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      document.removeEventListener('mousedown', close);
+    };
   }, [open]);
 
   const normalizedQuery = query.trim().toLowerCase();

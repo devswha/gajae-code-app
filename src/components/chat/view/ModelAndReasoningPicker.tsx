@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Check, ChevronDown, ChevronRight, Loader2, Search } from 'lucide-react';
 
+import { focusSearchInputSafely } from '../../../hooks/useDeviceSettings';
 import { primaryModelSelector } from '../../../../shared/model-selectors';
 import { cn } from '../../../utils/cn';
 import type { ProviderModelOption } from '../../../types/app';
@@ -233,7 +234,7 @@ export default function ModelAndReasoningPicker({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const returnFocus = useRef(false);
-  const [popupPosition, setPopupPosition] = useState({ bottom: 0, left: 0 });
+  const [popupPosition, setPopupPosition] = useState<{ bottom: number; left: number; maxHeight?: number }>({ bottom: 0, left: 0 });
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -265,13 +266,18 @@ export default function ModelAndReasoningPicker({
   // the popup must escape through a body portal with fixed positioning.
   useEffect(() => {
     if (!open) return;
-    const rect = rootRef.current?.getBoundingClientRect();
-    if (rect) {
-      setPopupPosition({
-        bottom: window.innerHeight - rect.top + 8,
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 448 - 8)),
-      });
-    }
+    const updatePosition = () => {
+      const rect = rootRef.current?.getBoundingClientRect();
+      if (rect) {
+        setPopupPosition({
+          bottom: window.innerHeight - rect.top + 8,
+          left: Math.max(8, Math.min(rect.left, window.innerWidth - 448 - 8)),
+          maxHeight: Math.max(0, rect.top - 16),
+        });
+      }
+    };
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
     const close = (event: MouseEvent) => {
       const target = event.target as Node;
       if (!rootRef.current?.contains(target) && !popupRef.current?.contains(target)) setOpen(false);
@@ -287,6 +293,7 @@ export default function ModelAndReasoningPicker({
     document.addEventListener('mousedown', close);
     document.addEventListener('keydown', closeForEscape);
     return () => {
+      window.removeEventListener('resize', updatePosition);
       document.removeEventListener('mousedown', close);
       document.removeEventListener('keydown', closeForEscape);
     };
@@ -301,7 +308,7 @@ export default function ModelAndReasoningPicker({
       returnFocus.current = false;
       return;
     }
-    window.requestAnimationFrame(() => searchRef.current?.focus());
+    focusSearchInputSafely(searchRef.current);
   }, [open]);
 
   const chooseModel = async (modelId: string) => {
@@ -366,8 +373,8 @@ export default function ModelAndReasoningPicker({
       {open && createPortal(
         <div
           ref={popupRef}
-          className="fixed z-80 w-md max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
-          style={{ bottom: popupPosition.bottom, left: popupPosition.left }}
+          className="fixed z-80 flex w-md max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+          style={{ bottom: popupPosition.bottom, left: popupPosition.left, maxHeight: popupPosition.maxHeight }}
         >
           <button
             type="button"
@@ -410,12 +417,12 @@ export default function ModelAndReasoningPicker({
             </p>
           )}
 
-          <div className={cn('flex divide-x divide-border/60 border-t border-border/60 pt-1', groups.length === 0 && 'hidden')}>
-            <div className="min-w-0 flex-[1.1] pr-1" role="listbox" aria-label={t('input.modelReasoning.providerTitle')}>
+          <div className={cn('flex min-h-0 flex-1 divide-x divide-border/60 border-t border-border/60 pt-1', groups.length === 0 && 'hidden')}>
+            <div className="flex min-h-0 min-w-0 flex-[1.1] flex-col pr-1" role="listbox" aria-label={t('input.modelReasoning.providerTitle')}>
               <p className="px-2.5 pt-1 pb-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
                 {t('input.modelReasoning.providerTitle')}
               </p>
-              <div className="max-h-64 space-y-0.5 overflow-y-auto">
+              <div className="max-h-64 min-h-0 flex-1 space-y-0.5 overflow-y-auto">
                 {groups.map(({ group, available }) => {
                   const isShown = group === shownProvider;
                   const holdsSelection = group === selectedProvider;
@@ -445,11 +452,11 @@ export default function ModelAndReasoningPicker({
               </div>
             </div>
 
-            <div className="min-w-0 flex-[1.2] px-1" role="listbox" aria-label={t('input.modelReasoning.modelTitle')}>
+            <div className="flex min-h-0 min-w-0 flex-[1.2] flex-col px-1" role="listbox" aria-label={t('input.modelReasoning.modelTitle')}>
               <p className="px-2.5 pt-1 pb-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
                 {t('input.modelReasoning.modelTitle')}
               </p>
-              <div className="max-h-64 space-y-0.5 overflow-y-auto">
+              <div className="max-h-64 min-h-0 flex-1 space-y-0.5 overflow-y-auto">
                 {shownModels.map((model) => {
                   const isSelected = model.value === selectedModelId;
                   return (
@@ -478,11 +485,11 @@ export default function ModelAndReasoningPicker({
               </div>
             </div>
 
-            <div className="min-w-0 flex-[0.9] pl-1" role="listbox" aria-label={t('input.modelReasoning.reasoningTitle')}>
+            <div className="flex min-h-0 min-w-0 flex-[0.9] flex-col pl-1" role="listbox" aria-label={t('input.modelReasoning.reasoningTitle')}>
               <p className="px-2.5 pt-1 pb-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
                 {t('input.modelReasoning.reasoningTitle')}
               </p>
-              <div className="max-h-64 space-y-0.5 overflow-y-auto">
+              <div className="max-h-64 min-h-0 flex-1 space-y-0.5 overflow-y-auto">
                 {reasoningOptions.length === 0 ? (
                   <p className="px-2.5 py-1.5 text-xs text-muted-foreground/60" aria-hidden>–</p>
                 ) : REASONING_EFFORT_OPTIONS

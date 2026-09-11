@@ -145,6 +145,24 @@ test('resolveDisplayModel prefers the live session model over every fallback', (
   );
 });
 
+test('a session pin that is a selection reference resolves through the preset catalog', () => {
+  // The composer feeds the session pin into `currentModel`; when the pin is
+  // `default` or `profile:*` it is a choice, not a runtime report, and must
+  // never surface verbatim on the trigger button.
+  assert.equal(
+    resolveDisplayModel('profile:codex-medium', 'profile:codex-medium', catalog),
+    'custom/codex',
+  );
+  assert.equal(resolveDisplayModel('default', 'default', catalog), 'openai/gpt-5.6-sol');
+  // An unknown reference still resolves through the Current preset.
+  assert.equal(resolveDisplayModel('profile:missing', 'profile:missing', catalog), 'openai/gpt-5.6-sol');
+  // A concrete runtime report keeps winning over every reference.
+  assert.equal(
+    resolveDisplayModel('profile:codex-medium', 'openai/live-model', catalog),
+    'openai/live-model',
+  );
+});
+
 test('resolveDisplayModel shows a raw selection when the session has not reported yet', () => {
   assert.equal(resolveDisplayModel('custom/codex', undefined, catalog), 'custom/codex');
 });

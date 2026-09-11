@@ -4,7 +4,7 @@ import { ArrowDownIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import PermissionContext from '../../../contexts/PermissionContext';
-import { readSessionFacts, readTokenTotals, type SessionStatusSnapshot } from '../../../contexts/sessionStatusSnapshot';
+import { displayModelId, readSessionFacts, readTokenTotals, type SessionStatusSnapshot } from '../../../contexts/sessionStatusSnapshot';
 import { usePublishSessionStatus } from '../../../contexts/SessionStatusContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import { useLegacySkipPermissionsMigration, useProjectPermissions } from '../../../hooks/useProjectPermissions';
@@ -201,11 +201,11 @@ function ChatInterface({
 
   const sessionStatusSnapshot = useMemo<SessionStatusSnapshot>(() => {
     const reported = readSessionFacts(session.sessionState);
-    const fallbackModel = gjcModel && gjcModel !== 'default' ? gjcModel : undefined;
+    const fallbackModel = displayModelId(gjcModel);
     return {
       ...reported,
       sessionId: session.currentSessionId ?? selectedSession?.id ?? null,
-      modelId: sessionPinnedModel ?? reported.modelId ?? fallbackModel,
+      modelId: displayModelId(sessionPinnedModel, reported.modelId, fallbackModel),
       thinkingLevel: reported.thinkingLevel ?? reasoningEffort,
       tokens: readTokenTotals(session.tokenBudget),
       activity: {

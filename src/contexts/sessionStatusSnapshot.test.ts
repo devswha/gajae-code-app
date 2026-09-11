@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  displayModelId,
   EMPTY_SESSION_STATUS,
   formatTokens,
   readSessionFacts,
@@ -59,6 +60,15 @@ test('a percentage over the window is clamped instead of overflowing the bar', (
 
 test('no session state at all yields no facts', () => {
   assert.deepEqual(readSessionFacts(null), {});
+});
+
+test('displayModelId skips selection references and picks the first concrete model', () => {
+  // Session pins can be `default` or `profile:name`; the status row must show
+  // the model the runtime reported, never the raw reference.
+  assert.equal(displayModelId('profile:claude-opus', 'anthropic/claude-opus-5', 'default'), 'anthropic/claude-opus-5');
+  assert.equal(displayModelId('default', undefined), undefined);
+  assert.equal(displayModelId(null, '  ', ' zai/glm-5.3 '), 'zai/glm-5.3');
+  assert.equal(displayModelId('anthropic/claude-opus-5', 'profile:claude-opus'), 'anthropic/claude-opus-5');
 });
 
 test('token totals come from the reported fields, cache summed across read and write', () => {

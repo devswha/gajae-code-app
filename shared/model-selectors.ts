@@ -39,6 +39,17 @@ export function primaryModelSelector(value: string): string | undefined {
   return unquote(content.slice(0, end).trim());
 }
 
+/**
+ * Selection references (`default`, `profile:name`) name an entry in the preset
+ * catalog, not a concrete model the runtime reports or runs. Display slots
+ * that expect a model id must resolve them through the catalog instead of
+ * rendering them verbatim.
+ */
+export function isModelSelectionReference(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed === 'default' || trimmed.startsWith('profile:');
+}
+
 function unquote(value: string): string | undefined {
   if (!value) return undefined;
   if ((value.startsWith('"') && value.endsWith('"'))

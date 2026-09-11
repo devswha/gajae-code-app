@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Check, ChevronDown, ChevronRight, Loader2, Search } from 'lucide-react';
 
-import { primaryModelSelector } from '../../../../shared/model-selectors';
+import { isModelSelectionReference, primaryModelSelector } from '../../../../shared/model-selectors';
 import { cn } from '../../../utils/cn';
 import type { ProviderModelOption } from '../../../types/app';
 
@@ -150,13 +150,19 @@ export function filterSessionModelGroups(groups: SessionModelGroup[], query: str
  * Resolves which model id the trigger button should display: the live session
  * report wins, then an explicit raw selection, then the default-role model of
  * the selected (or current) preset.
+ *
+ * `currentModel` may arrive carrying a session pin instead of a runtime
+ * report; when that pin is itself a selection reference (`default`,
+ * `profile:name`) it is not a model id and must resolve through the preset
+ * catalog below rather than be displayed verbatim.
  */
 export function resolveDisplayModel(
   value: string,
   currentModel: string | undefined,
   presetOptions: ProviderModelOption[],
 ): string | undefined {
-  if (currentModel?.trim()) return stripEffortSuffix(currentModel.trim());
+  const live = currentModel?.trim();
+  if (live && !isModelSelectionReference(live)) return stripEffortSuffix(live);
   if (value && value !== DEFAULT_MODEL_VALUE && !value.startsWith('profile:')) return value;
   const preset = presetOptions.find((option) => option.value === value)
     ?? presetOptions.find((option) => option.value === DEFAULT_MODEL_VALUE);

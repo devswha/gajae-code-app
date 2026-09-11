@@ -82,7 +82,8 @@
       "title": "Configurazione dell'agente",
       "description": "Stabilisci modelli per i ruoli di chat, pianificatore, esecutore, architetto e critico.",
       "search": "Trova configurazioni",
-      "noMatches": "Nessuna configurazione corrisponde."
+      "noMatches": "Nessuna configurazione corrisponde.",
+      "signInRequired": "Accedi a {{provider}} nelle impostazioni per usare questa preimpostazione"
     },
     "attachImages": "Aggiungi immagini",
     "send": "Spedisci",

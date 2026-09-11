@@ -82,7 +82,8 @@
       "title": "Temsilci kurulumu",
       "description": "Sohbet, planlayıcı, uygulayıcı, mimar ve eleştirmen rolleri için modeller belirleyin.",
       "search": "Yapılandırmaları bulun",
-      "noMatches": "Hiçbir yapılandırma eşleşmiyor."
+      "noMatches": "Hiçbir yapılandırma eşleşmiyor.",
+      "signInRequired": "Bu ön ayarı kullanmak için Ayarlar’dan {{provider}} hesabına giriş yapın"
     },
     "attachImages": "Resim ekle",
     "send": "Mesajı gönder",

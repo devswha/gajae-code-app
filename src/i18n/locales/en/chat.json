@@ -82,7 +82,8 @@
       "title": "Agent setup",
       "description": "Set models for the chat, planner, executor, architect, and critic roles.",
       "search": "Find configurations",
-      "noMatches": "No configurations match."
+      "noMatches": "No configurations match.",
+      "signInRequired": "Sign in to {{provider}} in Settings to use this preset"
     },
     "attachImages": "Add images",
     "send": "Send",

@@ -82,7 +82,8 @@
       "title": "代理設定",
       "description": "為聊天、規劃師、執行員、建築師和評審角色設定模型。",
       "search": "查找配置",
-      "noMatches": "無匹配的配置。"
+      "noMatches": "無匹配的配置。",
+      "signInRequired": "要使用此預設，請在設定中登入 {{provider}}"
     },
     "attachImages": "添加圖片",
     "send": "發送",

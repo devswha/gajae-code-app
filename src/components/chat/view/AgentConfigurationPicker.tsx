@@ -7,6 +7,8 @@ import { primaryModelSelector } from '../../../../shared/model-selectors';
 import { cn } from '../../../utils/cn';
 import type { ProviderModelOption } from '../../../types/app';
 
+import { providerDisplayLabel, providerOf, stripEffortSuffix } from './ModelAndReasoningPicker';
+
 type AgentConfigurationPickerProps = {
   value: string;
   options: ProviderModelOption[];
@@ -15,6 +17,14 @@ type AgentConfigurationPickerProps = {
   openTrigger?: number;
   /** Compact icon trigger for toolbar placement next to the skill picker. */
   iconOnly?: boolean;
+  /** Runtime model metadata: the word on which models the stored subscriptions can run. */
+  modelOptions?: ProviderModelOption[];
+  /**
+   * Whether `modelOptions` is the runtime's answer (true, even when empty:
+   * nobody signed in) or missing because the runtime could not be asked. Only
+   * a known answer dims presets; unknown availability keeps every preset lit.
+   */
+  availabilityKnown?: boolean;
   onSelect: (value: string) => Promise<unknown> | unknown;
 };
 
@@ -91,7 +101,63 @@ function groupOptions(options: ProviderModelOption[]): Array<{ group: string; op
     .map(({ entry }) => entry);
 }
 
-export default function AgentConfigurationPicker({ value, options, loading = false, openTrigger, iconOnly = false, onSelect }: AgentConfigurationPickerProps) {
+/**
+ * Distinct providers (in first-seen order) named by a preset's role
+ * selectors. Mirrors the model picker's own provider derivation so the
+ * "sign in required" tooltip can name the same providers, not the catalog
+ * group or preset label.
+ */
+export function presetProviders(option: ProviderModelOption): string[] {
+  const providers: string[] = [];
+  for (const selector of Object.values(option.roles ?? {})) {
+    if (typeof selector !== 'string') continue;
+    const model = stripEffortSuffix(selector.trim());
+    if (!model.includes('/')) continue;
+    const provider = providerOf(model);
+    if (provider && !providers.includes(provider)) providers.push(provider);
+  }
+  return providers;
+}
+
+/** Renders provider ids as the comma-separated display text for the sign-in tooltip. */
+function signInProviderLabel(providers: string[], fallback: string): string {
+  return providers.length > 0 ? providers.map(providerDisplayLabel).join(', ') : fallback;
+}
+
+/**
+ * Per-preset availability, derived the same way the model picker derives it:
+ * the runtime's model list is the word on what the stored subscriptions can
+ * run. A preset stays lit while any of its role models is runnable; it dims
+ * only when the runtime answered and listed none of them. A preset that names
+ * no model (empty roles, profile-name references) cannot be judged and stays
+ * lit, and unknown availability (`availabilityKnown` false: no MODELS, worker
+ * startup failure, stale cache) never dims anything.
+ */
+export function derivePresetAvailability(
+  options: ProviderModelOption[],
+  modelOptions: ProviderModelOption[] = [],
+  availabilityKnown = false,
+): Map<string, boolean> {
+  const runnable = new Set(
+    modelOptions
+      .map((option) => stripEffortSuffix(option.value.trim()))
+      .filter((model) => model.includes('/')),
+  );
+  const availability = new Map<string, boolean>();
+  for (const option of options) {
+    const models = Object.values(option.roles ?? {})
+      .filter((selector): selector is string => typeof selector === 'string')
+      .map((selector) => stripEffortSuffix(selector.trim()))
+      .filter((model) => model.includes('/'));
+    availability.set(
+      option.value,
+      !availabilityKnown || models.length === 0 || models.some((model) => runnable.has(model)),
+    );
+  }
+  return availability;
+}
+
+export default function AgentConfigurationPicker({ value, options, loading = false, openTrigger, iconOnly = false, modelOptions = [], availabilityKnown = false, onSelect }: AgentConfigurationPickerProps) {
   const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
@@ -154,6 +220,10 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
     [normalizedQuery, options],
   );
   const groups = useMemo(() => groupOptions(options), [options]);
+  const availability = useMemo(
+    () => derivePresetAvailability(options, modelOptions, availabilityKnown),
+    [options, modelOptions, availabilityKnown],
+  );
 
   const choose = async (option: ProviderModelOption) => {
     if (option.value === value) {
@@ -171,14 +241,24 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
 
   const renderPresetRow = (option: ProviderModelOption, { indented }: { indented?: boolean } = {}) => {
     const isSelected = option.value === value;
+    const available = availability.get(option.value) ?? true;
     return (
       <button
         key={option.value}
         type="button"
+        disabled={!available}
+        aria-disabled={!available || undefined}
+        data-available={available}
+        title={available
+          ? undefined
+          : t('input.agentConfiguration.signInRequired', {
+            provider: signInProviderLabel(presetProviders(option), option.group ?? option.label),
+          })}
         className={cn(
           'flex w-full items-center gap-2 rounded-lg py-1.5 pr-2.5 text-left transition-colors hover:bg-accent',
           indented ? 'pl-7' : 'pl-2.5',
           isSelected && 'bg-accent/70',
+          !available && 'cursor-not-allowed text-muted-foreground/50 hover:bg-transparent',
         )}
         onClick={() => { void choose(option); }}
       >
@@ -269,10 +349,23 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
 
                 const isExpanded = expandedGroup === group;
                 const containsSelected = groupOptionList.some((option) => option.value === value);
+                const groupAvailable = groupOptionList.some((option) => availability.get(option.value) ?? true);
+                const groupProviders: string[] = [];
+                for (const option of groupOptionList) {
+                  for (const provider of presetProviders(option)) {
+                    if (!groupProviders.includes(provider)) groupProviders.push(provider);
+                  }
+                }
                 return (
                   <div key={group}>
                     <button
                       type="button"
+                      data-available={groupAvailable}
+                      title={groupAvailable
+                        ? undefined
+                        : t('input.agentConfiguration.signInRequired', {
+                          provider: signInProviderLabel(groupProviders, group),
+                        })}
                       className="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left transition-colors hover:bg-accent"
                       onClick={() => setExpandedGroup(isExpanded ? null : group)}
                       aria-expanded={isExpanded}
@@ -280,11 +373,18 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
                       <ChevronRight
                         className={cn('size-3 shrink-0 text-muted-foreground transition-transform', isExpanded && 'rotate-90')}
                       />
-                      <span className="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                      <span
+                        className={cn(
+                          'min-w-0 flex-1 truncate text-[11px] font-semibold tracking-wide uppercase',
+                          groupAvailable ? 'text-muted-foreground' : 'text-muted-foreground/50',
+                        )}
+                      >
                         {group}
                       </span>
                       {containsSelected && !isExpanded && <Check className="size-3 shrink-0 text-primary" />}
-                      <span className="shrink-0 text-[10px] text-muted-foreground">{groupOptionList.length}</span>
+                      <span className={cn('shrink-0 text-[10px]', groupAvailable ? 'text-muted-foreground' : 'text-muted-foreground/50')}>
+                        {groupOptionList.length}
+                      </span>
                     </button>
                     {isExpanded && groupOptionList.map((option) => renderPresetRow(option, { indented: true }))}
                   </div>

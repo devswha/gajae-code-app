@@ -82,7 +82,8 @@
       "title": "Configuration des agents",
       "description": "Définissez des modèles pour les rôles de chat, de planificateur, d’exécuteur, d’architecte et de critique.",
       "search": "Rechercher des configurations",
-      "noMatches": "Aucune configuration ne correspond."
+      "noMatches": "Aucune configuration ne correspond.",
+      "signInRequired": "Connectez-vous à {{provider}} dans les réglages pour utiliser ce préréglage"
     },
     "attachImages": "Ajouter des images",
     "send": "Envoyer",

@@ -82,7 +82,8 @@
       "title": "Agenten-Setup",
       "description": "Legen Sie Modelle für die Rollen Chat, Planer, Ausführender, Architekt und Kritiker fest.",
       "search": "Finden Sie Konfigurationen",
-      "noMatches": "Keine Konfigurationen stimmen überein."
+      "noMatches": "Keine Konfigurationen stimmen überein.",
+      "signInRequired": "Melden Sie sich in den Einstellungen bei {{provider}} an, um diese Voreinstellung zu verwenden"
     },
     "attachImages": "Bilder hinzufügen",
     "send": "Senden",

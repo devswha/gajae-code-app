@@ -46,7 +46,7 @@ export const modelDisplayLabel = (
   return modelOptions.find((option) => option.value === modelId)?.label || compactModel(modelId);
 };
 
-const providerOf = (modelId: string): string => (
+export const providerOf = (modelId: string): string => (
   modelId.includes('/') ? modelId.slice(0, modelId.indexOf('/')) : ''
 );
 

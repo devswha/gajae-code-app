@@ -5,7 +5,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { ProviderModelOption } from '../../../types/app';
-import AgentConfigurationPicker, { derivePresetAvailability } from '../view/AgentConfigurationPicker';
+import AgentConfigurationPicker, { derivePresetAvailability, presetProviders } from '../view/AgentConfigurationPicker';
 
 const options: ProviderModelOption[] = [
   {
@@ -114,4 +114,23 @@ test('derivePresetAvailability cannot judge presets that name no model', () => {
 
   assert.equal(judged.get('profile:empty'), true);
   assert.equal(judged.get('profile:named'), true);
+});
+
+test('presetProviders lists the distinct providers a preset names, in first-seen order', () => {
+  const spanning: ProviderModelOption = {
+    value: 'profile:spanning',
+    label: 'Spanning',
+    roles: {
+      default: 'anthropic/claude-opus-4-8:medium',
+      planner: 'openai-codex/gpt-5.6-terra:low',
+      executor: 'anthropic/claude-sonnet-4-8:high',
+    },
+  };
+  assert.deepEqual(presetProviders(spanning), ['anthropic', 'openai-codex']);
+
+  assert.deepEqual(presetProviders({ value: 'profile:empty', label: 'No roles' }), []);
+  assert.deepEqual(
+    presetProviders({ value: 'profile:named', label: 'Profile-name role', roles: { default: 'missing-profile' } }),
+    [],
+  );
 });

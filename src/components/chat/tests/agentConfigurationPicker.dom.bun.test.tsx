@@ -97,7 +97,7 @@ test('a group whose presets cannot run is dimmed with the sign-in explanation', 
   await mountPicker({ modelOptions: runnableByCodex, availabilityKnown: true });
 
   assert.equal(lit(screen.getByText('CODEX').closest('button')!), true);
-  const claude = screen.getByTitle(signInHint.replace('{{provider}}', 'CLAUDE'));
+  const claude = screen.getByTitle(signInHint.replace('{{provider}}', 'Anthropic'));
   assert.equal(claude.dataset.available, 'false');
   assert.match(screen.getByText('CLAUDE').className, /text-muted-foreground\/50/);
 });
@@ -111,7 +111,7 @@ test('a preset whose models cannot run is dimmed and unselectable', async () => 
   const opus = row('Claude Opus');
   assert.equal(opus.disabled, true);
   assert.equal(opus.dataset.available, 'false');
-  assert.equal(opus.getAttribute('title'), signInHint.replace('{{provider}}', 'CLAUDE'));
+  assert.equal(opus.getAttribute('title'), signInHint.replace('{{provider}}', 'Anthropic'));
 });
 
 test('unknown availability keeps every preset lit and selectable', async () => {
@@ -121,7 +121,7 @@ test('unknown availability keeps every preset lit and selectable', async () => {
   for (const label of ['Current', 'Codex Eco', 'Claude Opus']) {
     assert.equal(lit(row(label)), true, `${label} must stay lit while availability is unknown`);
   }
-  assert.equal(screen.queryByTitle(signInHint.replace('{{provider}}', 'CLAUDE')), null);
+  assert.equal(screen.queryByTitle(signInHint.replace('{{provider}}', 'Anthropic')), null);
 });
 
 test('a runtime answer with no models dims every preset', async () => {
@@ -133,4 +133,8 @@ test('a runtime answer with no models dims every preset', async () => {
     assert.equal(preset.disabled, true, `${label} must dim when no subscription can run it`);
     assert.equal(preset.dataset.available, 'false');
   }
+
+  // Regression guard: the ungrouped "Current" preset must name its provider
+  // (ChatGPT), not its own label ("Current").
+  assert.equal(row('Current').getAttribute('title'), signInHint.replace('{{provider}}', 'ChatGPT'));
 });

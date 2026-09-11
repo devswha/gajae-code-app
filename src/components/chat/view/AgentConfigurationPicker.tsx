@@ -7,7 +7,7 @@ import { primaryModelSelector } from '../../../../shared/model-selectors';
 import { cn } from '../../../utils/cn';
 import type { ProviderModelOption } from '../../../types/app';
 
-import { stripEffortSuffix } from './ModelAndReasoningPicker';
+import { providerDisplayLabel, providerOf, stripEffortSuffix } from './ModelAndReasoningPicker';
 
 type AgentConfigurationPickerProps = {
   value: string;
@@ -99,6 +99,29 @@ function groupOptions(options: ProviderModelOption[]): Array<{ group: string; op
       groupRank(left.entry.group) - groupRank(right.entry.group) || left.index - right.index
     ))
     .map(({ entry }) => entry);
+}
+
+/**
+ * Distinct providers (in first-seen order) named by a preset's role
+ * selectors. Mirrors the model picker's own provider derivation so the
+ * "sign in required" tooltip can name the same providers, not the catalog
+ * group or preset label.
+ */
+export function presetProviders(option: ProviderModelOption): string[] {
+  const providers: string[] = [];
+  for (const selector of Object.values(option.roles ?? {})) {
+    if (typeof selector !== 'string') continue;
+    const model = stripEffortSuffix(selector.trim());
+    if (!model.includes('/')) continue;
+    const provider = providerOf(model);
+    if (provider && !providers.includes(provider)) providers.push(provider);
+  }
+  return providers;
+}
+
+/** Renders provider ids as the comma-separated display text for the sign-in tooltip. */
+function signInProviderLabel(providers: string[], fallback: string): string {
+  return providers.length > 0 ? providers.map(providerDisplayLabel).join(', ') : fallback;
 }
 
 /**
@@ -228,7 +251,9 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
         data-available={available}
         title={available
           ? undefined
-          : t('input.agentConfiguration.signInRequired', { provider: option.group ?? option.label })}
+          : t('input.agentConfiguration.signInRequired', {
+            provider: signInProviderLabel(presetProviders(option), option.group ?? option.label),
+          })}
         className={cn(
           'flex w-full items-center gap-2 rounded-lg py-1.5 pr-2.5 text-left transition-colors hover:bg-accent',
           indented ? 'pl-7' : 'pl-2.5',
@@ -325,6 +350,12 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
                 const isExpanded = expandedGroup === group;
                 const containsSelected = groupOptionList.some((option) => option.value === value);
                 const groupAvailable = groupOptionList.some((option) => availability.get(option.value) ?? true);
+                const groupProviders: string[] = [];
+                for (const option of groupOptionList) {
+                  for (const provider of presetProviders(option)) {
+                    if (!groupProviders.includes(provider)) groupProviders.push(provider);
+                  }
+                }
                 return (
                   <div key={group}>
                     <button
@@ -332,7 +363,9 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
                       data-available={groupAvailable}
                       title={groupAvailable
                         ? undefined
-                        : t('input.agentConfiguration.signInRequired', { provider: group })}
+                        : t('input.agentConfiguration.signInRequired', {
+                          provider: signInProviderLabel(groupProviders, group),
+                        })}
                       className="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left transition-colors hover:bg-accent"
                       onClick={() => setExpandedGroup(isExpanded ? null : group)}
                       aria-expanded={isExpanded}

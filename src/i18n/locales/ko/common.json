@@ -190,7 +190,15 @@
     "open": "에이전트 사이드바 표시",
     "close": "에이전트 사이드바 숨기기",
     "resize": "드래그하여 에이전트 사이드바 크기 조절",
-    "empty": "진행 중인 작업이 없습니다"
+    "environment": {
+      "title": "환경",
+      "changes": "변경 사항",
+      "branch": "브랜치",
+      "directory": "디렉토리",
+      "refresh": "Git 상태 다시 로드",
+      "notARepository": "이 폴더는 Git 저장소가 아닙니다",
+      "gitUnavailable": "Git 상태를 읽을 수 없습니다"
+    }
   },
   "commandPalette": {
     "title": "명령 팔레트",

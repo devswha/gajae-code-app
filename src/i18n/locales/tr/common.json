@@ -192,7 +192,15 @@
     "open": "Ajan kenar çubuğunu göster",
     "close": "Ajan kenar çubuğunu gizle",
     "resize": "Ajan kenar çubuğunu sürükleyerek yeniden boyutlandır",
-    "empty": "Etkin iş yok"
+    "environment": {
+      "title": "Ortam",
+      "changes": "Değişiklikler",
+      "branch": "Dal",
+      "directory": "Dizin",
+      "refresh": "Git durumunu yeniden yükle",
+      "notARepository": "Bu klasör bir Git deposu değil",
+      "gitUnavailable": "Git durumu okunamadı"
+    }
   },
   "commandPalette": {
     "title": "Komut paleti",

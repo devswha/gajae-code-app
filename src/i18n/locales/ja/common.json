@@ -190,7 +190,15 @@
     "open": "エージェントサイドバーを表示",
     "close": "エージェントサイドバーを閉じる",
     "resize": "ドラッグしてエージェントサイドバーのサイズを変更",
-    "empty": "実行中の作業はありません"
+    "environment": {
+      "title": "環境",
+      "changes": "変更",
+      "branch": "ブランチ",
+      "directory": "ディレクトリ",
+      "refresh": "Git ステータスを再読み込み",
+      "notARepository": "このフォルダーは Git リポジトリではありません",
+      "gitUnavailable": "Git ステータスを読み取れません"
+    }
   },
   "commandPalette": {
     "title": "コマンドパレット",

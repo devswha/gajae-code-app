@@ -792,9 +792,13 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
   Conversation forks and split-pane workspaces remain deferred product
   decisions, not missing implementations from the completed plans.
 - **Agent sidebar shell (experimental).** `src/components/agent-sidebar/` is the
-  presentation-only `{open,width}` rail behind the `agentSidebarV2` UI
-  preference (Settings → Appearance → Experimental; default off; persisted under
-  the separate `agent-sidebar` key). Follow-ups, in order: connect
+  `{open,width}` rail behind the `agentSidebarV2` UI preference (Settings →
+  Appearance → Experimental; default off; persisted under the separate
+  `agent-sidebar` key). Its stable body is the compact Environment block
+  (`AgentSidebarEnvironment`: working-tree change count, execution directory,
+  branch), read through the same `useProjectGitSummary` hook and session status
+  snapshot the legacy Status tab uses; the shell itself keeps no domain data.
+  Follow-ups, in order: connect
   tasks/agent activity/approvals/review from their authoritative sources;
   decide browser activity (while the flag is on, browser auto-reveal is off and
   transcript links open in the user's own browser instead of the legacy Browser

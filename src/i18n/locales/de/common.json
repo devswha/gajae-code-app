@@ -192,7 +192,15 @@
     "open": "Agent-Seitenleiste anzeigen",
     "close": "Agent-Seitenleiste ausblenden",
     "resize": "Agent-Seitenleiste durch Ziehen in der Größe ändern",
-    "empty": "Keine aktive Arbeit"
+    "environment": {
+      "title": "Umgebung",
+      "changes": "Änderungen",
+      "branch": "Branch",
+      "directory": "Verzeichnis",
+      "refresh": "Git-Status neu laden",
+      "notARepository": "Dieser Ordner ist kein Git-Repository",
+      "gitUnavailable": "Git-Status konnte nicht gelesen werden"
+    }
   },
   "commandPalette": {
     "title": "Befehlspalette",

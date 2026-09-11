@@ -190,7 +190,15 @@
     "open": "显示代理侧边栏",
     "close": "隐藏代理侧边栏",
     "resize": "拖动以调整代理侧边栏宽度",
-    "empty": "没有进行中的工作"
+    "environment": {
+      "title": "环境",
+      "changes": "更改",
+      "branch": "分支",
+      "directory": "目录",
+      "refresh": "刷新 Git 状态",
+      "notARepository": "此文件夹不是 Git 仓库",
+      "gitUnavailable": "无法读取 Git 状态"
+    }
   },
   "commandPalette": {
     "title": "命令面板",

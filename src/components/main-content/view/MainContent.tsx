@@ -64,6 +64,9 @@ function MainContent({
   const navigationSequence = useRef(0);
   const { permissions: projectPermissions } = useProjectPermissions(selectedProject?.projectId);
   const sessionLocation = useSessionLocation(selectedSession?.id);
+  // Where the selected session runs (its worktree, once known) or, with no
+  // session, the project itself. Both rails read git and files from here.
+  const executionPath = selectedSession ? sessionLocation.data?.cwd ?? undefined : selectedProject?.fullPath;
   const automationSessionId = selectedProject
     ? selectedSession?.id ?? `project-${selectedProject.projectId}`
     : undefined;
@@ -178,7 +181,7 @@ function MainContent({
             expanded,
             isMobile,
             projectName: selectedProject.displayName,
-            projectPath: selectedSession ? sessionLocation.data?.cwd ?? undefined : selectedProject.fullPath,
+            projectPath: executionPath,
             projectId: selectedProject.projectId,
             sessionId: selectedSession?.id,
             onComposerInsert: handleComposerInsert,
@@ -196,6 +199,9 @@ function MainContent({
           agentSidebar={{
             width: agentSidebar.width,
             isMobile,
+            projectId: selectedProject.projectId,
+            projectPath: executionPath,
+            sessionId: selectedSession?.id,
             onResizeStart: agentSidebar.handleResizeStart,
             onResizeKeyDown: agentSidebar.handleResizeKeyDown,
             onClose: agentSidebar.close,

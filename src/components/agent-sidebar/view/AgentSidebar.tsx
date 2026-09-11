@@ -4,7 +4,9 @@ import { useTranslation } from 'react-i18next';
 
 import { MAX_AGENT_SIDEBAR_WIDTH, MIN_AGENT_SIDEBAR_WIDTH } from '../agentSidebarState';
 
-export type AgentSidebarProps = {
+import AgentSidebarEnvironment, { type AgentSidebarEnvironmentProps } from './AgentSidebarEnvironment';
+
+export type AgentSidebarProps = AgentSidebarEnvironmentProps & {
   width: number;
   isMobile: boolean;
   onResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void;
@@ -13,16 +15,21 @@ export type AgentSidebarProps = {
 };
 
 /**
- * The presentation-only Agent sidebar shell that will replace the Workspace
- * panel: one column, one width, one close control, and an empty state.
+ * The Agent sidebar shell that will replace the Workspace panel: one column,
+ * one width, one close control, and the Environment summary as its stable
+ * content whether or not an agent is working.
  *
  * It renders exactly what its props say. There is intentionally no tab strip
- * and no expanded mode, and nothing here reads domain data — the surfaces land
- * in later PRs.
+ * and no expanded mode. The shell keeps no domain data of its own: the
+ * Environment block reads git and the runtime through their existing hooks,
+ * and the activity surfaces land in later PRs.
  */
 export default function AgentSidebar({
   width,
   isMobile,
+  projectId,
+  projectPath,
+  sessionId,
   onResizeStart,
   onResizeKeyDown,
   onClose,
@@ -45,8 +52,8 @@ export default function AgentSidebar({
   );
 
   const body = (
-    <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-6 text-center text-sm text-muted-foreground">
-      {t('agentSidebar.empty')}
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <AgentSidebarEnvironment projectId={projectId} projectPath={projectPath} sessionId={sessionId} />
     </div>
   );
 

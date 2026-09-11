@@ -21,12 +21,21 @@ function render(overrides: Partial<AgentSidebarProps> = {}): string {
   return renderToStaticMarkup(createElement(AgentSidebar, props));
 }
 
-test('the desktop sidebar is a labelled complementary region with a title and empty state', () => {
-  const html = render();
+test('the desktop sidebar is a labelled complementary region whose body is the environment summary', () => {
+  const html = render({ projectId: 'project-alpha', projectPath: '/work/alpha' });
 
   assert.match(html, /<aside aria-label="agentSidebar\.title"/);
   assert.match(html, /<h2[^>]*>agentSidebar\.title<\/h2>/);
-  assert.match(html, /agentSidebar\.empty/);
+  assert.match(html, /<section aria-labelledby="agent-sidebar-environment"/);
+  assert.match(html, /<h3 id="agent-sidebar-environment"[^>]*>agentSidebar\.environment\.title<\/h3>/);
+  // The rail has stable content now; there is no "nothing here" state left.
+  assert.doesNotMatch(html, /agentSidebar\.empty/);
+});
+
+test('the environment is the body on mobile too', () => {
+  const html = render({ isMobile: true, projectId: 'project-alpha', projectPath: '/work/alpha' });
+
+  assert.match(html, /<section aria-labelledby="agent-sidebar-environment"/);
 });
 
 test('the resize handle is a focusable separator carrying the current width', () => {
@@ -49,9 +58,11 @@ test('the sidebar keeps one close control, labelled for assistive technology', (
 });
 
 test('the shell carries no tab strip and no expand control', () => {
-  for (const html of [render(), render({ isMobile: true })]) {
+  const props = { projectId: 'project-alpha', projectPath: '/work/alpha', sessionId: 'session-1' };
+  for (const html of [render(props), render({ ...props, isMobile: true })]) {
     assert.doesNotMatch(html, /role="tablist"/);
     assert.doesNotMatch(html, /role="tab"/);
+    assert.doesNotMatch(html, /role="tabpanel"/);
     assert.doesNotMatch(html, /aria-pressed/);
   }
 });

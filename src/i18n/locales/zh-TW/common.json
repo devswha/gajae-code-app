@@ -190,7 +190,15 @@
     "open": "顯示代理側邊欄",
     "close": "隱藏代理側邊欄",
     "resize": "拖曳以調整代理側邊欄寬度",
-    "empty": "沒有進行中的工作"
+    "environment": {
+      "title": "環境",
+      "changes": "變更",
+      "branch": "分支",
+      "directory": "目錄",
+      "refresh": "重新載入 Git 狀態",
+      "notARepository": "此資料夾不是 Git 儲存庫",
+      "gitUnavailable": "無法讀取 Git 狀態"
+    }
   },
   "commandPalette": {
     "title": "命令面板",

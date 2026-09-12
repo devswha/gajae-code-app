@@ -62,10 +62,9 @@ export type SdkRunConfig = {
   spawns: string;
   bashPolicy: AppBashPolicy;
   /**
-   * The browser backend the app selected for this run. Absent or `native`
-   * leaves the runtime's own `browser.backend` setting untouched; `aside`
-   * overrides it so the runtime hides its built-in browser tool and injects
-   * its Aside routing, and the run refuses to start without an Aside CLI.
+   * The browser backend the app selected for this run. `builtin` and `aside`
+   * override the per-run settings clone; absence preserves the runtime's own
+   * setting for internal compatibility only.
    */
   browserBackend?: GjcBrowserBackend;
   appSessionId?: string;
@@ -245,21 +244,22 @@ export function applyGjcToolSettingsPolicy(settings: Settings): void {
  * Hands the app's browser backend choice to the runtime's own `browser.backend`
  * setting and returns what the runtime resolved from it.
  *
- * `aside` is the only value the app writes: the runtime then hides its built-in
- * browser tool and appends its `<browser-backend>` Aside routing block, exactly
- * as it does for `gjc config set browser.backend aside`. `native` (the default)
- * writes nothing, so the runtime's user configuration decides as it did before
- * this option existed. An explicit Aside choice with no Aside CLI is refused
- * up front with a fixed code rather than letting the run continue: a session
- * that cannot reach Aside must not act in the app's Chromium instead, and the
- * runtime's own contract is "no fallback to the native browser".
+ * `builtin` explicitly selects the runtime's built-in browser mode, preventing
+ * a user-level runtime Aside setting from silently changing the app selection.
+ * `aside` validates the runtime's CLI first, then writes its routing setting.
+ * An explicit Aside choice with no Aside CLI is refused up front with a fixed
+ * code rather than falling back to Built-in. An absent option preserves the
+ * runtime setting for internal compatibility only; server-created runs always
+ * supply an explicit application choice.
  */
 export function applyGjcBrowserBackend(
   settings: Pick<Settings, 'get' | 'override'>,
   requested: GjcBrowserBackend | undefined,
   probe: () => AsideCliProbe,
 ): ReturnType<typeof resolveBrowserBackend> {
-  if (requested === 'aside') {
+  if (requested === 'builtin') {
+    settings.override('browser.backend', 'native');
+  } else if (requested === 'aside') {
     const found = probe();
     if (!found.ok) throw new GjcAsideUnavailableError(found.searched);
     settings.override('browser.backend', 'aside');

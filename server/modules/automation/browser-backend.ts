@@ -9,8 +9,8 @@ import { appConfigDb } from '@/modules/database/index.js';
 /**
  * Which browser surface GJC sessions started by this app offer the model.
  *
- * `native` (the default) keeps the app's Chromium tool shared with the Browser
- * panel. `aside` (experimental) asks the runtime for its own Aside backend: the
+ * `builtin` (the default) selects the application's built-in browser surface.
+ * `aside` (experimental) asks the runtime for its own Aside backend: the
  * runtime hides the built-in browser tool and routes browser work through the
  * user-installed Aside CLI. The app stores only the choice; the routing, the
  * Aside skill and the CLI discovery all belong to the runtime.
@@ -22,6 +22,8 @@ export class BrowserBackendStore {
 
   get(): GjcBrowserBackend {
     const stored = this.storage.get(CONFIG_KEY);
+    // Keep old installations working without rewriting their configuration.
+    if (stored === 'native') return 'builtin';
     return isGjcBrowserBackend(stored) ? stored : DEFAULT_GJC_BROWSER_BACKEND;
   }
 

@@ -130,31 +130,31 @@ test('automation routes exercise a fake CUA backend and persistent grant revoke 
   }
 });
 
-test('the browser backend setting defaults to native, persists an explicit Aside choice, and rejects anything else', async () => {
+test('the browser backend setting defaults to Built-in, persists an explicit Aside choice, and rejects legacy native writes', async () => {
   const calls: RecordedCall[] = [];
   const server = await serve(createAutomationRouter(fakeService(calls)));
   try {
     const initial = await server.request('/browser-backend');
     assert.equal(initial.status, 200);
-    assert.deepEqual(await initial.json(), { backend: 'native', backends: ['native', 'aside'] });
+    assert.deepEqual(await initial.json(), { backend: 'builtin', backends: ['builtin', 'aside'] });
 
     const chosen = await server.request('/browser-backend', { ...json({ backend: 'aside' }), method: 'PUT' });
     assert.equal(chosen.status, 200);
-    assert.deepEqual(await chosen.json(), { backend: 'aside', backends: ['native', 'aside'] });
-    assert.deepEqual(await (await server.request('/browser-backend')).json(), { backend: 'aside', backends: ['native', 'aside'] });
+    assert.deepEqual(await chosen.json(), { backend: 'aside', backends: ['builtin', 'aside'] });
+    assert.deepEqual(await (await server.request('/browser-backend')).json(), { backend: 'aside', backends: ['builtin', 'aside'] });
 
-    for (const body of [{}, { backend: 'puppeteer' }, { backend: 'Aside' }, { backend: null }, { backend: ['aside'] }]) {
+    for (const body of [{}, { backend: 'native' }, { backend: 'puppeteer' }, { backend: 'Aside' }, { backend: null }, { backend: ['aside'] }]) {
       const response = await server.request('/browser-backend', { ...json(body), method: 'PUT' });
       assert.equal(response.status, 400, JSON.stringify(body));
       await response.text();
     }
-    assert.deepEqual(await (await server.request('/browser-backend')).json(), { backend: 'aside', backends: ['native', 'aside'] });
+    assert.deepEqual(await (await server.request('/browser-backend')).json(), { backend: 'aside', backends: ['builtin', 'aside'] });
 
-    const restored = await server.request('/browser-backend', { ...json({ backend: 'native' }), method: 'PUT' });
+    const restored = await server.request('/browser-backend', { ...json({ backend: 'builtin' }), method: 'PUT' });
     assert.equal(restored.status, 200);
     assert.deepEqual(calls, [
       { method: 'browserBackend.set', payload: 'aside' },
-      { method: 'browserBackend.set', payload: 'native' },
+      { method: 'browserBackend.set', payload: 'builtin' },
     ]);
   } finally {
     await server.close();

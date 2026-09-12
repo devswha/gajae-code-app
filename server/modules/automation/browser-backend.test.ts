@@ -12,11 +12,11 @@ function memoryStorage(seed: Record<string, string> = {}) {
   };
 }
 
-test('native is the backend until the user explicitly chooses Aside, and a run resolves the stored choice', () => {
+test('Built-in is the backend until the user explicitly chooses Aside, and a run resolves the stored choice', () => {
   const storage = memoryStorage();
   const store = new BrowserBackendStore(storage);
-  assert.equal(store.get(), 'native');
-  assert.equal(resolveGjcBrowserBackend(store), 'native');
+  assert.equal(store.get(), 'builtin');
+  assert.equal(resolveGjcBrowserBackend(store), 'builtin');
 
   assert.equal(store.set('aside'), 'aside');
   assert.equal(store.get(), 'aside');
@@ -24,15 +24,19 @@ test('native is the backend until the user explicitly chooses Aside, and a run r
   assert.deepEqual([...storage.values.keys()], ['automation.browserBackend.v1']);
 
   // Switching back restores the default without leaving Aside state behind.
-  assert.equal(store.set('native'), 'native');
-  assert.equal(resolveGjcBrowserBackend(store), 'native');
+  assert.equal(store.set('builtin'), 'builtin');
+  assert.equal(resolveGjcBrowserBackend(store), 'builtin');
 });
 
-test('an unknown or damaged stored value reads as native and cannot be written', () => {
+test('legacy native reads as Built-in without rewriting config; unknown values read as Built-in and cannot be written', () => {
+  const legacyStorage = memoryStorage({ 'automation.browserBackend.v1': 'native' });
+  const legacy = new BrowserBackendStore(legacyStorage);
+  assert.equal(legacy.get(), 'builtin');
+  assert.equal(legacyStorage.values.get('automation.browserBackend.v1'), 'native');
   const store = new BrowserBackendStore(memoryStorage({ 'automation.browserBackend.v1': 'puppeteer' }));
-  assert.equal(store.get(), 'native');
-  for (const rejected of ['Aside', 'ASIDE', '', undefined, null, 1, { backend: 'aside' }]) {
-    assert.throws(() => store.set(rejected), /Browser backend must be one of native, aside/, JSON.stringify(rejected));
+  assert.equal(store.get(), 'builtin');
+  for (const rejected of ['native', 'Aside', 'ASIDE', '', undefined, null, 1, { backend: 'aside' }]) {
+    assert.throws(() => store.set(rejected), /Browser backend must be one of builtin, aside/, JSON.stringify(rejected));
   }
-  assert.equal(store.get(), 'native');
+  assert.equal(store.get(), 'builtin');
 });

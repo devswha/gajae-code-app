@@ -20,14 +20,17 @@ Aside Browser
 
 ## Setting
 
-`Settings > Automation > Browser backend`: **Native** (default) or
+`Settings > Automation > Browser backend`: **Built-in** (default) or
 **Aside (Experimental)**. Persisted in the app's `app_config` table under
 `automation.browserBackend.v1`; `GET`/`PUT /api/automation/browser-backend`.
 The value is resolved server-side for every GJC run (`enrichGjcSdkRunOptions`)
 and never taken from a client request.
 
-- Native writes nothing to the runtime: its own `browser.backend` configuration
-  decides, exactly as before this setting existed.
+- Built-in writes `browser.backend=native` on the per-run settings clone. This
+  is an explicit runtime selection, so a user-level Aside setting cannot change
+  the app's selected surface. Built-in browser automation is available only in
+  the supported desktop implementation; web/self-host sessions receive an
+  explicit unsupported browser action response rather than a Chromium fallback.
 - Aside overrides `browser.backend` to `aside` on the per-run settings clone and
   withholds the app's Chromium `browser` transport, because the SDK registers a
   supplied automation tool unconditionally. Everything after that is the
@@ -35,8 +38,9 @@ and never taken from a client request.
   instruction.
 - Aside with no Aside CLI fails the run with `aside_unavailable` before a
   session exists. The probe is the runtime's own `probeAsideCli`; there is no
-  fallback to the native browser. Switching back to Native restores the
-  built-in browser immediately.
+  fallback to Built-in. Choose Built-in only where it is available.
+- Existing stored `native` values are read as Built-in for compatibility and are
+  not rewritten; new API writes must use `builtin` or `aside`.
 
 ## Findings (observed)
 
@@ -88,10 +92,9 @@ and never taken from a client request.
    - The Aside-unavailable refusal applies to every turn while Aside is
      selected, including turns that need no browser. Deliberate: a session
      that silently ran in the app's Chromium would act in the wrong profile.
-   - A user with `browser.backend: aside` in their own GJC configuration now
-     gets a coherent app session (routing block, no Chromium tool) instead of
-     the previous mixed state (routing block plus Chromium tool). Native in the
-     app UI means "leave the runtime's setting alone", not "force native".
+   - A user with `browser.backend: aside` in their own GJC configuration gets
+     the selected Built-in runtime mode when the app chooses Built-in; the
+     per-run override prevents a mixed configuration.
    - With Aside selected the Browser panel's Chromium is not what the agent
      drives; the panel is unchanged and still works for the user directly.
    - The runtime's Aside skill instruction only applies when a user-installed
@@ -101,13 +104,15 @@ and never taken from a client request.
 
 Automated (no Aside required; CLI probe injected, skill is a fixture):
 
-- `server/gjc-browser-backend.bun.test.ts` — real pinned runtime: default keeps
-  the app browser tool and injects no routing; Aside hides the tool (active and
+- `server/gjc-browser-backend.bun.test.ts` — real pinned runtime: Built-in
+  overrides an inherited Aside setting, keeps the app browser tool and injects
+  no routing; Aside hides the tool (active and
   discoverable), injects the runtime's block, sets `browser.backend=aside`, and
   discovers `<agentDir>/skills/aside`; a missing CLI is refused before any
   session with the override never written.
-- `server/gjc-sdk-contract.bun.test.ts` — adapter seam: no override and no probe
-  for the default; override + `computer`-only automation tools for Aside; the
+- `server/gjc-sdk-contract.bun.test.ts` — adapter seam: Built-in explicitly
+  overrides to runtime native mode without probing Aside; Aside gets
+  `computer`-only automation tools; the
   `aside_unavailable` response with no session created; malformed values
   rejected.
 - `server/gjc-worker.test.ts`, `server/gjc-worker-client.test.ts` — the fixed
@@ -135,7 +140,7 @@ browser; model `anthropic/claude-sonnet-5`; harmless public pages only):
   calls: `skill` (`aside`), `read` (its SKILL.md), then seven `bash` →
   `aside repl` calls; the marker was quoted and "checkbox 1 = checked, checkbox
   2 = checked" reported from a fresh `page.evaluate`.
-- App tool inventory, no tool calls: Native lists `proxy_browser` and reports no
+- App tool inventory, no tool calls: Built-in lists `proxy_browser` and reports no
   `<browser-backend>` block; Aside omits it and reports the block.
 
 ## Follow-ups (not implemented)

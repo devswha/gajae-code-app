@@ -39,7 +39,11 @@ const ASIDE_MISSING = () => ({
 const roots: string[] = [];
 after(async () => { await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true }))); });
 
-async function appRun(browserBackend: GjcBrowserBackend | undefined, probe: typeof ASIDE_FOUND | typeof ASIDE_MISSING = ASIDE_FOUND) {
+async function appRun(
+  browserBackend: GjcBrowserBackend | undefined,
+  probe: typeof ASIDE_FOUND | typeof ASIDE_MISSING = ASIDE_FOUND,
+  inheritedRuntimeBackend?: 'native' | 'aside',
+) {
   const root = await mkdtemp(join(tmpdir(), 'gjc-app-browser-backend-'));
   roots.push(root);
   const cwd = join(root, 'project');
@@ -58,6 +62,7 @@ async function appRun(browserBackend: GjcBrowserBackend | undefined, probe: type
   settings.override('memory.enabled', false);
   settings.override('startup.networkPrewarm', false);
   applyGjcToolSettingsPolicy(settings);
+  if (inheritedRuntimeBackend) settings.override('browser.backend', inheritedRuntimeBackend);
   const registry = new ModelRegistry(authStorage, join(agentDir, 'models.yml'), settings, { agentDir });
   registry.registerProvider('browser-backend-contract', {
     api: 'openai-completions', apiKey: 'offline-unusable-key', baseUrl: 'http://127.0.0.1:1',
@@ -96,8 +101,8 @@ async function appRun(browserBackend: GjcBrowserBackend | undefined, probe: type
   };
 }
 
-test('an app session with the default backend keeps the app browser tool, gets no Aside routing, and still sees the aside skill', { timeout: 60_000 }, async () => {
-  const run = await appRun(undefined);
+test('an app session with Built-in selected overrides an inherited Aside setting, keeps the app browser tool, and gets no Aside routing', { timeout: 60_000 }, async () => {
+  const run = await appRun('builtin', ASIDE_FOUND, 'aside');
   const s = await run.start();
   try {
     assert.equal(s.backend.id, 'native');
@@ -145,7 +150,7 @@ test('Aside selected without an Aside CLI is refused before a session exists, an
       && (error as { code?: string }).code === GJC_ASIDE_UNAVAILABLE_CODE
       && error.message === GJC_ASIDE_UNAVAILABLE_MESSAGE
       && !error.message.includes('/fixture'));
-    // Not `native` by fallback: the override was never written, so the run
+    // Not Built-in by fallback: the override was never written, so the run
     // that would have used this settings object never starts at all.
     assert.equal(run.settings.getOverride('browser.backend'), undefined);
   } finally { await run.disposeOwners(); }

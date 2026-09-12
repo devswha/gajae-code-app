@@ -2235,18 +2235,18 @@ test('app automation is injected through the SDK built-in automationTools contra
     await run;
   } finally { await f.close(); }
 });
-test('the default browser backend leaves the runtime setting alone, keeps the app browser tool, and never probes Aside', async () => {
+test('Built-in explicitly selects runtime native mode, keeps the app browser tool, and never probes Aside', async () => {
   let probes = 0;
   const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
     probeAsideCli: () => { probes += 1; return { ok: true, path: '/never/used/aside' }; },
   });
   try {
-    const run = f.host.handle(request('session.start', 'browser-native', {
-      message: 'hello', options: f.options,
-    }, 'app-session-native'));
+    const run = f.host.handle(request('session.start', 'browser-builtin', {
+      message: 'hello', options: { ...f.options, browserBackend: 'builtin' },
+    }, 'app-session-builtin'));
     const session = await firstSession(f.sessions);
     await session.promptStarted.promise;
-    assert.equal(f.toolPolicyOverrides.has('browser.backend'), false, 'native writes no browser.backend override');
+    assert.equal(f.toolPolicyOverrides.get('browser.backend'), 'native');
     const automationTools = f.factoryOptions[0]!.automationTools as Record<string, { name: string }>;
     assert.deepEqual(Object.keys(automationTools).sort(), ['browser', 'computer']);
     assert.equal(probes, 0);
@@ -2282,7 +2282,7 @@ test('selecting Aside hands browser.backend=aside to the runtime and withholds t
   } finally { await f.close(); }
 });
 
-test('selecting Aside without an Aside CLI refuses the run with its own code and never falls back to the native browser', async () => {
+test('selecting Aside without an Aside CLI refuses the run with its own code and never falls back to Built-in', async () => {
   const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
     probeAsideCli: () => ({ ok: false, searched: ['/fake/.local/bin/aside', 'PATH (aside)'], manualInstallCommand: 'curl ... | bash', url: 'https://example.invalid' }),
   });

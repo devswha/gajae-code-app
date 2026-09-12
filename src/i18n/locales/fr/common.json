@@ -203,6 +203,12 @@
     "work": {
       "title": "Travail",
       "working": "En cours"
+    },
+    "actionRequired": {
+      "title": "Réponse requise",
+      "waiting": "En attente de votre réponse",
+      "viewRequest": "Voir la demande",
+      "loading": "Chargement de la demande…"
     }
   },
   "commandPalette": {

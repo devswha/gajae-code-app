@@ -203,6 +203,12 @@
     "work": {
       "title": "Arbeit",
       "working": "Läuft"
+    },
+    "actionRequired": {
+      "title": "Antwort erforderlich",
+      "waiting": "Wartet auf deine Antwort",
+      "viewRequest": "Anfrage anzeigen",
+      "loading": "Anfrage wird geladen…"
     }
   },
   "commandPalette": {

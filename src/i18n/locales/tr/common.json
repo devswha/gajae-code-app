@@ -61,61 +61,10 @@
     }
   },
   "workspace": {
-    "title": "Çalışma alanı",
-    "open": "Çalışma alanı panelini göster",
-    "close": "Çalışma alanı panelini gizle",
-    "expand": "Çalışma alanı panelini genişlet",
-    "collapse": "Dar çalışma alanı paneli",
-    "resize": "Sürükleyerek çalışma alanı panelini yeniden boyutlandırın",
     "tabs": {
-      "status": "Durum",
-      "changes": "Değişiklikler",
-      "browser": "Tarayıcı",
       "tasks": "Görevler"
     },
-    "changes": {
-      "title": "Değişiklikler",
-      "refresh": "Değişiklikleri yenile",
-      "empty": "Değişiklik yok",
-      "emptyHint": "Çalışma ağacınız temiz.",
-      "scope": {
-        "workingTree": "Çalışma ağacı",
-        "lastTurn": "Son tur"
-      },
-      "emptyTurn": "Son turda değişiklik yok",
-      "emptyTurnHint": "Son turda hiçbir dosya değişmedi.",
-      "noSession": "En son değişiklikleri görmek için bir oturum seçin.",
-      "loading": "Değişiklikler yükleniyor…",
-      "notRepo": "Bu klasör bir Git deposu değil",
-      "unavailable": "Git değişiklikleri okunamadı",
-      "noCommits": "Henüz hiçbir şey işlenmedi.",
-      "binary": "İkili dosya; metin farkı kullanılamıyor.",
-      "tooLarge": "Dosya çok büyük olduğu için fark gösterilmedi.",
-      "files_one": "{{count}} dosya",
-      "files_other": "{{count}} dosya",
-      "refreshLabel": "Değişiklikleri yenile",
-      "openInEditor": "Düzenleyicide aç",
-      "renameArrow": "→",
-      "comment": {
-        "add": "Bu satıra yorum ekle",
-        "placeholder": "Bu satır hakkında yorum…",
-        "submit": "İncelemeye ekle",
-        "edit": "Yorumu düzenle",
-        "remove": "Yorumu kaldır",
-        "cancel": "Yorumu iptal et"
-      },
-      "review": {
-        "clear": "İncelemeyi iptal et",
-        "send_one": "{{count}} yorumu gönder",
-        "send_other": "{{count}} yorumu gönder"
-      },
-      "truncated": "{{total}} dosyadan {{shown}} tanesi gösteriliyor; liste sınırlı.",
-      "moreLines_one": "{{count}} satır daha göster",
-      "moreLines_other": "{{count}} satır daha göster"
-    },
     "tasks": {
-      "empty": "Henüz planlanan bir şey yok",
-      "emptyHint": "Aracı bu oturumda bir yapılacaklar listesi tutarsa burada görünür.",
       "progress": "{{total}} görevden {{done}} tanesi tamam",
       "status": {
         "pending": "Bekliyor",
@@ -125,36 +74,9 @@
       }
     },
     "statusTab": {
-      "session": "Oturum",
-      "model": "Modeli",
-      "reasoning": "muhakeme",
       "context": "Bağlam",
       "contextWindow": "Mevcut bağlam",
-      "tokens": "Jetonlar",
-      "tokensUsed": "Kullanılmış",
-      "tokensInput": "Giriş",
-      "tokensOutput": "Çıkış",
-      "tokensCache": "Önbellek",
-      "activity": "Etkinlik",
-      "running": "Koşu",
-      "idle": "Boşta",
-      "queuedMessage": "1 mesaj sıraya alındı",
-      "location": "Konum",
-      "project": "Proje",
-      "directory": "Rehber",
-      "git": "Git",
-      "branch": "Şube",
-      "changes": "Değişiklikler",
-      "staged": "Aşamalı",
-      "untracked": "Takip edilmiyor",
-      "clean": "Çalışan ağaç temiz",
-      "notARepository": "Bu klasör bir Git deposu değil",
-      "gitUnavailable": "Git durumu okunamadı",
-      "refreshGit": "Git durumunu yeniden yükle",
-      "unreported": "Henüz rapor yok",
-      "empty": "Açık oturum yok",
-      "emptyHint": "Mevcut etkinliğini görüntülemek için bir oturum başlatın veya açın.",
-      "permissions": "İzinler"
+      "tokens": "Jetonlar"
     }
   },
   "agentSidebar": {

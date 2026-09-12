@@ -1,5 +1,3 @@
-import type { RefObject } from 'react';
-
 import type { MarkSessionIdle, MarkSessionProcessing, SessionActivityMap } from '../../../hooks/useSessionProtection';
 import type { SessionStore } from '../../../stores/useSessionStore';
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
@@ -37,6 +35,4 @@ export interface ChatInterfaceProps {
   sessionStore: SessionStore;
   onFileOpen?: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void; onInputFocusChange?: (focused: boolean) => void; onSessionProcessing?: MarkSessionProcessing; onSessionIdle?: MarkSessionIdle; processingSessions?: SessionActivityMap; onNavigateToSession?: (targetSessionId: string, options?: SessionNavigationOptions) => void; onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void; onShowSettings?: () => void;
   toolOutputDensity?: ToolOutputDensity; showImagePreviews?: boolean; sendByCtrlEnter?: boolean; newSessionTrigger?: number; onTaskClick?: (...args: unknown[]) => void;
-  /** Set to the composer-append function while mounted; the Changes tab's line comments flow through it. */
-  composerInsertRef?: RefObject<((text: string) => void) | null>;
 }

@@ -97,15 +97,12 @@
   "preferences": {
     "sections": {
       "toolDisplay": "工具输出显示",
-      "inputSettings": "消息输入",
-      "experimental": "实验性功能"
+      "inputSettings": "消息输入"
     },
     "showRawParameters": "显示未处理的参数",
     "showThinking": "显示推理过程",
     "sendByCtrlEnter": "按下Ctrl+Enter发送",
     "sendByCtrlEnterDescription": "启用时，Ctrl+Enter用于发送消息而非Enter键，这有助于IME用户防止意外发送。",
-    "agentSidebarV2": "代理侧边栏（预览）",
-    "agentSidebarV2Description": "用新的代理侧边栏替换工作区面板。目前仅显示空状态。",
     "toolOutputDensity": {
       "label": "工具输出密度",
       "description": "决定每次工具调用在展开前于对话中显示多少内容。",

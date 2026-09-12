@@ -61,61 +61,10 @@
     }
   },
   "workspace": {
-    "title": "Workspace",
-    "open": "Show workspace panel",
-    "close": "Hide workspace panel",
-    "expand": "Widen workspace panel",
-    "collapse": "Narrow workspace panel",
-    "resize": "Resize the workspace panel by dragging",
     "tabs": {
-      "status": "Status",
-      "changes": "Changes",
-      "browser": "Browser",
       "tasks": "Tasks"
     },
-    "changes": {
-      "title": "Changes",
-      "refresh": "Refresh changes",
-      "empty": "No changes",
-      "emptyHint": "Your working tree is clean.",
-      "scope": {
-        "workingTree": "Working tree",
-        "lastTurn": "Last turn"
-      },
-      "emptyTurn": "No changes in the last turn",
-      "emptyTurnHint": "The last turn did not change any files.",
-      "noSession": "Select a session to view its latest changes.",
-      "loading": "Loading changes…",
-      "notRepo": "This folder is not a Git repository",
-      "unavailable": "Could not read Git changes",
-      "noCommits": "Nothing has been committed yet.",
-      "binary": "Binary file; no text diff available.",
-      "tooLarge": "Diff omitted because this file is too large.",
-      "files_one": "{{count}} file",
-      "files_other": "{{count}} files",
-      "refreshLabel": "Refresh changes",
-      "openInEditor": "Open in editor",
-      "renameArrow": "→",
-      "comment": {
-        "add": "Comment on this line",
-        "placeholder": "Comment on this line…",
-        "submit": "Add to review",
-        "edit": "Edit comment",
-        "remove": "Remove comment",
-        "cancel": "Discard comment"
-      },
-      "review": {
-        "clear": "Discard review",
-        "send_one": "Send {{count}} comment",
-        "send_other": "Send {{count}} comments"
-      },
-      "truncated": "Showing {{shown}} of {{total}} files; the list is capped.",
-      "moreLines_one": "Show {{count}} more line",
-      "moreLines_other": "Show {{count}} more lines"
-    },
     "tasks": {
-      "empty": "Nothing planned yet",
-      "emptyHint": "When the agent keeps a todo list in this session, it shows here.",
       "progress": "{{done}} of {{total}} done",
       "status": {
         "pending": "Pending",
@@ -125,36 +74,9 @@
       }
     },
     "statusTab": {
-      "session": "Session",
-      "model": "Model",
-      "reasoning": "Reasoning",
       "context": "Context",
       "contextWindow": "Available context",
-      "tokens": "Tokens",
-      "tokensUsed": "Used",
-      "tokensInput": "Input",
-      "tokensOutput": "Output",
-      "tokensCache": "Cache",
-      "activity": "Activity",
-      "running": "Running",
-      "idle": "Idle",
-      "queuedMessage": "1 message queued",
-      "location": "Location",
-      "project": "Project",
-      "directory": "Directory",
-      "git": "Git",
-      "branch": "Branch",
-      "changes": "Changes",
-      "staged": "Staged",
-      "untracked": "Untracked",
-      "clean": "Working tree is clean",
-      "notARepository": "This folder is not a Git repository",
-      "gitUnavailable": "Could not read Git status",
-      "refreshGit": "Reload Git status",
-      "unreported": "No report yet",
-      "empty": "No open session",
-      "emptyHint": "Start or open a session to view its current activity.",
-      "permissions": "Permissions"
+      "tokens": "Tokens"
     }
   },
   "agentSidebar": {

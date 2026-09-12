@@ -1,51 +1,27 @@
 /**
  * Persisted state for the right-hand Agent sidebar.
  *
- * This is the presentation-only shell that will replace the Workspace panel.
- * Its state is deliberately just `{ open, width }`: there is intentionally no
- * tab state — the sidebar shows one surface — and intentionally no migration
- * from the legacy `workspace-panel` key. Carrying the old state over belongs to
- * the cutover PR that actually swaps the panel out, not to this boundary.
+ * The sidebar is the one production right-hand surface, and its state is
+ * deliberately just `{ open }`: the desktop lane is a fixed-width context
+ * column, so there is no width to remember and no tab state either. A record
+ * written by the earlier resizable rail (`{ open, width }`) is read for its
+ * `open` alone, and the next write drops the stale field.
  */
 
 export type AgentSidebarState = {
   open: boolean;
-  width: number;
 };
 
 export type AgentSidebarStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
 export const AGENT_SIDEBAR_STORAGE_KEY = 'agent-sidebar';
 
-export const MIN_AGENT_SIDEBAR_WIDTH = 280;
+/** The conversation keeps at least this much of the row beside the lane. */
 export const MIN_AGENT_SIDEBAR_CHAT_WIDTH = 200;
-export const DEFAULT_AGENT_SIDEBAR_WIDTH = 384;
-
-// A sidebar wider than this leaves the chat unusable, which is the one thing
-// the sidebar must never do; the ratio applies whenever a container width is
-// known.
-const MAX_CONTAINER_RATIO = 0.8;
-export const MAX_AGENT_SIDEBAR_WIDTH = 1600;
 
 export const DEFAULT_AGENT_SIDEBAR_STATE: AgentSidebarState = {
   open: false,
-  width: DEFAULT_AGENT_SIDEBAR_WIDTH,
 };
-
-export function clampAgentSidebarWidth(width: number, containerWidth?: number): number {
-  if (!Number.isFinite(width)) {
-    return DEFAULT_AGENT_SIDEBAR_WIDTH;
-  }
-
-  const ceiling = typeof containerWidth === 'number' && containerWidth > 0
-    ? Math.max(MIN_AGENT_SIDEBAR_WIDTH, Math.min(
-      Math.floor(containerWidth * MAX_CONTAINER_RATIO),
-      containerWidth - MIN_AGENT_SIDEBAR_CHAT_WIDTH,
-    ))
-    : MAX_AGENT_SIDEBAR_WIDTH;
-
-  return Math.round(Math.min(Math.max(width, MIN_AGENT_SIDEBAR_WIDTH), ceiling));
-}
 
 export function readAgentSidebarState(storage: AgentSidebarStorage | null): AgentSidebarState {
   if (!storage) {
@@ -74,14 +50,8 @@ export function readAgentSidebarState(storage: AgentSidebarStorage | null): Agen
     return DEFAULT_AGENT_SIDEBAR_STATE;
   }
 
-  const record = parsed as Record<string, unknown>;
-  const width = typeof record.width === 'number' && Number.isFinite(record.width)
-    ? record.width
-    : DEFAULT_AGENT_SIDEBAR_WIDTH;
-
   return {
-    open: record.open === true,
-    width: clampAgentSidebarWidth(width),
+    open: (parsed as Record<string, unknown>).open === true,
   };
 }
 
@@ -91,10 +61,7 @@ export function writeAgentSidebarState(storage: AgentSidebarStorage | null, stat
   }
 
   try {
-    storage.setItem(AGENT_SIDEBAR_STORAGE_KEY, JSON.stringify({
-      open: state.open,
-      width: clampAgentSidebarWidth(state.width),
-    }));
+    storage.setItem(AGENT_SIDEBAR_STORAGE_KEY, JSON.stringify({ open: state.open }));
   } catch {
     // A full or blocked storage must not take the sidebar down with it.
   }

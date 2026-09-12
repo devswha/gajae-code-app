@@ -791,27 +791,27 @@ after the reconcile fetch replaces realtime timestamps with disk ones.
   `plans/session-worktree-goal-acceptance.md`.
   Conversation forks and split-pane workspaces remain deferred product
   decisions, not missing implementations from the completed plans.
-- **Agent sidebar shell (experimental).** `src/components/agent-sidebar/` is the
-  surface behind the `agentSidebarV2` UI preference (Settings → Appearance →
-  Experimental; default off; persisted under the separate `agent-sidebar` key).
-  On desktop it is a compact context panel beside the conversation: a
-  fixed-width lane (`w-64`, `lg:w-80`) with no header, border, background or
-  resize handle of its own, holding one card sized to the Environment block
-  (`AgentSidebarEnvironment`: working-tree change count, execution directory,
-  branch), read through the same `useProjectGitSummary` hook and session status
-  snapshot the legacy Status tab uses; the header's rail toggle shows and hides
-  it. Mobile keeps the drawer with its titled header and close control. The
-  shell keeps no domain data; the persisted record is still `{open,width}` but
-  `width` is no longer read — it is left for the cutover PR rather than migrated.
-  Follow-ups, in order: connect
-  tasks/agent activity/approvals/review from their authoritative sources;
-  decide browser activity (while the flag is on, browser auto-reveal is off and
-  transcript links open in the user's own browser instead of the legacy Browser
-  tab); migrate `workspace-panel` state and remove `WorkspacePanel`,
-  `rightRail`, the preference and the seam in the cutover PR. Both rail hooks
-  mount regardless of the flag, so the `agent-sidebar` key is written with its
-  defaults on every load; if the experiment is abandoned, delete that key with
-  the boundary.
+- **Agent sidebar (production right rail, cutover complete).** The compact
+  context surface in `src/components/agent-sidebar/` is the one right-hand
+  experience: `MainContent` renders it directly, and the legacy
+  `WorkspacePanel` right rail, the `MainContentRightRail` seam, the
+  `agentSidebarV2` experimental preference (Settings → Appearance →
+  Experimental is gone with it) and the persisted `workspace-panel` state were
+  removed. Desktop is a fixed-width context lane (`w-64`, `lg:w-80`) with no
+  header, border, background or resize handle of its own, holding one card:
+  Environment (`AgentSidebarEnvironment`: working-tree change count, execution
+  directory, branch via `useProjectGitSummary`), WORK (the authoritative TODO
+  projection, run-state fallback) and Action Required (unanswered
+  approval/question/delegation-authorization state from the attention store).
+  The header's rail toggle shows and hides it. Mobile keeps the drawer with
+  its titled header and close control. The persisted record is `{ open }`; a
+  record from the resizable-rail era still carrying `width` is read for its
+  `open` alone and rewritten clean, and stale `agentSidebarV2` preference
+  values are ignored harmlessly. Shared git/change data sources stayed put
+  (`useProjectGitSummary`, `useProjectChanges`, `useLastTurnChanges`,
+  `utils/unifiedDiff` — the chat's edit cards and the worktree picker still
+  read them). Deferred, unchanged: browser activity in WORK, agent/subagent
+  lifecycle, IRC — all need their own structured contracts.
 
 ## How to resume (next session)
 

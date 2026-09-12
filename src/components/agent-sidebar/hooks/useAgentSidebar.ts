@@ -16,13 +16,11 @@ function browserStorage(): Storage | null {
 }
 
 /**
- * Owns whether the experimental Agent sidebar is open.
- *
- * The persisted record is still `{ open, width }`: the desktop surface is a
- * fixed-width context panel and no longer resizes, but the stored width is
- * left as it is rather than migrated here — that belongs to the cutover PR
- * along with the legacy `workspace-panel` state. There is intentionally no tab
- * state.
+ * Owns whether the Agent sidebar is open. The sidebar is the production
+ * right-hand surface, so this is the only right-rail state left: a single
+ * persisted `{ open }` record under the `agent-sidebar` key. A record from
+ * the earlier resizable rail still carrying a `width` is read for its `open`
+ * alone and rewritten without the stale field.
  */
 export function useAgentSidebar() {
   const [state, setState] = useState<AgentSidebarState>(() => readAgentSidebarState(browserStorage()));

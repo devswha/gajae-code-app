@@ -167,26 +167,23 @@ test('a level that is not one of the three reads as the default', () => {
 });
 
 /*
- * `agentSidebarV2` is the experimental switch that swaps the legacy Workspace
- * panel for the new Agent sidebar shell. It ships off, so a profile that has
- * never seen it - or that carries something other than a boolean - must read
- * as off rather than turning the experiment on by accident.
+ * `agentSidebarV2` was the experimental switch between the legacy Workspace
+ * panel and the Agent sidebar. The cutover made the sidebar the only right
+ * rail and removed the preference: a profile still carrying the old key must
+ * read it as noise, never as a way back to the legacy panel.
  */
 
-test('a fresh profile has the agent sidebar experiment off', () => {
-  assert.equal(readInitialPreferencesForTest(STORAGE_KEY).agentSidebarV2, false);
-});
+test('a stored agent sidebar experiment value is ignored and dropped on the next save', () => {
+  for (const stale of [true, false, 'maybe']) {
+    store.clear();
+    store.set(STORAGE_KEY, JSON.stringify({ agentSidebarV2: stale, showImagePreviews: false }));
+    store.set(`${STORAGE_KEY}.version`, String(UI_PREFERENCES_VERSION));
 
-test('a profile that turned the agent sidebar experiment on keeps it on', () => {
-  store.set(STORAGE_KEY, JSON.stringify({ agentSidebarV2: true }));
-  store.set(`${STORAGE_KEY}.version`, String(UI_PREFERENCES_VERSION));
+    const preferences = readInitialPreferencesForTest(STORAGE_KEY);
 
-  assert.equal(readInitialPreferencesForTest(STORAGE_KEY).agentSidebarV2, true);
-});
-
-test('a stored value that is not a boolean leaves the experiment off', () => {
-  store.set(STORAGE_KEY, JSON.stringify({ agentSidebarV2: 'maybe' }));
-  store.set(`${STORAGE_KEY}.version`, String(UI_PREFERENCES_VERSION));
-
-  assert.equal(readInitialPreferencesForTest(STORAGE_KEY).agentSidebarV2, false);
+    assert.equal('agentSidebarV2' in preferences, false);
+    // Unrelated preferences survive the ignored key untouched.
+    assert.equal(preferences.showImagePreviews, false);
+    assert.equal('agentSidebarV2' in JSON.parse(store.get(STORAGE_KEY)!), false);
+  }
 });

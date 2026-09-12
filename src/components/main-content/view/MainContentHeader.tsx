@@ -16,9 +16,8 @@ export default function MainContentHeader({
   selectedSession,
   isMobile,
   onMenuClick,
-  rightRail,
-  workspaceOpen,
-  onToggleWorkspace,
+  sidebarOpen,
+  onToggleSidebar,
 }: MainContentHeaderProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -75,12 +74,12 @@ export default function MainContentHeader({
           {activeTab === 'chat' && <ToolOutputDensityToggle />}
           <button
             type="button"
-            onClick={onToggleWorkspace}
-            aria-expanded={workspaceOpen}
-            aria-label={workspaceOpen ? t(`${rightRail}.close`) : t(`${rightRail}.open`)}
-            title={workspaceOpen ? t(`${rightRail}.close`) : t(`${rightRail}.open`)}
+            onClick={onToggleSidebar}
+            aria-expanded={sidebarOpen}
+            aria-label={sidebarOpen ? t('agentSidebar.close') : t('agentSidebar.open')}
+            title={sidebarOpen ? t('agentSidebar.close') : t('agentSidebar.open')}
             className={`shrink-0 rounded-md p-1.5 transition-colors ${
-              workspaceOpen
+              sidebarOpen
                 ? 'bg-muted text-foreground'
                 : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
             }`}

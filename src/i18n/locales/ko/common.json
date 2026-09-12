@@ -61,59 +61,10 @@
     }
   },
   "workspace": {
-    "title": "작업 공간",
-    "open": "워크스페이스 패널 표시",
-    "close": "워크스페이스 패널 숨기기",
-    "expand": "작업 공간 패널 넓히기",
-    "collapse": "작업 공간 패널 좁히기",
-    "resize": "워크스페이스 패널 크기를 드래그하여 조정",
     "tabs": {
-      "status": "상태",
-      "changes": "변경 사항",
-      "browser": "브라우저",
       "tasks": "할 일"
     },
-    "changes": {
-      "title": "변경 사항",
-      "refresh": "변경 사항 새로 고침",
-      "empty": "변경 사항 없음",
-      "emptyHint": "작업 트리가 깨끗합니다.",
-      "scope": {
-        "workingTree": "작업 트리",
-        "lastTurn": "최근 턴"
-      },
-      "emptyTurn": "최근 턴에 변경 사항이 없습니다",
-      "emptyTurnHint": "최근 턴에서 변경된 파일이 없습니다.",
-      "noSession": "최신 변경 사항을 보려면 세션을 선택하세요.",
-      "loading": "변경 사항을 불러오는 중…",
-      "notRepo": "이 폴더는 Git 저장소가 아닙니다",
-      "unavailable": "Git 변경 사항을 읽을 수 없습니다",
-      "noCommits": "아직 커밋된 내용이 없습니다.",
-      "binary": "바이너리 파일이라 텍스트 diff를 표시할 수 없습니다.",
-      "tooLarge": "파일이 너무 커서 diff를 생략했습니다.",
-      "files_one": "{{count}}개 파일",
-      "files_other": "{{count}}개 파일",
-      "refreshLabel": "변경 사항 새로 고침",
-      "openInEditor": "편집기에서 열기",
-      "renameArrow": "→",
-      "comment": {
-        "add": "이 줄에 코멘트",
-        "placeholder": "이 줄에 대한 코멘트…",
-        "submit": "리뷰에 추가",
-        "edit": "코멘트 수정",
-        "remove": "코멘트 삭제",
-        "cancel": "코멘트 취소"
-      },
-      "review": {
-        "clear": "리뷰 취소",
-        "send_other": "코멘트 {{count}}개 보내기"
-      },
-      "truncated": "전체 {{total}}개 중 {{shown}}개 표시 중입니다. 목록이 제한되었습니다.",
-      "moreLines_other": "나머지 {{count}}줄 표시"
-    },
     "tasks": {
-      "empty": "아직 계획된 것이 없습니다",
-      "emptyHint": "이 세션에서 에이전트가 할 일 목록을 관리하면 여기에 표시됩니다.",
       "progress": "{{total}}개 중 {{done}}개 완료",
       "status": {
         "pending": "대기",
@@ -123,36 +74,9 @@
       }
     },
     "statusTab": {
-      "session": "세션",
-      "model": "모델",
-      "reasoning": "논리",
       "context": "맥락",
       "contextWindow": "사용 가능한 맥락",
-      "tokens": "토큰",
-      "tokensUsed": "사용된",
-      "tokensInput": "입력",
-      "tokensOutput": "출력",
-      "tokensCache": "캐시",
-      "activity": "활동",
-      "running": "실행 중",
-      "idle": "대기",
-      "queuedMessage": "1개의 메시지 대기 중",
-      "location": "위치",
-      "project": "현재 프로젝트",
-      "directory": "디렉토리",
-      "git": "Git",
-      "branch": "브랜치",
-      "changes": "변경 사항",
-      "staged": "스테이지된",
-      "untracked": "추적되지 않은",
-      "clean": "작업 디렉토리는 깨끗합니다",
-      "notARepository": "이 폴더는 Git 저장소가 아닙니다",
-      "gitUnavailable": "Git 상태를 읽을 수 없습니다",
-      "refreshGit": "Git 상태 다시 로드",
-      "unreported": "아직 보고서가 없음",
-      "empty": "열린 세션이 없음",
-      "emptyHint": "세션을 시작하거나 열어 현재 활동을 확인하세요.",
-      "permissions": "권한"
+      "tokens": "토큰"
     }
   },
   "agentSidebar": {

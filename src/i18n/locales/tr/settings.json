@@ -97,15 +97,12 @@
   "preferences": {
     "sections": {
       "toolDisplay": "Takım çıkış ekranı",
-      "inputSettings": "Mesaj girişi",
-      "experimental": "Deneysel"
+      "inputSettings": "Mesaj girişi"
     },
     "showRawParameters": "İşlenmemiş parametreleri görüntüle",
     "showThinking": "Mantık yürütmeyi göster",
     "sendByCtrlEnter": "Göndermek için Ctrl+Enter tuşlarını kullanın",
     "sendByCtrlEnterDescription": "Etkinleştirildiğinde Ctrl+Enter, Enter yerine mesaj gönderir. Bu, IME kullanıcılarının yanlışlıkla yapılan gönderimleri önlemesine yardımcı olur.",
-    "agentSidebarV2": "Ajan kenar çubuğu (önizleme)",
-    "agentSidebarV2Description": "Çalışma alanı panelini yeni ajan kenar çubuğuyla değiştirir. Şimdilik yalnızca boş bir durum gösterir.",
     "toolOutputDensity": {
       "label": "Araç çıktısı yoğunluğu",
       "description": "Her araç çağrısının, açmadan önce dökümde ne kadarının gösterileceğini belirler.",

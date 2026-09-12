@@ -97,15 +97,12 @@
   "preferences": {
     "sections": {
       "toolDisplay": "Affichage de la sortie de l'outil",
-      "inputSettings": "Saisie des messages",
-      "experimental": "Expérimental"
+      "inputSettings": "Saisie des messages"
     },
     "showRawParameters": "Afficher les paramètres non traités",
     "showThinking": "Afficher le raisonnement",
     "sendByCtrlEnter": "Utilisez Ctrl+Enter pour envoyer",
     "sendByCtrlEnterDescription": "Lorsqu'il est activé, Ctrl+Enter envoie des messages au lieu de Enter. Cela aide les utilisateurs IME à éviter les envois accidentels.",
-    "agentSidebarV2": "Barre latérale de l'agent (aperçu)",
-    "agentSidebarV2Description": "Remplace le panneau de l'espace de travail par la nouvelle barre latérale de l'agent. Elle n'affiche qu'un état vide pour l'instant.",
     "toolOutputDensity": {
       "label": "Densité de la sortie des outils",
       "description": "Quelle part de chaque appel d'outil la transcription affiche avant que vous l'ouvriez.",

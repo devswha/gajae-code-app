@@ -173,6 +173,12 @@
     "work": {
       "title": "Work",
       "working": "Working"
+    },
+    "actionRequired": {
+      "title": "Action required",
+      "waiting": "Waiting for your response",
+      "viewRequest": "View request",
+      "loading": "Loading request…"
     }
   },
   "commandPalette": {

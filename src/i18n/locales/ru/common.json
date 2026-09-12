@@ -179,6 +179,12 @@
     "work": {
       "title": "Работа",
       "working": "Выполняется"
+    },
+    "actionRequired": {
+      "title": "Требуется ответ",
+      "waiting": "Ожидается ваш ответ",
+      "viewRequest": "Показать запрос",
+      "loading": "Загрузка запроса…"
     }
   },
   "commandPalette": {

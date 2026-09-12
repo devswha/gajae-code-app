@@ -173,6 +173,12 @@
     "work": {
       "title": "İş",
       "working": "Çalışıyor"
+    },
+    "actionRequired": {
+      "title": "Yanıt gerekiyor",
+      "waiting": "Yanıtınız bekleniyor",
+      "viewRequest": "İsteği görüntüle",
+      "loading": "İstek yükleniyor…"
     }
   },
   "commandPalette": {

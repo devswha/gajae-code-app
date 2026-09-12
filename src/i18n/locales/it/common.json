@@ -173,6 +173,12 @@
     "work": {
       "title": "Lavoro",
       "working": "In corso"
+    },
+    "actionRequired": {
+      "title": "Risposta richiesta",
+      "waiting": "In attesa della tua risposta",
+      "viewRequest": "Mostra richiesta",
+      "loading": "Caricamento della richiesta…"
     }
   },
   "commandPalette": {

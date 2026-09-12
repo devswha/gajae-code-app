@@ -171,6 +171,12 @@
     "work": {
       "title": "工作",
       "working": "運行中"
+    },
+    "actionRequired": {
+      "title": "需要回覆",
+      "waiting": "正在等待你的回覆",
+      "viewRequest": "查看請求",
+      "loading": "正在載入請求…"
     }
   },
   "commandPalette": {

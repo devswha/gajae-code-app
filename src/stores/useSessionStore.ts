@@ -7,7 +7,21 @@ import { authenticatedFetch } from '../utils/api';
 
 import { buildRefreshMessagesUrl, shareMessageWindow } from './sessionMessageFetch';
 
-type MessageKind = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'stream_delta' | 'stream_end' | 'error' | 'complete' | 'status' | 'permission_request' | 'permission_cancelled' | 'session_created' | 'interactive_prompt' | 'task_notification' | 'system_notice';
+type MessageKind = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'stream_delta' | 'stream_end' | 'error' | 'complete' | 'status' | 'permission_request' | 'permission_cancelled' | 'session_created' | 'interactive_prompt' | 'task_notification' | 'system_notice' | 'delegation_updated';
+/**
+ * The public snapshot of an App-owned delegation, as the durable receipt in
+ * the owner transcript records it. It is deliberately the settlement signal
+ * only: no result text, file, owner, root or child session ID ever reaches
+ * the client.
+ */
+export type DelegationSnapshot = {
+  delegationId: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  agent: string;
+  description: string;
+  executionMode?: 'default' | 'ultragoal-red-team';
+  repositoryBinding?: unknown;
+};
 export interface NormalizedMessage {
   id: string; sessionId: string; timestamp: string; provider: LLMProvider; kind: MessageKind; seq?: number; replayGeneration?: string;
   role?: 'user' | 'assistant'; content?: string; displayText?: string; commandName?: string; commandMessage?: string; commandArgs?: string;
@@ -16,6 +30,7 @@ export interface NormalizedMessage {
   toolResultTruncated?: boolean; toolResultBytes?: number; isError?: boolean; level?: 'info' | 'warning' | 'error'; text?: string; tokens?: number;
   canInterrupt?: boolean; tokenBudget?: unknown; requestId?: string; input?: unknown; context?: unknown; newSessionId?: string; status?: string;
   summary?: string; exitCode?: number; actualSessionId?: string; parentToolUseId?: string; subagentTools?: unknown[]; isFinal?: boolean; sequence?: number; rowid?: number;
+  delegation?: DelegationSnapshot;
 }
 export type SessionStatus = 'idle' | 'loading' | 'streaming' | 'error';
 export type ChatReplayCursor = { replayGeneration: string | null; lastSeq: number };

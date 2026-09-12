@@ -94,7 +94,9 @@
     },
     "work": {
       "title": "İş",
-      "working": "Çalışıyor"
+      "working": "Çalışıyor",
+      "agents": "Aracılar",
+      "agentRunning": "Çalışıyor"
     },
     "actionRequired": {
       "title": "Yanıt gerekiyor",

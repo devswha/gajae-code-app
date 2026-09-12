@@ -54,8 +54,48 @@ function createStore() {
       } as unknown as NormalizedMessage]);
       listeners.get(id)?.forEach((listener) => listener());
     },
+    /** Appends the delegation tool's structured result, the way a started delegation lands. */
+    delegate: (id: string, subagents: Array<Record<string, unknown>>) => {
+      sequence += 1;
+      messages.set(id, [...(messages.get(id) ?? []), {
+        id: `task-${sequence}`, sessionId: id, provider: 'gjc', kind: 'tool_use',
+        timestamp: '2026-09-12T00:01:00Z', toolId: `task-${sequence}`, toolName: 'task',
+        toolInput: {}, toolResult: { content: 'Started', isError: false, toolUseResult: { subagents } },
+      } as unknown as NormalizedMessage]);
+      listeners.get(id)?.forEach((listener) => listener());
+    },
+    /** Appends a started delegation the way the live stream delivers it: call row, then a standalone result row. */
+    delegateLive: (id: string, subagents: Array<Record<string, unknown>>) => {
+      sequence += 1;
+      messages.set(id, [...(messages.get(id) ?? []),
+        {
+          id: `task-${sequence}`, sessionId: id, provider: 'gjc', kind: 'tool_use',
+          timestamp: '2026-09-12T00:01:00Z', toolId: `task-${sequence}`, toolName: 'task',
+          toolInput: {},
+        } as unknown as NormalizedMessage,
+        {
+          id: `result-${sequence}`, sessionId: id, provider: 'gjc', kind: 'tool_result',
+          timestamp: '2026-09-12T00:01:01Z', toolId: `task-${sequence}`,
+          content: 'Started', isError: false, isFinal: true, toolUseResult: { subagents },
+        } as unknown as NormalizedMessage,
+      ]);
+      listeners.get(id)?.forEach((listener) => listener());
+    },
+    /** Appends the authoritative settlement row the executor emits per receipt. */
+    settle: (id: string, delegation: Record<string, unknown>) => {
+      sequence += 1;
+      messages.set(id, [...(messages.get(id) ?? []), {
+        id: `settle-${sequence}`, sessionId: id, provider: 'gjc', kind: 'delegation_updated',
+        timestamp: '2026-09-12T00:02:00Z', delegation,
+      } as unknown as NormalizedMessage]);
+      listeners.get(id)?.forEach((listener) => listener());
+    },
   };
 }
+
+const agent = (overrides: Record<string, unknown> = {}) => ({
+  id: 'd1', status: 'running', agent: 'executor', description: 'Wire the WORK lane', ...overrides,
+});
 
 function running(sessionId: string): SessionStatusSnapshot {
   return { ...EMPTY_SESSION_STATUS, sessionId, activity: { running: true, statusText: null, queued: 0 } };
@@ -248,6 +288,123 @@ test('the list follows the session window live and unsubscribes when the session
   view.rerender(state.ui(undefined));
   assert.equal(view.container.innerHTML, '');
   assert.equal(state.listeners('session-1'), 0);
+});
+
+test('an idle session with neither todos nor agents still renders nothing', async () => {
+  const state = await setup();
+  state.settle('session-1', { delegationId: 'd1', status: 'completed', agent: 'executor', description: 'Wire the WORK lane' });
+  const view = render(state.ui('session-1'));
+  assert.equal(view.container.innerHTML, '');
+});
+
+test('a live stream result row settles onto its call and lists the agent without a reload', async () => {
+  const state = await setup();
+  state.delegateLive('session-1', [agent()]);
+  render(state.ui('session-1', running('session-1')));
+
+  const region = section();
+  assert.ok(within(region).getByText('Executor — Wire the WORK lane'));
+  assert.equal(within(region).queryByText('Working'), null);
+
+  // The run itself is still active, so the lane falls back to its generic row.
+  act(() => state.settle('session-1', { delegationId: 'd1', status: 'completed', agent: 'executor', description: 'Wire the WORK lane' }));
+  assert.equal(within(section()).queryByText('Executor — Wire the WORK lane'), null);
+  assert.ok(within(section()).getByText('Working'));
+});
+
+test('a running agent replaces the generic Working row: the agent is the better answer', async () => {
+  const state = await setup();
+  state.delegate('session-1', [agent()]);
+  render(state.ui('session-1', running('session-1')));
+
+  const region = section();
+  assert.ok(within(region).getByText('Agents'));
+  assert.ok(within(region).getByText('Executor — Wire the WORK lane'));
+  assert.equal(within(region).queryByText('Working'), null);
+  const row = within(region).getByText('Executor — Wire the WORK lane').closest('li')!;
+  assert.match(row.textContent!, /Running:/);
+  assert.match(row.querySelector('svg')!.getAttribute('class')!, /animate-spin/);
+});
+
+test('a session with todos and a running agent shows both, tasks first', async () => {
+  const state = await setup();
+  state.publish('session-1', plan);
+  state.delegate('session-1', [agent()]);
+  render(state.ui('session-1', running('session-1')));
+
+  const region = section();
+  const rows = within(region).getAllByRole('listitem');
+  assert.equal(rows.length, 5);
+  assert.match(rows[0].textContent!, /Inspect current code/);
+  assert.match(rows[4].textContent!, /Executor — Wire the WORK lane/);
+  assert.equal(within(region).queryByText('Working'), null);
+});
+
+test('every active agent is listed; the concurrency limit keeps the block compact', async () => {
+  const state = await setup();
+  state.delegate('session-1', [
+    agent({ id: 'd1', agent: 'planner', description: 'Sequence the work' }),
+    agent({ id: 'd2', agent: 'executor', description: 'Server lane' }),
+    agent({ id: 'd3', agent: 'critic', description: 'Review the plan' }),
+  ]);
+  render(state.ui('session-1'));
+
+  const rows = within(section()).getAllByRole('listitem');
+  assert.deepEqual(rows.map((row) => row.querySelector('span:last-child')!.textContent), [
+    'Planner — Sequence the work', 'Executor — Server lane', 'Critic — Review the plan',
+  ]);
+});
+
+test('a settled agent leaves the lane as soon as its receipt lands', async () => {
+  const state = await setup();
+  state.delegate('session-1', [agent({ id: 'd1' }), agent({ id: 'd2', agent: 'planner', description: 'Sequence the work' })]);
+  render(state.ui('session-1'));
+  assert.equal(within(section()).getAllByRole('listitem').length, 2);
+
+  act(() => state.settle('session-1', { delegationId: 'd1', status: 'completed', agent: 'executor', description: 'Wire the WORK lane' }));
+  const rows = within(section()).getAllByRole('listitem');
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].textContent!, /Planner — Sequence the work/);
+
+  // The last agent settling empties the lane entirely: WORK is now-only.
+  act(() => state.settle('session-1', { delegationId: 'd2', status: 'cancelled', agent: 'planner', description: 'Sequence the work' }));
+  assert.equal(screen.queryByRole('region', { name: 'Work' }), null);
+});
+
+test('failed and cancelled agents render nothing at all: the lane never doubles as a report', async () => {
+  const state = await setup();
+  state.delegate('session-1', [agent({ id: 'd1' }), agent({ id: 'd2', agent: 'planner', description: 'Sequence the work' })]);
+  state.settle('session-1', { delegationId: 'd1', status: 'failed', agent: 'executor', description: 'Wire the WORK lane' });
+  state.settle('session-1', { delegationId: 'd2', status: 'cancelled', agent: 'planner', description: 'Sequence the work' });
+  state.publish('session-1', plan);
+  state.delegate('session-1', [agent({ id: 'd1', status: 'failed' })]);
+  render(state.ui('session-1'));
+
+  const region = section();
+  assert.equal(within(region).queryByText('Agents'), null);
+  assert.doesNotMatch(region.textContent!, /Executor|Planner|failed|cancelled/i);
+  assert.equal(within(region).getAllByRole('listitem').length, 4);
+});
+
+test('a long agent description truncates to one line and keeps the full value on the row', async () => {
+  const state = await setup();
+  const description = `${'Implement the very long delegation description/'.repeat(20)}done`;
+  state.delegate('session-1', [agent({ description })]);
+  render(state.ui('session-1'));
+
+  const row = within(section()).getByText(`Executor — ${description}`).closest('li')!;
+  assert.equal(row.getAttribute('title'), `executor: ${description}`);
+  assert.match(row.querySelector('span:last-child')!.getAttribute('class')!, /truncate/);
+});
+
+test('agents published for another conversation never appear in this one', async () => {
+  const state = await setup();
+  state.delegate('session-2', [agent({ description: 'Another conversation' })]);
+  const view = render(state.ui('session-1'));
+  assert.equal(view.container.innerHTML, '');
+
+  view.rerender(state.ui('session-2'));
+  assert.ok(within(section()).getByText('Executor — Another conversation'));
 });
 
 test('Korean headings and status labels come from the same locale data as the chat card', async () => {

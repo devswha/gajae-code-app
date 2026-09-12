@@ -138,6 +138,12 @@ function renderMessage(message: NormalizedMessage): string | null {
     case 'task_notification':
       return `> ${stringify(message.content)}`;
 
+    // Delegation lifecycle rows carry no prose at all; what the delegated work
+    // actually produced is already in the transcript as the tool result the
+    // model read. Rendering the state machine would only add empty headings.
+    case 'delegation_updated':
+      return null;
+
     default: {
       const content = stringify(message.content);
       const attachments = Array.isArray(message.images) ? message.images.length : 0;

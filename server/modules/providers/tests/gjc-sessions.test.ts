@@ -10,6 +10,7 @@ import { GjcSessionSynchronizer } from '@/modules/providers/list/gjc/gjc-session
 import { GjcSessionsProvider } from '@/modules/providers/list/gjc/gjc-sessions.provider.js';
 import { exportSessionTranscript } from '@/modules/providers/services/session-export.service.js';
 import { fetchCompleteHistory, sessionsService } from '@/modules/providers/services/sessions.service.js';
+import { chatRunRegistry } from '@/modules/websocket/index.js';
 
 const patchHomeDir = (nextHomeDir: string) => {
   const original = os.homedir;
@@ -1146,6 +1147,165 @@ test('gjc history index cache keeps mid-read HISTORY_CHANGED retry behavior', { 
       } finally {
         (fs.promises as { stat: unknown }).stat = originalStat;
       }
+    });
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+/**
+ * Writes a transcript holding App delegation receipts.
+ *
+ * Receipts are `custom` entries appended into the *owner's* transcript by
+ * `GjcDelegationExecutor`, carrying the whole receipt - private child
+ * identifiers and result text included - which is exactly why the projection
+ * must be narrow.
+ */
+const writeDelegationTranscript = async (
+  tempRoot: string,
+  sessionId: string,
+  workspacePath: string,
+  entries: Array<Record<string, unknown>>,
+): Promise<string> => {
+  const sessionsDir = path.join(tempRoot, '.gjc', 'agent', 'sessions', '-workspace');
+  await mkdir(sessionsDir, { recursive: true });
+  const lines = [
+    JSON.stringify({ type: 'session', version: 3, id: sessionId, timestamp: '2026-07-09T00:00:00.000Z', cwd: workspacePath }),
+    JSON.stringify({ type: 'message', id: 'msg-1', parentId: null, timestamp: '2026-07-09T00:00:01.000Z', message: { role: 'user', content: [{ type: 'text', text: 'Delegate this' }] } }),
+    ...entries.map((entry) => JSON.stringify(entry)),
+  ];
+  const filePath = path.join(sessionsDir, `2026-07-09T00-00-00_${sessionId}.jsonl`);
+  await writeFile(filePath, `${lines.join('\n')}\n`, 'utf8');
+  return filePath;
+};
+
+const delegationReceipt = (id: string, index: number, status: string, overrides: Record<string, unknown> = {}) => ({
+  type: 'custom',
+  customType: 'gajae-app.delegation.v1',
+  id: `receipt-${id}-${index}`,
+  parentId: index === 1 ? 'msg-1' : `receipt-${id}-${index - 1}`,
+  timestamp: `2026-07-09T00:00:0${index + 1}.000Z`,
+  data: {
+    id,
+    owner: 'owner-session-id',
+    root: 'root-session-id',
+    childSessionId: 'child-session-id',
+    file: 'child-transcript.jsonl',
+    agent: 'executor',
+    executionMode: 'default',
+    repositoryBinding: { repositoryRoot: '/tmp/repo' },
+    description: 'Ship the projection',
+    status,
+    resultText: 'child result nobody outside the model may read',
+    ...overrides,
+  },
+});
+
+const fakeConnection = { send() {}, readyState: 1 };
+
+test('gjc history projects delegation receipts and the terminal one wins by order', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'gjc-delegation-history-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+
+  try {
+    const sessionId = 'gjc-delegation-pair';
+    const filePath = await writeDelegationTranscript(tempRoot, sessionId, workspacePath, [
+      delegationReceipt('delegation-1', 1, 'running'),
+      delegationReceipt('delegation-1', 2, 'completed'),
+    ]);
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession(sessionId, 'gjc', workspacePath, undefined, undefined, undefined, filePath);
+      const history = await new GjcSessionsProvider().fetchHistory(sessionId);
+
+      assert.equal(history.total, 3, 'the user message plus both receipts are visible rows');
+      const receipts = history.messages.filter((message) => message.kind === 'delegation_updated');
+      assert.equal(receipts.length, 2);
+      // Append-only receipts: the later entry is the delegation's real state.
+      assert.equal((receipts.at(-1)?.delegation as { status: string }).status, 'completed');
+
+      // Exactly the public snapshot - no child identity, no result text.
+      assert.deepEqual(receipts.at(-1)?.delegation, {
+        delegationId: 'delegation-1',
+        status: 'completed',
+        agent: 'executor',
+        description: 'Ship the projection',
+        executionMode: 'default',
+        repositoryBinding: { repositoryRoot: '/tmp/repo' },
+      });
+      const serialized = JSON.stringify(history.messages);
+      for (const secret of ['child result nobody', 'child-session-id', 'owner-session-id', 'root-session-id', 'child-transcript.jsonl']) {
+        assert.equal(serialized.includes(secret), false, `${secret} must never reach history`);
+      }
+
+      // A saved conversation is prose; the lifecycle row contributes nothing.
+      const exported = await exportSessionTranscript(sessionId);
+      assert.equal(exported.body.includes('delegation-1'), false);
+    });
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('gjc history reads a stale running receipt as cancelled and a live one as running', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'gjc-delegation-restart-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+
+  try {
+    const sessionId = 'gjc-delegation-running';
+    const filePath = await writeDelegationTranscript(tempRoot, sessionId, workspacePath, [
+      delegationReceipt('delegation-live', 1, 'running'),
+    ]);
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession(sessionId, 'gjc', workspacePath, undefined, undefined, undefined, filePath);
+      const provider = new GjcSessionsProvider();
+
+      // No run owns the session: the child process cannot have survived, so the
+      // executor's restart rule settles the receipt.
+      chatRunRegistry.clearAll();
+      const restarted = await provider.fetchHistory(sessionId);
+      assert.equal((restarted.messages.at(-1)?.delegation as { status: string }).status, 'cancelled');
+
+      try {
+        const run = chatRunRegistry.startRun({
+          appSessionId: sessionId,
+          provider: 'gjc',
+          providerSessionId: sessionId,
+          connection: fakeConnection,
+          userId: 'user-1',
+        });
+        assert.ok(run);
+        const live = await provider.fetchHistory(sessionId);
+        assert.equal((live.messages.at(-1)?.delegation as { status: string }).status, 'running');
+      } finally {
+        chatRunRegistry.clearAll();
+      }
+    });
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('gjc history keeps every other custom transcript entry invisible', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'gjc-delegation-custom-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+
+  try {
+    const sessionId = 'gjc-delegation-custom';
+    const filePath = await writeDelegationTranscript(tempRoot, sessionId, workspacePath, [
+      { type: 'custom', customType: 'goal-completed', id: 'custom-1', parentId: 'msg-1', timestamp: '2026-07-09T00:00:02.000Z', data: { id: 'x', status: 'completed', agent: 'executor', description: 'not a delegation' } },
+      { type: 'custom', customType: 'gajae-app.delegation.v2', id: 'custom-2', parentId: 'custom-1', timestamp: '2026-07-09T00:00:03.000Z', data: { id: 'y', status: 'running', agent: 'executor', description: 'future format' } },
+      // Right type, malformed payload: an unknown status is not a state.
+      { type: 'custom', customType: 'gajae-app.delegation.v1', id: 'custom-3', parentId: 'custom-2', timestamp: '2026-07-09T00:00:04.000Z', data: { id: 'z', status: 'queued', agent: 'executor', description: 'invented state' } },
+    ]);
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession(sessionId, 'gjc', workspacePath, undefined, undefined, undefined, filePath);
+      const history = await new GjcSessionsProvider().fetchHistory(sessionId);
+
+      assert.equal(history.total, 1);
+      assert.equal(history.messages[0]?.content, 'Delegate this');
     });
   } finally {
     await rm(tempRoot, { recursive: true, force: true });

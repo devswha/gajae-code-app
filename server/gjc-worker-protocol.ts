@@ -34,6 +34,7 @@ export const GJC_WORKER_EVENT_METHODS = [
   'tool.completed',
   'ask.presented',
   'usage.updated',
+  'delegation.updated',
   'turn.completed',
   'turn.failed',
   'worker.status',

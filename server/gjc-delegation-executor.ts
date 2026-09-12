@@ -80,6 +80,21 @@ type Job = {
 export const GJC_APP_DELEGATION_TOOL_NAMES = ['task', 'subagent'] as const;
 export const GJC_DELEGATION_LIMITS = Object.freeze({ concurrency: 4, depth: 2, launches: 32, runtimeMs: 300_000 });
 
+/**
+ * The public settlement snapshot: exactly the fields `#snapshot` exposes minus
+ * the result text. Private identifiers and transcript content never travel on
+ * the live signal; the durable receipt in the owner transcript stays the
+ * authority for anything richer.
+ */
+export type GjcDelegationUpdate = {
+  delegationId: string;
+  status: Receipt['status'];
+  agent: Receipt['agent'];
+  description: Receipt['description'];
+  executionMode?: Receipt['executionMode'];
+  repositoryBinding?: Receipt['repositoryBinding'];
+};
+
 export type GjcDelegationOptions = {
   parent: SessionManager;
   session: () => Session;
@@ -87,7 +102,15 @@ export type GjcDelegationOptions = {
   sessionOptions: CreateAgentSessionOptions;
   permissionProvider?: GjcPermissionProvider;
   createSession?: typeof createAgentSession;
+  /** Fired once per settlement, after the terminal receipt is durable. */
+  onDelegationSettled?: (update: GjcDelegationUpdate) => void;
 };
+
+function delegationUpdate(receipt: Receipt): GjcDelegationUpdate {
+  const { id, file: _file, owner: _owner, root: _root, childSessionId: _session,
+    resultText: _resultText, ...publicReceipt } = receipt;
+  return { delegationId: id, ...publicReceipt };
+}
 
 function result(value: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(value) }], details: value };
@@ -478,6 +501,10 @@ export class GjcDelegationExecutor {
       if (job.controller.signal.aborted || this.#closed.signal.aborted) job.receipt.status = 'cancelled';
       job.owner.manager.appendCustomEntry(RECEIPT, { ...job.receipt });
       await job.owner.manager.flush();
+      // The durable receipt is the authority, so it is always written first.
+      // A throwing consumer is a live-signal problem, never a settlement one.
+      try { this.options.onDelegationSettled?.(delegationUpdate(job.receipt)); }
+      catch { /* The receipt above already records this settlement. */ }
     }
   }
 

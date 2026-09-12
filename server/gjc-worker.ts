@@ -557,6 +557,9 @@ export class GjcWorkerHost {
     // usage channel: they update at the same moment and the client handler
     // already subscribes to it.
     else if (message.kind === 'status' && message.text === 'session_state') method = 'usage.updated';
+    // Unmapped kinds fall through to message.completed, so the authoritative
+    // delegation settlement signal needs its own explicit mapping.
+    else if (message.kind === 'delegation_updated') method = 'delegation.updated';
     else if (message.kind === 'complete') method = message.exitCode === 0 ? 'turn.completed' : 'turn.failed';
     this.#event(run, method, { message });
   }

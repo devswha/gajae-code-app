@@ -22,7 +22,7 @@ export interface ProviderCurrentActiveModel { model: string; }
 export interface ProviderChangeActiveModelInput { model: string; sessionId: string; }
 export interface ProviderSessionActiveModelChange { changed: boolean; model: string | null; provider: LLMProvider; sessionId: string; supported: boolean; }
 
-type MessageKind = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'stream_delta' | 'stream_end' | 'error' | 'complete' | 'status' | 'permission_request' | 'permission_cancelled' | 'session_created' | 'session_title' | 'interactive_prompt' | 'task_notification' | 'system_notice';
+type MessageKind = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'stream_delta' | 'stream_end' | 'error' | 'complete' | 'status' | 'permission_request' | 'permission_cancelled' | 'session_created' | 'session_title' | 'interactive_prompt' | 'task_notification' | 'system_notice' | 'delegation_updated';
 interface NormalizedToolResult { content?: string; isError?: boolean; toolUseResult?: unknown; }
 export interface NormalizedMessage {
   id: string; sessionId: string; timestamp: string; provider: LLMProvider; kind: MessageKind;
@@ -30,6 +30,8 @@ export interface NormalizedMessage {
   content?: string; displayText?: string; commandName?: string; commandMessage?: string; commandArgs?: string; isLocalCommand?: boolean; isLocalCommandStdout?: boolean; isCompactSummary?: boolean;
   images?: unknown; toolName?: string; toolInput?: unknown; toolId?: string; toolResult?: NormalizedToolResult; toolResultTruncated?: boolean; toolResultBytes?: number; toolDetailsOmitted?: boolean;
   isError?: boolean; level?: 'info' | 'warning' | 'error'; text?: string; tokens?: number; canInterrupt?: boolean; requestId?: string; input?: unknown; context?: unknown; reason?: string; newSessionId?: string; status?: string; summary?: string; tokenBudget?: unknown; subagentTools?: unknown; toolUseResult?: unknown; sequence?: number; rowid?: number;
+  /** `delegation_updated` payload: the public delegation snapshot `{delegationId, status, agent, description, executionMode?, repositoryBinding?}`. Never `resultText`, `file`, `owner`, `root` or `childSessionId` - the owner transcript's receipt stays the authority for those. */
+  delegation?: unknown;
   [key: string]: unknown;
 }
 

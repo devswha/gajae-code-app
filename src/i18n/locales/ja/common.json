@@ -94,7 +94,9 @@
     },
     "work": {
       "title": "作業",
-      "working": "実行中"
+      "working": "実行中",
+      "agents": "エージェント",
+      "agentRunning": "実行中"
     },
     "actionRequired": {
       "title": "応答が必要",

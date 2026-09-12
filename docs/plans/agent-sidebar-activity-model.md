@@ -7,6 +7,15 @@ document's section names predate that naming. Browser facts were refreshed
 after the Chromium sidecar removal (#75) and the sidebar cutover; the Aside
 browser question now has its own audit in
 [aside-activity-contract.md](aside-activity-contract.md).
+Update (2026-09-13, branch `feat/delegation-work-activity`): the delegation
+lifecycle gap this audit called the only hard gap (§"Remaining gaps" item 1,
+PR-sequence items 2-4) is resolved. `delegation.updated` is a scoped worker
+event emitted once per settlement by `GjcDelegationExecutor`, receipts are
+projected through the GJC transcript history read with the restart fold, and
+WORK lists live agents via `useSessionDelegations`. The findings below are
+kept as the historical record; see
+[delegation-lifecycle-contract.md](delegation-lifecycle-contract.md) for the
+implemented contract.
 Scope: what structured agent/runtime activity exists **today**, end to end, and
 what the smallest additional contract would be for a future `AgentSidebar`
 (Needs attention / Current work / Tasks / Agents / Review / Browser activity).

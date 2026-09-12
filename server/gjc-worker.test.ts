@@ -210,9 +210,12 @@ test('maps events with immutable run identity and captures provider sessions', a
   const { fake, host, frames } = await initialized();
   const pending = host.handle(request('session.start', 'run-1', { message: 'hello', options: {} })); await Promise.resolve();
   const writer = fake.runs[0].writer!;
-  writer.setSessionId!('provider-1'); writer.send({ kind: 'stream_delta', content: 'hi' }); writer.send({ kind: 'tool_use' }); writer.send({ kind: 'tool_result' }); writer.send({ kind: 'permission_request' }); writer.send({ kind: 'status', text: 'token_budget' }); writer.send({ kind: 'complete', exitCode: 0 });
-  const events = frames.slice(1) as Array<{ method: string; payload: { runId: string } }>;
-  assert.deepEqual(events.map((frame) => frame.method), ['worker.status', 'session.created', 'message.delta', 'tool.started', 'tool.completed', 'ask.presented', 'usage.updated', 'turn.completed']);
+  writer.setSessionId!('provider-1'); writer.send({ kind: 'stream_delta', content: 'hi' }); writer.send({ kind: 'tool_use' }); writer.send({ kind: 'tool_result' }); writer.send({ kind: 'permission_request' }); writer.send({ kind: 'status', text: 'token_budget' }); writer.send({ kind: 'delegation_updated', delegation: { delegationId: 'delegation-1', status: 'completed', agent: 'executor', description: 'Contract task' } }); writer.send({ kind: 'complete', exitCode: 0 });
+  const events = frames.slice(1) as Array<{ method: string; payload: { runId: string; message?: { delegation?: { delegationId: string } } } }>;
+  assert.deepEqual(events.map((frame) => frame.method), ['worker.status', 'session.created', 'message.delta', 'tool.started', 'tool.completed', 'ask.presented', 'usage.updated', 'delegation.updated', 'turn.completed']);
+  // The settlement signal rides the ordinary scoped message channel, so an
+  // unmapped kind cannot silently degrade into message.completed.
+  assert.equal(events.find((frame) => frame.method === 'delegation.updated')?.payload.message?.delegation?.delegationId, 'delegation-1');
   assert.ok(events.every((frame) => frame.payload.runId === 'run-1'));
   fake.runs[0].run.resolve();
   await pending;

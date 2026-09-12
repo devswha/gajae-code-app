@@ -1075,6 +1075,9 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           delegation = new GjcDelegationExecutor({
             parent: sessionManager, session: () => result.session, sessionOptions,
             permissionProvider, createSession: this.options.createSessionFactory,
+            // Settlement is reported after the durable receipt is written, so the
+            // client can fold live status onto the same authoritative snapshot.
+            onDelegationSettled: (update) => writer.send({ kind: 'delegation_updated', delegation: update }),
           });
           delegation.setToolUIContext(askController.uiContext);
         }

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createElement } from 'react';
 
 import type { NormalizedMessage, SessionStore } from '../../../stores/useSessionStore';
-import { AGENT_SIDEBAR_STORAGE_KEY, DEFAULT_AGENT_SIDEBAR_WIDTH } from '../agentSidebarState';
+import { useSessionAttentionStore } from '../../../stores/useSessionAttentionStore';
+import { AGENT_SIDEBAR_STORAGE_KEY } from '../agentSidebarState';
 import { useAgentSidebar } from '../hooks/useAgentSidebar';
 
 import AgentSidebar from './AgentSidebar';
@@ -13,11 +14,12 @@ import AgentSidebar from './AgentSidebar';
 const originalFetch = globalThis.fetch;
 let requests: string[] = [];
 
-function seed(state: { open: boolean; width: number }) {
+/** Seeds the persisted record; extra fields mimic a record from the old resizable rail. */
+function seed(state: { open: boolean; width?: number }) {
   localStorage.setItem(AGENT_SIDEBAR_STORAGE_KEY, JSON.stringify(state));
 }
 
-function persisted(): { open: boolean; width: number } {
+function persisted(): { open: boolean } {
   return JSON.parse(localStorage.getItem(AGENT_SIDEBAR_STORAGE_KEY) ?? 'null');
 }
 
@@ -64,6 +66,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   localStorage.removeItem(AGENT_SIDEBAR_STORAGE_KEY);
+  useSessionAttentionStore.setState({ pendingInput: {}, outcomes: {}, lastViewedAt: {} });
   globalThis.fetch = originalFetch;
 });
 
@@ -75,7 +78,7 @@ test('the sidebar starts closed and opening it persists the open state', async (
   fireEvent.click(screen.getByText('Open'));
 
   assert.ok(lane());
-  assert.deepEqual(persisted(), { open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
+  assert.deepEqual(persisted(), { open: true });
   await within(lane()).findByText('main');
 });
 
@@ -92,7 +95,7 @@ test('the header toggle opens and closes the sidebar in turn', async () => {
   assert.equal(persisted().open, false);
 });
 
-test('a width saved by the old resizable rail is kept as it was, untouched by opening and closing', async () => {
+test('a width saved by the old resizable rail is dropped on the next write, without breaking open and close', async () => {
   seed({ open: false, width: 640 });
   render(createElement(Harness));
 
@@ -100,11 +103,11 @@ test('a width saved by the old resizable rail is kept as it was, untouched by op
   await within(lane()).findByText('main');
   fireEvent.click(screen.getByText('Toggle'));
 
-  assert.deepEqual(persisted(), { open: false, width: 640 });
+  assert.deepEqual(persisted(), { open: false });
 });
 
 test('the desktop lane holds the environment card with the existing git summary and its refresh', async () => {
-  seed({ open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
+  seed({ open: true });
   render(createElement(Harness));
 
   const region = within(lane()).getByRole('region', { name: 'agentSidebar.environment.title' });
@@ -136,7 +139,7 @@ test('the desktop lane sets no inline width and carries no rail chrome', async (
 });
 
 test('the WORK block appears under the environment in the same card when the session has todos', async () => {
-  seed({ open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
+  seed({ open: true });
   render(createElement(Harness, {
     sessionStore: createStore([{ name: '', tasks: [
       { content: 'Inspect current code', status: 'completed', notes: [] },
@@ -152,14 +155,14 @@ test('the WORK block appears under the environment in the same card when the ses
 });
 
 test('an idle session without todos leaves the card to the environment alone', async () => {
-  seed({ open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
+  seed({ open: true });
   render(createElement(Harness));
 
   await within(lane()).findByText('main');
   assert.equal(within(lane()).queryByRole('region', { name: 'agentSidebar.work.title' }), null);
 });
 
-test('the mobile drawer is dismissed by its backdrop and never touches the saved width', async () => {
+test('the mobile drawer is dismissed by its backdrop even from a record that still carries a width', async () => {
   seed({ open: true, width: 1_200 });
   render(createElement(Harness, { mobile: true }));
 
@@ -175,11 +178,26 @@ test('the mobile drawer is dismissed by its backdrop and never touches the saved
   fireEvent.click(backdrop);
 
   assert.equal(screen.queryByRole('complementary'), null);
-  assert.deepEqual(persisted(), { open: false, width: 1_200 });
+  assert.deepEqual(persisted(), { open: false });
+});
+
+test('the lane carries the Action Required section only while the session awaits an answer', async () => {
+  seed({ open: true });
+  render(createElement(Harness));
+
+  await within(lane()).findByText('main');
+  assert.equal(within(lane()).queryByRole('region', { name: 'agentSidebar.actionRequired.title' }), null);
+
+  act(() => { useSessionAttentionStore.getState().addPendingInput('session-1', 'approval-1'); });
+  const pending = within(lane()).getByRole('region', { name: 'agentSidebar.actionRequired.title' });
+  assert.ok(within(pending).getByText('agentSidebar.actionRequired.waiting'));
+
+  act(() => { useSessionAttentionStore.getState().clearPendingInput('session-1'); });
+  assert.equal(within(lane()).queryByRole('region', { name: 'agentSidebar.actionRequired.title' }), null);
 });
 
 test('the mobile close button dismisses the drawer', async () => {
-  seed({ open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
+  seed({ open: true });
   render(createElement(Harness, { mobile: true }));
 
   await within(lane()).findByText('main');

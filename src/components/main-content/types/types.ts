@@ -12,8 +12,8 @@ export interface MainContentProps {
 }
 
 export interface MainContentHeaderProps {
-  activeTab: AppTab; isMobile: boolean; rightRail: 'workspace' | 'agentSidebar'; selectedProject: Project; selectedSession: ProjectSession | null; workspaceOpen: boolean;
-  onMenuClick: () => void; onToggleWorkspace: () => void; setActiveTab: TabSetter;
+  activeTab: AppTab; isMobile: boolean; selectedProject: Project; selectedSession: ProjectSession | null; sidebarOpen: boolean;
+  onMenuClick: () => void; onToggleSidebar: () => void; setActiveTab: TabSetter;
 }
 
 export interface MainContentStateViewProps { isMobile: boolean; mode: 'loading' | 'empty'; onMenuClick: () => void; onNewSession: (project: Project) => void; }

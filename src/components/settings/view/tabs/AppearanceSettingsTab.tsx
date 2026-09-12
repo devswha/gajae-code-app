@@ -107,14 +107,6 @@ export default function AppearanceSettingsTab(input: AppearanceSettingsTabProps)
         </SettingsCard>
       </SettingsSection>
 
-      <SettingsSection title={t('preferences.sections.experimental')}>
-        <SettingsCard>
-          <SettingsRow label={t('preferences.agentSidebarV2')} description={t('preferences.agentSidebarV2Description')}>
-            <PreferenceToggle checked={preferences.agentSidebarV2} change={(value) => setPreference('agentSidebarV2', value)} label={t('preferences.agentSidebarV2')} />
-          </SettingsRow>
-        </SettingsCard>
-      </SettingsSection>
-
     </div>
   );
 }

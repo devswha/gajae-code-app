@@ -61,59 +61,10 @@
     }
   },
   "workspace": {
-    "title": "工作空間",
-    "open": "顯示工作區面板",
-    "close": "隱藏工作區面板",
-    "expand": "放大工作區面板",
-    "collapse": "縮小工作區面板",
-    "resize": "拖曳以改變工作區面板尺寸",
     "tabs": {
-      "status": "狀況",
-      "changes": "變更",
-      "browser": "瀏覽器",
       "tasks": "任務"
     },
-    "changes": {
-      "title": "變更",
-      "refresh": "重新整理變更",
-      "empty": "沒有變更",
-      "emptyHint": "工作樹是乾淨的。",
-      "scope": {
-        "workingTree": "工作樹",
-        "lastTurn": "上一輪"
-      },
-      "emptyTurn": "上一輪沒有變更",
-      "emptyTurnHint": "上一輪沒有變更任何檔案。",
-      "noSession": "選取工作階段以檢視最新變更。",
-      "loading": "正在載入變更…",
-      "notRepo": "此資料夾不是 Git 儲存庫",
-      "unavailable": "無法讀取 Git 變更",
-      "noCommits": "尚未提交任何內容。",
-      "binary": "二進位檔案；沒有可用的文字差異。",
-      "tooLarge": "檔案太大，已略過差異。",
-      "files_one": "{{count}} 個檔案",
-      "files_other": "{{count}} 個檔案",
-      "refreshLabel": "重新整理變更",
-      "openInEditor": "在編輯器中開啟",
-      "renameArrow": "→",
-      "comment": {
-        "add": "評論此行",
-        "placeholder": "對此行的評論…",
-        "submit": "加入審閱",
-        "edit": "編輯評論",
-        "remove": "移除評論",
-        "cancel": "捨棄評論"
-      },
-      "review": {
-        "clear": "捨棄審閱",
-        "send_other": "傳送 {{count}} 則評論"
-      },
-      "truncated": "共 {{total}} 個檔案，顯示 {{shown}} 個；清單已截斷。",
-      "moreLines_other": "顯示其餘 {{count}} 行"
-    },
     "tasks": {
-      "empty": "尚無計畫",
-      "emptyHint": "當代理人在此工作階段維護待辦清單時，會顯示在這裡。",
       "progress": "已完成 {{done}} / {{total}}",
       "status": {
         "pending": "待處理",
@@ -123,36 +74,9 @@
       }
     },
     "statusTab": {
-      "session": "會話",
-      "model": "型號",
-      "reasoning": "推理",
       "context": "背景",
       "contextWindow": "可用的背景",
-      "tokens": "令牌",
-      "tokensUsed": "占用中",
-      "tokensInput": "輸入",
-      "tokensOutput": "出力",
-      "tokensCache": "緩存",
-      "activity": "活動",
-      "running": "運行中",
-      "idle": "閑置",
-      "queuedMessage": "1 條消息佇列中",
-      "location": "地點",
-      "project": "專案",
-      "directory": "目錄",
-      "git": "Git",
-      "branch": "分支",
-      "changes": "變更",
-      "staged": "已準備",
-      "untracked": "未追蹤",
-      "clean": "工作樹乾淨",
-      "notARepository": "此資料夾尚未初始化為 Git reposiory",
-      "gitUnavailable": "無法讀取 Git 狀態",
-      "refreshGit": "重新載入 Git 狀態",
-      "unreported": "尚無報告",
-      "empty": "尚未開啟會話",
-      "emptyHint": "開始或開啟一個會話以查看其當前活動。",
-      "permissions": "權限"
+      "tokens": "令牌"
     }
   },
   "agentSidebar": {

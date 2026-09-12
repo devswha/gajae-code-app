@@ -61,61 +61,10 @@
     }
   },
   "workspace": {
-    "title": "Espace de travail",
-    "open": "Afficher le panneau de l'espace de travail",
-    "close": "Masquer le panneau de l'espace de travail",
-    "expand": "Élargir le panneau de l'espace de travail",
-    "collapse": "Panneau d'espace de travail étroit",
-    "resize": "Redimensionnez le panneau de l'espace de travail en faisant glisser",
     "tabs": {
-      "status": "Statut",
-      "changes": "Modifications",
-      "browser": "Navigateur",
       "tasks": "Tâches"
     },
-    "changes": {
-      "title": "Modifications",
-      "refresh": "Actualiser les modifications",
-      "empty": "Aucune modification",
-      "emptyHint": "Votre arbre de travail est propre.",
-      "scope": {
-        "workingTree": "Arbre de travail",
-        "lastTurn": "Dernier tour"
-      },
-      "emptyTurn": "Aucun changement au dernier tour",
-      "emptyTurnHint": "Le dernier tour n’a modifié aucun fichier.",
-      "noSession": "Sélectionnez une session pour voir ses dernières modifications.",
-      "loading": "Chargement des modifications…",
-      "notRepo": "Ce dossier n’est pas un dépôt Git",
-      "unavailable": "Impossible de lire les modifications Git",
-      "noCommits": "Aucun commit n’a encore été effectué.",
-      "binary": "Fichier binaire ; aucun diff texte disponible.",
-      "tooLarge": "Diff omis car ce fichier est trop volumineux.",
-      "files_one": "{{count}} fichier",
-      "files_other": "{{count}} fichiers",
-      "refreshLabel": "Actualiser les modifications",
-      "openInEditor": "Ouvrir dans l’éditeur",
-      "renameArrow": "→",
-      "comment": {
-        "add": "Commenter cette ligne",
-        "placeholder": "Commentaire sur cette ligne…",
-        "submit": "Ajouter à la revue",
-        "edit": "Modifier le commentaire",
-        "remove": "Supprimer le commentaire",
-        "cancel": "Abandonner le commentaire"
-      },
-      "review": {
-        "clear": "Abandonner la revue",
-        "send_one": "Envoyer {{count}} commentaire",
-        "send_other": "Envoyer {{count}} commentaires"
-      },
-      "truncated": "Affichage de {{shown}} fichiers sur {{total}} ; la liste est tronquée.",
-      "moreLines_one": "Afficher {{count}} ligne de plus",
-      "moreLines_other": "Afficher {{count}} lignes de plus"
-    },
     "tasks": {
-      "empty": "Rien de prévu pour l’instant",
-      "emptyHint": "Quand l’agent tient une liste de tâches dans cette session, elle s’affiche ici.",
       "progress": "{{done}} sur {{total}} terminées",
       "status": {
         "pending": "En attente",
@@ -125,36 +74,9 @@
       }
     },
     "statusTab": {
-      "session": "Séance",
-      "model": "Modèle",
-      "reasoning": "Raisonnement",
       "context": "Contexte",
       "contextWindow": "Contexte disponible",
-      "tokens": "Jetons",
-      "tokensUsed": "Utilisé",
-      "tokensInput": "Entrée",
-      "tokensOutput": "Sortie",
-      "tokensCache": "Cache",
-      "activity": "Activité",
-      "running": "Courir",
-      "idle": "Inactif",
-      "queuedMessage": "1 message en file d'attente",
-      "location": "Emplacement",
-      "project": "Projet",
-      "directory": "Annuaire",
-      "git": "Git",
-      "branch": "Branche",
-      "changes": "Changements",
-      "staged": "Mise en scène",
-      "untracked": "Non suivi",
-      "clean": "L'arbre de travail est propre",
-      "notARepository": "Ce dossier n'est pas un référentiel Git",
-      "gitUnavailable": "Impossible de lire le statut Git",
-      "refreshGit": "Recharger le statut Git",
-      "unreported": "Pas encore de rapport",
-      "empty": "Pas de séance ouverte",
-      "emptyHint": "Démarrez ou ouvrez une session pour afficher son activité actuelle.",
-      "permissions": "Permissions"
+      "tokens": "Jetons"
     }
   },
   "agentSidebar": {

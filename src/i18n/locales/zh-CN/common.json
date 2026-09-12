@@ -61,59 +61,10 @@
     }
   },
   "workspace": {
-    "title": "工作区",
-    "open": "显示工作区面板",
-    "close": "隐藏工作区面板",
-    "expand": "扩展工作区面板",
-    "collapse": "缩小工作区面板",
-    "resize": "通过拖动来调整工作区面板大小",
     "tabs": {
-      "status": "状态",
-      "changes": "更改",
-      "browser": "浏览器",
       "tasks": "任务"
     },
-    "changes": {
-      "title": "更改",
-      "refresh": "刷新更改",
-      "empty": "没有更改",
-      "emptyHint": "工作树是干净的。",
-      "scope": {
-        "workingTree": "工作树",
-        "lastTurn": "上一轮"
-      },
-      "emptyTurn": "上一轮没有更改",
-      "emptyTurnHint": "上一轮没有更改任何文件。",
-      "noSession": "选择一个会话以查看其最新更改。",
-      "loading": "正在加载变更…",
-      "notRepo": "此文件夹不是 Git 仓库",
-      "unavailable": "无法读取 Git 更改",
-      "noCommits": "尚未提交任何内容。",
-      "binary": "二进制文件；没有可用的文本差异。",
-      "tooLarge": "文件过大，已省略差异。",
-      "files_one": "{{count}} 个文件",
-      "files_other": "{{count}} 个文件",
-      "refreshLabel": "刷新更改",
-      "openInEditor": "在编辑器中打开",
-      "renameArrow": "→",
-      "comment": {
-        "add": "评论此行",
-        "placeholder": "对此行的评论…",
-        "submit": "添加到评审",
-        "edit": "编辑评论",
-        "remove": "删除评论",
-        "cancel": "放弃评论"
-      },
-      "review": {
-        "clear": "放弃评审",
-        "send_other": "发送 {{count}} 条评论"
-      },
-      "truncated": "共 {{total}} 个文件，显示 {{shown}} 个；列表已截断。",
-      "moreLines_other": "显示其余 {{count}} 行"
-    },
     "tasks": {
-      "empty": "暂无计划",
-      "emptyHint": "当代理在此会话中维护待办列表时，会显示在这里。",
       "progress": "已完成 {{done}} / {{total}}",
       "status": {
         "pending": "待处理",
@@ -123,36 +74,9 @@
       }
     },
     "statusTab": {
-      "session": "会话窗口",
-      "model": "模型库",
-      "reasoning": "推理",
       "context": "背景信息",
       "contextWindow": "可用的上下文",
-      "tokens": "权限凭证",
-      "tokensUsed": "已消耗",
-      "tokensInput": "用户输入",
-      "tokensOutput": "结果输出",
-      "tokensCache": "存储器",
-      "activity": "状态栏",
-      "running": "正在执行",
-      "idle": "待机",
-      "queuedMessage": "有1条消息队列等待处理",
-      "location": "地点",
-      "project": "作业",
-      "directory": "文件夹",
-      "git": "Git",
-      "branch": "分叉",
-      "changes": "修改",
-      "staged": "待提交",
-      "untracked": "未知踪迹",
-      "clean": "工作区干净",
-      "notARepository": "此文件夹不是Git仓库",
-      "gitUnavailable": "无法读取Git状态",
-      "refreshGit": "刷新Git状态",
-      "unreported": "暂无报告",
-      "empty": "当前无会话打开",
-      "emptyHint": "开始或打开一个会话以查看其当前活动。",
-      "permissions": "权限"
+      "tokens": "权限凭证"
     }
   },
   "agentSidebar": {

@@ -97,15 +97,12 @@
   "preferences": {
     "sections": {
       "toolDisplay": "Tool output display",
-      "inputSettings": "Message input",
-      "experimental": "Experimental"
+      "inputSettings": "Message input"
     },
     "showRawParameters": "Display unprocessed parameters",
     "showThinking": "Display reasoning",
     "sendByCtrlEnter": "Use Ctrl+Enter to send",
     "sendByCtrlEnterDescription": "When enabled, Ctrl+Enter sends messages instead of Enter. This helps IME users prevent accidental sends.",
-    "agentSidebarV2": "Agent sidebar (preview)",
-    "agentSidebarV2Description": "Replace the workspace panel with the new agent sidebar. It only shows an empty state for now.",
     "toolOutputDensity": {
       "label": "Tool output density",
       "description": "How much of each tool call the transcript shows before you open it.",

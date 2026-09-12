@@ -1,18 +1,14 @@
 import { useId, useState } from 'react';
-import { ChevronDown, CircleCheck, CircleDashed, CircleX, ListTodo, LoaderCircle, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ListTodo } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../shared/view/ui/Collapsible';
 import type { SessionStore } from '../../../stores/useSessionStore';
 import { cn } from '../../../utils/cn';
-import { useSessionTodos, type SessionTodoPhase, type SessionTodoStatus } from '../hooks/useSessionTodos';
+import { useSessionTodos, type SessionTodoPhase } from '../hooks/useSessionTodos';
 
-const STATUS_ICON: Record<SessionTodoStatus, { Icon: LucideIcon; className: string }> = {
-  pending: { Icon: CircleDashed, className: 'text-muted-foreground/60' },
-  in_progress: { Icon: LoaderCircle, className: 'animate-spin text-primary' },
-  completed: { Icon: CircleCheck, className: 'text-muted-foreground' },
-  abandoned: { Icon: CircleX, className: 'text-muted-foreground/50' },
-};
+import { TODO_STATUS_ICON } from './todoStatusIcon';
+
 
 function TaskListDisclosure({ phases }: { phases: SessionTodoPhase[] }) {
   const { t } = useTranslation();
@@ -48,7 +44,7 @@ function TaskListDisclosure({ phases }: { phases: SessionTodoPhase[] }) {
                 {phase.name && <h3 className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">{phase.name}</h3>}
                 <ul className="space-y-0.5">
                   {phase.tasks.map((task, taskIndex) => {
-                    const { Icon, className } = STATUS_ICON[task.status];
+                    const { Icon, className } = TODO_STATUS_ICON[task.status];
                     return (
                       <li key={`${taskIndex}:${task.content}`} className="rounded-md px-1 py-1.5">
                         <div className="flex items-start gap-2">

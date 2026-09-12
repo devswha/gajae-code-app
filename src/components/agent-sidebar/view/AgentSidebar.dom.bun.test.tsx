@@ -4,6 +4,7 @@ import { afterEach, beforeEach, test } from 'node:test';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createElement } from 'react';
 
+import type { NormalizedMessage, SessionStore } from '../../../stores/useSessionStore';
 import { AGENT_SIDEBAR_STORAGE_KEY, DEFAULT_AGENT_SIDEBAR_WIDTH } from '../agentSidebarState';
 import { useAgentSidebar } from '../hooks/useAgentSidebar';
 
@@ -20,7 +21,19 @@ function persisted(): { open: boolean; width: number } {
   return JSON.parse(localStorage.getItem(AGENT_SIDEBAR_STORAGE_KEY) ?? 'null');
 }
 
-function Harness({ mobile = false }: { mobile?: boolean }) {
+/** A session store whose window can carry a structured todo_write result, like the chat's. */
+function createStore(phases: unknown[] = []) {
+  const messages: NormalizedMessage[] = phases.length
+    ? [{
+        id: 'todo-1', sessionId: 'session-1', provider: 'gjc', kind: 'tool_use',
+        timestamp: '2026-09-12T00:00:00Z', toolId: 'todo-1', toolName: 'todo_write',
+        toolInput: { ops: [] }, toolResult: { content: 'Updated', isError: false, toolUseResult: { phases } },
+      } as unknown as NormalizedMessage]
+    : [];
+  return { getMessages: () => messages, subscribeSession: () => () => {} } as unknown as SessionStore;
+}
+
+function Harness({ mobile = false, sessionStore = createStore() }: { mobile?: boolean; sessionStore?: SessionStore }) {
   const sidebar = useAgentSidebar();
   return createElement('div', null,
     createElement('button', { onClick: sidebar.open }, 'Open'),
@@ -32,6 +45,7 @@ function Harness({ mobile = false }: { mobile?: boolean }) {
         projectPath: '/work/alpha',
         sessionId: 'session-1',
         onClose: sidebar.close,
+        sessionStore,
       })
       : null,
   );
@@ -119,6 +133,30 @@ test('the desktop lane sets no inline width and carries no rail chrome', async (
   assert.doesNotMatch(element.className, /border-l|bg-sidebar|inset-y-0/);
   assert.match(element.className, /\bw-64\b.*\blg:w-80\b/);
   await within(element).findByText('main');
+});
+
+test('the WORK block appears under the environment in the same card when the session has todos', async () => {
+  seed({ open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
+  render(createElement(Harness, {
+    sessionStore: createStore([{ name: '', tasks: [
+      { content: 'Inspect current code', status: 'completed', notes: [] },
+      { content: 'Implement sidebar work block', status: 'in_progress', notes: [] },
+    ] }]),
+  }));
+
+  const card = within(lane()).getByRole('region', { name: 'agentSidebar.environment.title' }).parentElement!;
+  const work = within(card).getByRole('region', { name: 'agentSidebar.work.title' });
+  assert.match(work.className, /border-t/);
+  assert.ok(within(work).getByText('Implement sidebar work block'));
+  assert.equal(within(work).queryByText('agentSidebar.work.working'), null);
+});
+
+test('an idle session without todos leaves the card to the environment alone', async () => {
+  seed({ open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
+  render(createElement(Harness));
+
+  await within(lane()).findByText('main');
+  assert.equal(within(lane()).queryByRole('region', { name: 'agentSidebar.work.title' }), null);
 });
 
 test('the mobile drawer is dismissed by its backdrop and never touches the saved width', async () => {

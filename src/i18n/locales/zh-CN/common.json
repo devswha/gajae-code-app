@@ -197,6 +197,10 @@
       "refresh": "刷新 Git 状态",
       "notARepository": "此文件夹不是 Git 仓库",
       "gitUnavailable": "无法读取 Git 状态"
+    },
+    "work": {
+      "title": "工作",
+      "working": "正在执行"
     }
   },
   "commandPalette": {

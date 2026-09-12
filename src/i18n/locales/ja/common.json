@@ -197,6 +197,10 @@
       "refresh": "Git ステータスを再読み込み",
       "notARepository": "このフォルダーは Git リポジトリではありません",
       "gitUnavailable": "Git ステータスを読み取れません"
+    },
+    "work": {
+      "title": "作業",
+      "working": "実行中"
     }
   },
   "commandPalette": {

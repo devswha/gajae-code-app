@@ -199,6 +199,10 @@
       "refresh": "Reload Git status",
       "notARepository": "This folder is not a Git repository",
       "gitUnavailable": "Could not read Git status"
+    },
+    "work": {
+      "title": "Work",
+      "working": "Working"
     }
   },
   "commandPalette": {

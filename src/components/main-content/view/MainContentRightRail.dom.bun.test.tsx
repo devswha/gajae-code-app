@@ -4,7 +4,7 @@ import { afterEach, beforeEach, test } from 'node:test';
 import { cleanup, render, screen } from '@testing-library/react';
 import { createElement } from 'react';
 
-import type { SessionStore } from '../../../stores/useSessionStore';
+import type { NormalizedMessage, SessionStore } from '../../../stores/useSessionStore';
 import type { AgentSidebarProps } from '../../agent-sidebar/view/AgentSidebar';
 import type { WorkspacePanelProps } from '../../workspace/view/WorkspacePanel';
 
@@ -25,12 +25,17 @@ const workspace: WorkspacePanelProps = {
   onClose: () => undefined,
 };
 
+const noMessages: NormalizedMessage[] = [];
+
 const agentSidebar: AgentSidebarProps = {
   isMobile: false,
   projectId: 'project-alpha',
   projectPath: '/work/alpha',
   sessionId: 'session-alpha',
   onClose: () => undefined,
+  // The WORK block reads the todo fold through the store's message window; the
+  // empty window must be one stable reference, as the real store guarantees.
+  sessionStore: { getMessages: () => noMessages, subscribeSession: () => () => {} } as unknown as SessionStore,
 };
 
 const props = (overrides: Partial<MainContentRightRailProps>): MainContentRightRailProps => ({
@@ -67,6 +72,7 @@ test('with the experiment off the rail is the legacy workspace panel alone', asy
   // The legacy panel keeps its own Status tab sections; the Environment block is the new rail's.
   await screen.findByText('workspace.statusTab.git');
   assert.equal(screen.queryByRole('region', { name: 'agentSidebar.environment.title' }), null);
+  assert.equal(screen.queryByRole('region', { name: 'agentSidebar.work.title' }), null);
 });
 
 test('with the experiment on the rail is the compact context panel alone, with the environment as its body', async () => {

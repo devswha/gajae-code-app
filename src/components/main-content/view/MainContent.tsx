@@ -201,6 +201,7 @@ function MainContent({
             projectId: selectedProject.projectId,
             projectPath: executionPath,
             sessionId: selectedSession?.id,
+            sessionStore,
             onClose: agentSidebar.close,
           }}
         />

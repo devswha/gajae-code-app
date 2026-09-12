@@ -1,12 +1,17 @@
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import type { SessionStore } from '../../../stores/useSessionStore';
+
 import AgentSidebarEnvironment, { type AgentSidebarEnvironmentProps } from './AgentSidebarEnvironment';
+import AgentSidebarWork from './AgentSidebarWork';
 
 export type AgentSidebarProps = AgentSidebarEnvironmentProps & {
   isMobile: boolean;
   /** Dismisses the mobile drawer; desktop is shown and hidden from the header toggle. */
   onClose: () => void;
+  /** The chat's session store; the WORK block reads the todo fold from the window the transcript uses. */
+  sessionStore: SessionStore;
 };
 
 /**
@@ -14,17 +19,19 @@ export type AgentSidebarProps = AgentSidebarEnvironmentProps & {
  *
  * On desktop it is a context lane beside the conversation: a fixed-width
  * column with no border, background, header or resize handle of its own,
- * holding one compact card that is only as tall as the Environment summary.
+ * holding one compact card: the Environment summary, and under it a WORK
+ * block that appears only when the session has a todo list or is running.
  * The rest of the lane stays empty on purpose — the surface is workspace
  * context next to the chat, not another tool sidebar. The header's rail
  * toggle is the way to show and hide it.
  *
  * On mobile it is the same drawer as before: a backdrop, a titled header with
- * the close control, and the summary underneath.
+ * the close control, and the same blocks underneath.
  *
  * There is intentionally no tab strip and no expanded mode, and the shell
  * keeps no domain data of its own: the Environment block reads git and the
- * runtime through their existing hooks.
+ * runtime through their existing hooks, and the WORK block projects the
+ * session's todos and run state through theirs.
  */
 export default function AgentSidebar({
   isMobile,
@@ -32,10 +39,12 @@ export default function AgentSidebar({
   projectPath,
   sessionId,
   onClose,
+  sessionStore,
 }: AgentSidebarProps) {
   const { t } = useTranslation();
 
   const environment = <AgentSidebarEnvironment projectId={projectId} projectPath={projectPath} sessionId={sessionId} />;
+  const work = <AgentSidebarWork sessionId={sessionId} sessionStore={sessionStore} />;
 
   if (isMobile) {
     return (
@@ -62,7 +71,7 @@ export default function AgentSidebar({
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">{environment}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto">{environment}{work}</div>
         </aside>
       </>
     );
@@ -74,7 +83,7 @@ export default function AgentSidebar({
       aria-label={t('agentSidebar.title')}
       className="flex w-64 shrink-0 flex-col overflow-y-auto py-3 pr-4 pl-2 lg:w-80"
     >
-      <div className="rounded-xl border border-border/60 bg-card/50">{environment}</div>
+      <div className="rounded-xl border border-border/60 bg-card/50">{environment}{work}</div>
     </aside>
   );
 }

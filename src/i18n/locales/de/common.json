@@ -199,6 +199,10 @@
       "refresh": "Git-Status neu laden",
       "notARepository": "Dieser Ordner ist kein Git-Repository",
       "gitUnavailable": "Git-Status konnte nicht gelesen werden"
+    },
+    "work": {
+      "title": "Arbeit",
+      "working": "Läuft"
     }
   },
   "commandPalette": {

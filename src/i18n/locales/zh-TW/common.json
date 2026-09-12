@@ -197,6 +197,10 @@
       "refresh": "重新載入 Git 狀態",
       "notARepository": "此資料夾不是 Git 儲存庫",
       "gitUnavailable": "無法讀取 Git 狀態"
+    },
+    "work": {
+      "title": "工作",
+      "working": "運行中"
     }
   },
   "commandPalette": {

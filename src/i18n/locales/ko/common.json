@@ -197,6 +197,10 @@
       "refresh": "Git 상태 다시 로드",
       "notARepository": "이 폴더는 Git 저장소가 아닙니다",
       "gitUnavailable": "Git 상태를 읽을 수 없습니다"
+    },
+    "work": {
+      "title": "작업",
+      "working": "작업 중"
     }
   },
   "commandPalette": {

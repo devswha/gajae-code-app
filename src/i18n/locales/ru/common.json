@@ -205,6 +205,10 @@
       "refresh": "Обновить статус Git",
       "notARepository": "Эта папка не является репозиторием Git",
       "gitUnavailable": "Не удалось прочитать статус Git"
+    },
+    "work": {
+      "title": "Работа",
+      "working": "Выполняется"
     }
   },
   "commandPalette": {

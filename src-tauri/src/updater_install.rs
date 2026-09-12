@@ -321,7 +321,7 @@ impl PreparedInstall {
         })) {
             Ok(Ok(())) => {}
             // Even PermissionDenied does not distinguish cancellation from a
-            // privileged move failure in updater 2.6. Preserve the blocker.
+            // privileged move failure. Preserve the blocker.
             _ => return Err(ApplyError::RecoveryRequired),
         }
         let proof = verify_inventory(&self.app, &self.archive.inventory)
@@ -369,7 +369,7 @@ fn parse_plugin_manifest(value: &serde_json::Value) -> Result<Manifest, InstallE
 }
 
 fn exact_endpoint(url: &reqwest::Url) -> Result<(), InstallError> {
-    // updater 2.6 substitutes template tokens even in a supplied final endpoint.
+    // The updater substitutes template tokens even in a supplied final endpoint.
     // Such a query/path would no longer be the endpoint we actually prefetched.
     let lower = url.as_str().to_ascii_lowercase();
     if lower.contains("{{") || lower.contains("%7b%7b") {

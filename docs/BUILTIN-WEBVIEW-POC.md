@@ -29,7 +29,7 @@ The smallest possible slice that proves the architecture:
 ### 1. Which Tauri WebView primitive was used?
 
 `tauri::WebviewWindowBuilder::new(app, "browser-poc", WebviewUrl::External(url))`
-(tauri 2.6.0 / tauri-runtime-wry 2.7.0 / wry 0.52.1 — the versions pinned in
+(tauri 2.11.5 / tauri-runtime-wry 2.11.4 / wry 0.55.1 — the versions pinned in
 `src-tauri/Cargo.toml`). On macOS the builder also sets a fixed
 `data_store_identifier` (dedicated `WKWebsiteDataStore`); Windows/Linux set a
 `data_directory` under the app data dir. No custom protocol, no iframe, no

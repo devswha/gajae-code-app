@@ -245,8 +245,8 @@ impl QaProfile {
             if window.create {
                 windows.push(window.clone());
             }
-            // tauri-runtime 2.7 drops the UUID in WindowConfig ->
-            // WebviewAttributes. Build QA windows with the explicit setter.
+            // The runtime drops the UUID in WindowConfig -> WebviewAttributes.
+            // Build QA windows with the explicit setter.
             window.create = false;
         }
         windows

@@ -50,7 +50,7 @@ mod macos_probe {
 
     use super::updater_transport::{self, TransportError};
 
-    const PLUGIN_VERSION: &str = "2.6.0";
+    const PLUGIN_VERSION: &str = "2.11.0";
     const PROBE_IDENTIFIER: &str = "app.gajae.updater.probe";
     const PROBE_PRODUCT_NAME: &str = "Gajae Updater Probe";
     const ROOT_MARKER_NAME: &str = ".gajae-updater-probe-root";

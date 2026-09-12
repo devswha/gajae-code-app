@@ -20,7 +20,6 @@ export const AGENT_SIDEBAR_STORAGE_KEY = 'agent-sidebar';
 export const MIN_AGENT_SIDEBAR_WIDTH = 280;
 export const MIN_AGENT_SIDEBAR_CHAT_WIDTH = 200;
 export const DEFAULT_AGENT_SIDEBAR_WIDTH = 384;
-export const AGENT_SIDEBAR_KEYBOARD_RESIZE_STEP = 24;
 
 // A sidebar wider than this leaves the chat unusable, which is the one thing
 // the sidebar must never do; the ratio applies whenever a container width is

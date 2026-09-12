@@ -191,7 +191,6 @@
     "title": "Agente",
     "open": "Mostra la barra laterale dell'agente",
     "close": "Nascondi la barra laterale dell'agente",
-    "resize": "Ridimensiona la barra laterale dell'agente trascinandola",
     "environment": {
       "title": "Ambiente",
       "changes": "Modifiche",

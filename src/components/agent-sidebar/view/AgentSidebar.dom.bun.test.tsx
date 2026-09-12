@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { afterEach, test } from 'node:test';
+import { afterEach, beforeEach, test } from 'node:test';
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createElement } from 'react';
 
 import { AGENT_SIDEBAR_STORAGE_KEY, DEFAULT_AGENT_SIDEBAR_WIDTH } from '../agentSidebarState';
@@ -9,35 +9,8 @@ import { useAgentSidebar } from '../hooks/useAgentSidebar';
 
 import AgentSidebar from './AgentSidebar';
 
-const originalObserver = globalThis.ResizeObserver;
-const originalBounds = HTMLElement.prototype.getBoundingClientRect;
-let containerWidth = 1_600;
-const observers: Array<{ resize: () => void; disconnected: boolean }> = [];
-
-function stubEnvironment() {
-  globalThis.ResizeObserver = class {
-    observer: { resize: () => void; disconnected: boolean };
-    constructor(resize: () => void) {
-      this.observer = { resize, disconnected: false };
-      observers.push(this.observer);
-    }
-    observe() {}
-    unobserve() {}
-    disconnect() { this.observer.disconnected = true; }
-  } as unknown as typeof ResizeObserver;
-  // The hook resizes against `container.right - clientX`, so the stub has to be
-  // a whole rect and not just a width.
-  HTMLElement.prototype.getBoundingClientRect = () => ({
-    left: 0,
-    right: containerWidth,
-    width: containerWidth,
-    top: 0,
-    bottom: 0,
-    height: 0,
-    x: 0,
-    y: 0,
-  }) as DOMRect;
-}
+const originalFetch = globalThis.fetch;
+let requests: string[] = [];
 
 function seed(state: { open: boolean; width: number }) {
   localStorage.setItem(AGENT_SIDEBAR_STORAGE_KEY, JSON.stringify(state));
@@ -48,193 +21,133 @@ function persisted(): { open: boolean; width: number } {
 }
 
 function Harness({ mobile = false }: { mobile?: boolean }) {
-  const sidebar = useAgentSidebar({ isMobile: mobile });
+  const sidebar = useAgentSidebar();
   return createElement('div', null,
-    createElement('div', { ref: sidebar.containerRef },
-      createElement('output', null, String(sidebar.width)),
-      createElement('button', { onClick: sidebar.open }, 'Open'),
-      createElement('button', { onClick: sidebar.toggle }, 'Toggle'),
-      // The drawer has no handle, so the mobile keyboard guard is reached here.
-      createElement('button', { onKeyDown: sidebar.handleResizeKeyDown }, 'Keys'),
-      sidebar.isOpen
-        ? createElement(AgentSidebar, {
-          width: sidebar.width,
-          isMobile: mobile,
-          onResizeStart: sidebar.handleResizeStart,
-          onResizeKeyDown: sidebar.handleResizeKeyDown,
-          onClose: sidebar.close,
-        })
-        : null,
-    ),
+    createElement('button', { onClick: sidebar.open }, 'Open'),
+    createElement('button', { onClick: sidebar.toggle }, 'Toggle'),
+    sidebar.isOpen
+      ? createElement(AgentSidebar, {
+        isMobile: mobile,
+        projectId: 'project-alpha',
+        projectPath: '/work/alpha',
+        sessionId: 'session-1',
+        onClose: sidebar.close,
+      })
+      : null,
   );
 }
 
-function width(): string {
-  return screen.getByRole('status').textContent ?? '';
-}
+const lane = () => screen.getByRole('complementary', { name: 'agentSidebar.title' });
+
+beforeEach(() => {
+  requests = [];
+  globalThis.fetch = (async (input) => {
+    requests.push(String(input));
+    return new Response(JSON.stringify({ branch: 'main', modified: ['a.ts'], added: [], deleted: [], untracked: ['b.md'], staged: [] }), { status: 200 });
+  }) as typeof fetch;
+});
 
 afterEach(() => {
   cleanup();
   localStorage.removeItem(AGENT_SIDEBAR_STORAGE_KEY);
-  globalThis.ResizeObserver = originalObserver;
-  HTMLElement.prototype.getBoundingClientRect = originalBounds;
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-  containerWidth = 1_600;
-  observers.length = 0;
+  globalThis.fetch = originalFetch;
 });
 
-test('the sidebar starts closed and opening it persists the open state', () => {
-  stubEnvironment();
+test('the sidebar starts closed and opening it persists the open state', async () => {
   render(createElement(Harness));
 
   assert.equal(screen.queryByRole('complementary'), null);
 
   fireEvent.click(screen.getByText('Open'));
 
-  assert.ok(screen.getByRole('complementary', { name: 'agentSidebar.title' }));
+  assert.ok(lane());
   assert.deepEqual(persisted(), { open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
+  await within(lane()).findByText('main');
 });
 
-test('the header toggle opens and closes the sidebar in turn', () => {
-  stubEnvironment();
+test('the header toggle opens and closes the sidebar in turn', async () => {
   render(createElement(Harness));
 
   fireEvent.click(screen.getByText('Toggle'));
-  assert.ok(screen.getByRole('complementary', { name: 'agentSidebar.title' }));
+  assert.ok(lane());
   assert.equal(persisted().open, true);
+  await within(lane()).findByText('main');
 
   fireEvent.click(screen.getByText('Toggle'));
   assert.equal(screen.queryByRole('complementary'), null);
   assert.equal(persisted().open, false);
 });
 
-test('the close control closes the sidebar and persists it closed', () => {
-  stubEnvironment();
+test('a width saved by the old resizable rail is kept as it was, untouched by opening and closing', async () => {
+  seed({ open: false, width: 640 });
+  render(createElement(Harness));
+
+  fireEvent.click(screen.getByText('Toggle'));
+  await within(lane()).findByText('main');
+  fireEvent.click(screen.getByText('Toggle'));
+
+  assert.deepEqual(persisted(), { open: false, width: 640 });
+});
+
+test('the desktop lane holds the environment card with the existing git summary and its refresh', async () => {
   seed({ open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
   render(createElement(Harness));
 
-  fireEvent.click(screen.getByRole('button', { name: 'agentSidebar.close' }));
+  const region = within(lane()).getByRole('region', { name: 'agentSidebar.environment.title' });
+  await within(region).findByText('main');
+  assert.ok(within(region).getByText('2'));
+  assert.ok(within(region).getByTitle('/work/alpha'));
+  assert.deepEqual(requests, ['/api/git/status?project=project-alpha&sessionId=session-1']);
 
-  assert.equal(screen.queryByRole('complementary'), null);
-  assert.equal(persisted().open, false);
+  // No header, no close, no separator: the refresh is the lane's only control.
+  assert.equal(within(lane()).queryByRole('heading', { level: 2 }), null);
+  assert.equal(screen.queryByRole('separator'), null);
+  const buttons = within(lane()).getAllByRole('button');
+  assert.equal(buttons.length, 1);
+  assert.equal(buttons[0].getAttribute('aria-label'), 'agentSidebar.environment.refresh');
+
+  fireEvent.click(buttons[0]);
+  await waitFor(() => assert.equal(requests.length, 2));
 });
 
-test('dragging the separator resizes the sidebar and restores the document cursor', () => {
-  stubEnvironment();
-  seed({ open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
-  render(createElement(Harness));
-
-  const separator = screen.getByRole('separator');
-  fireEvent.mouseDown(separator);
-  assert.equal(document.body.style.cursor, 'col-resize');
-  assert.equal(document.body.style.userSelect, 'none');
-
-  fireEvent.mouseMove(document, { clientX: 1_100 });
-  assert.equal(width(), '500');
-  assert.equal(screen.getByRole('separator').getAttribute('aria-valuenow'), '500');
-
-  fireEvent.mouseUp(document);
-  assert.equal(document.body.style.cursor, '');
-  assert.equal(document.body.style.userSelect, '');
-  assert.equal(width(), '500');
-});
-
-test('a drag past the chat-safe edge stops at the row ceiling', () => {
-  stubEnvironment();
-  seed({ open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
-  render(createElement(Harness));
-
-  fireEvent.mouseDown(screen.getByRole('separator'));
-  fireEvent.mouseMove(document, { clientX: 0 });
-  fireEvent.mouseUp(document);
-
-  // 1600 * 0.8 = 1280 leaves the chat a fifth of the row.
-  assert.equal(width(), '1280');
-  assert.equal(persisted().width, 1_280);
-});
-
-test('unmounting mid-drag still restores the document cursor and selection', () => {
-  stubEnvironment();
-  seed({ open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
-  const view = render(createElement(Harness));
-
-  fireEvent.mouseDown(screen.getByRole('separator'));
-  assert.equal(document.body.style.cursor, 'col-resize');
-
-  view.unmount();
-
-  assert.equal(document.body.style.cursor, '');
-  assert.equal(document.body.style.userSelect, '');
-});
-
-test('arrow keys on the separator widen and narrow the docked sidebar', () => {
-  stubEnvironment();
-  seed({ open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
-  render(createElement(Harness));
-
-  const separator = screen.getByRole('separator');
-  fireEvent.keyDown(separator, { key: 'ArrowLeft' });
-  assert.equal(width(), '408');
-
-  fireEvent.keyDown(separator, { key: 'ArrowRight' });
-  fireEvent.keyDown(separator, { key: 'ArrowRight' });
-  assert.equal(width(), '360');
-});
-
-test('saved wide sidebars follow window shrink and never exceed the chat-safe row', () => {
-  stubEnvironment();
+test('the desktop lane sets no inline width and carries no rail chrome', async () => {
   seed({ open: true, width: 1_200 });
-  const view = render(createElement(Harness));
+  render(createElement(Harness));
 
-  assert.equal(width(), '1200');
-  act(() => { containerWidth = 768; observers[0].resize(); });
-  assert.equal(width(), '568');
-  act(() => { containerWidth = 488; observers[0].resize(); });
-  assert.equal(width(), '288');
-
-  view.unmount();
-  assert.equal(observers[0].disconnected, true);
+  const element = lane();
+  assert.equal(element.getAttribute('style'), null);
+  assert.doesNotMatch(element.className, /border-l|bg-sidebar|inset-y-0/);
+  assert.match(element.className, /\bw-64\b.*\blg:w-80\b/);
+  await within(element).findByText('main');
 });
 
-test('the mobile drawer never resizes and never overwrites the saved desktop width', () => {
-  stubEnvironment();
+test('the mobile drawer is dismissed by its backdrop and never touches the saved width', async () => {
   seed({ open: true, width: 1_200 });
-  containerWidth = 390;
   render(createElement(Harness, { mobile: true }));
 
-  assert.equal(observers.length, 0);
+  const drawer = lane();
+  assert.match(drawer.className, /fixed inset-y-0 right-0/);
+  assert.ok(within(drawer).getByRole('heading', { level: 2, name: 'agentSidebar.title' }));
+  assert.ok(within(drawer).getByRole('region', { name: 'agentSidebar.environment.title' }));
   assert.equal(screen.queryByRole('separator'), null);
-  assert.ok(screen.getByRole('complementary', { name: 'agentSidebar.title' }));
+  await within(drawer).findByText('main');
 
   const backdrop = screen.getAllByRole('button', { name: 'agentSidebar.close' })[0];
   assert.match(backdrop.className, /fixed inset-0/);
   fireEvent.click(backdrop);
 
   assert.equal(screen.queryByRole('complementary'), null);
-  assert.equal(persisted().width, 1_200);
+  assert.deepEqual(persisted(), { open: false, width: 1_200 });
 });
 
-test('the mobile close button dismisses the drawer', () => {
-  stubEnvironment();
-  seed({ open: true, width: 1_200 });
+test('the mobile close button dismisses the drawer', async () => {
+  seed({ open: true, width: DEFAULT_AGENT_SIDEBAR_WIDTH });
   render(createElement(Harness, { mobile: true }));
 
-  const closeButton = screen.getAllByRole('button', { name: 'agentSidebar.close' })[1];
+  await within(lane()).findByText('main');
+  const closeButton = within(lane()).getByRole('button', { name: 'agentSidebar.close' });
   fireEvent.click(closeButton);
 
   assert.equal(screen.queryByRole('complementary'), null);
   assert.equal(persisted().open, false);
-});
-
-test('the resize keys are ignored on mobile even when they reach the handler', () => {
-  stubEnvironment();
-  seed({ open: true, width: 1_200 });
-  render(createElement(Harness, { mobile: true }));
-
-  fireEvent.keyDown(screen.getByText('Keys'), { key: 'ArrowLeft' });
-  fireEvent.keyDown(screen.getByText('Keys'), { key: 'ArrowRight' });
-
-  assert.equal(width(), String(DEFAULT_AGENT_SIDEBAR_WIDTH));
-  assert.equal(persisted().width, 1_200);
 });

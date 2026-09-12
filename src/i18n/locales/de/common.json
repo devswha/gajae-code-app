@@ -191,7 +191,6 @@
     "title": "Agent",
     "open": "Agent-Seitenleiste anzeigen",
     "close": "Agent-Seitenleiste ausblenden",
-    "resize": "Agent-Seitenleiste durch Ziehen in der Größe ändern",
     "environment": {
       "title": "Umgebung",
       "changes": "Änderungen",

@@ -47,7 +47,7 @@ function MainContent({
   const sessionStore = useSessionStore();
   const panel = useWorkspacePanel({ isMobile });
   // Both rails keep their own state; only the selected one renders.
-  const agentSidebar = useAgentSidebar({ isMobile });
+  const agentSidebar = useAgentSidebar();
   const composerInsertRef = useRef<((text: string) => void) | null>(null);
   const handleComposerInsert = useCallback((text: string) => {
     const insert = composerInsertRef.current;
@@ -141,7 +141,7 @@ function MainContent({
       />
 
       <SessionStatusProvider>
-      <div ref={agentSidebarV2 ? agentSidebar.containerRef : containerRef} className="flex min-h-0 flex-1 overflow-hidden">
+      <div ref={agentSidebarV2 ? undefined : containerRef} className="flex min-h-0 flex-1 overflow-hidden">
         <div style={{ minWidth: agentSidebarV2 ? MIN_AGENT_SIDEBAR_CHAT_WIDTH : MIN_WORKSPACE_CHAT_WIDTH }} className={`flex min-h-0 flex-1 flex-col overflow-hidden ${chatHidden ? 'hidden' : ''}`}>
           <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
             <ErrorBoundary showDetails>
@@ -197,13 +197,10 @@ function MainContent({
             onClose: closePanel,
           }}
           agentSidebar={{
-            width: agentSidebar.width,
             isMobile,
             projectId: selectedProject.projectId,
             projectPath: executionPath,
             sessionId: selectedSession?.id,
-            onResizeStart: agentSidebar.handleResizeStart,
-            onResizeKeyDown: agentSidebar.handleResizeKeyDown,
             onClose: agentSidebar.close,
           }}
         />

@@ -6,36 +6,75 @@ import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 
 import english from '../../../../i18n/locales/en/settings.json';
+import { resetAppShellStore, useAppShellStore } from '../../../../stores/useAppShellStore';
 
 import AutomationSettingsTab from './AutomationSettingsTab';
 
+type Call = { path: string; method: string; body?: unknown };
+type ApiOptions = {
+  backend?: 'builtin' | 'aside';
+  rejectBackendSave?: boolean;
+  browserOpen?: Response | Error;
+  browserReady?: boolean;
+  grants?: { always: { origins: string[]; applications: string[] } };
+};
+
 const originalFetch = globalThis.fetch;
+const originalWindowOpen = window.open;
+
 afterEach(() => {
   cleanup();
   globalThis.fetch = originalFetch;
+  window.open = originalWindowOpen;
+  resetAppShellStore();
+  delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
 });
 
-type Call = { path: string; method: string; body?: unknown };
-
-function fakeApi(initialBackend = 'native', accept = true) {
+function fakeApi(options: ApiOptions = {}) {
   const calls: Call[] = [];
-  let backend = initialBackend;
+  let backend = options.backend ?? 'builtin';
+  let grants = options.grants ?? { always: { origins: [], applications: [] } };
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
     const method = init?.method ?? 'GET';
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) as unknown : undefined;
     calls.push({ path, method, ...(body === undefined ? {} : { body }) });
     if (path === '/api/automation/status') {
-      return new Response(JSON.stringify({ supported: true, platform: 'darwin', architecture: 'arm64',
-        browser: { installed: false, buildId: 'none', state: 'idle' }, cua: { installed: false, daemon: 'unknown' } }));
+      return new Response(JSON.stringify({
+        supported: true,
+        platform: 'darwin',
+        architecture: 'arm64',
+        capabilities: { browser: options.browserReady ?? true, computer: true },
+        browser: {},
+        cua: { installed: true, version: '1.2.3', daemon: 'running', accessibility: true, screenRecording: false },
+      }));
     }
-    if (path === '/api/automation/grants') return new Response(JSON.stringify({ always: { origins: [], applications: [] } }));
+    if (path === '/api/automation/grants') {
+      if (method === 'DELETE') {
+        const target = body as { kind: 'origin' | 'application'; value: string };
+        grants = { always: {
+          origins: grants.always.origins.filter((value) => target.kind !== 'origin' || value !== target.value),
+          applications: grants.always.applications.filter((value) => target.kind !== 'application' || value !== target.value),
+        } };
+      }
+      return new Response(JSON.stringify(grants));
+    }
     if (path === '/api/automation/browser-backend') {
       if (method === 'PUT') {
-        if (!accept) return new Response(JSON.stringify({ error: 'nope' }), { status: 400 });
-        backend = (body as { backend: string }).backend;
+        if (options.rejectBackendSave) return new Response(JSON.stringify({ error: 'rejected' }), { status: 400 });
+        backend = (body as { backend: 'builtin' | 'aside' }).backend;
       }
-      return new Response(JSON.stringify({ backend, backends: ['native', 'aside'] }));
+      return new Response(JSON.stringify({ backend, backends: ['builtin', 'aside'] }));
+    }
+    if (path.startsWith('/api/browser/') && method === 'POST') {
+      if (options.browserOpen instanceof Error) throw options.browserOpen;
+      return options.browserOpen ?? new Response(JSON.stringify({
+        sessionId: decodeURIComponent(path.split('/')[3]),
+        activeTabId: 'tab-1',
+        tabs: [{ id: 'tab-1', title: 'Example', url: 'https://example.com/', loading: false, canGoBack: false, canGoForward: false }],
+        binding: { windowEpoch: 'window-1', documentEpoch: 1, origin: 'https://example.com' },
+        profileMode: 'persistent',
+      }));
     }
     return new Response('{}', { status: 404 });
   }) as typeof fetch;
@@ -44,139 +83,122 @@ function fakeApi(initialBackend = 'native', accept = true) {
 
 async function mount() {
   const i18n = createInstance();
-  await i18n.init({ lng: 'en', fallbackLng: 'en', resources: { en: { settings: english } }, interpolation: { escapeValue: false } });
-  const view = render(<I18nextProvider i18n={i18n}><AutomationSettingsTab /></I18nextProvider>);
-  await act(async () => {});
-  return view;
+  await i18n.init({
+    lng: 'en',
+    fallbackLng: 'en',
+    resources: { en: { settings: english } },
+    interpolation: { escapeValue: false },
+  });
+  return render(<I18nextProvider i18n={i18n}><AutomationSettingsTab /></I18nextProvider>);
 }
 
-const select = () => screen.getByRole('combobox', { name: english.automation.browserBackend.label }) as HTMLSelectElement;
+const backendSelect = () => screen.getByRole('combobox', { name: english.automation.browserBackend.label }) as HTMLSelectElement;
 
-test('the browser backend defaults to Native, offers Aside as experimental, and shows no Aside note until chosen', async () => {
-  fakeApi();
-  await mount();
-  await waitFor(() => assert.equal(select().disabled, false));
-  assert.equal(select().value, 'native');
-  assert.deepEqual([...select().options].map((option) => [option.value, option.textContent]), [
-    ['native', 'Native'],
-    ['aside', 'Aside (Experimental)'],
-  ]);
-  assert.ok(screen.getByText(english.automation.browserBackend.nativeDescription));
-  assert.equal(screen.queryByText(english.automation.browserBackend.asideNote), null);
-});
-
-test('choosing Aside persists through the app API and explains the no-fallback contract; Native restores the default', async () => {
+test('Built-in is the default and both backend choices persist through the API', async () => {
   const calls = fakeApi();
   await mount();
-  await waitFor(() => assert.equal(select().disabled, false));
+  await waitFor(() => assert.equal(backendSelect().disabled, false));
 
-  fireEvent.change(select(), { target: { value: 'aside' } });
-  await waitFor(() => assert.equal(select().value, 'aside'));
-  assert.deepEqual(calls.filter((call) => call.method === 'PUT'), [
-    { path: '/api/automation/browser-backend', method: 'PUT', body: { backend: 'aside' } },
+  assert.equal(backendSelect().value, 'builtin');
+  assert.deepEqual([...backendSelect().options].map((option) => [option.value, option.textContent]), [
+    ['builtin', english.automation.browserBackend.builtin],
+    ['aside', english.automation.browserBackend.aside],
   ]);
-  assert.ok(screen.getByText(english.automation.browserBackend.asideDescription));
-  assert.ok(screen.getByText(english.automation.browserBackend.asideNote));
-  assert.match(english.automation.browserBackend.asideNote, /fails to start instead of falling back/);
 
-  fireEvent.change(select(), { target: { value: 'native' } });
-  await waitFor(() => assert.equal(select().value, 'native'));
+  fireEvent.change(backendSelect(), { target: { value: 'aside' } });
+  await waitFor(() => assert.equal(backendSelect().value, 'aside'));
+  assert.ok(screen.getByText(english.automation.browserBackend.asideNote));
+
+  fireEvent.change(backendSelect(), { target: { value: 'builtin' } });
+  await waitFor(() => assert.equal(backendSelect().value, 'builtin'));
   assert.equal(screen.queryByText(english.automation.browserBackend.asideNote), null);
-  assert.deepEqual(calls.filter((call) => call.method === 'PUT').map((call) => (call.body as { backend: string }).backend), ['aside', 'native']);
+  assert.deepEqual(calls.filter((call) => call.method === 'PUT').map((call) => call.body), [
+    { backend: 'aside' },
+    { backend: 'builtin' },
+  ]);
 });
 
-test('a persisted Aside choice is shown on load, and a rejected save keeps the previous value and reports it', async () => {
-  fakeApi('aside', false);
+test('a rejected backend save keeps the persisted choice and reports the failure', async () => {
+  fakeApi({ backend: 'aside', rejectBackendSave: true });
   await mount();
-  await waitFor(() => assert.equal(select().value, 'aside'));
-  assert.ok(screen.getByText(english.automation.browserBackend.asideNote));
+  await waitFor(() => assert.equal(backendSelect().value, 'aside'));
 
-  fireEvent.change(select(), { target: { value: 'native' } });
-  await waitFor(() => assert.ok(screen.getByRole('alert')));
-  assert.equal(screen.getByRole('alert').textContent, english.automation.browserBackend.saveFailed);
-  assert.equal(select().value, 'aside');
+  fireEvent.change(backendSelect(), { target: { value: 'builtin' } });
+  await waitFor(() => assert.equal(screen.getByRole('alert').textContent, english.automation.browserBackend.saveFailed));
+  assert.equal(backendSelect().value, 'aside');
 });
 
-type InvokeCall = { command: string; args?: Record<string, unknown> };
-
-function installDesktopBridge(results: Record<string, unknown> = {}) {
-  const calls: InvokeCall[] = [];
-  (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {
-    invoke: async (command: string, args?: Record<string, unknown>) => {
-      calls.push({ command, ...(args === undefined ? {} : { args }) });
-      const outcome = results[command];
-      if (outcome instanceof Error) throw outcome;
-      return outcome;
-    },
-  };
-  return {
-    calls,
-    uninstall: () => { delete (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__; },
-  };
-}
-
-const openButton = () => screen.getByRole('button', { name: english.automation.browserPoc.open });
-const probeButton = () => screen.getByRole('button', { name: english.automation.browserPoc.titleProbe });
-
-test('the Built-in WebView PoC entry point is hidden without the desktop command bridge', async () => {
-  fakeApi();
+test('plain web hides desktop launch while CUA diagnostics and saved grants remain usable', async () => {
+  const calls = fakeApi({ grants: { always: { origins: ['https://example.com'], applications: ['Safari'] } } });
   await mount();
-  await waitFor(() => assert.equal(select().disabled, false));
-  assert.equal(screen.queryByText(english.automation.browserPoc.label), null);
-  assert.equal(screen.queryByRole('button', { name: english.automation.browserPoc.open }), null);
-});
+  await waitFor(() => assert.equal(backendSelect().disabled, false));
 
-test('the PoC opens the built-in browser window through the desktop bridge and reports both outcomes', async () => {
-  fakeApi();
-  const bridge = installDesktopBridge({ browser_poc_open: { created: true, url: 'https://example.com/' } });
-  try {
-    await mount();
-    await waitFor(() => assert.ok(openButton()));
+  assert.equal(screen.queryByRole('button', { name: english.automation.builtinBrowser.open }), null);
+  assert.ok(screen.getByText('1.2.3 · running'));
+  assert.ok(screen.getByText(`${english.automation.accessibility}: ${english.automation.granted}`));
+  assert.ok(screen.getByText(`${english.automation.screenRecording}: ${english.automation.missing}`));
+  assert.ok(screen.getByText('https://example.com'));
+  assert.ok(screen.getByText('Safari'));
 
-    fireEvent.click(openButton());
-    await waitFor(() => assert.ok(screen.getByRole('status')));
-    assert.equal(screen.getByRole('status').textContent, english.automation.browserPoc.opened);
-    assert.deepEqual(bridge.calls, [
-      { command: 'browser_poc_open', args: { url: 'https://example.com/' } },
-    ]);
-
-    (bridge.calls as InvokeCall[]).length = 0;
-    (window as { __TAURI_INTERNALS__?: { invoke?: unknown } }).__TAURI_INTERNALS__ = {
-      invoke: async () => ({ created: false, url: 'https://example.com/' }),
-    };
-    fireEvent.click(openButton());
-    await waitFor(() => assert.equal(
-      screen.getByRole('status').textContent,
-      english.automation.browserPoc.focused,
-    ));
-  } finally {
-    bridge.uninstall();
-  }
-});
-
-test('the PoC title probe routes through the desktop bridge and surfaces its errors', async () => {
-  fakeApi();
-  const bridge = installDesktopBridge({
-    browser_poc_title_probe: undefined,
-    browser_poc_open: new Error('The PoC browser window could not be opened'),
+  fireEvent.click(screen.getAllByRole('button', { name: english.automation.revoke })[0]!);
+  await waitFor(() => assert.equal(screen.queryByText('https://example.com'), null));
+  assert.deepEqual(calls.find((call) => call.method === 'DELETE')?.body, {
+    kind: 'origin', value: 'https://example.com', scope: 'always',
   });
-  try {
-    await mount();
-    await waitFor(() => assert.ok(probeButton()));
+});
 
-    fireEvent.click(probeButton());
-    await waitFor(() => assert.equal(
-      screen.getByRole('status').textContent,
-      english.automation.browserPoc.probeSent,
-    ));
-    assert.deepEqual(bridge.calls, [{ command: 'browser_poc_title_probe' }]);
+test('desktop launch uses the selected app session and exposes an API failure without another open request', async () => {
+  useAppShellStore.setState({ selectedSession: { id: 'session/a' } });
+  (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = { invoke: async () => undefined };
+  let externalOpens = 0;
+  window.open = (() => { externalOpens += 1; return null; }) as typeof window.open;
+  const calls = fakeApi({ browserOpen: new Response(JSON.stringify({ error: 'builtin_browser_unavailable' }), { status: 503 }) });
+  await mount();
+  const button = await screen.findByRole('button', { name: english.automation.builtinBrowser.open }) as HTMLButtonElement;
 
-    fireEvent.click(openButton());
-    await waitFor(() => assert.equal(
-      screen.getByRole('status').textContent,
-      'Error: The PoC browser window could not be opened',
-    ));
-  } finally {
-    bridge.uninstall();
-  }
+  fireEvent.click(button);
+  await waitFor(() => assert.equal(screen.getByRole('status').textContent, english.automation.builtinBrowser.errors.unavailable));
+  assert.deepEqual(calls.filter((call) => call.path.startsWith('/api/browser/')), [
+    { path: '/api/browser/session%2Fa/open', method: 'POST', body: {} },
+  ]);
+  assert.equal(externalOpens, 0);
+});
+
+test('desktop launch falls back to the manual scope when no app session was selected', async () => {
+  const calls = fakeApi();
+  (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = { invoke: async () => undefined };
+  await mount();
+
+  fireEvent.click(await screen.findByRole('button', { name: english.automation.builtinBrowser.open }));
+  await waitFor(() => assert.equal(screen.getByRole('status').textContent, english.automation.builtinBrowser.opened));
+  assert.equal(calls.some((call) => call.path === '/api/browser/manual/open'), true);
+});
+
+test('switching and deselecting sessions changes Settings launch ownership immediately', async () => {
+  const calls = fakeApi();
+  useAppShellStore.setState({ selectedSession: { id: 'session-a' } });
+  (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = { invoke: async () => undefined };
+  await mount();
+  const button = await screen.findByRole('button', { name: english.automation.builtinBrowser.open });
+
+  fireEvent.click(button);
+  await waitFor(() => assert.ok(calls.some((call) => call.path === '/api/browser/session-a/open')));
+  act(() => useAppShellStore.setState({ selectedSession: { id: 'session-b' } }));
+  fireEvent.click(button);
+  await waitFor(() => assert.ok(calls.some((call) => call.path === '/api/browser/session-b/open')));
+  act(() => useAppShellStore.setState({ selectedSession: null }));
+  fireEvent.click(button);
+  await waitFor(() => assert.ok(calls.some((call) => call.path === '/api/browser/manual/open')));
+});
+
+test('desktop bridge keeps launch disabled until the app server reports browser readiness', async () => {
+  const calls = fakeApi({ browserReady: false });
+  (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = { invoke: async () => undefined };
+  await mount();
+  const button = await screen.findByRole('button', { name: english.automation.builtinBrowser.open }) as HTMLButtonElement;
+  await waitFor(() => assert.equal(button.disabled, true));
+
+  fireEvent.click(button);
+  assert.equal(calls.some((call) => call.path.startsWith('/api/browser/')), false);
+  assert.ok(screen.getByText('1.2.3 · running'));
 });

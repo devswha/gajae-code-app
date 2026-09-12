@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "builtin-browser-controls",
+  "description": "Lets only the bundled built-in browser toolbar listen for state and invoke its narrow navigation command. The remote page webview receives no capability.",
+  "local": true,
+  "platforms": [
+    "macOS"
+  ],
+  "webviews": [
+    "builtin-controls"
+  ],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-builtin-browser-control"
+  ]
+}

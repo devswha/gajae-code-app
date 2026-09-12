@@ -17,7 +17,6 @@ function render(overrides: Partial<WorkspacePanelProps> = {}): string {
     expanded: false,
     isMobile: false,
     projectPath: '/work/alpha',
-    automationSessionId: 'session-alpha',
     resizeHandleRef: { current: null },
     onTabChange: () => undefined,
     onResizeStart: () => undefined,
@@ -30,26 +29,27 @@ function render(overrides: Partial<WorkspacePanelProps> = {}): string {
   return renderToStaticMarkup(createElement(WorkspacePanel, props));
 }
 
-test('the tab strip is a tablist whose selected tab owns the rendered panel', () => {
-  const html = render({ tab: 'browser' });
+test('the tab strip exposes only Status and Changes', () => {
+  const html = render();
 
   assert.match(html, /role="tablist"/);
-  assert.match(html, /id="workspace-tab-status"[^>]*role="tab"[^>]*aria-selected="false"/);
-  assert.match(html, /id="workspace-tab-changes"[^>]*role="tab"[^>]*aria-selected="false"/);
-  assert.match(html, /id="workspace-tab-browser"[^>]*role="tab"[^>]*aria-selected="true"/);
-  assert.match(html, /role="tabpanel" id="workspace-tabpanel-browser" aria-labelledby="workspace-tab-browser"/);
+  assert.match(html, /id="workspace-tab-status"[^>]*role="tab"/);
+  assert.match(html, /id="workspace-tab-changes"[^>]*role="tab"/);
+  assert.doesNotMatch(html, /workspace-tab-browser/);
 });
 
 test('the status tab owns its own panel region', () => {
   const html = render({ tab: 'status' });
 
   assert.match(html, /id="workspace-tab-status"[^>]*aria-selected="true"/);
+  assert.match(html, /id="workspace-tab-changes"[^>]*aria-selected="false"/);
   assert.match(html, /role="tabpanel" id="workspace-tabpanel-status" aria-labelledby="workspace-tab-status"/);
 });
 
 test('the changes tab owns its own panel region', () => {
   const html = render({ tab: 'changes' });
 
+  assert.match(html, /id="workspace-tab-status"[^>]*aria-selected="false"/);
   assert.match(html, /id="workspace-tab-changes"[^>]*aria-selected="true"/);
   assert.match(html, /role="tabpanel" id="workspace-tabpanel-changes" aria-labelledby="workspace-tab-changes"/);
 });
@@ -60,7 +60,8 @@ test('the panel offers only the surfaces the app still owns', () => {
   assert.doesNotMatch(html, /workspace-tab-files/);
   assert.doesNotMatch(html, /workspace-tab-editor/);
   assert.doesNotMatch(html, /workspace-tab-tasks/);
-  assert.doesNotMatch(render({ isMobile: true }), /workspace-tab-tasks/);
+  assert.doesNotMatch(html, /workspace-tab-browser/);
+  assert.doesNotMatch(render({ isMobile: true }), /workspace-tab-(tasks|browser)/);
 });
 
 test('only the selected tab is reachable with Tab, the rest with arrow keys', () => {
@@ -68,7 +69,6 @@ test('only the selected tab is reachable with Tab, the rest with arrow keys', ()
 
   assert.match(html, /id="workspace-tab-status"[^>]*tabindex="0"/);
   assert.match(html, /id="workspace-tab-changes"[^>]*tabindex="-1"/);
-  assert.match(html, /id="workspace-tab-browser"[^>]*tabindex="-1"/);
 });
 
 test('the resize handle is a focusable separator carrying the current width', () => {

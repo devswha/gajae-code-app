@@ -17,37 +17,14 @@ function memoryStorage() {
   };
 }
 
-test('Linux desktop enables the browser without widening native computer support', () => {
-  assert.deepEqual(automationSupport('linux', 'x64', { GJC_DESKTOP: '1' }), { browser: true, computer: false });
+test('only macOS desktop is a native browser candidate and CUA retains its own platform policy', () => {
+  assert.deepEqual(automationSupport('linux', 'x64', { GJC_DESKTOP: '1' }), { browser: false, computer: false });
   assert.deepEqual(automationSupport('darwin', 'arm64', { GJC_DESKTOP: '1' }), { browser: true, computer: true });
   for (const [platform, arch] of [['linux', 'arm64'], ['darwin', 'x64'], ['win32', 'x64']] as const) {
     assert.deepEqual(automationSupport(platform, arch, { GJC_DESKTOP: '1' }), { browser: false, computer: false });
   }
   assert.deepEqual(automationSupport('linux', 'x64', {}), { browser: false, computer: false });
-  assert.deepEqual(automationSupport('linux', 'x64', { GAJAE_AUTOMATION: '1' }), { browser: true, computer: true });
-});
-
-test('Linux desktop status and browser calls work without inspecting or calling CUA', { skip: process.platform !== 'linux' || process.arch !== 'x64' }, async () => {
-  const previous = { GJC_DESKTOP: process.env.GJC_DESKTOP, GAJAE_AUTOMATION: process.env.GAJAE_AUTOMATION };
-  process.env.GJC_DESKTOP = '1';
-  delete process.env.GAJAE_AUTOMATION;
-  try {
-    const service = new AutomationService();
-    service.cua.status = async () => { throw new Error('Linux browser must not inspect CUA'); };
-    service.cua.call = async () => { throw new Error('Linux browser must not call CUA'); };
-    service.browser.status = async () => ({ state: 'idle', installed: false, buildId: 'fixture' });
-    service.browser.open = async (sessionId, payload) => ({ sessionId, url: payload.url });
-    const status = await service.status();
-    assert.equal(status.supported, true);
-    assert.equal(status.computerSupported, false);
-    assert.deepEqual(await service.openBrowser('linux-session', { url: 'http://localhost:5173' }), { sessionId: 'linux-session', url: 'http://localhost:5173' });
-    await assert.rejects(service.callComputer('linux-session', 'list_apps', {}), /Native computer automation is not enabled/);
-    await assert.rejects(service.authorizeComputer('linux-session', { tool: 'list_apps' }), /Native computer automation is not enabled/);
-  } finally {
-    for (const [key, value] of Object.entries(previous)) {
-      if (value === undefined) delete process.env[key]; else process.env[key] = value;
-    }
-  }
+  assert.deepEqual(automationSupport('linux', 'x64', { GAJAE_AUTOMATION: '1' }), { browser: false, computer: true });
 });
 
 test('shutdown of an unstarted service preserves an existing configured socket path and another bridge environment', async () => {
@@ -124,15 +101,17 @@ test('browser authorization is origin-scoped and can persist for one session', a
   process.env.GAJAE_AUTOMATION = '1';
   try {
     const service = new AutomationService();
+    service.browser.status = async () => ({ state: 'ready', ready: true, engine: 'webview' });
+    service.browser.state = async () => ({sessionId: 'session-a', activeTabId: null, tabs: [], binding: null, profileMode: 'persistent'});
     Object.defineProperty(service, 'grants', { value: new AutomationGrantStore(memoryStorage()) });
 
     assert.deepEqual(
       await service.authorizeBrowser('session-a', { url: 'https://example.com/private?q=1' }),
-      { granted: false, origin: 'https://example.com' },
+      { granted: false, origin: 'https://example.com', binding: null },
     );
     assert.deepEqual(
       await service.authorizeBrowser('session-a', { url: 'https://example.com/other', scope: 'session' }),
-      { granted: true, origin: 'https://example.com' },
+      { granted: true, origin: 'https://example.com', binding: null },
     );
     assert.equal(
       (await service.authorizeBrowser('session-b', { url: 'https://example.com' })).granted,
@@ -149,8 +128,12 @@ test('browser authorization resolves the active tab when a tool action has no UR
   process.env.GAJAE_AUTOMATION = '1';
   try {
     const service = new AutomationService();
+    service.browser.status = async () => ({ state: 'ready', ready: true, engine: 'webview' });
+    const binding = { windowEpoch: 'native-window', documentEpoch: 1, origin: 'https://docs.example.test' };
+    service.browser.state = async () => ({sessionId: 'session-a', activeTabId: null, tabs: [], binding: null, profileMode: 'persistent'});
     Object.defineProperty(service, 'grants', { value: new AutomationGrantStore(memoryStorage()) });
     service.browser.state = async () => ({
+      binding, profileMode: 'persistent',
       sessionId: 'session-a',
       activeTabId: 'tab-1',
       tabs: [{ id: 'tab-1', title: 'Docs', url: 'https://docs.example.test/guide', loading: false, canGoBack: false, canGoForward: false }],
@@ -158,7 +141,7 @@ test('browser authorization resolves the active tab when a tool action has no UR
 
     assert.deepEqual(
       await service.authorizeBrowser('session-a', {}),
-      { granted: false, origin: 'https://docs.example.test' },
+      { granted: false, origin: 'https://docs.example.test', binding },
     );
   } finally {
     if (previous === undefined) delete process.env.GAJAE_AUTOMATION;
@@ -221,60 +204,6 @@ test('computer authorization resolves a window id to its owning application', as
         arguments: { window_id: 14747, include_screenshot: false },
       }),
       { granted: false, application: 'com.apple.TextEdit', label: 'TextEdit' },
-    );
-  } finally {
-    if (previous === undefined) delete process.env.GAJAE_AUTOMATION;
-    else process.env.GAJAE_AUTOMATION = previous;
-  }
-});
-
-test('a sidecar browser window resolves to the Workspace Browser identity', async () => {
-  const previous = process.env.GAJAE_AUTOMATION;
-  process.env.GAJAE_AUTOMATION = '1';
-  try {
-    const service = new AutomationService();
-    Object.defineProperty(service, 'grants', { value: new AutomationGrantStore(memoryStorage()) });
-    Object.defineProperty(service.browser, 'browserPid', { value: 64876 });
-    // The pid is already known to be the app-owned sidecar; consulting the CUA
-    // inventory would be wasted work and cannot resolve it anyway.
-    service.cua.call = async () => { throw new Error('inventory must not be consulted'); };
-
-    assert.deepEqual(
-      await service.authorizeComputer('session-a', { tool: 'click', arguments: { pid: 64876, window_id: 18462 } }),
-      { granted: false, application: 'app.gajae.workspace-browser', label: 'Workspace Browser' },
-    );
-    assert.deepEqual(
-      await service.authorizeComputer('session-a', { tool: 'click', arguments: { pid: 64876 }, scope: 'session' }),
-      { granted: true, application: 'app.gajae.workspace-browser', label: 'Workspace Browser' },
-    );
-  } finally {
-    if (previous === undefined) delete process.env.GAJAE_AUTOMATION;
-    else process.env.GAJAE_AUTOMATION = previous;
-  }
-});
-
-test('a window id owned by the sidecar browser resolves through the window inventory', async () => {
-  const previous = process.env.GAJAE_AUTOMATION;
-  process.env.GAJAE_AUTOMATION = '1';
-  try {
-    const service = new AutomationService();
-    Object.defineProperty(service, 'grants', { value: new AutomationGrantStore(memoryStorage()) });
-    Object.defineProperty(service.browser, 'browserPid', { value: 64876 });
-    service.cua.call = async (tool) => {
-      assert.equal(tool, 'list_windows');
-      // Chrome for Testing runs outside any app bundle: the window is listed
-      // but no application record matches its pid.
-      return {
-        structuredContent: {
-          apps: [{ pid: 42, bundle_id: 'com.apple.TextEdit', name: 'TextEdit' }],
-          windows: [{ pid: 64876, window_id: 18462, title: 'Todo List' }],
-        },
-      };
-    };
-
-    assert.deepEqual(
-      await service.authorizeComputer('session-a', { tool: 'click', arguments: { window_id: 18462 } }),
-      { granted: false, application: 'app.gajae.workspace-browser', label: 'Workspace Browser' },
     );
   } finally {
     if (previous === undefined) delete process.env.GAJAE_AUTOMATION;

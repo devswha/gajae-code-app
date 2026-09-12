@@ -8,7 +8,7 @@
  * panel component only has to render what these functions return.
  */
 
-export const WORKSPACE_TABS = ['status', 'changes', 'browser'] as const;
+export const WORKSPACE_TABS = ['status', 'changes'] as const;
 
 export type WorkspaceTab = (typeof WORKSPACE_TABS)[number];
 
@@ -60,6 +60,8 @@ export function clampWorkspacePanelWidth(width: number, containerWidth?: number)
 }
 
 export function normalizeWorkspaceTab(value: unknown): WorkspaceTab | null {
+  // Old persisted rails may point at the removed screencast Browser tab.
+  if (value === 'browser') return 'status';
   return WORKSPACE_TABS.find((tab) => tab === value) ?? null;
 }
 
@@ -119,10 +121,12 @@ export function readWorkspacePanelState(storage: WorkspaceStorage | null): Works
 
   const record = parsed as Record<string, unknown>;
   const width = typeof record.width === 'number' ? record.width : DEFAULT_WORKSPACE_PANEL_WIDTH;
+  const removedBrowserTab = record.tab === 'browser';
 
   return {
-    // Tasks moved into the chat; do not open an unrelated rail on upgrade.
-    open: record.tab !== 'tasks' && record.open === true,
+    // Tasks moved into chat and Browser moved to its own native window. Do not
+    // open an unrelated rail on upgrade.
+    open: !removedBrowserTab && record.tab !== 'tasks' && record.open === true,
     tab: normalizeWorkspaceTab(record.tab) ?? DEFAULT_WORKSPACE_PANEL_STATE.tab,
     width: clampWorkspacePanelWidth(width),
   };

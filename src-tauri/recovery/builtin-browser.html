@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'none';">
+    <link rel="stylesheet" href="builtin-browser.css">
+    <title>Built-in Browser</title>
+  </head>
+  <body>
+    <main class="toolbar" aria-label="Built-in Browser">
+      <button data-action="back" aria-label="Back">←</button>
+      <button data-action="forward" aria-label="Forward">→</button>
+      <button data-action="reload" aria-label="Reload">↻</button>
+      <form id="url-form"><label class="sr-only" for="address">Address</label><input id="address" autocomplete="url" inputmode="url" spellcheck="false"></form>
+      <span id="profile" aria-live="polite"></span>
+      <button data-action="close" aria-label="Close">Close</button>
+      <p id="message" role="status"></p>
+    </main>
+    <script src="builtin-browser.js"></script>
+  </body>
+</html>

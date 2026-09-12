@@ -122,36 +122,6 @@
         "abandoned": "已放棄"
       }
     },
-    "browser": {
-      "address": "網址",
-      "back": "返回",
-      "forward": "前進",
-      "reload": "重新加載頁面",
-      "external": "在預設瀏覽器中開啟",
-      "stop": "結束瀏覽器會話",
-      "preview": "Chromium即時預覽",
-      "empty": "輸入網址，或選擇本地開發地址。",
-      "installTitle": "安裝開發用瀏覽器",
-      "installDescription": "Gajae使用獨立的Chrome for Testing下載和隔離瀏覽器檔案夹。",
-      "download": "取得Chromium並啟動它",
-      "preparing": "設定Chromium…",
-      "downloading": "取得Chromium… {{progress}}%",
-      "connecting": "連結至開發用瀏覽器…",
-      "newTab": "開啟分頁",
-      "closeTab": "取消分頁",
-      "connection": {
-        "connecting": "連接中",
-        "live": "在線",
-        "offline": "離線"
-      },
-      "unsupported": "自動化預覽需要Apple Silicon與macOS 14或更新版本。",
-      "error": "無法啟動瀏覽器自动化.",
-      "downloadBlocked": "被阻擋的下載：{{filename}}。此預覽無法保存下載。",
-      "downloadUnknown": "下載",
-      "dialogDismissed": "Gajae 關閉了一個頁面對話框：{{message}}",
-      "cua": "原生應用程式 · CUA 驅動程式",
-      "cuaMissing": "未提供"
-    },
     "statusTab": {
       "session": "會話",
       "model": "型號",

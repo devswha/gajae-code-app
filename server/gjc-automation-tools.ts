@@ -7,32 +7,25 @@ import * as z from 'zod/v4';
 
 import type { GjcPermissionMode } from './gjc-permission-policy.js';
 
-const browserActionSchema = z.object({
-  verb: z.enum(['navigate', 'back', 'forward', 'reload', 'click', 'type', 'fill', 'select', 'press', 'scroll', 'wait', 'observe', 'extract', 'screenshot']),
-  ref: z.number().int().positive().optional(),
-  selector: z.string().optional(),
-  text: z.string().optional(),
-  value: z.string().optional(),
-  values: z.array(z.string()).optional(),
-  url: z.string().optional(),
-  key: z.string().optional(),
-  x: z.number().optional(),
-  y: z.number().optional(),
-  dx: z.number().optional(),
-  dy: z.number().optional(),
-  ms: z.number().int().min(0).max(30_000).optional(),
-  format: z.enum(['text', 'html']).optional(),
-  wait_until: z.enum(['load', 'domcontentloaded', 'networkidle0', 'networkidle2']).optional(),
-  include_all: z.boolean().optional(),
-});
+const browserSelector = z.string().min(1).max(4096)
+  .refine((value) => Buffer.byteLength(value, 'utf8') <= 4096, 'Selector exceeds 4096 UTF-8 bytes.');
+const browserActionSchema = z.discriminatedUnion('verb', [
+  z.strictObject({ verb: z.literal('navigate'), url: z.string().min(1).max(4096) }),
+  z.strictObject({ verb: z.literal('back') }),
+  z.strictObject({ verb: z.literal('forward') }),
+  z.strictObject({ verb: z.literal('reload') }),
+  z.strictObject({ verb: z.literal('observe') }),
+  z.strictObject({ verb: z.literal('extract'), selector: browserSelector.optional(), format: z.enum(['text', 'html']).optional() }),
+  z.strictObject({ verb: z.literal('click'), selector: browserSelector }),
+  z.strictObject({ verb: z.literal('fill'), selector: browserSelector, text: z.string().max(64 * 1024)
+    .refine((value) => Buffer.byteLength(value, 'utf8') <= 64 * 1024, 'Text exceeds 64 KiB of UTF-8.') }),
+]);
 
-const browserSchema = z.object({
-  action: z.enum(['open', 'close', 'act', 'run']),
-  url: z.string().optional(),
-  actions: z.array(browserActionSchema).max(25).optional(),
-  code: z.string().max(64 * 1024).describe('JavaScript in the current page context, not Node.js or Puppeteer. Top-level await is supported; the last expression is returned.').optional(),
-  timeout: z.number().int().min(1).max(300_000).optional(),
-});
+const browserSchema = z.discriminatedUnion('action', [
+  z.strictObject({ action: z.literal('open'), url: z.string().min(1).max(4096).optional() }),
+  z.strictObject({ action: z.literal('close') }),
+  z.strictObject({ action: z.literal('act'), actions: z.array(browserActionSchema).min(1).max(25) }),
+]);
 
 const computerSchema = z.object({
   action: z.enum([
@@ -44,18 +37,14 @@ const computerSchema = z.object({
 });
 
 type BridgeResponse = { id: string; ok: boolean; result?: unknown; error?: string };
-type BrowserAuthorization = { granted: boolean; origin: string | null };
+type BrowserBinding = { windowEpoch: string; documentEpoch: number; origin: string | null };
+type BrowserAuthorization = { granted: boolean; origin: string | null; binding: BrowserBinding | null };
 type ComputerAuthorization = { granted: boolean; application: string | null; label: string | null };
 
 export type GjcAutomationBridgeTransport = {
   socketPath: string;
   token: string;
 };
-
-const CHROMIUM_DOWNLOAD_TITLE = 'The browser tool needs Chromium. Download Chrome for Testing once (about 150 MB, kept in ~/.gajae-app/browser)?';
-const CHROMIUM_DOWNLOAD = 'Download and continue';
-const CHROMIUM_NOT_NOW = 'Not now';
-const isDownloadRequired = (error: unknown): boolean => error instanceof Error && /browser_download_required/.test(error.message);
 
 const ALLOW_ONCE = 'Allow once';
 const ALLOW_ALWAYS = 'Always allow';
@@ -204,13 +193,22 @@ function cuaResult(value: unknown) {
 }
 
 function browserCommand(action: z.infer<typeof browserActionSchema>): Record<string, unknown> {
-  const { verb, wait_until, include_all, ...rest } = action;
+  const { verb, ...parameters } = action;
+  return { action: verb, ...parameters };
+}
+
+function requireBrowserBinding(value: BrowserBinding | null): BrowserBinding {
+  if (!value
+    || typeof value.windowEpoch !== 'string'
+    || !/^[A-Za-z0-9._:-]{1,128}$/u.test(value.windowEpoch)
+    || !Number.isSafeInteger(value.documentEpoch) || value.documentEpoch < 0
+    || (value.origin !== null && (typeof value.origin !== 'string' || value.origin.length > 4096 || !/^https?:\/\//u.test(value.origin)))) {
+    throw new Error('browser_state_unavailable: Open the built-in browser before using browser act.');
+  }
   return {
-    action: verb,
-    ...rest,
-    ...(wait_until ? { waitUntil: wait_until } : {}),
-    ...(include_all !== undefined ? { includeAll: include_all } : {}),
-    ...(verb === 'select' && !rest.values && rest.value ? { values: [rest.value] } : {}),
+    windowEpoch: value.windowEpoch,
+    documentEpoch: value.documentEpoch,
+    origin: value.origin,
   };
 }
 
@@ -220,18 +218,18 @@ export function createGjcAutomationTools(
   transport?: GjcAutomationBridgeTransport,
   permissionMode: GjcPermissionMode = 'ask',
 ): AutomationTools {
-  const ensureBrowserAccess = async (url: string | undefined, signal?: AbortSignal): Promise<void> => {
+  const ensureBrowserAccess = async (url: string | undefined, signal?: AbortSignal): Promise<BrowserBinding | null> => {
     const check = await bridgeRequest(transport, {
       surface: 'browser',
       sessionId: appSessionId,
       operation: 'authorize',
       payload: { ...(url ? { url } : {}) },
     }, signal) as BrowserAuthorization;
-    if (check.granted || !check.origin) return;
+    if (check.granted || !check.origin) return check.binding;
 
     // The trusted run policy covers this prompt, but must not create grants
     // that survive a later run switching back to Ask (even in this session).
-    if (permissionMode === 'bypass') return;
+    if (permissionMode === 'bypass') return check.binding;
     const choice = await ui.select(
       `Allow the agent to use ${check.origin}?`,
       [ALLOW_ONCE, ALLOW_ALWAYS, DENY],
@@ -247,64 +245,39 @@ export function createGjcAutomationTools(
       payload: { url: check.origin, scope: choice === ALLOW_ALWAYS ? 'always' : 'session' },
     }, signal) as BrowserAuthorization;
     if (!granted.granted) throw new Error(`Browser access to ${check.origin} was not granted.`);
-  };
-
-  /**
-   * The Browser panel and this tool share one app-managed Chromium (a Chrome
-   * for Testing download under ~/.gajae-app/browser). Until it exists, the
-   * sidecar refuses to open unless the download is allowed. The agent must
-   * not allow it on its own, and a bare "browser_download_required" failure
-   * told the person nothing, so the tool asks - the same card the origin
-   * check uses - and downloads on a yes; on a no the agent hears where the
-   * person can do it later.
-   */
-  const openBrowser = async (url: string | undefined, signal?: AbortSignal): Promise<unknown> => {
-    const request = (allowDownload: boolean) => bridgeRequest(transport, {
-      surface: 'browser', sessionId: appSessionId, operation: 'open',
-      payload: { ...(url ? { url } : {}), allowDownload },
-    }, signal);
-    try {
-      return await request(false);
-    } catch (error) {
-      if (!isDownloadRequired(error)) throw error;
-    }
-    const choice = await ui.select(CHROMIUM_DOWNLOAD_TITLE, [CHROMIUM_DOWNLOAD, CHROMIUM_NOT_NOW], { signal });
-    if (choice !== CHROMIUM_DOWNLOAD) {
-      throw new Error('Chromium is not installed and the user declined the download. The browser tool is unavailable until they choose "Get Chromium and launch it" in the Browser panel or Settings > Automation.');
-    }
-    return request(true);
+    // Bind the command to the page that was inspected before permission UI.
+    // The person may navigate the WebView while the prompt is pending; using
+    // the second authorization response would silently retarget the action.
+    return check.binding;
   };
 
   const browser: NonNullable<AutomationTools['browser']> = {
     name: 'browser',
     label: 'Browser',
-    description: 'Control the Chromium browser shared with the Gajae Browser panel. Open a session, observe accessible elements, then act using refs or selectors. The browser persists across calls.',
+    description: 'Control the built-in WebView browser. Open it, observe or extract the current page, then navigate or interact using CSS selectors. The browser persists across calls.',
     parameters: browserSchema as any,
     concurrency: 'exclusive',
     async execute(_toolCallId: string, rawParams: unknown, signal?: AbortSignal) {
       const params = browserSchema.parse(rawParams);
       if (params.action === 'open') {
         if (params.url) await ensureBrowserAccess(params.url, signal);
-        return textResult(await openBrowser(params.url, signal));
+        return textResult(await bridgeRequest(transport, {
+          surface: 'browser', sessionId: appSessionId, operation: 'open',
+          payload: { ...(params.url ? { url: params.url } : {}) },
+        }, signal));
       }
       if (params.action === 'close') {
         return textResult(await bridgeRequest(transport, { surface: 'browser', sessionId: appSessionId, operation: 'close' }, signal));
       }
-      if (params.action === 'run') {
-        if (!params.code) throw new Error('browser run requires code.');
-        await ensureBrowserAccess(undefined, signal);
-        return textResult(await bridgeRequest(transport, {
-          surface: 'browser', sessionId: appSessionId, operation: 'command',
-          payload: { command: { action: 'run', code: params.code, timeoutMs: params.timeout } },
-        }, signal));
-      }
-      if (!params.actions?.length) throw new Error('browser act requires one or more actions.');
       const results = [];
       for (const action of params.actions) {
-        await ensureBrowserAccess(action.verb === 'navigate' ? action.url : undefined, signal);
+        const expected = requireBrowserBinding(await ensureBrowserAccess(
+          action.verb === 'navigate' ? action.url : undefined,
+          signal,
+        ));
         results.push(await bridgeRequest(transport, {
           surface: 'browser', sessionId: appSessionId, operation: 'command',
-          payload: { command: browserCommand(action) },
+          payload: { command: browserCommand(action), expected },
         }, signal));
       }
       return textResult(results.length === 1 ? results[0] : results);

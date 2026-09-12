@@ -135,8 +135,7 @@ fn main() {
         tauri_build::AppManifest::new().commands(&[
             "retry_desktop_server",
             "ack_updater_screen",
-            "browser_poc_open",
-            "browser_poc_title_probe",
+            "builtin_browser_control",
         ]),
     ))
     .expect("failed to run Gajae Code App desktop build script");

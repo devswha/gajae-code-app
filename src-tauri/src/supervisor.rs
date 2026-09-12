@@ -9,7 +9,7 @@ use std::{
 };
 
 use getrandom::getrandom;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, WebviewWindow};
 use tauri_plugin_shell::{
     process::{CommandChild, CommandEvent},
@@ -226,6 +226,8 @@ fn reset_desktop_readiness(app: &AppHandle) {
     #[cfg(target_os = "macos")]
     crate::updater_bridge::retire(app);
     #[cfg(target_os = "macos")]
+    crate::builtin_browser::retire(app);
+    #[cfg(target_os = "macos")]
     crate::updater::unhealthy(app);
     app.state::<crate::navigation::LoopbackOrigin>().clear();
     crate::reset_deep_link_readiness(app);
@@ -441,8 +443,40 @@ fn navigate_and_show(
 }
 
 #[cfg(target_os = "macos")]
-fn update_bridge_environment(enabled: bool) -> [(&'static str, &'static str); 1] {
-    [("GJC_DESKTOP_UPDATE_PIPE", if enabled { "1" } else { "0" })]
+fn update_bridge_environment(enabled: bool) -> [(&'static str, &'static str); 2] {
+    [
+        ("GJC_DESKTOP_PIPE", "1"),
+        ("GJC_DESKTOP_UPDATE_PIPE", if enabled { "1" } else { "0" }),
+    ]
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopInit {
+    protocol_version: u8,
+    browser: crate::builtin_browser::BridgeInit,
+    update: Option<crate::updater_bridge::BridgeInit>,
+}
+
+#[cfg(target_os = "macos")]
+fn desktop_init_frame(
+    browser: crate::builtin_browser::BridgeInit,
+    update: Option<crate::updater_bridge::BridgeInit>,
+) -> Result<Vec<u8>, String> {
+    let json = serde_json::to_vec(&DesktopInit {
+        protocol_version: 2,
+        browser,
+        update,
+    })
+    .map_err(|_| "builtin_browser_unavailable".to_owned())?;
+    let mut frame = b"GJC_DESKTOP_INIT ".to_vec();
+    frame.extend(json);
+    frame.push(b'\n');
+    if frame.len() > 4096 {
+        return Err("builtin_browser_unavailable".to_owned());
+    }
+    Ok(frame)
 }
 
 pub fn start(app: AppHandle) {
@@ -571,14 +605,26 @@ pub fn start(app: AppHandle) {
         #[cfg(target_os = "macos")]
         let mut child = child;
         #[cfg(target_os = "macos")]
-        match crate::updater_bridge::attach(&app, sidecar_pid) {
-            Ok(Some(frame)) => {
+        let browser_init = crate::builtin_browser::attach(&app, sidecar_pid);
+        let update_init = match crate::updater_bridge::attach(&app, sidecar_pid) {
+            Ok(binding) => binding,
+            Err(_) => {
+                eprintln!("desktop updater bridge unavailable");
+                None
+            }
+        };
+        match browser_init.and_then(|browser| desktop_init_frame(browser, update_init)) {
+            Ok(frame) => {
                 if child.write(&frame).is_err() {
+                    crate::builtin_browser::retire(&app);
                     crate::updater_bridge::retire(&app);
                 }
             }
-            Ok(None) => {}
-            Err(_) => eprintln!("desktop updater bridge unavailable"),
+            _ => {
+                crate::builtin_browser::retire(&app);
+                crate::updater_bridge::retire(&app);
+                eprintln!("desktop built-in browser bridge unavailable");
+            }
         }
         let deadline = Instant::now() + STARTUP_TIMEOUT;
         let mut output = OutputRing::default();
@@ -788,7 +834,7 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn qa_environment_clear_preserves_only_the_explicit_late_update_flag() {
+    fn qa_environment_clear_preserves_only_the_explicit_desktop_pipe_flags() {
         for enabled in [true, false] {
             let output = std::process::Command::new("/usr/bin/env")
                 .env("GJC_DESKTOP_UPDATE_PIPE", "wrong")
@@ -800,11 +846,33 @@ mod tests {
             assert_eq!(
                 String::from_utf8(output.stdout).unwrap(),
                 format!(
-                    "GJC_DESKTOP_UPDATE_PIPE={}\n",
+                    "GJC_DESKTOP_PIPE=1\nGJC_DESKTOP_UPDATE_PIPE={}\n",
                     if enabled { "1" } else { "0" }
                 )
             );
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn desktop_init_is_one_exact_versioned_line_with_optional_update_binding() {
+        let browser = crate::builtin_browser::BridgeInit {
+            protocol_version: 1,
+            socket: "/private/tmp/browser/rpc".into(),
+            secret: "a".repeat(64),
+            epoch: "b".repeat(64),
+        };
+        let frame = desktop_init_frame(browser, None).unwrap();
+        assert!(frame.starts_with(b"GJC_DESKTOP_INIT "));
+        assert_eq!(frame.iter().filter(|byte| **byte == b'\n').count(), 1);
+        assert_eq!(frame.last(), Some(&b'\n'));
+        let value: serde_json::Value =
+            serde_json::from_slice(&frame[b"GJC_DESKTOP_INIT ".len()..frame.len() - 1]).unwrap();
+        assert_eq!(value["protocolVersion"], 2);
+        assert_eq!(value["browser"]["protocolVersion"], 1);
+        assert_eq!(value["browser"]["socket"], "/private/tmp/browser/rpc");
+        assert_eq!(value["update"], serde_json::Value::Null);
+        assert_eq!(value.as_object().unwrap().len(), 3);
     }
 
     #[test]

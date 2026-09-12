@@ -17,7 +17,6 @@ const workspace: WorkspacePanelProps = {
   width: 420,
   expanded: false,
   isMobile: false,
-  automationSessionId: 'session-alpha',
   resizeHandleRef: { current: null },
   onTabChange: () => undefined,
   onResizeStart: () => undefined,

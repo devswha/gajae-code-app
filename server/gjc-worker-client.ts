@@ -292,7 +292,15 @@ export async function resolveGjcResumeSessionRoot(
   return undefined;
 }
 
-async function enrichGjcSdkRunOptions(options: GjcWorkerOptions): Promise<GjcWorkerOptions> {
+type GjcRunOptionAuthorities = {
+  resolveBrowserBackend(): GjcBrowserBackend;
+  browserStatus(): Promise<unknown>;
+};
+
+export async function enrichGjcSdkRunOptions(
+  options: GjcWorkerOptions,
+  injectedAuthorities?: GjcRunOptionAuthorities,
+): Promise<GjcWorkerOptions> {
   let modelId = options.modelId ?? options.model;
   let modelProfile = typeof options.modelProfile === 'string' ? options.modelProfile.trim() : '';
   if (typeof modelId === 'string' && modelId.startsWith('profile:')) {
@@ -314,11 +322,30 @@ async function enrichGjcSdkRunOptions(options: GjcWorkerOptions): Promise<GjcWor
   // from the request, like the permission policy: a client cannot switch a
   // run to Aside by sending an option.
   let browserBackend: GjcBrowserBackend;
+  let authorities = injectedAuthorities;
   try {
-    const { resolveGjcBrowserBackend } = await import('./modules/automation/index.js');
-    browserBackend = resolveGjcBrowserBackend();
+    if (!authorities) {
+      const { automationService, resolveGjcBrowserBackend } = await import('./modules/automation/index.js');
+      authorities = {
+        resolveBrowserBackend: resolveGjcBrowserBackend,
+        browserStatus: () => automationService.browser.status(),
+      };
+    }
+    browserBackend = authorities.resolveBrowserBackend();
   } catch {
     throw new GjcConfigurationError('Unable to resolve the GJC browser backend.');
+  }
+  // This is capability evidence from the authenticated native client, not a
+  // client preference. A missing or failed status check only removes browser;
+  // ordinary self-hosted chat must still be able to start.
+  let builtinBrowserAvailable = false;
+  try {
+    const status = object(await authorities.browserStatus());
+    builtinBrowserAvailable = status?.state === 'ready'
+      && status.ready === true
+      && status.engine === 'webview';
+  } catch {
+    builtinBrowserAvailable = false;
   }
 
   const liveSessionRoot = typeof options.sessionRoot === 'string' && options.sessionRoot
@@ -339,6 +366,8 @@ async function enrichGjcSdkRunOptions(options: GjcWorkerOptions): Promise<GjcWor
     spawns: options.spawns ?? '*',
     bashPolicy: options.bashPolicy ?? { allowedPrefixes: [] },
     browserBackend,
+    // Always overwrite any untrusted request field.
+    builtinBrowserAvailable,
   };
 }
 

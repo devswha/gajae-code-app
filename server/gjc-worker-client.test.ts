@@ -17,6 +17,7 @@ import {
   DEFAULT_SHUTDOWN_TIMEOUT_MS,
   GjcWorkerSupervisor,
   createGjcWorkerDesktopRestartReader,
+  enrichGjcSdkRunOptions,
   getGjcWorkerSupervisor,
   killWorkerTree,
   resolveGjcResumeSessionRoot,
@@ -38,6 +39,30 @@ import {
   type GjcWorkerResponseFrame,
   type JsonObject,
 } from './gjc-worker-protocol.js';
+
+test('run enrichment overwrites client browser capability with authenticated WebView readiness', async () => {
+  const options = {
+    projectPath: '/fixture/project', sessionRoot: '/fixture/sessions', modelId: 'fixture-model',
+    browserBackend: 'aside', builtinBrowserAvailable: true,
+  };
+  const ready = await enrichGjcSdkRunOptions(options, {
+    resolveBrowserBackend: () => 'builtin',
+    browserStatus: async () => ({ state: 'ready', ready: true, engine: 'webview' }),
+  });
+  assert.equal(ready.browserBackend, 'builtin');
+  assert.equal(ready.builtinBrowserAvailable, true);
+
+  for (const browserStatus of [
+    async () => ({ state: 'unavailable', ready: false, engine: 'webview' }),
+    async () => ({ state: 'ready', ready: true, engine: 'chromium' }),
+    async () => { throw new Error('native unavailable'); },
+  ]) {
+    const unavailable = await enrichGjcSdkRunOptions(options, {
+      resolveBrowserBackend: () => 'builtin', browserStatus,
+    });
+    assert.equal(unavailable.builtinBrowserAvailable, false);
+  }
+});
 let runSequence = 0;
 function spawn(
   supervisor: GjcWorkerSupervisor,

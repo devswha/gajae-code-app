@@ -8,6 +8,5 @@ export {
   createAutomationDesktopRestartReader, createBrowserDesktopRestartReader, createComputerDesktopRestartReader,
 } from './automation.service.js';
 export { BrowserBackendStore, browserBackendStore, resolveGjcBrowserBackend } from './browser-backend.js';
-export { handleBrowserConnection } from './browser-websocket.js';
 export { CUA_SAFE_TOOLS, type CuaSafeTool } from './cua-client.js';
-export type { BrowserCommand, BrowserInput, BrowserSessionState } from './browser-protocol.js';
+export type { BrowserCommand, BrowserSessionState } from './browser-protocol.js';

@@ -7,8 +7,9 @@ use std::fs::OpenOptions;
 use fs2::FileExt;
 use tauri::Manager;
 
-mod browser_poc;
 mod build_info;
+#[cfg(target_os = "macos")]
+mod builtin_browser;
 mod desktop_deep_links;
 mod desktop_origin;
 use desktop_deep_links::StartupDeepLinks;
@@ -343,29 +344,17 @@ fn route_deep_link(app: &tauri::AppHandle, url: tauri::Url) -> bool {
     false
 }
 
+#[cfg(target_os = "macos")]
 #[tauri::command]
-fn browser_poc_open(
+async fn builtin_browser_control(
     app: tauri::AppHandle,
-    window: tauri::WebviewWindow,
-    url: String,
-) -> Result<browser_poc::OpenOutcome, String> {
-    // Defense in depth beyond the capability grant: only the main window's
-    // document may ask for the PoC browser.
-    if window.label() != "main" {
-        return Err("The PoC browser is only available from the main window.".to_owned());
+    webview: tauri::Webview,
+    command: builtin_browser::ToolbarCommand,
+) -> Result<builtin_browser::BrowserState, String> {
+    if webview.label() != builtin_browser::CONTROLS_LABEL {
+        return Err("builtin_browser_unauthorized".to_owned());
     }
-    browser_poc::open(&app, &url)
-}
-
-#[tauri::command]
-fn browser_poc_title_probe(
-    app: tauri::AppHandle,
-    window: tauri::WebviewWindow,
-) -> Result<(), String> {
-    if window.label() != "main" {
-        return Err("The PoC browser is only available from the main window.".to_owned());
-    }
-    browser_poc::title_probe(&app)
+    builtin_browser::toolbar_control(&app, command)
 }
 
 #[tauri::command]
@@ -475,15 +464,10 @@ fn main() {
     let builder = builder.invoke_handler(tauri::generate_handler![
         retry_desktop_server,
         ack_updater_screen,
-        browser_poc_open,
-        browser_poc_title_probe
+        builtin_browser_control
     ]);
     #[cfg(not(target_os = "macos"))]
-    let builder = builder.invoke_handler(tauri::generate_handler![
-        retry_desktop_server,
-        browser_poc_open,
-        browser_poc_title_probe
-    ]);
+    let builder = builder.invoke_handler(tauri::generate_handler![retry_desktop_server]);
     let builder = builder.setup(move |app| {
         // A held lock means another instance is running. Setup errors
         // abort inside did_finish_launching (panic_cannot_unwind ->
@@ -542,6 +526,8 @@ fn main() {
         app.manage(updater::Preparation::default());
         #[cfg(target_os = "macos")]
         app.manage(updater_bridge::Bridge::default());
+        #[cfg(target_os = "macos")]
+        app.manage(builtin_browser::BrowserCoordinator::default());
         #[cfg(target_os = "macos")]
         app.manage(updater_restart::Restarts::default());
         #[cfg(target_os = "macos")]
@@ -661,6 +647,8 @@ fn main() {
                 }
                 #[cfg(target_os = "macos")]
                 updater_bridge::retire(app);
+                #[cfg(target_os = "macos")]
+                builtin_browser::retire(app);
                 #[cfg(target_os = "macos")]
                 updater::unhealthy(app);
                 // macOS Quit Apple events (Cmd-Q, AppleScript quit) bypass a

@@ -1577,7 +1577,7 @@ async function identityFixture(behavior: {
     toolNames: ['bash', 'skill'], spawns: 'deny', bashPolicy: { allowedPrefixes: [] },
   };
   return {
-    root, options, factoryOptions, host, frames, adapter, sessions,
+    root, options, factoryOptions, host, frames, adapter, sessions, settings,
     enqueueInspection(inspect: (session: Session) => Promise<void>) { inspections.push(inspect); },
     async run(id: string, inspect: (session: Session) => Promise<void>, providerSessionId?: string) {
       inspections.push(inspect);
@@ -1636,6 +1636,39 @@ test('goal-capable production sessions delegate safely and defer worktree abort 
       assert.equal(aborts, 1);
     });
     assert.equal((response(f.frames, 'goal-delegation').payload as { result: { aborted?: boolean } }).result.aborted, true);
+  } finally { await f.close(); }
+});
+
+test('delegated sessions inherit an unavailable built-in browser without SDK fallback', async () => {
+  const f = await identityFixture();
+  f.settings.override('tools.discoveryMode', 'all');
+  Object.assign(f.options, {
+    toolNames: ['read', 'task', 'subagent', 'browser'], spawns: 'executor',
+    browserBackend: 'builtin', builtinBrowserAvailable: false,
+  });
+  try {
+    await f.run('browserless-delegation', async (parent) => {
+      assert.equal(parent.getActiveToolNames().includes('browser'), false);
+      assert.equal(parent.getDiscoverableTools({ source: 'builtin' }).some((tool: { name: string }) => tool.name === 'browser'), false);
+      let childChecked = false;
+      f.enqueueInspection(async (child) => {
+        assert.equal(child.getActiveToolNames().includes('browser'), false);
+        assert.equal(child.getDiscoverableTools({ source: 'builtin' }).some((tool: { name: string }) => tool.name === 'browser'), false);
+        childChecked = true;
+      });
+      const launched = await parent.getToolByName('task')!.execute('start-browserless-child', {
+        agent: 'executor', context: null, tasks: [{
+          id: 'inspect', description: 'Inspect inherited tools',
+          assignment: 'Return after the offline tool inspection.', executionMode: 'default', repositoryBinding: null,
+        }],
+      });
+      const childId = launched.details.subagents[0].id;
+      const settled = await parent.getToolByName('subagent')!.execute('await-browserless-child', {
+        action: 'await', id: childId, timeout_ms: 5000,
+      });
+      assert.equal(settled.details.subagents[0].status, 'completed');
+      assert.equal(childChecked, true);
+    });
   } finally { await f.close(); }
 });
 
@@ -2221,7 +2254,7 @@ test('app automation is injected through the SDK built-in automationTools contra
   try {
     const run = f.host.handle(request('session.start', 'automation-tools', {
       message: 'hello',
-      options: f.options,
+      options: { ...f.options, builtinBrowserAvailable: true },
     }, 'app-session-a'));
     const session = await firstSession(f.sessions);
     await session.promptStarted.promise;
@@ -2235,18 +2268,36 @@ test('app automation is injected through the SDK built-in automationTools contra
     await run;
   } finally { await f.close(); }
 });
-test('the default browser backend leaves the runtime setting alone, keeps the app browser tool, and never probes Aside', async () => {
+test('unavailable built-in browser removes both the app transport and SDK builtin name', async () => {
+  const f = await fixture();
+  try {
+    const run = f.host.handle(request('session.start', 'browser-unavailable', {
+      message: 'hello', options: {
+        ...f.options, browserBackend: 'builtin', toolNames: ['browser', 'computer'],
+      },
+    }, 'app-session-unavailable'));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    const factoryInput = f.factoryOptions[0]!;
+    assert.deepEqual(Object.keys(factoryInput.automationTools as Record<string, unknown>), ['computer']);
+    assert.equal((factoryInput.toolNames as string[]).includes('browser'), false);
+    assert.equal((factoryInput.toolNames as string[]).includes('computer'), true);
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
+test('Built-in explicitly selects runtime native mode, keeps the app browser tool, and never probes Aside', async () => {
   let probes = 0;
   const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
     probeAsideCli: () => { probes += 1; return { ok: true, path: '/never/used/aside' }; },
   });
   try {
-    const run = f.host.handle(request('session.start', 'browser-native', {
-      message: 'hello', options: f.options,
-    }, 'app-session-native'));
+    const run = f.host.handle(request('session.start', 'browser-builtin', {
+      message: 'hello', options: { ...f.options, browserBackend: 'builtin', builtinBrowserAvailable: true },
+    }, 'app-session-builtin'));
     const session = await firstSession(f.sessions);
     await session.promptStarted.promise;
-    assert.equal(f.toolPolicyOverrides.has('browser.backend'), false, 'native writes no browser.backend override');
+    assert.equal(f.toolPolicyOverrides.get('browser.backend'), 'native');
     const automationTools = f.factoryOptions[0]!.automationTools as Record<string, { name: string }>;
     assert.deepEqual(Object.keys(automationTools).sort(), ['browser', 'computer']);
     assert.equal(probes, 0);
@@ -2262,7 +2313,7 @@ test('selecting Aside hands browser.backend=aside to the runtime and withholds t
   });
   try {
     const run = f.host.handle(request('session.start', 'browser-aside', {
-      message: 'hello', options: { ...f.options, browserBackend: 'aside' },
+      message: 'hello', options: { ...f.options, browserBackend: 'aside', builtinBrowserAvailable: true },
     }, 'app-session-aside'));
     const session = await firstSession(f.sessions);
     await session.promptStarted.promise;
@@ -2270,7 +2321,7 @@ test('selecting Aside hands browser.backend=aside to the runtime and withholds t
     const factoryInput = f.factoryOptions[0]!;
     const automationTools = factoryInput.automationTools as Record<string, { name: string }>;
     // The runtime decides the browser tool from its own setting; the app only
-    // stops substituting its Chromium transport for a tool the runtime hides.
+    // stops substituting its WebView transport for a tool the runtime hides.
     assert.deepEqual(Object.keys(automationTools), ['computer']);
     // No app-side Aside tool, prompt, or MCP server is introduced.
     assert.equal(factoryInput.customTools, undefined);
@@ -2282,13 +2333,13 @@ test('selecting Aside hands browser.backend=aside to the runtime and withholds t
   } finally { await f.close(); }
 });
 
-test('selecting Aside without an Aside CLI refuses the run with its own code and never falls back to the native browser', async () => {
+test('selecting Aside without an Aside CLI refuses the run with its own code and never falls back to Built-in', async () => {
   const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
     probeAsideCli: () => ({ ok: false, searched: ['/fake/.local/bin/aside', 'PATH (aside)'], manualInstallCommand: 'curl ... | bash', url: 'https://example.invalid' }),
   });
   try {
     await f.host.handle(request('session.start', 'browser-aside-missing', {
-      message: 'hello', options: { ...f.options, browserBackend: 'aside' },
+      message: 'hello', options: { ...f.options, browserBackend: 'aside', builtinBrowserAvailable: true },
     }, 'app-session-aside-missing'));
     const payload = response(f.frames, 'browser-aside-missing').payload as { ok: boolean; error: { code: string; message: string } };
     assert.equal(payload.ok, false);
@@ -2341,7 +2392,7 @@ test('the production adapter passes bypass to automation without answering real 
   });
   const runId = 'automation-bypass-mode';
   const run = f.host.handle(request('session.start', runId, {
-    message: 'hello', options: { ...f.options, permissions: { mode: 'bypass', allowAlways: [] } },
+    message: 'hello', options: { ...f.options, builtinBrowserAvailable: true, permissions: { mode: 'bypass', allowAlways: [] } },
   }, 'automation-app-session'));
   let session: FakeAgentSession | undefined;
   try {
@@ -3720,6 +3771,8 @@ test('starting a session forces the tool settings the app policy declares', asyn
 
     assert.equal(f.toolPolicyOverrides.get('goal.enabled'), false);
     assert.equal(f.toolPolicyOverrides.get('astEdit.enabled'), false);
+    assert.equal(f.toolPolicyOverrides.get('tools.discoveryMode'), 'off');
+    assert.equal(f.toolPolicyOverrides.get('mcp.discoveryMode'), false);
 
     session.complete();
     await run;

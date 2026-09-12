@@ -153,7 +153,7 @@ test('the optional deployment API key protects WebSocket upgrades before owner l
   }
 });
 
-test('the live gateway rejects unauthorized and malformed upgrades and still accepts an authenticated client', async (t) => {
+test('the live gateway rejects unauthorized, malformed, and removed routes while retaining authenticated chat', async (t) => {
   const previous = process.env.API_KEY;
   const desktop = process.env.GJC_DESKTOP;
   process.env.API_KEY = 'fixture-gateway-key';
@@ -170,7 +170,6 @@ test('the live gateway rejects unauthorized and malformed upgrades and still acc
     verifyClient: { authenticateWebSocket: () => { attached++; return owner(); } },
     chat: {} as never,
     shell: {} as never,
-    browser: (socket) => socket.send('authenticated'),
   });
   t.after(async () => {
     for (const socket of gateway.clients) socket.terminate();
@@ -194,9 +193,17 @@ test('the live gateway rejects unauthorized and malformed upgrades and still acc
     assert.equal(await rejectUpgrade(target), 401, target);
   }
   assert.equal(attached, 0);
-  const client = new WebSocket(`ws://127.0.0.1:${address.port}/ws/browser`, { headers: { 'x-api-key': 'fixture-gateway-key' } });
+  const client = new WebSocket(`ws://127.0.0.1:${address.port}/ws`, { headers: { 'x-api-key': 'fixture-gateway-key' } });
   const message = once(client, 'message');
   t.after(() => client.terminate());
-  assert.equal(String((await message)[0]), 'authenticated');
+  client.once('open', () => client.send(JSON.stringify({ type: 'unknown' })));
+  assert.equal(JSON.parse(String((await message)[0])).code, 'UNKNOWN_MESSAGE_TYPE');
   assert.equal(attached, 1);
+
+  const removed = new WebSocket(`ws://127.0.0.1:${address.port}/ws/browser`, { headers: { 'x-api-key': 'fixture-gateway-key' } });
+  const closed = once(removed, 'close');
+  t.after(() => removed.terminate());
+  await once(removed, 'open');
+  await closed;
+  assert.equal(attached, 2);
 });

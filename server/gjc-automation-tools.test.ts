@@ -11,6 +11,22 @@ import {
 } from './gjc-automation-tools.js';
 
 const TEST_TOKEN = 'a'.repeat(64);
+const FIRST_BINDING = { windowEpoch: 'window-1', documentEpoch: 7, origin: 'https://example.com' };
+
+test('browser selector and fill budgets match native UTF-8 bounds before any bridge dispatch', async () => {
+  const { browser } = createGjcAutomationTools('app-session', {
+    async select() { assert.fail('invalid input must not reach approval'); },
+  });
+  for (const action of [
+    { verb: 'click', selector: 'a'.repeat(4097) },
+    { verb: 'click', selector: '가'.repeat(1400) },
+    { verb: 'fill', selector: '#name', text: 'a'.repeat(65537) },
+    { verb: 'fill', selector: '#name', text: '가'.repeat(22000) },
+  ]) {
+    await assert.rejects(browser!.execute('invalid-input', { action: 'act', actions: [action] }, undefined),
+      (error: Error) => error.name === 'ZodError');
+  }
+});
 
 test('automation bridge capability is captured once and removed from the worker environment', () => {
   const environment: NodeJS.ProcessEnv = {
@@ -41,7 +57,7 @@ test('agent browser asks for origin access before opening and records allow once
       requests.push(request);
       const payload = request.payload as Record<string, unknown> | undefined;
       const result = request.operation === 'authorize'
-        ? { granted: payload?.scope === 'session', origin: 'https://example.com' }
+        ? { granted: payload?.scope === 'session', origin: 'https://example.com', binding: FIRST_BINDING }
         : { sessionId: 'app-session', activeTabId: 'tab-1', tabs: [] };
       socket.end(`${JSON.stringify({ id: request.id, ok: true, result })}\n`);
     });
@@ -72,7 +88,7 @@ test('agent browser asks for origin access before opening and records allow once
     }]);
     assert.deepEqual(requests.map((request) => request.operation), ['authorize', 'authorize', 'open']);
     assert.equal((requests[1]?.payload as Record<string, unknown>).scope, 'session');
-    assert.equal((requests[2]?.payload as Record<string, unknown>).allowDownload, false);
+    assert.deepEqual(requests[2]?.payload, { url: 'https://example.com/page' });
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });
@@ -352,70 +368,108 @@ async function bridgeServer(handle: (request: Record<string, unknown>) => { ok: 
   };
 }
 
-test('without Chromium the browser tool asks the person and downloads on a yes', async () => {
-  const bridge = await bridgeServer((request) => {
-    if (request.operation === 'authorize') return { ok: true, result: { granted: true } };
-    const allowDownload = (request.payload as Record<string, unknown>).allowDownload;
-    return allowDownload
-      ? { ok: true, result: { sessionId: 'app-session', activeTabId: 'tab-1', tabs: [] } }
-      : { ok: false, error: 'browser_download_required: Chromium must be downloaded before first use.' };
-  });
-  const prompts: Array<{ title: string; options: string[] }> = [];
+test('built-in browser exposes only selector-based WebView actions', async () => {
+  const bridge = await bridgeServer(() => ({ ok: true, result: {} }));
   try {
     const { browser } = createGjcAutomationTools('app-session', {
-      async select(title, options) { prompts.push({ title, options }); return 'Download and continue'; },
+      async select() { assert.fail('invalid parameters must fail before authorization'); },
     }, { socketPath: bridge.socketPath, token: TEST_TOKEN });
-    const result = await browser!.execute('tool-call-1', { action: 'open', url: 'https://example.com' }, undefined);
-
-    assert.equal(prompts.length, 1);
-    assert.match(prompts[0]!.title, /needs Chromium/);
-    assert.deepEqual(prompts[0]!.options, ['Download and continue', 'Not now']);
-    assert.deepEqual(bridge.requests.map((request) => [request.operation, (request.payload as Record<string, unknown>)?.allowDownload]),
-      [['authorize', undefined], ['open', false], ['open', true]]);
-    assert.match(JSON.stringify(result), /tab-1/);
-  } finally {
-    await bridge.close();
-  }
+    for (const parameters of [
+      { action: 'run', code: 'document.title' },
+      { action: 'act', actions: [{ verb: 'screenshot' }] },
+      { action: 'act', actions: [{ verb: 'select', selector: '#country', value: 'KR' }] },
+      { action: 'act', actions: [{ verb: 'press', key: 'Enter' }] },
+      { action: 'act', actions: [{ verb: 'scroll', dy: 100 }] },
+      { action: 'act', actions: [{ verb: 'wait', ms: 10 }] },
+      { action: 'act', actions: [{ verb: 'click', ref: 1 }] },
+      { action: 'act', actions: [{ verb: 'fill', selector: '#name' }] },
+      { action: 'act', actions: [] },
+    ]) {
+      await assert.rejects(browser!.execute('invalid-action', parameters, undefined));
+    }
+    assert.deepEqual(bridge.requests, []);
+  } finally { await bridge.close(); }
 });
 
-test('without Chromium and a no, the browser tool fails with where the person can install it', async () => {
+test('built-in browser forwards the complete bounded action set with an expected binding', async () => {
   const bridge = await bridgeServer((request) => request.operation === 'authorize'
-    ? { ok: true, result: { granted: true } }
-    : { ok: false, error: 'browser_download_required: Chromium must be downloaded before first use.' });
+    ? { ok: true, result: { granted: true, origin: FIRST_BINDING.origin, binding: FIRST_BINDING } }
+    : { ok: true, result: { acted: true } });
+  const actions = [
+    { verb: 'navigate', url: 'https://example.com/next' },
+    { verb: 'back' },
+    { verb: 'forward' },
+    { verb: 'reload' },
+    { verb: 'observe' },
+    { verb: 'extract', selector: 'main', format: 'html' },
+    { verb: 'click', selector: 'button[type="submit"]' },
+    { verb: 'fill', selector: '#query', text: 'native WebView' },
+  ];
   try {
     const { browser } = createGjcAutomationTools('app-session', {
-      async select() { return 'Not now'; },
+      async select() { assert.fail('granted actions must not prompt'); },
+    }, { socketPath: bridge.socketPath, token: TEST_TOKEN });
+    await browser!.execute('all-actions', { action: 'act', actions }, undefined);
+
+    const commands = bridge.requests.filter((request) => request.operation === 'command');
+    assert.deepEqual(commands.map((request) => request.payload), actions.map(({ verb, ...parameters }) => ({
+      command: { action: verb, ...parameters }, expected: FIRST_BINDING,
+    })));
+    const authorizations = bridge.requests.filter((request) => request.operation === 'authorize');
+    assert.equal(authorizations.length, actions.length);
+    assert.deepEqual(authorizations[0]!.payload, { url: 'https://example.com/next' });
+    assert.deepEqual(authorizations.slice(1).map((request) => request.payload), Array(actions.length - 1).fill({}));
+  } finally { await bridge.close(); }
+});
+
+test('browser command uses the original binding captured before permission UI', async () => {
+  let authorizations = 0;
+  const changedBinding = { windowEpoch: 'window-1', documentEpoch: 8, origin: 'https://elsewhere.example' };
+  const bridge = await bridgeServer((request) => {
+    if (request.operation === 'authorize') {
+      authorizations += 1;
+      return { ok: true, result: authorizations === 1
+        ? { granted: false, origin: 'https://target.example', binding: FIRST_BINDING }
+        : { granted: true, origin: 'https://target.example', binding: changedBinding } };
+    }
+    return { ok: true, result: { navigated: true } };
+  });
+  try {
+    const { browser } = createGjcAutomationTools('app-session', {
+      async select() { return 'Allow once'; },
+    }, { socketPath: bridge.socketPath, token: TEST_TOKEN });
+    await browser!.execute('navigate', {
+      action: 'act', actions: [{ verb: 'navigate', url: 'https://target.example/path' }],
+    }, undefined);
+
+    assert.deepEqual(bridge.requests.map((request) => request.operation), ['authorize', 'authorize', 'command']);
+    assert.deepEqual(bridge.requests[0]!.payload, { url: 'https://target.example/path' });
+    assert.deepEqual(bridge.requests[2]!.payload, {
+      command: { action: 'navigate', url: 'https://target.example/path' },
+      expected: FIRST_BINDING,
+    });
+  } finally { await bridge.close(); }
+});
+
+test('browser act fails closed when authorization has no current page binding', async () => {
+  const bridge = await bridgeServer((request) => request.operation === 'authorize'
+    ? { ok: true, result: { granted: true, origin: null, binding: null } }
+    : { ok: true, result: { acted: true } });
+  try {
+    const { browser } = createGjcAutomationTools('app-session', {
+      async select() { assert.fail('a blank page has no origin prompt'); },
     }, { socketPath: bridge.socketPath, token: TEST_TOKEN });
     await assert.rejects(
-      browser!.execute('tool-call-1', { action: 'open', url: 'https://example.com' }, undefined),
-      /declined the download[\s\S]*Browser panel or Settings > Automation/,
+      browser!.execute('observe', { action: 'act', actions: [{ verb: 'observe' }] }, undefined),
+      /browser_state_unavailable/,
     );
-    // Never downloaded behind the person's back.
-    assert.equal(bridge.requests.some((request) => (request.payload as Record<string, unknown>)?.allowDownload === true), false);
-  } finally {
-    await bridge.close();
-  }
-});
-
-test('an unrelated open failure is not turned into a download prompt', async () => {
-  const bridge = await bridgeServer((request) => request.operation === 'authorize'
-    ? { ok: true, result: { granted: true } }
-    : { ok: false, error: 'unsupported_platform: Chromium is unavailable on this platform.' });
-  let asked = 0;
-  try {
-    const { browser } = createGjcAutomationTools('app-session', {
-      async select() { asked += 1; return 'Download and continue'; },
-    }, { socketPath: bridge.socketPath, token: TEST_TOKEN });
-    await assert.rejects(browser!.execute('tool-call-1', { action: 'open', url: 'https://example.com' }, undefined), /unsupported_platform/);
-    assert.equal(asked, 0);
-  } finally {
-    await bridge.close();
-  }
+    assert.deepEqual(bridge.requests.map((request) => request.operation), ['authorize']);
+  } finally { await bridge.close(); }
 });
 
 test('bypass authorizes browser access for this session without an extra permission question', async () => {
   const bridge = await bridgeServer((request) => request.operation === 'authorize'
-    ? { ok: true, result: { granted: (request.payload as Record<string, unknown>)?.scope === 'session', origin: 'https://example.com' } }
+    ? { ok: true, result: { granted: (request.payload as Record<string, unknown>)?.scope === 'session', origin: 'https://example.com', binding: FIRST_BINDING } }
     : { ok: true, result: { opened: true } });
   let prompts = 0;
   try {
@@ -449,7 +503,7 @@ test('bypass leaves later Ask runs and other sessions ungranted', async () => {
   let granted = false;
   const bridge = await bridgeServer((request) => {
     if ((request.payload as Record<string, unknown> | undefined)?.scope) granted = true;
-    return { ok: true, result: request.operation === 'authorize' ? { granted, origin: 'https://example.com' } : { opened: true } };
+    return { ok: true, result: request.operation === 'authorize' ? { granted, origin: 'https://example.com', binding: FIRST_BINDING } : { opened: true } };
   });
   let prompts = 0;
   const ui = { async select() { prompts += 1; return 'Deny'; } };
@@ -479,6 +533,11 @@ test('default and auto-edits modes still ask, and tool parameters cannot enable 
       }, { socketPath: bridge.socketPath, token: TEST_TOKEN }, mode);
       await assert.rejects(browser!.execute('untrusted-params', {
         action: 'open', url: 'https://example.com', permissionMode: 'bypass', permissions: { mode: 'bypass' },
+      }, undefined), /unrecognized_keys/);
+      assert.equal(prompts, 0);
+      assert.equal(bridge.requests.length, 0);
+      await assert.rejects(browser!.execute('valid-open', {
+        action: 'open', url: 'https://example.com',
       }, undefined), /was denied/);
       assert.equal(prompts, 1);
       assert.deepEqual(bridge.requests.map((request) => request.operation), ['authorize']);
@@ -486,21 +545,7 @@ test('default and auto-edits modes still ask, and tool parameters cannot enable 
   }
 });
 
-test('bypass preserves first-download consent and backend authorization failures', async () => {
-  const bridge = await bridgeServer((request) => request.operation === 'authorize'
-    ? { ok: true, result: { granted: false, origin: 'https://example.com' } }
-    : { ok: false, error: 'browser_download_required: Chromium is not installed.' });
-  const prompts: string[] = [];
-  try {
-    const { browser } = createGjcAutomationTools('download-session', {
-      async select(title) { prompts.push(title); return 'Not now'; },
-    }, { socketPath: bridge.socketPath, token: TEST_TOKEN }, 'bypass');
-    await assert.rejects(browser!.execute('download', { action: 'open', url: 'https://example.com' }, undefined), /declined the download/);
-    assert.equal(prompts.length, 1);
-    assert.match(prompts[0]!, /needs Chromium/);
-    assert.ok(bridge.requests.every((request) => (request.payload as Record<string, unknown> | undefined)?.allowDownload !== true));
-  } finally { await bridge.close(); }
-
+test('bypass preserves backend authorization failures', async () => {
   const rejected = await bridgeServer(() => ({ ok: false, error: 'Computer action requires a resolvable application identity.' }));
   try {
     const { computer } = createGjcAutomationTools('invalid-target', {

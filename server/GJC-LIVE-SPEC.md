@@ -223,8 +223,8 @@ The app-owned browser and computer tool wrappers receive the same validated
 run permission mode as the SDK gate. In `bypass`, target/origin resolution still
 runs, but the extra access question is omitted without adding grants to either
 allow-list. Ask and auto-edits retain their existing access prompts. This does
-not auto-answer `ask` questions, approve Chromium installation, or override OS
-permissions or CUA driver restrictions. The mode is captured for the run; no
+not auto-answer `ask` questions or override native readiness, OS permissions,
+or CUA driver restrictions. The mode is captured for the run; no
 implicit grant survives into a later Ask run.
 
 ## Browser backend
@@ -242,14 +242,18 @@ The application stores the choice (`automation.browserBackend.v1`,
 `GET`/`PUT /api/automation/browser-backend`) and the worker enforces it. No
 protocol method or frame changes; the value travels inside existing payloads:
 
-- `session.start` / `session.resume` options carry
-  `browserBackend: 'native' | 'aside'` (`server/gjc-browser-backend.ts`). The
-  application resolves it from its own setting in `enrichGjcSdkRunOptions`,
-  never from the request. Any other value fails the run.
-- `native` (the default) writes nothing: the runtime's own `browser.backend`
-  configuration decides exactly as before this option existed, and the app's
-  Chromium transport keeps replacing the built-in browser tool whenever the
-  runtime would expose that tool.
+- `session.start` / `session.resume` options carry the server-resolved
+  `browserBackend: 'builtin' | 'aside'` and `builtinBrowserAvailable` boolean.
+  `enrichGjcSdkRunOptions` overwrites both client fields: the backend comes from
+  the app setting, while availability requires an authenticated
+  `automationService.browser.status()` result of
+  `{ state: 'ready', ready: true, engine: 'webview' }`. Failure or absence is
+  false so non-browser self-hosted chat can still start.
+- `builtin` writes `browser.backend=native` on the per-run settings clone. The
+  app's WebView transport replaces the runtime tool only when trusted readiness
+  is true. Otherwise the adapter removes `browser` from both `automationTools`
+  and `toolNames`, preventing the SDK's Puppeteer implementation from appearing
+  as a fallback. `computer` and every other allowed tool remain unchanged.
 - `aside` first runs the runtime's own Aside CLI discovery (`probeAsideCli`:
   `~/.local/bin/aside`, the `Aside CLI.app` bundle, then `PATH`) and, when it
   finds nothing, fails the run with the application error code
@@ -261,10 +265,22 @@ protocol method or frame changes; the value travels inside existing payloads:
 - When the CLI is found the adapter writes `settings.override('browser.backend',
   'aside')` on the per-run settings clone and withholds the app's `browser`
   automation transport, because the SDK registers a supplied automation tool
-  unconditionally. The runtime then hides the built-in tool (active and
-  discoverable) and appends its routing block; the `computer` transport is
-  unaffected. Delegated children clone the same settings, so they inherit the
-  backend and, through the active-tool intersection, never regain `browser`.
+  unconditionally, and removes `browser` from `toolNames`. The runtime then
+  hides the built-in tool (active and discoverable) and appends its routing
+  block; the `computer` transport is unaffected. Delegated children receive the
+  already-filtered tool names and automation transports, so they cannot regain
+  an unavailable browser.
+
+The Built-in tool exposes only `open`, `close`, and `act`. Its act verbs are
+`navigate`, `back`, `forward`, `reload`, `observe`, `extract`, `click`, and
+`fill`; click/fill require CSS selectors, and extract accepts an optional
+selector and `text`/`html` format. It exposes no evaluation, screenshots,
+coordinates, refs, tabs, waits, keys, scrolling, selection, or downloads.
+Before every command, the bridge authorizes the target origin and returns the
+current `{ windowEpoch, documentEpoch, origin }` binding. The tool sends that
+original pre-prompt binding as `payload.expected`; a navigation during the
+permission prompt therefore makes native execution reject the stale command
+instead of silently retargeting it. `open` carries no expected binding.
 - Skill discovery is unchanged: the adapter passes no explicit skill list and
   leaves `skills.enabled` alone, so the runtime scans the project's
   `.gjc/skills` and the agent dir's `skills/` (`~/.gjc/agent/skills` by

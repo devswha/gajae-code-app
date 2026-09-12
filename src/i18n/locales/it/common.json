@@ -124,36 +124,6 @@
         "abandoned": "Abbandonata"
       }
     },
-    "browser": {
-      "address": "Indirizzo web",
-      "back": "Indietro",
-      "forward": "Avanti",
-      "reload": "Ricarica la pagina",
-      "external": "Apri nel browser predefinito",
-      "stop": "Termina la sessione del browser",
-      "preview": "Chromium anteprima dal vivo",
-      "empty": "Inserisci un URL oppure seleziona un indirizzo di sviluppo locale.",
-      "installTitle": "Installa il browser di sviluppo",
-      "installDescription": "Gajae utilizza un download Chrome for Testing separato e un profilo browser isolato.",
-      "download": "Ottieni Chromium e avvialo",
-      "preparing": "Configurazione di Chromium...",
-      "downloading": "Ottenere Chromium… {{progress}}%",
-      "connecting": "Collegamento al browser di sviluppo…",
-      "newTab": "Apri scheda",
-      "closeTab": "Scheda Ignora",
-      "connection": {
-        "connecting": "Connessione",
-        "live": "Vivi",
-        "offline": "Non in linea"
-      },
-      "unsupported": "L'anteprima dell'automazione richiede Apple Silicon con macOS 14 o versione successiva.",
-      "error": "Impossibile avviare l'automazione del browser.",
-      "downloadBlocked": "Download bloccato: {{filename}}. Questa anteprima non può salvare i download.",
-      "downloadUnknown": "scaricare",
-      "dialogDismissed": "Gajae ha chiuso una pagina di dialogo: {{message}}",
-      "cua": "App native · CUA Driver",
-      "cuaMissing": "Non disponibile"
-    },
     "statusTab": {
       "session": "Sessione",
       "model": "Modello",

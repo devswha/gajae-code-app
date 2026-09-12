@@ -13,7 +13,7 @@ const originalBounds = HTMLElement.prototype.getBoundingClientRect;
 let containerWidth = 1_600;
 const observers: Array<{ resize: () => void; disconnected: boolean }> = [];
 function setup() {
-  localStorage.setItem(WORKSPACE_PANEL_STORAGE_KEY, JSON.stringify({ open: true, tab: 'browser', width: 1_200 }));
+  localStorage.setItem(WORKSPACE_PANEL_STORAGE_KEY, JSON.stringify({ open: true, tab: 'status', width: 1_200 }));
   globalThis.ResizeObserver = class {
     observer: { resize: () => void; disconnected: boolean };
     constructor(resize: () => void) { this.observer = { resize, disconnected: false }; observers.push(this.observer); }
@@ -29,7 +29,7 @@ function Harness({ attached = true, mobile = false }: { attached?: boolean; mobi
     attached ? createElement('div', { ref: panel.containerRef }) : null,
     createElement('output', null, String(panel.width)),
     createElement('button', { onClick: panel.closePanel }, 'Close'),
-    createElement('button', { onClick: () => panel.openPanel('browser') }, 'Open'),
+    createElement('button', { onClick: () => panel.openPanel('status') }, 'Open'),
   );
 }
 afterEach(() => {

@@ -969,6 +969,7 @@ name = "gajae-app-desktop"
 version = "0.2.8"
 dependencies = [
  "base64 0.22.1",
+ "block2",
  "flate2",
  "fs2",
  "futures-util",
@@ -976,6 +977,10 @@ dependencies = [
  "hmac",
  "libc",
  "minisign-verify",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "objc2-web-kit",
  "plist",
  "reqwest",
  "rustls",

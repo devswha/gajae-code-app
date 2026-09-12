@@ -16,9 +16,10 @@
  * error class the adapter throws, and a guard the worker answers with.
  */
 
-export const GJC_BROWSER_BACKENDS = ['native', 'aside'] as const;
+/** Application choices do not expose the runtime's `native` setting value. */
+export const GJC_BROWSER_BACKENDS = ['builtin', 'aside'] as const;
 export type GjcBrowserBackend = typeof GJC_BROWSER_BACKENDS[number];
-export const DEFAULT_GJC_BROWSER_BACKEND: GjcBrowserBackend = 'native';
+export const DEFAULT_GJC_BROWSER_BACKEND: GjcBrowserBackend = 'builtin';
 
 export function isGjcBrowserBackend(value: unknown): value is GjcBrowserBackend {
   return typeof value === 'string' && (GJC_BROWSER_BACKENDS as readonly string[]).includes(value);
@@ -27,7 +28,7 @@ export function isGjcBrowserBackend(value: unknown): value is GjcBrowserBackend 
 /** Application error code a worker answers a run with when Aside is selected but no Aside CLI is installed. */
 export const GJC_ASIDE_UNAVAILABLE_CODE = 'aside_unavailable';
 /** Fixed text for that failure; safe to relay to a browser because it carries no frame content. */
-export const GJC_ASIDE_UNAVAILABLE_MESSAGE = 'The Aside CLI was not found, so this session cannot start with the Aside browser backend. Install the Aside CLI, or switch Browser backend back to Native in Settings > Automation.';
+export const GJC_ASIDE_UNAVAILABLE_MESSAGE = 'The Aside CLI was not found, so this session cannot start with the Aside browser backend. Install the Aside CLI, or choose Built-in in Settings > Automation where it is available.';
 
 export class GjcAsideUnavailableError extends Error {
   readonly code = GJC_ASIDE_UNAVAILABLE_CODE;

@@ -289,9 +289,18 @@ pub(crate) fn enabled(app: &AppHandle) -> bool {
         && binding.admits_profile(profile.as_ref().map(|p| p.root()), !cfg!(debug_assertions))
 }
 
-/// Caller writes the small initialization frame to fresh, otherwise-unused
-/// owned stdin. Later requests use the bounded socket, not blocking pipe writes.
-pub(crate) fn attach(app: &AppHandle, pid: u32) -> Result<Option<Vec<u8>>, String> {
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct BridgeInit {
+    pub protocol_version: u8,
+    pub socket: PathBuf,
+    pub secret: String,
+    pub epoch: String,
+}
+
+/// Returns one part of the unified desktop initialization envelope. The caller
+/// writes that envelope once to fresh, otherwise-unused owned stdin.
+pub(crate) fn attach(app: &AppHandle, pid: u32) -> Result<Option<BridgeInit>, String> {
     if !enabled(app) {
         return Ok(None);
     }
@@ -343,28 +352,6 @@ pub(crate) fn attach(app: &AppHandle, pid: u32) -> Result<Option<Vec<u8>>, Strin
         backend_claimed: AtomicBool::new(false),
         backend: OnceLock::new(),
     });
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Init<'a> {
-        protocol_version: u8,
-        socket: &'a std::path::Path,
-        secret: &'a str,
-        epoch: &'a str,
-    }
-    let frame = format!(
-        "GJC_DESKTOP_UPDATE_INIT {}\n",
-        serde_json::to_string(&Init {
-            protocol_version: 1,
-            socket: &run.socket,
-            secret: &key,
-            epoch: &epoch
-        })
-        .map_err(|_| "updater_bridge_unavailable")?
-    )
-    .into_bytes();
-    if frame.len() > 1024 {
-        return Err("updater_bridge_unavailable".into());
-    }
     let managed = app.state::<Bridge>();
     if let Some(old) = managed
         .0
@@ -374,6 +361,7 @@ pub(crate) fn attach(app: &AppHandle, pid: u32) -> Result<Option<Vec<u8>>, Strin
     {
         old.retire();
     }
+    let init_socket = run.socket.clone();
     let app = app.clone();
     std::thread::spawn(move || {
         while !run.retired.load(Ordering::Acquire) {
@@ -408,7 +396,12 @@ pub(crate) fn attach(app: &AppHandle, pid: u32) -> Result<Option<Vec<u8>>, Strin
         }
         let _ = fs::remove_dir(directory);
     });
-    Ok(Some(frame))
+    Ok(Some(BridgeInit {
+        protocol_version: 1,
+        socket: init_socket,
+        secret: key,
+        epoch,
+    }))
 }
 
 pub(crate) fn retire(app: &AppHandle) {

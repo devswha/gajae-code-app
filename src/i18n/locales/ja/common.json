@@ -122,36 +122,6 @@
         "abandoned": "取り下げ"
       }
     },
-    "browser": {
-      "address": "Web アドレス",
-      "back": "戻る",
-      "forward": "進む",
-      "reload": "ページを再読み込み",
-      "external": "既定のブラウザで開く",
-      "stop": "ブラウザセッションを終了",
-      "preview": "Chromium ライブプレビュー",
-      "empty": "URL を入力するか、ローカルの開発用アドレスを選択してください。",
-      "installTitle": "開発用ブラウザをインストール",
-      "installDescription": "Gajae は Chrome for Testing を別途ダウンロードし、分離されたブラウザプロファイルを使用します。",
-      "download": "Chromium を取得して起動",
-      "preparing": "Chromium を準備中…",
-      "downloading": "Chromium を取得中… {{progress}}%",
-      "connecting": "開発用ブラウザに接続中…",
-      "newTab": "タブを開く",
-      "closeTab": "タブを閉じる",
-      "connection": {
-        "connecting": "接続中",
-        "live": "接続済み",
-        "offline": "オフライン"
-      },
-      "unsupported": "自動化プレビューには Apple Silicon と macOS 14 以降が必要です。",
-      "error": "ブラウザ自動化を開始できませんでした。",
-      "downloadBlocked": "ダウンロードをブロックしました: {{filename}}。このプレビューではダウンロードを保存できません。",
-      "downloadUnknown": "ダウンロード",
-      "dialogDismissed": "Gajae がページダイアログを閉じました: {{message}}",
-      "cua": "ネイティブアプリ · CUA Driver",
-      "cuaMissing": "利用不可"
-    },
     "statusTab": {
       "session": "セッション",
       "model": "モデル",

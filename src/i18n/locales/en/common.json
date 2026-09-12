@@ -124,36 +124,6 @@
         "abandoned": "Abandoned"
       }
     },
-    "browser": {
-      "address": "Web address",
-      "back": "Back",
-      "forward": "Forward",
-      "reload": "Reload page",
-      "external": "Open in your default browser",
-      "stop": "End browser session",
-      "preview": "Chromium live preview",
-      "empty": "Enter a URL, or select a local development address.",
-      "installTitle": "Install the development browser",
-      "installDescription": "Gajae uses a separate Chrome for Testing download and isolated browser profile.",
-      "download": "Get Chromium and launch it",
-      "preparing": "Setting up Chromium…",
-      "downloading": "Getting Chromium… {{progress}}%",
-      "connecting": "Linking to the development browser…",
-      "newTab": "Open tab",
-      "closeTab": "Dismiss tab",
-      "connection": {
-        "connecting": "Connecting",
-        "live": "Live",
-        "offline": "Offline"
-      },
-      "unsupported": "Workspace Browser is available in the macOS arm64 and Linux x64 desktop apps.",
-      "error": "Could not start browser automation.",
-      "downloadBlocked": "Blocked download: {{filename}}. This preview cannot save downloads.",
-      "downloadUnknown": "download",
-      "dialogDismissed": "Gajae closed a page dialog: {{message}}",
-      "cua": "Native apps · CUA Driver",
-      "cuaMissing": "Unavailable"
-    },
     "statusTab": {
       "session": "Session",
       "model": "Model",

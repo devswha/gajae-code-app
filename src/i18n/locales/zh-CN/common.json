@@ -122,36 +122,6 @@
         "abandoned": "已放弃"
       }
     },
-    "browser": {
-      "address": "网址",
-      "back": "返回",
-      "forward": "前进",
-      "reload": "刷新页面",
-      "external": "在默认浏览器中打开",
-      "stop": "结束浏览器会话",
-      "preview": "Chromium实时预览",
-      "empty": "输入URL，或选择本地开发地址。",
-      "installTitle": "安装开发用浏览器",
-      "installDescription": "Gajae使用独立的Chrome for Testing下载和隔离浏览器配置文件。",
-      "download": "获取Chromium并启动",
-      "preparing": "设置Chromium……",
-      "downloading": "获取Chromium…… {{progress}}%",
-      "connecting": "连接到开发浏览器……",
-      "newTab": "打开标签页",
-      "closeTab": "关闭标签页",
-      "connection": {
-        "connecting": "连接中",
-        "live": "实时",
-        "offline": "离线"
-      },
-      "unsupported": "自动化预览需要macOS 14或更新版本的Apple Silicon设备。",
-      "error": "无法启动浏览器自动化.",
-      "downloadBlocked": "被阻止的下载：{{filename}}。此预览无法保存下载。",
-      "downloadUnknown": "下载",
-      "dialogDismissed": "Gajae 关闭了一个页面对话框：{{message}}",
-      "cua": "原生应用 · CUA 驱动",
-      "cuaMissing": "不可用"
-    },
     "statusTab": {
       "session": "会话窗口",
       "model": "模型库",

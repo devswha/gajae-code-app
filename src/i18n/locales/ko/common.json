@@ -122,36 +122,6 @@
         "abandoned": "제외됨"
       }
     },
-    "browser": {
-      "address": "웹 주소",
-      "back": "이전 화면",
-      "forward": " 앞으로",
-      "reload": "페이지 새로고침",
-      "external": "기본 브라우저에서 열기",
-      "stop": "브라우저 세션 종료",
-      "preview": "Chromium 실시간 미리보기",
-      "empty": "URL을 입력하거나 로컬 개발 주소를 선택하세요.",
-      "installTitle": "개발용 브라우저 설치",
-      "installDescription": "Gajae는 별도의 Chrome for Testing 다운로드와 격리된 브라우저 프로필을 사용합니다.",
-      "download": "Chromium 다운로드 및 실행",
-      "preparing": "Chromium 설정 중…",
-      "downloading": "Chromium 다운로드 중… {{progress}}%",
-      "connecting": "개발용 브라우저 연결 중...",
-      "newTab": "탭 열기",
-      "closeTab": "탭 닫기",
-      "connection": {
-        "connecting": "연결 중",
-        "live": "실시간",
-        "offline": "오프라인"
-      },
-      "unsupported": "Workspace Browser는 macOS arm64 및 Linux x64 데스크톱 앱에서 사용할 수 있습니다.",
-      "error": "브라우저 자동화를 시작할 수 없습니다.",
-      "downloadBlocked": "다운로드 차단: {{filename}}. 이 미리보기에서는 다운로드를 저장할 수 없습니다.",
-      "downloadUnknown": "내려받기",
-      "dialogDismissed": "Gajae가 페이지 대화상자 닫음: {{message}}",
-      "cua": "네이티브 앱 · CUA Driver",
-      "cuaMissing": "사용 불가"
-    },
     "statusTab": {
       "session": "세션",
       "model": "모델",

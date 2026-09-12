@@ -214,10 +214,8 @@ pub fn blocking_shutdown(app: &AppHandle) {
 
 pub fn handle_close_request(window: &Window, event: &tauri::WindowEvent) {
     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-        // The PoC browser window is a plain secondary surface: closing it
-        // must destroy that window only — never the hide-to-tray path and
-        // never the app quit path below.
-        if crate::browser_poc::owns_window(window.label()) {
+        #[cfg(target_os = "macos")]
+        if window.label() == crate::builtin_browser::WINDOW_LABEL {
             return;
         }
         // Keep the window alive until the server finishes: shutdown errors
@@ -236,6 +234,19 @@ pub fn handle_close_request(window: &Window, event: &tauri::WindowEvent) {
         // Preserve macOS close-to-hide and its Dock/Reopen behavior.
         #[cfg(not(target_os = "linux"))]
         let _ = window.hide();
+    }
+    #[cfg(target_os = "macos")]
+    if matches!(event, tauri::WindowEvent::Destroyed)
+        && window.label() == crate::builtin_browser::WINDOW_LABEL
+    {
+        crate::builtin_browser::window_destroyed(window.app_handle());
+        return;
+    }
+    #[cfg(target_os = "macos")]
+    if matches!(event, tauri::WindowEvent::Resized(_))
+        && window.label() == crate::builtin_browser::WINDOW_LABEL
+    {
+        crate::builtin_browser::resize(window);
     }
 }
 

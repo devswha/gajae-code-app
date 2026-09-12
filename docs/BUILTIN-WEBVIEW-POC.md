@@ -1,5 +1,9 @@
 # Built-in WebView Browser — Proof of Concept
 
+> Historical evidence. The production replacement is documented in
+> [BUILTIN-BROWSER.md](BUILTIN-BROWSER.md); this file describes the retired PoC,
+> not its current commands or capability surface.
+
 Status: **PoC only.** This is not the production browser backend. The Native
 (Puppeteer/Chromium sidecar) browser and the Aside backend are unchanged; see
 "Scope" below.

@@ -158,7 +158,6 @@ async function buildDebugBundle(sessionId) {
     }
   }
   sections.push('', '## worker log tail', await tailLines(`${homedir()}/.gajae-app/logs/gjc-worker.log`, BUNDLE_LOG_LINES));
-  sections.push('', '## browser sidecar log tail', await tailLines(`${homedir()}/.gajae-app/logs/browser-sidecar.log`, BUNDLE_LOG_LINES));
   return sections.join('\n');
 }
 

@@ -10,6 +10,7 @@ import { beginComposerOperation, finishComposerOperation, invalidateComposerFree
 import type { MarkSessionProcessing } from '../../../hooks/useSessionProtection';
 import type { ChatMessage, PendingPermissionRequest, PermissionDecision, SessionEstablishedContext  } from '../types/types';
 import type { LLMProvider, Project, ProjectSession, ProviderModelsCacheInfo } from '../../../types/app';
+import { randomUUID } from '../../../utils/uuid';
 import { authenticatedFetch } from '../../../utils/api';
 import { classifyCommandInput, isAutoSendable } from '../commandDispatchPolicy';
 import { findAppUiCommand, getLocalCommandNotice, resolveCommandAlias, runAppUiCommand, type AppUiCommand } from '../appUiCommands';
@@ -227,7 +228,7 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
     const text = inputRef.current;
     const id = selectedSession?.id || currentSessionId || null;
     if (!draftReady || !isLoading || !text.trim() || !selectedProject || !id || attachedImages.length || !isAutoSendable(classifyCommandInput(text))) return;
-    const draft: QueuedDraft = { id: `steer_${crypto.randomUUID()}`, content: text, images: [], options: optionsFor(text), pendingSteer: true };
+    const draft: QueuedDraft = { id: `steer_${randomUUID()}`, content: text, images: [], options: optionsFor(text), pendingSteer: true };
     const finishOperation = beginComposerOperation('steer', draft.id);
     if (!finishOperation) return;
     let sent: boolean | void;

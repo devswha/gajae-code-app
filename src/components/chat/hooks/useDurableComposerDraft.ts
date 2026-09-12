@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import type { SetStateAction } from 'react';
 
+import { randomUUID } from '../../../utils/uuid';
 import { invalidateComposerFreeze, isComposerSealed, registerComposerFreezeParticipant, subscribeComposerFreeze, type ComposerDraftReceipt } from '../../../shared/composerFreeze';
 import { draftInputKey, notifyQueuedMessages, queuedMessageKey, subscribeQueuedMessages } from '../utils/chatStorage';
 import { composerQueueOwnerKey, readComposerQueueProjection } from '../utils/composerQueueProjection';
@@ -34,7 +35,7 @@ type Entry = {
   baseQueueIds: Set<string | undefined>;
 };
 const nextValue = <T,>(action: SetStateAction<T>, value: T): T => typeof action === 'function' ? (action as (old: T) => T)(value) : action;
-export const newQueuedDraftId = () => `queued_${crypto.randomUUID()}`;
+export const newQueuedDraftId = () => `queued_${randomUUID()}`;
 const retainedControllers = new Set<ComposerDraftController>();
 
 /** A steer reply may reach a replacement composer after its owner unmounted.

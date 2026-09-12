@@ -1,3 +1,4 @@
+import { randomUUID } from '../utils/uuid';
 import { captureComposerProjections, verifyComposerProjectionCoverage } from '../components/chat/utils/composerDraftVerification';
 import { ComposerStorageError } from '../components/chat/utils/composerDraftStorage';
 import type { DesktopDraftFreezeRequest, DesktopDraftReceipt, DesktopDraftFreezeReceipt } from '../../shared/desktopUpdateProtocol';
@@ -138,7 +139,7 @@ export function registerComposerFreezeParticipant(participant: Participant): () 
 }
 /** A lease covers the entire accepted operation, including upload/allocation and
  * cleanup. Freeze never aborts it. Steer leases survive until their reply. */
-export function beginComposerOperation(kind: 'send' | 'steer' | 'queue-dispatch' | 'voice' | 'attachment', id: string = crypto.randomUUID()): (() => void) | null {
+export function beginComposerOperation(kind: 'send' | 'steer' | 'queue-dispatch' | 'voice' | 'attachment', id: string = randomUUID()): (() => void) | null {
   if (lease || !id || usedOperationIds.has(id)) return null;
   const entry = { kind };
   usedOperationIds.add(id);

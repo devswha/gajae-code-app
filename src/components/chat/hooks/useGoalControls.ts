@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { randomUUID } from '../../../utils/uuid';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import type { GjcGoalOperation, GjcGoalSnapshot } from '../../../../shared/gjc-goal';
 
@@ -41,7 +42,7 @@ export function useGoalControlsWithConnection(
   }
   const view = current.current;
   const request = useCallback((input: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> => new Promise((resolve, reject) => {
-    const requestId = crypto.randomUUID();
+    const requestId = randomUUID();
     const finish = () => {
       clearTimeout(timer);
       signal?.removeEventListener('abort', abort);

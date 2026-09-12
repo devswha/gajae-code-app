@@ -138,7 +138,7 @@ test('debug-bundle carries the session row, the transcript tail and the log tail
     assert.match(bundle, /# Gajae Code App debug bundle/);
     assert.match(bundle, /no session "no-such-session"/);
     assert.match(bundle, /## worker log tail/);
-    assert.match(bundle, /## browser sidecar log tail/);
+    assert.doesNotMatch(bundle, /browser sidecar log tail/);
     assert.doesNotMatch(bundle, /undefined/);
   } finally {
     await server.close();

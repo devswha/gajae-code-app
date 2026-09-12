@@ -34,7 +34,7 @@ Gajae Code App is a self-hosted web and desktop interface for [Gajae Code](https
 - **The work, folded** — a turn's tool calls collapse into one block with a live status row; three output densities; Stop or Esc ends a turn, a message sent mid-turn steers it.
 - **Permissions that ask** — commands and destructive edits wait for approval by default; each project picks Ask, Auto-approve edits or Bypass, plus an always-allow list.
 - **A Changes tab, not a git GUI** — the working tree as a diff, a Last-turn scope for what the session just edited, and line comments that become the next message. Git stays the agent's job.
-- **A shared browser** — the agent verifies in a built-in Chromium tab; you can expand the same live page and keep going.
+- **Browser choices** — macOS desktop sessions can use the built-in system-WebView browser; web/self-host sessions use external links or the user's Aside setup.
 - **Every viewer** — a second tab or a phone on the LAN sees the same live run; the layout goes down to a phone screen.
 
 ## Quick Start
@@ -103,6 +103,7 @@ A card answered in one tab closes in every other viewer. Always deny is offered 
 
 - [Self-hosting](docs/SELF-HOST.md) · [Install the server release](docs/INSTALL.md) · [Changelog](CHANGELOG.md)
 - [Desktop packaging, signing and notarization](docs/DESKTOP-TAURI-VERIFICATION.md)
+- [Built-in browser contract](docs/BUILTIN-BROWSER.md)
 - [Linux desktop builds, installation and validation](docs/DESKTOP-LINUX.md)
 - [GJC provider and worker contract](server/GJC-LIVE-SPEC.md) · [Worker protocol](docs/GJC-WORKER-PROTOCOL.md)
 - [Design system](DESIGN.md) · [Repository guide for agents](AGENTS.md)

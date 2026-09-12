@@ -1,0 +1,8 @@
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 13px -apple-system, BlinkMacSystemFont, sans-serif; background: Canvas; color: CanvasText; }
+.toolbar { height: 56px; display: grid; grid-template-columns: auto auto auto minmax(120px,1fr) auto auto; grid-template-rows: 32px 12px; gap: 2px 6px; align-items: center; padding: 4px 8px; border-bottom: 1px solid ButtonBorder; }
+button, input { min-height: 32px; border: 1px solid ButtonBorder; border-radius: 6px; background: Field; color: FieldText; font: inherit; }
+button { padding: 0 10px; } button:disabled { opacity: .5; } input { width: 100%; padding: 0 9px; }
+#profile, #message { font-size: 11px; color: GrayText; white-space: nowrap; } #message { grid-column: 1 / -1; margin: 0; line-height: 12px; overflow: hidden; text-overflow: ellipsis; }
+.sr-only { position: absolute; width: 1px; height: 1px; clip: rect(0 0 0 0); overflow: hidden; }

@@ -63,7 +63,7 @@ export const GJC_AGENT_TOOL_NAMES: readonly string[] = [
   'web_search',
 
   // App-owned automation transports replace the SDK defaults, so the agent
-  // and the visible Workspace Browser operate the same Chromium session while
+  // and the visible Workspace Browser operate the same native WebView while
   // native application actions stay behind CUA Driver.
   'browser',
   'computer',

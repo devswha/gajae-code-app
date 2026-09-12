@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useRef } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject } from 'react';
-import { Activity, FileDiff, Globe2, PanelRightClose, X, type LucideIcon } from 'lucide-react';
+import { Activity, FileDiff, PanelRightClose, X, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { PillBar, Pill } from '../../../shared/view/ui';
@@ -16,12 +16,10 @@ import {
 
 const WorkspaceStatusTab = lazy(() => import('./WorkspaceStatusTab'));
 const WorkspaceChangesTab = lazy(() => import('./WorkspaceChangesTab'));
-const BrowserPanel = lazy(() => import('./BrowserPanel'));
 
 const TAB_ICONS: Record<WorkspaceTab, LucideIcon> = {
   status: Activity,
   changes: FileDiff,
-  browser: Globe2,
 };
 
 export type WorkspacePanelProps = {
@@ -38,9 +36,6 @@ export type WorkspacePanelProps = {
   onComposerInsert?: (text: string) => boolean;
   /** The project's permission mode, when the caller has loaded it. */
   permissionMode?: PermissionMode | null;
-  automationSessionId: string;
-  browserNavigation?: { id: number; url: string } | null;
-  onBrowserNavigationHandled?: () => void;
   resizeHandleRef: MutableRefObject<HTMLDivElement | null>;
   onTabChange: (tab: WorkspaceTab) => void;
   onResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void;
@@ -69,9 +64,6 @@ export default function WorkspacePanel({
   sessionStore,
   onComposerInsert,
   permissionMode = null,
-  automationSessionId,
-  browserNavigation,
-  onBrowserNavigationHandled,
   resizeHandleRef,
   onTabChange,
   onResizeStart,
@@ -177,13 +169,6 @@ export default function WorkspacePanel({
             lastTurnRunning={sessionStatus.activity.running}
             onComposerInsert={onComposerInsert}
             active={tab === 'changes'}
-          />
-        )}
-        {tab === 'browser' && (
-          <BrowserPanel
-            sessionId={automationSessionId}
-            navigationRequest={browserNavigation}
-            onNavigationHandled={onBrowserNavigationHandled}
           />
         )}
       </Suspense>

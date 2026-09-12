@@ -105,6 +105,7 @@ const backendElements = [
       'server/shared/tool-output-transport.ts',
       'server/shared/request-origin.ts',
       'server/shared/desktop-internal-activity.ts',
+      'server/shared/desktop-native-init.ts',
       'server/middleware/desktop-auth.js',
       'server/middleware/auth.js',
     ],

@@ -2,13 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { ExternalLink, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '../../../../shared/view/ui';
-import {
-  BROWSER_POC_TEST_URL,
-  isBrowserPocAvailable,
-  openBrowserPocWindow,
-  runBrowserPocTitleProbe,
-} from '../../../../utils/browserPoc';
+import { useAppShellStore } from '../../../../stores/useAppShellStore';
+import { builtinBrowserFailure, hasBuiltinBrowserBridge, openBuiltinBrowser } from '../../../../utils/builtinBrowser';
 import SettingsCard from '../SettingsCard';
 import SettingsRow from '../SettingsRow';
 import SettingsSection from '../SettingsSection';
@@ -17,7 +12,8 @@ type Status = {
   supported: boolean;
   platform: string;
   architecture: string;
-  browser: { installed: boolean; buildId: string; state: string; error?: string };
+  capabilities?: { browser: boolean; computer: boolean };
+  browser: { error?: string };
   cua: { installed: boolean; version?: string; daemon: string; accessibility?: boolean; screenRecording?: boolean; error?: string };
 };
 
@@ -26,7 +22,7 @@ type Grants = {
 };
 
 /** Mirrors `GJC_BROWSER_BACKENDS` in server/gjc-browser-backend.ts; the server rejects anything else. */
-const BROWSER_BACKENDS = ['native', 'aside'] as const;
+const BROWSER_BACKENDS = ['builtin', 'aside'] as const;
 type BrowserBackend = typeof BROWSER_BACKENDS[number];
 
 const selectClass = 'touch-manipulation rounded-lg border border-input bg-card p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary';
@@ -42,7 +38,8 @@ export default function AutomationSettingsTab() {
   const [loading, setLoading] = useState(true);
   const [browserBackend, setBrowserBackend] = useState<BrowserBackend | null>(null);
   const [browserBackendError, setBrowserBackendError] = useState<string | null>(null);
-  const [browserPocStatus, setBrowserPocStatus] = useState<string | null>(null);
+  const [builtinBrowserStatus, setBuiltinBrowserStatus] = useState<string | null>(null);
+  const selectedSessionId = useAppShellStore((state) => state.selectedSession?.id);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -106,15 +103,15 @@ export default function AutomationSettingsTab() {
     <div className="space-y-6">
       <SettingsSection title={t('automation.browserBackend.title')} description={t('automation.browserBackend.description')}>
         <SettingsCard>
-          <SettingsRow label={t('automation.browserBackend.label')} description={t(`automation.browserBackend.${browserBackend ?? 'native'}Description`)}>
+          <SettingsRow label={t('automation.browserBackend.label')} description={t(`automation.browserBackend.${browserBackend ?? 'builtin'}Description`)}>
             <select
               aria-label={t('automation.browserBackend.label')}
-              value={browserBackend ?? 'native'}
+              value={browserBackend ?? 'builtin'}
               disabled={browserBackend === null}
               onChange={(event) => { if (isBrowserBackend(event.target.value)) void changeBrowserBackend(event.target.value); }}
               className={`${selectClass} sm:w-48`}
             >
-              <option value="native">{t('automation.browserBackend.native')}</option>
+              <option value="builtin">{t('automation.browserBackend.builtin')}</option>
               <option value="aside">{t('automation.browserBackend.aside')}</option>
             </select>
           </SettingsRow>
@@ -128,39 +125,29 @@ export default function AutomationSettingsTab() {
 
       </SettingsSection>
 
-      {isBrowserPocAvailable() ? (
-        <SettingsSection title={t('automation.browserPoc.title')} description={t('automation.browserPoc.description')}>
+      {hasBuiltinBrowserBridge() ? (
+        <SettingsSection title={t('automation.builtinBrowser.title')} description={t('automation.builtinBrowser.description')}>
           <SettingsCard>
-            <SettingsRow label={t('automation.browserPoc.label')} description={t('automation.browserPoc.note')}>
+            <SettingsRow label={t('automation.builtinBrowser.label')} description={t('automation.builtinBrowser.note')}>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
+                <button
+                  type="button"
+                  disabled={status?.capabilities?.browser !== true}
+                  className="rounded-lg border border-input px-3 py-2 text-xs text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => {
-                    void openBrowserPocWindow(BROWSER_POC_TEST_URL).then((result) => {
-                      setBrowserPocStatus(result.ok
-                        ? t(result.created ? 'automation.browserPoc.opened' : 'automation.browserPoc.focused')
-                        : result.error);
-                    });
+                    setBuiltinBrowserStatus(null);
+                    void openBuiltinBrowser(selectedSessionId ?? 'manual').then(
+                      () => setBuiltinBrowserStatus(t('automation.builtinBrowser.opened')),
+                      (error) => setBuiltinBrowserStatus(t(`automation.builtinBrowser.errors.${builtinBrowserFailure(error)}`)),
+                    );
                   }}
                 >
-                  {t('automation.browserPoc.open')}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void runBrowserPocTitleProbe().then((result) => {
-                      setBrowserPocStatus(result.ok ? t('automation.browserPoc.probeSent') : result.error);
-                    });
-                  }}
-                >
-                  {t('automation.browserPoc.titleProbe')}
-                </Button>
+                  {t('automation.builtinBrowser.open')}
+                </button>
               </div>
             </SettingsRow>
-            {browserPocStatus ? (
-              <p className="px-4 pb-4 text-xs text-muted-foreground" role="status">{browserPocStatus}</p>
+            {builtinBrowserStatus ? (
+              <p className="px-4 pb-4 text-xs text-muted-foreground" role="status">{builtinBrowserStatus}</p>
             ) : null}
           </SettingsCard>
         </SettingsSection>
@@ -168,13 +155,6 @@ export default function AutomationSettingsTab() {
 
       <SettingsSection title={t('automation.title')} description={t('automation.description')}>
         <SettingsCard divided>
-          <div className="flex items-center justify-between gap-4 p-4">
-            <div>
-              <p className="text-sm font-medium text-foreground">{t('automation.chromium')}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{status?.browser.installed ? `${status.browser.buildId} · ${status.browser.state}` : t('automation.notDownloaded')}</p>
-            </div>
-            <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">CDP</span>
-          </div>
           <div className="flex items-center justify-between gap-4 p-4">
             <div>
               <p className="text-sm font-medium text-foreground">CUA Driver</p>

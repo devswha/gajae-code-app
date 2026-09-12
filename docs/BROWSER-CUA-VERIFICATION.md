@@ -1,5 +1,9 @@
 # Browser and CUA verification
 
+> Historical Chromium-sidecar evidence. Current built-in browser behavior is
+> specified in [BUILTIN-BROWSER.md](BUILTIN-BROWSER.md); do not treat the routes,
+> screencast tests or package claims below as current acceptance.
+
 Packaged-app baseline: 2026-08-21 on Apple Silicon macOS. Unreleased source
 checks are recorded separately below.
 

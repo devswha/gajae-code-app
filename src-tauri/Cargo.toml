@@ -19,7 +19,7 @@ serde_json = "=1.0.140"
 tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
-tauri = { version = "=2.11.5", features = [] }
+tauri = { version = "=2.11.5", features = ["unstable"] }
 getrandom = "0.2"
 fs2 = "=0.4.3"
 libc = "=0.2.186"
@@ -34,6 +34,11 @@ tauri-runtime-wry = "=2.11.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hmac = "=0.12.1"
+block2 = "=0.6.2"
+objc2 = { version = "=0.6.4", default-features = false, features = ["std"] }
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSView", "NSWindow"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSError", "NSString"] }
+objc2-web-kit = { version = "=0.3.2", default-features = false, features = ["std", "block2", "objc2-app-kit", "WKContentWorld", "WKFrameInfo", "WKNavigation", "WKWebView"] }
 rustls-webpki = { version = "=0.103.15", default-features = false, features = ["std"] }
 rustls-pki-types = "=1.15.1"
 rustls = { version = "=0.23.43", default-features = false, features = ["ring"] }

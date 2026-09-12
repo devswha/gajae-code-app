@@ -12,7 +12,6 @@ type UpgradeVerifier = Parameters<typeof verifyWebSocketClient>[1];
 type GatewayDependencies = {
   verifyClient: UpgradeVerifier;
   chat: Parameters<typeof handleChatConnection>[2]; shell: Parameters<typeof handleShellConnection>[1];
-  browser?: (ws: Parameters<typeof handleChatConnection>[0], request: AuthenticatedWebSocketRequest) => void;
 };
 
 function startHeartbeat(socket: Parameters<typeof handleChatConnection>[0]): void {
@@ -52,11 +51,6 @@ export function createWebSocketServer(server: HttpServer, dependencies: GatewayD
       },
       '/desktop-notifications': () => {
         handleDesktopNotificationsConnection(socket, request);
-        return true;
-      },
-      '/ws/browser': () => {
-        if (!dependencies.browser) return false;
-        dependencies.browser(socket, request);
         return true;
       },
     };

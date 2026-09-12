@@ -3,18 +3,18 @@ import { connect as connectSocket, type Socket } from 'node:net';
 import { performance } from 'node:perf_hooks';
 import type { Readable } from 'node:stream';
 
+import { DesktopNativeInit } from '../shared/desktop-native-init.js';
 import { isDesktopNativeCommand, isDesktopNativeReply, type DesktopNativeCommand, type DesktopNativeReply } from '../../shared/desktopRestartProtocol.js';
 
 import { DesktopRestartChannel, type DesktopRestartHandler } from './desktop-restart-channel.js';
 import { authenticNativeChallenge, isNativeSecret, type DesktopNativeBinding } from './desktop-update-transport.js';
 
-const MAX_INIT_BYTES = 4096;
 const MAX_RESPONSE_BYTES = 32 * 1024;
 const REQUEST_TIMEOUT_MS = 2_000;
 const MAX_PENDING = 4;
-const initPrefix = 'GJC_DESKTOP_UPDATE_INIT ';
 type Binding = DesktopNativeBinding;
 type Options = {
+  initialization?: DesktopNativeInit;
   input?: Readable;
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
@@ -31,51 +31,27 @@ export class DesktopUpdateRelay {
   private retired = false;
   private readonly pid: number;
   private readonly connect: typeof connectSocket;
-  private readonly input: Readable;
-  private inputBuffer = Buffer.alloc(0);
+  private readonly initialization: DesktopNativeInit;
+  private readonly ownsInitialization: boolean;
+  private unsubscribeInitialization: () => void = () => {};
   private readonly restart?: DesktopRestartHandler;
   private restartChannel?: DesktopRestartChannel;
 
   constructor(options: Options = {}) {
-    this.input = options.input ?? process.stdin;
     this.connect = options.connect ?? connectSocket;
     this.pid = options.pid ?? process.pid;
     this.restart = options.restart;
-    const env = options.env ?? process.env;
-    if ((options.platform ?? process.platform) !== 'darwin' || env.GJC_DESKTOP !== '1' || env.GJC_DESKTOP_UPDATE_PIPE !== '1') {
-      this.retired = true;
-      return;
-    }
-    // Only the supervisor's fresh stdin supplies this secret. It is never an
-    // environment variable, browser response, stdout frame or descendant input.
-    this.input.on('data', this.onData);
-    this.input.once('end', this.onEnd);
-    this.input.once('error', this.onEnd);
+    this.ownsInitialization = !options.initialization;
+    this.initialization = options.initialization ?? new DesktopNativeInit(options);
+    this.unsubscribeInitialization = this.initialization.subscribe((bindings) => {
+      if (this.retired) return;
+      if (this.initialization.isRetired()) { this.retire(); return; }
+      const next = bindings?.update ?? null;
+      if (this.binding === next) return;
+      this.binding = next;
+      if (next && this.restart) this.restartChannel = new DesktopRestartChannel({ binding: next, pid: this.pid, handler: this.restart, connect: this.connect });
+    });
   }
-
-  private readonly onEnd = () => { this.retire(); };
-  private readonly onData = (chunk: Buffer | string) => {
-    if (this.retired) return;
-    if (this.binding) { this.retire(); return; }
-    if (this.inputBuffer.length + Buffer.byteLength(chunk) > MAX_INIT_BYTES) { this.retire(); return; }
-    this.inputBuffer = Buffer.concat([this.inputBuffer, Buffer.from(chunk)]);
-    const newline = this.inputBuffer.indexOf(10);
-    if (newline === -1) return;
-    try {
-      const line = this.inputBuffer.toString('utf8', 0, newline);
-      if (newline !== this.inputBuffer.length - 1 || !line.startsWith(initPrefix)) throw new Error();
-      const value = JSON.parse(line.slice(initPrefix.length)) as Record<string, unknown>;
-      if (Object.keys(value).length !== 4 || value.protocolVersion !== 1
-        || typeof value.socket !== 'string' || !value.socket.startsWith('/') || value.socket.length > 1024
-        || !isNativeSecret(value.secret) || !isNativeSecret(value.epoch)) throw new Error();
-      this.binding = value as Binding;
-      this.inputBuffer.fill(0);
-      this.inputBuffer = Buffer.alloc(0);
-      if (this.restart) this.restartChannel = new DesktopRestartChannel({ binding: this.binding, pid: this.pid, handler: this.restart, connect: this.connect });
-    } catch {
-      this.retire();
-    }
-  };
 
   isAvailable(): boolean { return !this.retired && this.binding !== null; }
 
@@ -83,11 +59,8 @@ export class DesktopUpdateRelay {
     this.retired = true;
     this.restartChannel?.close();
     this.binding = null;
-    this.inputBuffer.fill(0);
-    this.inputBuffer = Buffer.alloc(0);
-    this.input.off('data', this.onData);
-    this.input.off('end', this.onEnd);
-    this.input.off('error', this.onEnd);
+    this.unsubscribeInitialization();
+    if (this.ownsInitialization) this.initialization.retire();
     for (const socket of this.pending) socket.destroy();
   }
 

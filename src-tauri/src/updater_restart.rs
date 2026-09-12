@@ -484,6 +484,7 @@ async fn abort(
     }
     let displayed = attempt.displayed.load(Ordering::Acquire);
     attempt.set(Phase::Aborted);
+    crate::builtin_browser::release_fence(app);
     if displayed {
         crate::updater_launch::cancel_manual_display(app, &attempt.context.return_url);
     }
@@ -508,6 +509,9 @@ fn recover(
 async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply, &'static str> {
     if !attempt.current() || Instant::now() >= attempt.deadline {
         return abort(app, &attempt, "updater_restart_cancelled").await;
+    }
+    if crate::builtin_browser::fence(app).is_err() {
+        return abort(app, &attempt, "updater_owner_unknown").await;
     }
     crate::reset_deep_link_readiness(app);
     if crate::flush_deep_links(app).is_err() {

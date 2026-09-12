@@ -20,7 +20,7 @@ async function fixture(t: TestContext, allowedHosts?: string) {
       else process.env[key] = value;
     }
   });
-  const calls = { starts: 0, lists: 0, sockets: 0 };
+  const calls = { starts: 0, lists: 0, owners: 0 };
   const { server, wss } = createGjcAppFactory({
     authority: { list: async () => { calls.lists++; return { items: [{ jobId: 'private-job' }] }; } },
     orchestrator: {
@@ -30,12 +30,11 @@ async function fixture(t: TestContext, allowedHosts?: string) {
     gitService: {},
     projection: { publish() {} },
     terminalNotificationAdapter: undefined,
-    authenticateWebSocket: () => ({ userId: 'fixture-owner', username: 'fixture-owner' }),
+    authenticateWebSocket: () => { calls.owners++; return { userId: 'fixture-owner', username: 'fixture-owner' }; },
     authenticateGjcRoute: (_request: unknown, _response: unknown, next: () => void) => next(),
     validateApiKey,
     chat: {} as never,
     shell: {} as never,
-    browser: ((socket: WebSocket) => { calls.sockets++; socket.send('fixture-browser'); }) as never,
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -63,7 +62,7 @@ async function fixture(t: TestContext, allowedHosts?: string) {
       request.end(payload);
     }),
     connect: (headers: Record<string, string>) => new Promise<number>((resolve, reject) => {
-      const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws/browser`, { headers });
+      const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws`, { headers });
       let rejectedHandshake = false;
       socket.once('unexpected-response', (_request, response) => {
         rejectedHandshake = true;
@@ -71,7 +70,7 @@ async function fixture(t: TestContext, allowedHosts?: string) {
         socket.terminate();
         resolve(response.statusCode ?? 0);
       });
-      socket.once('message', () => { socket.terminate(); resolve(101); });
+      socket.once('open', () => { socket.terminate(); resolve(101); });
       socket.once('error', (error) => {
         // terminate() after a rejected handshake has no established socket.
         if (!rejectedHandshake) reject(error);
@@ -118,13 +117,13 @@ test('loopback, literal remote addresses and configured HTTPS reverse proxies st
   }
   assert.equal((await server.request({ host: 'studio.example' }, 'GET')).status, 200);
   assert.equal(server.calls.starts, allowed.length);
-  assert.equal(server.calls.sockets, allowed.length);
+  assert.equal(server.calls.owners, allowed.length);
 });
 
 test('configured hosts also reject matching malicious WebSocket Host and Origin', async (t) => {
   const server = await fixture(t, 'studio.example');
   assert.equal(await server.connect({ host: 'attacker.example', origin: 'http://attacker.example' }), 401);
-  assert.equal(server.calls.sockets, 0);
+  assert.equal(server.calls.owners, 0);
 });
 
 test('default loopback deployment rejects arbitrary DNS Host names on HTTP and WebSocket routes', async (t) => {
@@ -134,7 +133,7 @@ test('default loopback deployment rejects arbitrary DNS Host names on HTTP and W
   const get = await server.request({ host: 'attacker.example' }, 'GET');
   const websocket = await server.connect(headers);
   assert.deepEqual({ post: post.status, get: get.status, websocket, calls: server.calls }, {
-    post: 403, get: 403, websocket: 401, calls: { starts: 0, lists: 0, sockets: 0 },
+    post: 403, get: 403, websocket: 401, calls: { starts: 0, lists: 0, owners: 0 },
   });
   for (const forged of [
     { host: 'attacker.example', origin: 'https://attacker.example', 'x-forwarded-proto': 'https' },

@@ -76,7 +76,7 @@ test('GET producers and later mounted routes share the production composition fe
   const denied = await fetch(`${origin}/api/probe`);
   assert.equal(denied.status, 503);
   assert.equal(denied.headers.get('retry-after'), '1');
-  assert.equal((await denied.json()).code, 'DESKTOP_RESTART_FENCED');
+  assert.equal((await denied.json() as { code: string }).code, 'DESKTOP_RESTART_FENCED');
   assert.equal(starts, 0);
   assert.equal((await fetch(`${origin}/api/owner-probe`)).status, 503);
   assert.equal(ownerAttachments, 0, 'new requests must not create an owner before handler admission');

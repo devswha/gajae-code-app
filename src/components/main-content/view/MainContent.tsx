@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { MainContentProps } from '../types/types';
 import { usePaletteOpsRegister } from '../../../stores/usePaletteOpsStore';
@@ -8,12 +9,12 @@ import { useFileOpenResolver } from '../../../hooks/useFileOpenResolver';
 import { useProjectPermissions } from '../../../hooks/useProjectPermissions';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useWorkspacePanel } from '../../workspace/hooks/useWorkspacePanel';
-import { useBrowserAutoReveal } from '../../workspace/hooks/useBrowserAutoReveal';
 import { MIN_WORKSPACE_CHAT_WIDTH } from '../../workspace/workspacePanelState';
 import { useAgentSidebar } from '../../agent-sidebar/hooks/useAgentSidebar';
 import { MIN_AGENT_SIDEBAR_CHAT_WIDTH } from '../../agent-sidebar/agentSidebarState';
 import { api } from '../../../utils/api';
 import { openBrowserUrl } from '../../../utils/externalLink';
+import { builtinBrowserFailure, hasBuiltinBrowserBridge, openBuiltinBrowser, type BuiltinBrowserFailure } from '../../../utils/builtinBrowser';
 import { useSessionLocation } from '../../chat/hooks/useSessionLocation';
 
 import MainContentHeader from './MainContentHeader';
@@ -43,6 +44,7 @@ function MainContent({
   onShowSettings,
   newSessionTrigger,
 }: MainContentProps) {
+  const { t } = useTranslation(['common', 'settings']);
   const { showImagePreviews, toolOutputDensity, sendByCtrlEnter, agentSidebarV2 } = useUiPreferences().preferences;
   const sessionStore = useSessionStore();
   const panel = useWorkspacePanel({ isMobile });
@@ -60,8 +62,6 @@ function MainContent({
   const toggleRightRail = agentSidebarV2 ? agentSidebar.toggle : togglePanel;
   // The legacy expanded mode must not hide the chat while the experiment is on.
   const chatHidden = !agentSidebarV2 && expanded;
-  const [pendingBrowserNavigation, setPendingBrowserNavigation] = useState<{ id: number; url: string } | null>(null);
-  const navigationSequence = useRef(0);
   const { permissions: projectPermissions } = useProjectPermissions(selectedProject?.projectId);
   const sessionLocation = useSessionLocation(selectedSession?.id);
   // Where the selected session runs (its worktree, once known) or, with no
@@ -70,8 +70,9 @@ function MainContent({
   const automationSessionId = selectedProject
     ? selectedSession?.id ?? `project-${selectedProject.projectId}`
     : undefined;
-  // Auto-reveal only targets the legacy panel; the experimental rail has no browser surface.
-  useBrowserAutoReveal(isLoading || agentSidebarV2 ? undefined : automationSessionId, panel.openPanel);
+  const automationSessionIdRef = useRef(automationSessionId);
+  automationSessionIdRef.current = automationSessionId;
+  const [browserFailure, setBrowserFailure] = useState<{ kind: BuiltinBrowserFailure; sessionId: string } | null>(null);
 
   const revealFile = useCallback((path: string) => {
     void api.system.openFile(path).catch((error) => {
@@ -91,27 +92,39 @@ function MainContent({
     openFile: revealFile,
     openFileInEditor: resolveFile,
     openBrowser: (address: string) => {
-      // The experimental rail has no browser surface yet (follow-up): open the
-      // link in the user's own browser instead of queueing a navigation that
-      // nothing would consume until the legacy panel came back.
-      if (agentSidebarV2) {
+      if (!hasBuiltinBrowserBridge() || !automationSessionId) {
         void openBrowserUrl(address);
         return;
       }
-      navigationSequence.current += 1;
-      setPendingBrowserNavigation({ id: navigationSequence.current, url: address });
-      setTab('browser');
+      const requestSessionId = automationSessionId;
+      setBrowserFailure(null);
+      void openBuiltinBrowser(requestSessionId, address).catch((error) => {
+        console.error('Failed to open the built-in browser:', error);
+        if (automationSessionIdRef.current === requestSessionId) {
+          setBrowserFailure({ kind: builtinBrowserFailure(error), sessionId: requestSessionId });
+        }
+      });
     },
   });
 
+  const visibleBrowserFailure = browserFailure?.sessionId === automationSessionId ? browserFailure : null;
+  const browserFailureNotice = visibleBrowserFailure ? (
+    <p className="mx-3 mt-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">
+      {t(`automation.builtinBrowser.errors.${visibleBrowserFailure.kind}`, { ns: 'settings' })}
+    </p>
+  ) : null;
+
   if (isLoading) {
     return (
-      <MainContentStateView
-        mode="loading"
-        isMobile={isMobile}
-        onMenuClick={onMenuClick}
-        onNewSession={onNewSession}
-      />
+      <>
+        {browserFailureNotice}
+        <MainContentStateView
+          mode="loading"
+          isMobile={isMobile}
+          onMenuClick={onMenuClick}
+          onNewSession={onNewSession}
+        />
+      </>
     );
   }
 
@@ -139,6 +152,7 @@ function MainContent({
         onToggleWorkspace={toggleRightRail}
         rightRail={agentSidebarV2 ? 'agentSidebar' : 'workspace'}
       />
+      {browserFailureNotice}
 
       <SessionStatusProvider>
       <div ref={agentSidebarV2 ? undefined : containerRef} className="flex min-h-0 flex-1 overflow-hidden">
@@ -186,9 +200,6 @@ function MainContent({
             sessionId: selectedSession?.id,
             onComposerInsert: handleComposerInsert,
             permissionMode: projectPermissions?.mode ?? null,
-            automationSessionId: automationSessionId!,
-            browserNavigation: pendingBrowserNavigation,
-            onBrowserNavigationHandled: () => setPendingBrowserNavigation(null),
             resizeHandleRef,
             onTabChange: setTab,
             onResizeStart: handleResizeStart,

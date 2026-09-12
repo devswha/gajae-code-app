@@ -124,36 +124,6 @@
         "abandoned": "Verworfen"
       }
     },
-    "browser": {
-      "address": "Webadresse",
-      "back": "Zurück",
-      "forward": "Vorwärts",
-      "reload": "Seite neu laden",
-      "external": "Öffnen Sie es in Ihrem Standardbrowser",
-      "stop": "Beenden Sie die Browsersitzung",
-      "preview": "Chromium Live-Vorschau",
-      "empty": "Geben Sie eine URL ein oder wählen Sie eine lokale Entwicklungsadresse aus.",
-      "installTitle": "Installieren Sie den Entwicklungsbrowser",
-      "installDescription": "Gajae verwendet einen separaten Chrome for Testing-Download und ein isoliertes Browserprofil.",
-      "download": "Holen Sie sich Chromium und starten Sie es",
-      "preparing": "Chromium einrichten…",
-      "downloading": "Erhalten Chromium… {{progress}}%",
-      "connecting": "Verlinkung zum Entwicklungsbrowser…",
-      "newTab": "Tab öffnen",
-      "closeTab": "Registerkarte schließen",
-      "connection": {
-        "connecting": "Verbinden",
-        "live": "Lebe",
-        "offline": "Offline"
-      },
-      "unsupported": "Für die Automatisierungsvorschau ist Apple Silicon mit macOS 14 oder neuer erforderlich.",
-      "error": "Die Browserautomatisierung konnte nicht gestartet werden.",
-      "downloadBlocked": "Blockierter Download: {{filename}}. Diese Vorschau kann keine Downloads speichern.",
-      "downloadUnknown": "herunterladen",
-      "dialogDismissed": "Gajae hat einen Seitendialog geschlossen: {{message}}",
-      "cua": "Native Apps · CUA Driver",
-      "cuaMissing": "Nicht verfügbar"
-    },
     "statusTab": {
       "session": "Sitzung",
       "model": "Modell",

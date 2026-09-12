@@ -28,10 +28,6 @@ function fakeService(calls: RecordedCall[]): AutomationService {
       calls.push({ method: 'command', sessionId, payload });
       return { ok: true };
     },
-    inputBrowser: async (sessionId: string, payload: unknown) => {
-      calls.push({ method: 'input', sessionId, payload });
-      return { accepted: true };
-    },
     stopSession: async (sessionId: string) => {
       calls.push({ method: 'close', sessionId });
       return { closed: true };
@@ -78,18 +74,17 @@ const json = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-test('the public browser API forwards open, command, input, and stop to one shared session', async () => {
+test('the public browser API forwards native browser commands and removes legacy input forwarding', async () => {
   const calls: RecordedCall[] = [];
   const server = await serve(createBrowserAutomationRouter(fakeService(calls)));
   try {
     assert.equal((await server.request('/qa-session/open', json({ url: 'https://example.test', allowDownload: false }))).status, 200);
     assert.equal((await server.request('/qa-session/command', json({ command: { action: 'observe' } }))).status, 200);
-    assert.equal((await server.request('/qa-session/input', json({ input: { kind: 'text', text: 'hello' } }))).status, 200);
+    assert.equal((await server.request('/qa-session/input', json({ input: { kind: 'text', text: 'hello' } }))).status, 404);
     assert.equal((await server.request('/qa-session', { method: 'DELETE' })).status, 200);
     assert.deepEqual(calls, [
-      { method: 'open', sessionId: 'qa-session', payload: { url: 'https://example.test', allowDownload: false } },
+      { method: 'open', sessionId: 'qa-session', payload: { url: 'https://example.test' } },
       { method: 'command', sessionId: 'qa-session', payload: { action: 'observe' } },
-      { method: 'input', sessionId: 'qa-session', payload: { kind: 'text', text: 'hello' } },
       { method: 'close', sessionId: 'qa-session' },
     ]);
   } finally {
@@ -111,7 +106,7 @@ test('automation routes exercise a fake CUA backend and persistent grant revoke 
       scope: 'always',
     }));
     assert.equal(granted.status, 200);
-    assert.equal((await granted.json()).length, 1);
+    assert.equal((await granted.json() as unknown[]).length, 1);
 
     const revoked = await server.request('/grants', {
       method: 'DELETE',

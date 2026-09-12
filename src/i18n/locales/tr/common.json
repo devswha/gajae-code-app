@@ -124,36 +124,6 @@
         "abandoned": "Vazgeçildi"
       }
     },
-    "browser": {
-      "address": "Web adresi",
-      "back": "Geri",
-      "forward": "İleri",
-      "reload": "Sayfayı yeniden yükle",
-      "external": "Varsayılan tarayıcınızda açın",
-      "stop": "Tarayıcı oturumunu sonlandır",
-      "preview": "Chromium canlı önizlemesi",
-      "empty": "Bir URL girin veya yerel bir geliştirme adresi seçin.",
-      "installTitle": "Geliştirme tarayıcısını yükleyin",
-      "installDescription": "Gajae, Test indirme işlemi ve yalıtılmış tarayıcı profili için ayrı bir Chrome kullanır.",
-      "download": "Chromium'u edinin ve başlatın",
-      "preparing": "Chromium kuruluyor…",
-      "downloading": "Chromium Alınıyor…%{{progress}}",
-      "connecting": "Geliştirme tarayıcısına bağlanılıyor…",
-      "newTab": "Sekmeyi aç",
-      "closeTab": "Sekmeyi kapat",
-      "connection": {
-        "connecting": "Bağlanıyor",
-        "live": "Canlı",
-        "offline": "Çevrimdışı"
-      },
-      "unsupported": "Otomasyon önizlemesi için macOS 14 veya daha yeni bir sürüme sahip Apple Silicon gerekir.",
-      "error": "Tarayıcı otomasyonu başlatılamadı.",
-      "downloadBlocked": "İndirme işlemi engellendi: . Bu önizleme indirilenleri kaydedemez. {{filename}}",
-      "downloadUnknown": "indir",
-      "dialogDismissed": "Gajae bir sayfa iletişim kutusunu kapattı: {{message}}",
-      "cua": "Yerel uygulamalar · CUA Sürücüsü",
-      "cuaMissing": "Kullanılamıyor"
-    },
     "statusTab": {
       "session": "Oturum",
       "model": "Modeli",

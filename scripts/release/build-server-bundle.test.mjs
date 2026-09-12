@@ -53,7 +53,7 @@ test('root npm ci preserves node-pty repair and runs the canonical SDK applier w
 });
 
 test('verify, npm test, direct e2e scripts and server builds reject an unapplied SDK before work', () => {
-  for (const name of ['verify', 'pretest', 'test:e2e:gjc', 'test:e2e:browser', 'prebuild:server']) {
+  for (const name of ['verify', 'pretest', 'test:e2e:gjc', 'prebuild:server']) {
     assert.ok(sourcePackage.scripts[name].startsWith('npm run check:sdk-patch && '), name);
     assert.ok(sourcePackage.scripts[name].includes('npm run check:extract-zip-patch && '), name);
     assert.equal(sourcePackage.scripts[name].includes('npm run apply:extract-zip-patch'), false);

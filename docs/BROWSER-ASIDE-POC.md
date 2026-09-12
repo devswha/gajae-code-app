@@ -30,9 +30,9 @@ and never taken from a client request.
   is an explicit runtime selection, so a user-level Aside setting cannot change
   the app's selected surface. Built-in browser automation is available only in
   the supported desktop implementation; web/self-host sessions receive an
-  explicit unsupported browser action response rather than a Chromium fallback.
+  unavailable browser toolset rather than a Puppeteer fallback.
 - Aside overrides `browser.backend` to `aside` on the per-run settings clone and
-  withholds the app's Chromium `browser` transport, because the SDK registers a
+  withholds the app's WebView `browser` transport, because the SDK registers a
   supplied automation tool unconditionally. Everything after that is the
   runtime's: the routing block, the tool hiding, the repl/exec policy, the skill
   instruction.
@@ -77,7 +77,7 @@ and never taken from a client request.
 6. **Is any custom Aside integration necessary in the app?** No. The app change
    is a setting, a run option, one settings override, one automation-tool
    filter, and a pre-start probe that reuses the runtime's discovery. The one
-   thing the app *had* to do is the filter: without it the app's Chromium tool
+   thing the app *had* to do is the filter: without it the app's WebView tool
    would still be registered beside a prompt saying the built-in browser is
    disabled (the SDK bypasses `isAvailable` for supplied automation tools).
 7. **Limitations observed.**
@@ -91,11 +91,11 @@ and never taken from a client request.
      and the `Aside CLI.app` bundle are absolute candidates and unaffected.
    - The Aside-unavailable refusal applies to every turn while Aside is
      selected, including turns that need no browser. Deliberate: a session
-     that silently ran in the app's Chromium would act in the wrong profile.
+     that silently ran in the app's WebView would act in the wrong profile.
    - A user with `browser.backend: aside` in their own GJC configuration gets
      the selected Built-in runtime mode when the app chooses Built-in; the
      per-run override prevents a mixed configuration.
-   - With Aside selected the Browser panel's Chromium is not what the agent
+   - With Aside selected the Browser panel's WebView is not what the agent
      drives; the panel is unchanged and still works for the user directly.
    - The runtime's Aside skill instruction only applies when a user-installed
      `aside` skill exists; the app does not ship one and must not.

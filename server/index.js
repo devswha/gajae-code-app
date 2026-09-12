@@ -83,6 +83,7 @@ import authRoutes from './routes/auth.js';
 import settingsRoutes from './routes/settings.js';
 import { createGjcAppFactory } from './app-factory.js';
 import { DesktopUpdateRelay } from './services/desktop-update-relay.js';
+import { DesktopNativeInit } from './shared/desktop-native-init.js';
 import { createDesktopRestartRuntime } from './services/desktop-restart-runtime.js';
 import { DesktopRestartBackend } from './services/desktop-restart-backend.js';
 import { listenForStartup } from './services/server-listener.js';
@@ -109,7 +110,6 @@ import {
     createBrowserAutomationRouter,
     createBrowserDesktopRestartReader,
     createComputerDesktopRestartReader,
-    handleBrowserConnection,
 } from './modules/automation/index.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
 import { c } from './utils/colors.js';
@@ -147,6 +147,8 @@ function getPendingProviderApprovalsForSession(sessionId) {
 }
 
 const gjcJobAuthority = getProductionJobAuthority();
+const desktopNativeInit = new DesktopNativeInit();
+automationService.configureNativeInitialization(desktopNativeInit);
 configureSessionWorktrees({ validateRepository: validateSessionRepository, readLocation: readSessionLocation, resolveWorkspace: resolveSessionWorkspacePath });
 const gjcJobOrchestrator = getProductionJobOrchestrator();
 const gjcJobProjection = new GjcJobProjectionService({
@@ -216,7 +218,7 @@ function steerGjcChatRun(runId, message) {
 
 const { app, server, wss } = createGjcAppFactory({
     desktopRestartAdmission,
-    desktopUpdateRelay: new DesktopUpdateRelay({ restart: desktopRestartBackend }),
+    desktopUpdateRelay: new DesktopUpdateRelay({ initialization: desktopNativeInit, restart: desktopRestartBackend }),
     authority: gjcJobAuthority,
     orchestrator: gjcJobOrchestrator,
     gitService: getProductionGjcJobGitService(
@@ -258,7 +260,6 @@ const { app, server, wss } = createGjcAppFactory({
         extractUrlsFromText,
         shouldAutoOpenUrlFromOutput,
     },
-    browser: handleBrowserConnection,
 });
 
 // Public health check endpoint (no authentication required)

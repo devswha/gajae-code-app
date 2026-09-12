@@ -5,13 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { DesktopWorkAdmission } from '@/shared/interfaces.js';
+import type { DesktopNativeInit } from '@/shared/desktop-native-init.js';
 
 import type { DesktopOwnerActivity } from '../../../shared/desktopUpdateProtocol.js';
+import { isBuiltinBrowserBinding, type BuiltinBrowserBinding, type BuiltinBrowserCommand } from '../../../shared/builtinBrowserProtocol.js';
 
 import { AutomationGrantStore, type AutomationGrant } from './automation-grants.js';
 import { browserBackendStore } from './browser-backend.js';
-import { BrowserSidecarClient, type BrowserEventListener } from './browser-sidecar-client.js';
-import type { BrowserCommand, BrowserInput, BrowserSessionState } from './browser-protocol.js';
+import { TauriBrowserClient } from './tauri-browser-client.js';
 import { automationOrigin } from './automation-url.js';
 import { CuaDriverClient, isCuaSafeTool, type CuaSafeTool } from './cua-client.js';
 
@@ -106,16 +107,6 @@ const COMPUTER_DISCOVERY_TOOLS = new Set<CuaSafeTool>([
   'start_session', 'end_session', 'list_apps', 'get_accessibility_tree', 'move_cursor',
 ]);
 
-/**
- * Synthetic identity for the app-owned Chrome-for-Testing sidecar. It runs
- * outside any installed app bundle, so the CUA inventory cannot resolve its
- * windows to a bundle id — without this identity every computer action against
- * the Workspace Browser window fails as "unresolvable" even though the target
- * is the app's own browser.
- */
-const WORKSPACE_BROWSER_APPLICATION_ID = 'app.gajae.workspace-browser';
-const WORKSPACE_BROWSER_LABEL = 'Workspace Browser';
-
 type ComputerSession = {
   label: string;
   starting?: Promise<{ label: string; result: unknown }>;
@@ -128,13 +119,14 @@ export function automationSupport(platform: NodeJS.Platform, arch: string, envir
   const desktop = environment.GJC_DESKTOP === '1';
   const mac = platform === 'darwin' && arch === 'arm64';
   return {
-    browser: override || (desktop && (mac || (platform === 'linux' && arch === 'x64'))),
+    // A launch candidate only. Public capability requires an authenticated native status below.
+    browser: desktop && mac,
     computer: override || (desktop && mac),
   };
 }
 
 export class AutomationService {
-  readonly browser = new BrowserSidecarClient();
+  readonly browser = new TauriBrowserClient();
   readonly cua = new CuaDriverClient({ onSessionClosed: (label) => {
     for (const [id, session] of this.cuaSessionLabels) {
       if (session.label === label) {
@@ -147,7 +139,7 @@ export class AutomationService {
   /** The app's browser backend choice for GJC runs; the runtime owns everything it selects. */
   readonly browserBackend = browserBackendStore;
   private readonly capabilities = automationSupport(process.platform, process.arch, process.env);
-  readonly supported = this.capabilities.browser;
+  get supported(): boolean { return this.browser.isReady(); }
   private readonly bridgeToken = randomBytes(32).toString('hex');
   private readonly bridgePath = process.env.GAJAE_AUTOMATION_SOCKET
     ?? join(tmpdir(), `gajae-automation-${process.pid}.sock`);
@@ -163,6 +155,10 @@ export class AutomationService {
 
   constructor(admission?: DesktopWorkAdmission) {
     this.configureDesktopRestartAdmission(admission);
+  }
+
+  configureNativeInitialization(initialization: DesktopNativeInit): void {
+    this.browser.configureInitialization(initialization);
   }
 
   configureDesktopRestartAdmission(admission?: DesktopWorkAdmission): void {
@@ -201,15 +197,14 @@ export class AutomationService {
     const release = this.enter('status');
     try {
       const [browser, cua] = await Promise.all([
-        this.supported
-          ? this.browser.status().catch((error) => ({ state: 'error', installed: false, buildId: 'unknown', error: error instanceof Error ? error.message : String(error) }))
-          : Promise.resolve({ state: 'idle', installed: false, buildId: 'unsupported' }),
+        this.browser.status().catch(() => ({ state: 'unavailable' as const, ready: false, engine: 'webview' as const })),
         this.capabilities.computer
           ? this.cua.status()
           : Promise.resolve({ installed: false, daemon: 'unknown' as const }),
       ]);
       return {
-        supported: this.supported,
+        supported: browser.ready,
+        capabilities: { browser: browser.ready, computer: this.capabilities.computer },
         computerSupported: this.capabilities.computer,
         platform: process.platform,
         architecture: process.arch,
@@ -219,32 +214,26 @@ export class AutomationService {
     } finally { release(); }
   }
 
-  subscribeBrowser(listener: BrowserEventListener): () => void {
-    return this.browser.subscribe(listener);
-  }
-
   async openBrowser(
     sessionId: string,
-    payload: { url?: string; allowDownload?: boolean; waitUntil?: string },
+    payload: { url?: string },
     signal?: AbortSignal,
   ): Promise<unknown> {
-    this.requireSupported();
     const release = this.enter('browser.open');
-    try { return await this.browser.open(sessionId, payload, signal); }
+    try {
+      await this.requireBrowserSupported();
+      return await this.browser.open(sessionId, payload, signal);
+    }
     finally { release(); }
   }
 
-  async commandBrowser(sessionId: string, command: BrowserCommand, signal?: AbortSignal): Promise<unknown> {
-    this.requireSupported();
+  async commandBrowser(sessionId: string, command: BuiltinBrowserCommand, signal?: AbortSignal, expected?: unknown): Promise<unknown> {
     const release = this.enter('browser.command');
-    try { return await this.browser.command(sessionId, command, signal); }
-    finally { release(); }
-  }
-
-  async inputBrowser(sessionId: string, input: BrowserInput): Promise<unknown> {
-    this.requireSupported();
-    const release = this.enter('browser.input');
-    try { return await this.browser.input(sessionId, input); }
+    try {
+      await this.requireBrowserSupported();
+      if (!isBuiltinBrowserBinding(expected)) throw new Error('browser_observation_required');
+      return await this.browser.command(sessionId, command, expected, signal);
+    }
     finally { release(); }
   }
 
@@ -274,18 +263,16 @@ export class AutomationService {
     sessionId: string,
     payload: { url?: unknown; scope?: unknown },
     signal?: AbortSignal,
-  ): Promise<{ granted: boolean; origin: string | null }> {
-    this.requireSupported();
+  ): Promise<{ granted: boolean; origin: string | null; binding: BuiltinBrowserBinding | null }> {
     const release = this.enter('browser.authorize');
     try {
-      let rawUrl = typeof payload.url === 'string' ? payload.url : undefined;
-      if (!rawUrl) {
-        const state = await this.browser.state(sessionId, signal) as BrowserSessionState;
-        rawUrl = state.tabs.find((tab) => tab.id === state.activeTabId)?.url;
-      }
+      await this.requireBrowserSupported();
+      const state = await this.browser.state(sessionId, signal);
+      const rawUrl = typeof payload.url === 'string' ? payload.url
+        : state.tabs.find((tab) => tab.id === state.activeTabId)?.url;
       if (!rawUrl) throw new Error('Open a browser tab before requesting browser access.');
       const origin = automationOrigin(rawUrl);
-      if (!origin) return { granted: true, origin: null };
+      if (!origin) return { granted: true, origin: null, binding: state.binding };
       if (payload.scope === 'session' || payload.scope === 'always') {
         this.grant({
           kind: 'origin',
@@ -294,7 +281,7 @@ export class AutomationService {
           ...(payload.scope === 'session' ? { sessionId } : {}),
         });
       }
-      return { granted: this.grants.has('origin', origin, sessionId), origin };
+      return { granted: this.grants.has('origin', origin, sessionId), origin, binding: state.binding };
     } finally { release(); }
   }
 
@@ -318,12 +305,11 @@ export class AutomationService {
 
       let pid = requestedPid(args);
       const windowId = requestedWindowId(args);
-      const sidecarPid = this.browser.browserPid;
       const needsApplication = payload.tool === 'launch_app'
       || pid !== undefined
       || windowId !== undefined
       || (payload.tool === 'list_windows' && args.pid !== undefined);
-      if (!application && needsApplication && !(pid !== undefined && pid === sidecarPid)) {
+      if (!application && needsApplication) {
         const inventory = await this.cua.call(
           pid === undefined && windowId !== undefined ? 'list_windows' : 'list_apps',
           {},
@@ -346,11 +332,6 @@ export class AutomationService {
         ));
         if (match && typeof match.bundle_id === 'string') application = match.bundle_id.trim();
         if (match && typeof match.name === 'string' && match.name.trim()) label = match.name.trim();
-      }
-
-      if (!application && pid !== undefined && pid === sidecarPid) {
-        application = WORKSPACE_BROWSER_APPLICATION_ID;
-        label = WORKSPACE_BROWSER_LABEL;
       }
 
       if (!application) {
@@ -393,7 +374,7 @@ export class AutomationService {
   }
 
   async startBridge(): Promise<void> {
-    if (!this.supported) return;
+    if (!this.capabilities.browser && !this.capabilities.computer) return;
     if (this.bridgeStarting) return this.bridgeStarting;
     if (this.bridge) return;
     const release = this.enter('bridge.start');
@@ -530,12 +511,12 @@ export class AutomationService {
     return session.ending;
   }
 
-  private requireSupported(): void {
-    if (!this.supported) throw new Error('Browser automation is available in the macOS arm64 and Linux x64 desktop apps.');
+  private async requireBrowserSupported(): Promise<void> {
+    const status = await this.browser.status();
+    if (!status.ready) throw new Error('builtin_browser_unavailable');
   }
 
   private requireComputerSupported(): void {
-    this.requireSupported();
     if (!this.capabilities.computer) throw new Error('Native computer automation is not enabled on this platform.');
   }
 
@@ -579,8 +560,9 @@ export class AutomationService {
         else if (request.operation === 'authorize') result = await this.authorizeBrowser(request.sessionId, object(request.payload), controller.signal);
         else result = await this.commandBrowser(
           request.sessionId,
-          object(request.payload?.command) as BrowserCommand,
+          object(request.payload?.command) as BuiltinBrowserCommand,
           controller.signal,
+          request.payload?.expected,
         );
       } else if (request.surface === 'computer' && request.operation === 'authorize') {
         result = await this.authorizeComputer(request.sessionId, {

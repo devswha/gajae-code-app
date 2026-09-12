@@ -238,12 +238,17 @@ mod tests {
     fn exact_correlated_exchange_and_retirement() {
         let (native, mut node) = UnixStream::pair().unwrap();
         let backend = Backend::new(native, "a".repeat(64)).unwrap();
+        let (release_peer, keep_peer) = std::sync::mpsc::channel::<()>();
         let peer = std::thread::spawn(move || {
             let request = read_frame(&mut node, Instant::now() + TEST_DEADLINE).unwrap();
             assert_eq!(request["command"], serde_json::json!({"action":"status"}));
             let reply = serde_json::json!({"protocolVersion":1,"kind":"restartControlResult","epoch":request["epoch"],"id":request["id"],
                 "result":{"ok":true,"state":"open","attemptId":null,"token":null,"expiresInMs":null,"error":null}});
             writeln!(node, "{reply}").unwrap();
+            // Production keeps this control channel alive until retirement.
+            // Dropping the peer immediately after writing races the native
+            // liveness check, even when the reply is already buffered.
+            let _ = keep_peer.recv();
         });
         assert_eq!(
             backend
@@ -253,6 +258,7 @@ mod tests {
             State::Open
         );
         backend.retire();
+        drop(release_peer);
         assert!(backend
             .request(Control::Status, Instant::now() + TEST_DEADLINE)
             .is_err());

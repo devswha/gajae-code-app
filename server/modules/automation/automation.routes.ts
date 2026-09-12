@@ -3,7 +3,7 @@ import { Router, type Request, type Response } from 'express';
 import { GJC_BROWSER_BACKENDS } from '@/gjc-engine.js';
 import { asyncHandler } from '@/shared/utils.js';
 
-import { safeSessionId, type BrowserCommand, type BrowserInput } from './browser-protocol.js';
+import { safeSessionId, type BrowserCommand } from './browser-protocol.js';
 import { isCuaSafeTool } from './cua-client.js';
 import { automationService, type AutomationService } from './automation.service.js';
 import { discoverLocalDevelopmentUrls } from './local-sites.js';
@@ -11,11 +11,11 @@ import { parseAutomationGrantFilter } from './automation-grants.js';
 
 function errorResponse(response: Response, error: unknown): Response {
   const message = error instanceof Error ? error.message : 'Automation request failed.';
-  const status = /not installed|download_required/iu.test(message)
+  const status = /not installed|browser_in_use|browser_busy|observation_required|document_changed|binding_changed|stale/iu.test(message)
     ? 409
     : /not found/iu.test(message)
       ? 404
-      : /not available|unsupported/iu.test(message)
+      : /not available|unavailable|unsupported/iu.test(message)
         ? 501
         : 400;
   return response.status(status).json({ error: message });
@@ -31,14 +31,18 @@ function sessionId(request: Request, response: Response): string | null {
 }
 
 function registerBrowserRoutes(router: Router, prefix: string, service: AutomationService): void {
+  router.get(`${prefix}/:sessionId`, asyncHandler(async (request, response) => {
+    const id = sessionId(request, response);
+    if (!id) return;
+    try { response.json(await service.browser.state(id)); }
+    catch (error) { errorResponse(response, error); }
+  }));
   router.post(`${prefix}/:sessionId/open`, asyncHandler(async (request, response) => {
     const id = sessionId(request, response);
     if (!id) return;
     try {
       response.json(await service.openBrowser(id, {
         ...(typeof request.body?.url === 'string' ? { url: request.body.url } : {}),
-        allowDownload: request.body?.allowDownload === true,
-        ...(typeof request.body?.waitUntil === 'string' ? { waitUntil: request.body.waitUntil } : {}),
       }));
     } catch (error) {
       errorResponse(response, error);
@@ -49,17 +53,7 @@ function registerBrowserRoutes(router: Router, prefix: string, service: Automati
     const id = sessionId(request, response);
     if (!id) return;
     try {
-      response.json(await service.commandBrowser(id, request.body?.command as BrowserCommand));
-    } catch (error) {
-      errorResponse(response, error);
-    }
-  }));
-
-  router.post(`${prefix}/:sessionId/input`, asyncHandler(async (request, response) => {
-    const id = sessionId(request, response);
-    if (!id) return;
-    try {
-      response.json(await service.inputBrowser(id, request.body?.input as BrowserInput));
+      response.json(await service.commandBrowser(id, request.body?.command as BrowserCommand, undefined, request.body?.expected));
     } catch (error) {
       errorResponse(response, error);
     }
@@ -116,10 +110,6 @@ export function createAutomationRouter(service: AutomationService = automationSe
       errorResponse(response, error);
     }
   }));
-
-  // Kept for compatibility with the first PoC client. The documented/public
-  // desktop surface is mounted separately at /api/browser/:sessionId.
-  registerBrowserRoutes(router, '/browser', service);
 
   router.post('/computer/:sessionId/call', asyncHandler(async (request, response) => {
     const id = sessionId(request, response);

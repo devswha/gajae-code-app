@@ -81,6 +81,7 @@ async function appRun(
       const automationTools: AutomationTools = selectGjcAutomationTools(
         createGjcAutomationTools('app-session', { select: async () => undefined }, undefined, 'ask'),
         backend,
+        true,
       );
       const { session } = await createAgentSession({
         cwd, agentDir, settings, authStorage, modelRegistry: registry,
@@ -107,7 +108,7 @@ test('an app session with Built-in selected overrides an inherited Aside setting
   try {
     assert.equal(s.backend.id, 'native');
     assert.equal(run.settings.get('browser.backend'), 'native');
-    assert.ok(s.automationTools.browser, 'the app substitutes its Chromium transport for the built-in browser tool');
+    assert.ok(s.automationTools.browser, 'the app substitutes its WebView transport for the built-in browser tool');
     assert.ok(s.session.getActiveToolNames().includes('browser'));
     assert.equal(s.prompt.includes('<browser-backend>'), false);
     assert.equal(s.prompt.includes('aside repl'), false);

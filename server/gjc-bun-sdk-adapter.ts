@@ -67,6 +67,8 @@ export type SdkRunConfig = {
    * setting for internal compatibility only.
    */
   browserBackend?: GjcBrowserBackend;
+  /** Trusted server-side readiness for the desktop built-in WebView. */
+  builtinBrowserAvailable?: boolean;
   appSessionId?: string;
   goalUiVersion?: number;
   goalOwner?: string;
@@ -233,9 +235,10 @@ export function applyGjcToolSettingsPolicy(settings: Settings): void {
   // Tool discovery is the other door into the session's tool set, and it does
   // not consult `toolNames`: a server listed in the user's own settings, or an
   // `.mcp.json` in whatever project they open, would put tools this app never
-  // decided on in front of a browser session. Both default to false, so this
-  // pins the default rather than changing behaviour - but a boundary that only
-  // holds while a user leaves their config alone is not a boundary.
+  // decided on in front of a browser session. These settings default closed,
+  // so this pins the default rather than changing behaviour - but a boundary
+  // that only holds while a user leaves their config alone is not a boundary.
+  settings.override('tools.discoveryMode', 'off');
   settings.override('mcp.discoveryMode', false);
   settings.override('mcp.enableProjectConfig', false);
 }
@@ -271,14 +274,15 @@ export function applyGjcBrowserBackend(
  * The app-owned browser transport replaces the runtime's built-in browser tool
  * only while the runtime would expose that tool itself. The SDK registers a
  * supplied automation tool unconditionally, so without this filter an Aside
- * session would still carry the app's Chromium tool beside a prompt that says
+ * session would still carry the app's WebView tool beside a prompt that says
  * the built-in browser is disabled.
  */
 export function selectGjcAutomationTools(
   tools: AutomationTools,
   browserBackend: Pick<ReturnType<typeof resolveBrowserBackend>, 'exposesBuiltinTool'>,
+  builtinBrowserAvailable = false,
 ): AutomationTools {
-  if (browserBackend.exposesBuiltinTool) return tools;
+  if (browserBackend.exposesBuiltinTool && builtinBrowserAvailable) return tools;
   const { browser: _browser, ...rest } = tools;
   return rest;
 }
@@ -325,6 +329,7 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
       && candidate.bashPolicy.restrictionProfile !== 'read-only')
     || (candidate.appSessionId !== undefined && (typeof candidate.appSessionId !== 'string' || !candidate.appSessionId))
     || (candidate.browserBackend !== undefined && !isGjcBrowserBackend(candidate.browserBackend))
+    || (candidate.builtinBrowserAvailable !== undefined && typeof candidate.builtinBrowserAvailable !== 'boolean')
   ) throw new Error(FAILURE);
   // A malformed policy block throws GjcRunPermissionsError, which keeps its
   // `invalid_permissions` code so the worker can answer with that code and the
@@ -337,6 +342,9 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
     // The SDK resolves builtin names case-insensitively. Canonicalize before
     // selecting app replacements so TASK cannot reach its builtin executor.
     toolNames: candidate.toolNames.map((name: string) => name.toLowerCase()),
+    // Older/internal callers that do not carry the trusted capability must
+    // never expose the SDK's own Puppeteer browser as an accidental fallback.
+    builtinBrowserAvailable: candidate.builtinBrowserAvailable === true,
     ...(permissions ? { permissions } : {}),
   };
 }
@@ -1001,6 +1009,9 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       const settings = await globalSettings.cloneForCwd(config.cwd);
       applyGjcToolSettingsPolicy(settings);
       const browserBackend = applyGjcBrowserBackend(settings, config.browserBackend, this.options.probeAsideCli ?? probeAsideCli);
+      const builtinBrowserAvailable = config.builtinBrowserAvailable === true
+        && browserBackend.exposesBuiltinTool
+        && Boolean(config.appSessionId);
       const goalScope = config.appSessionId && config.goalOwner
         ? { appSessionId: config.appSessionId, owner: config.goalOwner, cwd: await realpath(config.cwd),
             projectPath: await realpath(typeof options.projectPath === 'string' ? options.projectPath : config.cwd) }
@@ -1044,7 +1055,8 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           ...(resolvedCredential.credentialSelector
             ? { credentialSelector: resolvedCredential.credentialSelector }
             : {}),
-          toolNames: [...new Set([...config.toolNames, 'ask', ...(goalEnabled ? ['goal'] : [])])],
+          toolNames: [...new Set([...config.toolNames, 'ask', ...(goalEnabled ? ['goal'] : [])])]
+            .filter((name) => name !== 'browser' || builtinBrowserAvailable),
           spawns: config.spawns,
           goalToolAllowedOps: goalEnabled ? GJC_GOAL_MODEL_OPERATIONS : [],
           bashAllowedPrefixes: config.bashPolicy.allowedPrefixes,
@@ -1056,7 +1068,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
               askController.uiContext,
               this.options.automationBridge,
               config.permissions?.mode,
-            ), browserBackend)),
+            ), browserBackend, builtinBrowserAvailable)),
           } : {}),
         };
         if (config.toolNames.some((name) => GJC_APP_DELEGATION_TOOL_NAMES.includes(name as 'task' | 'subagent'))) {

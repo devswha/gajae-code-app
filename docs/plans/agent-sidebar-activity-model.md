@@ -1,6 +1,12 @@
 # Agent Sidebar Activity Capability Audit
 
 Status: research/design only — no production code changed (2026-09-11).
+Update (2026-09-13): the sidebar shipped as the production right rail —
+ENVIRONMENT / WORK / ACTION REQUIRED (#67, #69, #72, cutover #76); this
+document's section names predate that naming. Browser facts were refreshed
+after the Chromium sidecar removal (#75) and the sidebar cutover; the Aside
+browser question now has its own audit in
+[aside-activity-contract.md](aside-activity-contract.md).
 Scope: what structured agent/runtime activity exists **today**, end to end, and
 what the smallest additional contract would be for a future `AgentSidebar`
 (Needs attention / Current work / Tasks / Agents / Review / Browser activity).
@@ -92,7 +98,7 @@ in-memory buffer (5 000 events; completed runs retained 5 min).
 | Managed jobs | native job authority (`gajae-core jobs`), `JobState` reserved/queued/running/aborting/ready/succeeded/failed/aborted/interrupted; orchestrator `server/services/gjc-job-orchestrator.ts` | REST `/api/gjc/jobs*` + WS `gjc.job.subscribe/replay` (job projection, `shared/gjc-job-projection-protocol.ts`) | client projection slot exists in `useSessionStore`; **no component subscribes** | none — jobs UI was removed; projection plumbing is dormant | durable (Rust-owned SQLite + ordered replay) | **A** at source, unused. Note: job `ready` means *workspace awaiting next turn* ("Only ready jobs can start a new turn", gjc-job-orchestrator.ts:427) — it is **not** an attention signal |
 | Worker activity counts | `worker.activity` → `GjcWorkerActivity {generation, complete, starting, queued, running, settling, approvals, retained, unknown}` | worker protocol (host pull) | desktop restart authority only (server/index.js) | none user-visible | per generation | **A** but restart-gating evidence, not a UI signal |
 | Notifications | `notifyRunStopped`/`notifyRunFailed` (`run.stopped`/`run.failed`) | orchestrator service; in-app/desktop/sound, prefs-gated, 20 s dedupe | desktop-notifications WS | toast/title/sound | durable dispatch only for job terminals (ledger + startup catch-up) | **A** trigger sources |
-| AgentSidebar shell | `src/components/agent-sidebar/agentSidebarState.ts` (on `main` since #62) | none | localStorage `agent-sidebar` = `{open, width}` only | MainContentRightRail | persists | presentation-only; **consumes zero agent signals today** |
+| AgentSidebar | `src/components/agent-sidebar/` — **production right rail since #76**; the legacy WorkspacePanel/`MainContentRightRail` seam and the `agentSidebarV2` preference were removed | `tool_use`/`tool_result` frames + REST (git summary, transcript) | localStorage `agent-sidebar` = `{ open }` (width dropped by the cutover) | `MainContent` renders it directly | persists | consumes authoritative signals now: Environment (git summary), WORK (todo fold + running), Action Required (attention store); presentation-only still — no state of its own |
 
 ## Current GJC Runtime Signals
 
@@ -430,7 +436,14 @@ All class A/C, with zero runtime or protocol changes:
 5. **Review / recent activity** — unread finished/failed run outcomes
    (`ready`/`blocked`, viewed-clears) and delegation results (`resultText`)
    from the same fold. Not Needs attention: nothing is blocked on the user.
-6. **Browser activity** — `BrowserSessionState` per session (state-mode WS).
+6. **Browser activity** — no longer buildable from a live stream: the
+   `/ws/browser` state-mode protocol and `BrowserSessionState` broadcast were
+   retired with the Chromium sidecar (#75; only the native builtin window's
+   `shared/builtinBrowserProtocol.ts` validation remains). The Built-in
+   browser is structurally visible as first-party `browser` tool calls; Aside
+   browser work has **no** structural signal at all — see
+   [aside-activity-contract.md](aside-activity-contract.md) for the audit and
+   the minimal declared-activity contract it proposes.
 
 Caveat to carry into any PR: the sidebar session rows already need the
 attention/running signals, which exist; `session_upserted` cannot supply

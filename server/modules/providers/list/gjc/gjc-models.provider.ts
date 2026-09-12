@@ -84,53 +84,170 @@ function unquoteYamlScalar(value: string): string {
   }
   return withoutComment;
 }
+function formatDefaultLabel(name: string): string {
+  return name
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+type ParsedProfile = {
+  name: string;
+  label: string;
+  roles: RoleMap;
+  allModels: string[];
+};
+
+function parseConfiguredCustomProviders(source: string): { providers: string[]; models: string[] } {
+  const providers = new Set<string>();
+  const models = new Set<string>();
+  let inProviders = false;
+  let currentProvider: string | null = null;
+  let inModels = false;
+
+  for (const rawLine of source.split(/\r?\n/)) {
+    if (/^\s*(?:#.*)?$/.test(rawLine)) continue;
+    if (/^providers:\s*$/.test(rawLine)) {
+      inProviders = true;
+      continue;
+    }
+    if (!inProviders) continue;
+    if (/^[^\s#]/.test(rawLine)) break;
+
+    const providerMatch = rawLine.match(/^ {2}([^\s:#]+):/);
+    if (providerMatch) {
+      currentProvider = providerMatch[1];
+      providers.add(currentProvider);
+      inModels = false;
+      continue;
+    }
+    if (!currentProvider) continue;
+
+    if (/^ {4}models:\s*$/.test(rawLine)) {
+      inModels = true;
+      continue;
+    }
+    if (inModels) {
+      const idMatch = rawLine.match(/^ {6,8}-?\s*id:\s*(.+)$/);
+      if (idMatch) {
+        const id = unquoteYamlScalar(idMatch[1]);
+        if (id) models.add(`${currentProvider}/${id}`);
+      }
+      if (/^ {4}[^\s-]/.test(rawLine) && !rawLine.startsWith('    models:')) {
+        inModels = false;
+      }
+    }
+  }
+  return { providers: [...providers], models: [...models] };
+}
 
 function parseConfiguredRoles(source: string): RoleMap {
   const roles: RoleMap = {};
-  for (const line of source.split(/\r?\n/)) {
-    const match = line.match(/^\s+(default|planner|executor|architect|critic):\s*(.+)$/);
-    const selector = match && primaryModelSelector(unquoteYamlScalar(match[2]));
-    if (match && selector) roles[match[1] as ProfileRole] = selector;
+  let currentRole: ProfileRole | null = null;
+  for (const rawLine of source.split(/\r?\n/)) {
+    if (/^\s*(?:#.*)?$/.test(rawLine)) continue;
+    const match = rawLine.match(/^\s+(default|planner|executor|architect|critic):\s*(.*)$/);
+    if (match) {
+      const role = match[1] as ProfileRole;
+      const rest = match[2].trim();
+      if (rest) {
+        const selector = primaryModelSelector(unquoteYamlScalar(rest));
+        if (selector) roles[role] = selector;
+        currentRole = null;
+      } else {
+        currentRole = role;
+      }
+      continue;
+    }
+    if (currentRole) {
+      const itemMatch = rawLine.match(/^\s+-\s*(.+)$/);
+      if (itemMatch) {
+        const selector = primaryModelSelector(unquoteYamlScalar(itemMatch[1]));
+        if (selector && !roles[currentRole]) {
+          roles[currentRole] = selector;
+        }
+        continue;
+      }
+      if (/^\s*\S/.test(rawLine)) currentRole = null;
+    }
   }
   return roles;
 }
 
-function parseProfiles(source: string): Array<{ name: string; label: string; roles: RoleMap }> {
-  const profiles: Array<{ name: string; label: string; roles: RoleMap }> = [];
+function parseProfiles(source: string): ParsedProfile[] {
+  const profiles: ParsedProfile[] = [];
   let inProfiles = false;
-  let current: { name: string; label: string; roles: RoleMap } | null = null;
+  let current: ParsedProfile | null = null;
   let inMapping = false;
+  let currentRole: ProfileRole | null = null;
 
-  for (const line of source.split(/\r?\n/)) {
-    if (/^profiles:\s*$/.test(line)) {
+  for (const rawLine of source.split(/\r?\n/)) {
+    if (/^\s*(?:#.*)?$/.test(rawLine)) continue;
+
+    if (/^(?:profiles|presets):\s*$/.test(rawLine)) {
       inProfiles = true;
       continue;
     }
     if (!inProfiles) continue;
-    if (/^\S/.test(line) && line.trim()) break;
+    if (/^[^\s#]/.test(rawLine)) break;
 
-    const profileMatch = line.match(/^ {2}([^\s:#]+):/);
+    const profileMatch = rawLine.match(/^ {2}([^\s:#]+):/);
     if (profileMatch) {
-      current = { name: profileMatch[1], label: profileMatch[1], roles: {} };
+      const name = profileMatch[1];
+      current = { name, label: formatDefaultLabel(name), roles: {}, allModels: [] };
       profiles.push(current);
       inMapping = false;
+      currentRole = null;
       continue;
     }
     if (!current) continue;
-    const displayName = line.match(/^ {4}display_name:\s*(.+)$/);
+
+    const displayName = rawLine.match(/^ {4}display_name:\s*(.+)$/);
     if (displayName) {
       current.label = unquoteYamlScalar(displayName[1]);
       continue;
     }
-    if (/^ {4}model_mapping:\s*$/.test(line)) {
+    if (/^ {4}model_mapping:\s*$/.test(rawLine)) {
       inMapping = true;
+      currentRole = null;
       continue;
     }
     if (inMapping) {
-      const role = line.match(/^ {6}(default|planner|executor|architect|critic):\s*(.+)$/);
-      const selector = role && primaryModelSelector(unquoteYamlScalar(role[2]));
-      if (role && selector) current.roles[role[1] as ProfileRole] = selector;
-      else if (/^ {4}\S/.test(line)) inMapping = false;
+      const roleInlineMatch = rawLine.match(/^ {6}(default|planner|executor|architect|critic):\s*(.+)$/);
+      if (roleInlineMatch) {
+        const roleName = roleInlineMatch[1] as ProfileRole;
+        const selector = primaryModelSelector(unquoteYamlScalar(roleInlineMatch[2]));
+        if (selector) {
+          current.roles[roleName] = selector;
+          current.allModels.push(selector);
+        }
+        currentRole = null;
+        continue;
+      }
+      const roleBlockMatch = rawLine.match(/^ {6}(default|planner|executor|architect|critic):\s*$/);
+      if (roleBlockMatch) {
+        currentRole = roleBlockMatch[1] as ProfileRole;
+        continue;
+      }
+      if (currentRole) {
+        const itemMatch = rawLine.match(/^ {8}-\s*(.+)$/);
+        if (itemMatch) {
+          const item = unquoteYamlScalar(itemMatch[1]);
+          const selector = primaryModelSelector(item);
+          if (selector) {
+            if (!current.roles[currentRole]) {
+              current.roles[currentRole] = selector;
+            }
+            current.allModels.push(selector);
+          }
+          continue;
+        }
+      }
+      if (/^ {4}\S/.test(rawLine)) {
+        inMapping = false;
+        currentRole = null;
+      }
     }
   }
   return profiles.filter((profile) => Object.keys(profile.roles).length > 0);
@@ -158,7 +275,11 @@ function resolveConfiguredRoles(
   return resolved;
 }
 
-async function getGjcPresetCatalog(homeDir: string): Promise<ProviderModelsDefinition> {
+async function getGjcPresetCatalog(homeDir: string): Promise<{
+  catalog: ProviderModelsDefinition;
+  configuredProfiles: ParsedProfile[];
+  configuredCustom: { providers: string[]; models: string[] };
+}> {
   const agentDir = path.join(homeDir, '.gjc', 'agent');
   const [configSource, modelsSource] = await Promise.all([
     readFile(path.join(agentDir, 'config.yml'), 'utf8').catch(() => ''),
@@ -166,6 +287,7 @@ async function getGjcPresetCatalog(homeDir: string): Promise<ProviderModelsDefin
   ]);
   const configuredRoles = parseConfiguredRoles(configSource);
   const configuredProfiles = parseProfiles(modelsSource);
+  const configuredCustom = parseConfiguredCustomProviders(modelsSource);
   const profiles = new Map(GJC_BUILTIN_MODEL_PROFILES.map((profile) => [profile.name, {
     name: profile.name,
     label: profile.label,
@@ -176,13 +298,15 @@ async function getGjcPresetCatalog(homeDir: string): Promise<ProviderModelsDefin
 
   for (const profile of configuredProfiles) {
     profiles.set(profile.name, {
-      ...profile,
+      name: profile.name,
+      label: profile.label,
       group: 'CUSTOM',
       description: `${Object.keys(profile.roles).length} role custom preset`,
+      roles: profile.roles,
     });
   }
 
-  return {
+  const catalog: ProviderModelsDefinition = {
     OPTIONS: [
       {
         value: 'default',
@@ -200,6 +324,8 @@ async function getGjcPresetCatalog(homeDir: string): Promise<ProviderModelsDefin
     ],
     DEFAULT: 'default',
   };
+
+  return { catalog, configuredProfiles, configuredCustom };
 }
 
 export class GjcProviderModels implements IProviderModels {
@@ -230,22 +356,36 @@ export class GjcProviderModels implements IProviderModels {
   }
 
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    const [catalog, runtimeCatalog] = await Promise.all([
+    const [{ catalog, configuredProfiles, configuredCustom }, runtimeCatalog] = await Promise.all([
       getGjcPresetCatalog(this.homeDir),
       this.loadRuntimeModels?.().catch(() => undefined),
     ]);
     const base = catalog.OPTIONS.length > 1 ? catalog : GJC_FALLBACK_MODELS;
-    const referencedModels = new Set(base.OPTIONS.flatMap((option) =>
-      Object.values(option.roles ?? {}).map((selector) =>
-        selector.replace(/:(?:off|minimal|low|medium|high|xhigh|max)$/, ''),
+    const referencedModels = new Set([
+      ...base.OPTIONS.flatMap((option) =>
+        Object.values(option.roles ?? {}).map((selector) =>
+          selector.replace(/:(?:off|minimal|low|medium|high|xhigh|max)$/, ''),
+        ),
       ),
-    ));
+      ...configuredProfiles.flatMap((profile) =>
+        profile.allModels.map((selector) =>
+          selector.replace(/:(?:off|minimal|low|medium|high|xhigh|max)$/, ''),
+        ),
+      ),
+      ...configuredCustom.models,
+    ]);
     const referencedCanonicalIds = new Set(
       [...referencedModels].map((selector) => selector.split('/').pop() ?? selector),
     );
+    const customProviders = new Set(configuredCustom.providers);
+
     const models = parseRuntimeModels(runtimeCatalog)
-      .filter((model) => referencedModels.has(model.value)
-        || (model.canonicalId !== undefined && referencedCanonicalIds.has(model.canonicalId)))
+      .filter((model) =>
+        referencedModels.has(model.value)
+        || (model.group && customProviders.has(model.group))
+        || customProviders.has(model.value.split('/')[0])
+        || (model.canonicalId !== undefined && referencedCanonicalIds.has(model.canonicalId)),
+      )
       .map((model) => ({
         value: model.value,
         label: model.label,

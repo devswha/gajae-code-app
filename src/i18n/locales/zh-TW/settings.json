@@ -138,6 +138,17 @@
       "asideNote": "需要你自行安裝的 Aside CLI（~/.local/bin/aside 或 Aside CLI 應用程式）。選擇 Aside 期間，找不到它的工作階段將無法啟動，而不會退回原生瀏覽器。切換回「原生」即可恢復內建瀏覽器。",
       "saveFailed": "無法儲存瀏覽器後端。"
     },
+    "browserPoc": {
+      "title": "內建 WebView（PoC）",
+      "description": "由系統 WebView 直接渲染頁面的後備瀏覽器概念驗證。",
+      "label": "內建 WebView（PoC）",
+      "note": "開啟一個獨立視窗，以系統 WebView 載入頁面。僅供實驗性評估，尚未成為正式瀏覽器後端。",
+      "open": "開啟測試瀏覽器",
+      "titleProbe": "顯示頁面標題",
+      "opened": "已開啟測試瀏覽器視窗。",
+      "focused": "測試瀏覽器視窗已開啟，已將焦點移至該視窗。",
+      "probeSent": "已向測試瀏覽器要求 document.title；請查看頁面內的橫幅。"
+    },
     "title": "瀏覽器和原生應用程式",
     "description": "檢視隔離的Chromium運行時和單獨安裝的CUA驅動程序。",
     "chromium": "隔離的Chromium運行時",

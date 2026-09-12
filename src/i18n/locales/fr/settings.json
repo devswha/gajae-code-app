@@ -138,6 +138,17 @@
       "asideNote": "Nécessite la CLI Aside que vous avez installée vous-même (~/.local/bin/aside ou l'application Aside CLI). Tant qu'Aside est sélectionné, une session qui ne la trouve pas échoue au démarrage au lieu de revenir au navigateur natif. Repassez en Natif pour rétablir le navigateur intégré.",
       "saveFailed": "Le backend du navigateur n'a pas pu être enregistré."
     },
+    "browserPoc": {
+      "title": "WebView intégrée (PoC)",
+      "description": "Preuve de concept d'un navigateur de repli rendu directement par la WebView système.",
+      "label": "WebView intégrée (PoC)",
+      "note": "Ouvre une fenêtre séparée qui charge les pages dans la WebView système. Évaluation expérimentale uniquement ; pas encore le backend navigateur de production.",
+      "open": "Ouvrir le navigateur de test",
+      "titleProbe": "Afficher le titre de la page",
+      "opened": "La fenêtre du navigateur de test a été ouverte.",
+      "focused": "La fenêtre du navigateur de test est déjà ouverte ; elle a été focalisée.",
+      "probeSent": "document.title demandé au navigateur de test ; cherchez la bannière dans la page."
+    },
     "title": "Navigateur et applications natives",
     "description": "Passez en revue le runtime Chromium isolé et le CUA Driver installé séparément.",
     "chromium": "Exécution Chromium isolée",

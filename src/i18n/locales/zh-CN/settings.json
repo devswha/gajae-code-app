@@ -138,6 +138,17 @@
       "asideNote": "需要你自行安装的 Aside CLI（~/.local/bin/aside 或 Aside CLI 应用）。选择 Aside 期间，找不到它的会话将无法启动，而不会回退到原生浏览器。切换回“原生”即可恢复内置浏览器。",
       "saveFailed": "无法保存浏览器后端。"
     },
+    "browserPoc": {
+      "title": "内置 WebView（PoC）",
+      "description": "由系统 WebView 直接渲染页面的后备浏览器概念验证。",
+      "label": "内置 WebView（PoC）",
+      "note": "打开一个单独窗口，用系统 WebView 加载页面。仅用于实验性评估，还不是生产浏览器后端。",
+      "open": "打开测试浏览器",
+      "titleProbe": "显示页面标题",
+      "opened": "已打开测试浏览器窗口。",
+      "focused": "测试浏览器窗口已存在，已将焦点移到该窗口。",
+      "probeSent": "已向测试浏览器请求 document.title；请查看页面内的横幅。"
+    },
     "title": "浏览器和原生应用",
     "description": "查看隔离的Chromium运行时以及单独安装的CUA驱动程序。",
     "chromium": "隔离的Chromium运行时",

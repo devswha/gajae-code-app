@@ -138,6 +138,17 @@
       "asideNote": "Richiede la CLI Aside installata da te (~/.local/bin/aside o l'app Aside CLI). Finché Aside è selezionato, una sessione che non la trova non si avvia invece di ripiegare sul browser nativo. Torna a Nativo per ripristinare il browser integrato.",
       "saveFailed": "Impossibile salvare il backend del browser."
     },
+    "browserPoc": {
+      "title": "WebView integrata (PoC)",
+      "description": "Prova di concetto di un browser di ripiego renderizzato direttamente dalla WebView di sistema.",
+      "label": "WebView integrata (PoC)",
+      "note": "Apre una finestra separata che carica le pagine nella WebView di sistema. Solo valutazione sperimentale; non è ancora il backend browser di produzione.",
+      "open": "Apri il browser di test",
+      "titleProbe": "Mostra il titolo della pagina",
+      "opened": "La finestra del browser di test è stata aperta.",
+      "focused": "La finestra del browser di test è già aperta; è stata messa a fuoco.",
+      "probeSent": "document.title richiesto al browser di test; cerca il banner nella pagina."
+    },
     "title": "Browser e applicazioni native",
     "description": "Esaminare il runtime Chromium isolato e CUA Driver installato separatamente.",
     "chromium": "Runtime Chromium isolato",

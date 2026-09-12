@@ -138,6 +138,17 @@
       "asideNote": "自分でインストールした Aside CLI（~/.local/bin/aside または Aside CLI アプリ）が必要です。Aside を選択している間、CLI が見つからないセッションはネイティブブラウザにフォールバックせず起動に失敗します。内蔵ブラウザに戻すにはネイティブに切り替えてください。",
       "saveFailed": "ブラウザバックエンドを保存できませんでした。"
     },
+    "browserPoc": {
+      "title": "内蔵 WebView（PoC）",
+      "description": "システム WebView で直接ページを描画するフォールバックブラウザの概念実証です。",
+      "label": "内蔵 WebView（PoC）",
+      "note": "システム WebView でページを読み込む別ウィンドウを開きます。実験的な評価用であり、本番のブラウザバックエンドではありません。",
+      "open": "テストブラウザを開く",
+      "titleProbe": "ページタイトルを表示",
+      "opened": "テストブラウザのウィンドウを開きました。",
+      "focused": "テストブラウザのウィンドウはすでに開いているため、フォーカスしました。",
+      "probeSent": "テストブラウザに document.title を要求しました。ページ内のバナーを確認してください。"
+    },
     "title": "ブラウザとネイティブアプリケーション",
     "description": "分離された Chromium ランタイムと別途インストールされた CUA Driver を確認します。",
     "chromium": "分離された Chromium ランタイム",

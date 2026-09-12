@@ -7,6 +7,7 @@ use std::fs::OpenOptions;
 use fs2::FileExt;
 use tauri::Manager;
 
+mod browser_poc;
 mod build_info;
 mod desktop_deep_links;
 mod desktop_origin;
@@ -343,6 +344,31 @@ fn route_deep_link(app: &tauri::AppHandle, url: tauri::Url) -> bool {
 }
 
 #[tauri::command]
+fn browser_poc_open(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    url: String,
+) -> Result<browser_poc::OpenOutcome, String> {
+    // Defense in depth beyond the capability grant: only the main window's
+    // document may ask for the PoC browser.
+    if window.label() != "main" {
+        return Err("The PoC browser is only available from the main window.".to_owned());
+    }
+    browser_poc::open(&app, &url)
+}
+
+#[tauri::command]
+fn browser_poc_title_probe(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("The PoC browser is only available from the main window.".to_owned());
+    }
+    browser_poc::title_probe(&app)
+}
+
+#[tauri::command]
 fn retry_desktop_server(app: tauri::AppHandle) {
     supervisor::start(app);
 }
@@ -448,10 +474,16 @@ fn main() {
     #[cfg(target_os = "macos")]
     let builder = builder.invoke_handler(tauri::generate_handler![
         retry_desktop_server,
-        ack_updater_screen
+        ack_updater_screen,
+        browser_poc_open,
+        browser_poc_title_probe
     ]);
     #[cfg(not(target_os = "macos"))]
-    let builder = builder.invoke_handler(tauri::generate_handler![retry_desktop_server]);
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        retry_desktop_server,
+        browser_poc_open,
+        browser_poc_title_probe
+    ]);
     let builder = builder.setup(move |app| {
         // A held lock means another instance is running. Setup errors
         // abort inside did_finish_launching (panic_cannot_unwind ->

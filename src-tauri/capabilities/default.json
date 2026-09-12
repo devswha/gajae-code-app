@@ -8,6 +8,8 @@
   "permissions": [
     "core:default",
     "deep-link:default",
-    "shell:default"
+    "shell:default",
+    "allow-retry-desktop-server",
+    "allow-ack-updater-screen"
   ]
 }

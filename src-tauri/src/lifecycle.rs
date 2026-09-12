@@ -214,6 +214,12 @@ pub fn blocking_shutdown(app: &AppHandle) {
 
 pub fn handle_close_request(window: &Window, event: &tauri::WindowEvent) {
     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        // The PoC browser window is a plain secondary surface: closing it
+        // must destroy that window only — never the hide-to-tray path and
+        // never the app quit path below.
+        if crate::browser_poc::owns_window(window.label()) {
+            return;
+        }
         // Keep the window alive until the server finishes: shutdown errors
         // still need a visible window, and destroying it must not skip Quit.
         api.prevent_close();

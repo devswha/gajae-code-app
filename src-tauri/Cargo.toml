@@ -36,6 +36,7 @@ tauri-runtime-wry = "=2.11.4"
 hmac = "=0.12.1"
 rustls-webpki = { version = "=0.103.15", default-features = false, features = ["std"] }
 rustls-pki-types = "=1.15.1"
+rustls = { version = "=0.23.43", default-features = false, features = ["ring"] }
 # Pin the updater release selected for the Tauri 2.11 stable graph.
 # Keep the native reqwest client on the same minor so its
 # no-redirect/HTTPS/timeout policy uses the API selected by the plugin.

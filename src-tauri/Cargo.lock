@@ -978,6 +978,7 @@ dependencies = [
  "minisign-verify",
  "plist",
  "reqwest",
+ "rustls",
  "rustls-pki-types",
  "rustls-webpki",
  "semver",

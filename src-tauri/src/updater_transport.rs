@@ -164,6 +164,12 @@ pub fn build_client(
     connect_timeout: Duration,
     total_timeout: Duration,
 ) -> Result<HttpsClient, reqwest::Error> {
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+        // reqwest 0.13's no-provider feature deliberately leaves this to the
+        // application. Match the updater plugin's ring provider before either
+        // component constructs a TLS client.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
     let mut builder = Client::builder()
         .https_only(true)
         .redirect(Policy::none())

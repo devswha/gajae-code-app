@@ -96,3 +96,87 @@ test('a persisted Aside choice is shown on load, and a rejected save keeps the p
   assert.equal(screen.getByRole('alert').textContent, english.automation.browserBackend.saveFailed);
   assert.equal(select().value, 'aside');
 });
+
+type InvokeCall = { command: string; args?: Record<string, unknown> };
+
+function installDesktopBridge(results: Record<string, unknown> = {}) {
+  const calls: InvokeCall[] = [];
+  (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {
+    invoke: async (command: string, args?: Record<string, unknown>) => {
+      calls.push({ command, ...(args === undefined ? {} : { args }) });
+      const outcome = results[command];
+      if (outcome instanceof Error) throw outcome;
+      return outcome;
+    },
+  };
+  return {
+    calls,
+    uninstall: () => { delete (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__; },
+  };
+}
+
+const openButton = () => screen.getByRole('button', { name: english.automation.browserPoc.open });
+const probeButton = () => screen.getByRole('button', { name: english.automation.browserPoc.titleProbe });
+
+test('the Built-in WebView PoC entry point is hidden without the desktop command bridge', async () => {
+  fakeApi();
+  await mount();
+  await waitFor(() => assert.equal(select().disabled, false));
+  assert.equal(screen.queryByText(english.automation.browserPoc.label), null);
+  assert.equal(screen.queryByRole('button', { name: english.automation.browserPoc.open }), null);
+});
+
+test('the PoC opens the built-in browser window through the desktop bridge and reports both outcomes', async () => {
+  fakeApi();
+  const bridge = installDesktopBridge({ browser_poc_open: { created: true, url: 'https://example.com/' } });
+  try {
+    await mount();
+    await waitFor(() => assert.ok(openButton()));
+
+    fireEvent.click(openButton());
+    await waitFor(() => assert.ok(screen.getByRole('status')));
+    assert.equal(screen.getByRole('status').textContent, english.automation.browserPoc.opened);
+    assert.deepEqual(bridge.calls, [
+      { command: 'browser_poc_open', args: { url: 'https://example.com/' } },
+    ]);
+
+    (bridge.calls as InvokeCall[]).length = 0;
+    (window as { __TAURI_INTERNALS__?: { invoke?: unknown } }).__TAURI_INTERNALS__ = {
+      invoke: async () => ({ created: false, url: 'https://example.com/' }),
+    };
+    fireEvent.click(openButton());
+    await waitFor(() => assert.equal(
+      screen.getByRole('status').textContent,
+      english.automation.browserPoc.focused,
+    ));
+  } finally {
+    bridge.uninstall();
+  }
+});
+
+test('the PoC title probe routes through the desktop bridge and surfaces its errors', async () => {
+  fakeApi();
+  const bridge = installDesktopBridge({
+    browser_poc_title_probe: undefined,
+    browser_poc_open: new Error('The PoC browser window could not be opened'),
+  });
+  try {
+    await mount();
+    await waitFor(() => assert.ok(probeButton()));
+
+    fireEvent.click(probeButton());
+    await waitFor(() => assert.equal(
+      screen.getByRole('status').textContent,
+      english.automation.browserPoc.probeSent,
+    ));
+    assert.deepEqual(bridge.calls, [{ command: 'browser_poc_title_probe' }]);
+
+    fireEvent.click(openButton());
+    await waitFor(() => assert.equal(
+      screen.getByRole('status').textContent,
+      'Error: The PoC browser window could not be opened',
+    ));
+  } finally {
+    bridge.uninstall();
+  }
+});

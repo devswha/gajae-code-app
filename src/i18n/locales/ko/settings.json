@@ -138,6 +138,17 @@
       "asideNote": "직접 설치한 Aside CLI(~/.local/bin/aside 또는 Aside CLI 앱)가 필요합니다. Aside가 선택된 동안 CLI를 찾지 못한 세션은 네이티브 브라우저로 대체되지 않고 시작에 실패합니다. 내장 브라우저로 돌아가려면 네이티브로 전환하세요.",
       "saveFailed": "브라우저 백엔드를 저장하지 못했습니다."
     },
+    "browserPoc": {
+      "title": "내장 WebView (PoC)",
+      "description": "시스템 WebView로 직접 페이지를 렌더링하는 폴백 브라우저 개념 증명입니다.",
+      "label": "내장 WebView (PoC)",
+      "note": "시스템 WebView에서 페이지를 로드하는 별도 창을 엽니다. 실험적 검토용이며 프로덕션 브라우저 백엔드가 아닙니다.",
+      "open": "테스트 브라우저 열기",
+      "titleProbe": "페이지 제목 표시",
+      "opened": "테스트 브라우저 창을 열었습니다.",
+      "focused": "테스트 브라우저 창이 이미 열려 있어 포커스를 옮겼습니다.",
+      "probeSent": "테스트 브라우저에 document.title을 요청했습니다. 페이지 안의 배너를 확인하세요."
+    },
     "title": "브라우저와 네이티브 애플리케이션",
     "description": "격리된 Chromium 런타임과 별도로 설치된 CUA Driver를 검토하세요.",
     "chromium": "독립된 Chromium runtime",

@@ -126,5 +126,18 @@ fn main() {
     println!("cargo:rustc-env=GJC_SOURCE_RUNTIME_MANIFEST_SHA256={source_digest}");
     println!("cargo:rustc-env=GJC_EXPECTED_RUNTIME_MANIFEST_SHA256={expected_digest}");
 
-    tauri_build::build()
+    // Declaring the app command manifest turns on ACL enforcement for the
+    // shell's own commands (auto-generated allow-/deny- permissions). The
+    // capability files then decide who may invoke them: without this, app
+    // commands are callable from any injected page, including the remote
+    // pages shown by the browser PoC window.
+    tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
+        tauri_build::AppManifest::new().commands(&[
+            "retry_desktop_server",
+            "ack_updater_screen",
+            "browser_poc_open",
+            "browser_poc_title_probe",
+        ]),
+    ))
+    .expect("failed to run Gajae Code App desktop build script");
 }

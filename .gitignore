@@ -19,6 +19,7 @@ src-tauri/target/
 src-tauri/binaries/
 src-tauri/resources/server-payload/
 src-tauri/gen/
+src-tauri/permissions/
 # Temporary tauri.conf overlays written per invocation by scripts/tauri.mjs
 src-tauri/.tauri-config-*.json
 

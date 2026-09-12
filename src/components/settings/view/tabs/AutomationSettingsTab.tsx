@@ -2,6 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { ExternalLink, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { Button } from '../../../../shared/view/ui';
+import {
+  BROWSER_POC_TEST_URL,
+  isBrowserPocAvailable,
+  openBrowserPocWindow,
+  runBrowserPocTitleProbe,
+} from '../../../../utils/browserPoc';
 import SettingsCard from '../SettingsCard';
 import SettingsRow from '../SettingsRow';
 import SettingsSection from '../SettingsSection';
@@ -35,6 +42,7 @@ export default function AutomationSettingsTab() {
   const [loading, setLoading] = useState(true);
   const [browserBackend, setBrowserBackend] = useState<BrowserBackend | null>(null);
   const [browserBackendError, setBrowserBackendError] = useState<string | null>(null);
+  const [browserPocStatus, setBrowserPocStatus] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -117,7 +125,46 @@ export default function AutomationSettingsTab() {
             <p className="px-4 pb-4 text-xs text-destructive" role="alert">{browserBackendError}</p>
           ) : null}
         </SettingsCard>
+
       </SettingsSection>
+
+      {isBrowserPocAvailable() ? (
+        <SettingsSection title={t('automation.browserPoc.title')} description={t('automation.browserPoc.description')}>
+          <SettingsCard>
+            <SettingsRow label={t('automation.browserPoc.label')} description={t('automation.browserPoc.note')}>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    void openBrowserPocWindow(BROWSER_POC_TEST_URL).then((result) => {
+                      setBrowserPocStatus(result.ok
+                        ? t(result.created ? 'automation.browserPoc.opened' : 'automation.browserPoc.focused')
+                        : result.error);
+                    });
+                  }}
+                >
+                  {t('automation.browserPoc.open')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    void runBrowserPocTitleProbe().then((result) => {
+                      setBrowserPocStatus(result.ok ? t('automation.browserPoc.probeSent') : result.error);
+                    });
+                  }}
+                >
+                  {t('automation.browserPoc.titleProbe')}
+                </Button>
+              </div>
+            </SettingsRow>
+            {browserPocStatus ? (
+              <p className="px-4 pb-4 text-xs text-muted-foreground" role="status">{browserPocStatus}</p>
+            ) : null}
+          </SettingsCard>
+        </SettingsSection>
+      ) : null}
 
       <SettingsSection title={t('automation.title')} description={t('automation.description')}>
         <SettingsCard divided>

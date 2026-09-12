@@ -138,6 +138,17 @@
       "asideNote": "Erfordert die von Ihnen selbst installierte Aside-CLI (~/.local/bin/aside oder die Aside-CLI-App). Solange Aside ausgewählt ist, startet eine Sitzung, die sie nicht findet, nicht, statt auf den nativen Browser zurückzufallen. Wechseln Sie zurück zu Nativ, um den integrierten Browser wiederherzustellen.",
       "saveFailed": "Das Browser-Backend konnte nicht gespeichert werden."
     },
+    "browserPoc": {
+      "title": "Eingebaute WebView (PoC)",
+      "description": "Konzeptnachweis eines Fallback-Browsers, der Seiten direkt in der System-WebView rendert.",
+      "label": "Eingebaute WebView (PoC)",
+      "note": "Öffnet ein separates Fenster, das Seiten in der System-WebView lädt. Nur experimentelle Bewertung; noch nicht das produktive Browser-Backend.",
+      "open": "Testbrowser öffnen",
+      "titleProbe": "Seitentitel anzeigen",
+      "opened": "Das Testbrowser-Fenster wurde geöffnet.",
+      "focused": "Das Testbrowser-Fenster ist bereits offen; es wurde fokussiert.",
+      "probeSent": "document.title beim Testbrowser angefragt; sieh nach dem Banner in der Seite."
+    },
     "title": "Browser und native Anwendungen",
     "description": "Überprüfen Sie die isolierte Chromium-Laufzeit und die separat installierte CUA Driver.",
     "chromium": "Isolierte Chromium-Laufzeit",

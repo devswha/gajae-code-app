@@ -41,6 +41,11 @@ impl LoopbackOrigin {
 pub fn plugin() -> TauriPlugin<tauri::Wry> {
     Builder::new("desktop-navigation")
         .on_navigation(|webview, url| {
+            // The PoC browser window is the only webview allowed to leave
+            // the loopback lock, and it may only ever show https pages.
+            if crate::browser_poc::owns_window(webview.label()) {
+                return crate::browser_poc::permits_url(url);
+            }
             #[cfg(target_os = "macos")]
             if !crate::updater_restart::permits_navigation(webview.app_handle(), url) {
                 return false;
@@ -82,5 +87,29 @@ mod navigation_policy_tests {
         origin.clear();
         assert!(!origin.permits(&"http://127.0.0.1:43123/".parse().unwrap()));
         assert!(origin.permits(&"tauri://localhost/".parse().unwrap()));
+    }
+
+    #[test]
+    fn browser_poc_navigation_is_https_only_and_other_labels_stay_locked() {
+        // The carve-out decision is label-scoped ...
+        assert!(crate::browser_poc::owns_window(
+            crate::browser_poc::WINDOW_LABEL
+        ));
+        assert!(!crate::browser_poc::owns_window("main"));
+        // ... and the policy it applies is exactly the PoC https rule.
+        assert!(crate::browser_poc::permits_url(
+            &"https://example.com/".parse().unwrap()
+        ));
+        assert!(!crate::browser_poc::permits_url(
+            &"http://127.0.0.1:43123/".parse().unwrap()
+        ));
+        assert!(!crate::browser_poc::permits_url(
+            &"tauri://localhost/".parse().unwrap()
+        ));
+        // Every other label keeps the loopback lock: the loopback origin does
+        // not permit remote pages, so only the PoC label can ever show one.
+        let origin = LoopbackOrigin::default();
+        origin.set("http://127.0.0.1:43123".to_owned());
+        assert!(!origin.permits(&"https://example.com/".parse().unwrap()));
     }
 }

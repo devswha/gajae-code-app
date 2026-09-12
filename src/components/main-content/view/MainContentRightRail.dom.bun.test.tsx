@@ -5,6 +5,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { createElement } from 'react';
 
 import type { NormalizedMessage, SessionStore } from '../../../stores/useSessionStore';
+import { useSessionAttentionStore } from '../../../stores/useSessionAttentionStore';
 import type { AgentSidebarProps } from '../../agent-sidebar/view/AgentSidebar';
 import type { WorkspacePanelProps } from '../../workspace/view/WorkspacePanel';
 
@@ -50,6 +51,7 @@ const originalFetch = globalThis.fetch;
 let requests: string[] = [];
 
 beforeEach(() => {
+  useSessionAttentionStore.setState({ pendingInput: {} });
   // Both rails ask the server for the same git summary; the rail is what is under test.
   requests = [];
   globalThis.fetch = (async (input) => {
@@ -60,10 +62,12 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  useSessionAttentionStore.setState({ pendingInput: {} });
   globalThis.fetch = originalFetch;
 });
 
 test('with the experiment off the rail is the legacy workspace panel alone', async () => {
+  useSessionAttentionStore.getState().addPendingInput('session-alpha', 'approval-1');
   render(createElement(MainContentRightRail, props({ agentSidebarV2: false })));
 
   await screen.findByRole('tablist');
@@ -73,9 +77,11 @@ test('with the experiment off the rail is the legacy workspace panel alone', asy
   await screen.findByText('workspace.statusTab.git');
   assert.equal(screen.queryByRole('region', { name: 'agentSidebar.environment.title' }), null);
   assert.equal(screen.queryByRole('region', { name: 'agentSidebar.work.title' }), null);
+  assert.equal(screen.queryByRole('region', { name: 'agentSidebar.actionRequired.title' }), null);
 });
 
 test('with the experiment on the rail is the compact context panel alone, with the environment as its body', async () => {
+  useSessionAttentionStore.getState().addPendingInput('session-alpha', 'approval-1');
   render(createElement(MainContentRightRail, props({ agentSidebarV2: true })));
 
   const lane = await screen.findByRole('complementary', { name: 'agentSidebar.title' });
@@ -87,6 +93,7 @@ test('with the experiment on the rail is the compact context panel alone, with t
   assert.equal(lane.getAttribute('style'), null);
 
   assert.ok(screen.getByRole('region', { name: 'agentSidebar.environment.title' }));
+  assert.ok(screen.getByRole('region', { name: 'agentSidebar.actionRequired.title' }));
   await screen.findByText('main');
   // The section is fed by the same endpoint the legacy Status tab already uses; nothing new is needed.
   assert.deepEqual(requests, ['/api/git/status?project=project-alpha&sessionId=session-alpha']);

@@ -201,6 +201,12 @@
     "work": {
       "title": "작업",
       "working": "작업 중"
+    },
+    "actionRequired": {
+      "title": "응답 필요",
+      "waiting": "응답을 기다리고 있습니다",
+      "viewRequest": "요청 보기",
+      "loading": "요청 불러오는 중…"
     }
   },
   "commandPalette": {

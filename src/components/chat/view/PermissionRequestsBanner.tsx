@@ -62,11 +62,9 @@ export default function PermissionRequestsBanner({
         const CustomPanel = getPermissionPanel(request.toolName);
         if (CustomPanel) {
           return (
-            <CustomPanel
-              key={request.requestId}
-              request={request}
-              onDecision={handlePermissionDecision}
-            />
+            <div key={request.requestId} data-permission-request-id={request.requestId} tabIndex={-1} className="rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              <CustomPanel request={request} onDecision={handlePermissionDecision} />
+            </div>
           );
         }
 
@@ -79,7 +77,7 @@ export default function PermissionRequestsBanner({
         const showsAlwaysDeny = offered !== null && offered.has('reject_always');
 
         return (
-          <Confirmation key={request.requestId} approval="pending" data-tool={request.toolName}>
+          <Confirmation key={request.requestId} approval="pending" data-tool={request.toolName} data-permission-request-id={request.requestId} tabIndex={-1} className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             <ConfirmationTitle className="flex items-start gap-3">
               <ShieldAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <ConfirmationRequest>

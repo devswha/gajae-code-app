@@ -5,6 +5,7 @@ import type { SessionStore } from '../../../stores/useSessionStore';
 
 import AgentSidebarEnvironment, { type AgentSidebarEnvironmentProps } from './AgentSidebarEnvironment';
 import AgentSidebarWork from './AgentSidebarWork';
+import AgentSidebarActionRequired from './AgentSidebarActionRequired';
 
 export type AgentSidebarProps = AgentSidebarEnvironmentProps & {
   isMobile: boolean;
@@ -20,7 +21,8 @@ export type AgentSidebarProps = AgentSidebarEnvironmentProps & {
  * On desktop it is a context lane beside the conversation: a fixed-width
  * column with no border, background, header or resize handle of its own,
  * holding one compact card: the Environment summary, and under it a WORK
- * block that appears only when the session has a todo list or is running.
+ * block that appears only when the session has a todo list or is running,
+ * followed by Action required while the session awaits an answer.
  * The rest of the lane stays empty on purpose — the surface is workspace
  * context next to the chat, not another tool sidebar. The header's rail
  * toggle is the way to show and hide it.
@@ -31,7 +33,8 @@ export type AgentSidebarProps = AgentSidebarEnvironmentProps & {
  * There is intentionally no tab strip and no expanded mode, and the shell
  * keeps no domain data of its own: the Environment block reads git and the
  * runtime through their existing hooks, and the WORK block projects the
- * session's todos and run state through theirs.
+ * session's todos and run state through theirs. Action required reads the
+ * existing attention store and links to the chat's original request cards.
  */
 export default function AgentSidebar({
   isMobile,
@@ -45,6 +48,7 @@ export default function AgentSidebar({
 
   const environment = <AgentSidebarEnvironment projectId={projectId} projectPath={projectPath} sessionId={sessionId} />;
   const work = <AgentSidebarWork sessionId={sessionId} sessionStore={sessionStore} />;
+  const actionRequired = <AgentSidebarActionRequired sessionId={sessionId} onRequestShown={isMobile ? onClose : undefined} />;
 
   if (isMobile) {
     return (
@@ -71,7 +75,7 @@ export default function AgentSidebar({
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">{environment}{work}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto">{environment}{work}{actionRequired}</div>
         </aside>
       </>
     );
@@ -83,7 +87,7 @@ export default function AgentSidebar({
       aria-label={t('agentSidebar.title')}
       className="flex w-64 shrink-0 flex-col overflow-y-auto py-3 pr-4 pl-2 lg:w-80"
     >
-      <div className="rounded-xl border border-border/60 bg-card/50">{environment}{work}</div>
+      <div className="rounded-xl border border-border/60 bg-card/50">{environment}{work}{actionRequired}</div>
     </aside>
   );
 }

@@ -201,6 +201,12 @@
     "work": {
       "title": "作業",
       "working": "実行中"
+    },
+    "actionRequired": {
+      "title": "応答が必要",
+      "waiting": "応答を待っています",
+      "viewRequest": "リクエストを表示",
+      "loading": "リクエストを読み込み中…"
     }
   },
   "commandPalette": {

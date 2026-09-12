@@ -4,7 +4,21 @@ import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import type { NormalizedMessage, SessionStore } from '../../../stores/useSessionStore';
+
 import AgentSidebar, { type AgentSidebarProps } from './AgentSidebar';
+
+/** The session-store surface the sidebar reads: enough for the todo fold, no transport. */
+function storeWith(phases: unknown[] = []): SessionStore {
+  const messages: NormalizedMessage[] = phases.length
+    ? [{
+        id: 'todo-1', sessionId: 'session-1', provider: 'gjc', kind: 'tool_use',
+        timestamp: '2026-09-12T00:00:00Z', toolId: 'todo-1', toolName: 'todo_write',
+        toolInput: { ops: [] }, toolResult: { content: 'Updated', isError: false, toolUseResult: { phases } },
+      } as unknown as NormalizedMessage]
+    : [];
+  return { getMessages: () => messages, subscribeSession: () => () => {} } as unknown as SessionStore;
+}
 
 function render(overrides: Partial<AgentSidebarProps> = {}): string {
   const props: AgentSidebarProps = {
@@ -13,6 +27,7 @@ function render(overrides: Partial<AgentSidebarProps> = {}): string {
     projectPath: '/work/alpha',
     sessionId: 'session-1',
     onClose: () => undefined,
+    sessionStore: storeWith(),
     ...overrides,
   };
 
@@ -23,9 +38,23 @@ test('the desktop surface is a labelled lane holding the environment in one comp
   const html = render();
 
   assert.match(html, /<aside aria-label="agentSidebar\.title"/);
-  // The card is the only thing in the lane, and the environment is the only thing in the card.
+  // The card is the only thing in the lane; with no work to show, the
+  // environment is the only thing in the card.
   assert.match(html, /<aside[^>]*><div class="rounded-xl border border-border\/60 bg-card\/50"><section aria-labelledby="agent-sidebar-environment"/);
   assert.match(html, /<\/section><\/div><\/aside>$/);
+});
+
+test('the WORK block joins the environment in the same card when the session has a todo list', () => {
+  const html = render({ sessionStore: storeWith([{ name: '', tasks: [{ content: 'Run tests', status: 'in_progress', notes: [] }] }]) });
+
+  // One card, two sections: WORK sits directly under Environment, divided by the card's own border.
+  assert.match(html, /<\/section><section aria-labelledby="agent-sidebar-work"/);
+  assert.match(html, /<h3 id="agent-sidebar-work"[^>]*>agentSidebar\.work\.title<\/h3>/);
+  assert.match(html, /Run tests/);
+  assert.match(html, /<\/section><\/div><\/aside>$/);
+  // The surface still has exactly one control: the environment's refresh.
+  const buttons = html.match(/<button/g) ?? [];
+  assert.equal(buttons.length, 1);
 });
 
 test('the desktop surface has no header of its own: Environment is the top-level heading', () => {

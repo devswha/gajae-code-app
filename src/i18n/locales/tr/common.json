@@ -199,6 +199,10 @@
       "refresh": "Git durumunu yeniden yükle",
       "notARepository": "Bu klasör bir Git deposu değil",
       "gitUnavailable": "Git durumu okunamadı"
+    },
+    "work": {
+      "title": "İş",
+      "working": "Çalışıyor"
     }
   },
   "commandPalette": {

@@ -199,6 +199,10 @@
       "refresh": "Ricarica lo stato Git",
       "notARepository": "Questa cartella non è un repository Git",
       "gitUnavailable": "Impossibile leggere lo stato Git"
+    },
+    "work": {
+      "title": "Lavoro",
+      "working": "In corso"
     }
   },
   "commandPalette": {

@@ -8,7 +8,7 @@
     "restartToInstall": "Yüklemek için yeniden başlat",
     "restarting": "Yeniden başlatılıyor…",
     "readyHelp": "Güncelleme indirildi ve doğrulandı. Yeniden başlatma uygulamayı kısa süre kapatıp {{version}} olarak yeniden açar. Önce çalışmanızı kaydedin.",
-    "manualHelp": "Güncelle düğmesi indirmeyi başlatır ve güvenli yeniden başlatma ister. Denetimler güncelleme indirmez veya kurmaz.",
+    "manualHelp": "İndirmek için Güncelle’ye tıklayın, ardından yüklemek için yeniden başlatmayı seçin. Otomatik kontroller güncelleme indirmez veya yüklemez.",
     "awaitingOperation": "Önceki yerel işlemin bitmesi bekleniyor. Henüz yeniden denemeyin.",
     "targetVersion": "Sürüm {{version}}",
     "showDetails": "Masaüstü güncelleme ayrıntılarını göster: {{version}} — {{status}}",

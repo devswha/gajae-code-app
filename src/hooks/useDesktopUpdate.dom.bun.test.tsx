@@ -342,7 +342,7 @@ test('sidebar and About share one read connection; discovering or opening ready 
   assert.equal(clock.intervals.size, 0);
 });
 
-test('one click downloads only its target and performs one safe restart after verified ready', async () => {
+test('download completion requires a separate explicit restart click even after polling', async () => {
   const clock = timers();
   const commands: DesktopUpdateCommand[] = [];
   let snapshot = native({ phase: 'available', installationAvailable: true });
@@ -362,6 +362,10 @@ test('one click downloads only its target and performs one safe restart after ve
   assert.equal(commands.some(command => command.action === 'restart'), false);
   snapshot = native({ phase: 'ready', installationAvailable: true });
   await clock.poll(); await flush();
+  assert.equal(view.result.current.updating, false);
+  await clock.poll(); await clock.poll();
+  assert.equal(commands.some(command => command.action === 'restart'), false);
+  await act(async () => { await view.result.current.restart(); });
   assert.deepEqual(commands.filter(command => command.action === 'restart'), [{ action: 'restart', targetId: 'f'.repeat(64) }]);
   assert.equal(view.result.current.updating, false);
   assert.equal(view.result.current.updateError, null);
@@ -458,7 +462,8 @@ test('a remaining consumer preserves the click while sidebar presentation change
   assert.equal(owner.result.current.updating, true);
   snapshot = native({ phase: 'ready', installationAvailable: true });
   await clock.poll(); await flush();
-  assert.equal(commands.filter(command => command.action === 'restart').length, 1);
+  assert.equal(commands.filter(command => command.action === 'restart').length, 0);
+  assert.equal(owner.result.current.updating, false);
   owner.unmount(); assert.equal(clock.intervals.size, 0);
 });
 

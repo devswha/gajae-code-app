@@ -21,7 +21,7 @@ export function safeExternalUrl(value: unknown): string | null {
   return url?.startsWith('https:') ? url : null;
 }
 
-/** Pages already visited in Workspace Browser can also be local HTTP apps. */
+/** External browser links can also be local HTTP development apps. */
 export function safeBrowserUrl(value: unknown): string | null {
   if (typeof value !== 'string' || value.length > MAX_URL_LENGTH) return null;
   try {

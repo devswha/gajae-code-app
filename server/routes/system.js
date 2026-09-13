@@ -70,8 +70,8 @@ export function createSystemRouter({ opener = defaultOpener } = {}) {
     }
   }));
 
-  // Workspace Browser also visits local HTTP development servers. Keep that
-  // explicit action separate from the HTTPS-only sign-in/docs link contract.
+  // The external browser opener also accepts local HTTP development servers.
+  // Keep that explicit action separate from the HTTPS-only sign-in/docs link contract.
   router.post('/open-browser-url', asyncHandler(async (req, res) => {
     const target = safeBrowserUrl(req.body?.url);
     if (!target) return res.status(400).json({ error: 'An HTTP or HTTPS page URL is required.' });

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { BROWSER_BACKENDS } from '../src/components/settings/browserBackends.js';
+
 import {
   DEFAULT_GJC_BROWSER_BACKEND,
   GJC_ASIDE_UNAVAILABLE_CODE,
@@ -27,6 +29,10 @@ test('Built-in is the default backend and public choices do not expose the runti
   for (const rejected of ['native', 'Aside', 'Ego', 'ego-lite', 'puppeteer', '', undefined, null, 1, {}]) {
     assert.equal(isGjcBrowserBackend(rejected), false, JSON.stringify(rejected));
   }
+});
+
+test('the Settings backend vocabulary stays aligned with the server contract', () => {
+  assert.deepEqual([...BROWSER_BACKENDS], [...GJC_BROWSER_BACKENDS]);
 });
 
 test('an unavailable Aside CLI fails with a stable code and fixed text that carries no probe detail', () => {

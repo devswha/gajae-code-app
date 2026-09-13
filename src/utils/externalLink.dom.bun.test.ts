@@ -62,7 +62,7 @@ test('inside the desktop shell the sidecar opens the link, not window.open', asy
   }
 });
 
-test('Workspace Browser HTTP and HTTPS pages use the desktop opener without widening OAuth links', async () => {
+test('external browser HTTP and HTTPS pages use the desktop opener without widening OAuth links', async () => {
   markDesktopShell(true);
   const opener = installWindowOpen();
   const fetch = installFetch();

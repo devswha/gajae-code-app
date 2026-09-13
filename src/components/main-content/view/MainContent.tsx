@@ -11,7 +11,7 @@ import { useAgentSidebar } from '../../agent-sidebar/hooks/useAgentSidebar';
 import { MIN_AGENT_SIDEBAR_CHAT_WIDTH } from '../../agent-sidebar/agentSidebarState';
 import { api } from '../../../utils/api';
 import { openBrowserUrl } from '../../../utils/externalLink';
-import { builtinBrowserFailure, hasBuiltinBrowserBridge, openBuiltinBrowser, type BuiltinBrowserFailure } from '../../../utils/builtinBrowser';
+import { builtinBrowserFailure, builtinBrowserOwnerId, openBuiltinBrowser as requestBuiltinBrowser, type BuiltinBrowserFailure } from '../../../utils/builtinBrowser';
 import { useSessionLocation } from '../../chat/hooks/useSessionLocation';
 
 import MainContentHeader from './MainContentHeader';
@@ -52,9 +52,7 @@ function MainContent({
   // session, the project itself. The sidebar's Environment block reads git
   // from here.
   const executionPath = selectedSession ? sessionLocation.data?.cwd ?? undefined : selectedProject?.fullPath;
-  const automationSessionId = selectedProject
-    ? selectedSession?.id ?? `project-${selectedProject.projectId}`
-    : undefined;
+  const automationSessionId = builtinBrowserOwnerId(selectedProject?.projectId, selectedSession?.id);
   const automationSessionIdRef = useRef(automationSessionId);
   automationSessionIdRef.current = automationSessionId;
   const [browserFailure, setBrowserFailure] = useState<{ kind: BuiltinBrowserFailure; sessionId: string } | null>(null);
@@ -76,19 +74,21 @@ function MainContent({
   usePaletteOpsRegister({
     openFile: revealFile,
     openFileInEditor: resolveFile,
-    openBrowser: (address: string) => {
-      if (!hasBuiltinBrowserBridge() || !automationSessionId) {
-        void openBrowserUrl(address);
+    openBuiltinBrowser: (address: string) => {
+      if (!automationSessionId) {
         return;
       }
       const requestSessionId = automationSessionId;
       setBrowserFailure(null);
-      void openBuiltinBrowser(requestSessionId, address).catch((error) => {
+      void requestBuiltinBrowser(requestSessionId, address).catch((error) => {
         console.error('Failed to open the built-in browser:', error);
         if (automationSessionIdRef.current === requestSessionId) {
           setBrowserFailure({ kind: builtinBrowserFailure(error), sessionId: requestSessionId });
         }
       });
+    },
+    openExternalUrl: (address: string) => {
+      void openBrowserUrl(address);
     },
   });
 

@@ -22,8 +22,10 @@ export type PaletteOps = {
   // Opens a file in the editor side panel without changing the active tab
   // (used by in-chat file links so they behave like the inline edit view).
   openFileInEditor: (path: string) => void;
-  // Opens an HTTP(S) link in the session-owned Browser panel.
-  openBrowser: (url: string) => void;
+  // Opens a URL in the app's session-owned built-in browser window.
+  openBuiltinBrowser: (url: string) => void;
+  // Hands an HTTP(S) URL to the user's browser outside the app.
+  openExternalUrl: (url: string) => void;
   openSettings: (tab?: string) => void;
   refreshProjects: () => Promise<void> | void;
 };
@@ -40,7 +42,8 @@ const OPS_KEYS = [
   'startNewChat',
   'openFile',
   'openFileInEditor',
-  'openBrowser',
+  'openBuiltinBrowser',
+  'openExternalUrl',
   'openSettings',
   'refreshProjects',
 ] as const;
@@ -112,7 +115,8 @@ export function usePaletteOpsRegister(partial: PaletteOpsRegistry) {
     startNewChat,
     openFile,
     openFileInEditor,
-    openBrowser,
+    openBuiltinBrowser,
+    openExternalUrl,
     openSettings,
     refreshProjects,
   } = partial;
@@ -124,11 +128,12 @@ export function usePaletteOpsRegister(partial: PaletteOpsRegistry) {
       ...(startNewChat ? { startNewChat } : {}),
       ...(openFile ? { openFile } : {}),
       ...(openFileInEditor ? { openFileInEditor } : {}),
-      ...(openBrowser ? { openBrowser } : {}),
+      ...(openBuiltinBrowser ? { openBuiltinBrowser } : {}),
+      ...(openExternalUrl ? { openExternalUrl } : {}),
       ...(openSettings ? { openSettings } : {}),
       ...(refreshProjects ? { refreshProjects } : {}),
     });
-  }, [openCommandPalette, openSessionPicker, startNewChat, openFile, openFileInEditor, openBrowser, openSettings, refreshProjects]);
+  }, [openCommandPalette, openSessionPicker, startNewChat, openFile, openFileInEditor, openBuiltinBrowser, openExternalUrl, openSettings, refreshProjects]);
 }
 
 const read = () => usePaletteOpsRegistryStore.getState().registry;
@@ -144,7 +149,8 @@ const ops: PaletteOps = {
   startNewChat: () => (read().startNewChat ?? (() => undefined))(),
   openFile: (path) => (read().openFile ?? (() => undefined))(path),
   openFileInEditor: (path) => (read().openFileInEditor ?? (() => undefined))(path),
-  openBrowser: (url) => (read().openBrowser ?? (() => undefined))(url),
+  openBuiltinBrowser: (url) => (read().openBuiltinBrowser ?? (() => undefined))(url),
+  openExternalUrl: (url) => (read().openExternalUrl ?? (() => undefined))(url),
   openSettings: (tab) => (read().openSettings ?? (() => undefined))(tab),
   refreshProjects: () => (read().refreshProjects ?? (() => undefined))(),
 };

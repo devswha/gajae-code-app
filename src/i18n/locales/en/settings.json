@@ -129,7 +129,7 @@
   "automation": {
     "browserBackend": {
       "title": "Browser",
-      "description": "Which browser GJC sessions started here can control.",
+      "description": "Which browser GJC sessions started here can control. This does not change manual built-in launches or chat links.",
       "label": "Browser backend",
       "builtin": "Built-in",
       "aside": "Aside (Experimental)",
@@ -143,9 +143,9 @@
     },
     "builtinBrowser": {
       "title": "Built-in browser",
-      "description": "Open the browser controlled by the supported desktop app.",
+      "description": "Open the app's built-in browser window independently of the selected GJC backend.",
       "label": "Built-in browser",
-      "note": "Available only in the macOS desktop app. One browser owner remains active until it is closed.",
+      "note": "Available only in the macOS desktop app. One browser owner remains active until it is closed. HTTP(S) chat links always open in your external browser.",
       "open": "Open browser",
       "opened": "Opened the built-in browser.",
       "failed": "The built-in browser could not be opened.",

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { afterEach, test } from 'node:test';
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -7,6 +8,7 @@ import { I18nextProvider } from 'react-i18next';
 
 import english from '../../../../i18n/locales/en/settings.json';
 import { resetAppShellStore, useAppShellStore } from '../../../../stores/useAppShellStore';
+import type { Project } from '../../../../types/app';
 
 import AutomationSettingsTab from './AutomationSettingsTab';
 
@@ -21,6 +23,7 @@ type ApiOptions = {
 
 const originalFetch = globalThis.fetch;
 const originalWindowOpen = window.open;
+const project: Project = { projectId: 'project-a', displayName: 'Alpha', fullPath: '/work/alpha' };
 
 afterEach(() => {
   cleanup();
@@ -158,7 +161,7 @@ test('plain web hides desktop launch while CUA diagnostics and saved grants rema
 });
 
 test('desktop launch uses the selected app session and exposes an API failure without another open request', async () => {
-  useAppShellStore.setState({ selectedSession: { id: 'session/a' } });
+  useAppShellStore.setState({ selectedProject: project, selectedSession: { id: 'session/a' } });
   (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = { invoke: async () => undefined };
   let externalOpens = 0;
   window.open = (() => { externalOpens += 1; return null; }) as typeof window.open;
@@ -174,19 +177,20 @@ test('desktop launch uses the selected app session and exposes an API failure wi
   assert.equal(externalOpens, 0);
 });
 
-test('desktop launch falls back to the manual scope when no app session was selected', async () => {
+test('desktop launch falls back to the selected project scope when no app session was selected', async () => {
   const calls = fakeApi();
+  useAppShellStore.setState({ selectedProject: project, selectedSession: null });
   (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = { invoke: async () => undefined };
   await mount();
 
   fireEvent.click(await screen.findByRole('button', { name: english.automation.builtinBrowser.open }));
   await waitFor(() => assert.equal(screen.getByRole('status').textContent, english.automation.builtinBrowser.opened));
-  assert.equal(calls.some((call) => call.path === '/api/browser/manual/open'), true);
+  assert.equal(calls.some((call) => call.path === '/api/browser/project-project-a/open'), true);
 });
 
 test('switching and deselecting sessions changes Settings launch ownership immediately', async () => {
   const calls = fakeApi();
-  useAppShellStore.setState({ selectedSession: { id: 'session-a' } });
+  useAppShellStore.setState({ selectedProject: project, selectedSession: { id: 'session-a' } });
   (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = { invoke: async () => undefined };
   await mount();
   const button = await screen.findByRole('button', { name: english.automation.builtinBrowser.open });
@@ -198,7 +202,23 @@ test('switching and deselecting sessions changes Settings launch ownership immed
   await waitFor(() => assert.ok(calls.some((call) => call.path === '/api/browser/session-b/open')));
   act(() => useAppShellStore.setState({ selectedSession: null }));
   fireEvent.click(button);
-  await waitFor(() => assert.ok(calls.some((call) => call.path === '/api/browser/manual/open')));
+  await waitFor(() => assert.ok(calls.some((call) => call.path === '/api/browser/project-project-a/open')));
+});
+
+test('manual built-in launch is independent of the selected agent backend', async () => {
+  const calls = fakeApi();
+  useAppShellStore.setState({ selectedProject: project, selectedSession: null });
+  (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = { invoke: async () => undefined };
+  await mount();
+  await waitFor(() => assert.equal(backendSelect().disabled, false));
+
+  fireEvent.change(backendSelect(), { target: { value: 'ego' } });
+  await waitFor(() => assert.equal(backendSelect().value, 'ego'));
+  fireEvent.click(await screen.findByRole('button', { name: english.automation.builtinBrowser.open }));
+  await waitFor(() => assert.equal(screen.getByRole('status').textContent, english.automation.builtinBrowser.opened));
+  assert.deepEqual(calls.filter((call) => call.path.startsWith('/api/browser/')), [
+    { path: '/api/browser/project-project-a/open', method: 'POST', body: {} },
+  ]);
 });
 
 test('desktop bridge keeps launch disabled until the app server reports browser readiness', async () => {
@@ -211,4 +231,24 @@ test('desktop bridge keeps launch disabled until the app server reports browser 
   fireEvent.click(button);
   assert.equal(calls.some((call) => call.path.startsWith('/api/browser/')), false);
   assert.ok(screen.getByText('1.2.3 · running'));
+});
+
+test('browser routing wording keys have parity across all ten settings locales', () => {
+  function leaves(value: unknown, path = ''): Record<string, string> {
+    if (typeof value === 'string') return { [path]: value };
+    assert.ok(value && typeof value === 'object');
+    return Object.assign({}, ...Object.entries(value).map(([key, item]) => leaves(item, `${path}.${key}`)));
+  }
+
+  const expected = leaves({ browserBackend: english.automation.browserBackend, builtinBrowser: english.automation.builtinBrowser });
+  for (const locale of ['en', 'ko', 'de', 'fr', 'it', 'ja', 'ru', 'tr', 'zh-CN', 'zh-TW']) {
+    const file = new URL(`../../../../i18n/locales/${locale}/settings.json`, import.meta.url);
+    const translated = JSON.parse(readFileSync(file, 'utf8')) as { automation?: unknown };
+    const actual = leaves({
+      browserBackend: (translated.automation as { browserBackend?: unknown } | undefined)?.browserBackend,
+      builtinBrowser: (translated.automation as { builtinBrowser?: unknown } | undefined)?.builtinBrowser,
+    });
+    assert.deepEqual(Object.keys(actual).sort(), Object.keys(expected).sort(), locale);
+    for (const [key, text] of Object.entries(actual)) assert.ok(text.trim().length > 0, `${locale}${key}`);
+  }
 });

@@ -201,7 +201,7 @@ export function Markdown({ children, className }: MarkdownProps) {
   const content = normalizeInlineCodeFences(String(children ?? ''));
   const remarkPlugins = useMemo(() => [remarkGfm, remarkMath], []);
   const rehypePlugins = useMemo(() => [rehypeKatex], []);
-  const { openBrowser, openFileInEditor } = usePaletteOps();
+  const { openExternalUrl, openFileInEditor } = usePaletteOps();
 
   const components = useMemo(
     () => ({
@@ -234,7 +234,7 @@ export function Markdown({ children, className }: MarkdownProps) {
               className="text-primary hover:underline"
               onClick={(event) => {
                 event.preventDefault();
-                openBrowser(href);
+                openExternalUrl(href);
               }}
             >
               {linkChildren}
@@ -254,7 +254,7 @@ export function Markdown({ children, className }: MarkdownProps) {
         );
       },
     }),
-    [openBrowser, openFileInEditor],
+    [openExternalUrl, openFileInEditor],
   );
 
   return (

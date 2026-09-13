@@ -9,6 +9,7 @@ import { I18nextProvider } from 'react-i18next';
 
 import { resetPaletteOps, usePaletteOps } from '../../../stores/usePaletteOpsStore';
 import englishSettings from '../../../i18n/locales/en/settings.json';
+import { markDesktopShell } from '../../../utils/externalLink';
 import type { Project, ProjectSession } from '../../../types/app';
 import type { MainContentProps } from '../types/types';
 
@@ -23,6 +24,7 @@ afterEach(() => {
   resetPaletteOps();
   globalThis.fetch = originalFetch;
   window.open = originalWindowOpen;
+  markDesktopShell(false);
   console.error = originalConsoleError;
   sessionStorage.clear();
   localStorage.clear();
@@ -88,13 +90,50 @@ test('the registered browser action scopes a desktop launch to the selected sess
     { i18n },
     createElement(QueryClientProvider, { client }, createElement(MainContent, props(session))),
   ));
-  usePaletteOps().openBrowser('https://example.com/path');
+  usePaletteOps().openBuiltinBrowser('https://example.com/path');
   await waitFor(() => assert.ok(calls.some((call) => call.path.startsWith('/api/browser/'))));
   assert.deepEqual(calls.filter((call) => call.path.startsWith('/api/browser/')), [{
     path: '/api/browser/session%2Fa/open',
     method: 'POST',
     body: { url: 'https://example.com/path' },
   }]);
+  client.clear();
+});
+
+test('the external action hands HTTP links to the OS browser even when the built-in bridge is present', async () => {
+  const calls: Array<{ path: string; method: string; body?: unknown }> = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
+    const method = init?.method ?? 'GET';
+    const body = typeof init?.body === 'string' ? JSON.parse(init.body) as unknown : undefined;
+    calls.push({ path, method, ...(body === undefined ? {} : { body }) });
+    if (path === '/api/projects?skipSynchronization=1') return new Response('[]');
+    if (path.endsWith('/permissions')) {
+      return new Response(JSON.stringify({ data: {
+        projectId: 'project-a', projectPath: '/work/alpha', mode: 'ask', allowAlways: [], bypassAcknowledged: false, updatedAt: null,
+      } }));
+    }
+    if (path.endsWith('/location')) return new Response(JSON.stringify({ data: { mode: 'direct', cwd: '/work/alpha' } }));
+    if (path === '/api/system/open-browser-url') return new Response(JSON.stringify({ success: true }));
+    return new Response('{}', { status: 404 });
+  }) as typeof fetch;
+  (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = { invoke: async () => undefined };
+  markDesktopShell(true);
+
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const i18n = createInstance();
+  await i18n.init({ lng: 'en', resources: { en: { common: {}, settings: englishSettings } }, defaultNS: 'common' });
+  render(createElement(
+    I18nextProvider,
+    { i18n },
+    createElement(QueryClientProvider, { client }, createElement(MainContent, props(session))),
+  ));
+
+  act(() => usePaletteOps().openExternalUrl('http://localhost:5173/path'));
+  await waitFor(() => assert.ok(calls.some((call) => call.path === '/api/system/open-browser-url')));
+  assert.deepEqual(calls.filter((call) => call.path === '/api/system/open-browser-url'), [
+    { path: '/api/system/open-browser-url', method: 'POST', body: { url: 'http://localhost:5173/path' } },
+  ]);
   client.clear();
 });
 
@@ -133,7 +172,7 @@ test('native launch failures are visible only for the session that made the requ
   ));
 
   console.error = () => undefined;
-  act(() => usePaletteOps().openBrowser('https://first.example'));
+  act(() => usePaletteOps().openBuiltinBrowser('https://first.example'));
   await waitFor(() => assert.deepEqual(browserCalls, ['/api/browser/session%2Fa/open']));
   const nextSession = { ...session, id: 'session-b' };
   view.rerender(createElement(
@@ -147,7 +186,7 @@ test('native launch failures are visible only for the session that made the requ
   });
   assert.equal(view.queryByRole('alert'), null);
 
-  act(() => usePaletteOps().openBrowser('https://second.example'));
+  act(() => usePaletteOps().openBuiltinBrowser('https://second.example'));
   await waitFor(() => assert.equal(view.getByRole('alert').textContent, englishSettings.automation.builtinBrowser.errors.busy));
   assert.deepEqual(browserCalls, ['/api/browser/session%2Fa/open', '/api/browser/session-b/open']);
   assert.equal(externalOpens, 0);

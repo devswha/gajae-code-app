@@ -2,15 +2,15 @@
 
 The built-in browser replaces the app-managed Chromium sidecar for basic browser
 automation. It is available only in the macOS desktop app. Web and self-hosted
-clients open external links; Aside remains a user-installed, runtime-owned
-alternative.
+clients hand web links to the external browser.
 
 ## Choice and availability
 
-The application choice is `builtin` or `aside` (default `builtin`). A stored
-legacy `native` value reads as `builtin`; new writes use only the new names.
-Built-in explicitly selects the runtime's native browser setting on each run.
-Aside keeps its CLI probe, routing and no-fallback failure behavior.
+The application choice is `builtin`, `aside`, or `ego` (default `builtin`). A
+stored legacy `native` value reads as `builtin`; new writes use only the new
+names. Built-in explicitly selects the runtime's native browser setting on each
+run. Aside and ego keep their CLI probes, routing and no-fallback failure
+behavior.
 
 Rust reports actual built-in availability through authenticated automation
 status. If capability is absent, the app removes both its browser custom tool
@@ -18,6 +18,20 @@ and the SDK browser tool name, so ordinary chat remains usable and a browser
 direct browser API request receives an explicit unsupported result instead of
 activating the SDK's Chromium implementation. Hidden tool discovery is also
 disabled under the app's existing tool allowlist policy.
+
+## Separate manual and chat-link surfaces
+
+Settings has an explicit **Open browser** action for the app's built-in browser
+window. It is independent of the selected GJC backend: the selected session
+owns the window, or the selected project's `project-<projectId>` scope is used
+when no session is selected. Changing the agent backend therefore does not
+redirect this manual action.
+
+Absolute HTTP(S) links in chat Markdown always go to the user's external
+browser. They never open the built-in window merely because the Tauri bridge is
+present, and they do not follow the selected agent backend. In the desktop app
+the server hands these links to the operating system opener; in a regular web
+browser they use a new browser tab.
 
 ## Surface and ownership
 

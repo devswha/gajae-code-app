@@ -129,19 +129,19 @@
   "automation": {
     "browserBackend": {
       "title": "Navigateur",
-      "description": "Quel navigateur les sessions GJC lancées ici peuvent contrôler.",
+      "description": "Quel navigateur les sessions GJC lancées ici peuvent contrôler. Cela ne change ni les ouvertures manuelles du navigateur intégré ni les liens du chat.",
       "label": "Backend du navigateur",
       "builtin": "Intégré",
       "aside": "Aside (expérimental)",
       "builtinDescription": "Le navigateur intégré est disponible dans l’app macOS prise en charge.",
       "asideDescription": "Le backend Aside de GJC : l'outil de navigateur intégré est masqué et le travail dans le navigateur passe par la CLI Aside que vous avez installée, dans votre propre navigateur connecté.",
-      "asideNote": "Nécessite la CLI Aside que vous avez installée vous-même (~/.local/bin/aside ou l'application Aside CLI). Tant qu'Aside est sélectionné, une session qui ne la trouve pas échoue au démarrage au lieu de revenir au navigateur natif. Repassez en Natif pour rétablir le navigateur intégré.",
+      "asideNote": "Nécessite la CLI Aside que vous avez installée vous-même (~/.local/bin/aside ou l'application Aside CLI). Tant qu'Aside est sélectionné, une session qui ne la trouve pas échoue au démarrage au lieu de revenir au navigateur intégré. Repassez en Intégré pour rétablir le navigateur intégré.",
       "ego": "ego lite (expérimental)",
       "egoDescription": "Navigateur ego lite : l’outil de navigateur intégré est masqué et le travail de navigation passe par la CLI ego-browser installée, dans votre propre navigateur connecté, dans un Space dédié.",
       "egoNote": "Nécessite ego lite installé par vous-même (https://lite.ego.app ; l’onboarding enregistre ~/.local/bin/ego-browser) et son skill ego-browser. Tant qu’ego lite est sélectionné, une session qui ne trouve pas la CLI échoue au démarrage au lieu de revenir à Intégré. Choisissez Intégré uniquement là où il est disponible.",
       "saveFailed": "Le backend du navigateur n'a pas pu être enregistré."
     },
-    "builtinBrowser": { "title": "Navigateur intégré", "description": "Ouvre le navigateur de l’app macOS.", "label": "Navigateur intégré", "note": "Disponible uniquement dans l’app macOS.", "open": "Ouvrir le navigateur", "opened": "Navigateur intégré ouvert.", "failed": "Impossible d’ouvrir le navigateur.", "errors": { "busy": "Le navigateur intégré est déjà utilisé. Fermez-le avant de l’ouvrir pour cette session.", "unavailable": "Le navigateur intégré est indisponible. Attendez que le serveur de l’app se reconnecte, puis réessayez.", "invalidUrl": "Cette adresse ne peut pas être ouverte. Utilisez une adresse HTTP ou HTTPS.", "stale": "La page du navigateur a changé avant la fin de la requête. Réessayez.", "failed": "Impossible d’ouvrir le navigateur intégré. Réessayez." } },
+    "builtinBrowser": { "title": "Navigateur intégré", "description": "Ouvre la fenêtre du navigateur intégré de l’app, indépendamment du backend GJC sélectionné.", "label": "Navigateur intégré", "note": "Disponible uniquement dans l’app macOS. Une session conserve la propriété du navigateur jusqu’à sa fermeture. Les liens HTTP(S) du chat s’ouvrent toujours dans le navigateur externe.", "open": "Ouvrir le navigateur", "opened": "Navigateur intégré ouvert.", "failed": "Impossible d’ouvrir le navigateur.", "errors": { "busy": "Le navigateur intégré est déjà utilisé. Fermez-le avant de l’ouvrir pour cette session.", "unavailable": "Le navigateur intégré est indisponible. Attendez que le serveur de l’app se reconnecte, puis réessayez.", "invalidUrl": "Cette adresse ne peut pas être ouverte. Utilisez une adresse HTTP ou HTTPS.", "stale": "La page du navigateur a changé avant la fin de la requête. Réessayez.", "failed": "Impossible d’ouvrir le navigateur intégré. Réessayez." } },
     "title": "Navigateur et applications natives",
     "description": "Vérifiez le CUA Driver installé séparément.",
     "notInstalled": "Indisponible",

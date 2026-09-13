@@ -10,7 +10,12 @@ import type { DesktopWorkAdmission } from '@/shared/interfaces.js';
 
 import type { DesktopOwnerActivity } from '../../../shared/desktopUpdateProtocol.js';
 
-import { guardCuaCall, isCuaDriverSchemaSupported, readCuaPermissions } from './cua-capability.js';
+import {
+  CUA_DRIVER_SCHEMA_VERSION,
+  guardCuaCall,
+  isCuaDriverSchemaSupported,
+  readCuaPermissions,
+} from './cua-capability.js';
 
 export const CUA_SAFE_TOOLS = [
   'start_session',
@@ -67,6 +72,14 @@ type CuaDriverClientOptions = {
   desktopRestartAdmission?: DesktopWorkAdmission;
   onSessionClosed?: (label: string) => void;
 };
+
+function mcpServerVersion(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const serverInfo = (value as Record<string, unknown>).serverInfo;
+  if (!serverInfo || typeof serverInfo !== 'object' || Array.isArray(serverInfo)) return undefined;
+  const version = (serverInfo as Record<string, unknown>).version;
+  return typeof version === 'string' ? version : undefined;
+}
 
 function executableCandidates(): string[] {
   return [
@@ -140,6 +153,8 @@ export class CuaDriverClient {
   private closing = 0;
   private shuttingDown = false;
   private transportUncertain = false;
+  /** A schema mismatch is sticky until this client is recreated. */
+  private schemaError?: string;
 
   constructor(private readonly options: CuaDriverClientOptions = {}) {
     this.admission = options.desktopRestartAdmission;
@@ -263,6 +278,7 @@ export class CuaDriverClient {
   private async ensureStarted(): Promise<void> {
     if (this.starting) return this.starting;
     if (this.shuttingDown) throw new Error('CUA Driver is shutting down.');
+    if (this.schemaError) throw new Error(this.schemaError);
     if (this.transportUncertain) throw new Error('CUA Driver closure is unconfirmed.');
     if (this.child && this.child.exitCode === null) return;
     this.activityRevision++;
@@ -282,11 +298,18 @@ export class CuaDriverClient {
       child.stdin.on('error', (error) => this.failAll(child, error));
       child.on('close', () => this.failAll(child, new Error('CUA Driver disconnected.'), true));
       child.on('error', (error) => this.failAll(child, error));
-      await this.request('initialize', {
+      const initialized = await this.request('initialize', {
         protocolVersion: '2025-03-26',
         capabilities: {},
         clientInfo: { name: 'gajae-code-app', version: '0.1.0' },
       }, 10_000);
+      const version = mcpServerVersion(initialized);
+      if (!isCuaDriverSchemaSupported(version)) {
+        this.schemaError = `Unsupported CUA Driver schema ${version ?? 'unknown'}; reviewed schema is ${CUA_DRIVER_SCHEMA_VERSION}.`;
+        if (this.child === child) this.child = undefined;
+        child.kill();
+        throw new Error(this.schemaError);
+      }
       this.notify('notifications/initialized', {});
     })().finally(() => {
       this.starting = undefined;

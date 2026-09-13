@@ -159,12 +159,15 @@ export function parseCuaPermissionsText(raw: string): CuaPermissionReport {
   const attributionLine = raw.split(/\r?\n/u)
     .map((line) => legacyPermissionToken(line, 'source'))
     .find((token): token is string => token !== null && token.length > 0);
-  if (attributionLine && !TRUSTED_PERMISSION_ATTRIBUTIONS.has(attributionLine)) {
-    return { ...UNKNOWN_REPORT, source: 'legacy-text', attribution: attributionLine };
-  }
+  const accessibility = legacyPermissionValue(raw, ['accessibility']);
+  const screenRecording = legacyPermissionValue(raw, ['screen recording', 'screen capture']);
+  const attributedToTrustedDaemon = Boolean(attributionLine && TRUSTED_PERMISSION_ATTRIBUTIONS.has(attributionLine));
   return {
-    accessibility: legacyPermissionValue(raw, ['accessibility']),
-    screenRecording: legacyPermissionValue(raw, ['screen recording', 'screen capture']),
+    // An explicit denial remains useful even when an old text-only driver does
+    // not identify its source; only positive permission claims require the
+    // trusted daemon attribution.
+    accessibility: attributedToTrustedDaemon || accessibility !== true ? accessibility : undefined,
+    screenRecording: attributedToTrustedDaemon || screenRecording !== true ? screenRecording : undefined,
     source: 'legacy-text',
     ...(attributionLine ? { attribution: attributionLine } : {}),
   };
@@ -188,7 +191,7 @@ export function readCuaPermissions(inspection: { ok: boolean; output: string }):
 
 /** Whether the installed driver reports a release this policy was derived from. */
 export function isCuaDriverSchemaSupported(version: string | undefined): boolean {
-  const match = /(\d+)\.(\d+)\.\d+/u.exec(version ?? '');
+  const match = /^(?:cua-driver\s+)?(\d+)\.(\d+)\.\d+$/u.exec((version ?? '').trim());
   return Boolean(match) && SUPPORTED_DRIVER_MINORS.has(`${match![1]}.${match![2]}`);
 }
 

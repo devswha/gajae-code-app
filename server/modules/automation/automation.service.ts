@@ -282,7 +282,11 @@ export class AutomationService {
     const release = this.enter('computer.authorize');
     try {
       if (!isCuaSafeTool(payload.tool)) throw new Error('Unsupported CUA Driver tool.');
-      const args = object(payload.arguments);
+      const { session: _ignoredSession, ...rawArgs } = object(payload.arguments);
+      // Authorization must inspect the exact same normalized record that will
+      // reach callComputer. Reject policy-denied or malformed requests before
+      // resolving inventory, prompting, or materializing an application grant.
+      const { arguments: args } = guardCuaCall(payload.tool, rawArgs);
       const { application, label } = await this.resolveComputerApplication(
         payload.tool,
         args,

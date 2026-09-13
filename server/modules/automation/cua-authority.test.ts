@@ -84,6 +84,33 @@ test('a denied delivery mode is rejected before any driver round-trip', async (t
   assert.deepEqual(inventory, [], 'a denied call must not even resolve identity');
 });
 
+test('computer authorization rejects policy-denied arguments before inventory or grants', async (t) => {
+  const { instance, grants, inventory, dispatched } = service(t);
+  await assert.rejects(
+    instance.authorizeComputer('session-a', {
+      tool: 'click',
+      arguments: { pid: 42, delivery_mode: 'foreground' },
+      scope: 'always',
+    }),
+    { name: 'CuaPolicyError', message: /foreground delivery is denied/u },
+  );
+  assert.deepEqual(inventory, [], 'a denied authorization must not resolve application identity');
+  assert.deepEqual(dispatched, []);
+  assert.deepEqual(grants.list().always.applications, [], 'a denied authorization must not persist a grant');
+});
+
+test('computer authorization and execution share required-argument validation', async (t) => {
+  const { instance, grants, inventory } = service(t);
+  await assert.rejects(
+    instance.authorizeComputer('session-a', {
+      tool: 'get_window_state', arguments: { window_id: 7 }, scope: 'session',
+    }),
+    { name: 'CuaPolicyError', message: /requires the "pid" argument/u },
+  );
+  assert.deepEqual(inventory, []);
+  assert.deepEqual(grants.list('session-a').session, []);
+});
+
 test('a granted application mutation is accepted and dispatched background-bound', async (t) => {
   const { instance, grants, dispatched, sessionLabel } = service(t);
   grants.grant({ kind: 'application', value: 'com.apple.TextEdit', scope: 'session', sessionId: 'session-a' });

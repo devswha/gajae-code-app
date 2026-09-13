@@ -148,6 +148,13 @@ test('legacy fallback fails closed on an untrusted attribution line', () => {
   assert.equal(report.attribution, 'process-self');
 });
 
+test('legacy fallback fails closed when the output has no attribution', () => {
+  const report = parseCuaPermissionsText('Accessibility: granted\nScreen Recording: granted');
+  assert.equal(report.accessibility, undefined);
+  assert.equal(report.screenRecording, undefined);
+  assert.equal(report.source, 'legacy-text');
+});
+
 test('a failed inspection can only preserve denials, never produce a grant', () => {
   assert.deepEqual(readCuaPermissions({ ok: false, output: '' }), {
     accessibility: undefined, screenRecording: undefined, source: 'none',
@@ -171,6 +178,8 @@ test('driver schema support is pinned to the reviewed release line', () => {
   assert.equal(isCuaDriverSchemaSupported('cua-driver 0.21.0'), true);
   assert.equal(isCuaDriverSchemaSupported('0.21.4'), true);
   assert.equal(isCuaDriverSchemaSupported('cua-driver 0.22.0'), false);
+  assert.equal(isCuaDriverSchemaSupported('untrusted-wrapper 0.21.0'), false);
+  assert.equal(isCuaDriverSchemaSupported('cua-driver 0.21.0-beta.1'), false);
   assert.equal(isCuaDriverSchemaSupported(undefined), false);
 });
 

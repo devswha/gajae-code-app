@@ -1,6 +1,19 @@
 # Delegation Lifecycle Contract
 
-Status: research/documentation only — no production code changed (2026-09-13).
+Status: **implemented** (2026-09-13, branch `feat/delegation-work-activity`).
+PRs A and B of §18 landed as one PR: the executor emits one
+`delegation.updated` worker event per settlement from `#run`'s `finally` block
+(immediately after the durable terminal receipt append + flush), mapped from
+writer kind `delegation_updated`; the transcript REST read projects
+`gajae-app.delegation.v1` receipts as `delegation_updated` history rows with
+the §11.3 restart fold (`running` + no active run ⇒ `cancelled` via
+`chatRunRegistry.isProcessing`); the client folds tool-result snapshots,
+projected receipts and live events into `useSessionDelegations` (chronological
+last-wins per `delegationId`, no terminal stickiness so `resume` still works);
+and `AgentSidebarWork` renders active (`running`) agents under a compact
+Agents sublabel, suppressing the generic `Working` row while agents are
+listed. Everything below remains the design/audit record of that
+implementation.
 Base: `main` at `b86e5bd` (PR #76 merged). App pins `@gajae-code/coding-agent`
 **0.16.4** (`package.json:140`); GJC repository inspected read-only at 0.16.6.
 

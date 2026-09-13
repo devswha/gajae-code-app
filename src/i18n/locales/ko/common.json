@@ -94,7 +94,9 @@
     },
     "work": {
       "title": "작업",
-      "working": "작업 중"
+      "working": "작업 중",
+      "agents": "에이전트",
+      "agentRunning": "실행 중"
     },
     "actionRequired": {
       "title": "응답 필요",

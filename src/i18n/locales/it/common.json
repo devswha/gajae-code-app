@@ -94,7 +94,9 @@
     },
     "work": {
       "title": "Lavoro",
-      "working": "In corso"
+      "working": "In corso",
+      "agents": "Agenti",
+      "agentRunning": "In esecuzione"
     },
     "actionRequired": {
       "title": "Risposta richiesta",

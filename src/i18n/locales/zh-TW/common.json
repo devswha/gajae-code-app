@@ -94,7 +94,9 @@
     },
     "work": {
       "title": "工作",
-      "working": "運行中"
+      "working": "運行中",
+      "agents": "代理",
+      "agentRunning": "執行中"
     },
     "actionRequired": {
       "title": "需要回覆",

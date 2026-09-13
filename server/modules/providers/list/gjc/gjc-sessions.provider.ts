@@ -4,7 +4,7 @@ import { sessionsDb } from '@/modules/database/index.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
 import { assignTranscriptTurns, type TranscriptTurnRecord } from '@/modules/providers/list/gjc/gjc-transcript-turns.js';
-import { readGjcTranscriptMessage } from '@/modules/providers/list/gjc/gjc-transcript-message.js';
+import { type GjcDelegationReceiptUpdate, readGjcDelegationReceipt, readGjcTranscriptMessage } from '@/modules/providers/list/gjc/gjc-transcript-message.js';
 import { AppError, createNormalizedMessage, generateMessageId, readObjectRecord } from '@/shared/utils.js';
 
 const PROVIDER = 'gjc';
@@ -144,6 +144,23 @@ async function streamGjcSessionMessages(
       try {
         const entry = readObjectRecord(JSON.parse(line));
         if (!entry) {
+          continue;
+        }
+
+        // A delegation receipt is a custom entry, not a message, so the
+        // message reader above returns null for it and the skip below would
+        // drop the only durable record of the delegation's state.
+        const delegation = readGjcDelegationReceipt(entry);
+        if (delegation) {
+          const receiptId = typeof entry.id === 'string' ? entry.id : generateMessageId(PROVIDER);
+          const receiptTurn = typeof entry.id === 'string' ? turns.get(entry.id) : undefined;
+          const record: AnyRecord = {
+            uuid: `${receiptId}:delegation`,
+            type: 'delegation_receipt',
+            timestamp: entry.timestamp,
+            delegation,
+          };
+          onMessage(receiptTurn ? { ...record, turnId: receiptTurn.turnId, turnStatus: receiptTurn.status } : record);
           continue;
         }
 
@@ -332,15 +349,15 @@ export class GjcSessionsProvider implements IProviderSessions {
    * one omission there would leave a message out of its turn, and a
    * changed-files card silently short of what the turn actually changed.
    */
-  private normalizeHistoryEntry(raw: AnyRecord, sessionId: string | null): NormalizedMessage[] {
-    const messages = this.normalizeHistoryEntryContent(raw, sessionId);
+  private normalizeHistoryEntry(raw: AnyRecord, sessionId: string | null, sessionIsRunning = false): NormalizedMessage[] {
+    const messages = this.normalizeHistoryEntryContent(raw, sessionId, sessionIsRunning);
     const turnId = typeof raw.turnId === 'string' ? raw.turnId : undefined;
     if (!turnId) return messages;
     const turnStatus = raw.turnStatus as NormalizedMessage['turnStatus'];
     return messages.map((message) => ({ ...message, turnId, turnStatus }));
   }
 
-  private normalizeHistoryEntryContent(raw: AnyRecord, sessionId: string | null): NormalizedMessage[] {
+  private normalizeHistoryEntryContent(raw: AnyRecord, sessionId: string | null, sessionIsRunning: boolean): NormalizedMessage[] {
     const ts = raw.timestamp || new Date().toISOString();
     const baseId = raw.uuid || generateMessageId(PROVIDER);
 
@@ -358,6 +375,27 @@ export class GjcSessionsProvider implements IProviderSessions {
         provider: PROVIDER,
         kind: 'thinking',
         content: thinkingContent,
+      })];
+    }
+
+    if (raw.type === 'delegation_receipt') {
+      const delegation = raw.delegation as GjcDelegationReceiptUpdate | undefined;
+      if (!delegation) {
+        return [];
+      }
+      // The executor's own restart rule (`#receipts`), applied at read time: a
+      // `running` receipt is true only while the session still has a live run.
+      // No child survives a worker or server restart, so a receipt left running
+      // by a lost process reads `cancelled` instead of running forever.
+      return [createNormalizedMessage({
+        id: baseId,
+        sessionId,
+        timestamp: ts,
+        provider: PROVIDER,
+        kind: 'delegation_updated',
+        delegation: delegation.status === 'running' && !sessionIsRunning
+          ? { ...delegation, status: 'cancelled' }
+          : delegation,
       })];
     }
 
@@ -475,6 +513,11 @@ export class GjcSessionsProvider implements IProviderSessions {
     normalizedOffset: number,
   ): Promise<FetchHistoryResult> {
     const revision = await fsSync.promises.stat(sessionFilePath);
+    // Read once per page so both passes project the same delegation state, and
+    // imported lazily because the run registry's module graph reaches back into
+    // the provider registry - a static edge here is an import cycle.
+    const { chatRunRegistry } = await import('@/modules/websocket/index.js');
+    const sessionIsRunning = chatRunRegistry.isProcessing(sessionId);
     const cached = this.readHistoryIndexCache(sessionFilePath, revision.size, revision.mtimeMs);
     let turns: HistoryIndexCacheEntry['turns'];
     let chronological: HistoryRow[];
@@ -490,7 +533,7 @@ export class GjcSessionsProvider implements IProviderSessions {
       // pagination offsets or evict older messages from a payload ring.
       const index: HistoryRow[] = [];
       await streamGjcSessionMessages(sessionFilePath, turns, raw => {
-        for (const message of this.normalizeHistoryEntry(raw, sessionId)) {
+        for (const message of this.normalizeHistoryEntry(raw, sessionId, sessionIsRunning)) {
           const time = Date.parse(message.timestamp);
           index.push({ ordinal: index.length, time: Number.isFinite(time) ? time : 0, kind: message.kind, toolId: message.toolId });
         }
@@ -519,7 +562,7 @@ export class GjcSessionsProvider implements IProviderSessions {
     let ordinal = 0;
     let bytes = 0;
     if (wanted.size) await streamGjcSessionMessages(sessionFilePath, turns, raw => {
-      for (const message of this.normalizeHistoryEntry(raw, sessionId)) {
+      for (const message of this.normalizeHistoryEntry(raw, sessionId, sessionIsRunning)) {
         const position = ordinal++;
         if (!wanted.has(position)) continue;
         bytes += Buffer.byteLength(JSON.stringify(message), 'utf8');

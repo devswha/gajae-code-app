@@ -45,7 +45,7 @@ test('declares the independent worker protocol v1 surface', () => {
   assert.equal(GJC_WORKER_PROTOCOL_VERSION, 1);
   assert.equal(GJC_WORKER_MAX_FRAME_BYTES, 64 * 1024 * 1024);
   assert.deepEqual(GJC_WORKER_REQUEST_METHODS, ['worker.initialize', 'worker.activity', 'worker.admission', 'session.start', 'session.resume', 'turn.start', 'turn.abort', 'turn.steer', 'goal.inspect', 'goal.control', 'ask.reply', 'models.catalog', 'oauth.providers', 'oauth.status', 'oauth.start', 'oauth.submit', 'oauth.cancel', 'worker.shutdown']);
-  assert.deepEqual(GJC_WORKER_EVENT_METHODS, ['session.created', 'message.delta', 'message.completed', 'tool.started', 'tool.completed', 'ask.presented', 'usage.updated', 'turn.completed', 'turn.failed', 'worker.status', 'oauth.phase', 'oauth.providers.updated', 'provider.auth.updated']);
+  assert.deepEqual(GJC_WORKER_EVENT_METHODS, ['session.created', 'message.delta', 'message.completed', 'tool.started', 'tool.completed', 'ask.presented', 'usage.updated', 'delegation.updated', 'turn.completed', 'turn.failed', 'worker.status', 'oauth.phase', 'oauth.providers.updated', 'provider.auth.updated']);
 });
 
 test('parses every request method and enforces scope, fields, and protocolVersion', () => {
@@ -64,6 +64,10 @@ test('parses every event method with required IDs and correct session scope', ()
   }
   assert.equal(parseGjcWorkerFrame(JSON.stringify({ protocolVersion: 1, kind: 'event', id: 'event-1', method: 'worker.status', sessionId: 'session-1', payload: {} })).method, 'worker.status');
   protocolError(() => parseGjcWorkerFrame(JSON.stringify({ protocolVersion: 1, kind: 'event', id: 'event-2', method: 'turn.completed', payload: {} })), 'invalid_session_id');
+  // Delegation settlement belongs to exactly one session; a session-less frame
+  // would leak child activity into every other scope.
+  assert.equal(parseGjcWorkerFrame(JSON.stringify({ protocolVersion: 1, kind: 'event', id: 'event-3', method: 'delegation.updated', sessionId: 'session-1', payload: { runId: 'run-1', message: { kind: 'delegation_updated', delegation: { delegationId: 'delegation-1', status: 'completed', agent: 'executor', description: 'Contract task' } } } })).method, 'delegation.updated');
+  protocolError(() => parseGjcWorkerFrame(JSON.stringify({ protocolVersion: 1, kind: 'event', id: 'event-4', method: 'delegation.updated', payload: {} })), 'invalid_session_id');
   protocolError(() => parseGjcWorkerFrame(JSON.stringify({ protocolVersion: 1, kind: 'event', method: 'worker.status', payload: {} })), 'invalid_id');
 });
 

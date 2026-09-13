@@ -133,6 +133,7 @@ scope is fixed by this specification, and a frame that gets it wrong is rejected
 | `tool.completed` | scoped | A tool call finished, with its result. |
 | `ask.presented` | scoped | The worker needs an answer; reply with `ask.reply`. |
 | `usage.updated` | scoped | Token or cost accounting changed. |
+| `delegation.updated` | scoped | An app-owned delegated child settled. |
 | `turn.completed` | scoped | The turn ended normally. |
 | `turn.failed` | scoped | The turn ended in failure. |
 | `oauth.phase` | global | An interactive sign-in changed phase. |
@@ -142,6 +143,23 @@ scope is fixed by this specification, and a frame that gets it wrong is rejected
 `worker.status` is the only method whose scope is optional, and it is deliberate:
 the same event reports both "this worker is alive" and "this conversation is
 still working".
+
+`delegation.updated` carries `{ runId, message }` like every other run event; the
+message is `{ kind: 'delegation_updated', delegation }` with the public
+settlement snapshot:
+
+```json
+{ "delegationId": "<uuid>", "status": "running|completed|failed|cancelled",
+  "agent": "executor", "description": "Contract task",
+  "executionMode": "default|ultragoal-red-team", "repositoryBinding": { } }
+```
+
+`executionMode` and `repositoryBinding` are optional; the private receipt fields
+(`resultText`, `file`, `owner`, `root`, `childSessionId`) are never sent. The
+worker emits exactly one such event per settlement — `completed`, `failed` or
+`cancelled` — and only after the durable receipt (`gajae-app.delegation.v1`) has
+been appended and flushed to the owner transcript. Launch is not announced here:
+the `task`/`subagent` tool result already carries the `running` snapshot.
 
 ## 5. Payload schemas
 

@@ -167,6 +167,14 @@ repeats the method list: the copy that used to live here had gone stale, listing
 neither `turn.steer` nor any `oauth.*` method, which is what an unchecked second
 copy does.
 
+App-owned delegation settlement rides this protocol as the scoped event
+`delegation.updated`, emitted once per settled child after its durable
+`gajae-app.delegation.v1` receipt is flushed to the owner transcript. The event
+carries only the public snapshot (`delegationId`, `status`, `agent`,
+`description`, `executionMode`, `repositoryBinding`); the transcript receipt
+projection is what restores the same rows after a reload, per
+`docs/plans/delegation-lifecycle-contract.md` §10-11.
+
 The codec rejects unknown fields, methods, unsafe identifiers, incompatible
 versions, invalid JSON values, mismatched responses, oversized or unterminated
 frames, and unknown response IDs. Pending requests fail when the worker exits.

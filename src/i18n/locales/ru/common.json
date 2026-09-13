@@ -94,7 +94,9 @@
     },
     "work": {
       "title": "Работа",
-      "working": "Выполняется"
+      "working": "Выполняется",
+      "agents": "Агенты",
+      "agentRunning": "Выполняется"
     },
     "actionRequired": {
       "title": "Требуется ответ",

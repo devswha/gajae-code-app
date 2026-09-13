@@ -94,7 +94,9 @@
     },
     "work": {
       "title": "Work",
-      "working": "Working"
+      "working": "Working",
+      "agents": "Agents",
+      "agentRunning": "Running"
     },
     "actionRequired": {
       "title": "Action required",

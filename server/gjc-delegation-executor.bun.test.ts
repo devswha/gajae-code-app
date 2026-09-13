@@ -22,7 +22,7 @@ import { convertOpenAICodexResponsesTools } from '@gajae-code/ai/providers/opena
 import type { AssistantMessage, Context, Model, SimpleStreamOptions } from '@gajae-code/ai/types';
 import * as z from 'zod/v4';
 
-import { GjcDelegationExecutor, serializeGjcDelegationAutomationTools } from './gjc-delegation-executor.js';
+import { GjcDelegationExecutor, serializeGjcDelegationAutomationTools, type GjcDelegationUpdate } from './gjc-delegation-executor.js';
 import type { GjcPermissionProvider } from './gjc-bun-permission-gate.js';
 import { GjcBunSdkAdapter } from './gjc-bun-sdk-adapter.js';
 import { installGjcCliShim } from './gjc-cli-shim.js';
@@ -70,6 +70,7 @@ async function fixture(
   provider?: GjcPermissionProvider,
   configureChild?: (options: CreateAgentSessionOptions) => CreateAgentSessionOptions | Promise<CreateAgentSessionOptions>,
   storedCredentials = false,
+  onDelegationSettled?: (update: GjcDelegationUpdate) => void,
 ) {
   const scratch = join(await realpath(process.cwd()), '.tmp');
   await mkdir(scratch, { recursive: true });
@@ -149,7 +150,7 @@ async function fixture(
   };
   const createParent = async (manager = SessionManager.create(cwd, join(root, 'sessions'))) => {
     const executor = new GjcDelegationExecutor({ parent: manager, session: () => parent, sessionOptions: base,
-      permissionProvider: provider,
+      permissionProvider: provider, onDelegationSettled,
       createSession: async (options) => {
         childInputs.push(options!);
         const result = await createAgentSession(configureChild ? await configureChild(options!) : options);
@@ -364,6 +365,71 @@ test('nested children have direct ownership, bounded depth and cascading cancell
     assert.equal(f.calls.length, 2);
   } finally { await f.close(); }
 });
+
+for (const mode of ['completed', 'failed', 'cancel', 'dispose'] as const) {
+  test(`${mode} delegation settles with exactly one public notification written after its durable receipt`, { timeout: 30_000 }, async () => {
+    const expected = mode === 'completed' ? 'completed' : mode === 'failed' ? 'failed' : 'cancelled';
+    const started = deferred();
+    const release = deferred();
+    let ended = false;
+    const state: { owner?: Session } = {};
+    const settlements: Array<{ update: GjcDelegationUpdate; receipt?: Record<string, unknown> }> = [];
+    const receiptOf = (id: string) => (state.owner!.sessionManager.getEntries() as unknown as Array<{ type: string; customType?: string; data?: Record<string, unknown> }>)
+      .filter((entry) => entry.type === 'custom' && entry.customType === 'gajae-app.delegation.v1' && entry.data?.id === id)
+      .at(-1)?.data;
+    const f = await fixture((_context, options) => {
+      const events = new AssistantMessageEventStream();
+      const cancel = () => {
+        if (ended) return;
+        ended = true;
+        const output = answer(); output.stopReason = 'aborted';
+        events.push({ type: 'error', reason: 'aborted', error: output }); events.end(output);
+      };
+      options?.signal?.addEventListener('abort', cancel, { once: true });
+      void release.promise.then(() => {
+        if (ended) return;
+        ended = true;
+        const message = answer();
+        events.push({ type: 'done', reason: 'stop', message }); events.end(message);
+      });
+      started.resolve();
+      return events;
+    }, undefined, mode === 'failed' ? () => { throw new Error('Offline child creation refused.'); } : undefined, false,
+    // The receipt is read at notification time: a live signal that arrives
+    // before the durable terminal receipt would be unverifiable by a reload.
+    (update) => settlements.push({ update, receipt: receiptOf(update.delegationId) }));
+    state.owner = f.parent;
+    try {
+      const [child] = await tool(f.parent, 'task', task());
+      assert.ok(child);
+      if (mode !== 'failed') {
+        await within(started.promise);
+        assert.deepEqual(settlements, [], 'launch is already reported by the tool result and must not notify');
+      }
+      if (mode === 'completed') release.resolve();
+      const settle = async () => {
+        if (mode === 'cancel') await within(tool(f.parent, 'subagent', { action: 'cancel', id: child.id }), 10_000);
+        else if (mode === 'dispose') await within(f.executor.dispose(), 10_000);
+        else await within(tool(f.parent, 'subagent', { action: 'await', id: child.id }), 10_000);
+      };
+      await settle();
+      assert.equal(settlements.length, 1, JSON.stringify({ settlements, errors: f.transportErrors.map(String) }));
+      const [settled] = settlements;
+      assert.ok(settled?.receipt, 'the terminal receipt must already be durable when the notification fires');
+      assert.equal(settled.receipt.status, expected);
+      assert.deepEqual(settled.update, {
+        delegationId: child.id, status: expected, agent: 'executor', description: 'Contract task',
+        executionMode: 'default', repositoryBinding: settled.receipt.repositoryBinding,
+      });
+      for (const secret of ['resultText', 'file', 'owner', 'root', 'childSessionId']) {
+        assert.equal(secret in settled.update, false, `${secret} must never leave the server`);
+      }
+      // A repeated terminal operation observes the settled job, never a second settlement.
+      await settle();
+      assert.equal(settlements.length, 1);
+    } finally { release.resolve(); await f.close(); }
+  });
+}
 
 for (const operation of ['cancel', 'dispose'] as const) {
   test(`${operation} reports a rejected child abort safely and retries it through the public executor`, { timeout: 30_000 }, async () => {

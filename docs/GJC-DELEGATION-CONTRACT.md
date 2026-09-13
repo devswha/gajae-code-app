@@ -34,6 +34,17 @@ assignments must carry their authoritative owner `session_id`, `run_id` and
 repository binding. Child prompts identify the app delegation ID, direct owner
 and root, and instruct writers to use the assignment's owner/run IDs explicitly.
 
+Settlement is also announced live. Once the terminal receipt is appended and
+flushed, the executor calls `onDelegationSettled` exactly once with the public
+snapshot (`delegationId`, `status`, `agent`, `description`, `executionMode`,
+`repositoryBinding`); the adapter forwards it as the writer message
+`{ kind: 'delegation_updated', delegation }`, which the worker emits as the
+scoped event `delegation.updated`. Result text and private identifiers stay on
+the server. The durable receipt remains the authority: it is written first and
+is projected into the owner transcript on reload, so the client folds live
+updates onto the same snapshot. See
+`docs/plans/delegation-lifecycle-contract.md` §10-11.
+
 The offline tests in `server/gjc-delegation-executor.bun.test.ts` exercise SDK
 0.16.4 public exports with real sessions, tools, transcripts and temporary Git
 repositories. A deterministic transport stands in for the model; it asserts

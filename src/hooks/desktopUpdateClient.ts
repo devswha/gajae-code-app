@@ -41,7 +41,7 @@ export function createDesktopUpdateClient(host: Window) {
   let snapshot: DesktopUpdateSnapshot | null = null;
   let poll: number | undefined;
   type Request = { promise: Promise<void>; finish: () => void; timedOut: boolean };
-  type Intent = { targetId: string; epoch: number; stage: 'download' | 'restart'; accepted: boolean };
+  type Intent = { targetId: string; epoch: number; stage: 'download' | 'restart' };
   let active: Request | null = null;
   let operation: Request | null = null;
   let intent: Intent | null = null;
@@ -58,17 +58,8 @@ export function createDesktopUpdateClient(host: Window) {
   function observeIntent(value: DesktopUpdateSnapshot) {
     if (!intent || intent.stage === 'restart') return;
     if (intent.epoch !== epoch || value.targetId !== intent.targetId) { clearIntent('changed'); return; }
+    if (value.phase === 'ready') { clearIntent(null); return; }
     if (['disabled', 'idle', 'deferred', 'error', 'recovery'].includes(value.phase)) clearIntent(updateFailure(value.reason));
-  }
-  function advance() {
-    if (disposed || !intent || intent.stage !== 'download' || !intent.accepted
-      || intent.epoch !== epoch || active || operation || !authenticated || !snapshot) return;
-    if (snapshot.targetId !== intent.targetId) { clearIntent('changed'); return; }
-    if (snapshot.phase !== 'ready') return;
-    if (!snapshot.installationAvailable) { clearIntent('failed'); return; }
-    // Claim once before issuing a mutation. Later status events cannot retry.
-    intent.stage = 'restart';
-    void send({ action: 'restart', targetId: intent.targetId });
   }
   function send(command: DesktopUpdateCommand): Promise<void> {
     if (disposed || !isDesktopUpdateCommand(command)) return Promise.resolve();
@@ -121,7 +112,6 @@ export function createDesktopUpdateClient(host: Window) {
       snapshot = Object.freeze({ ...value });
       if (command.action === 'status') authenticated = true;
       if (requestIntent && intent === requestIntent) {
-        if (command.action === 'download') requestIntent.accepted = true;
         if (command.action === 'restart') clearIntent(
           ['applying', 'restarting'].includes(value.phase) ? null : updateFailure(value.reason),
         );
@@ -147,7 +137,7 @@ export function createDesktopUpdateClient(host: Window) {
         publish({ awaitingOperation: false });
         if (token.timedOut) void send({ action: 'status' });
       }
-      advance();
+
     });
     return promise;
   }
@@ -185,7 +175,7 @@ export function createDesktopUpdateClient(host: Window) {
       || !snapshot.installationAvailable || !snapshot.targetId
       || !['available', 'ready'].includes(snapshot.phase)) return Promise.resolve();
     if (injection() !== current) { attach(); return Promise.resolve(); }
-    intent = { targetId: snapshot.targetId, epoch, stage: snapshot.phase === 'ready' ? 'restart' : 'download', accepted: false };
+    intent = { targetId: snapshot.targetId, epoch, stage: snapshot.phase === 'ready' ? 'restart' : 'download' };
     publish({ updating: true, updateError: null });
     return send({ action: intent.stage === 'restart' ? 'restart' : 'download', targetId: intent.targetId });
   }

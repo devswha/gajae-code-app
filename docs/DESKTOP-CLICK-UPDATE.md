@@ -12,8 +12,9 @@ notice immediately above Settings in the bottom-left sidebar.
    becomes `available`; merely checking or opening the app does not download it.
 2. The user presses **Update**. Native download admission binds the exact
    offered target; it does not rediscover and silently substitute a newer one.
-3. After signature/archive verification, the same document requests one
-   target-bound safe restart. Draft sealing, backend admission, owned-process
+3. After signature/archive verification, the download click ends. The app stays
+   open at `ready`; a separate **Restart to install** click requests one
+   target-bound safe restart. Polls and download completion never request restart. Draft sealing, backend admission, owned-process
    shutdown, installation journal and successor health gates remain mandatory.
 4. Discovery is an anonymous GitHub API client and shares the per-IP primary
    limit (60 requests/hour) with every other anonymous caller on the network.

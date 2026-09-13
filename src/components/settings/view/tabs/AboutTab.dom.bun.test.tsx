@@ -221,7 +221,7 @@ test('Update requires native installation support and a ready or available targe
   assert.ok(screen.getByText(english.desktopUpdate.phases.ready), 'a successful request does not invent a restart phase');
 });
 
-test('About checks discover only, with explicit Update required to download and safely restart an available target', async () => {
+test('About requires separate download and restart clicks after discovery', async () => {
   const commands: DesktopUpdateCommand[] = [];
   let snapshot = native({ automatic: false });
   inject(async (command) => {
@@ -242,6 +242,9 @@ test('About checks discover only, with explicit Update required to download and 
   const button = screen.getByRole('button', { name: english.desktopUpdate.update });
   act(() => { fireEvent.click(button); fireEvent.click(button); });
   await act(async () => {});
+  assert.deepEqual(commands.filter((command) => ['download', 'restart'].includes(command.action)), [{ action: 'download', targetId: snapshot.targetId }]);
+  assert.ok(screen.getByText(english.desktopUpdate.phases.ready));
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: english.desktopUpdate.restartToInstall })); });
   assert.deepEqual(commands.filter((command) => ['download', 'restart'].includes(command.action)), [
     { action: 'download', targetId: snapshot.targetId }, { action: 'restart', targetId: snapshot.targetId },
   ]);

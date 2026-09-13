@@ -8,7 +8,7 @@
     "restartToInstall": "Neu starten und installieren",
     "restarting": "Wird neu gestartet…",
     "readyHelp": "Das Update ist heruntergeladen und geprüft. Beim Neustart wird die App kurz geschlossen und als {{version}} wieder geöffnet. Speichern Sie zuerst Ihre Arbeit.",
-    "manualHelp": "Aktualisieren lädt das Update herunter und fordert einen sicheren Neustart an. Prüfungen laden nichts herunter und installieren nichts.",
+    "manualHelp": "Klicken Sie auf Aktualisieren, um herunterzuladen. Wählen Sie danach Neustart zur Installation. Automatische Prüfungen laden nichts herunter und installieren nichts.",
     "awaitingOperation": "Der vorherige native Vorgang läuft noch. Bitte noch nicht erneut versuchen.",
     "targetVersion": "Version {{version}}",
     "showDetails": "Details zum Desktop-Update anzeigen: {{version}} — {{status}}",

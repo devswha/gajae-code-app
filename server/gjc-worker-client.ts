@@ -15,6 +15,8 @@ import {
   GJC_ASIDE_UNAVAILABLE_MESSAGE,
   GJC_CLEANUP_UNCONFIRMED_CODE,
   GJC_AGENT_TOOL_NAMES,
+  GJC_EGO_UNAVAILABLE_CODE,
+  GJC_EGO_UNAVAILABLE_MESSAGE,
   GJC_INVALID_PERMISSIONS_CODE,
   GJC_INVALID_PERMISSIONS_MESSAGE,
   GJC_MODEL_UNRESOLVED_CODE,
@@ -213,6 +215,7 @@ function runFailureMessage(response: GjcWorkerResponsePayload): string {
   if (!response.ok && response.error.code === GJC_INVALID_PERMISSIONS_CODE) return GJC_INVALID_PERMISSIONS_MESSAGE;
   if (!response.ok && response.error.code === GJC_MODEL_UNRESOLVED_CODE) return GJC_MODEL_UNRESOLVED_MESSAGE;
   if (!response.ok && response.error.code === GJC_ASIDE_UNAVAILABLE_CODE) return GJC_ASIDE_UNAVAILABLE_MESSAGE;
+  if (!response.ok && response.error.code === GJC_EGO_UNAVAILABLE_CODE) return GJC_EGO_UNAVAILABLE_MESSAGE;
   return SAFE_FAILURE;
 }
 

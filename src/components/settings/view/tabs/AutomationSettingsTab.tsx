@@ -22,7 +22,7 @@ type Grants = {
 };
 
 /** Mirrors `GJC_BROWSER_BACKENDS` in server/gjc-browser-backend.ts; the server rejects anything else. */
-const BROWSER_BACKENDS = ['builtin', 'aside'] as const;
+const BROWSER_BACKENDS = ['builtin', 'aside', 'ego'] as const;
 type BrowserBackend = typeof BROWSER_BACKENDS[number];
 
 const selectClass = 'touch-manipulation rounded-lg border border-input bg-card p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary';
@@ -113,10 +113,14 @@ export default function AutomationSettingsTab() {
             >
               <option value="builtin">{t('automation.browserBackend.builtin')}</option>
               <option value="aside">{t('automation.browserBackend.aside')}</option>
+              <option value="ego">{t('automation.browserBackend.ego')}</option>
             </select>
           </SettingsRow>
           {browserBackend === 'aside' ? (
             <p className="px-4 pb-4 text-xs text-muted-foreground">{t('automation.browserBackend.asideNote')}</p>
+          ) : null}
+          {browserBackend === 'ego' ? (
+            <p className="px-4 pb-4 text-xs text-muted-foreground">{t('automation.browserBackend.egoNote')}</p>
           ) : null}
           {browserBackendError ? (
             <p className="px-4 pb-4 text-xs text-destructive" role="alert">{browserBackendError}</p>

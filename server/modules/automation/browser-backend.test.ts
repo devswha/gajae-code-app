@@ -23,7 +23,10 @@ test('Built-in is the backend until the user explicitly chooses Aside, and a run
   assert.equal(resolveGjcBrowserBackend(store), 'aside');
   assert.deepEqual([...storage.values.keys()], ['automation.browserBackend.v1']);
 
-  // Switching back restores the default without leaving Aside state behind.
+  assert.equal(store.set('ego'), 'ego');
+  assert.equal(resolveGjcBrowserBackend(store), 'ego');
+
+  // Switching back restores the default without leaving Aside or ego state behind.
   assert.equal(store.set('builtin'), 'builtin');
   assert.equal(resolveGjcBrowserBackend(store), 'builtin');
 });
@@ -35,8 +38,8 @@ test('legacy native reads as Built-in without rewriting config; unknown values r
   assert.equal(legacyStorage.values.get('automation.browserBackend.v1'), 'native');
   const store = new BrowserBackendStore(memoryStorage({ 'automation.browserBackend.v1': 'puppeteer' }));
   assert.equal(store.get(), 'builtin');
-  for (const rejected of ['native', 'Aside', 'ASIDE', '', undefined, null, 1, { backend: 'aside' }]) {
-    assert.throws(() => store.set(rejected), /Browser backend must be one of builtin, aside/, JSON.stringify(rejected));
+  for (const rejected of ['native', 'Aside', 'ASIDE', 'Ego', 'ego-lite', '', undefined, null, 1, { backend: 'aside' }]) {
+    assert.throws(() => store.set(rejected), /Browser backend must be one of builtin, aside, ego/, JSON.stringify(rejected));
   }
   assert.equal(store.get(), 'builtin');
 });

@@ -28,6 +28,23 @@ function fixture() {
   return { backend, authority, reader, readCount: () => reads, advance: (amount: number) => { time += amount; } };
 }
 
+function shellFixture() {
+  const backend = new DesktopRestartBackend(() => 1000);
+  const shell = {
+    getGeneration: () => 'shell:1',
+    read: () => ({ owner: 'shell', generation: 'shell:1', complete: false,
+      starting: 0, queued: 0, running: 0, settling: 0, approvals: 0, retained: 0,
+      unknown: ['pty_descendants_unverified'] }),
+  };
+  const authority = new DesktopRestartAuthority({ now: () => 1000,
+    requiredOwners: ['shell', 'ui-drafts'], ownerReaders: {
+      shell,
+      'ui-drafts': backend.draftReader,
+    } });
+  backend.attachAuthority(authority);
+  return { backend, authority };
+}
+
 test('unbound/malformed control cannot provide sealed UI evidence; status performs no owner reads', async () => {
   const f = fixture();
   assert.equal(f.backend.draftReader.read().complete, false);
@@ -38,6 +55,20 @@ test('unbound/malformed control cannot provide sealed UI evidence; status perfor
   assert.equal((await f.backend.handle({ ...prepare, install: '/tmp/foreign.app' } as never, native)).error, 'invalid_command');
   assert.equal(f.backend.draftReader.read().complete, false);
   assert.equal(f.readCount(), 0);
+});
+
+test('shell descendant uncertainty gets a stable classification while prepare remains fail-closed', async () => {
+  const f = shellFixture(); f.backend.bind(native);
+  const result = await f.backend.handle(prepare, native);
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'shell_unverified');
+  assert.equal(result.state, 'open');
+  assert.equal(result.attemptId, null);
+  assert.equal(result.token, null);
+  assert.equal(isRestartControlResult(result), true);
+  const snapshot = await f.authority.snapshot();
+  assert.equal(snapshot.idle, false);
+  assert.ok(snapshot.blockers.some(({ owner, code }) => owner === 'shell' && code === 'owner_unknown'));
 });
 
 test('native sealed prepare and exact token commit fence work without invoking any shutdown', async () => {

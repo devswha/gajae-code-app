@@ -11,6 +11,16 @@ type Attempt = {
   prepared?: Promise<RestartControlResult>;
 };
 
+function classifyPrepareFailure(result: Extract<Awaited<ReturnType<DesktopRestartAuthority['prepare']>>, { ok: false }>): string {
+  // The shell owner deliberately keeps PTY descendant uncertainty latched for
+  // the server lifetime. Preserve the authority's failed prepare while giving
+  // the native/UI layers a stable, actionable reason code.
+  if (result.blockers.some((blocker) => blocker.owner === 'shell' && blocker.code === 'owner_unknown')) {
+    return 'shell_unverified';
+  }
+  return result.code;
+}
+
 /** Consumes ONLY the authenticated native channel's sealed-current-view claim.
  * No HTTP route accepts this controller or its commands. It never installs,
  * signals a process, flushes a draft or invents missing runtime ownership. */
@@ -108,7 +118,7 @@ export class DesktopRestartBackend {
         }
         authority.controllerLost(active.epoch);
         this.clear(active);
-        return this.result(false, result.code);
+        return this.result(false, classifyPrepareFailure(result));
       }
       active.token = result.token;
       active.expiresAt = result.expiresAt;

@@ -23,6 +23,7 @@
     "reasons": {
       "restartUnknown": "The app could not confirm that it is safe to restart. No automatic retry was scheduled.",
       "restartTimeout": "Restart preparation timed out. The app was not automatically retried.",
+      "shellUnverified": "The shell process could not be verified as finished. Save your work, quit and reopen the app, then try again. You can also use the manual installer.",
       "discoveryFailed": "Release discovery failed.",
       "cacheInvalid": "The cached update failed validation.",
       "preparationCancelled": "Update preparation was cancelled.",

@@ -11,6 +11,7 @@ const PRODUCT_NAME: &str = env!("GJC_UPDATE_PRODUCT_NAME");
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Screen {
     Checking,
+    Preparing,
     Applying,
     Restarting,
     Recovery { message: String },
@@ -77,6 +78,13 @@ fn content(screen: &Screen) -> Value {
             "업데이트를 마무리하는 중".to_owned(),
             format!("Verifying the {PRODUCT_NAME} update before installation. This takes a moment; the app opens by itself."),
             format!("설치 전에 {PRODUCT_NAME} 업데이트를 확인하고 있습니다. 잠시 후 앱이 자동으로 열립니다."),
+        ),
+        Screen::Preparing => (
+            "preparing",
+            "Preparing to restart".to_owned(),
+            "재시작 준비 중".to_owned(),
+            "Checking saved work and running processes before restarting. Installation has not started.".to_owned(),
+            "재시작 전에 저장된 작업과 실행 중인 프로세스를 확인하고 있습니다. 설치는 아직 시작되지 않았습니다.".to_owned(),
         ),
         Screen::Applying => (
             "applying",
@@ -213,7 +221,12 @@ mod tests {
         let state = ScreenState::default();
         assert_eq!(state.published(), None);
         let mut previous_epoch = 0;
-        for screen in [Screen::Checking, Screen::Applying, Screen::Restarting] {
+        for screen in [
+            Screen::Checking,
+            Screen::Preparing,
+            Screen::Applying,
+            Screen::Restarting,
+        ] {
             let epoch = state.publish(screen.clone());
             assert_eq!(epoch, previous_epoch + 1);
             assert_eq!(state.published(), Some((epoch, screen)));
@@ -240,6 +253,18 @@ mod tests {
         state.clear();
         assert_eq!(state.published(), None);
         assert_eq!(state.publish(Screen::Checking), recovery_epoch + 3);
+    }
+
+    #[test]
+    fn preparing_never_claims_installation_or_prompts_for_os_authorization() {
+        let value = content(&Screen::Preparing);
+        assert_eq!(value["kind"], "preparing");
+        assert_eq!(value["en"]["heading"], "Preparing to restart");
+        assert!(value["en"]["body"]
+            .as_str()
+            .unwrap()
+            .contains("Installation has not started"));
+        assert!(value["en"]["authorization"].is_null());
     }
 
     #[test]

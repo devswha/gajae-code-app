@@ -563,6 +563,14 @@ pub fn start(app: AppHandle) {
             || update_attempt_admission(&app, &desktop_data_root),
             || {
                 reset_desktop_readiness(&app);
+                // A remembered origin must be free before any sidecar exists.
+                // This runs inside SidecarLifecycle's PID lock, so Quit and
+                // Retry cannot race the preflight. An occupied or uncertain
+                // port returns through StartError::Spawn, which keeps the
+                // existing Retry-enabled recovery screen and never creates a
+                // child to clean up.
+                #[cfg(target_os = "macos")]
+                desktop_origin.ensure_port_available()?;
                 *app.state::<RecoveryScreen>()
                     .0
                     .lock()

@@ -1,6 +1,6 @@
 //! Authenticated backend control transport. No installer or process signals.
 use std::{
-    io::{Read, Write},
+    io::{ErrorKind, Read, Write},
     net::Shutdown,
     os::unix::net::UnixStream,
     sync::{
@@ -146,7 +146,10 @@ impl Backend {
             .connection
             .lock()
             .map_err(|_| "updater_backend_unavailable")?;
-        if !self.available() || Instant::now() >= deadline || connection.sequence >= MAX_SEQUENCE {
+        if Instant::now() >= deadline {
+            return Err("updater_backend_timeout");
+        }
+        if !self.available() || connection.sequence >= MAX_SEQUENCE {
             return Err("updater_backend_unavailable");
         }
         connection.sequence += 1;
@@ -164,7 +167,7 @@ impl Backend {
         connection
             .stream
             .write_all(&bytes)
-            .map_err(|_| "updater_backend_unavailable")?;
+            .map_err(transport_error)?;
         let frame = read_frame(&mut connection.stream, deadline)?;
         let object = frame.as_object().ok_or("updater_backend_invalid")?;
         if object.len() != 5
@@ -187,10 +190,20 @@ impl Backend {
         }
         let outcome: Outcome = serde_json::from_value(frame["result"].clone())
             .map_err(|_| "updater_backend_invalid")?;
-        if !outcome.valid() || !self.available() || Instant::now() >= deadline {
+        if Instant::now() >= deadline {
+            return Err("updater_backend_timeout");
+        }
+        if !outcome.valid() || !self.available() {
             return Err("updater_backend_invalid");
         }
         Ok(outcome)
+    }
+}
+
+fn transport_error(error: std::io::Error) -> &'static str {
+    match error.kind() {
+        ErrorKind::TimedOut | ErrorKind::WouldBlock => "updater_backend_timeout",
+        _ => "updater_backend_unavailable",
     }
 }
 
@@ -208,9 +221,7 @@ fn read_frame(
         stream
             .set_read_timeout(Some(remaining))
             .map_err(|_| "updater_backend_unavailable")?;
-        let count = stream
-            .read(&mut chunk)
-            .map_err(|_| "updater_backend_unavailable")?;
+        let count = stream.read(&mut chunk).map_err(transport_error)?;
         if count == 0 || bytes.len() + count > MAX_FRAME {
             return Err("updater_backend_invalid");
         }
@@ -233,6 +244,23 @@ mod tests {
     // Peer-thread round-trip must never race the deadline on a loaded CI runner;
     // 1s flaked on macos-14 with "updater_backend_unavailable".
     const TEST_DEADLINE: Duration = Duration::from_secs(30);
+
+    #[test]
+    fn a_silent_backend_is_a_timeout_and_retires_the_channel() {
+        let (native, _peer) = UnixStream::pair().unwrap();
+        let backend = Backend::new(native, "a".repeat(64)).unwrap();
+        assert_eq!(
+            backend
+                .request(Control::Status, Instant::now() + Duration::from_millis(30))
+                .unwrap_err(),
+            "updater_backend_timeout"
+        );
+        assert!(!backend.available());
+        assert_eq!(
+            transport_error(std::io::Error::from(ErrorKind::BrokenPipe)),
+            "updater_backend_unavailable"
+        );
+    }
 
     #[test]
     fn exact_correlated_exchange_and_retirement() {

@@ -21,6 +21,8 @@
       "failed": "The update could not complete. Check its status, then try again."
     },
     "reasons": {
+      "restartUnknown": "The app could not confirm that it is safe to restart. No automatic retry was scheduled.",
+      "restartTimeout": "Restart preparation timed out. The app was not automatically retried.",
       "discoveryFailed": "Release discovery failed.",
       "cacheInvalid": "The cached update failed validation.",
       "preparationCancelled": "Update preparation was cancelled.",

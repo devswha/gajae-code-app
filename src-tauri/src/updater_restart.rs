@@ -2,6 +2,7 @@
 //! path or URL. A sealed draft acknowledgement precedes backend admission;
 //! only a committed idle proof may reach controlled shutdown.
 use std::{
+    path::PathBuf,
     sync::{
         atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering},
         Arc, Mutex,
@@ -55,6 +56,10 @@ struct Attempt {
     desktop_version: String,
     prepare_sent: AtomicBool,
     displayed: AtomicBool,
+    failure: Mutex<Option<&'static str>>,
+    started: Instant,
+    diagnostic_root: Option<PathBuf>,
+    product_version: String,
 }
 #[derive(Debug, PartialEq, Eq)]
 enum Cancellation {
@@ -63,6 +68,39 @@ enum Cancellation {
     TooLate,
 }
 impl Attempt {
+    fn remember_failure(&self, reason: &'static str) {
+        if let Ok(mut failure) = self.failure.lock() {
+            // Preserve the original abort across late cancellation/ACK replies.
+            failure.get_or_insert(reason);
+        }
+    }
+    fn decorate_failure(&self, state: &mut Snapshot) {
+        if state.target_id.as_deref() == Some(&self.context.target_id)
+            && matches!(self.phase(), Phase::Aborted | Phase::Recovery)
+            && matches!(state.phase, UpdatePhase::Ready | UpdatePhase::Recovery)
+        {
+            if let Ok(failure) = self.failure.lock() {
+                if failure.is_some() {
+                    state.reason = *failure;
+                }
+            }
+        }
+    }
+    fn trace(&self, stage: &'static str, reason: Option<&'static str>) {
+        let record = serde_json::json!({
+            "event": "desktop_update_restart", "attemptId": self.id,
+            "stage": stage, "elapsedMs": self.started.elapsed().as_millis(),
+            "reason": reason, "sourceProductVersion": env!("GJC_EXPECTED_PAYLOAD_VERSION"),
+            "sourceDesktopVersion": env!("CARGO_PKG_VERSION"),
+            "targetProductVersion": self.product_version, "targetDesktopVersion": self.desktop_version,
+            "os": std::env::consts::OS, "arch": std::env::consts::ARCH,
+            "timeMs": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis(),
+        });
+        eprintln!("{record}");
+        if let Some(root) = &self.diagnostic_root {
+            let _ = append_diagnostic(root, &record.to_string());
+        }
+    }
     fn phase(&self) -> Phase {
         match self.phase.load(Ordering::Acquire) {
             0 => Phase::Draft,
@@ -185,10 +223,31 @@ fn nonce() -> Result<String, &'static str> {
     Ok(text)
 }
 
-fn trace(event: &'static str) {
-    if cfg!(debug_assertions) && Binding::compiled().mode == Mode::Qa {
-        eprintln!("[restart-qa:{}] {event}", std::process::id());
+// Bounded private diagnostics survive Finder launches and view replacement.
+// Logging never supplies authority and failure to write cannot authorize/retry an update.
+fn append_diagnostic(root: &std::path::Path, record: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
+    static WRITER: Mutex<()> = Mutex::new(());
+    let Ok(_guard) = WRITER.try_lock() else {
+        return Ok(());
+    };
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+        .open(root.join("updater-restart.jsonl"))?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file() || metadata.nlink() != 1 || metadata.uid() != unsafe { libc::geteuid() }
+    {
+        return Err(std::io::Error::other("Invalid diagnostic file"));
     }
+    file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+    if metadata.len() + record.len() as u64 + 1 > 64 * 1024 {
+        file.set_len(0)?;
+    }
+    writeln!(file, "{record}")
 }
 
 impl Restarts {
@@ -221,10 +280,42 @@ impl Restarts {
                 Phase::Recovery => state.phase = UpdatePhase::Recovery,
                 _ => {}
             }
+            attempt.decorate_failure(&mut state);
         }
         state
     }
     pub(crate) fn begin(&self, app: &AppHandle, context: Context) -> Result<Reply, &'static str> {
+        let id = nonce()?;
+        let started = Instant::now();
+        let state = snapshot(app).ok();
+        let root = crate::supervisor::desktop_data_root(app).ok();
+        let record = |stage: &'static str, reason: Option<&'static str>| {
+            let record = serde_json::json!({"event":"desktop_update_restart", "attemptId":id,
+                "stage":stage,"elapsedMs":started.elapsed().as_millis(),"reason":reason,
+                "sourceProductVersion":env!("GJC_EXPECTED_PAYLOAD_VERSION"),
+                "sourceDesktopVersion":env!("CARGO_PKG_VERSION"),
+                "targetProductVersion":state.as_ref().and_then(|s| s.target_product_version.as_deref()),
+                "targetDesktopVersion":state.as_ref().and_then(|s| s.target_desktop_version.as_deref()),
+                "os":std::env::consts::OS,"arch":std::env::consts::ARCH});
+            eprintln!("{record}");
+            if let Some(root) = &root {
+                let _ = append_diagnostic(root, &record.to_string());
+            }
+        };
+        record("request-received", None);
+        let result = self.begin_inner(app, context, id.clone(), started);
+        if let Err(reason) = &result {
+            record("request-refused", Some(reason));
+        }
+        result
+    }
+    fn begin_inner(
+        &self,
+        app: &AppHandle,
+        context: Context,
+        id: String,
+        started: Instant,
+    ) -> Result<Reply, &'static str> {
         if !qualified(app) {
             return Err("updater_installation_unavailable");
         }
@@ -281,7 +372,7 @@ impl Restarts {
             .map_err(|_| "updater_unavailable")?
             + 1;
         let attempt = Arc::new(Attempt {
-            id: nonce()?,
+            id,
             draft_epoch: epoch,
             deadline: Instant::now() + Duration::from_secs(5),
             phase: AtomicU8::new(Phase::Draft as u8),
@@ -291,6 +382,10 @@ impl Restarts {
             desktop_version: manifest.version.to_string(),
             prepare_sent: AtomicBool::new(false),
             displayed: AtomicBool::new(false),
+            failure: Mutex::new(None),
+            started,
+            diagnostic_root: Some(root),
+            product_version: manifest.product_version.to_string(),
         });
         let mut slot = self.current.lock().map_err(|_| "updater_unavailable")?;
         if slot
@@ -300,7 +395,7 @@ impl Restarts {
             return Err("updater_busy");
         }
         *slot = Some(attempt.clone());
-        trace("draft-challenge");
+        attempt.trace("draft-challenge", None);
         let expiry = attempt.clone();
         let handle = app.clone();
         tauri::async_runtime::spawn(async move {
@@ -315,6 +410,8 @@ impl Restarts {
                 )
                 .is_ok()
             {
+                expiry.remember_failure("updater_draft_timeout");
+                expiry.trace("draft-expired", Some("updater_draft_timeout"));
                 crate::updater_bridge::notify_restart_aborted(
                     &handle,
                     &expiry.id,
@@ -374,6 +471,7 @@ impl Restarts {
         epoch: u64,
     ) -> Result<Reply, &'static str> {
         let attempt = self.matching(id, epoch)?;
+        attempt.trace("draft-ack", None);
         if attempt.phase() == Phase::Aborted {
             return disposition(app, &attempt, true, "updater_restart_cancelled");
         }
@@ -438,13 +536,19 @@ fn disposition(
     aborted: bool,
     reason: &'static str,
 ) -> Result<Reply, &'static str> {
+    attempt.remember_failure(reason);
     let mut state = snapshot(app)?;
     state.phase = if aborted {
         UpdatePhase::Deferred
     } else {
         UpdatePhase::Recovery
     };
-    state.reason = Some(reason);
+    state.reason = attempt
+        .failure
+        .lock()
+        .ok()
+        .and_then(|failure| *failure)
+        .or(Some(reason));
     state.installation_available = false;
     Ok(Reply::Disposition {
         protocol_version: 1,
@@ -464,7 +568,7 @@ async fn abort(
     attempt: &Attempt,
     reason: &'static str,
 ) -> Result<Reply, &'static str> {
-    trace(reason);
+    attempt.trace("abort", Some(reason));
     if !attempt.precommit() {
         return recover(app, attempt, "updater_restart_uncertain");
     }
@@ -483,6 +587,7 @@ async fn abort(
         }
     }
     let displayed = attempt.displayed.load(Ordering::Acquire);
+    attempt.remember_failure(reason);
     attempt.set(Phase::Aborted);
     crate::builtin_browser::release_fence(app);
     if displayed {
@@ -497,13 +602,32 @@ fn recover(
     attempt: &Attempt,
     reason: &'static str,
 ) -> Result<Reply, &'static str> {
-    trace(reason);
+    if let Ok(mut failure) = attempt.failure.lock() {
+        *failure = Some(reason);
+    }
+    attempt.trace("recovery", Some(reason));
     attempt.set(Phase::Recovery);
     crate::updater_launch::manual_recovery(
         app,
         "Restart ownership could not be confirmed. The application was not automatically retried.",
     );
     disposition(app, attempt, false, reason)
+}
+
+fn prepare_failure(result: &Result<crate::updater_backend::Outcome, &'static str>) -> &'static str {
+    match result {
+        Err("updater_backend_timeout") => "updater_backend_timeout",
+        Err("updater_backend_unavailable") => "updater_backend_unavailable",
+        Err(_) => "updater_backend_invalid",
+        Ok(value) if !value.ok => match value.error.as_deref() {
+            Some("busy" | "in_progress") => "updater_runtime_busy",
+            Some("unknown") => "updater_runtime_unknown",
+            Some("expired") => "updater_backend_timeout",
+            Some("cancelled") => "updater_restart_cancelled",
+            _ => "updater_backend_invalid",
+        },
+        Ok(_) => "updater_backend_invalid",
+    }
 }
 
 async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply, &'static str> {
@@ -548,7 +672,7 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
     {
         return abort(app, &attempt, "updater_display_unavailable").await;
     }
-    trace("applying-visible");
+    attempt.trace("applying-visible", None);
     // Dispose the sealed document before taking runtime evidence. Its expected
     // WebSocket/HTTP disconnects are activity changes, not an exception to the
     // authority's generation checks. This stage installs/stops nothing: busy or
@@ -562,7 +686,7 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
         return abort(app, &attempt, "updater_restart_cancelled").await;
     }
     attempt.prepare_sent.store(true, Ordering::Release);
-    trace("backend-prepare");
+    attempt.trace("backend-prepare", None);
     let prepared = attempt.context.backend.request(
         Control::Prepare {
             attempt_id: attempt.id.clone(),
@@ -581,11 +705,11 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
         {
             value
         }
-        _ => return abort(app, &attempt, "updater_runtime_busy").await,
+        other => return abort(app, &attempt, prepare_failure(&other)).await,
     };
     let token_deadline =
         Instant::now() + Duration::from_millis(prepared.expires_in_ms.unwrap_or(0));
-    trace("backend-prepared");
+    attempt.trace("backend-prepared", None);
     if attempt.cancelled.load(Ordering::Acquire)
         || !(attempt.context.same_run)()
         || Instant::now() >= attempt.deadline
@@ -657,7 +781,7 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
         _ => return recover(app, &attempt, "updater_commit_uncertain"),
     }
     attempt.set(Phase::Stopping);
-    trace("backend-committed");
+    attempt.trace("backend-committed", None);
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         let result: Result<(), String> = async {
@@ -666,9 +790,9 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
                 return Err("Restart lost its owned server.".into());
             }
             lifecycle.terminate(attempt.context.server_pid)?;
-            trace("server-stop-requested");
+            attempt.trace("server-stop-requested", None);
             lifecycle.wait_for_exit().await?;
-            trace("server-exited");
+            attempt.trace("server-exited", None);
             let deadline = Instant::now() + Duration::from_secs(5);
             while !tree.all_gone()? {
                 if Instant::now() >= deadline {
@@ -677,10 +801,10 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
             let root = crate::supervisor::desktop_data_root(&handle)?;
-            trace("owned-tree-exited");
+            attempt.trace("owned-tree-exited", None);
             Store::open(&root)?
                 .request_manual(&attempt.context.target_id, &attempt.archive_sha256)?;
-            trace("manual-intent-saved");
+            attempt.trace("manual-intent-saved", None);
             attempt.set(Phase::Restarting);
             crate::updater_launch::request_manual_restart(&handle);
             Ok(())
@@ -759,6 +883,8 @@ pub(crate) fn view_lost(app: &AppHandle) {
                 .compare_exchange(phase as u8, next as u8, Ordering::AcqRel, Ordering::Acquire)
                 .is_ok()
             {
+                attempt.remember_failure("updater_view_lost");
+                attempt.trace("view-lost", Some("updater_view_lost"));
                 attempt.cancelled.store(true, Ordering::Release);
                 break;
             }
@@ -770,6 +896,98 @@ pub(crate) fn view_lost(app: &AppHandle) {
 mod tests {
     use super::*;
     use std::os::unix::net::UnixStream;
+
+    #[test]
+    fn terminal_failure_survives_fresh_snapshots_but_not_another_target_or_attempt() {
+        let (attempt, _peer) = attempt(Phase::Aborted);
+        attempt.remember_failure("updater_backend_timeout");
+        attempt.remember_failure("updater_restart_cancelled");
+        for _ in 0..3 {
+            let mut state = Snapshot {
+                phase: UpdatePhase::Ready,
+                target_id: Some(attempt.context.target_id.clone()),
+                installation_available: true,
+                ..Snapshot::default()
+            };
+            attempt.decorate_failure(&mut state);
+            assert_eq!(state.reason, Some("updater_backend_timeout"));
+            assert!(
+                state.installation_available,
+                "diagnostics do not remove explicit retry"
+            );
+            state.target_id = Some("e".repeat(64));
+            state.reason = None;
+            attempt.decorate_failure(&mut state);
+            assert_eq!(state.reason, None);
+        }
+        attempt.set(Phase::Preparing);
+        let mut state = Snapshot {
+            phase: UpdatePhase::Ready,
+            target_id: Some(attempt.context.target_id.clone()),
+            ..Snapshot::default()
+        };
+        attempt.decorate_failure(&mut state);
+        assert_eq!(
+            state.reason, None,
+            "an active attempt cannot show stale failure"
+        );
+        attempt.set(Phase::Recovery);
+        state.phase = UpdatePhase::Recovery;
+        attempt.decorate_failure(&mut state);
+        assert_eq!(state.reason, Some("updater_backend_timeout"));
+        assert_eq!(attempt.request_cancel(), Cancellation::TooLate);
+    }
+
+    #[test]
+    fn prepare_failures_distinguish_busy_unknown_timeout_and_invalid_protocol() {
+        for (code, expected) in [
+            ("busy", "updater_runtime_busy"),
+            ("unknown", "updater_runtime_unknown"),
+            ("expired", "updater_backend_timeout"),
+            ("unauthorized", "updater_backend_invalid"),
+            ("arbitrary_error", "updater_backend_invalid"),
+        ] {
+            let outcome = serde_json::from_value(serde_json::json!({"ok":false,"state":"open",
+                "attemptId":null,"token":null,"expiresInMs":null,"error":code}))
+            .unwrap();
+            assert_eq!(prepare_failure(&Ok(outcome)), expected);
+        }
+        assert_eq!(
+            prepare_failure(&Err("updater_backend_timeout")),
+            "updater_backend_timeout"
+        );
+        assert_eq!(
+            prepare_failure(&Err("updater_backend_unavailable")),
+            "updater_backend_unavailable"
+        );
+        assert_eq!(
+            prepare_failure(&Err("unexpected secret")),
+            "updater_backend_invalid"
+        );
+    }
+
+    #[test]
+    fn diagnostic_file_is_private_bounded_and_rejects_symlinks() {
+        use std::os::unix::fs::{symlink, PermissionsExt};
+        let root = std::env::temp_dir().join(format!("restart-diagnostics-{}", nonce().unwrap()));
+        std::fs::create_dir(&root).unwrap();
+        let file = root.join("updater-restart.jsonl");
+        append_diagnostic(&root, "{\"stage\":\"abort\"}").unwrap();
+        assert_eq!(
+            std::fs::metadata(&file).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        std::fs::write(&file, vec![b'x'; 64 * 1024]).unwrap();
+        append_diagnostic(&root, "{}").unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "{}\n");
+        std::fs::remove_file(&file).unwrap();
+        let other = root.join("untouched");
+        std::fs::write(&other, "unchanged").unwrap();
+        symlink(&other, &file).unwrap();
+        assert!(append_diagnostic(&root, "{}").is_err());
+        assert_eq!(std::fs::read_to_string(other).unwrap(), "unchanged");
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn enabled_installation_does_not_display_a_satisfied_gate_as_pending() {
@@ -841,6 +1059,10 @@ mod tests {
                 desktop_version: "0.2.5".into(),
                 prepare_sent: AtomicBool::new(false),
                 displayed: AtomicBool::new(false),
+                failure: Mutex::new(None),
+                started: Instant::now(),
+                diagnostic_root: None,
+                product_version: "2.0.0-beta.11".into(),
             }),
             peer,
         )

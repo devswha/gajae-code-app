@@ -21,6 +21,8 @@
       "failed": "La mise à jour n’a pas pu aboutir. Vérifiez son statut, puis réessayez."
     },
     "reasons": {
+      "restartUnknown": "Impossible de confirmer que le redémarrage est sûr. Aucune nouvelle tentative automatique n’est prévue.",
+      "restartTimeout": "La préparation du redémarrage a expiré. Aucune nouvelle tentative automatique n’a été effectuée.",
       "discoveryFailed": "La recherche des versions a échoué.",
       "cacheInvalid": "La validation de la mise à jour en cache a échoué.",
       "preparationCancelled": "La préparation de la mise à jour a été annulée.",

@@ -475,3 +475,21 @@ test('a fully unmounted page never resumes its click after remount', async () =>
   assert.equal(reopened.result.current.updating, false);
   assert.equal(commands.some(command => command.action === 'restart'), false);
 });
+
+
+test('a native runtime-busy snapshot is a refusal, survives polls and needs an explicit retry', async () => {
+  const clock = timers();
+  const commands: DesktopUpdateCommand[] = [];
+  bridge(async command => {
+    commands.push(command);
+    return native({ phase: 'ready', installationAvailable: true, reason: 'updater_runtime_busy' });
+  });
+  const view = renderHook(useDesktopUpdate); await flush();
+  await act(async () => { await view.result.current.update(); });
+  assert.equal(view.result.current.updateError, 'busy');
+  await clock.poll(); await clock.poll();
+  assert.equal(view.result.current.snapshot?.reason, 'updater_runtime_busy');
+  assert.equal(view.result.current.connected, true);
+  assert.equal(view.result.current.updating, false);
+  assert.equal(commands.filter(command => command.action === 'restart').length, 1);
+});

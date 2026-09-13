@@ -21,6 +21,8 @@
       "failed": "Non è stato possibile completare l’aggiornamento. Controlla lo stato, poi riprova."
     },
     "reasons": {
+      "restartUnknown": "Impossibile confermare che il riavvio sia sicuro. Non è stato pianificato alcun tentativo automatico.",
+      "restartTimeout": "La preparazione del riavvio è scaduta. L’app non ha riprovato automaticamente.",
       "discoveryFailed": "La ricerca delle versioni non è riuscita.",
       "cacheInvalid": "La verifica dell’aggiornamento nella cache non è riuscita.",
       "preparationCancelled": "La preparazione dell’aggiornamento è stata annullata.",

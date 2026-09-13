@@ -7,6 +7,16 @@ import { Button } from '../../../../shared/view/ui/Button';
 type Props = { update: ReturnType<typeof useDesktopUpdate> };
 
 const REASON_KEYS: Record<string, string> = {
+  updater_runtime_busy: 'desktopUpdate.updateErrors.busy',
+  updater_runtime_unknown: 'desktopUpdate.reasons.restartUnknown',
+  updater_backend_timeout: 'desktopUpdate.reasons.restartTimeout',
+  updater_draft_timeout: 'desktopUpdate.reasons.restartTimeout',
+  updater_backend_unavailable: 'desktopUpdate.reasons.restartUnknown',
+  updater_backend_invalid: 'desktopUpdate.reasons.restartUnknown',
+  updater_owner_unknown: 'desktopUpdate.reasons.restartUnknown',
+  updater_owner_changed: 'desktopUpdate.reasons.restartUnknown',
+  updater_view_lost: 'desktopUpdate.updateErrors.failed',
+  updater_restart_cancelled: 'desktopUpdate.updateErrors.failed',
   discovery_failed: 'desktopUpdate.reasons.discoveryFailed',
   cache_invalid: 'desktopUpdate.reasons.cacheInvalid',
   preparation_cancelled: 'desktopUpdate.reasons.preparationCancelled',
@@ -54,7 +64,7 @@ export function DesktopUpdateStatus({ update }: Props) {
         {snapshot.phase === 'recovery' && <p className="text-muted-foreground">{t('desktopUpdate.recoveryHelp')}</p>}
       </> : <p className="text-muted-foreground">{t(error ? 'desktopUpdate.unconfirmed' : 'desktopUpdate.connecting')}</p>}
       {error && <p className="text-destructive">{t(`desktopUpdate.errors.${error}`)}</p>}
-      {updateError && <p className={updateError === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>{t(`desktopUpdate.updateErrors.${updateError}`)}</p>}
+      {updateError && reasonKey !== `desktopUpdate.updateErrors.${updateError}` && <p className={updateError === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>{t(`desktopUpdate.updateErrors.${updateError}`)}</p>}
       {pending === 'setAutomatic' && <p className="text-muted-foreground">{t('desktopUpdate.confirmingSetting')}</p>}
       {awaitingOperation
         ? <p className="text-muted-foreground">{t('desktopUpdate.awaitingOperation')}</p>

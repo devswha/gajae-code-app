@@ -24,7 +24,7 @@ const isBridge = (value: unknown): value is DesktopUpdateBridge => value !== nul
   && typeof (value as DesktopUpdateBridge).request === 'function';
 function updateFailure(reason: unknown): DesktopUpdateError {
   if (typeof reason !== 'string') return 'failed';
-  if (['updater_busy', 'updater_runtime_changed', 'updater_draft_busy', 'updater_draft_changed'].includes(reason)) return 'busy';
+  if (['updater_busy', 'updater_runtime_busy', 'updater_runtime_changed', 'updater_draft_busy', 'updater_draft_changed'].includes(reason)) return 'busy';
   if (['updater_target_changed', 'candidate_changed', 'candidate_ineligible', 'updater_target_mismatch'].includes(reason)) return 'changed';
   return 'failed';
 }

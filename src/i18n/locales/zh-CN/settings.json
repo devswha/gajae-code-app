@@ -21,6 +21,8 @@
       "failed": "无法完成更新。请检查状态后重试。"
     },
     "reasons": {
+      "restartUnknown": "无法确认应用是否可以安全重启。未安排自动重试。",
+      "restartTimeout": "重启准备超时。应用未自动重试。",
       "discoveryFailed": "发行版搜索失败。",
       "cacheInvalid": "缓存的更新未通过验证。",
       "preparationCancelled": "更新准备已取消。",

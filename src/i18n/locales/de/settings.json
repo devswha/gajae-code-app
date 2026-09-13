@@ -21,6 +21,8 @@
       "failed": "Das Update konnte nicht abgeschlossen werden. Prüfen Sie den Status und versuchen Sie es erneut."
     },
     "reasons": {
+      "restartUnknown": "Ein sicherer Neustart konnte nicht bestätigt werden. Es wurde kein automatischer Wiederholungsversuch geplant.",
+      "restartTimeout": "Zeitüberschreitung bei der Neustartvorbereitung. Es gab keinen automatischen Wiederholungsversuch.",
       "discoveryFailed": "Die Release-Suche ist fehlgeschlagen.",
       "cacheInvalid": "Das zwischengespeicherte Update hat die Prüfung nicht bestanden.",
       "preparationCancelled": "Die Update-Vorbereitung wurde abgebrochen.",

@@ -21,6 +21,8 @@
       "failed": "無法完成更新。請檢查狀態後重試。"
     },
     "reasons": {
+      "restartUnknown": "無法確認應用程式是否可以安全重新啟動。未安排自動重試。",
+      "restartTimeout": "重新啟動準備逾時。應用程式未自動重試。",
       "discoveryFailed": "發行版搜尋失敗。",
       "cacheInvalid": "快取的更新未通過驗證。",
       "preparationCancelled": "更新準備已取消。",

@@ -21,6 +21,8 @@
       "failed": "Güncelleme tamamlanamadı. Durumu denetleyip yeniden deneyin."
     },
     "reasons": {
+      "restartUnknown": "Yeniden başlatmanın güvenli olduğu doğrulanamadı. Otomatik yeniden deneme planlanmadı.",
+      "restartTimeout": "Yeniden başlatma hazırlığı zaman aşımına uğradı. Uygulama otomatik olarak yeniden denemedi.",
       "discoveryFailed": "Sürüm araması başarısız oldu.",
       "cacheInvalid": "Önbellekteki güncelleme doğrulanamadı.",
       "preparationCancelled": "Güncelleme hazırlığı iptal edildi.",

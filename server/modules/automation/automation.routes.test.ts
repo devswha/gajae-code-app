@@ -131,19 +131,19 @@ test('the browser backend setting defaults to Built-in, persists an explicit Asi
   try {
     const initial = await server.request('/browser-backend');
     assert.equal(initial.status, 200);
-    assert.deepEqual(await initial.json(), { backend: 'builtin', backends: ['builtin', 'aside'] });
+    assert.deepEqual(await initial.json(), { backend: 'builtin', backends: ['builtin', 'aside', 'ego'] });
 
     const chosen = await server.request('/browser-backend', { ...json({ backend: 'aside' }), method: 'PUT' });
     assert.equal(chosen.status, 200);
-    assert.deepEqual(await chosen.json(), { backend: 'aside', backends: ['builtin', 'aside'] });
-    assert.deepEqual(await (await server.request('/browser-backend')).json(), { backend: 'aside', backends: ['builtin', 'aside'] });
+    assert.deepEqual(await chosen.json(), { backend: 'aside', backends: ['builtin', 'aside', 'ego'] });
+    assert.deepEqual(await (await server.request('/browser-backend')).json(), { backend: 'aside', backends: ['builtin', 'aside', 'ego'] });
 
-    for (const body of [{}, { backend: 'native' }, { backend: 'puppeteer' }, { backend: 'Aside' }, { backend: null }, { backend: ['aside'] }]) {
+    for (const body of [{}, { backend: 'native' }, { backend: 'puppeteer' }, { backend: 'Aside' }, { backend: 'Ego' }, { backend: null }, { backend: ['aside'] }]) {
       const response = await server.request('/browser-backend', { ...json(body), method: 'PUT' });
       assert.equal(response.status, 400, JSON.stringify(body));
       await response.text();
     }
-    assert.deepEqual(await (await server.request('/browser-backend')).json(), { backend: 'aside', backends: ['builtin', 'aside'] });
+    assert.deepEqual(await (await server.request('/browser-backend')).json(), { backend: 'aside', backends: ['builtin', 'aside', 'ego'] });
 
     const restored = await server.request('/browser-backend', { ...json({ backend: 'builtin' }), method: 'PUT' });
     assert.equal(restored.status, 200);

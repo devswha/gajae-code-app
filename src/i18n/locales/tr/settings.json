@@ -133,6 +133,9 @@
       "builtinDescription": "Yerleşik tarayıcı desteklenen macOS masaüstü uygulamasında kullanılabilir.",
       "asideDescription": "GJC'nin Aside arka ucu: yerleşik tarayıcı aracı gizlenir ve tarayıcı işleri, kendi oturum açılmış tarayıcınızda yüklediğiniz Aside CLI üzerinden çalışır.",
       "asideNote": "Kendiniz yüklediğiniz Aside CLI gerekir (~/.local/bin/aside veya Aside CLI uygulaması). Aside seçiliyken onu bulamayan bir oturum yerel tarayıcıya geri dönmek yerine başlatılamaz. Yerleşik tarayıcıyı geri getirmek için Yerel seçeneğine dönün.",
+      "ego": "ego lite (Deneysel)",
+      "egoDescription": "ego lite tarayıcı: yerleşik tarayıcı aracı gizlenir ve tarayıcı işleri, kendi oturum açmış tarayıcınızdaki ayrı bir Space içinde, yüklü ego-browser CLI üzerinden yürütülür.",
+      "egoNote": "Kendiniz yüklediğiniz ego lite (https://lite.ego.app; kurulum sihirbazı ~/.local/bin/ego-browser kaydeder) ve ego-browser becerisi gerekir. ego lite seçiliyken CLI’yi bulamayan bir oturum Yerleşik’e geri dönmek yerine başlatılamaz. Yerleşik’i yalnızca kullanılabilir olduğu yerde seçin.",
       "saveFailed": "Tarayıcı arka ucu kaydedilemedi."
     },
     "builtinBrowser": { "title": "Yerleşik tarayıcı", "description": "macOS masaüstü uygulamasının tarayıcısını açar.", "label": "Yerleşik tarayıcı", "note": "Yalnızca macOS masaüstü uygulamasında kullanılabilir.", "open": "Tarayıcıyı aç", "opened": "Yerleşik tarayıcı açıldı.", "failed": "Tarayıcı açılamadı.", "errors": { "busy": "Yerleşik tarayıcı zaten kullanımda. Bu oturum için açmadan önce kapatın.", "unavailable": "Yerleşik tarayıcı kullanılamıyor. Uygulama sunucusunun yeniden bağlanmasını bekleyip tekrar deneyin.", "invalidUrl": "Bu adres açılamıyor. Bir HTTP veya HTTPS adresi kullanın.", "stale": "İstek tamamlanmadan tarayıcı sayfası değişti. Tekrar deneyin.", "failed": "Yerleşik tarayıcı açılamadı. Tekrar deneyin." } },

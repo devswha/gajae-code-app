@@ -267,3 +267,77 @@ test('a runtime that answers with no available model reports an empty MODELS; an
   const unreachable = await new GjcProviderModels(homeDir, async () => { throw new Error('worker unavailable'); }).getSupportedModels();
   assert.equal('MODELS' in unreachable, false);
 });
+
+test('custom profiles with multiline fallback lists, comments, and custom providers in models.yml', async (t) => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-custom-providers-'));
+  t.after(() => rm(homeDir, { recursive: true, force: true }));
+  const agentDir = path.join(homeDir, '.gjc', 'agent');
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'models.yml'), `providers:
+  custom-proxy:
+    baseUrl: https://proxy.example.com/v1
+    models:
+      - id: model-a
+        name: Custom Model A
+      - id: unreferenced-custom
+        name: Unreferenced Custom Model
+profiles:
+# Commented out profile should not prematurely break parser
+#   inactive:
+#     model_mapping:
+#       default: custom/inactive
+  team-flow:
+    model_mapping:
+      default:
+        - custom-proxy/model-a:high
+        - custom-proxy/model-b:medium
+      executor:
+        - custom-proxy/model-a:max
+`, 'utf8');
+
+  const catalog = await new GjcProviderModels(homeDir, async () => ({
+    ok: true,
+    result: {
+      models: [
+        {
+          value: 'custom-proxy/model-a',
+          label: 'Custom Model A',
+          group: 'custom-proxy',
+          effort: { default: 'high', values: [{ value: 'high' }] },
+        },
+        {
+          value: 'custom-proxy/model-b',
+          label: 'Custom Model B',
+          group: 'custom-proxy',
+          effort: { default: 'medium', values: [{ value: 'medium' }] },
+        },
+        {
+          value: 'custom-proxy/unreferenced-custom',
+          label: 'Unreferenced Custom Model',
+          group: 'custom-proxy',
+          effort: { values: [] },
+        },
+        {
+          value: 'unrelated/model',
+          label: 'Unrelated',
+          group: 'unrelated',
+          effort: { values: [] },
+        },
+      ],
+    },
+  })).getSupportedModels();
+
+  const teamFlow = catalog.OPTIONS.find((option) => option.value === 'profile:team-flow');
+  assert.ok(teamFlow, 'team-flow preset should be parsed');
+  assert.equal(teamFlow.label, 'Team Flow');
+  assert.equal(teamFlow.group, 'CUSTOM');
+  assert.equal(teamFlow.roles?.default, 'custom-proxy/model-a:high');
+  assert.equal(teamFlow.roles?.executor, 'custom-proxy/model-a:max');
+
+  // Both fallback models and all custom provider models should be retained
+  const modelValues = catalog.MODELS?.map((m) => m.value) ?? [];
+  assert.ok(modelValues.includes('custom-proxy/model-a'));
+  assert.ok(modelValues.includes('custom-proxy/model-b'));
+  assert.ok(modelValues.includes('custom-proxy/unreferenced-custom'));
+  assert.ok(!modelValues.includes('unrelated/model'));
+});

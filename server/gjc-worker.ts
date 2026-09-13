@@ -63,6 +63,8 @@ export type GjcWorkerRuntime = {
   steerGjcSession?(runHandle: string, message: string): Promise<boolean>;
   resolveGjcToolApproval(requestId: string, decision: unknown): boolean;
   modelCatalog?(): Promise<JsonObject>;
+  /** Normalized, credential-free provider quota for ambient status surfaces. */
+  providerQuota?(): Promise<JsonObject>;
   oauth?: GjcWorkerOAuthRuntime;
 };
 export type GjcWorkerHostOptions = {
@@ -215,7 +217,7 @@ export class GjcWorkerHost {
     // their own snapshot or enter the host's operation counter.
     if (request.method === 'worker.activity') return this.#observe(request);
     if (request.method === 'worker.admission') return this.#admission(request);
-    if (this.#fenceId && ['worker.initialize', 'session.start', 'session.resume', 'turn.start', 'models.catalog', 'goal.inspect', 'oauth.start', 'oauth.providers', 'oauth.status'].includes(request.method)) {
+    if (this.#fenceId && ['worker.initialize', 'session.start', 'session.resume', 'turn.start', 'models.catalog', 'quota.providers', 'goal.inspect', 'oauth.start', 'oauth.providers', 'oauth.status'].includes(request.method)) {
       return this.#response(request, failure('worker_admission_fenced', 'Worker admission is fenced.'));
     }
     this.#operations += 1;
@@ -234,6 +236,7 @@ export class GjcWorkerHost {
       case 'goal.inspect': case 'goal.control': return this.#goal(request);
       case 'ask.reply': return this.#reply(request);
       case 'models.catalog': return this.#modelCatalog(request);
+      case 'quota.providers': return this.#providerQuota(request);
       case 'oauth.providers': return this.#oauthProviders(request);
       case 'oauth.status': return this.#oauthStatus(request);
       case 'oauth.start': return this.#oauthStart(request);
@@ -366,6 +369,20 @@ export class GjcWorkerHost {
       this.#poisonOnCleanupFailure(error);
       this.#diagnose('model catalog failed', error);
       this.#response(request, failure('model_catalog_failed', 'Model catalog is unavailable.'));
+    }
+  }
+  async #providerQuota(request: GjcWorkerRequestFrame): Promise<void> {
+    if (!payload(request, [])) return this.#response(request, failure('invalid_payload', 'Request payload is invalid.'));
+    const runtime = this.#runtime;
+    if (!runtime?.providerQuota) return this.#response(request, failure('provider_quota_unavailable', 'Provider quota is not available in this worker.'));
+    try {
+      this.#response(request, success(await runtime.providerQuota()));
+    } catch (error) {
+      this.#poisonOnCleanupFailure(error);
+      this.#diagnose('provider quota failed', error);
+      // The raw failure can name a provider endpoint or a credential; the
+      // protocol carries only the fixed code.
+      this.#response(request, failure('provider_quota_failed', 'Provider quota is unavailable.'));
     }
   }
   async #oauthProviders(request: GjcWorkerRequestFrame): Promise<void> {

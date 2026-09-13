@@ -141,6 +141,22 @@ test('runtime aliases with text handlers are dispatchable but not advertised', (
   }
 });
 
+test('/usage stays the runtime\'s own command, not something the app reimplements', () => {
+  const advertised = GJC_APP_BUILTIN_COMMANDS.find((command) => command.name === 'usage');
+  assert.ok(advertised, '/usage must stay in the advertised catalog');
+  assert.equal(advertised.inputHint, '[check]', '/usage must keep its own argument surface');
+  assert.equal(
+    GJC_APP_BUILTIN_COMMAND_NAMES.has('usage'),
+    true,
+    '/usage must keep dispatching to the runtime handler; the sidebar quota row reads the same structured source instead of this command',
+  );
+  assert.equal(
+    ACP_BUILTIN_SLASH_COMMANDS.some((command) => command.name === 'usage'),
+    true,
+    'the runtime still owns the /usage implementation',
+  );
+});
+
 /** Scriptable SDK-shaped session; prompt owns the turn lifetime exactly as production does. */
 class FakeAgentSession {
   readonly sessionFile = 'fake-session.jsonl';

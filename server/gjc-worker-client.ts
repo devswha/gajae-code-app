@@ -42,6 +42,7 @@ import {
   createNormalizedMessage,
   getGjcLiveSessionRoot,
   registerGjcRuntimeModelCatalogLoader,
+  registerGjcRuntimeProviderQuotaLoader,
 } from './shared/utils.js';
 
 type RunStoppedNotification = {
@@ -725,6 +726,19 @@ export class GjcWorkerSupervisor {
     try {
       await this.ensureWorker();
       return await this.request('models.catalog', undefined, {});
+    } finally {
+      release();
+      releaseAdmission();
+    }
+  }
+
+  /** Reads normalized, credential-free provider quota from the owned worker. */
+  async providerQuota(): Promise<GjcWorkerResponsePayload> {
+    const releaseAdmission = this.acquireRoot('quota.providers');
+    const release = this.beginActivity('settling');
+    try {
+      await this.ensureWorker();
+      return await this.request('quota.providers', undefined, {});
     } finally {
       release();
       releaseAdmission();
@@ -1719,6 +1733,7 @@ function reportWorkerDiagnostic(message: string): void {
 
 const supervisor = new GjcWorkerSupervisor({ enrichOptions: enrichGjcSdkRunOptions, diagnostic: reportWorkerDiagnostic });
 registerGjcRuntimeModelCatalogLoader(() => supervisor.modelCatalog());
+registerGjcRuntimeProviderQuotaLoader(() => supervisor.providerQuota());
 
 /** No lazy spawn, shutdown or admission mutation. A live idle proof needs an explicit fence. */
 export function createGjcWorkerDesktopRestartReader(worker: GjcWorkerSupervisor = supervisor): {

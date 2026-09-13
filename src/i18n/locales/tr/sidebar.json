@@ -94,6 +94,19 @@
     "restoreSessionError": "Konuşma geri yükleme hatası oluştu. Tekrar deneyin.",
     "debugInfoError": "Hata ayıklama bilgisi kopyalanamadı."
   },
+  "providerQuota": {
+    "title": "Sağlayıcı kotası",
+    "summary": "{{provider}}: kotanın %{{percent}} kadarı kaldı",
+    "remaining": "%{{percent}} kaldı",
+    "resetsIn": "{{duration}} sonra sıfırlanır",
+    "accounts_one": "{{count}} hesap",
+    "accounts_other": "{{count}} hesap",
+    "noWindowData": "Bildirilen değer yok",
+    "unsupported": "Bu sağlayıcı için kullanım bilgisi yok",
+    "reauth": "Kullanımı okumak için yeniden oturum açın",
+    "error": "Kullanım yenilenemedi",
+    "stale": "Son bilinen değerler"
+  },
   "version": {
     "updateAvailable": "Yeni güncelleme mevcut"
   },

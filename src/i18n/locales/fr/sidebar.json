@@ -94,6 +94,19 @@
     "restoreSessionError": "Une erreur de restauration de conversation s'est produite. Essayer à nouveau.",
     "debugInfoError": "Les infos de débogage n’ont pas pu être copiées."
   },
+  "providerQuota": {
+    "title": "Quota du fournisseur",
+    "summary": "{{provider}} : {{percent}} % du quota restant",
+    "remaining": "{{percent}} % restants",
+    "resetsIn": "réinitialisation dans {{duration}}",
+    "accounts_one": "{{count}} compte",
+    "accounts_other": "{{count}} comptes",
+    "noWindowData": "Aucune valeur communiquée",
+    "unsupported": "Consommation indisponible pour ce fournisseur",
+    "reauth": "Reconnectez-vous pour lire la consommation",
+    "error": "Impossible d’actualiser la consommation",
+    "stale": "Dernières valeurs connues"
+  },
   "version": {
     "updateAvailable": "Nouvelle mise à jour disponible"
   },

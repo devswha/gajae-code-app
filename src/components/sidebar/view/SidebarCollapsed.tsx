@@ -2,6 +2,7 @@ import { Settings, PanelLeftOpen, Bug } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import SidebarDesktopUpdate from './SidebarDesktopUpdate';
+import SidebarProviderQuota from './SidebarProviderQuota';
 
 const DISCORD_INVITE_URL = 'https://discord.gg/dskZax5JPh';
 const GITHUB_ISSUES_URL = 'https://github.com/devswha/gajae-code-app/issues/new';
@@ -41,6 +42,8 @@ export default function SidebarCollapsed({
         <div className="my-1 nav-divider w-6" />
 
         <SidebarDesktopUpdate collapsed onExpand={onExpand} />
+
+        <SidebarProviderQuota collapsed t={t} />
 
         {/* Settings */}
         <button

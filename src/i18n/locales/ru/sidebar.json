@@ -104,6 +104,21 @@
     "restoreSessionError": "Произошла ошибка восстановления беседы. Попробуйте еще раз.",
     "debugInfoError": "Не удалось скопировать отладочную информацию."
   },
+  "providerQuota": {
+    "title": "Квота провайдера",
+    "summary": "{{provider}}: осталось {{percent}}% квоты",
+    "remaining": "осталось {{percent}}%",
+    "resetsIn": "сброс через {{duration}}",
+    "accounts_one": "{{count}} аккаунт",
+    "accounts_few": "{{count}} аккаунта",
+    "accounts_many": "{{count}} аккаунтов",
+    "accounts_other": "{{count}} аккаунтов",
+    "noWindowData": "Значения не переданы",
+    "unsupported": "Данные о расходе для этого провайдера недоступны",
+    "reauth": "Войдите снова, чтобы прочитать расход",
+    "error": "Не удалось обновить данные о расходе",
+    "stale": "Последние известные значения"
+  },
   "version": {
     "updateAvailable": "Доступно новое обновление"
   },

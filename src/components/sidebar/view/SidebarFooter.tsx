@@ -2,6 +2,7 @@ import { Archive, Bug, RefreshCw, Settings } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import SidebarDesktopUpdate from './SidebarDesktopUpdate';
+import SidebarProviderQuota from './SidebarProviderQuota';
 
 const GITHUB_ISSUES_URL = 'https://github.com/devswha/gajae-code-app/issues/new';
 const GITHUB_REPO_URL = 'https://github.com/devswha/gajae-code-app';
@@ -38,6 +39,7 @@ export default function SidebarFooter({
     <footer className="shrink-0 px-2 pb-2" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))' }}>
       <div className="mb-1 h-px bg-border/50" />
       <SidebarDesktopUpdate />
+      <SidebarProviderQuota t={t} />
       <button
         type="button"
         className="flex h-9 w-full items-center gap-3 rounded-lg px-2.5 text-sm text-muted-foreground outline-hidden transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"

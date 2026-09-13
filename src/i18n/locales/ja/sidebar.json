@@ -94,6 +94,19 @@
     "restoreSessionError": "セッションの復元でエラーが発生しました。もう一度お試しください。",
     "debugInfoError": "デバッグ情報をコピーできませんでした。"
   },
+  "providerQuota": {
+    "title": "プロバイダーの残量",
+    "summary": "{{provider}}: 残り {{percent}}%",
+    "remaining": "残り {{percent}}%",
+    "resetsIn": "{{duration}} 後にリセット",
+    "accounts_one": "{{count}} アカウント",
+    "accounts_other": "{{count}} アカウント",
+    "noWindowData": "数値の報告なし",
+    "unsupported": "このプロバイダーの使用量は取得できません",
+    "reauth": "使用量を読むには再度サインインしてください",
+    "error": "使用量を更新できませんでした",
+    "stale": "最後に取得した数値"
+  },
   "version": {
     "updateAvailable": "アップデートあり"
   },

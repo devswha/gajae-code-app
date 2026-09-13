@@ -12,6 +12,7 @@ mod build_info;
 mod builtin_browser;
 mod desktop_deep_links;
 mod desktop_origin;
+mod diagnostics;
 use desktop_deep_links::StartupDeepLinks;
 mod expected_payload;
 #[cfg(target_os = "linux")]
@@ -510,6 +511,7 @@ fn main() {
             app.manage(profile);
         }
         app.manage(navigation::LoopbackOrigin::default());
+        app.manage(diagnostics::Startup::default());
         app.manage(lifecycle::SidecarLifecycle::default());
         app.manage(supervisor::RecoveryScreen::default());
         #[cfg(target_os = "macos")]

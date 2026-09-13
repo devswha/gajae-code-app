@@ -236,6 +236,10 @@ fn reset_desktop_readiness(app: &AppHandle) {
 fn show_error(window: &WebviewWindow, message: &str, retry_enabled: bool) {
     let app = window.app_handle();
     let lifecycle = app.state::<crate::lifecycle::SidecarLifecycle>();
+    // Record before the suppression gates: a failure that is not displayed
+    // (shutdown in flight, or cleanup still owning the child) is exactly the
+    // evidence an incident needs, and must not be dropped with the screen.
+    crate::diagnostics::failure(app, message);
     if lifecycle.is_shutting_down() || (retry_enabled && lifecycle.has_sidecar()) {
         return;
     }
@@ -489,6 +493,9 @@ pub fn start(app: AppHandle) {
         if lifecycle.is_shutting_down() || lifecycle.has_sidecar() {
             return;
         }
+        // Opens this supervised-start attempt. Every accepted Retry increments
+        // the generation, so repeated attempts stay individually attributable.
+        app.state::<crate::diagnostics::Startup>().begin();
         let desktop_data_root = match desktop_data_root(&app) {
             Ok(root) => root,
             Err(error) => {
@@ -496,6 +503,11 @@ pub fn start(app: AppHandle) {
                 return;
             }
         };
+        {
+            let startup = app.state::<crate::diagnostics::Startup>();
+            startup.bind_root(&desktop_data_root);
+            startup.emit_stage("start-requested", None);
+        }
         // Classify an already-invalid update-attempt path before origin
         // loading can turn it into an ordinary retryable origin error. The
         // lifecycle admission below repeats this check under its PID/shutdown
@@ -512,6 +524,11 @@ pub fn start(app: AppHandle) {
                     return;
                 }
             };
+        {
+            let startup = app.state::<crate::diagnostics::Startup>();
+            startup.requested(desktop_origin.requested_port());
+            startup.emit_stage("origin-resolved", None);
+        }
         let payload = match payload_root(&app) {
             Ok(payload) => payload,
             Err(error) => {
@@ -602,6 +619,7 @@ pub fn start(app: AppHandle) {
             }
         };
         let sidecar_pid = child.pid();
+        crate::diagnostics::stage(&app, "sidecar-spawned", Some(sidecar_pid));
         #[cfg(target_os = "macos")]
         let mut child = child;
         #[cfg(target_os = "macos")]
@@ -779,6 +797,11 @@ pub fn start(app: AppHandle) {
                                     return;
                                 }
                                 ready = true;
+                                {
+                                    let startup = app.state::<crate::diagnostics::Startup>();
+                                    startup.listening(ready_frame.port);
+                                    startup.emit_stage("ready", Some(sidecar_pid));
+                                }
                                 #[cfg(target_os = "macos")]
                                 crate::updater::after_healthy(&app);
                                 break;

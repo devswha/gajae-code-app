@@ -195,8 +195,10 @@ pub fn blocking_shutdown(app: &AppHandle) {
     let lifecycle = app.state::<SidecarLifecycle>();
     match lifecycle.begin_shutdown() {
         Some(pid) => {
+            crate::diagnostics::stage(app, "shutdown-requested", Some(pid));
             let _ = terminate_sidecar(pid);
             lifecycle.wait_for_exit_blocking(pid, Duration::from_secs(30));
+            crate::diagnostics::stage(app, "shutdown-settled", Some(pid));
         }
         None => {
             // A graceful shutdown is already in flight; wait for it to settle
@@ -207,6 +209,7 @@ pub fn blocking_shutdown(app: &AppHandle) {
                 .expect("sidecar lifecycle lock poisoned");
             if let Some(pid) = pid {
                 lifecycle.wait_for_exit_blocking(pid, Duration::from_secs(30));
+                crate::diagnostics::stage(app, "shutdown-settled", Some(pid));
             }
         }
     }
@@ -266,6 +269,7 @@ pub fn graceful_quit(app: AppHandle) {
         .pid
         .lock()
         .expect("sidecar lifecycle lock poisoned");
+    crate::diagnostics::stage(&app, "shutdown-requested", pid);
     let signal = pid.map_or(Ok(()), |pid| lifecycle.terminate(pid));
     tauri::async_runtime::spawn(async move {
         let lifecycle = app.state::<SidecarLifecycle>();
@@ -277,9 +281,11 @@ pub fn graceful_quit(app: AppHandle) {
         // signal or wait. Previously every subsequent Quit became a no-op.
         lifecycle.shutdown_waiting.store(false, Ordering::SeqCst);
         if let Err(error) = result {
+            crate::diagnostics::failure(&app, &error);
             show_shutdown_error(&app, &error);
             return;
         }
+        crate::diagnostics::stage(&app, "shutdown-settled", pid);
         app.exit(0);
     });
 }

@@ -5,9 +5,14 @@ import { fileURLToPath } from 'node:url';
 import type { DesktopOwnerActivity } from '../../shared/desktopUpdateProtocol.js';
 import type { DesktopWorkAdmission } from '../shared/interfaces.js';
 
+import { GjcNativeUnavailableError, NativeDiagnostics, errorCode } from './gjc-native-diagnostics.js';
+
 const MAX_FRAME_BYTES = 64 * 1024;
 const MAX_AGGREGATE_BYTES = 16 * 1024 * 1024;
+/** Load-bearing: GjcJobsClient.request classifies on this exact string. */
 const FAILURE = 'GJC native client is unavailable.';
+/** Bounded native stderr kept per generation, for protocol/panic evidence. */
+const MAX_STDERR_BYTES = 2 * 1024;
 export class GjcNativeRequestError extends Error {
   constructor(message: string, public readonly code?: string) {
     super(message);
@@ -84,12 +89,24 @@ export class GjcNativeClient {
   private readonly retiring = new Set<Child>();
   private readonly ended = new WeakSet<Child>();
   private uncertainWork = false;
+  private readonly diagnostics: NativeDiagnostics;
+  private stderrBytes = 0;
 
   constructor(private readonly command: 'git' | 'jobs', options: GjcNativeClientOptions = {}, private readonly launchArgs?: string[]) {
     this.options = { spawn: options.spawn ?? spawnChild as unknown as GjcNativeSpawn, platform: options.platform ?? process.platform, environment: options.environment ?? process.env, readyTimeoutMs: options.readyTimeoutMs ?? 5_000, restartDelayMs: options.restartDelayMs ?? 50, maxRestartDelayMs: options.maxRestartDelayMs ?? 1_000, aggregateLimitBytes: options.aggregateLimitBytes ?? MAX_AGGREGATE_BYTES, corePath: options.corePath, compiled: options.compiled, onHealthChange: options.onHealthChange };
     this.backoff = this.options.restartDelayMs;
     this.activityGroup = options.activityGroup ?? productionActivity;
     this.activityGroup.attach(this);
+    this.diagnostics = new NativeDiagnostics(command);
+  }
+
+  /** Bounded spawn/exit/timeout/protocol evidence the generic failure hides. */
+  evidence() {
+    return this.diagnostics.snapshot();
+  }
+
+  private unavailable(): GjcNativeUnavailableError {
+    return new GjcNativeUnavailableError(FAILURE, this.diagnostics);
   }
 
   getActivityGeneration(): string { return `${this.activityEpoch}:${this.activityRevision}`; }
@@ -118,14 +135,14 @@ export class GjcNativeClient {
   private async requestOwned(method: string, params: Record<string, unknown>): Promise<unknown> {
     await this.startInner();
     const child = this.child;
-    if (!this.ready || !child) throw new Error(FAILURE);
+    if (!this.ready || !child) throw this.unavailable();
     const id = randomUUID();
     const result = new Promise<unknown>((resolve, reject) => this.pending.set(id, { method, resolve, reject, items: [], chunks: [], bytes: 0, nextSequence: 0 }));
     this.changed();
     try {
       child.stdin.write(`${JSON.stringify(this.command === 'git' ? { protocolVersion: 1, kind: 'request', id, method, params } : { ...params, protocolVersion: 1, id, method })}\n`);
     } catch {
-      this.rejectPending(id, new Error(FAILURE));
+      this.rejectPending(id, this.unavailable());
       this.failed(child, this.generation);
     }
     return result;
@@ -139,7 +156,7 @@ export class GjcNativeClient {
   }
 
   private startInner(): Promise<void> {
-    if (this.closed) return Promise.reject(new Error(FAILURE));
+    if (this.closed) return Promise.reject(this.unavailable());
     if (this.ready) return Promise.resolve();
     if (this.starting) return this.starting;
     if (this.restart) return this.restart.then(() => this.startInner());
@@ -160,10 +177,15 @@ export class GjcNativeClient {
       this.child = child;
       this.changed();
       this.input = Buffer.alloc(0);
+      this.stderrBytes = 0;
+      this.diagnostics.record('spawn', generation, corePath.slice(corePath.lastIndexOf('/') + 1));
       child.stdout.on('data', (chunk) => this.onData(child, generation, chunk));
-      child.stdin.on?.('error', () => this.failed(child, generation));
-      child.on('error', () => this.failed(child, generation));
-      child.on('exit', () => this.failed(child, generation));
+      // The native binary's stderr was previously discarded outright, which
+      // erased every panic and startup fault behind the generic failure.
+      child.stderr?.on('data', (chunk) => this.onStderr(generation, chunk));
+      child.stdin.on?.('error', (error) => { this.record('protocol_error', generation, errorCode(error)); this.failed(child, generation); });
+      child.on('error', (error) => { this.record('spawn_failed', generation, errorCode(error)); this.failed(child, generation); });
+      child.on('exit', (code, signal) => { this.record('exit', generation, `code=${String(code ?? 'null')} signal=${String(signal ?? 'null')}`); this.failed(child, generation); });
       child.on('close', () => {
         this.ended.add(child);
         this.failed(child, generation);
@@ -171,12 +193,29 @@ export class GjcNativeClient {
         this.collected();
       });
       if (this.command === 'jobs') this.probe(child, generation);
-      const timer = setTimeout(() => { if (!this.ready) this.failed(child, generation); }, this.options.readyTimeoutMs);
+      const timer = setTimeout(() => {
+        if (this.ready) return;
+        this.record('ready_timeout', generation, `afterMs=${this.options.readyTimeoutMs}`);
+        this.failed(child, generation);
+      }, this.options.readyTimeoutMs);
       timer.unref?.();
-    } catch {
+    } catch (error) {
+      // A throwing spawn (missing/denied core binary) previously vanished.
+      this.diagnostics.record('spawn_failed', this.generation, errorCode(error));
       this.failed();
     }
     return starting;
+  }
+
+  private record(stage: Parameters<NativeDiagnostics['record']>[0], generation: number, detail?: string): void {
+    if (generation === this.generation) this.diagnostics.record(stage, generation, detail);
+  }
+
+  private onStderr(generation: number, chunk: Buffer | Uint8Array): void {
+    if (generation !== this.generation || this.stderrBytes >= MAX_STDERR_BYTES) return;
+    const text = Buffer.from(chunk).toString('utf8');
+    this.stderrBytes += Buffer.byteLength(text, 'utf8');
+    this.diagnostics.record('stderr', generation, text.trim());
   }
 
   private probe(child: Child, generation: number): void {
@@ -257,6 +296,7 @@ export class GjcNativeClient {
   private isCurrent(child: Child, generation: number): boolean { return this.child === child && this.generation === generation; }
   private markReady(child: Child, generation: number): void {
     if (!this.isCurrent(child, generation) || this.ready) return;
+    this.diagnostics.record('ready', generation);
     this.ready = true;
     this.starting = undefined;
     this.changed();
@@ -267,15 +307,19 @@ export class GjcNativeClient {
   private rejectPending(id: string, error: Error): void { const pending = this.pending.get(id); if (pending) { this.pending.delete(id); if (!pending.observer || pending.timedOut) this.changed(); pending.reject(error); } }
   private failed(child?: Child, generation?: number): void {
     if (this.closed || this.restart || (child && (generation === undefined || !this.isCurrent(child, generation)))) return;
+    // Frame/protocol faults reach here without their own record. Keep one
+    // bounded marker so no generation fails with zero evidence.
+    const failing = generation ?? this.generation;
+    if (!this.diagnostics.hasFailure(failing)) this.diagnostics.record('protocol_error', failing, 'frame_rejected');
     const failedChild = child ?? this.child;
     if (this.command === 'git' && [...this.pending.values()].some((request) => !request.observer)) this.uncertainWork = true;
     if (failedChild && !this.ended.has(failedChild)) this.retiring.add(failedChild);
     this.changed();
     this.ready = false;
-    this.readyReject?.(new Error(FAILURE));
+    this.readyReject?.(this.unavailable());
     this.options.onHealthChange?.(false, generation ?? this.generation);
     this.starting = undefined;
-    for (const [id] of this.pending) this.rejectPending(id, new Error(FAILURE));
+    for (const [id] of this.pending) this.rejectPending(id, this.unavailable());
     if (failedChild && this.child === failedChild) this.child = undefined;
     this.input = Buffer.alloc(0);
     try {
@@ -285,11 +329,12 @@ export class GjcNativeClient {
     }
     const delay = this.backoff;
     this.backoff = Math.min(this.backoff * 2, this.options.maxRestartDelayMs);
+    this.diagnostics.record('restart_scheduled', failing, `afterMs=${delay}`);
     const restarting = new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, delay);
       timer.unref?.();
     }).then(() => {
-      if (this.closed) throw new Error(FAILURE);
+      if (this.closed) throw this.unavailable();
       this.restart = undefined;
       this.changed();
       return this.start();
@@ -299,6 +344,7 @@ export class GjcNativeClient {
     void restarting.catch(() => {});
   }
   close(): void {
+    this.diagnostics.record('closed', this.generation);
     this.closed = true;
     this.ready = false;
     this.starting = undefined;
@@ -306,8 +352,8 @@ export class GjcNativeClient {
     if (this.command === 'git' && [...this.pending.values()].some((request) => !request.observer)) this.uncertainWork = true;
     if (this.child && !this.ended.has(this.child)) this.retiring.add(this.child);
     this.changed();
-    this.readyReject?.(new Error(FAILURE));
-    for (const [id] of this.pending) this.rejectPending(id, new Error(FAILURE));
+    this.readyReject?.(this.unavailable());
+    for (const [id] of this.pending) this.rejectPending(id, this.unavailable());
     const child = this.child;
     this.child = undefined;
     try {
@@ -327,7 +373,7 @@ export class GjcNativeClient {
   protected observeActivity(): Promise<unknown> {
     const child = this.child;
     if (this.command !== 'jobs' || !this.ready || !child || this.closed || this.restart
-      || [...this.pending.values()].filter((request) => request.observer).length >= 2) return Promise.reject(new Error(FAILURE));
+      || [...this.pending.values()].filter((request) => request.observer).length >= 2) return Promise.reject(this.unavailable());
     const id = randomUUID();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -339,7 +385,7 @@ export class GjcNativeClient {
         resolve: (value) => { clearTimeout(timer); resolve(value); }, reject: (error) => { clearTimeout(timer); reject(error); },
         items: [], chunks: [], bytes: 0, nextSequence: 0 });
       try { child.stdin.write(`${JSON.stringify({ protocolVersion: 1, id, method: 'job.activity' })}\n`); }
-      catch { this.rejectPending(id, new Error(FAILURE)); this.failed(child, this.generation); }
+      catch { this.rejectPending(id, this.unavailable()); this.failed(child, this.generation); }
     });
   }
 }

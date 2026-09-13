@@ -21,7 +21,14 @@ import {
   type JsonValue,
 } from './gjc-worker-protocol.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE, isGjcModelResolutionError } from './gjc-model-resolution.js';
-import { GJC_ASIDE_UNAVAILABLE_CODE, GJC_ASIDE_UNAVAILABLE_MESSAGE, isGjcAsideUnavailableError } from './gjc-browser-backend.js';
+import {
+  GJC_ASIDE_UNAVAILABLE_CODE,
+  GJC_ASIDE_UNAVAILABLE_MESSAGE,
+  GJC_EGO_UNAVAILABLE_CODE,
+  GJC_EGO_UNAVAILABLE_MESSAGE,
+  isGjcAsideUnavailableError,
+  isGjcEgoUnavailableError,
+} from './gjc-browser-backend.js';
 import { GJC_CLEANUP_UNCONFIRMED_CODE, GJC_CLEANUP_UNCONFIRMED_MESSAGE, isGjcCleanupUnconfirmedError } from './gjc-cleanup-error.js';
 
 export type GjcWorkerWriter = {
@@ -457,6 +464,7 @@ export class GjcWorkerHost {
     let invalidPermissions = false;
     let modelUnresolved = false;
     let asideUnavailable = false;
+    let egoUnavailable = false;
     try {
       const spawned = this.#runtime!.spawnGjc(input.message, {
         ...options(input.options)!,
@@ -473,27 +481,28 @@ export class GjcWorkerHost {
       completed = true;
     } catch (error) {
       // Keep the safe default failure response; report the cause on stderr only.
-      // Three exceptions carry a fixed code: a malformed permissions block (the
+      // Four exceptions carry a fixed code: a malformed permissions block (the
       // app sent it), a model the run cannot pair with a credential (the app's
-      // model selection or the runtime's default role did it), and an Aside
-      // browser backend with no Aside CLI (the app's browser setting did it).
+      // model selection or the runtime's default role did it), and an Aside or
+      // ego browser backend with no CLI (the app's browser setting did it).
       invalidPermissions = isGjcRunPermissionsError(error);
       modelUnresolved = isGjcModelResolutionError(error);
       asideUnavailable = isGjcAsideUnavailableError(error);
+      egoUnavailable = isGjcEgoUnavailableError(error);
       this.#poisonOnCleanupFailure(error);
       this.#diagnose(`run ${run.runId} failed`, error);
     } finally {
-      await this.#settleStart(request, run, { completed, invalidPermissions, modelUnresolved, asideUnavailable });
+      await this.#settleStart(request, run, { completed, invalidPermissions, modelUnresolved, asideUnavailable, egoUnavailable });
     }
   }
 
   async #settleStart(
     request: Extract<GjcWorkerRequestFrame, { sessionId: string }>,
     run: Run,
-    status: { completed: boolean; invalidPermissions: boolean; modelUnresolved: boolean; asideUnavailable: boolean },
+    status: { completed: boolean; invalidPermissions: boolean; modelUnresolved: boolean; asideUnavailable: boolean; egoUnavailable: boolean },
   ): Promise<void> {
     let { completed } = status;
-    const { invalidPermissions, modelUnresolved, asideUnavailable } = status;
+    const { invalidPermissions, modelUnresolved, asideUnavailable, egoUnavailable } = status;
     if (this.#cleanupUnconfirmed) {
       this.#response(request, failure(GJC_CLEANUP_UNCONFIRMED_CODE, GJC_CLEANUP_UNCONFIRMED_MESSAGE));
       return;
@@ -528,7 +537,9 @@ export class GjcWorkerHost {
         ? failure(GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE)
         : asideUnavailable
           ? failure(GJC_ASIDE_UNAVAILABLE_CODE, GJC_ASIDE_UNAVAILABLE_MESSAGE)
-          : failure('run_failed', 'GJC run failed.');
+          : egoUnavailable
+            ? failure(GJC_EGO_UNAVAILABLE_CODE, GJC_EGO_UNAVAILABLE_MESSAGE)
+            : failure('run_failed', 'GJC run failed.');
     this.#response(request, completed ? success(result) : failed);
     run.active = false;
     if (this.#runs.get(run.runId) === run) this.#runs.delete(run.runId);

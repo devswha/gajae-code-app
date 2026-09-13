@@ -133,6 +133,9 @@
       "builtinDescription": "内置浏览器仅在受支持的 macOS 桌面应用中可用。",
       "asideDescription": "GJC 的 Aside 后端：隐藏内置浏览器工具，浏览器操作通过你自行安装的 Aside CLI 在你已登录的浏览器中执行。",
       "asideNote": "需要你自行安装的 Aside CLI（~/.local/bin/aside 或 Aside CLI 应用）。选择 Aside 期间，找不到它的会话将无法启动，而不会回退到原生浏览器。切换回“原生”即可恢复内置浏览器。",
+      "ego": "ego lite(实验性)",
+      "egoDescription": "ego lite 浏览器:隐藏内置浏览器工具,在你已登录的浏览器中的独立 Space 内,通过已安装的 ego-browser CLI 执行浏览器工作。",
+      "egoNote": "需要你自行安装的 ego lite(https://lite.ego.app,引导流程会注册 ~/.local/bin/ego-browser)及其 ego-browser 技能。选择 ego lite 期间,找不到 CLI 的会话将无法启动,而不会回退到内置浏览器。仅在可用时选择内置浏览器。",
       "saveFailed": "无法保存浏览器后端。"
     },
     "builtinBrowser": { "title": "内置浏览器", "description": "打开 macOS 桌面应用中的浏览器。", "label": "内置浏览器", "note": "仅在 macOS 桌面应用中可用。", "open": "打开浏览器", "opened": "已打开内置浏览器。", "failed": "无法打开浏览器。", "errors": { "busy": "内置浏览器正在使用中。请先关闭，再为此会话打开。", "unavailable": "内置浏览器暂不可用。请等待应用服务器重新连接后再试。", "invalidUrl": "无法打开此地址。请使用 HTTP 或 HTTPS 地址。", "stale": "请求完成前浏览器页面已发生变化。请重试。", "failed": "无法打开内置浏览器。请重试。" } },

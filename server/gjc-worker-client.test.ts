@@ -23,7 +23,12 @@ import {
   resolveGjcResumeSessionRoot,
 } from './gjc-worker-client.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE } from './gjc-model-resolution.js';
-import { GJC_ASIDE_UNAVAILABLE_CODE, GJC_ASIDE_UNAVAILABLE_MESSAGE } from './gjc-browser-backend.js';
+import {
+  GJC_ASIDE_UNAVAILABLE_CODE,
+  GJC_ASIDE_UNAVAILABLE_MESSAGE,
+  GJC_EGO_UNAVAILABLE_CODE,
+  GJC_EGO_UNAVAILABLE_MESSAGE,
+} from './gjc-browser-backend.js';
 import { GJC_CLEANUP_UNCONFIRMED_CODE } from './gjc-engine.js';
 import {
   GJC_WINDOWS_JOB_GUARD_ACK,
@@ -1385,6 +1390,38 @@ test('a start refused because the Aside CLI is missing tells the client why inst
     ['complete', 1],
   ]);
   assert.deepEqual(failures, [GJC_ASIDE_UNAVAILABLE_MESSAGE]);
+});
+
+test('a start refused because the ego-browser CLI is missing tells the client why instead of falling back', async () => {
+  const child = new FakeChild();
+  const peer = new FakePeer(child);
+  const starts: Array<Record<string, unknown>> = [];
+  peer.handle((request) => {
+    if (request.method === 'worker.initialize') peer.respond(request);
+    else if (request.method === 'session.start') {
+      starts.push(request.payload as Record<string, unknown>);
+      peer.respond(request, { ok: false, error: { code: GJC_EGO_UNAVAILABLE_CODE, message: GJC_EGO_UNAVAILABLE_MESSAGE } });
+    }
+  });
+  const failures: string[] = [];
+  const supervisor = new GjcWorkerSupervisor({
+    ...runtime(child),
+    enrichOptions: async (options) => ({ ...options, browserBackend: 'ego' }),
+    notifyRunFailed: ({ error }) => { failures.push(error); },
+  });
+
+  const sent: Array<Record<string, unknown>> = [];
+  await assert.rejects(
+    spawn(supervisor, 'hello', {}, { send(value) { sent.push(value as Record<string, unknown>); } }),
+    (error: unknown) => error instanceof Error && error.message === GJC_EGO_UNAVAILABLE_MESSAGE,
+  );
+  assert.equal((starts[0]?.options as Record<string, unknown>)?.browserBackend, 'ego');
+  assert.equal(starts.length, 1);
+  assert.deepEqual(sent.map((message) => [message.kind, message.content ?? message.exitCode]), [
+    ['error', GJC_EGO_UNAVAILABLE_MESSAGE],
+    ['complete', 1],
+  ]);
+  assert.deepEqual(failures, [GJC_EGO_UNAVAILABLE_MESSAGE]);
 });
 
 function assertDesktopIdle(activity: DesktopOwnerActivity): void {

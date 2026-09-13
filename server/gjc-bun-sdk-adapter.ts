@@ -132,6 +132,8 @@ export type GjcBunSdkAdapterOptions = {
    * replaceable so tests never depend on an ego lite installation.
    */
   probeEgoBrowserCli?: () => EgoBrowserCliProbe;
+  /** Platform seam for cross-platform browser-backend tests; production defaults to process.platform. */
+  platform?: NodeJS.Platform;
 };
 
 export type GjcSdkActivitySnapshot = Readonly<{
@@ -1118,7 +1120,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         config.browserBackend,
         this.options.probeAsideCli ?? probeAsideCli,
         this.options.probeEgoBrowserCli ?? probeEgoBrowserCli,
-        { builtinBrowserAvailable, platform: process.platform },
+        { builtinBrowserAvailable, platform: this.options.platform ?? process.platform },
       );
       const trustedBuiltinBrowserAvailable = builtinBrowserAvailable && browserBackend.exposesBuiltinTool;
       const goalScope = config.appSessionId && config.goalOwner

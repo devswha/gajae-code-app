@@ -2378,6 +2378,7 @@ test('selecting ego keeps the runtime on native, disables its browser tool, with
   const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
     probeAsideCli: () => { asideProbes += 1; return { ok: true, path: '/never/used/aside' }; },
     probeEgoBrowserCli: () => { egoProbes += 1; return { ok: true, path: '/fake/.local/bin/ego-browser' }; },
+    platform: 'darwin',
   });
   try {
     const run = f.host.handle(request('session.start', 'browser-ego', {
@@ -2414,6 +2415,7 @@ test('selecting ego keeps the runtime on native, disables its browser tool, with
 test('selecting ego without an ego-browser CLI keeps ordinary chat alive and never falls back to another browser', async () => {
   const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
     probeEgoBrowserCli: () => ({ ok: false, searched: ['/fake/.local/bin/ego-browser', 'PATH (ego-browser)'] }),
+    platform: 'darwin',
   });
   try {
     const run = f.host.handle(request('session.start', 'browser-ego-missing', {

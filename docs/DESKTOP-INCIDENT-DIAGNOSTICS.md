@@ -213,18 +213,20 @@ a process merely because it owns a port.
    `desktop-startup.jsonl` records for the failing launch. Any subset of these
    is a hypothesis, not a root cause.
 
-## Findings deferred to PR-02
+## Findings deferred to later work
 
-Recorded here as findings; deliberately **not** implemented in this PR.
+The desktop-port finding below is handled by PR-02. The remaining items are
+still deliberately outside that focused recovery change.
 
-1. **`desktop-port` has no liveness or ownership check before it is reused.**
-   `DesktopOrigin::load` (`src-tauri/src/desktop_origin.rs`) validates only that
-   the file is a small regular file holding a port `>= 1024`. The supervisor
-   passes it straight to the sidecar as `SERVER_PORT`
-   (`src-tauri/src/supervisor.rs`). If any unrelated process has taken that
-   port, every launch and every Retry fails identically with no path back to a
-   working origin. A recovery design must not kill the occupant and must not
-   simply abandon the stable origin (UI preferences are keyed to it).
+1. **Implemented in PR-02: saved-port preflight and safe recovery.**
+   `DesktopOrigin::ensure_port_available` probes a remembered loopback port
+   immediately before sidecar spawn while the lifecycle PID lock is held.
+   `ConnectionRefused` is the only result that permits startup; an active or
+   ambiguous result fails closed before a child exists. The recovery screen
+   keeps Retry enabled and tells the operator to release the listener. The
+   app never kills or attaches to the occupant, never edits `desktop-port`,
+   and never silently changes the stable origin. A race after the probe still
+   follows the existing bounded sidecar cleanup path.
 
 2. **The bounded writer drops records under contention.**
    `diagnostics::append_bounded` uses `try_lock` and returns `Ok(())` when

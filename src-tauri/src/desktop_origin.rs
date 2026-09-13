@@ -1,6 +1,14 @@
 //! Keep the webview origin stable across launches so UI preferences survive.
 //! The first port is OS-assigned; only a verified owned sidecar can persist it.
-use std::{fs, io::Write, path::PathBuf};
+use std::{
+    fs,
+    io::Write,
+    net::{SocketAddr, TcpStream},
+    path::PathBuf,
+    time::Duration,
+};
+
+const PORT_PROBE_TIMEOUT: Duration = Duration::from_millis(250);
 
 #[derive(Debug)]
 pub(crate) struct DesktopOrigin {
@@ -31,6 +39,29 @@ impl DesktopOrigin {
 
     pub(crate) fn requested_port(&self) -> u16 {
         self.port
+    }
+
+    /// Prove that a remembered port is safe to request at this instant.
+    ///
+    /// A positive connection or an ambiguous probe result is never treated as
+    /// an app-owned server. The desktop has no durable authenticated owner
+    /// record for a remembered port, so the safe response is to leave every
+    /// listener alone and ask the operator to release it before retrying.
+    /// `ConnectionRefused` is the only result that permits the caller to
+    /// continue; the actual bind still remains the final race-prone check.
+    pub(crate) fn ensure_port_available(&self) -> Result<(), String> {
+        if self.port == 0 {
+            return Ok(());
+        }
+
+        let address = SocketAddr::from(([127, 0, 0, 1], self.port));
+        match TcpStream::connect_timeout(&address, PORT_PROBE_TIMEOUT) {
+            Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused => Ok(()),
+            Ok(_) | Err(_) => Err(format!(
+                "Desktop origin port {} is occupied or its owner is unknown. Close the other listener and click Retry. The app did not stop it.",
+                self.port
+            )),
+        }
     }
 
     pub(crate) fn persist_verified_port(&self, port: u16) -> Result<(), String> {
@@ -147,5 +178,44 @@ mod tests {
             assert!(DesktopOrigin::load(directory.0.clone()).is_err());
             assert!(first.persist_verified_port(49153).is_err());
         }
+    }
+
+    #[test]
+    fn occupied_saved_port_is_rejected_without_changing_the_record_or_listener() {
+        use std::net::TcpListener;
+
+        let directory = Temp::new();
+        fs::create_dir(&directory.0).unwrap();
+        let file = directory.0.join("desktop-port");
+        let foreign = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = foreign.local_addr().unwrap().port();
+        fs::write(&file, format!("{port}\n")).unwrap();
+
+        let origin = DesktopOrigin::load(directory.0.clone()).unwrap();
+        let error = origin.ensure_port_available().unwrap_err();
+        assert!(error.contains(&format!("port {port}")));
+        assert!(error.contains("Close the other listener and click Retry"));
+        assert!(
+            foreign.local_addr().is_ok(),
+            "the foreign listener must survive the probe"
+        );
+        assert_eq!(fs::read_to_string(file).unwrap(), format!("{port}\n"));
+    }
+
+    #[test]
+    fn an_unoccupied_saved_port_and_os_assigned_port_are_allowed() {
+        use std::net::TcpListener;
+
+        let directory = Temp::new();
+        let first = DesktopOrigin::load(directory.0.clone()).unwrap();
+        assert!(first.ensure_port_available().is_ok());
+
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        fs::create_dir(&directory.0).unwrap();
+        fs::write(directory.0.join("desktop-port"), format!("{port}\n")).unwrap();
+        let origin = DesktopOrigin::load(directory.0.clone()).unwrap();
+        assert!(origin.ensure_port_available().is_ok());
     }
 }

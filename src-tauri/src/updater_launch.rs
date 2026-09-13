@@ -565,17 +565,7 @@ async fn run_install(
 }
 
 fn stored_port_is_unoccupied(root: &Path) -> Result<(), String> {
-    let port = crate::desktop_origin::DesktopOrigin::load(root.to_owned())?.requested_port();
-    if port == 0 {
-        return Ok(());
-    }
-    match std::net::TcpStream::connect_timeout(
-        &std::net::SocketAddr::from(([127, 0, 0, 1], port)),
-        Duration::from_millis(250),
-    ) {
-        Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused => Ok(()),
-        _ => Err("The desktop origin is occupied or its previous owner is uncertain.".into()),
-    }
+    crate::desktop_origin::DesktopOrigin::load(root.to_owned())?.ensure_port_available()
 }
 
 pub(crate) async fn revalidate_successor(app: &AppHandle) -> Result<Option<Target>, String> {

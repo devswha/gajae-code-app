@@ -34,6 +34,20 @@ installs into every agent's skills directory (or `npx skills add
 citrolabs/ego-lite`). Install: download from <https://lite.ego.app/>, finish
 onboarding; onboarding registers `~/.local/bin/ego-browser`.
 
+Observed with ego lite 2026-09 on macOS: onboarding registers the skill for
+Claude Code and Codex only (`~/.claude/skills/ego-browser` and
+`~/.agents/skills/ego-browser`, both symlinks to
+`~/.local/share/ego/ego-skills`), not for GJC. GJC scans `~/.gjc/agent/skills`
+and the project's `.gjc/skills`, so the user registers it once the same way:
+
+```bash
+ln -s ~/.local/share/ego/ego-skills ~/.gjc/agent/skills/ego-browser
+```
+
+A symlink, not a copy, so ego lite updates keep the skill current. Without it
+the routing block's "load the installed `ego-browser` skill" has nothing to
+load and the model falls back to the block alone.
+
 ## Setting
 
 `Settings > Automation > Browser backend`: **Built-in** (default), **Aside
@@ -98,17 +112,24 @@ Automated (no ego lite required; the probe is injected):
 - `src/components/settings/view/tabs/AutomationSettingsTab.dom.bun.test.tsx` —
   the third option, its note and description, persistence.
 
-Manual smoke (macOS, ego lite installed and onboarded, `ego-browser` skill
-present in `~/.gjc/agent/skills/ego-browser` or the project's `.gjc/skills`):
+Manual (macOS, ego lite installed and onboarded, `ego-browser` 2.0.0 skill
+symlinked into `~/.gjc/agent/skills/ego-browser`; app served from this branch
+on a throwaway DB with `PUT /api/automation/browser-backend {backend:"ego"}`,
+session over `chat.send`, Bash approved through the app's permission card):
 
-1. `Settings > Automation > Browser backend` → **ego lite (Experimental)**.
-2. New GJC session: "Open https://example.com in the browser and tell me the
-   page title." Expected tool calls: `skill` (`ego-browser`), then `bash` →
-   `ego-browser nodejs <<'EOF' … taskSpace(…) … page.goto(…) … EOF`; ego lite
-   opens a new Space; zero `browser` tool calls; answer "Example Domain".
-3. Without ego lite installed (or with `~/.local/bin/ego-browser` renamed):
-   the session fails immediately with the fixed `ego_unavailable` text and no
-   session is created.
+1. **Negative first, before ego lite was installed**: the run failed
+   immediately with the fixed `ego_unavailable` text as a chat `error` frame
+   followed by `complete exitCode 1`; no session started, no override written.
+2. **Positive**: "Open https://example.com in the browser and tell me the page
+   title. Then finish the browser task." Tool calls in order: `skill`
+   (`ego-browser`), `read` (its SKILL.md, twice), `bash` →
+   `ego-browser nodejs <<'EOF' const task = await taskSpace("open example.com");
+   const page = task.page("p1"); await page.goto("https://example.com"); … EOF`.
+   ego lite opened Space 1; answer "the page title is **Example Domain**. The
+   browser task space (id 1) has been finished with no pages kept open." Zero
+   `browser` tool calls, zero Aside text.
+3. With ego lite installed but `~/.local/bin/ego-browser` renamed, the run is
+   refused exactly as in step 1.
 
 ## Follow-ups (not implemented)
 

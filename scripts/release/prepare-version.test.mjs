@@ -79,11 +79,14 @@ function assertSnapshotEqual(actual, expected) {
 }
 
 test('the repository version sources are synchronized without changing the current release', async () => {
-  const state = await readVersionState(fileURLToPath(new URL('../..', import.meta.url)));
+  const root = fileURLToPath(new URL('../..', import.meta.url));
+  const before = await snapshot(root);
+  const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+  const state = await readVersionState(root);
   assert.deepEqual({ productVersion: state.productVersion, desktopVersion: state.desktopVersion }, {
-    productVersion: '2.0.0-beta.15',
-    desktopVersion: '0.2.9',
+    productVersion: pkg.version, desktopVersion: pkg.desktopVersion,
   });
+  assertSnapshotEqual(await snapshot(root), before);
 });
 
 test('candidate planning is read-only and the write updates every root field', async t => {

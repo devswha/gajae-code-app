@@ -270,7 +270,7 @@ pub(crate) fn server_failed(app: &AppHandle, message: &str) -> bool {
     }
 }
 
-pub(crate) async fn show_manual_applying(app: &AppHandle) -> Result<(), String> {
+pub(crate) async fn show_manual_preparing(app: &AppHandle) -> Result<(), String> {
     let gate = app.state::<LaunchGate>();
     gate.phase
         .compare_exchange(
@@ -280,7 +280,7 @@ pub(crate) async fn show_manual_applying(app: &AppHandle) -> Result<(), String> 
             Ordering::Acquire,
         )
         .map_err(|_| "Native launch state changed before restart.".to_owned())?;
-    show_confirmed(app, Screen::Applying).await
+    show_confirmed(app, Screen::Preparing).await
 }
 pub(crate) fn cancel_manual_display(app: &AppHandle, return_url: &tauri::Url) {
     let gate = app.state::<LaunchGate>();

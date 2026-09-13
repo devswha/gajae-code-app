@@ -41,6 +41,14 @@ app-owned dependency patch is being prepared; it is not yet installed or part
 of release packaging, and SDK uncertainty remains a blocker. The native/UI
 transaction and final signed qualification remain required, not optional scope.
 
+The browser-shell PTY limitation is separate from the native owner-scanner
+deleted-image fix. After any `node-pty` spawn, `pty_descendants_unverified`
+remains latched because a leader exit cannot prove that detached descendants are
+gone. Backend `shell_unverified` and native `updater_shell_unverified` are
+diagnostic reason codes only: prepare still fails closed, and the UI directs the
+user to save work, quit and reopen the app, then retry or use the manual
+installer.
+
 ## Earlier checkpoint and evidence
 
 Date: 2026-09-08. Branch: `codex/macos-updater-completion`, based on `49c1010`.

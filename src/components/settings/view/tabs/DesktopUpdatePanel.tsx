@@ -13,6 +13,7 @@ const REASON_KEYS: Record<string, string> = {
   updater_draft_timeout: 'desktopUpdate.reasons.restartTimeout',
   updater_backend_unavailable: 'desktopUpdate.reasons.restartUnknown',
   updater_backend_invalid: 'desktopUpdate.reasons.restartUnknown',
+  updater_shell_unverified: 'desktopUpdate.reasons.shellUnverified',
   updater_owner_unknown: 'desktopUpdate.reasons.restartUnknown',
   updater_owner_changed: 'desktopUpdate.reasons.restartUnknown',
   updater_view_lost: 'desktopUpdate.updateErrors.failed',

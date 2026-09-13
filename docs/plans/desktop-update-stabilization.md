@@ -141,3 +141,13 @@ One intermediate full native run failed the unchanged
 reopening its journal (`another journal owner` lock error). The initial full
 run, isolated rerun and subsequent full run passed. No retry or assertion
 weakening was added to the production code or that test.
+
+## beta.16 integration
+
+Steps 1–5 are delivered as failure diagnostics, read-only operator evidence,
+conservative native owner correction/shared target rechecks, separate restart
+consent, and release-version automation. The operator explicitly defers the
+actual beta.16 → beta.17 transition test; see `../DESKTOP-UPDATE-OPERATOR-TEST.md`.
+The source/native and signed-package gates still apply before publication.
+The shell ownership gap remains guarded and is disclosed in
+`../DESKTOP-UPDATE-FAILURE-BETA14.md`; it is not claimed fixed.

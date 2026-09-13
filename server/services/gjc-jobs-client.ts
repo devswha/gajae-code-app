@@ -36,7 +36,9 @@ export class GjcJobsClient extends GjcNativeClient {
         throw new GjcJobsClientError(error.message, error.code);
       }
       if (error instanceof Error && error.message === 'GJC native client is unavailable.') {
-        throw new GjcJobsClientError(error.message, 'authority_unavailable');
+        // Keep the exact message and code, but do not drop the bounded
+        // spawn/exit/timeout/protocol evidence the generic failure carries.
+        throw Object.assign(new GjcJobsClientError(error.message, 'authority_unavailable'), { cause: error });
       }
       throw error;
     }

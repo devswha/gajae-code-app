@@ -226,28 +226,7 @@ fn nonce() -> Result<String, &'static str> {
 // Bounded private diagnostics survive Finder launches and view replacement.
 // Logging never supplies authority and failure to write cannot authorize/retry an update.
 fn append_diagnostic(root: &std::path::Path, record: &str) -> std::io::Result<()> {
-    use std::io::Write;
-    use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
-    static WRITER: Mutex<()> = Mutex::new(());
-    let Ok(_guard) = WRITER.try_lock() else {
-        return Ok(());
-    };
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .mode(0o600)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
-        .open(root.join("updater-restart.jsonl"))?;
-    let metadata = file.metadata()?;
-    if !metadata.is_file() || metadata.nlink() != 1 || metadata.uid() != unsafe { libc::geteuid() }
-    {
-        return Err(std::io::Error::other("Invalid diagnostic file"));
-    }
-    file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
-    if metadata.len() + record.len() as u64 + 1 > 64 * 1024 {
-        file.set_len(0)?;
-    }
-    writeln!(file, "{record}")
+    crate::diagnostics::append_bounded(root, "updater-restart.jsonl", record)
 }
 
 impl Restarts {
@@ -971,6 +950,9 @@ mod tests {
     #[test]
     fn diagnostic_file_is_private_bounded_and_rejects_symlinks() {
         use std::os::unix::fs::{symlink, PermissionsExt};
+        // The bounded writer is shared with crate::diagnostics and skips its
+        // write while another thread holds it; serialize to assert on bytes.
+        let _serial = crate::diagnostics::serialize_writer();
         let root = std::env::temp_dir().join(format!("restart-diagnostics-{}", nonce().unwrap()));
         std::fs::create_dir(&root).unwrap();
         let file = root.join("updater-restart.jsonl");

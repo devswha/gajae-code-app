@@ -18,6 +18,9 @@ async function close(server: net.Server) {
   await new Promise<void>(resolve => server.close(() => resolve()));
 }
 
+/** Node decorates a failed listen with the address and port it refused. */
+type BindError = NodeJS.ErrnoException & { address?: string; port?: number };
+
 test('HTTP bind failure forwarded by ws rejects without an unhandled WebSocketServer error', async () => {
   const owner = http.createServer();
   owner.listen(0, '127.0.0.1'); await once(owner, 'listening');
@@ -109,4 +112,109 @@ test('an error during readiness does not release the callback owner before its r
     assert.equal(settled, false);
     release(); await checked;
   } finally { release(); sockets.close(); await close(server); }
+});
+
+/**
+ * Incident reproduction: the desktop asks for a remembered `desktop-port` that
+ * some unrelated program already owns. This is the EADDRINUSE path observed on
+ * 127.0.0.1:60278. The fixture never inspects or terminates a real foreign
+ * process: an in-process listener stands in for the unrelated owner.
+ */
+test('reproduction: an unrelated listener owning the desktop port fails startup without disturbing it', async () => {
+  // A plain TCP listener, not an HTTP/gajae server: it answers no /health.
+  const foreign = net.createServer(socket => socket.destroy());
+  foreign.listen(0, '127.0.0.1'); await once(foreign, 'listening');
+  const requestedPort = (foreign.address() as net.AddressInfo).port;
+  const server = http.createServer(); const sockets = new WebSocketServer({ server });
+  try {
+    const failure = await listenForStartup(server, sockets, requestedPort, '127.0.0.1', async () => {
+      throw new Error('readiness must not run when the port is taken');
+    }).then(() => null, (error: BindError) => error);
+
+    assert.ok(failure, 'binding an occupied port must fail');
+    assert.equal(failure.code, 'EADDRINUSE');
+    // The evidence an operator needs: which address:port was refused.
+    assert.equal(failure.address, '127.0.0.1');
+    assert.equal(failure.port, requestedPort);
+    // The requested port is knowable even though no actual port was bound.
+    assert.equal(server.address(), null, 'a refused bind has no actual port');
+    // Recovery must not depend on evicting the occupant.
+    assert.equal(foreign.listening, true, 'the unrelated owner must be left alone');
+  } finally { sockets.close(); await close(server); await close(foreign); }
+});
+
+/**
+ * Investigation: why one failure can look like several.
+ *
+ * `ws` re-emits the HTTP server's `error` on the WebSocketServer
+ * (node_modules/ws/lib/websocket-server.js: `error: this.emit.bind(this, 'error')`).
+ * A single OS-level bind refusal is therefore delivered twice, to two
+ * emitters, as the *same* Error object. Duplicate observations of one failure
+ * are not evidence that two servers were spawned.
+ */
+test('investigation: one bind refusal is delivered twice but is a single error and a single bind', async () => {
+  const foreign = net.createServer();
+  foreign.listen(0, '127.0.0.1'); await once(foreign, 'listening');
+  const requestedPort = (foreign.address() as net.AddressInfo).port;
+  const server = http.createServer(); const sockets = new WebSocketServer({ server });
+  const observed: Error[] = [];
+  server.on('error', error => observed.push(error));
+  sockets.on('error', error => observed.push(error));
+  let readyRuns = 0;
+  try {
+    await assert.rejects(
+      listenForStartup(server, sockets, requestedPort, '127.0.0.1', async () => { readyRuns++; }),
+      { code: 'EADDRINUSE' },
+    );
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    assert.equal(observed.length, 2, 'the http server and ws both report the same refusal');
+    assert.equal(observed[0], observed[1], 'both deliveries are one Error instance, not two failures');
+    assert.equal(readyRuns, 0, 'a refused bind never starts readiness');
+    assert.equal(server.address(), null, 'exactly zero listeners were established here');
+    assert.equal(foreign.listening, true);
+  } finally { sockets.close(); await close(server); await close(foreign); }
+});
+
+/**
+ * Reproduction: repeated Retry against a still-occupied port. Each attempt
+ * fails independently and identically; repetition in a log is explained by
+ * repeated attempts, not by a second server having been started.
+ */
+test('reproduction: repeated retries against an occupied port fail identically and bind nothing', async () => {
+  const foreign = net.createServer();
+  foreign.listen(0, '127.0.0.1'); await once(foreign, 'listening');
+  const requestedPort = (foreign.address() as net.AddressInfo).port;
+  const codes: string[] = [];
+  const bound: (string | net.AddressInfo | null)[] = [];
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const server = http.createServer(); const sockets = new WebSocketServer({ server });
+      const failure = await listenForStartup(server, sockets, requestedPort, '127.0.0.1', async () => {
+        throw new Error('readiness must not run');
+      }).then(() => null, (error: NodeJS.ErrnoException) => error);
+      codes.push(failure?.code ?? 'none');
+      bound.push(server.address());
+      sockets.close(); await close(server);
+    }
+    assert.deepEqual(codes, ['EADDRINUSE', 'EADDRINUSE', 'EADDRINUSE']);
+    assert.deepEqual(bound, [null, null, null], 'no retry ever established a listener');
+    assert.equal(foreign.listening, true, 'retrying never evicts the occupant');
+  } finally { await close(foreign); }
+});
+
+/**
+ * Control: with the port free, the same call binds an actual port that can
+ * differ from the requested one. Requested and actual port are distinct facts
+ * and an incident record must not conflate them.
+ */
+test('an OS-assigned request binds an actual port distinct from the request', async () => {
+  const server = http.createServer(); const sockets = new WebSocketServer({ server });
+  try {
+    await listenForStartup(server, sockets, 0, '127.0.0.1', async () => {});
+    const actual = server.address() as net.AddressInfo;
+    assert.ok(actual && actual.port > 0, 'an accepted bind reports its actual port');
+    assert.notEqual(actual.port, 0, 'the requested 0 is not the actual port');
+    assert.equal(actual.address, '127.0.0.1');
+  } finally { sockets.close(); await close(server); }
 });

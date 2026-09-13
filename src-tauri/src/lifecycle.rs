@@ -121,14 +121,15 @@ impl SidecarLifecycle {
         .map_err(|_| "desktop server did not complete its graceful shutdown".to_owned())
     }
 
-    fn wait_for_exit_blocking(&self, pid: u32, timeout: Duration) {
+    fn wait_for_exit_blocking(&self, pid: u32, timeout: Duration) -> bool {
         let deadline = std::time::Instant::now() + timeout;
         while std::time::Instant::now() < deadline {
             if !self.has_sidecar() || !process_alive(pid) {
-                return;
+                return true;
             }
             std::thread::sleep(Duration::from_millis(100));
         }
+        !self.has_sidecar() || !process_alive(pid)
     }
 }
 
@@ -195,8 +196,16 @@ pub fn blocking_shutdown(app: &AppHandle) {
     let lifecycle = app.state::<SidecarLifecycle>();
     match lifecycle.begin_shutdown() {
         Some(pid) => {
+            crate::diagnostics::stage(app, "shutdown-requested", Some(pid));
             let _ = terminate_sidecar(pid);
-            lifecycle.wait_for_exit_blocking(pid, Duration::from_secs(30));
+            if lifecycle.wait_for_exit_blocking(pid, Duration::from_secs(30)) {
+                crate::diagnostics::stage(app, "shutdown-settled", Some(pid));
+            } else {
+                crate::diagnostics::failure(
+                    app,
+                    "desktop server did not complete its graceful shutdown",
+                );
+            }
         }
         None => {
             // A graceful shutdown is already in flight; wait for it to settle
@@ -206,7 +215,14 @@ pub fn blocking_shutdown(app: &AppHandle) {
                 .lock()
                 .expect("sidecar lifecycle lock poisoned");
             if let Some(pid) = pid {
-                lifecycle.wait_for_exit_blocking(pid, Duration::from_secs(30));
+                if lifecycle.wait_for_exit_blocking(pid, Duration::from_secs(30)) {
+                    crate::diagnostics::stage(app, "shutdown-settled", Some(pid));
+                } else {
+                    crate::diagnostics::failure(
+                        app,
+                        "desktop server did not complete its graceful shutdown",
+                    );
+                }
             }
         }
     }
@@ -266,6 +282,7 @@ pub fn graceful_quit(app: AppHandle) {
         .pid
         .lock()
         .expect("sidecar lifecycle lock poisoned");
+    crate::diagnostics::stage(&app, "shutdown-requested", pid);
     let signal = pid.map_or(Ok(()), |pid| lifecycle.terminate(pid));
     tauri::async_runtime::spawn(async move {
         let lifecycle = app.state::<SidecarLifecycle>();
@@ -277,9 +294,11 @@ pub fn graceful_quit(app: AppHandle) {
         // signal or wait. Previously every subsequent Quit became a no-op.
         lifecycle.shutdown_waiting.store(false, Ordering::SeqCst);
         if let Err(error) = result {
+            crate::diagnostics::failure(&app, &error);
             show_shutdown_error(&app, &error);
             return;
         }
+        crate::diagnostics::stage(&app, "shutdown-settled", pid);
         app.exit(0);
     });
 }
@@ -368,6 +387,14 @@ mod tests {
                 .expect("an already exited server must not wait for another notification")
                 .unwrap();
         });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn blocking_shutdown_wait_reports_an_unconfirmed_timeout() {
+        let lifecycle = SidecarLifecycle::default();
+        *lifecycle.pid.lock().unwrap() = Some(u32::MAX);
+        assert!(!lifecycle.wait_for_exit_blocking(u32::MAX, Duration::ZERO));
     }
 
     #[test]

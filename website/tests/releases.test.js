@@ -13,17 +13,19 @@ import {
 } from '../src/releases.js';
 
 /**
- * Reviewed public-release fixture: promote this with the verified beta.14 assets.
+ * Reviewed public-release fixture: promote this with the verified beta.16 assets.
  * A local/test candidate can advance package.json before publication; coupling
  * the page to that version would advertise download URLs that do not exist.
  * Update this fixture with RELEASE only after verifying the new public assets.
  */
-const publishedVersion = '2.0.0-beta.14';
+const publishedVersion = '2.0.0-beta.16';
 const publishedTag = `v${publishedVersion}`;
+const publishedLabel = '2026-09-13';
 
 test('pins the published release and its GitHub URLs independently of local candidates', () => {
   assert.equal(RELEASE.version, publishedVersion);
   assert.equal(RELEASE.tag, `v${publishedVersion}`);
+  assert.equal(RELEASE.publishedLabel, publishedLabel);
   assert.equal(desktopDmgName(), `gajae-app-desktop-${publishedVersion}-macos-arm64.dmg`);
   assert.equal(serverArchiveName(), `gajae-app-server-${publishedVersion}-linux-x64-node22.tar.gz`);
   assert.equal(

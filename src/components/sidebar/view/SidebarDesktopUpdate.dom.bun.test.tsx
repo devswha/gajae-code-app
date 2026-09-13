@@ -132,7 +132,7 @@ test('available card is directly above Settings, polite, non-modal, and never st
   assert.deepEqual(writes(commands), []);
 });
 
-test('Update explicitly downloads then requests one target-bound restart; duplicate cross-mount clicks coalesce', async () => {
+test('Update downloads only; a second click explicitly requests a target-bound restart', async () => {
   let snapshot = native();
   const commands: DesktopUpdateCommand[] = [];
   const waiting = deferred<unknown>();
@@ -151,6 +151,8 @@ test('Update explicitly downloads then requests one target-bound restart; duplic
   assert.ok(screen.getAllByRole('button', { name: english.desktopUpdate.updating }).every((button) => (button as HTMLButtonElement).disabled));
   snapshot = { ...snapshot, phase: 'ready' };
   await act(async () => { waiting.resolve(snapshot); });
+  assert.deepEqual(writes(commands), [{ action: 'download', targetId: snapshot.targetId }]);
+  await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: english.desktopUpdate.restartToInstall })[0]); });
   assert.deepEqual(writes(commands), [
     { action: 'download', targetId: snapshot.targetId }, { action: 'restart', targetId: snapshot.targetId },
   ]);
@@ -343,6 +345,8 @@ test('owner preserves an accepted download across collapsed/expanded swaps witho
   assert.equal(commands.filter((command) => command.action === 'status').length, 1);
   snapshot = { ...snapshot, phase: 'ready' };
   await act(async () => { waiting.resolve(snapshot); });
+  assert.deepEqual(writes(commands), [{ action: 'download', targetId: snapshot.targetId }]);
+  await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: english.desktopUpdate.restartToInstall })[0]); });
   assert.deepEqual(writes(commands), [
     { action: 'download', targetId: snapshot.targetId }, { action: 'restart', targetId: snapshot.targetId },
   ]);

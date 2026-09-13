@@ -8,7 +8,7 @@
     "restartToInstall": "Redémarrer pour installer",
     "restarting": "Redémarrage…",
     "readyHelp": "La mise à jour est téléchargée et vérifiée. Le redémarrage ferme brièvement l’application et la rouvre en {{version}}. Enregistrez d’abord votre travail.",
-    "manualHelp": "Mettre à jour lance le téléchargement et demande un redémarrage sûr. Les vérifications ne téléchargent ni n’installent rien.",
+    "manualHelp": "Cliquez sur Mettre à jour pour télécharger, puis choisissez de redémarrer pour installer. Les vérifications automatiques ne téléchargent et n’installent rien.",
     "awaitingOperation": "L’opération native précédente n’est pas terminée. Ne réessayez pas encore.",
     "targetVersion": "Version {{version}}",
     "showDetails": "Afficher les détails de la mise à jour de bureau : {{version}} — {{status}}",

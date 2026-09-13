@@ -8,7 +8,7 @@
     "restartToInstall": "重新啟動以安裝",
     "restarting": "正在重新啟動…",
     "readyHelp": "更新已下載並驗證。重新啟動會短暫關閉應用程式並以 {{version}} 重新開啟。請先儲存工作。",
-    "manualHelp": "點擊「更新」以下載並要求安全重新啟動。檢查更新不會下載或安裝更新。",
+    "manualHelp": "點選更新以下載。準備就緒後，選擇重新啟動並安裝。自動檢查不會下載或安裝更新。",
     "awaitingOperation": "正在等待上一個原生操作完成。請勿立即重試。",
     "targetVersion": "版本 {{version}}",
     "showDetails": "顯示桌面更新詳情：{{version}} — {{status}}",

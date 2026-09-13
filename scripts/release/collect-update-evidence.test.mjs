@@ -28,6 +28,8 @@ test('legacy and merely prepared receipts never count as committed', () => {
   }
   assert.equal(summary({ ...receipt(), schema: 1 }).status, 'no-matching-completion');
   assert.throws(() => summary({}), /Invalid completion/);
+  const downgrade = receipt(); downgrade.attempt.target.target_desktop_version = expected.from;
+  assert.equal(summary(downgrade).status, 'no-matching-completion');
 });
 
 test('diagnostic export strips payload and raw errors and bounds records', () => {

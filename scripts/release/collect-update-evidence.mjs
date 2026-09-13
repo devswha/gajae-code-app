@@ -5,8 +5,10 @@ import { open } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import semver from 'semver';
+
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
-const version = value => typeof value === 'string' && /^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(value);
+const version = value => typeof value === 'string' && value.length <= 128 && semver.valid(value) === value;
 const code = value => typeof value === 'string' && /^[a-z][a-z_-]{0,63}$/.test(value);
 const integer = value => Number.isSafeInteger(value) && value >= 0;
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -50,7 +52,7 @@ export function summarizeUpdateEvidence({ diagnostics, completion, pending }, ex
     if (!record(receipt) || !record(target)) throw new Error('Invalid completion record.');
     if (receipt.schema === 2 && receipt.state === 'committed' && receipt.attempt.phase === 'awaiting_health'
       && version(target.source_desktop_version) && version(target.target_desktop_version)
-      && version(target.target_product_version) && digest(target.archive_sha256)) {
+      && version(target.target_product_version) && semver.gt(target.target_desktop_version, target.source_desktop_version) && digest(target.archive_sha256)) {
       observedCompletion = { from: target.source_desktop_version, to: target.target_desktop_version,
         product: target.target_product_version, archiveSha256: target.archive_sha256 };
     }

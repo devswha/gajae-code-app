@@ -2378,6 +2378,7 @@ test('selecting ego keeps the runtime on native, disables its browser tool, with
   const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
     probeAsideCli: () => { asideProbes += 1; return { ok: true, path: '/never/used/aside' }; },
     probeEgoBrowserCli: () => { egoProbes += 1; return { ok: true, path: '/fake/.local/bin/ego-browser' }; },
+    platform: 'darwin',
   });
   try {
     const run = f.host.handle(request('session.start', 'browser-ego', {
@@ -2414,6 +2415,7 @@ test('selecting ego keeps the runtime on native, disables its browser tool, with
 test('selecting ego without an ego-browser CLI keeps ordinary chat alive and never falls back to another browser', async () => {
   const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
     probeEgoBrowserCli: () => ({ ok: false, searched: ['/fake/.local/bin/ego-browser', 'PATH (ego-browser)'] }),
+    platform: 'darwin',
   });
   try {
     const run = f.host.handle(request('session.start', 'browser-ego-missing', {
@@ -2481,7 +2483,10 @@ test('the production adapter passes bypass to automation without answering real 
       const result = incoming.operation === 'authorize'
         ? incoming.surface === 'browser'
           ? { granted: false, origin: 'https://example.com' }
-          : { granted: false, application: 'com.apple.TextEdit', label: 'TextEdit' }
+          : {
+            granted: (incoming.payload as Record<string, unknown> | undefined)?.scope === 'session',
+            application: 'com.apple.TextEdit', label: 'TextEdit',
+          }
         : { success: true };
       socket.end(`${JSON.stringify({ id: incoming.id, ok: incoming.token === token, result })}\n`);
     });
@@ -2502,9 +2507,10 @@ test('the production adapter passes bypass to automation without answering real 
     await tools.browser!.execute('browser-bypass', { action: 'open', url: 'https://example.com' }, AbortSignal.timeout(5_000));
     await tools.computer!.execute('computer-bypass', { action: 'click', arguments: { pid: 42, x: 1, y: 1 } }, AbortSignal.timeout(5_000));
     assert.equal(methods(f.frames).filter(method => method === 'ask.presented').length, 0);
-    assert.deepEqual(requests.map(item => item.operation), ['authorize', 'open', 'authorize', undefined]);
+    assert.deepEqual(requests.map(item => item.operation), ['authorize', 'open', 'authorize', 'authorize', undefined]);
     assert.ok(requests.every(item => item.sessionId === 'automation-app-session'));
-    assert.ok(requests.every(item => !(item.payload as Record<string, unknown> | undefined)?.scope));
+    assert.deepEqual(requests[3]?.payload, { application: 'com.apple.TextEdit', scope: 'session' });
+    assert.ok(requests.every(item => (item.payload as Record<string, unknown> | undefined)?.scope !== 'always'));
 
     const question = session.uiContext!.select('Choose a plan', ['A', 'B']);
     void question.catch(() => {});

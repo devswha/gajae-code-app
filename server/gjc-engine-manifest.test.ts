@@ -6,6 +6,10 @@ import { dirname, join, relative, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { BROWSER_BACKENDS } from '../src/components/settings/browserBackends.js';
+
+import { GJC_BROWSER_BACKENDS } from './gjc-browser-backend.js';
+
 /*
  * The engine's file set has to be a fact, not a memory.
  *
@@ -73,6 +77,10 @@ test('the application side of the manifest states why each file stays', () => {
       `${file} needs a reason someone can act on, not a label`,
     );
   }
+});
+
+test('the Settings backend vocabulary stays aligned with the server contract', () => {
+  assert.deepEqual([...BROWSER_BACKENDS], [...GJC_BROWSER_BACKENDS]);
 });
 
 test('nothing declared as engine imports the application', () => {

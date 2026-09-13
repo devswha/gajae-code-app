@@ -210,14 +210,20 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   the user-installed `aside` skill. Do not add an Aside tool, prompt, skill copy,
   MCP server or fallback in the app; a missing Aside CLI fails the run
   (`aside_unavailable`) instead of falling back to Built-in. `ego` (ego lite,
-  PoC) is the exception the runtime does not know: the app owns its CLI probe
-  (`probeEgoBrowserCli`) and one `<browser-backend>` routing block
-  (`GJC_EGO_BROWSER_INSTRUCTIONS`), keeps the runtime on `native` with
-  `browser.enabled=false`, and fails a run without the CLI (`ego_unavailable`);
-  the API reference is the user-installed `ego-browser` skill, never a copy in
-  the app. Built-in is macOS desktop-only; see `docs/BUILTIN-BROWSER.md`. See
-  `docs/BROWSER-ASIDE-POC.md`, `docs/BROWSER-EGO-POC.md` and the "Browser
-  backend" section of `server/GJC-LIVE-SPEC.md`.
+  PoC) is the exception the runtime does not know: the app owns its
+  filesystem-only readiness report (`probeEgoReadiness`), CLI probe and one
+  `<browser-backend>` routing block (`GJC_EGO_BROWSER_INSTRUCTIONS`), keeps the
+  runtime on `native` with `browser.enabled=false`, and pins the probe-resolved
+  absolute CLI path. If Ego is not ready, the run keeps ordinary chat/coding
+  available while browser work is disabled; it never substitutes Built-in,
+  Aside, an OS browser, Playwright/Puppeteer/MCP or computer/CUA. Only the
+  explicit Settings Test connection action may execute `--version` and the
+  documented non-mutating `nodejs` check. The API reference is the
+  user-installed `ego-browser` skill, never a copy in the app. Ego is currently
+  selectable only on macOS; Built-in remains macOS desktop-only; see
+  `docs/BUILTIN-BROWSER.md`. See `docs/BROWSER-ASIDE-POC.md`,
+  `docs/BROWSER-EGO-POC.md` and the "Browser backend" section of
+  `server/GJC-LIVE-SPEC.md`.
 - **Chat tool cards follow the runtime, not Claude**: `src/components/chat/tools/configs/toolConfigs.ts`
   is keyed by the tool's own lowercase name (`bash`, `read`, `edit`, `todo_write`), and
   its accessors read the runtime's parameter schema. `server/gjc-tool-configs.bun.test.ts`

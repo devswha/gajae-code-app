@@ -18,6 +18,21 @@ type Status = {
   cua: { installed: boolean; version?: string; daemon: string; accessibility?: boolean; screenRecording?: boolean; error?: string };
 };
 
+type EgoReadiness = {
+  ready: boolean;
+  status: 'ready' | 'not_ready' | 'unknown';
+  issues?: Array<{ code: string; state: string }>;
+  warnings?: string[];
+  versions?: { cli: string; app: string; skill: string };
+};
+
+type EgoConnection = {
+  ok: boolean;
+  status: 'connected' | 'not_connected' | 'failed';
+  cliVersion?: string;
+  message?: string;
+};
+
 type Grants = {
   always: { origins: string[]; applications: string[] };
 };
@@ -30,7 +45,11 @@ export default function AutomationSettingsTab() {
   const [grants, setGrants] = useState<Grants | null>(null);
   const [loading, setLoading] = useState(true);
   const [browserBackend, setBrowserBackend] = useState<BrowserBackend | null>(null);
+  const [availableBackends, setAvailableBackends] = useState<BrowserBackend[]>([...BROWSER_BACKENDS]);
   const [browserBackendError, setBrowserBackendError] = useState<string | null>(null);
+  const [egoReadiness, setEgoReadiness] = useState<EgoReadiness | null>(null);
+  const [egoConnection, setEgoConnection] = useState<EgoConnection | null>(null);
+  const [testingEgoConnection, setTestingEgoConnection] = useState(false);
   const [builtinBrowserStatus, setBuiltinBrowserStatus] = useState<string | null>(null);
   const selectedProjectId = useAppShellStore((state) => state.selectedProject?.projectId);
   const selectedSessionId = useAppShellStore((state) => state.selectedSession?.id);
@@ -39,17 +58,23 @@ export default function AutomationSettingsTab() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [statusResponse, grantsResponse, backendResponse] = await Promise.all([
+      const [statusResponse, grantsResponse, backendResponse, egoReadinessResponse] = await Promise.all([
         fetch('/api/automation/status'),
         fetch('/api/automation/grants'),
         fetch('/api/automation/browser-backend'),
+        fetch('/api/automation/ego-readiness'),
       ]);
       if (statusResponse.ok) setStatus(await statusResponse.json() as Status);
       if (grantsResponse.ok) setGrants(await grantsResponse.json() as Grants);
       if (backendResponse.ok) {
-        const { backend } = await backendResponse.json() as { backend: unknown };
+        const { backend, backends } = await backendResponse.json() as { backend: unknown; backends?: unknown };
         if (isBrowserBackend(backend)) setBrowserBackend(backend);
+        if (Array.isArray(backends)) {
+          const supported = backends.filter(isBrowserBackend);
+          if (supported.length > 0) setAvailableBackends(supported);
+        }
       }
+      if (egoReadinessResponse.ok) setEgoReadiness(await egoReadinessResponse.json() as EgoReadiness);
     } finally {
       setLoading(false);
     }
@@ -68,6 +93,20 @@ export default function AutomationSettingsTab() {
     }
     const saved = await response.json() as { backend: unknown };
     if (isBrowserBackend(saved.backend)) setBrowserBackend(saved.backend);
+  };
+
+  const testEgoConnection = async () => {
+    setTestingEgoConnection(true);
+    setEgoConnection(null);
+    try {
+      const response = await fetch('/api/automation/ego-readiness/test', { method: 'POST' });
+      const result = await response.json() as EgoConnection;
+      setEgoConnection(result);
+    } catch {
+      setEgoConnection({ ok: false, status: 'failed', message: t('automation.browserBackend.connectionFailed') });
+    } finally {
+      setTestingEgoConnection(false);
+    }
   };
 
   useEffect(() => {
@@ -106,7 +145,7 @@ export default function AutomationSettingsTab() {
               onChange={(event) => { if (isBrowserBackend(event.target.value)) void changeBrowserBackend(event.target.value); }}
               className={`${selectClass} sm:w-48`}
             >
-              {BROWSER_BACKENDS.map((backend) => (
+              {availableBackends.map((backend) => (
                 <option key={backend} value={backend}>{t(`automation.browserBackend.${backend}`)}</option>
               ))}
             </select>
@@ -115,7 +154,27 @@ export default function AutomationSettingsTab() {
             <p className="px-4 pb-4 text-xs text-muted-foreground">{t('automation.browserBackend.asideNote')}</p>
           ) : null}
           {browserBackend === 'ego' ? (
-            <p className="px-4 pb-4 text-xs text-muted-foreground">{t('automation.browserBackend.egoNote')}</p>
+            <div className="space-y-2 px-4 pb-4 text-xs text-muted-foreground">
+              <p>{t('automation.browserBackend.egoNote')}</p>
+              <p>
+                {t('automation.browserBackend.readiness')}: {t(`automation.browserBackend.readiness${egoReadiness?.status === 'ready' ? 'Ready' : egoReadiness?.status === 'not_ready' ? 'NotReady' : 'Unknown'}`)}
+              </p>
+              <button
+                type="button"
+                onClick={() => void testEgoConnection()}
+                disabled={testingEgoConnection}
+                className="rounded-lg border border-input px-3 py-2 text-xs text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {testingEgoConnection ? t('automation.browserBackend.testingConnection') : t('automation.browserBackend.testConnection')}
+              </button>
+              {egoConnection ? (
+                <p role="alert" className={egoConnection.ok ? 'text-muted-foreground' : 'text-destructive'}>
+                  {egoConnection.ok
+                    ? `${t('automation.browserBackend.connectionPassed')}${egoConnection.cliVersion ? ` (${egoConnection.cliVersion})` : ''}`
+                    : egoConnection.message ?? t('automation.browserBackend.connectionFailed')}
+                </p>
+              ) : null}
+            </div>
           ) : null}
           {browserBackendError ? (
             <p className="px-4 pb-4 text-xs text-destructive" role="alert">{browserBackendError}</p>

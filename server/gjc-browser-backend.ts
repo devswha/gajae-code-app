@@ -19,14 +19,24 @@
  * via Bash. The agent-facing API lives in the user-installed `ego-browser`
  * skill; the app ships neither a tool nor a skill copy for it.
  *
- * Mirrors `gjc-model-resolution.ts`: one application error code, fixed text
- * that is safe to relay to a browser because it carries no frame content, an
- * error class the adapter throws, and a guard the worker answers with.
+ * Aside retains its fixed error code/guard. Ego's unresolved-CLI state is
+ * browser-only: the adapter keeps ordinary chat alive with a separate prompt
+ * policy instead of throwing a session-start error.
  */
 
-import { accessSync, constants as fsConstants, statSync } from 'node:fs';
+import { execFile as execFileCallback } from 'node:child_process';
+import {
+  accessSync,
+  constants as fsConstants,
+  lstatSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+  statSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { promisify } from 'node:util';
 
 /** Application choices do not expose the runtime's `native` setting value. */
 export const GJC_BROWSER_BACKENDS = ['builtin', 'aside', 'ego'] as const;
@@ -79,9 +89,329 @@ export type EgoBrowserCliProbe =
 
 export const EGO_BROWSER_COMMAND = 'ego-browser';
 
+/** Ego Lite is currently a macOS-only integration. Keep this gate separate from
+ * the native WebView gate: self-hosted macOS users may still use Ego without
+ * the desktop browser surface. */
+export function isEgoSupportedPlatform(platform: NodeJS.Platform = process.platform): boolean {
+  return platform === 'darwin';
+}
+
+export const EGO_VERSION_MATRIX = Object.freeze({
+  // The beta.16 smoke established one known-good point. This is deliberately a
+  // data table, not a compatibility promise: values absent from it stay
+  // unknown until an explicit connection test observes them.
+  app: Object.freeze({ supported: ['0.5.0.32'] as readonly string[] }),
+  cli: Object.freeze({ supported: ['0.5.0.32'] as readonly string[] }),
+  skill: Object.freeze({ supported: ['2.0.0'] as readonly string[] }),
+});
+
+export type EgoReadinessCode =
+  | 'ego_not_supported_platform'
+  | 'ego_cli_missing'
+  | 'ego_cli_dangling'
+  | 'ego_cli_not_executable'
+  | 'ego_app_missing'
+  | 'ego_app_not_running'
+  | 'ego_skill_missing'
+  | 'ego_skill_dangling'
+  | 'ego_skills_untrusted'
+  | 'ego_version_unknown'
+  | 'ego_version_unsupported'
+  | 'ego_not_connected'
+  | 'ego_cli_app_skew';
+
+export type EgoReadinessCheck = Readonly<{
+  code: EgoReadinessCode;
+  state: 'ok' | 'problem' | 'unknown';
+  checked: boolean;
+}>;
+
+export type EgoReadinessReport = Readonly<{
+  backend: 'ego';
+  platform: NodeJS.Platform;
+  supportedPlatform: boolean;
+  checked: true;
+  ready: boolean;
+  status: 'ready' | 'not_ready' | 'unknown';
+  checks: Readonly<Record<EgoReadinessCode, EgoReadinessCheck>>;
+  /** Structured issues; no absolute path or user content is included. */
+  issues: readonly EgoReadinessCheck[];
+  /** Compact code-only view for clients that do not need check metadata. */
+  issueCodes: readonly EgoReadinessCode[];
+  warnings: readonly EgoReadinessCode[];
+  versions: Readonly<{ cli: string | 'unknown'; app: string | 'unknown'; skill: string | 'unknown' }>;
+  versionMatrix: typeof EGO_VERSION_MATRIX;
+  cli: Readonly<{ state: 'ready' | 'missing' | 'dangling' | 'not_executable' | 'unknown' }>;
+  app: Readonly<{ state: 'ready' | 'missing' | 'unknown' }>;
+  skill: Readonly<{ state: 'ready' | 'missing' | 'dangling' | 'untrusted' | 'unknown' }>;
+}>;
+
+type EgoReadinessFileSystem = {
+  lstatSync: typeof lstatSync;
+  statSync: typeof statSync;
+  accessSync: typeof accessSync;
+  readlinkSync: typeof readlinkSync;
+  realpathSync: typeof realpathSync;
+  readFileSync: typeof readFileSync;
+};
+
+const defaultEgoReadinessFileSystem: EgoReadinessFileSystem = {
+  lstatSync,
+  statSync,
+  accessSync,
+  readlinkSync,
+  realpathSync,
+  readFileSync,
+};
+
+export type EgoReadinessProbeOptions = {
+  home?: string;
+  /** The exact agent directory used by the worker, not a hard-coded user path. */
+  agentDir?: string;
+  platform?: NodeJS.Platform;
+  path?: string;
+  fs?: Partial<EgoReadinessFileSystem>;
+  /** Alias accepted by embedders that call the seam `filesystem`. */
+  filesystem?: Partial<EgoReadinessFileSystem>;
+};
+
+type EgoPathState = 'missing' | 'dangling' | 'not_executable' | 'ready' | 'unknown';
+
+function safePathState(filePath: string, fileSystem: EgoReadinessFileSystem, executable: boolean): EgoPathState {
+  try {
+    const entry = fileSystem.lstatSync(filePath);
+    if (typeof entry.isSymbolicLink === 'function' && entry.isSymbolicLink()) {
+      const target = String(fileSystem.readlinkSync(filePath));
+      const targetPath = isAbsolute(target) ? target : resolve(dirname(filePath), target);
+      try { fileSystem.statSync(targetPath); }
+      catch { return 'dangling'; }
+    } else if (typeof entry.isFile !== 'function' || !entry.isFile()) {
+      return 'missing';
+    }
+    if (executable) fileSystem.accessSync(filePath, fsConstants.X_OK);
+    return 'ready';
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'EACCES') return executable ? 'not_executable' : 'unknown';
+    return 'missing';
+  }
+}
+
+function resolvedPathState(filePath: string, fileSystem: EgoReadinessFileSystem, executable: boolean): EgoPathState {
+  // Test doubles from callers that only provide stat/access remain useful.
+  try {
+    return safePathState(filePath, fileSystem, executable);
+  } catch {
+    return 'unknown';
+  }
+}
+
+function isContainedBy(root: string, target: string): boolean {
+  const suffix = relative(root, target);
+  return suffix === '' || (!suffix.startsWith('..') && !isAbsolute(suffix));
+}
+
+function readVersionFromPlist(filePath: string, fileSystem: EgoReadinessFileSystem): string | undefined {
+  try {
+    const text = String(fileSystem.readFileSync(filePath, 'utf8'));
+    const match = /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/u.exec(text);
+    return match?.[1]?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readSkillVersion(filePath: string, fileSystem: EgoReadinessFileSystem): string | undefined {
+  try {
+    const text = String(fileSystem.readFileSync(filePath, 'utf8'));
+    const frontmatter = /^---\s*\n([\s\S]*?)\n---/u.exec(text)?.[1] ?? '';
+    const match = /^\s*(?:metadata\.version|version):\s*["']?([^\s"']+)["']?\s*$/mu.exec(frontmatter);
+    return match?.[1]?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function versionCheck(
+  version: string | undefined,
+  supported: readonly string[],
+): EgoReadinessCheck | undefined {
+  if (!version) return { code: 'ego_version_unknown', state: 'unknown', checked: false };
+  return supported.includes(version)
+    ? undefined
+    : { code: 'ego_version_unsupported', state: 'problem', checked: true };
+}
+
+function addCheck(
+  checks: Partial<Record<EgoReadinessCode, EgoReadinessCheck>>,
+  check: EgoReadinessCheck,
+): void {
+  checks[check.code] = check;
+}
+
+/**
+ * Read-only Ego readiness inspection. It intentionally does not execute the
+ * CLI, launch the app, repair symlinks, install anything, or write user files.
+ * Connectivity and CLI/app skew remain unknown until the explicit Settings
+ * connection test is clicked.
+ */
+export function probeEgoReadiness(options: EgoReadinessProbeOptions = {}): EgoReadinessReport {
+  const home = options.home ?? homedir();
+  const agentDir = options.agentDir ?? process.env.GJC_WORKER_AGENT_DIR ?? join(home, '.gjc', 'agent');
+  const platform = options.platform ?? process.platform;
+  const injectedFileSystem = options.fs ?? options.filesystem ?? {};
+  const fileSystem = {
+    ...defaultEgoReadinessFileSystem,
+    ...injectedFileSystem,
+    // A small injected fixture commonly supplies only statSync; use it for
+    // lstat calls too rather than touching the host filesystem.
+    lstatSync: injectedFileSystem.lstatSync ?? injectedFileSystem.statSync ?? defaultEgoReadinessFileSystem.lstatSync,
+  };
+  const checks: Partial<Record<EgoReadinessCode, EgoReadinessCheck>> = {};
+  const versions = { cli: 'unknown' as const, app: 'unknown' as string | 'unknown', skill: 'unknown' as string | 'unknown' };
+
+  if (!isEgoSupportedPlatform(platform)) {
+    addCheck(checks, { code: 'ego_not_supported_platform', state: 'problem', checked: true });
+  } else {
+    addCheck(checks, { code: 'ego_not_supported_platform', state: 'ok', checked: true });
+  }
+
+  const cliCandidates = egoBrowserCliCandidates(home);
+  const pathEntries = (options.path ?? process.env.PATH ?? '').split(delimiter).filter(Boolean);
+  for (const directory of pathEntries) {
+    const candidate = resolve(directory, EGO_BROWSER_COMMAND);
+    if (!cliCandidates.includes(candidate)) cliCandidates.push(candidate);
+  }
+  let cliState: EgoPathState = 'missing';
+  let cliPath: string | undefined;
+  for (const candidate of cliCandidates) {
+    const state = resolvedPathState(candidate, fileSystem, true);
+    if (state === 'ready') { cliState = state; cliPath = candidate; break; }
+    if (state === 'dangling' && cliState === 'missing') cliState = state;
+    else if (state === 'not_executable' && (cliState === 'missing' || cliState === 'dangling')) cliState = state;
+  }
+  if (cliState === 'ready') addCheck(checks, { code: 'ego_cli_missing', state: 'ok', checked: true });
+  else if (cliState === 'dangling') addCheck(checks, { code: 'ego_cli_dangling', state: 'problem', checked: true });
+  else if (cliState === 'not_executable') addCheck(checks, { code: 'ego_cli_not_executable', state: 'problem', checked: true });
+  else addCheck(checks, { code: 'ego_cli_missing', state: 'problem', checked: true });
+
+  const egoRoot = join(home, '.local', 'share', 'ego');
+  const activeVersionDir = join(egoRoot, 'active_version_dir');
+  let appState: 'ready' | 'missing' = 'missing';
+  let appVersion: string | undefined;
+  try {
+    const activeEntry = fileSystem.lstatSync(activeVersionDir);
+    const activeTarget = typeof activeEntry.isSymbolicLink === 'function' && activeEntry.isSymbolicLink()
+      ? String(fileSystem.readlinkSync(activeVersionDir))
+      : activeVersionDir;
+    const activePath = isAbsolute(activeTarget) ? activeTarget : resolve(dirname(activeVersionDir), activeTarget);
+    fileSystem.statSync(activePath);
+    appState = 'ready';
+    appVersion = /(?:^|[\\/])Versions[\\/]([^\\/]+)$/u.exec(activePath)?.[1];
+  } catch {
+    appState = 'missing';
+  }
+  // The app bundle path is stable across ego lite releases; a missing plist
+  // leaves the app present but its version unknown rather than guessing.
+  const appPlists = [
+    join(egoRoot, 'ego lite.app', 'Contents', 'Info.plist'),
+    join(home, 'Applications', 'ego lite.app', 'Contents', 'Info.plist'),
+    join('/Applications', 'ego lite.app', 'Contents', 'Info.plist'),
+  ];
+  for (const appPlist of appPlists) appVersion ??= readVersionFromPlist(appPlist, fileSystem);
+  if (appState === 'ready') addCheck(checks, { code: 'ego_app_missing', state: 'ok', checked: true });
+  else addCheck(checks, { code: 'ego_app_missing', state: 'problem', checked: true });
+  versions.app = appVersion ?? 'unknown';
+
+  const cliBindingVersion = cliPath
+    ? (() => {
+      try {
+        const canonical = fileSystem.realpathSync(cliPath);
+        return /(?:^|[\\/])Versions[\\/]([^\\/]+)[\\/]Helpers(?:[\\/]|$)/u.exec(canonical)?.[1];
+      } catch { return undefined; }
+    })()
+    : undefined;
+
+  const skillPath = join(agentDir, 'skills', 'ego-browser', 'SKILL.md');
+  let skillState: 'ready' | 'missing' | 'dangling' | 'untrusted' = 'missing';
+  let skillVersion: string | undefined;
+  try {
+    const skillEntry = fileSystem.lstatSync(skillPath);
+    if (typeof skillEntry.isSymbolicLink === 'function' && skillEntry.isSymbolicLink()) {
+      const target = String(fileSystem.readlinkSync(skillPath));
+      const targetPath = isAbsolute(target) ? target : resolve(dirname(skillPath), target);
+      try {
+        fileSystem.statSync(targetPath);
+        let canonical = targetPath;
+        try { canonical = fileSystem.realpathSync(targetPath); } catch { /* best effort */ }
+        skillState = isContainedBy(egoRoot, canonical) ? 'ready' : 'untrusted';
+      } catch { skillState = 'dangling'; }
+    } else if (typeof skillEntry.isFile === 'function' && skillEntry.isFile()) {
+      skillState = 'ready';
+    }
+    if (skillState === 'ready' || skillState === 'untrusted') skillVersion = readSkillVersion(skillPath, fileSystem);
+  } catch {
+    skillState = 'missing';
+  }
+  if (skillState === 'missing') addCheck(checks, { code: 'ego_skill_missing', state: 'problem', checked: true });
+  else if (skillState === 'dangling') addCheck(checks, { code: 'ego_skill_dangling', state: 'problem', checked: true });
+  else if (skillState === 'untrusted') addCheck(checks, { code: 'ego_skills_untrusted', state: 'problem', checked: true });
+  else addCheck(checks, { code: 'ego_skill_missing', state: 'ok', checked: true });
+  versions.skill = skillVersion ?? 'unknown';
+
+  const appVersionCheck = versionCheck(appVersion, EGO_VERSION_MATRIX.app.supported);
+  if (appVersionCheck) addCheck(checks, appVersionCheck);
+  const skillVersionCheck = versionCheck(skillVersion, EGO_VERSION_MATRIX.skill.supported);
+  if (skillVersionCheck && skillVersionCheck.state === 'problem') addCheck(checks, skillVersionCheck);
+  if (versions.cli === 'unknown' || versions.app === 'unknown' || versions.skill === 'unknown') {
+    addCheck(checks, { code: 'ego_version_unknown', state: 'unknown', checked: false });
+  }
+
+  // These states cannot be established from disk. They are deliberately
+  // represented as warnings, never as a successful readiness claim.
+  addCheck(checks, { code: 'ego_app_not_running', state: 'unknown', checked: false });
+  addCheck(checks, { code: 'ego_not_connected', state: 'unknown', checked: false });
+  addCheck(checks, {
+    code: 'ego_cli_app_skew',
+    state: cliBindingVersion && appVersion && cliBindingVersion !== appVersion ? 'problem' : 'unknown',
+    checked: Boolean(cliBindingVersion && appVersion),
+  });
+  const observedChecks = Object.values(checks).filter((check): check is EgoReadinessCheck => Boolean(check));
+  // A resolved path is retained only internally for this probe's control flow;
+  // do not expose it in the structured report or route response.
+  void cliPath;
+
+  // Keep the public shape stable: each taxonomy code is always present, while
+  // only `problem` entries appear in `issues` and unknown entries in warnings.
+  for (const code of [
+    'ego_not_supported_platform', 'ego_cli_missing', 'ego_cli_dangling', 'ego_cli_not_executable',
+    'ego_app_missing', 'ego_app_not_running', 'ego_skill_missing', 'ego_skill_dangling',
+    'ego_skills_untrusted', 'ego_version_unknown', 'ego_version_unsupported', 'ego_not_connected',
+    'ego_cli_app_skew',
+  ] as EgoReadinessCode[]) {
+    if (!checks[code]) checks[code] = { code, state: 'unknown', checked: false };
+  }
+  const issueChecks = observedChecks.filter((check) => check.state === 'problem');
+  const warnings = observedChecks.filter((check) => check.state === 'unknown').map((check) => check.code);
+  const hasUnknown = warnings.length > 0;
+  const ready = issueChecks.length === 0 && !hasUnknown;
+  return {
+    backend: 'ego', platform, supportedPlatform: isEgoSupportedPlatform(platform), checked: true,
+    ready, status: ready ? 'ready' : issueChecks.length > 0 ? 'not_ready' : 'unknown',
+    checks: checks as Record<EgoReadinessCode, EgoReadinessCheck>,
+    issues: issueChecks,
+    issueCodes: issueChecks.map((check) => check.code),
+    warnings,
+    versions,
+    versionMatrix: EGO_VERSION_MATRIX,
+    cli: { state: cliState === 'not_executable' ? 'not_executable' : cliState === 'dangling' ? 'dangling' : cliState === 'ready' ? 'ready' : 'missing' },
+    app: { state: appState },
+    skill: { state: skillState },
+  };
+}
+
 /** Candidate absolute paths for the `ego-browser` CLI, in priority order. ego lite onboarding registers it under `~/.local/bin`. */
 export function egoBrowserCliCandidates(home = homedir()): string[] {
-  return [join(home, '.local', 'bin', EGO_BROWSER_COMMAND)];
+  return [resolve(home, '.local', 'bin', EGO_BROWSER_COMMAND)];
 }
 
 function isExecutableFile(filePath: string): boolean {
@@ -110,24 +440,150 @@ export function probeEgoBrowserCli(
   }
   const pathEntries = (options.path ?? process.env.PATH ?? '').split(delimiter).filter(Boolean);
   for (const directory of pathEntries) {
-    const candidate = join(directory, EGO_BROWSER_COMMAND);
+    const candidate = resolve(directory, EGO_BROWSER_COMMAND);
     if (isExecutable(candidate)) return { ok: true, path: candidate };
   }
   searched.push(`PATH (${EGO_BROWSER_COMMAND})`);
   return { ok: false, searched };
 }
 
+const execEgoFile = promisify(execFileCallback);
+const EGO_CONNECTION_TIMEOUT_MS = 2_000;
+const EGO_CONNECTION_MAX_BUFFER = 16 * 1024;
+const EGO_VERSION_OUTPUT = /^(?:ego-browser\s+)?v?(\d+(?:\.\d+){2,}(?:[-+][0-9A-Za-z.-]+)?)$/u;
+
+export type EgoExecFile = (
+  file: string,
+  args: readonly string[],
+  options: {
+    cwd?: string;
+    env?: NodeJS.ProcessEnv;
+    shell?: false;
+    timeout?: number;
+    killSignal?: NodeJS.Signals;
+    maxBuffer?: number;
+    windowsHide?: boolean;
+  },
+) => Promise<{ stdout: string | Buffer; stderr: string | Buffer }>;
+
+export type EgoConnectionTestResult = Readonly<{
+  ok: boolean;
+  status: 'connected' | 'not_connected' | 'failed';
+  cliVersion?: string;
+  errorCode?: EgoReadinessCode | 'ego_connection_failed';
+  message?: string;
+}>;
+
+function connectionFailure(
+  errorCode: EgoConnectionTestResult['errorCode'],
+  status: EgoConnectionTestResult['status'],
+  message: string,
+  cliVersion?: string,
+): EgoConnectionTestResult {
+  return { ok: false, status, errorCode, message, ...(cliVersion ? { cliVersion } : {}) };
+}
+
+function strictVersionOutput(stdout: string | Buffer, stderr: string | Buffer): string | undefined {
+  const out = String(stdout);
+  const err = String(stderr);
+  if (err.trim() || out.split(/\r?\n/u).filter((line) => line.length > 0).length !== 1) return undefined;
+  const match = EGO_VERSION_OUTPUT.exec(out.trim());
+  return match?.[1];
+}
+
+function strictOkOutput(stdout: string | Buffer, stderr: string | Buffer): boolean {
+  return String(stderr).trim() === '' && /^ok\r?\n?$/u.test(String(stdout));
+}
+
+/**
+ * Run the two documented, non-mutating connection checks after an explicit
+ * Settings click. The absolute path comes from the probe; shell execution is
+ * disabled and the environment is intentionally minimal. No onboarding,
+ * import, upgrade or repair command is ever issued here.
+ */
+export async function testEgoBrowserConnection(options: {
+  home?: string;
+  path?: string;
+  platform?: NodeJS.Platform;
+  probe?: () => EgoBrowserCliProbe;
+  execFile?: EgoExecFile;
+} = {}): Promise<EgoConnectionTestResult> {
+  const home = options.home ?? homedir();
+  const probe = options.probe ?? (() => probeEgoBrowserCli({ home, path: options.path }));
+  if (!isEgoSupportedPlatform(options.platform ?? process.platform)) {
+    return connectionFailure('ego_not_supported_platform', 'failed', 'ego lite is supported only on macOS.');
+  }
+  const found = probe();
+  if (!found.ok) {
+    return connectionFailure('ego_cli_missing', 'failed', 'The ego-browser CLI is not installed or executable.');
+  }
+  // Deliberately constrain PATH to the resolved CLI's directory plus the
+  // platform basics. The command itself is still absolute and shell=false.
+  const env: NodeJS.ProcessEnv = {
+    HOME: home,
+    PATH: `${dirname(found.path)}${delimiter}/usr/bin${delimiter}/bin`,
+    LANG: 'C',
+    LC_ALL: 'C',
+  };
+  const execute = (options.execFile ?? execEgoFile) as EgoExecFile;
+  let versionOutput: { stdout: string | Buffer; stderr: string | Buffer };
+  try {
+    versionOutput = await execute(found.path, ['--version'], {
+      env, shell: false, timeout: EGO_CONNECTION_TIMEOUT_MS, killSignal: 'SIGKILL',
+      maxBuffer: EGO_CONNECTION_MAX_BUFFER, windowsHide: true,
+    });
+  } catch {
+    return connectionFailure('ego_connection_failed', 'failed', 'The ego-browser CLI version check failed.');
+  }
+  const cliVersion = strictVersionOutput(versionOutput.stdout, versionOutput.stderr);
+  if (!cliVersion) return connectionFailure('ego_connection_failed', 'failed', 'The ego-browser CLI returned an invalid version response.');
+
+  let nodeOutput: { stdout: string | Buffer; stderr: string | Buffer };
+  try {
+    nodeOutput = await execute(found.path, ['nodejs', '-e', "console.log('ok')"], {
+      env, shell: false, timeout: EGO_CONNECTION_TIMEOUT_MS, killSignal: 'SIGKILL',
+      maxBuffer: EGO_CONNECTION_MAX_BUFFER, windowsHide: true,
+    });
+  } catch (error) {
+    const detail = error instanceof Error && /updated|support.*nodejs|skew/iu.test(error.message)
+      ? 'The ego-browser CLI and app versions are incompatible.'
+      : 'ego-browser could not connect to the running ego lite app.';
+    return connectionFailure(
+      detail.includes('incompatible') ? 'ego_cli_app_skew' : 'ego_not_connected',
+      'not_connected', detail, cliVersion,
+    );
+  }
+  if (!strictOkOutput(nodeOutput.stdout, nodeOutput.stderr)) {
+    const output = `${String(nodeOutput.stdout)}\n${String(nodeOutput.stderr)}`;
+    const skew = /updated|support.*nodejs|repl|version/iu.test(output);
+    return connectionFailure(
+      skew ? 'ego_cli_app_skew' : 'ego_not_connected',
+      'not_connected',
+      skew ? 'The ego-browser CLI and app versions are incompatible.' : 'ego-browser could not connect to the running ego lite app.',
+      cliVersion,
+    );
+  }
+  return { ok: true, status: 'connected', cliVersion };
+}
+
+/** POSIX single-quote escaping for an already-resolved executable path. */
+export function quotePosixShellPath(filePath: string): string {
+  return `'${filePath.replaceAll("'", "'\\''")}'`;
+}
+
 /**
  * App-owned routing block for the ego backend, appended to the system prompt
- * the way the runtime appends its own Aside block. It names the CLI entry
- * point and the skill that carries the API; the skill, not this block, is the
- * API reference.
+ * the way the runtime appends its own Aside block. The executable path comes
+ * from the probe and is quoted before interpolation, so the shell runs the
+ * exact file that was checked rather than resolving a bare name again.
  */
-export const GJC_EGO_BROWSER_INSTRUCTIONS = `<browser-backend>
+export function buildGjcEgoBrowserInstructions(cliPath: string): string {
+  const command = quotePosixShellPath(cliPath);
+  return `<browser-backend>
 Browser backend: ego lite (ego-browser CLI). The built-in browser tool is disabled by configuration. NEVER use or register an MCP browser server, and never launch Playwright, Puppeteer or another browser.
 
 Routing:
-- Every task that requires a rendered page, authenticated/private browser state, live tabs, browser UI, screenshots, downloads behind cookies, or profile data MUST use Bash to invoke the installed \`ego-browser\` CLI: \`ego-browser nodejs <<'EOF' ... EOF\` (or \`ego-browser nodejs -e '<code>'\` when heredocs are unavailable).
+- Every task that requires a rendered page, authenticated/private browser state, live tabs, browser UI, screenshots, downloads behind cookies, or profile data MUST use Bash to invoke the verified executable ${command}: ${command} nodejs <<'EOF' ... EOF (or ${command} nodejs -e '<code>' when heredocs are unavailable).
 - Cookie-free public HTTP content that does not require rendered or authenticated browser state may use GJC \`read\` directly.
 
 Procedure:
@@ -138,7 +594,22 @@ Procedure:
 
 Safety:
 - ego lite controls the user's live, logged-in browser profile. Never print cookies, authorization headers, passwords, OTPs, card values, recovery material, or broad inbox/contact/history collections.
+- Never invoke \`ego-browser import\`, \`ego-browser upgrade\` or \`ego-browser onboarding\`; profile/cookie import, app upgrades and onboarding are user actions, not agent actions.
+- Never substitute the built-in browser, Aside, an OS browser, Playwright, Puppeteer, an MCP browser server, or the \`computer\`/CUA tool for browser work. The \`computer\` tool is available only for legitimate non-browser app automation.
 - Read, inspect, draft and preview by default. Sending/posting, payments, credential saves, account/settings changes, deletions and downloads to an external destination require explicit user intent for the exact target; stop before the final side effect when authorization is ambiguous.
 - Stop when the user takes control of the space (\`handOff\`, inactive or unassigned space); do not retry or route around it.
 - Never claim browser work ran without the ego-browser CLI result and verified state.
+</browser-backend>`;
+}
+
+/** The historical export remains useful to callers that only need invariants. */
+export const GJC_EGO_BROWSER_INSTRUCTIONS = buildGjcEgoBrowserInstructions(join(homedir(), '.local', 'bin', EGO_BROWSER_COMMAND));
+
+/** Prompt policy used when filesystem readiness cannot support Ego browser work. */
+export const GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS = `<browser-backend>
+Browser backend: ego lite is not ready, so browser work is unavailable for this run. Ordinary chat, coding and other non-browser work may continue.
+
+Do not substitute any browser path: never use the built-in browser, Aside, an OS browser, Playwright, Puppeteer, an MCP browser server, or the \`computer\`/CUA tool for browser work. The \`computer\` tool remains available only for legitimate non-browser app automation; never open, inspect or control a browser with it.
+
+If the user asks for browser work, stop that part and clearly explain that ego lite is unavailable. Do not invoke \`ego-browser import\`, \`ego-browser upgrade\` or \`ego-browser onboarding\`; do not install, repair, migrate profiles or route around the missing backend.
 </browser-backend>`;

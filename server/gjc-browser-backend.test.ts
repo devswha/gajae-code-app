@@ -9,15 +9,18 @@ import {
   GJC_ASIDE_UNAVAILABLE_MESSAGE,
   GJC_BROWSER_BACKENDS,
   GJC_EGO_BROWSER_INSTRUCTIONS,
+  GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
   GJC_EGO_UNAVAILABLE_CODE,
   GJC_EGO_UNAVAILABLE_MESSAGE,
   GjcAsideUnavailableError,
   GjcEgoUnavailableError,
+  buildGjcEgoBrowserInstructions,
   egoBrowserCliCandidates,
   isGjcAsideUnavailableError,
   isGjcBrowserBackend,
   isGjcEgoUnavailableError,
   probeEgoBrowserCli,
+  testEgoBrowserConnection,
 } from './gjc-browser-backend.js';
 
 test('Built-in is the default backend and public choices do not expose the runtime setting name', () => {
@@ -85,9 +88,50 @@ test('the ego-browser probe prefers the onboarding location, then PATH, and repo
 test('the app-owned ego routing block names the CLI entry point and the skill, and disables every other browser path', () => {
   assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /^<browser-backend>\n/);
   assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /\n<\/browser-backend>$/);
-  assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /ego-browser nodejs <<'EOF'/);
+  assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /'[^']*ego-browser' nodejs <<'EOF'/);
   assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /installed `ego-browser` skill/);
   assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /taskSpace\(name\)/);
   assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /NEVER use or register an MCP browser server/);
-  assert.equal(GJC_EGO_BROWSER_INSTRUCTIONS.toLowerCase().includes('aside'), false);
+  assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /never substitute.*Aside.*computer/iu);
+});
+
+test('the Ego routing block pins and POSIX-quotes the probe-resolved executable', () => {
+  const block = buildGjcEgoBrowserInstructions("/tmp/ego browser/'safe'/ego-browser");
+  assert.ok(block.includes("'/tmp/ego browser/'\\''safe'\\''/ego-browser' nodejs"));
+  assert.match(block, /ego-browser import/);
+  assert.match(block, /ego-browser upgrade/);
+  assert.match(block, /ego-browser onboarding/);
+  assert.match(block, /computer.*CUA.*browser/iu);
+});
+
+test('the unavailable Ego policy preserves ordinary chat and forbids browser substitution', () => {
+  assert.match(GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS, /ordinary chat.*continue/iu);
+  assert.match(GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS, /built-in browser.*Aside.*OS browser.*Playwright.*Puppeteer.*MCP.*computer/iu);
+  assert.match(GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS, /import.*upgrade.*onboarding/iu);
+});
+
+test('the explicit Ego connection test uses only the absolute CLI and the documented bounded checks', async () => {
+  const calls: Array<{ file: string; args: readonly string[]; options: Record<string, unknown> }> = [];
+  const result = await testEgoBrowserConnection({
+    platform: 'darwin', home: '/fixture/home',
+    probe: () => ({ ok: true, path: '/fixture/home/.local/bin/ego-browser' }),
+    execFile: async (file, args, options) => {
+      calls.push({ file, args, options: options as Record<string, unknown> });
+      return args[0] === '--version'
+        ? { stdout: 'ego-browser 0.5.0.32\n', stderr: '' }
+        : { stdout: 'ok\n', stderr: '' };
+    },
+  });
+  assert.deepEqual(result, { ok: true, status: 'connected', cliVersion: '0.5.0.32' });
+  assert.deepEqual(calls.map(({ file, args }) => ({ file, args })), [
+    { file: '/fixture/home/.local/bin/ego-browser', args: ['--version'] },
+    { file: '/fixture/home/.local/bin/ego-browser', args: ['nodejs', '-e', "console.log('ok')"] },
+  ]);
+  for (const call of calls) {
+    assert.equal(call.options.shell, false);
+    assert.equal(call.options.timeout, 2_000);
+    assert.deepEqual(call.options.env, {
+      HOME: '/fixture/home', PATH: '/fixture/home/.local/bin:/usr/bin:/bin', LANG: 'C', LC_ALL: 'C',
+    });
+  }
 });

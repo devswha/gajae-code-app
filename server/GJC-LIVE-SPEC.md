@@ -280,23 +280,34 @@ protocol method or frame changes; the value travels inside existing payloads:
   already-filtered tool names and automation transports, so they cannot regain
   an unavailable browser.
 - `ego` (PoC) is the one backend the runtime does not know, so the app owns
-  it end to end (`server/gjc-browser-backend.ts`). The adapter first runs the
-  app's own probe (`probeEgoBrowserCli`: `~/.local/bin/ego-browser`, then the
-  worker's `PATH`); nothing found fails the run with `ego_unavailable` and the
-  fixed text "The ego-browser CLI was not found, so this session cannot start
-  with the ego browser backend. Install ego lite and finish its onboarding, or
-  choose Built-in in Settings > Automation where it is available." before any
-  session exists; searched paths go to diagnostics only, and there is no
-  fallback. When found, the adapter writes `browser.backend=native` (so a
-  user-level runtime Aside setting cannot inject the Aside block) and
-  `browser.enabled=false` (so the runtime's built-in tool is unavailable even
-  if discovered), withholds the app's `browser` transport, removes `browser`
-  from `toolNames`, and appends `GJC_EGO_BROWSER_INSTRUCTIONS` — an app-owned
-  `<browser-backend>` block — after the app environment note in the system
-  prompt. The block routes browser work to Bash → `ego-browser nodejs <<'EOF'`
+  it end to end (`server/gjc-browser-backend.ts`). The adapter runs the app's
+  own probe (`probeEgoBrowserCli`: `~/.local/bin/ego-browser`, then the worker's
+  `PATH`) and, when it finds a CLI, pins that resolved absolute path (POSIX
+  quoted) in `GJC_EGO_BROWSER_INSTRUCTIONS`. It writes
+  `browser.backend=native` (so a user-level runtime Aside setting cannot inject
+  the Aside block) and `browser.enabled=false` (so the runtime's built-in tool
+  is unavailable even if discovered), withholds the app's `browser` transport,
+  removes `browser` from `toolNames`, and appends the app-owned
+  `<browser-backend>` block after the app environment note. If the CLI is
+  missing, the same disabled state is used with a browser-unavailable policy:
+  ordinary chat/coding continues, and the model is forbidden to substitute
+  Built-in, Aside, an OS browser, Playwright/Puppeteer/MCP or computer/CUA.
+  There is no session-wide `ego_unavailable` failure and no fallback. The
+  block routes browser work to Bash → the pinned executable's `nodejs` command
   and tells the model to load the user-installed `ego-browser` skill, which is
   the API reference; the app ships no ego tool, skill copy, MCP server or
   prompt beyond that block.
+
+`GET /api/automation/ego-readiness` runs `probeEgoReadiness` against the real
+worker agent directory (`GJC_WORKER_AGENT_DIR`, default `~/.gjc/agent`). The
+probe is filesystem-only: it reads CLI/app/skill links and versions, emits the
+documented taxonomy and version matrix, and never executes, installs, repairs
+or writes. Unknown connectivity, running-app and skew states remain unknown
+warnings. `POST /api/automation/ego-readiness/test` is only for an explicit
+Settings action; it uses `execFile` with the pinned absolute path, `shell:false`,
+a minimal environment and a two-second bound for `--version` followed by the
+documented `nodejs -e "console.log('ok')"` round trip. It never invokes
+`import`, `upgrade` or `onboarding`.
 
 The Built-in tool exposes only `open`, `close`, and `act`. Its act verbs are
 `navigate`, `back`, `forward`, `reload`, `observe`, `extract`, `click`, and

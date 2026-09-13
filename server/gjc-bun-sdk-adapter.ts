@@ -37,9 +37,9 @@ import { parseGjcRunPermissions, type GjcRunPermissions } from './gjc-permission
 import { GjcModelResolutionError } from './gjc-model-resolution.js';
 import { buildProviderQuotaSnapshot, type ProviderQuotaInventoryRow, type ProviderUsageReportLike } from './gjc-provider-quota.js';
 import {
-  GJC_EGO_BROWSER_INSTRUCTIONS,
+  GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
+  buildGjcEgoBrowserInstructions,
   GjcAsideUnavailableError,
-  GjcEgoUnavailableError,
   isGjcBrowserBackend,
   probeEgoBrowserCli,
   type EgoBrowserCliProbe,
@@ -265,6 +265,10 @@ export type GjcResolvedBrowserBackend = Readonly<{
   exposesBuiltinTool: boolean;
   /** A routing block the *app* appends to the system prompt; the runtime appends its own for Aside. */
   appInstructions?: string;
+  /** Whether the probe found a runnable Ego CLI; false keeps chat alive but removes browser work. */
+  egoReady?: boolean;
+  /** The exact absolute path selected by the probe, for diagnostics/tests only. */
+  egoCliPath?: string;
 }>;
 
 /**
@@ -274,32 +278,39 @@ export type GjcResolvedBrowserBackend = Readonly<{
  * `builtin` explicitly selects the runtime's built-in browser mode, preventing
  * a user-level runtime Aside setting from silently changing the app selection.
  * `aside` validates the runtime's CLI first, then writes its routing setting.
- * `ego` validates the app's own `ego-browser` probe, keeps the runtime on
- * `native` so no Aside routing is injected, disables the runtime's built-in
- * browser tool outright and returns the app-owned routing block. An explicit
- * Aside or ego choice with no CLI is refused up front with a fixed code rather
- * than falling back to Built-in. An absent option preserves the runtime setting
- * for internal compatibility only; server-created runs always supply an
- * explicit application choice.
+ * `ego` keeps the runtime on `native` so no Aside routing is injected, disables
+ * the runtime's built-in browser tool outright and returns either the pinned
+ * routing block or a browser-unavailable block. A missing Ego CLI never bricks
+ * ordinary chat and never falls back to another browser.
  */
 export function applyGjcBrowserBackend(
   settings: Pick<Settings, 'get' | 'override'>,
   requested: GjcBrowserBackend | undefined,
   probe: () => AsideCliProbe,
   probeEgo: () => EgoBrowserCliProbe = probeEgoBrowserCli,
+  options: { builtinBrowserAvailable?: boolean } = {},
 ): GjcResolvedBrowserBackend {
   if (requested === 'builtin') {
     settings.override('browser.backend', 'native');
+    if (options.builtinBrowserAvailable === false) settings.override('browser.enabled', false);
   } else if (requested === 'aside') {
     const found = probe();
     if (!found.ok) throw new GjcAsideUnavailableError(found.searched);
     settings.override('browser.backend', 'aside');
   } else if (requested === 'ego') {
     const found = probeEgo();
-    if (!found.ok) throw new GjcEgoUnavailableError(found.searched);
     settings.override('browser.backend', 'native');
     settings.override('browser.enabled', false);
-    return { id: 'ego', exposesBuiltinTool: false, appInstructions: GJC_EGO_BROWSER_INSTRUCTIONS };
+    if (!found.ok) {
+      return {
+        id: 'ego', exposesBuiltinTool: false, egoReady: false,
+        appInstructions: GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
+      };
+    }
+    return {
+      id: 'ego', exposesBuiltinTool: false, egoReady: true, egoCliPath: found.path,
+      appInstructions: buildGjcEgoBrowserInstructions(found.path),
+    };
   }
   const { id, exposesBuiltinTool } = resolveBrowserBackend(settings);
   return { id, exposesBuiltinTool };
@@ -1091,15 +1102,16 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       // sessions, and the clone keeps their project settings and overrides isolated.
       const settings = await globalSettings.cloneForCwd(config.cwd);
       applyGjcToolSettingsPolicy(settings);
+      const builtinBrowserAvailable = config.builtinBrowserAvailable === true
+        && Boolean(config.appSessionId);
       const browserBackend = applyGjcBrowserBackend(
         settings,
         config.browserBackend,
         this.options.probeAsideCli ?? probeAsideCli,
         this.options.probeEgoBrowserCli ?? probeEgoBrowserCli,
+        { builtinBrowserAvailable },
       );
-      const builtinBrowserAvailable = config.builtinBrowserAvailable === true
-        && browserBackend.exposesBuiltinTool
-        && Boolean(config.appSessionId);
+      const trustedBuiltinBrowserAvailable = builtinBrowserAvailable && browserBackend.exposesBuiltinTool;
       const goalScope = config.appSessionId && config.goalOwner
         ? { appSessionId: config.appSessionId, owner: config.goalOwner, cwd: await realpath(config.cwd),
             projectPath: await realpath(typeof options.projectPath === 'string' ? options.projectPath : config.cwd) }
@@ -1148,7 +1160,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
             ? { credentialSelector: resolvedCredential.credentialSelector }
             : {}),
           toolNames: [...new Set([...config.toolNames, 'ask', ...(goalEnabled ? ['goal'] : [])])]
-            .filter((name) => name !== 'browser' || builtinBrowserAvailable),
+            .filter((name) => name !== 'browser' || trustedBuiltinBrowserAvailable),
           spawns: config.spawns,
           goalToolAllowedOps: goalEnabled ? GJC_GOAL_MODEL_OPERATIONS : [],
           bashAllowedPrefixes: config.bashPolicy.allowedPrefixes,
@@ -1160,7 +1172,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
               askController.uiContext,
               this.options.automationBridge,
               config.permissions?.mode,
-            ), browserBackend, builtinBrowserAvailable)),
+            ), browserBackend, trustedBuiltinBrowserAvailable)),
           } : {}),
         };
         if (config.toolNames.some((name) => GJC_APP_DELEGATION_TOOL_NAMES.includes(name as 'task' | 'subagent'))) {

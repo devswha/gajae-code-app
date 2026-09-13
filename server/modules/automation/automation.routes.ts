@@ -89,14 +89,40 @@ export function createAutomationRouter(service: AutomationService = automationSe
   // The browser backend GJC sessions start with. Stored as the app's own
   // setting; the worker hands it to the runtime's `browser.backend`.
   router.get('/browser-backend', asyncHandler((_request, response) => {
-    response.json({ backend: service.browserBackend.get(), backends: GJC_BROWSER_BACKENDS });
+    const backends = service.browserBackends?.() ?? GJC_BROWSER_BACKENDS;
+    response.json({ backend: service.browserBackend.get(), backends });
   }));
 
   router.put('/browser-backend', asyncHandler((request, response) => {
     try {
-      response.json({ backend: service.browserBackend.set(request.body?.backend), backends: GJC_BROWSER_BACKENDS });
+      const backends = service.browserBackends?.() ?? GJC_BROWSER_BACKENDS;
+      if (request.body?.backend === 'ego' && !backends.includes('ego')) {
+        response.status(400).json({ error: 'The ego browser backend is supported only on macOS.' });
+        return;
+      }
+      response.json({ backend: service.browserBackend.set(request.body?.backend), backends });
     } catch (error) {
       response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid browser backend.' });
+    }
+  }));
+
+  // Filesystem-only and safe to poll from Settings. It never starts the GJC
+  // worker or executes ego-browser.
+  router.get('/ego-readiness', asyncHandler((_request, response) => {
+    try {
+      response.json(service.egoReadiness());
+    } catch (error) {
+      errorResponse(response, error);
+    }
+  }));
+
+  // Deliberately POST: only an explicit user action may execute the two
+  // documented, bounded ego-browser checks.
+  router.post('/ego-readiness/test', asyncHandler(async (_request, response) => {
+    try {
+      response.json(await service.testEgoConnection());
+    } catch (error) {
+      errorResponse(response, error);
     }
   }));
 

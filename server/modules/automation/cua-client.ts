@@ -10,6 +10,13 @@ import type { DesktopWorkAdmission } from '@/shared/interfaces.js';
 
 import type { DesktopOwnerActivity } from '../../../shared/desktopUpdateProtocol.js';
 
+import {
+  CUA_DRIVER_SCHEMA_VERSION,
+  guardCuaCall,
+  isCuaDriverSchemaSupported,
+  readCuaPermissions,
+} from './cua-capability.js';
+
 export const CUA_SAFE_TOOLS = [
   'start_session',
   'end_session',
@@ -36,6 +43,10 @@ export type CuaStatus = {
   daemon: 'running' | 'stopped' | 'unknown';
   accessibility?: boolean;
   screenRecording?: boolean;
+  /** TCC identity the driver attributed its permission answer to. */
+  permissionAttribution?: string;
+  /** Whether the installed driver matches the reviewed capability schemas. */
+  schemaSupported?: boolean;
   error?: string;
 };
 
@@ -61,6 +72,14 @@ type CuaDriverClientOptions = {
   desktopRestartAdmission?: DesktopWorkAdmission;
   onSessionClosed?: (label: string) => void;
 };
+
+function mcpServerVersion(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const serverInfo = (value as Record<string, unknown>).serverInfo;
+  if (!serverInfo || typeof serverInfo !== 'object' || Array.isArray(serverInfo)) return undefined;
+  const version = (serverInfo as Record<string, unknown>).version;
+  return typeof version === 'string' ? version : undefined;
+}
 
 function executableCandidates(): string[] {
   return [
@@ -120,14 +139,6 @@ async function runInspection(
   }).catch(() => ({ ok: false, output: 'Unable to start CUA Driver inspection.' }));
 }
 
-function permissionValue(output: string, names: string[]): boolean | undefined {
-  const line = output.split(/\r?\n/u).find((entry) => names.some((name) => entry.toLowerCase().includes(name)));
-  if (!line) return undefined;
-  if (/granted|authorized|enabled|yes|true|✅/iu.test(line)) return true;
-  if (/denied|not granted|disabled|no|false|❌/iu.test(line)) return false;
-  return undefined;
-}
-
 export class CuaDriverClient {
   private child?: ChildProcessWithoutNullStreams;
   private starting?: Promise<void>;
@@ -142,6 +153,8 @@ export class CuaDriverClient {
   private closing = 0;
   private shuttingDown = false;
   private transportUncertain = false;
+  /** A schema mismatch is sticky until this client is recreated. */
+  private schemaError?: string;
 
   constructor(private readonly options: CuaDriverClientOptions = {}) {
     this.admission = options.desktopRestartAdmission;
@@ -183,15 +196,31 @@ export class CuaDriverClient {
         inspect(['--version']),
         inspect(['status']),
         process.platform === 'darwin'
-          ? inspect(['permissions', 'status'])
+          // Structured payload is the primary interface; the text form is only
+          // a bounded fallback for a driver that does not implement --json.
+          ? inspect(['permissions', 'status', '--json'])
           : Promise.resolve({ ok: true, output: '' }),
       ]);
+      const reported = version.output.split(/\r?\n/u)[0]?.slice(0, 120);
+      let grants = process.platform === 'darwin'
+        ? readCuaPermissions(permissions)
+        : { accessibility: undefined, screenRecording: undefined, source: 'none' as const,
+          attribution: undefined as string | undefined };
+      if (process.platform === 'darwin' && !permissions.ok && grants.source === 'none') {
+        // A driver that predates `permissions status --json` rejects the flag.
+        // Retry once through the bounded text parser rather than reporting a
+        // permanent unknown; the parser still never upgrades an unrecognised
+        // or negated value to a grant.
+        grants = readCuaPermissions(await inspect(['permissions', 'status']));
+      }
       return {
         installed: true,
-        version: version.output.split(/\r?\n/u)[0]?.slice(0, 120),
+        version: reported,
         daemon: daemon.ok ? 'running' : /not running|stopped|unavailable/iu.test(daemon.output) ? 'stopped' : 'unknown',
-        accessibility: permissionValue(permissions.output, ['accessibility']),
-        screenRecording: permissionValue(permissions.output, ['screen recording', 'screen capture']),
+        accessibility: grants.accessibility,
+        screenRecording: grants.screenRecording,
+        ...(grants.attribution ? { permissionAttribution: grants.attribution } : {}),
+        schemaSupported: isCuaDriverSchemaSupported(reported),
         ...(!version.ok ? { error: version.output || 'Unable to inspect CUA Driver.' } : {}),
       };
     } finally {
@@ -203,13 +232,17 @@ export class CuaDriverClient {
 
   async call(tool: CuaSafeTool, args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
     if (!CUA_SAFE_TOOLS.includes(tool)) throw new Error('CUA Driver tool is not allowed.');
+    // Closest trusted boundary to the driver transport: every caller (agent
+    // bridge, HTTP route, internal inventory reads) passes through here, so the
+    // background-only argument policy cannot be bypassed by reaching further in.
+    const guarded = guardCuaCall(tool, args);
     const release = this.admission?.enter(`automation.computer.${tool}`);
     this.dispatching++;
     this.activityRevision++;
     try {
       if (signal?.aborted) throw new Error('CUA Driver request was cancelled.');
       await this.ensureStarted();
-      return await this.request('tools/call', { name: tool, arguments: args }, 60_000, signal);
+      return await this.request('tools/call', { name: tool, arguments: guarded.arguments }, 60_000, signal);
     } finally {
       this.dispatching--;
       this.activityRevision++;
@@ -245,6 +278,7 @@ export class CuaDriverClient {
   private async ensureStarted(): Promise<void> {
     if (this.starting) return this.starting;
     if (this.shuttingDown) throw new Error('CUA Driver is shutting down.');
+    if (this.schemaError) throw new Error(this.schemaError);
     if (this.transportUncertain) throw new Error('CUA Driver closure is unconfirmed.');
     if (this.child && this.child.exitCode === null) return;
     this.activityRevision++;
@@ -264,11 +298,18 @@ export class CuaDriverClient {
       child.stdin.on('error', (error) => this.failAll(child, error));
       child.on('close', () => this.failAll(child, new Error('CUA Driver disconnected.'), true));
       child.on('error', (error) => this.failAll(child, error));
-      await this.request('initialize', {
+      const initialized = await this.request('initialize', {
         protocolVersion: '2025-03-26',
         capabilities: {},
         clientInfo: { name: 'gajae-code-app', version: '0.1.0' },
       }, 10_000);
+      const version = mcpServerVersion(initialized);
+      if (!isCuaDriverSchemaSupported(version)) {
+        this.schemaError = `Unsupported CUA Driver schema ${version ?? 'unknown'}; reviewed schema is ${CUA_DRIVER_SCHEMA_VERSION}.`;
+        if (this.child === child) this.child = undefined;
+        child.kill();
+        throw new Error(this.schemaError);
+      }
       this.notify('notifications/initialized', {});
     })().finally(() => {
       this.starting = undefined;

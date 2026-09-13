@@ -484,18 +484,66 @@ test('bypass authorizes browser access for this session without an extra permiss
   } finally { await bridge.close(); }
 });
 
-test('bypass covers computer access without creating session or persistent grants', async () => {
+test('bypass materializes a session application grant instead of skipping server authority', async () => {
+  // The server refuses to dispatch an application-bound action without a live
+  // application grant, in every permission mode. Bypass therefore skips the
+  // approval question but must still create the grant it would have produced.
+  const bridge = await bridgeServer((request) => request.operation === 'authorize'
+    ? { ok: true, result: {
+      granted: (request.payload as Record<string, unknown>)?.scope === 'session',
+      application: 'com.apple.TextEdit',
+      label: 'TextEdit',
+    } }
+    : { ok: true, result: { controlled: true } });
+  try {
+    const { computer } = createGjcAutomationTools('bypass-computer', {
+      async select() { assert.fail('bypass must not ask'); },
+    }, { socketPath: bridge.socketPath, token: TEST_TOKEN }, 'bypass');
+    await computer!.execute('click', { action: 'click', arguments: { pid: 42, x: 10, y: 20 } }, undefined);
+
+    assert.deepEqual(bridge.requests.map((request) => request.operation), ['authorize', 'authorize', undefined]);
+    assert.ok(bridge.requests.every((request) => request.sessionId === 'bypass-computer'));
+    const scopes = bridge.requests
+      .map((request) => (request.payload as Record<string, unknown> | undefined)?.scope)
+      .filter(Boolean);
+    assert.deepEqual(scopes, ['session'], 'bypass grants session scope only');
+    assert.equal((bridge.requests[1]!.payload as Record<string, unknown>).application, 'com.apple.TextEdit');
+  } finally { await bridge.close(); }
+});
+
+test('bypass never writes a persistent always grant on the user\u2019s behalf', async () => {
+  const scopes: unknown[] = [];
+  const bridge = await bridgeServer((request) => {
+    const payload = request.payload as Record<string, unknown> | undefined;
+    if (payload?.scope) scopes.push(payload.scope);
+    return request.operation === 'authorize'
+      ? { ok: true, result: { granted: payload?.scope === 'session', application: 'com.apple.TextEdit', label: 'TextEdit' } }
+      : { ok: true, result: { controlled: true } };
+  });
+  try {
+    const { computer } = createGjcAutomationTools('bypass-persistence', {
+      async select() { assert.fail('bypass must not ask'); },
+    }, { socketPath: bridge.socketPath, token: TEST_TOKEN }, 'bypass');
+    await computer!.execute('a', { action: 'click', arguments: { pid: 42, x: 1, y: 1 } }, undefined);
+    await computer!.execute('b', { action: 'type_text', arguments: { pid: 42, text: 'hi' } }, undefined);
+    assert.ok(!scopes.includes('always'), 'a trusted run must not persist an always grant');
+    assert.deepEqual([...new Set(scopes)], ['session']);
+  } finally { await bridge.close(); }
+});
+
+test('a denied standard-mode computer approval still fails closed', async () => {
   const bridge = await bridgeServer((request) => request.operation === 'authorize'
     ? { ok: true, result: { granted: false, application: 'com.apple.TextEdit', label: 'TextEdit' } }
     : { ok: true, result: { controlled: true } });
   try {
-    const { computer } = createGjcAutomationTools('bypass-computer', {
-      async select() { assert.fail('bypass must not ask again'); },
-    }, { socketPath: bridge.socketPath, token: TEST_TOKEN }, 'bypass');
-    await computer!.execute('click', { action: 'click', arguments: { pid: 42, x: 10, y: 20 } }, undefined);
-    assert.deepEqual(bridge.requests.map((request) => request.operation), ['authorize', undefined]);
-    assert.ok(bridge.requests.every((request) => request.sessionId === 'bypass-computer'));
-    assert.ok(bridge.requests.every((request) => !(request.payload as Record<string, unknown> | undefined)?.scope));
+    const { computer } = createGjcAutomationTools('ask-computer', {
+      async select() { return 'Deny'; },
+    }, { socketPath: bridge.socketPath, token: TEST_TOKEN }, 'ask');
+    await assert.rejects(
+      computer!.execute('click', { action: 'click', arguments: { pid: 42, x: 1, y: 1 } }, undefined),
+      /Computer access to TextEdit was denied/u,
+    );
+    assert.deepEqual(bridge.requests.map((request) => request.operation), ['authorize']);
   } finally { await bridge.close(); }
 });
 

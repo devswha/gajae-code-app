@@ -114,10 +114,36 @@ async function initializeCua(fixture: ReturnType<typeof children>) {
   await until(() => Boolean(fixture.processes.at(-1)?.calls.length));
   const child = fixture.processes.at(-1)!;
   assert.equal(child.calls[0]!.method, 'initialize');
-  child.cuaReply(child.calls[0]!);
+  child.cuaReply(child.calls[0]!, {
+    capabilities: { tools: {} },
+    serverInfo: { name: 'cua-driver', version: '0.21.0' },
+  });
   await until(() => child.calls.some((call) => call.method === 'tools/call'));
   return child;
 }
+
+test('CUA client rejects unsupported or unknown schemas before tool dispatch', async (t) => {
+  environment(t, { CUA_DRIVER_PATH: process.execPath });
+  const fixture = children(t);
+  for (const version of ['0.22.0', undefined]) {
+    const client = new CuaDriverClient();
+    const call = client.call('list_apps', {});
+    const processCount = fixture.processes.length + 1;
+    await until(() => fixture.processes.length >= processCount && Boolean(fixture.processes.at(-1)?.calls.length));
+    const child = fixture.processes.at(-1)!;
+    assert.equal(child.calls[0]!.method, 'initialize');
+    child.cuaReply(child.calls[0]!, {
+      capabilities: { tools: {} },
+      ...(version ? { serverInfo: { name: 'cua-driver', version } } : {}),
+    });
+    await assert.rejects(call, {
+      message: version
+        ? /Unsupported CUA Driver schema 0\.22\.0/u
+        : /Unsupported CUA Driver schema unknown/u,
+    });
+    assert.equal(child.calls.some((request) => request.method === 'tools/call'), false);
+  }
+});
 
 test('all three readers are pure, complete for healthy unused owners, and independent snapshots', async (t) => {
   const fixture = children(t);

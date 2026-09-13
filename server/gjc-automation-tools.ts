@@ -27,6 +27,10 @@ const browserSchema = z.discriminatedUnion('action', [
   z.strictObject({ action: z.literal('act'), actions: z.array(browserActionSchema).min(1).max(25) }),
 ]);
 
+// Transport envelope only. `arguments` is intentionally permissive here because
+// this schema runs in the worker alongside the model; the authoritative
+// per-tool validation is server-side in
+// server/modules/automation/cua-capability.ts (guardCuaCall).
 const computerSchema = z.object({
   action: z.enum([
     'start_session', 'end_session', 'list_apps', 'list_windows', 'get_window_state',
@@ -298,14 +302,24 @@ export function createGjcAutomationTools(
     }, signal) as ComputerAuthorization;
     if (check.granted || !check.application) return;
 
-    if (permissionMode === 'bypass') return;
-    const choice = await ui.select(
-      `Allow the agent to control ${check.label ?? check.application}?`,
-      [ALLOW_ONCE, ALLOW_ALWAYS, DENY],
-      { signal },
-    );
-    if (choice !== ALLOW_ONCE && choice !== ALLOW_ALWAYS) {
-      throw new Error(`Computer access to ${check.label ?? check.application} was denied.`);
+    // `bypass` is a consent-UX mode, not a safety mode. It skips the approval
+    // prompt for an otherwise permitted operation, but the server still refuses
+    // to dispatch without a materialized application grant, so the grant is
+    // created here instead. It is always session-scoped: a trusted run must not
+    // silently write a persistent "always" grant on the user's behalf.
+    let scope: 'session' | 'always';
+    if (permissionMode === 'bypass') {
+      scope = 'session';
+    } else {
+      const choice = await ui.select(
+        `Allow the agent to control ${check.label ?? check.application}?`,
+        [ALLOW_ONCE, ALLOW_ALWAYS, DENY],
+        { signal },
+      );
+      if (choice !== ALLOW_ONCE && choice !== ALLOW_ALWAYS) {
+        throw new Error(`Computer access to ${check.label ?? check.application} was denied.`);
+      }
+      scope = choice === ALLOW_ALWAYS ? 'always' : 'session';
     }
     const granted = await bridgeRequest(transport, {
       surface: 'computer',
@@ -313,10 +327,7 @@ export function createGjcAutomationTools(
       operation: 'authorize',
       tool,
       arguments: args,
-      payload: {
-        application: check.application,
-        scope: choice === ALLOW_ALWAYS ? 'always' : 'session',
-      },
+      payload: { application: check.application, scope },
     }, signal) as ComputerAuthorization;
     if (!granted.granted) throw new Error(`Computer access to ${check.label ?? check.application} was not granted.`);
   };
@@ -324,7 +335,7 @@ export function createGjcAutomationTools(
   const computer: NonNullable<AutomationTools['computer']> = {
     name: 'computer',
     label: 'Computer',
-    description: 'Control a reviewed native macOS application through CUA Driver. Inspect apps/windows before acting and verify mutations with a fresh get_window_state call. Input tools default to background delivery (no focus steal), but invoke_menu must briefly front the target app because the macOS menu bar only exists for the active application. Browser pages belong in the browser tool.',
+    description: 'Control a reviewed native macOS application through CUA Driver. Inspect apps/windows before acting and verify mutations with a fresh get_window_state call. This path is background-only and the server enforces it: input is bound to an approved application window, delivery_mode is always background, and desktop-scoped input, foreground delivery and real pointer movement are rejected. invoke_menu resolves menus through accessibility APIs without fronting the app. Browser pages belong in the browser tool.',
     parameters: computerSchema as any,
     concurrency: 'exclusive',
     async execute(_toolCallId: string, rawParams: unknown, signal?: AbortSignal) {

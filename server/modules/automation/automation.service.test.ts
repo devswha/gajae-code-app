@@ -189,7 +189,7 @@ test('computer authorization resolves a window id to its owning application', as
     const service = new AutomationService();
     Object.defineProperty(service, 'grants', { value: new AutomationGrantStore(memoryStorage()) });
     service.cua.call = async (tool) => {
-      assert.equal(tool, 'list_windows');
+      assert.equal(tool, 'list_apps');
       return {
         structuredContent: {
           apps: [{ pid: 42, bundle_id: 'com.apple.TextEdit', name: 'TextEdit' }],
@@ -201,7 +201,7 @@ test('computer authorization resolves a window id to its owning application', as
     assert.deepEqual(
       await service.authorizeComputer('session-a', {
         tool: 'get_window_state',
-        arguments: { window_id: 14747, include_screenshot: false },
+        arguments: { pid: 42, window_id: 14747, include_screenshot: false },
       }),
       { granted: false, application: 'com.apple.TextEdit', label: 'TextEdit' },
     );

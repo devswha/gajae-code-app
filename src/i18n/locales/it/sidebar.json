@@ -94,6 +94,19 @@
     "restoreSessionError": "Si è verificato un errore di ripristino della conversazione. Riprova.",
     "debugInfoError": "Impossibile copiare le informazioni di debug."
   },
+  "providerQuota": {
+    "title": "Quota del provider",
+    "summary": "{{provider}}: {{percent}}% di quota rimanente",
+    "remaining": "{{percent}}% rimanente",
+    "resetsIn": "si azzera tra {{duration}}",
+    "accounts_one": "{{count}} account",
+    "accounts_other": "{{count}} account",
+    "noWindowData": "Nessun valore riportato",
+    "unsupported": "Utilizzo non disponibile per questo provider",
+    "reauth": "Accedi di nuovo per leggere l’utilizzo",
+    "error": "Impossibile aggiornare l’utilizzo",
+    "stale": "Ultimi valori noti"
+  },
   "version": {
     "updateAvailable": "Nuovo aggiornamento disponibile"
   },

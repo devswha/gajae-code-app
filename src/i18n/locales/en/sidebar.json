@@ -94,6 +94,19 @@
     "restoreSessionError": "A conversation restore error occurred. Try again.",
     "debugInfoError": "The debug info could not be copied."
   },
+  "providerQuota": {
+    "title": "Provider quota",
+    "summary": "{{provider}}: {{percent}}% of quota left",
+    "remaining": "{{percent}}% left",
+    "resetsIn": "resets in {{duration}}",
+    "accounts_one": "{{count}} account",
+    "accounts_other": "{{count}} accounts",
+    "noWindowData": "No figures reported",
+    "unsupported": "Usage unavailable for this provider",
+    "reauth": "Sign in again to read usage",
+    "error": "Usage could not be refreshed",
+    "stale": "Last known figures"
+  },
   "version": {
     "updateAvailable": "New update available"
   },

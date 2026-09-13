@@ -94,6 +94,19 @@
     "restoreSessionError": "發生對話恢復錯誤。請再試一次。",
     "debugInfoError": "無法複製除錯資訊。"
   },
+  "providerQuota": {
+    "title": "供應方配額",
+    "summary": "{{provider}}：剩餘配額 {{percent}}%",
+    "remaining": "剩餘 {{percent}}%",
+    "resetsIn": "{{duration}} 後重設",
+    "accounts_one": "{{count}} 個帳戶",
+    "accounts_other": "{{count}} 個帳戶",
+    "noWindowData": "未回報數值",
+    "unsupported": "此供應方不提供用量資料",
+    "reauth": "請重新登入才能讀取用量",
+    "error": "無法重新整理用量",
+    "stale": "最後一次已知數值"
+  },
   "version": {
     "updateAvailable": "有新版本可用"
   },

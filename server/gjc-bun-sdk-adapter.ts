@@ -9,6 +9,7 @@ import { activateModelProfile } from '@gajae-code/coding-agent/config/model-prof
 import { resolveModelRoleValue } from '@gajae-code/coding-agent/config/model-resolver';
 import { Settings } from '@gajae-code/coding-agent/config/settings';
 import { AuthStorage } from '@gajae-code/coding-agent/session/auth-storage';
+import { buildAccountInventorySnapshot } from '@gajae-code/coding-agent/session/account-inventory';
 import { SessionDisposalIncompleteError } from '@gajae-code/coding-agent/session/agent-session';
 import { parseSessionEntries, SessionManager, type SessionEntry } from '@gajae-code/coding-agent/session/session-manager';
 import { MemorySessionStorage } from '@gajae-code/coding-agent/session/session-storage';
@@ -19,12 +20,13 @@ import { generateSessionTitle } from '@gajae-code/coding-agent/utils/title-gener
 import { getSupportedEfforts } from '@gajae-code/ai/model-thinking';
 
 import { parseGjcGoalCommand, type GjcGoalCommand, type GjcGoalSnapshot } from '../shared/gjc-goal.js';
+import type { ProviderQuotaSnapshot } from '../shared/providerQuota.js';
 
 import { appendImagesInputTag } from './shared/image-attachments.js';
 import { GjcBunOAuthController, type GjcBunOAuthControllerOptions, type GjcOAuthActivitySnapshot } from './gjc-bun-oauth-controller.js';
 import { GJC_APP_BUILTIN_COMMAND_NAMES } from './gjc-command-surface.generated.js';
 import type { GjcWorkerOAuthRuntime, GjcWorkerRuntime, GjcWorkerWriter } from './gjc-worker.js';
-import type { GjcWorkerActivity } from './gjc-worker-protocol.js';
+import type { GjcWorkerActivity, JsonObject } from './gjc-worker-protocol.js';
 import { GjcBunAskController } from './gjc-bun-ask-controller.js';
 import { GjcCleanupUnconfirmedError, isGjcCleanupUnconfirmedError } from './gjc-cleanup-error.js';
 import { isVerifiedSdkPatch, type VerifiedSdkPatch } from './gjc-runtime-manifest.js';
@@ -33,6 +35,7 @@ import { createGjcPermissionProvider, type GjcPermissionProvider } from './gjc-b
 import { forwardPromptTerminal, forwardSdkEvent, normalizeBuiltinCommandStdout, type SdkRunState } from './gjc-bun-sdk-events.js';
 import { parseGjcRunPermissions, type GjcRunPermissions } from './gjc-permission-policy.js';
 import { GjcModelResolutionError } from './gjc-model-resolution.js';
+import { buildProviderQuotaSnapshot, type ProviderQuotaInventoryRow, type ProviderUsageReportLike } from './gjc-provider-quota.js';
 import {
   GJC_EGO_BROWSER_INSTRUCTIONS,
   GjcAsideUnavailableError,
@@ -762,6 +765,54 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       });
     }
     return { models };
+  }
+
+  /**
+   * Normalized provider quota for the app's ambient status surfaces.
+   *
+   * Reads the same structured source `/usage` reads — the runtime's account
+   * inventory over `AuthStorage`'s `UsageReport` cache — and refreshes it
+   * through `AuthStorage.fetchUsageReports`, which already owns the
+   * per-credential TTL, the last-good retention and the in-flight coalescing.
+   * `/usage` keeps its own cache-only contract and is untouched.
+   *
+   * Only the normalized DTO leaves this method. Credentials, tokens, account
+   * identities and raw provider responses stay inside the worker.
+   */
+  async providerQuota(): Promise<JsonObject> {
+    this.#assertAdmission();
+    // Concurrent callers (several browser tabs, a focus refetch and a poll)
+    // must not fan out N probes at the provider's rate limiter.
+    const inFlight = this.#providerQuotaInFlight;
+    if (inFlight) return inFlight;
+    const request = this.#withOperation(() => this.#providerQuota()).finally(() => {
+      if (this.#providerQuotaInFlight === request) this.#providerQuotaInFlight = undefined;
+    });
+    this.#providerQuotaInFlight = request;
+    return request;
+  }
+
+  #providerQuotaInFlight: Promise<JsonObject> | undefined;
+
+  async #providerQuota(): Promise<JsonObject> {
+    const snapshot = buildAccountInventorySnapshot({
+      authStorage: this.authStorage,
+      modelRegistry: this.modelRegistry,
+    });
+    // Every optional field is emitted by conditional spread, so the snapshot
+    // holds no `undefined` member and is genuinely JSON; only its static type
+    // carries the optionality the protocol's JsonObject cannot express.
+    const quota: ProviderQuotaSnapshot = await buildProviderQuotaSnapshot({
+      rows: snapshot.rows as readonly ProviderQuotaInventoryRow[],
+      fetchProviderUsage: async (provider) => await this.authStorage.fetchUsageReports({
+        provider,
+        baseUrlResolver: (candidate: string) => this.modelRegistry.getProviderBaseUrl(candidate),
+        // Provider and account labels must not reach the worker's log sink on
+        // behalf of a passive status widget.
+        logDetails: false,
+      }) as readonly ProviderUsageReportLike[] | null,
+    });
+    return quota as unknown as JsonObject;
   }
 
   spawnGjc(message: string, options: Record<string, unknown>, writer: GjcWorkerWriter): Promise<void> & { abortHandle?: string; processId?: number } {

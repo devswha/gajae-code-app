@@ -13,24 +13,40 @@ const arrowByPosition: Record<TooltipPosition, string> = {
   right: 'right-full top-1/2 transform -translate-y-1/2 border-r-popover',
 };
 
-function positionStyle(anchor: DOMRect, position: TooltipPosition): React.CSSProperties {
+const EDGE_MARGIN = 8;
+
+/**
+ * Keeps a centred coordinate far enough from both edges that the box it centres
+ * stays on screen. An anchor near an edge (the first control in a sidebar, the
+ * last one in a toolbar) otherwise centres its tooltip half outside the
+ * viewport, where it is simply unreadable. A box too wide to fit is centred
+ * rather than pinned to one edge.
+ */
+function clampCentre(centre: number, size: number, viewport: number): number {
+  if (size + EDGE_MARGIN * 2 >= viewport) return viewport / 2;
+  return Math.min(Math.max(centre, EDGE_MARGIN + size / 2), viewport - EDGE_MARGIN - size / 2);
+}
+
+function positionStyle(anchor: DOMRect, position: TooltipPosition, tip?: DOMRect): React.CSSProperties {
   const gap = 8;
   const initial: React.CSSProperties = { position: 'fixed', zIndex: 9999 };
+  const centreX = (value: number) => (tip && tip.width > 0 ? clampCentre(value, tip.width, window.innerWidth) : value);
+  const centreY = (value: number) => (tip && tip.height > 0 ? clampCentre(value, tip.height, window.innerHeight) : value);
 
   if (position === 'bottom') {
-    initial.left = anchor.left + anchor.width / 2;
+    initial.left = centreX(anchor.left + anchor.width / 2);
     initial.top = anchor.bottom + gap;
     initial.transform = 'translateX(-50%)';
   } else if (position === 'left') {
     initial.left = anchor.left - gap;
-    initial.top = anchor.top + anchor.height / 2;
+    initial.top = centreY(anchor.top + anchor.height / 2);
     initial.transform = 'translate(-100%, -50%)';
   } else if (position === 'right') {
     initial.left = anchor.right + gap;
-    initial.top = anchor.top + anchor.height / 2;
+    initial.top = centreY(anchor.top + anchor.height / 2);
     initial.transform = 'translateY(-50%)';
   } else {
-    initial.left = anchor.left + anchor.width / 2;
+    initial.left = centreX(anchor.left + anchor.width / 2);
     initial.top = anchor.top - gap;
     initial.transform = 'translate(-50%, -100%)';
   }
@@ -38,10 +54,13 @@ function positionStyle(anchor: DOMRect, position: TooltipPosition): React.CSSPro
   return initial;
 }
 
+export { clampCentre as clampTooltipCentre };
+
 function Tooltip({ children, content, position = 'top', className = '', delay = 350 }: TooltipProps) {
   const [visible, setVisible] = React.useState(false);
   const [style, setStyle] = React.useState<React.CSSProperties | null>(null);
   const host = React.useRef<HTMLDivElement | null>(null);
+  const tip = React.useRef<HTMLDivElement | null>(null);
   const timer = React.useRef<number | null>(null);
   const longPressShown = React.useRef(false);
   const cancelPendingShow = React.useCallback(() => {
@@ -52,7 +71,9 @@ function Tooltip({ children, content, position = 'top', className = '', delay = 
   }, []);
   const updatePosition = React.useCallback(() => {
     const element = host.current;
-    if (element) setStyle(positionStyle(element.getBoundingClientRect(), position));
+    // The content is mounted off-screen first, so by this pass its own box is
+    // measurable and the edge clamp can use the real width.
+    if (element) setStyle(positionStyle(element.getBoundingClientRect(), position, tip.current?.getBoundingClientRect()));
   }, [position]);
   const queueMouseShow = React.useCallback(() => {
     cancelPendingShow();
@@ -121,6 +142,7 @@ function Tooltip({ children, content, position = 'top', className = '', delay = 
       {children}
       {visible && typeof document !== 'undefined' && createPortal(
         <div
+          ref={tip}
           style={style || offscreen}
           className={cn(
             'pointer-events-none rounded bg-popover px-2 py-1 text-xs font-medium whitespace-nowrap text-popover-foreground shadow-lg',

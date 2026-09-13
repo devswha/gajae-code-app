@@ -4,6 +4,7 @@ import { providerAuthService } from '@/modules/providers/services/provider-auth.
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerCommandsService } from '@/modules/providers/services/provider-commands.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
+import { providerQuotaService } from '@/modules/providers/services/provider-quota.service.js';
 import { providerSkillsService } from '@/modules/providers/services/provider-skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { exportSessionTranscript } from '@/modules/providers/services/session-export.service.js';
@@ -135,6 +136,14 @@ router.post('/:provider/sessions/:sessionId/active-model', asyncHandler(async (r
 
 router.get('/capabilities', asyncHandler(async (_req: Request, res: Response) => {
   res.json(createApiSuccessResponse({ providers: providerCapabilitiesService.listAllProviderCapabilities() }));
+}));
+
+// Normalized subscription quota for connected providers. The response is the
+// payload-free DTO only: credentials, tokens and raw provider responses stay
+// inside the worker that owns them.
+router.get('/quota', asyncHandler(async (req: Request, res: Response) => {
+  const refresh = queryFlag(req.query.refresh, 'refresh') === true;
+  res.json(createApiSuccessResponse(await providerQuotaService.getProviderQuota({ refresh })));
 }));
 
 router.get('/:provider/capabilities', asyncHandler(async (req: Request, res: Response) => {

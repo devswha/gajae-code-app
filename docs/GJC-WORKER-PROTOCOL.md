@@ -107,6 +107,7 @@ scope is fixed by this specification, and a frame that gets it wrong is rejected
 | `worker.activity` | global | Observe bounded ownership counters on the existing worker without starting a runtime or changing its activity revision. |
 | `worker.admission` | global | Reversibly close or reopen admission using an exact fence identifier; does not cancel accepted work. |
 | `models.catalog` | global | List models the worker can run. |
+| `quota.providers` | global | Report normalized subscription quota for connected providers. The result is a payload-free projection of the runtime's usage reports (provider, plan, windows, status, timestamps); credentials, tokens, account identities and raw provider responses never leave the worker. |
 | `oauth.providers` | global | List providers that support interactive sign-in. |
 | `oauth.status` | global | Report sign-in state. |
 | `oauth.start` | global | Begin an interactive sign-in. |

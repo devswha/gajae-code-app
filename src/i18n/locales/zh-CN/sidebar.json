@@ -94,6 +94,19 @@
     "restoreSessionError": "发生了对话恢复错误，请重试。",
     "debugInfoError": "无法复制调试信息。"
   },
+  "providerQuota": {
+    "title": "提供方配额",
+    "summary": "{{provider}}：剩余配额 {{percent}}%",
+    "remaining": "剩余 {{percent}}%",
+    "resetsIn": "{{duration}} 后重置",
+    "accounts_one": "{{count}} 个账户",
+    "accounts_other": "{{count}} 个账户",
+    "noWindowData": "未报告数值",
+    "unsupported": "该提供方不提供用量数据",
+    "reauth": "重新登录后才能读取用量",
+    "error": "无法刷新用量",
+    "stale": "最后一次已知数值"
+  },
   "version": {
     "updateAvailable": "有新版本可用"
   },

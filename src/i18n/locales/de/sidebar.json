@@ -94,6 +94,19 @@
     "restoreSessionError": "Beim Wiederherstellen der Konversation ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
     "debugInfoError": "Die Debug-Infos konnten nicht kopiert werden."
   },
+  "providerQuota": {
+    "title": "Anbieter-Kontingent",
+    "summary": "{{provider}}: {{percent}}% des Kontingents übrig",
+    "remaining": "{{percent}}% übrig",
+    "resetsIn": "zurückgesetzt in {{duration}}",
+    "accounts_one": "{{count}} Konto",
+    "accounts_other": "{{count}} Konten",
+    "noWindowData": "Keine Werte gemeldet",
+    "unsupported": "Verbrauch für diesen Anbieter nicht verfügbar",
+    "reauth": "Erneut anmelden, um den Verbrauch zu lesen",
+    "error": "Verbrauch konnte nicht aktualisiert werden",
+    "stale": "Zuletzt bekannte Werte"
+  },
   "version": {
     "updateAvailable": "Neues Update verfügbar"
   },

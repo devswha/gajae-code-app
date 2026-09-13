@@ -94,6 +94,19 @@
     "restoreSessionError": "대화 복원 오류가 발생했습니다. 다시 시도해주세요.",
     "debugInfoError": "디버그 정보를 복사하지 못했습니다."
   },
+  "providerQuota": {
+    "title": "제공자 사용량",
+    "summary": "{{provider}}: 남은 사용량 {{percent}}%",
+    "remaining": "{{percent}}% 남음",
+    "resetsIn": "{{duration}} 후 초기화",
+    "accounts_one": "계정 {{count}}개",
+    "accounts_other": "계정 {{count}}개",
+    "noWindowData": "보고된 수치 없음",
+    "unsupported": "이 제공자는 사용량을 제공하지 않습니다",
+    "reauth": "사용량을 읽으려면 다시 로그인하세요",
+    "error": "사용량을 새로 고치지 못했습니다",
+    "stale": "마지막으로 확인된 수치"
+  },
   "version": {
     "updateAvailable": "새로운 업데이트가 있습니다"
   },

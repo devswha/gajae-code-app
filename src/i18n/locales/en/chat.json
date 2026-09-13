@@ -134,7 +134,6 @@
       "sessionMessages": "Retrieving conversation messages…"
     },
     "messages": {
-      "loadEarlier": "Get earlier messages",
       "loadAll": "Get all messages",
       "loadFullToolOutput": "Get complete output",
       "loadingFullToolOutput": "Retrieving complete output…",

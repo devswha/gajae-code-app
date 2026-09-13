@@ -50,11 +50,8 @@ interface ChatMessagesPaneProps {
   isLoadingMoreMessages: boolean;
   historyLoadError?: boolean;
   retryOlderMessages?: () => void;
-  hasMoreMessages: boolean;
   totalMessages: number;
-  visibleMessageCount: number;
   visibleMessages: ChatMessage[];
-  loadEarlierMessages: () => void;
   loadAllMessages: () => void;
   allMessagesLoaded: boolean;
   isLoadingAllMessages: boolean;
@@ -84,11 +81,8 @@ function ChatMessagesPane({
   isLoadingMoreMessages,
   historyLoadError = false,
   retryOlderMessages,
-  hasMoreMessages,
   totalMessages,
-  visibleMessageCount,
   visibleMessages,
-  loadEarlierMessages,
   loadAllMessages,
   allMessagesLoaded,
   isLoadingAllMessages,
@@ -165,17 +159,6 @@ function ChatMessagesPane({
               />
             ) : (
               <>
-                {(hasMoreMessages || chatMessages.length > visibleMessageCount) && !isLoadingAllMessages && !historyLoadError ? (
-                  <div data-history-controls className="border-b border-border py-2 text-center text-sm text-muted-foreground">
-                    <button className="text-primary underline hover:text-primary" onClick={loadEarlierMessages}>
-                      {t('session.messages.loadEarlier')}
-                    </button>
-                    {' | '}
-                    <button className="text-primary underline hover:text-primary" onClick={loadAllMessages}>
-                      {t('session.messages.loadAll')}
-                    </button>
-                  </div>
-                ) : null}
 
                 {paneItems.map((item, index) => {
                   // Hidden thoughts never had a row; an empty wrapper would

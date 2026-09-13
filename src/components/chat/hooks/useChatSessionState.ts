@@ -249,6 +249,18 @@ export function useChatSessionState({
       return !scrolledUp;
     });
   }, [setFollowing]);
+  // The floating pill is the only explicit history control: it appears while
+  // the reader is up in history with rows still unfetched or locally hidden,
+  // and never beside the paged-loading spinner or a history failure banner.
+  useEffect(() => {
+    setShowLoadAllOverlay(
+      isUserScrolledUp
+      && !allMessagesLoaded
+      && !historyLoadError
+      && !isLoadingMoreMessages
+      && (hasMoreMessages || chatMessages.length > visibleMessageCount),
+    );
+  }, [allMessagesLoaded, chatMessages.length, hasMoreMessages, historyLoadError, isLoadingMoreMessages, isUserScrolledUp, visibleMessageCount]);
   const isNearBottom = useCallback(() => {
     const node = scrollContainerRef.current;
     return Boolean(node && node.scrollHeight - node.scrollTop - node.clientHeight < 50);
@@ -288,7 +300,6 @@ export function useChatSessionState({
       if (!page.hasMore) {
         loadedAllRef.current = true;
         setAllMessagesLoaded(true);
-        setShowLoadAllOverlay(false);
       }
       return page.addedCount > 0;
     } finally {
@@ -552,7 +563,6 @@ export function useChatSessionState({
     loadedAllRef.current = true;
     loadingMoreRef.current = true;
     setIsLoadingAllMessages(true);
-    setShowLoadAllOverlay(true);
     setFollowing(false);
     try {
       const window = await sessionStore.fetchFromServer(requestId, { limit: null, offset: 0, includeImages: showImagePreviews });
@@ -561,7 +571,6 @@ export function useChatSessionState({
         // Too large to serve at once, or otherwise refused: say so and offer
         // the paged path instead of quietly dropping the request.
         loadedAllRef.current = false;
-        setShowLoadAllOverlay(false);
         historyLoadErrorRef.current = true;
         setHistoryLoadError(true);
         return;
@@ -575,14 +584,12 @@ export function useChatSessionState({
       clearTimer(finishedTimerRef);
       finishedTimerRef.current = setTimeout(() => {
         setLoadAllJustFinished(false);
-        setShowLoadAllOverlay(false);
         finishedTimerRef.current = null;
       }, 2500);
     } catch (error) {
       if (requestViewRef.current !== requestView) return;
       console.error('Error loading all messages:', error);
       loadedAllRef.current = false;
-      setShowLoadAllOverlay(false);
       historyLoadErrorRef.current = true;
       setHistoryLoadError(true);
     } finally {
@@ -592,15 +599,6 @@ export function useChatSessionState({
       }
     }
   }, [isLoadingAllMessages, selectedProject, selectedSession, sessionStore, setFollowing, showImagePreviews]);
-  // Reveals rows already loaded first; once the loaded window is fully shown,
-  // the same control pages further back so every history state has a click path.
-  const loadEarlierMessages = useCallback(() => {
-    if (visibleMessageCount < chatMessages.length) {
-      setVisibleMessageCount(count => count + 100);
-      return;
-    }
-    void loadOlderMessages();
-  }, [chatMessages.length, loadOlderMessages, visibleMessageCount]);
 
   return {
     chatMessages,
@@ -627,7 +625,6 @@ export function useChatSessionState({
     setSessionState,
     visibleMessageCount,
     visibleMessages,
-    loadEarlierMessages,
     loadAllMessages,
     allMessagesLoaded,
     isLoadingAllMessages,

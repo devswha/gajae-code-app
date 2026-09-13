@@ -134,7 +134,6 @@
       "sessionMessages": "セッションメッセージを読み込んでいます..."
     },
     "messages": {
-      "loadEarlier": "過去のメッセージを読み込む",
       "loadAll": "すべてのメッセージを取得",
       "loadFullToolOutput": "完全な出力を読み込む",
       "loadingFullToolOutput": "完全な出力を読み込み中...",

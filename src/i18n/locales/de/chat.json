@@ -134,7 +134,6 @@
       "sessionMessages": "Konversationsnachrichten werden abgerufen…"
     },
     "messages": {
-      "loadEarlier": "Erhalten Sie frühere Nachrichten",
       "loadAll": "Erhalten Sie alle Nachrichten",
       "loadFullToolOutput": "Erhalten Sie eine vollständige Ausgabe",
       "loadingFullToolOutput": "Vollständige Ausgabe wird abgerufen…",

@@ -136,7 +136,6 @@
       "sessionMessages": "Получение сообщений беседы…"
     },
     "messages": {
-      "loadEarlier": "Получить более ранние сообщения",
       "loadAll": "Получить все сообщения",
       "loadFullToolOutput": "Получить полный вывод",
       "loadingFullToolOutput": "Получение полного вывода…",

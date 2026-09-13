@@ -134,7 +134,6 @@
       "sessionMessages": "Recupero dei messaggi di conversazione…"
     },
     "messages": {
-      "loadEarlier": "Ricevi messaggi precedenti",
       "loadAll": "Ricevi tutti i messaggi",
       "loadFullToolOutput": "Ottieni l'output completo",
       "loadingFullToolOutput": "Recupero dell'output completo…",

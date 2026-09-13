@@ -19,6 +19,24 @@ the remote draft being checked.
 
 ## Exact assets
 
+Before freezing the manual candidate, check and prepare the source versions
+with the shared release CLI. Its default is read-only; review a proposed pair
+with both explicit inputs, then use `--write` only when the pair is approved:
+
+```sh
+npm run release:version
+npm run release:version -- \
+  --product-version REPLACE_WITH_PRODUCT_VERSION \
+  --desktop-version REPLACE_WITH_DESKTOP_VERSION
+npm run release:version -- --write \
+  --product-version REPLACE_WITH_PRODUCT_VERSION \
+  --desktop-version REPLACE_WITH_DESKTOP_VERSION
+```
+
+This synchronizes only the package and Cargo version fields. It preserves
+dependency metadata and release manifests; the publication verifier remains
+responsible for the complete remote history/floor check.
+
 For beta.10, the required assets are:
 
 - `gajae-app-desktop-2.0.0-beta.10-macos-arm64.dmg`

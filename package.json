@@ -50,6 +50,7 @@
     "desktop:sign:macos": "node scripts/release/finalize-macos-app.mjs",
     "desktop:dmg:macos": "node scripts/release/make-macos-dmg.mjs",
     "desktop:artifacts:macos": "node scripts/release/make-macos-updater.mjs",
+    "release:version": "node scripts/release/prepare-version.mjs",
     "build": "npm run build:client && npm run build:server && npm run build:core",
     "build:client": "vite build",
     "build:core": "node scripts/build-rust-core.mjs --release",

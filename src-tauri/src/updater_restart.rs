@@ -530,6 +530,19 @@ fn recheck_target(
     Ok(())
 }
 
+// Both sides of the presentation boundary use the same target/record checks.
+// This helper performs no navigation, cancellation, shutdown or new admission.
+fn recheck_attempt_target(app: &AppHandle, attempt: &Attempt) -> Result<(), &'static str> {
+    let state = snapshot(app).map_err(|_| "updater_unavailable")?;
+    if !snapshot_matches_target(&state, &attempt.context.target_id)
+        || state.target_desktop_version.as_deref() != Some(&attempt.desktop_version)
+        || recheck_target(app, &attempt.context.target_id, &attempt.archive_sha256).is_err()
+    {
+        return Err("updater_restart_cancelled");
+    }
+    Ok(())
+}
+
 fn disposition(
     app: &AppHandle,
     attempt: &Attempt,
@@ -621,6 +634,7 @@ fn prepare_failure(result: &Result<crate::updater_backend::Outcome, &'static str
         Err(_) => "updater_backend_invalid",
         Ok(value) if !value.ok => match value.error.as_deref() {
             Some("busy" | "in_progress") => "updater_runtime_busy",
+            Some("shell_unverified") => "updater_shell_unverified",
             Some("unknown") => "updater_runtime_unknown",
             Some("expired") => "updater_backend_timeout",
             Some("cancelled") => "updater_restart_cancelled",
@@ -641,16 +655,10 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
     if crate::flush_deep_links(app).is_err() {
         return abort(app, &attempt, "updater_pending_links_unavailable").await;
     }
-    let state = match snapshot(app) {
-        Ok(state) => state,
-        Err(_) => return abort(app, &attempt, "updater_unavailable").await,
-    };
-    if !matches!(state.phase, UpdatePhase::Ready)
-        || !snapshot_matches_target(&state, &attempt.context.target_id)
-        || state.target_desktop_version.as_deref() != Some(&attempt.desktop_version)
-        || recheck_target(app, &attempt.context.target_id, &attempt.archive_sha256).is_err()
-        || !attempt.current()
-    {
+    if let Err(reason) = recheck_attempt_target(app, &attempt) {
+        return abort(app, &attempt, reason).await;
+    }
+    if !attempt.current() {
         return abort(app, &attempt, "updater_restart_cancelled").await;
     }
     if attempt
@@ -666,13 +674,13 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
         return abort(app, &attempt, "updater_restart_cancelled").await;
     }
     attempt.displayed.store(true, Ordering::Release);
-    if crate::updater_launch::show_manual_applying(app)
+    if crate::updater_launch::show_manual_preparing(app)
         .await
         .is_err()
     {
         return abort(app, &attempt, "updater_display_unavailable").await;
     }
-    attempt.trace("applying-visible", None);
+    attempt.trace("preparing-visible", None);
     // Dispose the sealed document before taking runtime evidence. Its expected
     // WebSocket/HTTP disconnects are activity changes, not an exception to the
     // authority's generation checks. This stage installs/stops nothing: busy or
@@ -726,17 +734,10 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
             return abort(app, &attempt, "updater_owner_unknown").await;
         }
     };
-    let state = match snapshot(app) {
-        Ok(state) => state,
-        Err(_) => return abort(app, &attempt, "updater_unavailable").await,
-    };
-    if !matches!(state.phase, UpdatePhase::Ready)
-        || !snapshot_matches_target(&state, &attempt.context.target_id)
-        || state.target_desktop_version.as_deref() != Some(&attempt.desktop_version)
-        || recheck_target(app, &attempt.context.target_id, &attempt.archive_sha256).is_err()
-        || attempt.cancelled.load(Ordering::Acquire)
-        || !(attempt.context.same_run)()
-    {
+    if let Err(reason) = recheck_attempt_target(app, &attempt) {
+        return abort(app, &attempt, reason).await;
+    }
+    if attempt.cancelled.load(Ordering::Acquire) || !(attempt.context.same_run)() {
         return abort(app, &attempt, "updater_restart_cancelled").await;
     }
     if attempt.cancelled.load(Ordering::Acquire)
@@ -942,6 +943,7 @@ mod tests {
     fn prepare_failures_distinguish_busy_unknown_timeout_and_invalid_protocol() {
         for (code, expected) in [
             ("busy", "updater_runtime_busy"),
+            ("shell_unverified", "updater_shell_unverified"),
             ("unknown", "updater_runtime_unknown"),
             ("expired", "updater_backend_timeout"),
             ("unauthorized", "updater_backend_invalid"),

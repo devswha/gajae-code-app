@@ -23,6 +23,7 @@
     "reasons": {
       "restartUnknown": "Impossible de confirmer que le redémarrage est sûr. Aucune nouvelle tentative automatique n’est prévue.",
       "restartTimeout": "La préparation du redémarrage a expiré. Aucune nouvelle tentative automatique n’a été effectuée.",
+      "shellUnverified": "La fin du processus shell n’a pas pu être confirmée. Enregistrez votre travail, quittez puis rouvrez l’application et réessayez. Vous pouvez également utiliser l’installateur manuel.",
       "discoveryFailed": "La recherche des versions a échoué.",
       "cacheInvalid": "La validation de la mise à jour en cache a échoué.",
       "preparationCancelled": "La préparation de la mise à jour a été annulée.",

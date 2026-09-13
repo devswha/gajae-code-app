@@ -23,6 +23,7 @@
     "reasons": {
       "restartUnknown": "Impossibile confermare che il riavvio sia sicuro. Non è stato pianificato alcun tentativo automatico.",
       "restartTimeout": "La preparazione del riavvio è scaduta. L’app non ha riprovato automaticamente.",
+      "shellUnverified": "Non è stato possibile confermare la chiusura del processo shell. Salva il lavoro, chiudi e riapri l’app, quindi riprova. Puoi anche usare l’installer manuale.",
       "discoveryFailed": "La ricerca delle versioni non è riuscita.",
       "cacheInvalid": "La verifica dell’aggiornamento nella cache non è riuscita.",
       "preparationCancelled": "La preparazione dell’aggiornamento è stata annullata.",

@@ -23,6 +23,7 @@
     "reasons": {
       "restartUnknown": "Ein sicherer Neustart konnte nicht bestätigt werden. Es wurde kein automatischer Wiederholungsversuch geplant.",
       "restartTimeout": "Zeitüberschreitung bei der Neustartvorbereitung. Es gab keinen automatischen Wiederholungsversuch.",
+      "shellUnverified": "Der Abschluss des Shell-Prozesses konnte nicht bestätigt werden. Speichern Sie Ihre Arbeit, beenden Sie die App, öffnen Sie sie erneut und versuchen Sie es noch einmal. Sie können auch den manuellen Installer verwenden.",
       "discoveryFailed": "Die Release-Suche ist fehlgeschlagen.",
       "cacheInvalid": "Das zwischengespeicherte Update hat die Prüfung nicht bestanden.",
       "preparationCancelled": "Die Update-Vorbereitung wurde abgebrochen.",

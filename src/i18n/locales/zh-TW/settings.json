@@ -23,6 +23,7 @@
     "reasons": {
       "restartUnknown": "無法確認應用程式是否可以安全重新啟動。未安排自動重試。",
       "restartTimeout": "重新啟動準備逾時。應用程式未自動重試。",
+      "shellUnverified": "無法確認 Shell 程序已結束。請儲存工作、結束並重新開啟應用程式，然後重試。您也可以使用手動安裝程式。",
       "discoveryFailed": "發行版搜尋失敗。",
       "cacheInvalid": "快取的更新未通過驗證。",
       "preparationCancelled": "更新準備已取消。",

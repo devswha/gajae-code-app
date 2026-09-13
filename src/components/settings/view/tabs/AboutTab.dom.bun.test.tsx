@@ -308,6 +308,7 @@ test('known native reason codes are localized while unknown reasons remain liter
   const keys = {
     discovery_failed: 'discoveryFailed', cache_invalid: 'cacheInvalid',
     preparation_cancelled: 'preparationCancelled', preferences_not_persisted: 'preferencesNotPersisted',
+    updater_shell_unverified: 'shellUnverified',
   } as const;
   for (const [language, translations] of [['en', english], ['ko', korean]] as const) {
     await act(async () => { await view.i18n.changeLanguage(language); });

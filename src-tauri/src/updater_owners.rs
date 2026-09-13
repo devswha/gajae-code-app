@@ -8,8 +8,11 @@
 //! Only the compile-bound QA app can narrow packaged-owner vetoes to its whole
 //! isolated QA root. Production and all other modes share the cross-installation
 //! domain. This does not narrow PID enumeration or the captured tree. A foreign
-//! executable may have path-bound exclusion evidence instead of BSD identity;
-//! candidates/current/captured owners always require their full birth identity.
+//! executable may have path-bound exclusion evidence instead of BSD identity.
+//! A live unlinked foreign image may use a stable kernel signing
+//! identifier/team as its positive role evidence; candidates/current/captured
+//! owners always require their full birth identity. This exception never applies
+//! to a current or required PID, or to a product/reserved kernel role.
 //! Unrelated PID/path churn and unclassified evidence still make either unknown.
 //! Post-shutdown verification neither signals processes nor waits for idle.
 //! The elapsed budget is checked around bounded operations; it cannot interrupt
@@ -55,12 +58,20 @@ const BUDGET: Duration = Duration::from_secs(2);
 const PROC_UID_ONLY: u32 = 4;
 const PROC_RUID_ONLY: u32 = 5;
 const PROC_PPID_ONLY: u32 = 6;
-// Apple xnu bsd/sys/codesign.h and osfmk/kern/cs_blobs.h. CS_OPS_STATUS is
-// read-only; no mark/kill/entitlement operation is used. Not exported by libc.
+// Apple xnu bsd/sys/codesign.h and osfmk/kern/cs_blobs.h. CS_OPS_* values and
+// flags are copied from those headers; all calls below are read-only. None are
+// exported by libc on the pinned SDK.
 const CS_OPS_STATUS: u32 = 0;
+const CS_OPS_IDENTITY: u32 = 11;
+const CS_OPS_TEAMID: u32 = 14;
+const CS_MAX_TEAMID_LEN: usize = 64;
 const CS_VALID: u32 = 0x0000_0001;
+const CS_ADHOC: u32 = 0x0000_0002;
 const CS_PLATFORM_BINARY: u32 = 0x0400_0000;
 const CS_DEBUGGED: u32 = 0x1000_0000;
+const CS_SIGNED: u32 = 0x2000_0000;
+const CSOPS_STRING_HEADER: usize = 8;
+const MAX_CODE_IDENTITY: usize = 4096;
 unsafe extern "C" {
     fn csops(pid: libc::pid_t, ops: u32, useraddr: *mut libc::c_void, usersize: usize) -> i32;
 }
@@ -105,6 +116,17 @@ struct Process {
     executable: PathBuf,
 }
 #[derive(Clone, PartialEq, Eq)]
+struct KernelSignature {
+    flags: u32,
+    identifier: String,
+    team_id: String,
+}
+enum Executable {
+    Present(PathBuf),
+    Gone,
+    Missing,
+}
+#[derive(Clone, PartialEq, Eq)]
 struct Bundle {
     identifier: String,
     // Present only after validating OUR complete APPL/executable identity.
@@ -129,9 +151,10 @@ trait Probe {
     fn current_uid(&self) -> u32;
     fn list(&mut self, selection: Selection) -> Result<Listing>;
     fn identity(&mut self, pid: u32) -> Result<Option<Identity>>;
-    fn executable(&mut self, pid: u32) -> Result<Option<PathBuf>>;
+    fn executable(&mut self, pid: u32) -> Result<Executable>;
     fn bundle(&mut self, root: &Path) -> Result<Bundle>;
     fn code_status(&mut self, pid: u32) -> Result<u32>;
+    fn code_signature(&mut self, pid: u32) -> Result<KernelSignature>;
 }
 
 struct Product {
@@ -205,10 +228,12 @@ enum ForeignBasis {
     OutsideQaRoot,
     BundleIdentifiers,
     ApplePlatform(u32),
+    KernelSignature(KernelSignature),
 }
 #[derive(PartialEq, Eq)]
 struct ForeignProcess {
-    executable: PathBuf,
+    executable: Option<PathBuf>,
+    identity: Option<Identity>,
     basis: ForeignBasis,
 }
 
@@ -220,6 +245,7 @@ struct Census {
     processes: BTreeMap<u32, Process>,
     foreign: BTreeMap<u32, ForeignProcess>,
     bundles: BTreeMap<PathBuf, Bundle>,
+    current_signature: Option<KernelSignature>,
 }
 
 /// Process-bound observation, not Clone/Serialize/Deserialize or browser input.
@@ -332,11 +358,15 @@ fn read_process_from_identity(
         before.pid == pid && before.birth.seconds != 0 && before.birth.microseconds < 1_000_000,
         "invalid BSD process identity",
     )?;
-    let Some(executable) = probe.executable(pid)? else {
-        return match probe.identity(pid)? {
-            None => Ok(None),
-            Some(_) => Err(unknown("executable vanished without process disappearance")),
-        };
+    let executable = match probe.executable(pid)? {
+        Executable::Present(path) => path,
+        Executable::Gone => {
+            return match probe.identity(pid)? {
+                None => Ok(None),
+                Some(_) => Err(unknown("executable vanished without process disappearance")),
+            }
+        }
+        Executable::Missing => return Err(unknown("executable path missing for required process")),
     };
     valid_path(&executable)?;
     let Some(after) = probe.identity(pid)? else {
@@ -471,6 +501,7 @@ fn scan(probe: &mut impl Probe, scope: &ScanScope<'_>, deadline: &Deadline) -> R
         processes: BTreeMap::new(),
         foreign: BTreeMap::new(),
         bundles: BTreeMap::new(),
+        current_signature: None,
     };
     let mut path_bytes = 0usize;
     for pid in pids {
@@ -478,12 +509,71 @@ fn scan(probe: &mut impl Probe, scope: &ScanScope<'_>, deadline: &Deadline) -> R
         // Path first permits positive foreign-role evidence for protected RUID
         // helpers. Neither an unreadable BSD record nor RUID membership itself
         // is an exclusion, and both unavailable always remain unknown.
-        let Some(executable) = probe.executable(pid)? else {
-            require(
-                probe.identity(pid)?.is_none(),
-                "path vanished without BSD disappearance",
-            )?;
-            continue;
+        let executable = match probe.executable(pid)? {
+            Executable::Present(path) => path,
+            Executable::Gone => {
+                require(
+                    probe.identity(pid)?.is_none(),
+                    "path vanished without BSD disappearance",
+                )?;
+                continue;
+            }
+            Executable::Missing => {
+                // A missing path can be a live process whose executable was
+                // replaced in place. It is exempted only with a complete,
+                // birth-bound kernel signature that proves a foreign role.
+                if pid == probe.current_pid() || scope.required.contains(&pid) {
+                    return Err(unknown("executable path missing for required process"));
+                }
+                let Some(before) = probe.identity(pid)? else {
+                    continue;
+                };
+                deadline.check()?;
+                require(
+                    before.pid == pid
+                        && before.birth.seconds != 0
+                        && before.birth.microseconds < 1_000_000
+                        && !before.zombie
+                        && (before.uid == uid || before.real_uid == uid),
+                    "invalid missing-path process identity",
+                )?;
+                let current_signature = match &census.current_signature {
+                    Some(signature) => signature.clone(),
+                    None => {
+                        let signature = probe.code_signature(probe.current_pid())?;
+                        validate_foreign_signature(&signature, scope.product, true)?;
+                        census.current_signature = Some(signature.clone());
+                        signature
+                    }
+                };
+                deadline.check()?;
+                let signature = probe.code_signature(pid)?;
+                deadline.check()?;
+                validate_foreign_signature(&signature, scope.product, false)?;
+                require(
+                    signature.team_id != current_signature.team_id,
+                    "missing executable path has the current signing team",
+                )?;
+                let Some(after) = probe.identity(pid)? else {
+                    return Err(unknown(
+                        "missing executable path vanished during signature proof",
+                    ));
+                };
+                deadline.check()?;
+                require(
+                    before == after,
+                    "missing executable path process changed during signature proof",
+                )?;
+                census.foreign.insert(
+                    pid,
+                    ForeignProcess {
+                        executable: None,
+                        identity: Some(before),
+                        basis: ForeignBasis::KernelSignature(signature),
+                    },
+                );
+                continue;
+            }
         };
         valid_path(&executable)?;
         path_bytes = path_bytes
@@ -505,17 +595,27 @@ fn scan(probe: &mut impl Probe, scope: &ScanScope<'_>, deadline: &Deadline) -> R
                     &mut census.bundles,
                     deadline,
                 )?;
-                let after = probe
-                    .executable(pid)?
-                    .ok_or_else(|| unknown("foreign executable vanished during exclusion proof"))?;
+                let after = match probe.executable(pid)? {
+                    Executable::Present(path) => path,
+                    Executable::Gone | Executable::Missing => {
+                        return Err(unknown(
+                            "foreign executable vanished during exclusion proof",
+                        ));
+                    }
+                };
                 valid_path(&after)?;
                 require(
                     after.as_os_str() == executable.as_os_str(),
                     "foreign executable changed during exclusion proof",
                 )?;
-                census
-                    .foreign
-                    .insert(pid, ForeignProcess { executable, basis });
+                census.foreign.insert(
+                    pid,
+                    ForeignProcess {
+                        executable: Some(executable),
+                        identity: None,
+                        basis,
+                    },
+                );
                 continue;
             }
         };
@@ -776,6 +876,56 @@ fn tree(
     Ok(members)
 }
 
+fn reserved_kernel_identifier(identifier: &str, product: &Product) -> bool {
+    [
+        product.identifier,
+        product.executable,
+        env!("GJC_UPDATE_PACKAGE_NAME"),
+        "gajae-app-server",
+        "gajae-core",
+        "node",
+        "bun",
+    ]
+    .contains(&identifier)
+}
+
+fn validate_foreign_signature(
+    signature: &KernelSignature,
+    product: &Product,
+    current: bool,
+) -> Result<()> {
+    require(
+        signature.flags & (CS_VALID | CS_SIGNED) == (CS_VALID | CS_SIGNED)
+            && signature.flags & (CS_ADHOC | CS_DEBUGGED) == 0,
+        "kernel signing status is not a stable production signature",
+    )?;
+    require(
+        !signature.identifier.is_empty()
+            && signature.identifier.len() <= MAX_CODE_IDENTITY
+            && signature
+                .identifier
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"._:-".contains(&byte)),
+        "kernel signing identifier is invalid",
+    )?;
+    require(
+        !signature.team_id.is_empty()
+            && signature.team_id.len() <= CS_MAX_TEAMID_LEN
+            && signature
+                .team_id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric()),
+        "kernel signing team is invalid",
+    )?;
+    if !current {
+        require(
+            !reserved_kernel_identifier(&signature.identifier, product),
+            "missing executable path has a reserved product role",
+        )?;
+    }
+    Ok(())
+}
+
 fn capture(
     probe: &mut impl Probe,
     product: &Product,
@@ -992,7 +1142,7 @@ impl Probe for Native {
             zombie: info.pbi_status == libc::SZOMB,
         }))
     }
-    fn executable(&mut self, pid: u32) -> Result<Option<PathBuf>> {
+    fn executable(&mut self, pid: u32) -> Result<Executable> {
         let mut bytes = vec![0u8; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
         unsafe {
             *libc::__error() = 0;
@@ -1000,18 +1150,23 @@ impl Probe for Native {
         let count = unsafe {
             libc::proc_pidpath(pid as i32, bytes.as_mut_ptr().cast(), bytes.len() as u32)
         };
-        if count == 0 && io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH) {
-            return Ok(None);
+        if count == 0 {
+            return match io::Error::last_os_error().raw_os_error() {
+                Some(libc::ESRCH) => Ok(Executable::Gone),
+                Some(libc::ENOENT) => Ok(Executable::Missing),
+                _ => Err(unknown("executable path missing, denied or truncated")),
+            };
         }
         require(
-            count > 0
-                && (count as usize) < bytes.len() - 1
+            (count as usize) < bytes.len() - 1
                 && bytes[count as usize] == 0
                 && !bytes[..count as usize].contains(&0),
             "executable path missing, denied or truncated",
         )?;
         bytes.truncate(count as usize);
-        Ok(Some(PathBuf::from(OsString::from_vec(bytes))))
+        Ok(Executable::Present(PathBuf::from(OsString::from_vec(
+            bytes,
+        ))))
     }
     fn bundle(&mut self, root: &Path) -> Result<Bundle> {
         read_bundle(root)
@@ -1034,6 +1189,63 @@ impl Probe for Native {
         require(status == 0, "platform code identity unavailable")?;
         Ok(flags)
     }
+
+    fn code_signature(&mut self, pid: u32) -> Result<KernelSignature> {
+        let flags = self.code_status(pid)?;
+        let identifier = csops_string(
+            pid,
+            CS_OPS_IDENTITY,
+            CSOPS_STRING_HEADER + MAX_CODE_IDENTITY,
+            "kernel signing identifier unavailable",
+        )?;
+        let team_id = csops_string(
+            pid,
+            CS_OPS_TEAMID,
+            CSOPS_STRING_HEADER + CS_MAX_TEAMID_LEN,
+            "kernel signing team unavailable",
+        )?;
+        Ok(KernelSignature {
+            flags,
+            identifier,
+            team_id,
+        })
+    }
+}
+
+fn csops_string(pid: u32, operation: u32, capacity: usize, reason: &'static str) -> Result<String> {
+    require(
+        pid > 0 && pid <= i32::MAX as u32 && capacity > CSOPS_STRING_HEADER + 1,
+        "invalid kernel signing query",
+    )?;
+    let mut bytes = vec![0u8; capacity];
+    let status = unsafe {
+        csops(
+            pid as libc::pid_t,
+            operation,
+            bytes.as_mut_ptr().cast(),
+            bytes.len(),
+        )
+    };
+    require(status == 0, reason)?;
+    require(
+        bytes[..4].iter().all(|byte| *byte == 0),
+        "kernel signing header is invalid",
+    )?;
+    let declared = u32::from_be_bytes(bytes[4..8].try_into().expect("fixed header")) as usize;
+    require(
+        declared >= CSOPS_STRING_HEADER + 2
+            && declared <= bytes.len()
+            && bytes[declared - 1] == 0
+            && !bytes[CSOPS_STRING_HEADER..declared - 1].contains(&0),
+        "kernel signing string is invalid",
+    )?;
+    let value = std::str::from_utf8(&bytes[CSOPS_STRING_HEADER..declared - 1])
+        .map_err(|_| unknown("kernel signing string is not UTF-8"))?;
+    require(
+        !value.is_empty() && !value.chars().any(char::is_control),
+        reason,
+    )?;
+    Ok(value.to_owned())
 }
 
 #[derive(PartialEq, Eq)]
@@ -1367,6 +1579,15 @@ mod tests {
             digest: [0; 32],
         }
     }
+    fn signature(flags: u32, identifier: &str, team_id: &str) -> KernelSignature {
+        KernelSignature {
+            flags,
+            identifier: identifier.into(),
+            team_id: team_id.into(),
+        }
+    }
+    const VALID_SIGNATURE_FLAGS: u32 = CS_VALID | CS_SIGNED;
+    const TEST_CS_HARD: u32 = 0x0000_0100;
     struct Fake {
         pid: u32,
         records: BTreeMap<u32, Process>,
@@ -1374,7 +1595,10 @@ mod tests {
         partial: bool,
         denied: BTreeSet<u32>,
         paths_denied: BTreeSet<u32>,
+        missing_paths: BTreeSet<u32>,
         code_flags: BTreeMap<u32, u32>,
+        code_signatures: BTreeMap<u32, KernelSignature>,
+        signature_reads: BTreeMap<u32, VecDeque<KernelSignature>>,
         path_reads: BTreeMap<u32, VecDeque<Option<PathBuf>>>,
         flag_reads: BTreeMap<u32, VecDeque<u32>>,
         phantom: Vec<u32>,
@@ -1405,7 +1629,10 @@ mod tests {
                 partial: false,
                 denied: BTreeSet::new(),
                 paths_denied: BTreeSet::new(),
+                missing_paths: BTreeSet::new(),
                 code_flags: BTreeMap::new(),
+                code_signatures: BTreeMap::new(),
+                signature_reads: BTreeMap::new(),
                 path_reads: BTreeMap::new(),
                 flag_reads: BTreeMap::new(),
                 phantom: vec![],
@@ -1486,19 +1713,27 @@ mod tests {
             }
             Ok(self.records.get(&pid).map(|process| process.identity))
         }
-        fn executable(&mut self, pid: u32) -> Result<Option<PathBuf>> {
+        fn executable(&mut self, pid: u32) -> Result<Executable> {
             if self.paths_denied.contains(&pid) {
                 return Err(unknown("executable permission denied"));
             }
+            if self.missing_paths.contains(&pid) {
+                return Ok(Executable::Missing);
+            }
             if let Some(queue) = self.path_reads.get_mut(&pid) {
                 if let Some(path) = queue.pop_front() {
-                    return Ok(path);
+                    return Ok(match path {
+                        Some(path) => Executable::Present(path),
+                        None => Executable::Gone,
+                    });
                 }
+                return Ok(Executable::Gone);
             }
             Ok(self
                 .records
                 .get(&pid)
-                .map(|process| process.executable.clone()))
+                .map(|process| Executable::Present(process.executable.clone()))
+                .unwrap_or(Executable::Gone))
         }
         fn bundle(&mut self, root: &Path) -> Result<Bundle> {
             self.bundles
@@ -1515,6 +1750,18 @@ mod tests {
             self.code_flags
                 .get(&pid)
                 .copied()
+                .ok_or_else(|| unknown("code identity denied"))
+        }
+
+        fn code_signature(&mut self, pid: u32) -> Result<KernelSignature> {
+            if let Some(queue) = self.signature_reads.get_mut(&pid) {
+                if let Some(signature) = queue.pop_front() {
+                    return Ok(signature);
+                }
+            }
+            self.code_signatures
+                .get(&pid)
+                .cloned()
                 .ok_or_else(|| unknown("code identity denied"))
         }
     }
@@ -1537,6 +1784,195 @@ mod tests {
             bundle("app.gajae.desktop", "gajae-app-desktop"),
         );
         assert!(prove_absence(&mut fake, &product(), Path::new(APP), None).is_err());
+    }
+
+    #[test]
+    fn deleted_foreign_executable_can_use_stable_kernel_signature_exclusion() {
+        let mut fake = Fake::new();
+        fake.records.insert(20, process(20, 1, 200, "/opt/codex"));
+        fake.missing_paths.insert(20);
+        fake.code_signatures.insert(
+            10,
+            signature(VALID_SIGNATURE_FLAGS, "app.gajae.desktop", "5987KT43TJ"),
+        );
+        fake.code_signatures
+            .insert(20, signature(VALID_SIGNATURE_FLAGS, "codex", "2DC432GLL"));
+
+        assert!(prove_absence(&mut fake, &product(), Path::new(APP), None).is_ok());
+        let current_product = product();
+        let scope = ScanScope {
+            product: &current_product,
+            domain: OwnerDomain::Shared,
+            required: BTreeSet::from([10]),
+        };
+        let census = stable_census(&mut fake, &scope, &Deadline::new()).unwrap();
+        assert!(matches!(
+            census.foreign.get(&20).map(|entry| &entry.basis),
+            Some(ForeignBasis::KernelSignature(value))
+                if value.identifier == "codex" && value.team_id == "2DC432GLL"
+        ));
+        assert_eq!(census.foreign[&20].executable, None);
+        assert!(census.foreign[&20].identity.is_some());
+    }
+
+    #[test]
+    fn deleted_path_exclusion_rejects_same_roles_signers_and_unstable_identity() {
+        for identifier in [
+            "app.gajae.desktop",
+            "gajae-app-desktop",
+            "gajae-app",
+            "gajae-app-server",
+            "gajae-core",
+            "node",
+            "bun",
+        ] {
+            let mut fake = Fake::new();
+            fake.records.insert(20, process(20, 1, 200, "/opt/foreign"));
+            fake.missing_paths.insert(20);
+            fake.code_signatures.insert(
+                10,
+                signature(VALID_SIGNATURE_FLAGS, "app.gajae.desktop", "5987KT43TJ"),
+            );
+            fake.code_signatures.insert(
+                20,
+                signature(VALID_SIGNATURE_FLAGS, identifier, "2DC432GLL"),
+            );
+            assert!(prove_absence(&mut fake, &product(), Path::new(APP), None).is_err());
+        }
+
+        let mut same_team = Fake::new();
+        same_team
+            .records
+            .insert(20, process(20, 1, 200, "/opt/foreign"));
+        same_team.missing_paths.insert(20);
+        same_team.code_signatures.insert(
+            10,
+            signature(VALID_SIGNATURE_FLAGS, "app.gajae.desktop", "5987KT43TJ"),
+        );
+        same_team.code_signatures.insert(
+            20,
+            signature(VALID_SIGNATURE_FLAGS, "foreign", "5987KT43TJ"),
+        );
+        assert!(prove_absence(&mut same_team, &product(), Path::new(APP), None).is_err());
+
+        for flags in [
+            CS_VALID,
+            CS_ADHOC | CS_SIGNED,
+            VALID_SIGNATURE_FLAGS | CS_DEBUGGED,
+        ] {
+            let mut invalid_candidate = Fake::new();
+            invalid_candidate
+                .records
+                .insert(20, process(20, 1, 200, "/opt/foreign"));
+            invalid_candidate.missing_paths.insert(20);
+            invalid_candidate.code_signatures.insert(
+                10,
+                signature(VALID_SIGNATURE_FLAGS, "app.gajae.desktop", "5987KT43TJ"),
+            );
+            invalid_candidate
+                .code_signatures
+                .insert(20, signature(flags, "foreign", "2DC432GLL"));
+            assert!(
+                prove_absence(&mut invalid_candidate, &product(), Path::new(APP), None).is_err()
+            );
+        }
+
+        let mut unreadable = Fake::new();
+        unreadable
+            .records
+            .insert(20, process(20, 1, 200, "/opt/foreign"));
+        unreadable.missing_paths.insert(20);
+        unreadable.paths_denied.insert(20);
+        assert!(prove_absence(&mut unreadable, &product(), Path::new(APP), None).is_err());
+
+        let mut no_team = Fake::new();
+        no_team
+            .records
+            .insert(20, process(20, 1, 200, "/opt/foreign"));
+        no_team.missing_paths.insert(20);
+        no_team.code_signatures.insert(
+            10,
+            signature(VALID_SIGNATURE_FLAGS, "app.gajae.desktop", "5987KT43TJ"),
+        );
+        no_team
+            .code_signatures
+            .insert(20, signature(VALID_SIGNATURE_FLAGS, "foreign", ""));
+        assert!(prove_absence(&mut no_team, &product(), Path::new(APP), None).is_err());
+
+        let mut invalid_current = Fake::new();
+        invalid_current
+            .records
+            .insert(20, process(20, 1, 200, "/opt/foreign"));
+        invalid_current.missing_paths.insert(20);
+        invalid_current.code_signatures.insert(
+            10,
+            signature(CS_ADHOC | CS_SIGNED, "app.gajae.desktop", "LOCAL"),
+        );
+        invalid_current
+            .code_signatures
+            .insert(20, signature(VALID_SIGNATURE_FLAGS, "foreign", "2DC432GLL"));
+        assert!(prove_absence(&mut invalid_current, &product(), Path::new(APP), None).is_err());
+
+        let mut unstable = Fake::new();
+        unstable
+            .records
+            .insert(20, process(20, 1, 200, "/opt/foreign"));
+        unstable.missing_paths.insert(20);
+        unstable.code_signatures.insert(
+            10,
+            signature(VALID_SIGNATURE_FLAGS, "app.gajae.desktop", "5987KT43TJ"),
+        );
+        unstable.signature_reads.insert(
+            20,
+            VecDeque::from([
+                signature(VALID_SIGNATURE_FLAGS, "foreign", "2DC432GLL"),
+                signature(VALID_SIGNATURE_FLAGS | TEST_CS_HARD, "foreign", "2DC432GLL"),
+            ]),
+        );
+        assert!(prove_absence(&mut unstable, &product(), Path::new(APP), None).is_err());
+
+        let mut reused = Fake::new();
+        reused
+            .records
+            .insert(20, process(20, 1, 200, "/opt/foreign"));
+        reused.missing_paths.insert(20);
+        reused.code_signatures.insert(
+            10,
+            signature(VALID_SIGNATURE_FLAGS, "app.gajae.desktop", "5987KT43TJ"),
+        );
+        reused
+            .code_signatures
+            .insert(20, signature(VALID_SIGNATURE_FLAGS, "foreign", "2DC432GLL"));
+        let mut changed = reused.records[&20].identity;
+        changed.birth.microseconds += 1;
+        reused.reads.insert(
+            20,
+            VecDeque::from([Some(reused.records[&20].identity), Some(changed)]),
+        );
+        assert!(prove_absence(&mut reused, &product(), Path::new(APP), None).is_err());
+
+        let mut required = Fake::new();
+        required.missing_paths.insert(10);
+        assert!(prove_absence(&mut required, &product(), Path::new(APP), None).is_err());
+    }
+
+    #[test]
+    fn deleted_foreign_server_child_is_not_excluded_from_owned_tree() {
+        let mut fake = Fake::with_tree();
+        fake.records.insert(23, process(23, 20, 140, "/opt/codex"));
+        fake.missing_paths.insert(23);
+        fake.code_signatures.insert(
+            10,
+            signature(VALID_SIGNATURE_FLAGS, "app.gajae.desktop", "5987KT43TJ"),
+        );
+        fake.code_signatures
+            .insert(23, signature(VALID_SIGNATURE_FLAGS, "codex", "2DC432GLL"));
+
+        assert!(capture(&mut fake, &product(), 20, 10).is_err());
+
+        let mut required_server = Fake::with_tree();
+        required_server.missing_paths.insert(20);
+        assert!(capture(&mut required_server, &product(), 20, 10).is_err());
     }
 
     const QA_ROOT: &str = "/private/tmp/gjc-updater-owner-qa-fixture";
@@ -2302,7 +2738,10 @@ mod tests {
         assert_eq!(identity.pid, pid);
         assert_eq!(identity.uid, unsafe { libc::geteuid() });
         assert!(identity.birth.seconds > 0 && identity.birth.microseconds < 1_000_000);
-        assert!(probe.executable(pid).unwrap().unwrap().is_absolute());
+        assert!(matches!(
+            probe.executable(pid).unwrap(),
+            Executable::Present(path) if path.is_absolute()
+        ));
         let listing = validated_list(
             &mut probe,
             Selection::Effective(identity.uid),

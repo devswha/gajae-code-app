@@ -1,4 +1,5 @@
 import {
+  boundProviderQuotaWindows,
   clampQuotaPercent,
   representativeQuotaWindow,
   type ProviderQuotaEntry,
@@ -72,7 +73,7 @@ function amountOf(window: ProviderQuotaWindow): string | undefined {
 
 /** Presentation view of every window a provider exposes, in reported order. */
 export function quotaWindowViews(entry: ProviderQuotaEntry, now: number): QuotaWindowView[] {
-  return entry.windows.map((window) => {
+  return boundProviderQuotaWindows(entry.windows).map((window) => {
     const remainingPercent = clampQuotaPercent(window.remainingPercent);
     const amount = amountOf(window);
     const resetsIn = quotaResetCountdown(window.resetAt, now);

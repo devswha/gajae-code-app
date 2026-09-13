@@ -14,6 +14,7 @@
  */
 
 import {
+  boundProviderQuotaWindows,
   clampQuotaPercent,
   providerQuotaDisplayName,
   representativeQuotaWindow,
@@ -77,7 +78,6 @@ export type ProviderQuotaBuildInput = {
  */
 const PLAN_LABEL = /^[A-Za-z0-9][A-Za-z0-9_.+-]{0,23}$/u;
 const WINDOW_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u;
-const MAX_WINDOWS = 8;
 
 const finite = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
@@ -90,6 +90,13 @@ const text = (value: unknown, maxLength: number): string | undefined => {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.replace(/\s+/gu, ' ').trim();
   return trimmed.length > 0 ? trimmed.slice(0, maxLength) : undefined;
+};
+
+/** Identifiers are rejected when oversized; truncating them could merge limits. */
+const identifier = (value: unknown, maxLength: number): string | undefined => {
+  if (typeof value !== 'string' || value.length > maxLength) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 };
 
 /**
@@ -123,9 +130,20 @@ function remainingPercentOf(amount: NonNullable<ProviderUsageLimitLike['amount']
 /** Projects one runtime limit onto the renderer-facing window shape. */
 export function normalizeQuotaWindow(limit: ProviderUsageLimitLike, index: number): ProviderQuotaWindow | null {
   const amount = limit.amount ?? {};
-  const rawId = text(limit.window?.id, 64) ?? text(limit.id, 64) ?? `window-${index}`;
-  const id = WINDOW_ID.test(rawId) ? rawId : `window-${index}`;
-  const label = text(limit.window?.label, 64) ?? text(limit.label, 64) ?? id;
+  const hasLimitId = limit.id !== undefined && limit.id !== null;
+  const limitId = identifier(limit.id, 64);
+  const windowId = identifier(limit.window?.id, 64);
+  const id = limitId !== undefined && WINDOW_ID.test(limitId)
+    ? limitId
+    : hasLimitId
+      ? `window-${index}`
+      : windowId !== undefined && WINDOW_ID.test(windowId)
+        ? windowId
+        : `window-${index}`;
+  // A provider can use one duration id for several model or feature limits;
+  // the limit label is the useful detail in that case (for example an
+  // Antigravity model name or Codex's Spark bucket).
+  const label = text(limit.label, 64) ?? text(limit.window?.label, 64) ?? id;
   const remainingPercent = remainingPercentOf(amount);
   const used = finite(amount.used);
   const amountLimit = finite(amount.limit);
@@ -147,15 +165,11 @@ export function normalizeQuotaWindow(limit: ProviderUsageLimitLike, index: numbe
 export function normalizeQuotaWindows(report: ProviderUsageReportLike): ProviderQuotaWindow[] {
   const limits = Array.isArray(report.limits) ? report.limits : [];
   const windows: ProviderQuotaWindow[] = [];
-  const seen = new Set<string>();
   for (const [index, limit] of limits.entries()) {
     const window = normalizeQuotaWindow(limit, index);
-    if (!window || seen.has(window.id)) continue;
-    seen.add(window.id);
-    windows.push(window);
-    if (windows.length >= MAX_WINDOWS) break;
+    if (window) windows.push(window);
   }
-  return windows;
+  return boundProviderQuotaWindows(windows);
 }
 
 function planOf(report: ProviderUsageReportLike): string | undefined {

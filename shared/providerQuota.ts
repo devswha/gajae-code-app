@@ -25,7 +25,7 @@ export const PROVIDER_QUOTA_REASONS = [
 export type ProviderQuotaReason = (typeof PROVIDER_QUOTA_REASONS)[number];
 
 export type ProviderQuotaWindow = {
-  /** Stable id for this window within its provider (for example `5h`, `7d`). */
+  /** Stable id for this reported limit within its provider (for example `5h`, `7d`). */
   id: string;
   label: string;
   /** Already clamped to 0-100 when the provider expressed a proportion. */
@@ -119,6 +119,34 @@ export function representativeQuotaWindow(
 }
 
 /**
+ * Bounds a provider's detail windows without losing the limit that drives the
+ * ring. The first seven entries keep the tooltip order stable; when the
+ * limiting entry is later in the report, it occupies the final slot. Duplicate
+ * ids are discarded before the bound so renderer keys remain unique and the
+ * same reported limit cannot appear twice in the tooltip.
+ */
+export function boundProviderQuotaWindows(
+  windows: readonly ProviderQuotaWindow[] | undefined,
+): ProviderQuotaWindow[] {
+  const unique: ProviderQuotaWindow[] = [];
+  const seen = new Set<string>();
+  for (const window of windows ?? []) {
+    if (seen.has(window.id)) continue;
+    seen.add(window.id);
+    unique.push(window);
+  }
+
+  if (unique.length <= MAX_WINDOWS) return unique;
+
+  const bounded = unique.slice(0, MAX_WINDOWS);
+  const limiting = representativeQuotaWindow(unique);
+  if (limiting && bounded.every((window) => window.id !== limiting.id)) {
+    bounded[MAX_WINDOWS - 1] = limiting;
+  }
+  return bounded;
+}
+
+/**
  * Ring value for one provider. Only `ok` carries a quota proportion:
  * `unsupported`, `reauth` and `error` must never be rendered as a low quota.
  */
@@ -173,10 +201,9 @@ function parseEntry(value: unknown): ProviderQuotaEntry | null {
   const reason = typeof value.reason === 'string' && (PROVIDER_QUOTA_REASONS as readonly string[]).includes(value.reason)
     ? value.reason as ProviderQuotaReason
     : undefined;
-  const windows = (Array.isArray(value.windows) ? value.windows : [])
+  const windows = boundProviderQuotaWindows((Array.isArray(value.windows) ? value.windows : [])
     .map(parseWindow)
-    .filter((window): window is ProviderQuotaWindow => window !== null)
-    .slice(0, MAX_WINDOWS);
+    .filter((window): window is ProviderQuotaWindow => window !== null));
   const accounts = readFinite(value.accounts);
   return {
     provider,

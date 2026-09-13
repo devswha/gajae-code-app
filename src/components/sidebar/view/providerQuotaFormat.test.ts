@@ -54,6 +54,28 @@ test('the detail view keeps every window with its own countdown', () => {
   assert.deepEqual(views.map((view) => view.resetsIn), ['2h 14m', '2d 2h']);
 });
 
+test('the tooltip stays bounded while retaining a later limiting window', () => {
+  const windows = Array.from({ length: 9 }, (_, index) => ({
+    id: `bucket-${index}`,
+    label: `Bucket ${index + 1}`,
+    remainingPercent: index === 8 ? 0 : 100,
+  }));
+  const views = quotaWindowViews(entry({ windows }), NOW);
+
+  assert.equal(views.length, 8);
+  assert.deepEqual(views.map((view) => view.label), [
+    'Bucket 1',
+    'Bucket 2',
+    'Bucket 3',
+    'Bucket 4',
+    'Bucket 5',
+    'Bucket 6',
+    'Bucket 7',
+    'Bucket 9',
+  ]);
+  assert.equal(quotaRingPercent(entry({ windows })), 0);
+});
+
 test('non-ok states carry no ring value', () => {
   for (const status of ['unsupported', 'reauth', 'error'] satisfies ProviderQuotaStatus[]) {
     const candidate = entry({ status });

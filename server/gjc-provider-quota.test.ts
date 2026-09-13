@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { representativeRemainingPercent, type ProviderQuotaSnapshot } from '../shared/providerQuota.js';
+import { parseProviderQuotaSnapshot, representativeRemainingPercent, type ProviderQuotaSnapshot } from '../shared/providerQuota.js';
 
 import {
   buildProviderQuotaSnapshot,
@@ -88,6 +88,89 @@ test('every window stays independently addressable for the detail view', async (
   assert.equal(windows[0]?.resetAt, new Date(NOW + 2 * 3_600_000).toISOString());
   assert.equal(windows[1]?.remainingPercent, 41);
   assert.equal(windows[1]?.resetAt, new Date(NOW + 26 * 3_600_000).toISOString());
+});
+
+test('a later exhausted window survives the bounded detail projection', async () => {
+  const limits = Array.from({ length: 9 }, (_, index) => limit({
+    id: `anthropic:bucket-${index}`,
+    label: `Bucket ${index + 1}`,
+    window: { id: `${index + 1}h`, label: `${index + 1} hour` },
+    amount: { remainingFraction: index === 8 ? 0 : 1, unit: 'percent' },
+  }));
+
+  const snapshot = await build([row()], async () => [report('anthropic', limits)]);
+  const entry = entryFor(snapshot, 'anthropic')!;
+
+  assert.equal(entry.windows.length, 8, 'the detail DTO remains bounded');
+  assert.deepEqual(
+    entry.windows.map((window) => window.id),
+    [
+      'anthropic:bucket-0',
+      'anthropic:bucket-1',
+      'anthropic:bucket-2',
+      'anthropic:bucket-3',
+      'anthropic:bucket-4',
+      'anthropic:bucket-5',
+      'anthropic:bucket-6',
+      'anthropic:bucket-8',
+    ],
+    'the first seven entries stay in order and the limiting tail entry fills the final slot',
+  );
+  assert.equal(representativeRemainingPercent(entry), 0, 'the ring must see the exhausted ninth limit');
+});
+
+test('distinct limits sharing a duration keep their identity and useful labels', async () => {
+  const snapshot = await build(
+    [row({ provider: 'google-antigravity' })],
+    async () => [report('google-antigravity', [
+      limit({
+        id: 'gemini-pro:default:5h',
+        label: 'Gemini Pro',
+        window: { id: '5h', label: '5 hour' },
+        amount: { remainingFraction: 0.9, unit: 'percent' },
+      }),
+      limit({
+        id: 'gemini-flash:default:5h',
+        label: 'Gemini Flash',
+        window: { id: '5h', label: '5 hour' },
+        amount: { remainingFraction: 0.05, unit: 'percent' },
+      }),
+    ])],
+  );
+
+  const entry = entryFor(snapshot, 'google-antigravity')!;
+  assert.deepEqual(entry.windows.map((window) => window.id), ['gemini-pro:default:5h', 'gemini-flash:default:5h']);
+  assert.deepEqual(entry.windows.map((window) => window.label), ['Gemini Pro', 'Gemini Flash']);
+  assert.equal(representativeRemainingPercent(entry), 5, 'the tighter model limit must drive the ring');
+});
+
+test('unsafe limit ids use unique fallbacks instead of collapsing shared windows', () => {
+  const windows = normalizeQuotaWindows(report('anthropic', [
+    limit({
+      id: 'a'.repeat(65),
+      label: 'First model',
+      window: { id: '5h', label: '5 hour' },
+      amount: { remainingFraction: 0.8, unit: 'percent' },
+    }),
+    limit({
+      id: 'b'.repeat(65),
+      label: 'Second model',
+      window: { id: '5h', label: '5 hour' },
+      amount: { remainingFraction: 0.1, unit: 'percent' },
+    }),
+  ]));
+
+  assert.deepEqual(windows.map((window) => window.id), ['window-0', 'window-1']);
+  assert.deepEqual(windows.map((window) => window.label), ['First model', 'Second model']);
+  assert.equal(representativeRemainingPercent({
+    provider: 'anthropic',
+    providerName: 'Claude',
+    accounts: 1,
+    windows,
+    status: 'ok',
+    stale: false,
+    fetchedAt: new Date(NOW).toISOString(),
+  }), 10);
 });
 
 test('out-of-range provider percentages are clamped into 0-100', () => {
@@ -253,6 +336,45 @@ test('a provider with several accounts is represented by the one with most headr
   const entry = entryFor(snapshot, 'anthropic')!;
   assert.equal(representativeRemainingPercent(entry), 81, 'the runtime would route to the account with headroom');
   assert.equal(entry.accounts, 2);
+});
+
+test('account selection sees a limiting window beyond the detail bound', async () => {
+  const limitsFor = (tailRemaining: number, label: string) => Array.from({ length: 9 }, (_, index) => limit({
+    id: `anthropic:${label}-${index}`,
+    label: `${label} ${index + 1}`,
+    window: { id: `${label}-${index}`, label: `${label} ${index + 1}` },
+    amount: { remainingFraction: index === 8 ? tailRemaining : 1, unit: 'percent' },
+  }));
+
+  const snapshot = await build(
+    [row(), row()],
+    async () => [
+      report('anthropic', limitsFor(0, 'exhausted')),
+      report('anthropic', limitsFor(0.2, 'headroom')),
+    ],
+  );
+
+  const entry = entryFor(snapshot, 'anthropic')!;
+  assert.equal(entry.accounts, 2);
+  assert.equal(entry.windows.at(-1)?.label, 'headroom 9', 'the account with actual headroom is selected');
+  assert.equal(representativeRemainingPercent(entry), 20);
+});
+
+test('the bounded wire DTO round-trips its limiting window', async () => {
+  const limits = Array.from({ length: 9 }, (_, index) => limit({
+    id: `anthropic:wire-${index}`,
+    label: `Wire ${index + 1}`,
+    window: { id: `wire-${index}`, label: `Wire ${index + 1}` },
+    amount: { remainingFraction: index === 8 ? 0 : 1, unit: 'percent' },
+  }));
+  const snapshot = await build([row()], async () => [report('anthropic', limits)]);
+  const parsed = parseProviderQuotaSnapshot(JSON.parse(JSON.stringify(snapshot)));
+  const entry = parsed?.providers[0];
+
+  assert.ok(entry);
+  assert.equal(entry.windows.length, 8);
+  assert.equal(entry.windows.at(-1)?.id, 'anthropic:wire-8');
+  assert.equal(representativeRemainingPercent(entry), 0);
 });
 
 test('an observation older than the runtime fresh window is marked stale', async () => {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
-import { builtinBrowserFailure, hasBuiltinBrowserBridge, openBuiltinBrowser } from './builtinBrowser.js';
+import { builtinBrowserFailure, builtinBrowserOwnerId, hasBuiltinBrowserBridge, openBuiltinBrowser } from './builtinBrowser.js';
 
 const originalWindow = globalThis.window;
 const originalFetch = globalThis.fetch;
@@ -63,4 +63,11 @@ test('fixed native failure codes map to stable user-facing categories', () => {
   assert.equal(builtinBrowserFailure(new Error('invalid_url: unsupported protocol')), 'invalidUrl');
   assert.equal(builtinBrowserFailure(new Error('builtin_browser_stale_document')), 'stale');
   assert.equal(builtinBrowserFailure(new Error('private low-level detail')), 'failed');
+});
+
+test('built-in browser owner uses the selected session or selected project scope', () => {
+  assert.equal(builtinBrowserOwnerId('project-a', 'session-a'), 'session-a');
+  assert.equal(builtinBrowserOwnerId('project-a', null), 'project-project-a');
+  assert.equal(builtinBrowserOwnerId('project-a', undefined), 'project-project-a');
+  assert.equal(builtinBrowserOwnerId(null, null), undefined);
 });

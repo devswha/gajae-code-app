@@ -67,6 +67,22 @@ test('unregistering a superseded owner does not clobber the current one', () => 
   assert.deepEqual(calls, ['second']);
 });
 
+test('built-in and external browser actions stay separate in the registry', () => {
+  const calls: string[] = [];
+  const ops = usePaletteOps();
+  registerPaletteOps({
+    openBuiltinBrowser: (url) => calls.push(`builtin:${url}`),
+    openExternalUrl: (url) => calls.push(`external:${url}`),
+  });
+
+  ops.openBuiltinBrowser('https://example.com/builtin');
+  ops.openExternalUrl('https://example.com/external');
+  assert.deepEqual(calls, [
+    'builtin:https://example.com/builtin',
+    'external:https://example.com/external',
+  ]);
+});
+
 test('usePaletteOpsRegister registers on mount and restores on unmount', () => {
   const calls: string[] = [];
   const ops = usePaletteOps();

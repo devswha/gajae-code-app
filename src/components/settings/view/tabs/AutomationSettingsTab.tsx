@@ -3,7 +3,8 @@ import { ExternalLink, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useAppShellStore } from '../../../../stores/useAppShellStore';
-import { builtinBrowserFailure, hasBuiltinBrowserBridge, openBuiltinBrowser } from '../../../../utils/builtinBrowser';
+import { builtinBrowserFailure, builtinBrowserOwnerId, hasBuiltinBrowserBridge, openBuiltinBrowser } from '../../../../utils/builtinBrowser';
+import { BROWSER_BACKENDS, isBrowserBackend, type BrowserBackend } from '../../browserBackends';
 import SettingsCard from '../SettingsCard';
 import SettingsRow from '../SettingsRow';
 import SettingsSection from '../SettingsSection';
@@ -21,15 +22,7 @@ type Grants = {
   always: { origins: string[]; applications: string[] };
 };
 
-/** Mirrors `GJC_BROWSER_BACKENDS` in server/gjc-browser-backend.ts; the server rejects anything else. */
-const BROWSER_BACKENDS = ['builtin', 'aside', 'ego'] as const;
-type BrowserBackend = typeof BROWSER_BACKENDS[number];
-
 const selectClass = 'touch-manipulation rounded-lg border border-input bg-card p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary';
-
-function isBrowserBackend(value: unknown): value is BrowserBackend {
-  return typeof value === 'string' && (BROWSER_BACKENDS as readonly string[]).includes(value);
-}
 
 export default function AutomationSettingsTab() {
   const { t } = useTranslation('settings');
@@ -39,7 +32,9 @@ export default function AutomationSettingsTab() {
   const [browserBackend, setBrowserBackend] = useState<BrowserBackend | null>(null);
   const [browserBackendError, setBrowserBackendError] = useState<string | null>(null);
   const [builtinBrowserStatus, setBuiltinBrowserStatus] = useState<string | null>(null);
+  const selectedProjectId = useAppShellStore((state) => state.selectedProject?.projectId);
   const selectedSessionId = useAppShellStore((state) => state.selectedSession?.id);
+  const builtinBrowserOwner = builtinBrowserOwnerId(selectedProjectId, selectedSessionId);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -111,9 +106,9 @@ export default function AutomationSettingsTab() {
               onChange={(event) => { if (isBrowserBackend(event.target.value)) void changeBrowserBackend(event.target.value); }}
               className={`${selectClass} sm:w-48`}
             >
-              <option value="builtin">{t('automation.browserBackend.builtin')}</option>
-              <option value="aside">{t('automation.browserBackend.aside')}</option>
-              <option value="ego">{t('automation.browserBackend.ego')}</option>
+              {BROWSER_BACKENDS.map((backend) => (
+                <option key={backend} value={backend}>{t(`automation.browserBackend.${backend}`)}</option>
+              ))}
             </select>
           </SettingsRow>
           {browserBackend === 'aside' ? (
@@ -136,11 +131,15 @@ export default function AutomationSettingsTab() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  disabled={status?.capabilities?.browser !== true}
+                  disabled={status?.capabilities?.browser !== true || !builtinBrowserOwner}
                   className="rounded-lg border border-input px-3 py-2 text-xs text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => {
                     setBuiltinBrowserStatus(null);
-                    void openBuiltinBrowser(selectedSessionId ?? 'manual').then(
+                    if (!builtinBrowserOwner) {
+                      setBuiltinBrowserStatus(t('automation.builtinBrowser.errors.unavailable'));
+                      return;
+                    }
+                    void openBuiltinBrowser(builtinBrowserOwner).then(
                       () => setBuiltinBrowserStatus(t('automation.builtinBrowser.opened')),
                       (error) => setBuiltinBrowserStatus(t(`automation.builtinBrowser.errors.${builtinBrowserFailure(error)}`)),
                     );

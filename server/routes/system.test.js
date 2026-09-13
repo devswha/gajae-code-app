@@ -55,7 +55,7 @@ test('open-file rejects relative and non-string paths', async () => {
   }
 });
 
-test('Workspace Browser opens HTTP and HTTPS pages but never arbitrary executable schemes', async () => {
+test('the external browser opener accepts HTTP and HTTPS pages but never arbitrary executable schemes', async () => {
   const opened = [];
   const server = await serve(async target => { opened.push(target); });
   try {

@@ -8,6 +8,17 @@ type TauriWindow = Window & { __TAURI__?: { core?: { invoke?: TauriInvoke } }; _
 export type { BuiltinBrowserState };
 export type BuiltinBrowserFailure = 'busy' | 'failed' | 'invalidUrl' | 'stale' | 'unavailable';
 
+/**
+ * Keep manual built-in launches in the same owner namespace as the main chat
+ * surface: a selected session owns the window, otherwise its project does.
+ */
+export function builtinBrowserOwnerId(
+  projectId: string | null | undefined,
+  sessionId: string | null | undefined,
+): string | undefined {
+  return sessionId ?? (projectId ? `project-${projectId}` : undefined);
+}
+
 export function hasBuiltinBrowserBridge(): boolean {
   if (typeof window === 'undefined') return false;
   const scope = window as TauriWindow;

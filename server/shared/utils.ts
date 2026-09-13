@@ -22,11 +22,13 @@ import type {
 } from '@/shared/types.js';
 
 type GjcRuntimeModelCatalogLoader = () => Promise<unknown>;
+type GjcRuntimeProviderQuotaLoader = () => Promise<unknown>;
 type NormalizedMessageInput = { kind: NormalizedMessage['kind']; provider: NormalizedMessage['provider']; id?: string | null; sessionId?: string | null; timestamp?: string | null } & Record<string, unknown>;
 type ProviderSessionActiveModelChangeCacheEntry = ProviderSessionActiveModelChange & { updatedAt: string };
 type ProviderSessionActiveModelChangeCacheFile = { version: number; entries: Record<string, ProviderSessionActiveModelChangeCacheEntry> };
 
 let catalogReader: GjcRuntimeModelCatalogLoader | undefined;
+let providerQuotaReader: GjcRuntimeProviderQuotaLoader | undefined;
 const CACHE_FORMAT = 1;
 
 export function registerGjcRuntimeModelCatalogLoader(loader: GjcRuntimeModelCatalogLoader): void {
@@ -37,6 +39,16 @@ export function loadGjcRuntimeModelCatalog(): Promise<unknown> {
   return catalogReader
     ? catalogReader()
     : Promise.reject(new Error('GJC runtime model catalog is unavailable.'));
+}
+
+export function registerGjcRuntimeProviderQuotaLoader(loader: GjcRuntimeProviderQuotaLoader): void {
+  providerQuotaReader = loader;
+}
+
+export function loadGjcRuntimeProviderQuota(): Promise<unknown> {
+  return providerQuotaReader
+    ? providerQuotaReader()
+    : Promise.reject(new Error('GJC runtime provider quota is unavailable.'));
 }
 
 export function createApiSuccessResponse<TData>(data: TData): ApiSuccessShape<TData> {

@@ -1,6 +1,8 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useWebSocket } from '../../../contexts/WebSocketContext';
+import { refreshProviderQuota } from '../../../hooks/useProviderQuota';
 import { openExternalUrl, safeExternalUrl } from '../../../utils/externalLink';
 
 type UnknownRecord = Record<string, unknown>;
@@ -231,6 +233,7 @@ export function openOAuthAuthorizationUrl(value: unknown): Promise<boolean> {
 
 export function useOAuthLogin() {
   const { sendMessage, subscribe, isConnected } = useWebSocket();
+  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [providers, setProviders] = useState<OAuthProvider[]>([]);
   const [isLoadingProviders, setIsLoadingProviders] = useState(false);
@@ -327,7 +330,16 @@ export function useOAuthLogin() {
     } else if (nextAttempt.phase !== 'cancelled') {
       setFailure(null);
     }
-  }, []);
+    if (nextAttempt.phase === 'completed') {
+      // A sign-in changes both the connected provider set and the credential
+      // whose quota is cached. Closing this dialog raises no window focus
+      // event, so the ambient quota row is told here instead of waiting for
+      // its next scheduled read.
+      void refreshProviderQuota(queryClient).catch(() => {
+        // The indicator keeps its previous reading; sign-in already succeeded.
+      });
+    }
+  }, [queryClient]);
 
   const consumeFrame = useCallback((event: unknown) => {
     const frame = asRecord(event);

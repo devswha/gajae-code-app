@@ -145,6 +145,10 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ olderThanDays, dryRun }),
     }),
+  // Normalized provider quota DTO; carries no credential material. The backend
+  // accepts only the literal `true`/`false` spelling for boolean query flags.
+  providerQuota: (options: { refresh?: boolean } = {}) =>
+    authenticatedFetch(`/api/providers/quota${options.refresh ? '?refresh=true' : ''}`),
   runningSessions: () =>
     authenticatedFetch('/api/providers/sessions/running'),
   restoreSession: (sessionId: string) =>

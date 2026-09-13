@@ -202,6 +202,28 @@ test('fixture: repeated restart attempts stay individually attributable and stay
   assert.ok(children.every((child) => child.killed >= 0));
 });
 
+test('fixture: an expected native close is not classified as a child failure', async (t) => {
+  keepAlive(t);
+  const children: FakeChild[] = [];
+  const client = new GjcNativeClient('git', options(() => {
+    const child = new FakeChild();
+    children.push(child);
+    return child;
+  }, { corePath: 'C:\\Users\\alice\\My Project\\gajae-core' }));
+  const starting = client.start();
+  const child = children[0]!;
+  child.emitStdout('{"protocolVersion":1,"kind":"ready"}\n');
+  await starting;
+
+  client.close();
+  // The process exit caused by close() is expected and must not become the
+  // latest failure category after the client has been deliberately retired.
+  child.emit('exit', 0, null);
+  const evidence = client.evidence();
+  assert.deepEqual(evidence.map((event) => event.stage), ['spawn', 'ready', 'closed']);
+  assert.equal(evidence[0]?.detail, 'gajae-core');
+});
+
 test('fixture: an invalid protocol frame is recorded as a protocol failure', async (t) => {
   keepAlive(t);
   const children: FakeChild[] = [];
@@ -247,7 +269,10 @@ test('the jobs client keeps its exact message and code while carrying the eviden
 
 test('path redaction covers posix and windows paths without eating ordinary prose', () => {
   assert.equal(redactPaths('opened /Users/someone/.gajae-app/jobs.db'), 'opened <path>');
-  assert.equal(redactPaths('opened C:\\\\Users\\\\someone\\\\jobs.db'), 'opened <path>');
+  assert.equal(redactPaths('opened C:\\Users\\someone\\jobs.db'), 'opened <path>');
+  assert.equal(redactPaths('opened C:\\Users\\alice\\My Project\\jobs.db'), 'opened <path>');
+  assert.equal(redactPaths('opened C:\\Users\\álîçé\\repo\\jobs.db'), 'opened <path>');
+  assert.equal(redactPaths('opened \\\\server\\share\\My Project\\jobs.db'), 'opened <path>');
   assert.equal(redactPaths('no path here at all'), 'no path here at all');
   assert.equal(redactPaths('ratio 3/4 and a/b'), 'ratio 3/4 and a/b');
 });

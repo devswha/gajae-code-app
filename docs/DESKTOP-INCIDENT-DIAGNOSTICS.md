@@ -31,6 +31,8 @@ Written by `src-tauri/src/diagnostics.rs`.
   - QA profile: `<qa home>/.gajae-app/desktop-startup.jsonl`
 - **Bound**: 64 KiB, truncating. Mode `0600`, `O_NOFOLLOW`, refuses non-regular,
   hard-linked or foreign-owned files.
+- The app-local root is created and validated before the first lifecycle record;
+  an existing root must be a real, owner-controlled directory.
 - **Never blocks**: the writer uses `try_lock` and skips rather than waiting.
 
 One JSON object per line:
@@ -53,6 +55,10 @@ Failure categories are closed: `startup_cancelled`, `startup_timeout`,
 `sidecar_stream_failed`, `sidecar_spawn_failed`, `payload_unverified`,
 `desktop_origin_invalid`, `credential_unavailable`, `navigation_failed`,
 `cleanup_unconfirmed`, `shutdown_failed`, plus `unclassified`.
+
+A blocking shutdown writes `shutdown-settled` only after the sidecar exit is
+confirmed. If its bounded wait expires, it writes a `shutdown_failed` failure
+instead and does not claim that shutdown settled.
 
 Reading a suspected port incident:
 
@@ -111,7 +117,7 @@ All deterministic, isolated, and hermetic. No fixture starts a real
 | 2 | Native client spawn failure | `server/services/gjc-native-diagnostics.test.ts` — "fixture: native client spawn failure…" |
 | 3 | Native client readiness timeout | `server/services/gjc-native-diagnostics.test.ts` — "fixture: native client readiness timeout…" |
 | 4 | Repeated Retry attempts | `server/services/server-listener.test.ts` — "reproduction: repeated retries…"; `src-tauri/src/diagnostics.rs` — `repeated_retry_attempts_stay_individually_attributable` |
-| 5 | Lifecycle/shutdown diagnostic preservation | `src-tauri/src/diagnostics.rs` — `shutdown_progress_survives_a_failed_startup_in_the_same_log` |
+| 5 | Lifecycle/shutdown diagnostic preservation | `src-tauri/src/diagnostics.rs` — `shutdown_progress_survives_a_failed_startup_in_the_same_log`, `startup_creates_a_missing_root_before_the_first_record`; `src-tauri/src/lifecycle.rs` — `blocking_shutdown_wait_reports_an_unconfirmed_timeout` |
 
 Run them:
 

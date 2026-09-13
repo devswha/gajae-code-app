@@ -178,7 +178,7 @@ export class GjcNativeClient {
       this.changed();
       this.input = Buffer.alloc(0);
       this.stderrBytes = 0;
-      this.diagnostics.record('spawn', generation, corePath.slice(corePath.lastIndexOf('/') + 1));
+      this.diagnostics.record('spawn', generation, corePath.replace(/^.*[\\/]/u, ''));
       child.stdout.on('data', (chunk) => this.onData(child, generation, chunk));
       // The native binary's stderr was previously discarded outright, which
       // erased every panic and startup fault behind the generic failure.
@@ -208,11 +208,13 @@ export class GjcNativeClient {
   }
 
   private record(stage: Parameters<NativeDiagnostics['record']>[0], generation: number, detail?: string): void {
-    if (generation === this.generation) this.diagnostics.record(stage, generation, detail);
+    // close() deliberately retires the child; its resulting exit/error events
+    // are expected and must not turn a clean shutdown into a failure record.
+    if (!this.closed && generation === this.generation) this.diagnostics.record(stage, generation, detail);
   }
 
   private onStderr(generation: number, chunk: Buffer | Uint8Array): void {
-    if (generation !== this.generation || this.stderrBytes >= MAX_STDERR_BYTES) return;
+    if (this.closed || generation !== this.generation || this.stderrBytes >= MAX_STDERR_BYTES) return;
     const text = Buffer.from(chunk).toString('utf8');
     this.stderrBytes += Buffer.byteLength(text, 'utf8');
     this.diagnostics.record('stderr', generation, text.trim());

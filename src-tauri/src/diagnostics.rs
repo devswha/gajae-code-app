@@ -189,8 +189,12 @@ impl Startup {
     }
 
     pub(crate) fn bind_root(&self, root: &Path) {
+        // Prepare the directory before the first lifecycle stage. A normal
+        // fresh install has no app-local-data directory yet, so relying on the
+        // later persisted desktop-port file would lose every pre-ready record.
+        let root = prepare_root(root).unwrap_or_else(|_| root.to_path_buf());
         if let Ok(mut slot) = self.root.lock() {
-            *slot = Some(root.to_path_buf());
+            *slot = Some(root);
         }
     }
 
@@ -296,6 +300,7 @@ pub(crate) fn append_bounded(root: &Path, name: &str, record: &str) -> std::io::
     let Ok(_guard) = WRITER.try_lock() else {
         return Ok(());
     };
+    let root = prepare_root(root)?;
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -315,8 +320,52 @@ pub(crate) fn append_bounded(root: &Path, name: &str, record: &str) -> std::io::
 }
 
 #[cfg(not(unix))]
-pub(crate) fn append_bounded(_root: &Path, _name: &str, _record: &str) -> std::io::Result<()> {
+pub(crate) fn append_bounded(root: &Path, _name: &str, _record: &str) -> std::io::Result<()> {
+    let _ = prepare_root(root)?;
     Ok(())
+}
+
+/// Create and validate the app-local diagnostics root before any record is
+/// appended. The final directory must be real, owned by this process and not
+/// group/world writable; a symlink at the root itself is rejected rather than
+/// followed. Return the canonical path so later writes do not use an alias.
+fn prepare_root(root: &Path) -> std::io::Result<PathBuf> {
+    use std::io::ErrorKind;
+
+    if !root.is_absolute() {
+        return Err(std::io::Error::new(
+            ErrorKind::InvalidInput,
+            "Diagnostic root must be absolute",
+        ));
+    }
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    match builder.create(root) {
+        Ok(()) => {}
+        Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(error),
+    }
+
+    let metadata = std::fs::symlink_metadata(root)?;
+    if !metadata.is_dir() {
+        return Err(std::io::Error::other("Diagnostic root is not a directory"));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if metadata.uid() != unsafe { libc::geteuid() } || metadata.mode() & 0o022 != 0 {
+            return Err(std::io::Error::other(
+                "Diagnostic root is group/world writable or foreign-owned",
+            ));
+        }
+    }
+    let canonical = root.canonicalize()?;
+    Ok(canonical)
 }
 
 /// `append_bounded` deliberately skips its write when another thread already
@@ -511,6 +560,30 @@ mod tests {
             "message text must not leak"
         );
         assert!(!text.contains("/Users/"), "paths must not leak");
+    }
+
+    #[test]
+    fn startup_creates_a_missing_root_before_the_first_record() {
+        let _serial = serialize_writer();
+        let parent = Temp::new();
+        let root = parent.0.join("nested").join("app-data");
+        assert!(!root.exists());
+
+        let startup = Startup::default();
+        startup.bind_root(&root);
+        startup.begin();
+        startup.emit("start-requested", None, None, None);
+
+        assert!(root.is_dir());
+        assert_eq!(records(&root).len(), 1);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                std::fs::metadata(&root).unwrap().permissions().mode() & 0o777,
+                0o700
+            );
+        }
     }
 
     #[test]

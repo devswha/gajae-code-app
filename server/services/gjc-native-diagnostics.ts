@@ -44,8 +44,10 @@ const isFailure = (stage: NativeStage): boolean => FAILURE_STAGES.includes(stage
 
 const MAX_EVENTS = 32;
 const MAX_DETAIL = 200;
-/** Absolute POSIX/Windows paths, reduced to a fixed placeholder. */
-const ABSOLUTE_PATH = /(?:[A-Za-z]:)?(?:\/|\\\\)(?:[\w.@+-]+(?:\/|\\\\)){1,}[\w.@+-]*/gu;
+/** Absolute paths, including spaces, Unicode names and single Windows slashes. */
+const WINDOWS_DRIVE_PATH = /[A-Za-z]:[\\/](?:[^<>:"'`|?*\r\n\/\\]+[\\/])*[^<>:"'`|?*\r\n\/\\]+/gu;
+const UNC_PATH = /(?:\\\\|\/\/)(?:[^<>:"'`|?*\r\n\/\\]+[\\/])+[^<>:"'`|?*\r\n\/\\]+/gu;
+const POSIX_PATH = /(?<![\p{L}\p{N}_:\/\\])\/(?:[^<>:"'`|?*\r\n\/\\]+\/)*[^<>:"'`|?*\r\n\/\\]+/gu;
 
 /**
  * Replace absolute filesystem paths with `<path>`. The native binary's stderr
@@ -53,7 +55,10 @@ const ABSOLUTE_PATH = /(?:[A-Za-z]:)?(?:\/|\\\\)(?:[\w.@+-]+(?:\/|\\\\)){1,}[\w.
  * the surrounding message is what identifies the fault, not the location.
  */
 export function redactPaths(text: string): string {
-  return text.replace(ABSOLUTE_PATH, '<path>');
+  return text
+    .replace(UNC_PATH, '<path>')
+    .replace(WINDOWS_DRIVE_PATH, '<path>')
+    .replace(POSIX_PATH, '<path>');
 }
 
 /** Reduce a spawn/stream error to its errno-style code, never its message. */

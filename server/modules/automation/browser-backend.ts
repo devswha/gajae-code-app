@@ -14,6 +14,9 @@ import { appConfigDb } from '@/modules/database/index.js';
  * runtime hides the built-in browser tool and routes browser work through the
  * user-installed Aside CLI. The app stores only the choice; the routing, the
  * Aside skill and the CLI discovery all belong to the runtime.
+ * `ego` (PoC) hides every built-in browser tool and routes browser work through
+ * the user-installed `ego-browser` CLI (ego lite) with an app-owned routing
+ * block, because the runtime has no ego backend of its own.
  */
 const CONFIG_KEY = 'automation.browserBackend.v1';
 

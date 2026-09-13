@@ -133,6 +133,9 @@
       "builtinDescription": "Il browser integrato è disponibile nell’app desktop macOS supportata.",
       "asideDescription": "Il backend Aside di GJC: lo strumento browser integrato viene nascosto e il lavoro nel browser passa attraverso la CLI Aside installata, nel tuo browser con accesso effettuato.",
       "asideNote": "Richiede la CLI Aside installata da te (~/.local/bin/aside o l'app Aside CLI). Finché Aside è selezionato, una sessione che non la trova non si avvia invece di ripiegare sul browser nativo. Torna a Nativo per ripristinare il browser integrato.",
+      "ego": "ego lite (sperimentale)",
+      "egoDescription": "Browser ego lite: lo strumento browser integrato è nascosto e il lavoro nel browser passa dalla CLI ego-browser installata, nel tuo browser già autenticato, in uno Space dedicato.",
+      "egoNote": "Richiede ego lite installato da te (https://lite.ego.app; l’onboarding registra ~/.local/bin/ego-browser) e la sua skill ego-browser. Finché ego lite è selezionato, una sessione che non trova la CLI non si avvia invece di ripiegare su Integrato. Scegli Integrato solo dove è disponibile.",
       "saveFailed": "Impossibile salvare il backend del browser."
     },
     "builtinBrowser": { "title": "Browser integrato", "description": "Apre il browser dell’app macOS.", "label": "Browser integrato", "note": "Disponibile solo nell’app macOS.", "open": "Apri browser", "opened": "Browser integrato aperto.", "failed": "Impossibile aprire il browser.", "errors": { "busy": "Il browser integrato è già in uso. Chiudilo prima di aprirlo per questa sessione.", "unavailable": "Il browser integrato non è disponibile. Attendi che il server dell’app si riconnetta e riprova.", "invalidUrl": "Questo indirizzo non può essere aperto. Usa un indirizzo HTTP o HTTPS.", "stale": "La pagina del browser è cambiata prima del completamento della richiesta. Riprova.", "failed": "Impossibile aprire il browser integrato. Riprova." } },

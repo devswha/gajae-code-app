@@ -133,6 +133,9 @@
       "builtinDescription": "The built-in browser is available in the supported macOS desktop app.",
       "asideDescription": "GJC's Aside backend: the built-in browser tool is hidden and browser work runs through your installed Aside CLI in your own logged-in browser.",
       "asideNote": "Requires the Aside CLI you installed yourself (~/.local/bin/aside or the Aside CLI app). While Aside is selected, a session that cannot find it fails to start instead of falling back to Built-in. Choose Built-in only where it is available.",
+      "ego": "ego lite (Experimental)",
+      "egoDescription": "ego lite browser: the built-in browser tool is hidden and browser work runs through your installed ego-browser CLI in your own logged-in browser, in its own Space.",
+      "egoNote": "Requires ego lite you installed yourself (https://lite.ego.app; onboarding registers ~/.local/bin/ego-browser) and its ego-browser skill. While ego lite is selected, a session that cannot find the CLI fails to start instead of falling back to Built-in. Choose Built-in only where it is available.",
       "saveFailed": "The browser backend could not be saved."
     },
     "builtinBrowser": {

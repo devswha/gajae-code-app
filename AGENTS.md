@@ -203,16 +203,21 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   on the actual patch and a current review, not an unconditional advisory skip.
   Its archive-only protection is not a sandbox against concurrent local writers.
 - **Browser choice and native surface**: `Settings > Automation >
-  Browser backend` (`builtin` default, `aside` experimental) writes GJC's own
-  `browser.backend` setting on the per-run settings clone and withholds the app's
-  built-in browser transport when the runtime hides its built-in tool. GJC owns
-  the Aside routing prompt, the repl/exec policy, the CLI discovery and the
-  user-installed `aside` skill. Do not add an Aside tool, prompt, skill copy, MCP
-  server or fallback in the app; a missing Aside CLI fails the run
-  (`aside_unavailable`) instead of falling back to Built-in. Built-in is macOS
-  desktop-only; see `docs/BUILTIN-BROWSER.md`. See
-  `docs/BROWSER-ASIDE-POC.md` and the "Browser backend" section of
-  `server/GJC-LIVE-SPEC.md`.
+  Browser backend` (`builtin` default, `aside` and `ego` experimental) writes
+  GJC's own `browser.backend` setting on the per-run settings clone and withholds
+  the app's built-in browser transport when the runtime hides its built-in tool.
+  GJC owns the Aside routing prompt, the repl/exec policy, the CLI discovery and
+  the user-installed `aside` skill. Do not add an Aside tool, prompt, skill copy,
+  MCP server or fallback in the app; a missing Aside CLI fails the run
+  (`aside_unavailable`) instead of falling back to Built-in. `ego` (ego lite,
+  PoC) is the exception the runtime does not know: the app owns its CLI probe
+  (`probeEgoBrowserCli`) and one `<browser-backend>` routing block
+  (`GJC_EGO_BROWSER_INSTRUCTIONS`), keeps the runtime on `native` with
+  `browser.enabled=false`, and fails a run without the CLI (`ego_unavailable`);
+  the API reference is the user-installed `ego-browser` skill, never a copy in
+  the app. Built-in is macOS desktop-only; see `docs/BUILTIN-BROWSER.md`. See
+  `docs/BROWSER-ASIDE-POC.md`, `docs/BROWSER-EGO-POC.md` and the "Browser
+  backend" section of `server/GJC-LIVE-SPEC.md`.
 - **Chat tool cards follow the runtime, not Claude**: `src/components/chat/tools/configs/toolConfigs.ts`
   is keyed by the tool's own lowercase name (`bash`, `read`, `edit`, `todo_write`), and
   its accessors read the runtime's parameter schema. `server/gjc-tool-configs.bun.test.ts`

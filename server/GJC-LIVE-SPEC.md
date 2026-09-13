@@ -251,7 +251,8 @@ The application stores the choice (`automation.browserBackend.v1`,
 protocol method or frame changes; the value travels inside existing payloads:
 
 - `session.start` / `session.resume` options carry the server-resolved
-  `browserBackend: 'builtin' | 'aside'` and `builtinBrowserAvailable` boolean.
+  `browserBackend: 'builtin' | 'aside' | 'ego'` and `builtinBrowserAvailable`
+  boolean.
   `enrichGjcSdkRunOptions` overwrites both client fields: the backend comes from
   the app setting, while availability requires an authenticated
   `automationService.browser.status()` result of
@@ -278,6 +279,24 @@ protocol method or frame changes; the value travels inside existing payloads:
   block; the `computer` transport is unaffected. Delegated children receive the
   already-filtered tool names and automation transports, so they cannot regain
   an unavailable browser.
+- `ego` (PoC) is the one backend the runtime does not know, so the app owns
+  it end to end (`server/gjc-browser-backend.ts`). The adapter first runs the
+  app's own probe (`probeEgoBrowserCli`: `~/.local/bin/ego-browser`, then the
+  worker's `PATH`); nothing found fails the run with `ego_unavailable` and the
+  fixed text "The ego-browser CLI was not found, so this session cannot start
+  with the ego browser backend. Install ego lite and finish its onboarding, or
+  choose Built-in in Settings > Automation where it is available." before any
+  session exists; searched paths go to diagnostics only, and there is no
+  fallback. When found, the adapter writes `browser.backend=native` (so a
+  user-level runtime Aside setting cannot inject the Aside block) and
+  `browser.enabled=false` (so the runtime's built-in tool is unavailable even
+  if discovered), withholds the app's `browser` transport, removes `browser`
+  from `toolNames`, and appends `GJC_EGO_BROWSER_INSTRUCTIONS` — an app-owned
+  `<browser-backend>` block — after the app environment note in the system
+  prompt. The block routes browser work to Bash → `ego-browser nodejs <<'EOF'`
+  and tells the model to load the user-installed `ego-browser` skill, which is
+  the API reference; the app ships no ego tool, skill copy, MCP server or
+  prompt beyond that block.
 
 The Built-in tool exposes only `open`, `close`, and `act`. Its act verbs are
 `navigate`, `back`, `forward`, `reload`, `observe`, `extract`, `click`, and
@@ -297,7 +316,9 @@ instead of silently retargeting it. `open` carries no expected binding.
 
 `server/gjc-browser-backend.bun.test.ts` checks the contract against the pinned
 runtime with an injected CLI probe and a fixture skill; no Aside installation
-is required by any test.
+is required by any test. The ego seam (probe injected, no ego lite required) is
+covered in `server/gjc-sdk-contract.bun.test.ts`, `server/gjc-worker.test.ts`
+and `server/gjc-worker-client.test.ts`; see `docs/BROWSER-EGO-POC.md`.
 
 ## Process and terminal lifecycle
 

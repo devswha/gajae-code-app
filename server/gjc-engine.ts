@@ -89,7 +89,9 @@ export {
 // The browser backend a run starts with. The application stores the choice
 // and sends it in the session options; the worker hands it to the runtime's
 // own `browser.backend` setting, so the runtime's Aside routing stays
-// authoritative. An Aside run with no Aside CLI fails with the code below and
+// authoritative. The ego backend (PoC) is app-owned: the worker keeps the
+// runtime on `native`, hides its browser tool and appends the app's own ego
+// routing block. An Aside or ego run with no CLI fails with the code below and
 // the fixed text is relayed instead of the generic failure; it never falls
 // back to the app's native browser.
 export {
@@ -97,6 +99,8 @@ export {
   GJC_ASIDE_UNAVAILABLE_CODE,
   GJC_ASIDE_UNAVAILABLE_MESSAGE,
   GJC_BROWSER_BACKENDS,
+  GJC_EGO_UNAVAILABLE_CODE,
+  GJC_EGO_UNAVAILABLE_MESSAGE,
   isGjcBrowserBackend,
 } from './gjc-browser-backend.js';
 export type { GjcBrowserBackend } from './gjc-browser-backend.js';

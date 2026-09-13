@@ -33,7 +33,15 @@ import { createGjcPermissionProvider, type GjcPermissionProvider } from './gjc-b
 import { forwardPromptTerminal, forwardSdkEvent, normalizeBuiltinCommandStdout, type SdkRunState } from './gjc-bun-sdk-events.js';
 import { parseGjcRunPermissions, type GjcRunPermissions } from './gjc-permission-policy.js';
 import { GjcModelResolutionError } from './gjc-model-resolution.js';
-import { GjcAsideUnavailableError, isGjcBrowserBackend, type GjcBrowserBackend } from './gjc-browser-backend.js';
+import {
+  GJC_EGO_BROWSER_INSTRUCTIONS,
+  GjcAsideUnavailableError,
+  GjcEgoUnavailableError,
+  isGjcBrowserBackend,
+  probeEgoBrowserCli,
+  type EgoBrowserCliProbe,
+  type GjcBrowserBackend,
+} from './gjc-browser-backend.js';
 import { resolveContainedExportCommand } from './gjc-export-path.js';
 import { readSessionSnapshot } from './gjc-session-state.js';
 import { GjcGoalSession, GJC_GOAL_MODEL_OPERATIONS, matchesGjcGoalOwner, readPersistedGjcGoal, type GjcGoalScope } from './gjc-goal-session.js';
@@ -115,6 +123,11 @@ export type GjcBunSdkAdapterOptions = {
    * tests never depend on an Aside installation. Never runs an installer.
    */
   probeAsideCli?: () => AsideCliProbe;
+  /**
+   * The app's own `ego-browser` CLI discovery (`probeEgoBrowserCli`),
+   * replaceable so tests never depend on an ego lite installation.
+   */
+  probeEgoBrowserCli?: () => EgoBrowserCliProbe;
 };
 
 export type GjcSdkActivitySnapshot = Readonly<{
@@ -243,31 +256,50 @@ export function applyGjcToolSettingsPolicy(settings: Settings): void {
   settings.override('mcp.enableProjectConfig', false);
 }
 
+/** What a run resolved its browser backend to: the runtime's own descriptor, or the app-owned ego descriptor. */
+export type GjcResolvedBrowserBackend = Readonly<{
+  id: ReturnType<typeof resolveBrowserBackend>['id'] | 'ego';
+  exposesBuiltinTool: boolean;
+  /** A routing block the *app* appends to the system prompt; the runtime appends its own for Aside. */
+  appInstructions?: string;
+}>;
+
 /**
  * Hands the app's browser backend choice to the runtime's own `browser.backend`
- * setting and returns what the runtime resolved from it.
+ * setting and returns what the run resolved from it.
  *
  * `builtin` explicitly selects the runtime's built-in browser mode, preventing
  * a user-level runtime Aside setting from silently changing the app selection.
  * `aside` validates the runtime's CLI first, then writes its routing setting.
- * An explicit Aside choice with no Aside CLI is refused up front with a fixed
- * code rather than falling back to Built-in. An absent option preserves the
- * runtime setting for internal compatibility only; server-created runs always
- * supply an explicit application choice.
+ * `ego` validates the app's own `ego-browser` probe, keeps the runtime on
+ * `native` so no Aside routing is injected, disables the runtime's built-in
+ * browser tool outright and returns the app-owned routing block. An explicit
+ * Aside or ego choice with no CLI is refused up front with a fixed code rather
+ * than falling back to Built-in. An absent option preserves the runtime setting
+ * for internal compatibility only; server-created runs always supply an
+ * explicit application choice.
  */
 export function applyGjcBrowserBackend(
   settings: Pick<Settings, 'get' | 'override'>,
   requested: GjcBrowserBackend | undefined,
   probe: () => AsideCliProbe,
-): ReturnType<typeof resolveBrowserBackend> {
+  probeEgo: () => EgoBrowserCliProbe = probeEgoBrowserCli,
+): GjcResolvedBrowserBackend {
   if (requested === 'builtin') {
     settings.override('browser.backend', 'native');
   } else if (requested === 'aside') {
     const found = probe();
     if (!found.ok) throw new GjcAsideUnavailableError(found.searched);
     settings.override('browser.backend', 'aside');
+  } else if (requested === 'ego') {
+    const found = probeEgo();
+    if (!found.ok) throw new GjcEgoUnavailableError(found.searched);
+    settings.override('browser.backend', 'native');
+    settings.override('browser.enabled', false);
+    return { id: 'ego', exposesBuiltinTool: false, appInstructions: GJC_EGO_BROWSER_INSTRUCTIONS };
   }
-  return resolveBrowserBackend(settings);
+  const { id, exposesBuiltinTool } = resolveBrowserBackend(settings);
+  return { id, exposesBuiltinTool };
 }
 
 /**
@@ -279,7 +311,7 @@ export function applyGjcBrowserBackend(
  */
 export function selectGjcAutomationTools(
   tools: AutomationTools,
-  browserBackend: Pick<ReturnType<typeof resolveBrowserBackend>, 'exposesBuiltinTool'>,
+  browserBackend: Pick<GjcResolvedBrowserBackend, 'exposesBuiltinTool'>,
   builtinBrowserAvailable = false,
 ): AutomationTools {
   if (browserBackend.exposesBuiltinTool && builtinBrowserAvailable) return tools;
@@ -1008,7 +1040,12 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       // sessions, and the clone keeps their project settings and overrides isolated.
       const settings = await globalSettings.cloneForCwd(config.cwd);
       applyGjcToolSettingsPolicy(settings);
-      const browserBackend = applyGjcBrowserBackend(settings, config.browserBackend, this.options.probeAsideCli ?? probeAsideCli);
+      const browserBackend = applyGjcBrowserBackend(
+        settings,
+        config.browserBackend,
+        this.options.probeAsideCli ?? probeAsideCli,
+        this.options.probeEgoBrowserCli ?? probeEgoBrowserCli,
+      );
       const builtinBrowserAvailable = config.builtinBrowserAvailable === true
         && browserBackend.exposesBuiltinTool
         && Boolean(config.appSessionId);
@@ -1035,7 +1072,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           // asked to configure sign-in, models or permissions — those live in
           // the app's UI, and "the agent stopped instead of editing .gjc" is
           // the alternative.
-          systemPrompt: (defaults: string[]) => [...defaults, GAJAE_APP_ENV_NOTE],
+          systemPrompt: (defaults: string[]) => [
+            ...defaults,
+            GAJAE_APP_ENV_NOTE,
+            ...(browserBackend.appInstructions ? [browserBackend.appInstructions] : []),
+          ],
           cwd: config.cwd,
           sessionManager,
           // The SDK defaults provider/cache identity to this manager's logical

@@ -39,7 +39,13 @@ import {
 } from './gjc-worker-protocol.js';
 import { GjcWorkerHost } from './gjc-worker.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE } from './gjc-model-resolution.js';
-import { GJC_ASIDE_UNAVAILABLE_CODE, GJC_ASIDE_UNAVAILABLE_MESSAGE } from './gjc-browser-backend.js';
+import {
+  GJC_ASIDE_UNAVAILABLE_CODE,
+  GJC_ASIDE_UNAVAILABLE_MESSAGE,
+  GJC_EGO_BROWSER_INSTRUCTIONS,
+  GJC_EGO_UNAVAILABLE_CODE,
+  GJC_EGO_UNAVAILABLE_MESSAGE,
+} from './gjc-browser-backend.js';
 import { GJC_CLEANUP_UNCONFIRMED_CODE } from './gjc-cleanup-error.js';
 import { isVerifiedSdkPatch, verifyRuntimeManifest } from './gjc-runtime-manifest.js';
 
@@ -2348,6 +2354,82 @@ test('selecting Aside without an Aside CLI refuses the run with its own code and
     assert.equal(f.factoryOptions.length, 0);
     assert.equal(f.toolPolicyOverrides.has('browser.backend'), false);
     assert.equal(JSON.stringify(f.frames).includes('/fake/.local/bin'), false, 'probe paths stay out of the wire');
+  } finally { await f.close(); }
+});
+
+test('selecting ego keeps the runtime on native, disables its browser tool, withholds the app browser tool and appends the app-owned ego routing block', async () => {
+  let asideProbes = 0;
+  let egoProbes = 0;
+  const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
+    probeAsideCli: () => { asideProbes += 1; return { ok: true, path: '/never/used/aside' }; },
+    probeEgoBrowserCli: () => { egoProbes += 1; return { ok: true, path: '/fake/.local/bin/ego-browser' }; },
+  });
+  try {
+    const run = f.host.handle(request('session.start', 'browser-ego', {
+      message: 'hello',
+      options: { ...f.options, browserBackend: 'ego', builtinBrowserAvailable: true, toolNames: ['bash', 'browser', 'skill'] },
+    }, 'app-session-ego'));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    // The runtime has no ego backend: it stays on native (so no Aside routing
+    // is injected from a user-level setting) with its browser tool disabled.
+    assert.equal(f.toolPolicyOverrides.get('browser.backend'), 'native');
+    assert.equal(f.toolPolicyOverrides.get('browser.enabled'), false);
+    const factoryInput = f.factoryOptions[0]!;
+    const automationTools = factoryInput.automationTools as Record<string, { name: string }>;
+    assert.deepEqual(Object.keys(automationTools), ['computer']);
+    // The route to ego lite is Bash plus the user-installed skill; the built-in browser tool is gone.
+    assert.equal((factoryInput.toolNames as string[]).includes('browser'), false);
+    assert.equal((factoryInput.toolNames as string[]).includes('bash'), true);
+    assert.equal((factoryInput.toolNames as string[]).includes('skill'), true);
+    // No app-side ego tool or MCP server; the routing block is the one app addition.
+    assert.equal(factoryInput.customTools, undefined);
+    const appended = (factoryInput.systemPrompt as (defaults: string[]) => string[])(['runtime-default']);
+    assert.equal(appended[0], 'runtime-default');
+    assert.equal(appended.at(-1), GJC_EGO_BROWSER_INSTRUCTIONS);
+    assert.equal(appended.join('\n').toLowerCase().includes('aside'), false);
+    assert.equal(egoProbes, 1);
+    assert.equal(asideProbes, 0);
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
+
+test('selecting ego without an ego-browser CLI refuses the run with its own code and never falls back to Built-in', async () => {
+  const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
+    probeEgoBrowserCli: () => ({ ok: false, searched: ['/fake/.local/bin/ego-browser', 'PATH (ego-browser)'] }),
+  });
+  try {
+    await f.host.handle(request('session.start', 'browser-ego-missing', {
+      message: 'hello', options: { ...f.options, browserBackend: 'ego', builtinBrowserAvailable: true },
+    }, 'app-session-ego-missing'));
+    const payload = response(f.frames, 'browser-ego-missing').payload as { ok: boolean; error: { code: string; message: string } };
+    assert.equal(payload.ok, false);
+    assert.deepEqual(payload.error, { code: GJC_EGO_UNAVAILABLE_CODE, message: GJC_EGO_UNAVAILABLE_MESSAGE });
+    assert.equal(f.sessions.length, 0, 'no session may start with a different backend');
+    assert.equal(f.factoryOptions.length, 0);
+    assert.equal(f.toolPolicyOverrides.has('browser.backend'), false);
+    assert.equal(f.toolPolicyOverrides.has('browser.enabled'), false);
+    assert.equal(JSON.stringify(f.frames).includes('/fake/.local/bin'), false, 'probe paths stay out of the wire');
+  } finally { await f.close(); }
+});
+
+test('Built-in and Aside never append the ego routing block', async () => {
+  const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
+    probeAsideCli: () => ({ ok: true, path: '/fake/.local/bin/aside' }),
+    probeEgoBrowserCli: () => { throw new Error('ego must not be probed for other backends'); },
+  });
+  try {
+    const run = f.host.handle(request('session.start', 'browser-aside-no-ego', {
+      message: 'hello', options: { ...f.options, browserBackend: 'aside', builtinBrowserAvailable: true },
+    }, 'app-session-aside-no-ego'));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+    const appended = (f.factoryOptions[0]!.systemPrompt as (defaults: string[]) => string[])([]);
+    assert.equal(appended.includes(GJC_EGO_BROWSER_INSTRUCTIONS), false);
+    assert.equal(f.toolPolicyOverrides.has('browser.enabled'), false);
+    session.complete();
+    await run;
   } finally { await f.close(); }
 });
 

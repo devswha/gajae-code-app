@@ -12,7 +12,7 @@ import AutomationSettingsTab from './AutomationSettingsTab';
 
 type Call = { path: string; method: string; body?: unknown };
 type ApiOptions = {
-  backend?: 'builtin' | 'aside';
+  backend?: 'builtin' | 'aside' | 'ego';
   rejectBackendSave?: boolean;
   browserOpen?: Response | Error;
   browserReady?: boolean;
@@ -62,9 +62,9 @@ function fakeApi(options: ApiOptions = {}) {
     if (path === '/api/automation/browser-backend') {
       if (method === 'PUT') {
         if (options.rejectBackendSave) return new Response(JSON.stringify({ error: 'rejected' }), { status: 400 });
-        backend = (body as { backend: 'builtin' | 'aside' }).backend;
+        backend = (body as { backend: 'builtin' | 'aside' | 'ego' }).backend;
       }
-      return new Response(JSON.stringify({ backend, backends: ['builtin', 'aside'] }));
+      return new Response(JSON.stringify({ backend, backends: ['builtin', 'aside', 'ego'] }));
     }
     if (path.startsWith('/api/browser/') && method === 'POST') {
       if (options.browserOpen instanceof Error) throw options.browserOpen;
@@ -94,7 +94,7 @@ async function mount() {
 
 const backendSelect = () => screen.getByRole('combobox', { name: english.automation.browserBackend.label }) as HTMLSelectElement;
 
-test('Built-in is the default and both backend choices persist through the API', async () => {
+test('Built-in is the default and every backend choice persists through the API', async () => {
   const calls = fakeApi();
   await mount();
   await waitFor(() => assert.equal(backendSelect().disabled, false));
@@ -103,17 +103,27 @@ test('Built-in is the default and both backend choices persist through the API',
   assert.deepEqual([...backendSelect().options].map((option) => [option.value, option.textContent]), [
     ['builtin', english.automation.browserBackend.builtin],
     ['aside', english.automation.browserBackend.aside],
+    ['ego', english.automation.browserBackend.ego],
   ]);
 
   fireEvent.change(backendSelect(), { target: { value: 'aside' } });
   await waitFor(() => assert.equal(backendSelect().value, 'aside'));
   assert.ok(screen.getByText(english.automation.browserBackend.asideNote));
+  assert.equal(screen.queryByText(english.automation.browserBackend.egoNote), null);
+
+  fireEvent.change(backendSelect(), { target: { value: 'ego' } });
+  await waitFor(() => assert.equal(backendSelect().value, 'ego'));
+  assert.ok(screen.getByText(english.automation.browserBackend.egoNote));
+  assert.ok(screen.getByText(english.automation.browserBackend.egoDescription));
+  assert.equal(screen.queryByText(english.automation.browserBackend.asideNote), null);
 
   fireEvent.change(backendSelect(), { target: { value: 'builtin' } });
   await waitFor(() => assert.equal(backendSelect().value, 'builtin'));
   assert.equal(screen.queryByText(english.automation.browserBackend.asideNote), null);
+  assert.equal(screen.queryByText(english.automation.browserBackend.egoNote), null);
   assert.deepEqual(calls.filter((call) => call.method === 'PUT').map((call) => call.body), [
     { backend: 'aside' },
+    { backend: 'ego' },
     { backend: 'builtin' },
   ]);
 });

@@ -16,7 +16,14 @@ import {
 import { GjcRunPermissionsError } from './gjc-permission-policy.js';
 import { GJC_CLEANUP_UNCONFIRMED_CODE, GJC_CLEANUP_UNCONFIRMED_MESSAGE, GjcCleanupUnconfirmedError, isGjcCleanupUnconfirmedError } from './gjc-cleanup-error.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE, GjcModelResolutionError } from './gjc-model-resolution.js';
-import { GJC_ASIDE_UNAVAILABLE_CODE, GJC_ASIDE_UNAVAILABLE_MESSAGE, GjcAsideUnavailableError } from './gjc-browser-backend.js';
+import {
+  GJC_ASIDE_UNAVAILABLE_CODE,
+  GJC_ASIDE_UNAVAILABLE_MESSAGE,
+  GJC_EGO_UNAVAILABLE_CODE,
+  GJC_EGO_UNAVAILABLE_MESSAGE,
+  GjcAsideUnavailableError,
+  GjcEgoUnavailableError,
+} from './gjc-browser-backend.js';
 import { claimProtocolStdout, GjcWorkerHost, runGjcWorkerEntrypoint, type GjcWorkerRuntime, type GjcWorkerWriter } from './gjc-worker.js';
 
 const request = (method: string, id: string, payload: Record<string, unknown> = {}, sessionId = 'scope-1') => ({ protocolVersion: GJC_WORKER_PROTOCOL_VERSION, kind: 'request' as const, id, method, payload, ...(['worker.initialize', 'worker.shutdown', 'worker.activity', 'worker.admission', 'models.catalog', 'oauth.providers', 'oauth.status', 'oauth.start', 'oauth.submit', 'oauth.cancel'].includes(method) ? {} : { sessionId }) }) as GjcWorkerRequestFrame;
@@ -337,6 +344,21 @@ test('an Aside backend without an Aside CLI is answered with its own code and th
   assert.deepEqual(response.payload.error, { code: GJC_ASIDE_UNAVAILABLE_CODE, message: GJC_ASIDE_UNAVAILABLE_MESSAGE });
   assert.equal(JSON.stringify(frames).includes('/home/someone'), false);
   assert.ok(diagnostics.some((line) => line.startsWith('run no-aside failed')));
+});
+
+test('an ego backend without an ego-browser CLI is answered with its own code and the probe detail stays in diagnostics', async () => {
+  const fake = fakeRuntime();
+  const diagnostics: string[] = [];
+  fake.runtime.spawnGjc = () => { throw new GjcEgoUnavailableError(['/home/someone/.local/bin/ego-browser', 'PATH (ego-browser)']); };
+  const frames: unknown[] = [];
+  const host = new GjcWorkerHost({ runtime: async () => fake.runtime, emit: (frame) => frames.push(frame), diagnostic: (message) => diagnostics.push(message) });
+  await host.handle(request('worker.initialize', 'init'));
+  await host.handle(request('session.start', 'no-ego', { message: 'hello', options: { browserBackend: 'ego' } }));
+  const response = frames.at(-1) as { payload: { ok: boolean; error: { code: string; message: string } } };
+  assert.equal(response.payload.ok, false);
+  assert.deepEqual(response.payload.error, { code: GJC_EGO_UNAVAILABLE_CODE, message: GJC_EGO_UNAVAILABLE_MESSAGE });
+  assert.equal(JSON.stringify(frames).includes('/home/someone'), false);
+  assert.ok(diagnostics.some((line) => line.startsWith('run no-ego failed')));
 });
 
 test('entrypoint fails closed on malformed input and emits protocol-only stdout', async () => {

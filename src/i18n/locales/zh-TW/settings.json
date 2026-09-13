@@ -133,6 +133,9 @@
       "builtinDescription": "內建瀏覽器僅在支援的 macOS 桌面應用程式中可用。",
       "asideDescription": "GJC 的 Aside 後端：隱藏內建瀏覽器工具，瀏覽器操作透過你自行安裝的 Aside CLI 在你已登入的瀏覽器中執行。",
       "asideNote": "需要你自行安裝的 Aside CLI（~/.local/bin/aside 或 Aside CLI 應用程式）。選擇 Aside 期間，找不到它的工作階段將無法啟動，而不會退回原生瀏覽器。切換回「原生」即可恢復內建瀏覽器。",
+      "ego": "ego lite(實驗性)",
+      "egoDescription": "ego lite 瀏覽器:隱藏內建瀏覽器工具,在你已登入的瀏覽器中的獨立 Space 內,透過已安裝的 ego-browser CLI 執行瀏覽器工作。",
+      "egoNote": "需要你自行安裝的 ego lite(https://lite.ego.app,導覽流程會註冊 ~/.local/bin/ego-browser)及其 ego-browser 技能。選擇 ego lite 期間,找不到 CLI 的工作階段將無法啟動,而不會退回內建瀏覽器。僅在可用時選擇內建瀏覽器。",
       "saveFailed": "無法儲存瀏覽器後端。"
     },
     "builtinBrowser": { "title": "內建瀏覽器", "description": "開啟 macOS 桌面應用程式中的瀏覽器。", "label": "內建瀏覽器", "note": "僅在 macOS 桌面應用程式中可用。", "open": "開啟瀏覽器", "opened": "已開啟內建瀏覽器。", "failed": "無法開啟瀏覽器。", "errors": { "busy": "內建瀏覽器正在使用中。請先關閉，再為此工作階段開啟。", "unavailable": "內建瀏覽器目前無法使用。請等待應用程式伺服器重新連線後再試。", "invalidUrl": "無法開啟此位址。請使用 HTTP 或 HTTPS 位址。", "stale": "要求完成前瀏覽器頁面已變更。請再試一次。", "failed": "無法開啟內建瀏覽器。請再試一次。" } },

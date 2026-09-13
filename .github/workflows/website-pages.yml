@@ -8,6 +8,9 @@ on:
       - website/**
       - .github/workflows/website-pages.yml
   workflow_dispatch:
+  release:
+    types:
+      - published
 
 permissions:
   contents: read
@@ -50,7 +53,15 @@ jobs:
       - name: Test website
         run: npm test --prefix website
 
+      - name: Resolve latest website release
+        id: website_release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node website/scripts/resolve-release.mjs
+
       - name: Build website
+        env:
+          GAJAE_WEBSITE_RELEASE_TAG: ${{ steps.website_release.outputs.release_tag }}
         run: npm run build --prefix website
 
       - name: Upload website artifact

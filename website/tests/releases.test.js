@@ -9,6 +9,7 @@ import {
   checksumName,
   desktopDmgName,
   downloadUrl,
+  releaseFromTag,
   serverArchiveName,
 } from '../src/releases.js';
 
@@ -67,6 +68,19 @@ test('keeps every artifact and checksum on the supplied release when the version
     assert.equal(download.checksumFile, `${download.label}.sha256`);
     assert.ok(download.verifyCommand.endsWith(download.checksumFile));
   }
+});
+
+test('accepts only versioned build-time release tag overrides', () => {
+  const release = releaseFromTag(' v9.9.9-test ');
+  assert.deepEqual(release, {
+    version: '9.9.9-test',
+    tag: 'v9.9.9-test',
+    channel: 'beta',
+    publishedLabel,
+  });
+  assert.equal(releaseFromTag('latest'), null);
+  assert.equal(releaseFromTag('/releases/latest/download'), null);
+  assert.equal(releaseFromTag(''), null);
 });
 
 test('does not invent artifacts for platforms other than macOS and the Linux server', () => {

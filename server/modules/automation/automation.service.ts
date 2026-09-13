@@ -15,6 +15,12 @@ import { browserBackendStore } from './browser-backend.js';
 import { TauriBrowserClient } from './tauri-browser-client.js';
 import { automationOrigin } from './automation-url.js';
 import { CuaDriverClient, isCuaSafeTool, type CuaSafeTool } from './cua-client.js';
+import {
+  guardCuaCall,
+  readRequestedPid,
+  readRequestedWindowId,
+  requiresApplicationIdentity,
+} from './cua-capability.js';
 
 type BridgeRequest = {
   id: string;
@@ -85,27 +91,9 @@ function cuaToolError(value: unknown): string | null {
   return message || 'CUA Driver rejected the session request.';
 }
 
-function requestedPid(args: Record<string, unknown>): number | undefined {
-  if (typeof args.pid === 'number' && Number.isSafeInteger(args.pid) && args.pid > 0) return args.pid;
-  const target = object(args.target);
-  return typeof target.pid === 'number' && Number.isSafeInteger(target.pid) && target.pid > 0
-    ? target.pid
-    : undefined;
-}
-
-function requestedWindowId(args: Record<string, unknown>): number | undefined {
-  if (typeof args.window_id === 'number' && Number.isSafeInteger(args.window_id) && args.window_id > 0) {
-    return args.window_id;
-  }
-  const target = object(args.target);
-  return typeof target.window_id === 'number' && Number.isSafeInteger(target.window_id) && target.window_id > 0
-    ? target.window_id
-    : undefined;
-}
-
-const COMPUTER_DISCOVERY_TOOLS = new Set<CuaSafeTool>([
-  'start_session', 'end_session', 'list_apps', 'get_accessibility_tree', 'move_cursor',
-]);
+// Application identity, discovery classification and the background-only
+// argument policy all live in ./cua-capability.ts so that the authorize path
+// and the execute path can never disagree about what a call requires.
 
 type ComputerSession = {
   label: string;
@@ -295,52 +283,13 @@ export class AutomationService {
     try {
       if (!isCuaSafeTool(payload.tool)) throw new Error('Unsupported CUA Driver tool.');
       const args = object(payload.arguments);
-      let application = typeof payload.application === 'string' ? payload.application.trim() : '';
-      let label: string | null = null;
-
-      if (!application && payload.tool === 'launch_app') {
-        application = typeof args.bundle_id === 'string' ? args.bundle_id.trim() : '';
-        label = typeof args.name === 'string' && args.name.trim() ? args.name.trim() : null;
-      }
-
-      let pid = requestedPid(args);
-      const windowId = requestedWindowId(args);
-      const needsApplication = payload.tool === 'launch_app'
-      || pid !== undefined
-      || windowId !== undefined
-      || (payload.tool === 'list_windows' && args.pid !== undefined);
-      if (!application && needsApplication) {
-        const inventory = await this.cua.call(
-          pid === undefined && windowId !== undefined ? 'list_windows' : 'list_apps',
-          {},
-          signal,
-        );
-        if (pid === undefined && windowId !== undefined) {
-          const window = windowRecords(inventory).find((candidate) => candidate.window_id === windowId);
-          if (window && typeof window.pid === 'number' && Number.isSafeInteger(window.pid) && window.pid > 0) {
-            pid = window.pid;
-          }
-        }
-        let apps = applicationRecords(inventory);
-        if (pid !== undefined && apps.length === 0) {
-          apps = applicationRecords(await this.cua.call('list_apps', {}, signal));
-        }
-        const requestedName = typeof args.name === 'string' ? args.name.trim().toLocaleLowerCase() : '';
-        const match = apps.find((app) => (
-          (pid !== undefined && app.pid === pid)
-        || (requestedName && typeof app.name === 'string' && app.name.trim().toLocaleLowerCase() === requestedName)
-        ));
-        if (match && typeof match.bundle_id === 'string') application = match.bundle_id.trim();
-        if (match && typeof match.name === 'string' && match.name.trim()) label = match.name.trim();
-      }
-
-      if (!application) {
-        if (COMPUTER_DISCOVERY_TOOLS.has(payload.tool) || (payload.tool === 'list_windows' && !needsApplication)) {
-          return { granted: true, application: null, label: null };
-        }
-        throw new Error('Computer action requires a resolvable application identity.');
-      }
-      if (!label) label = application;
+      const { application, label } = await this.resolveComputerApplication(
+        payload.tool,
+        args,
+        typeof payload.application === 'string' ? payload.application.trim() : '',
+        signal,
+      );
+      if (!application) return { granted: true, application: null, label: null };
       if (payload.scope === 'session' || payload.scope === 'always') {
         this.grant({
           kind: 'application',
@@ -357,11 +306,87 @@ export class AutomationService {
     } finally { release(); }
   }
 
+  /**
+   * Resolve the application identity a call is bound to.
+   *
+   * Returns `{ application: null }` for reviewed read-only discovery reads, and
+   * throws when a call that needs an application identity cannot produce one.
+   * Shared by `authorizeComputer` (resolve + prompt) and `callComputer`
+   * (enforce), so approval and execution always agree on the target.
+   */
+  private async resolveComputerApplication(
+    tool: CuaSafeTool,
+    args: Record<string, unknown>,
+    hint: string,
+    signal?: AbortSignal,
+  ): Promise<{ application: string | null; label: string | null }> {
+    let application = hint;
+    let label: string | null = null;
+
+    if (!application && tool === 'launch_app') {
+      application = typeof args.bundle_id === 'string' ? args.bundle_id.trim() : '';
+      label = typeof args.name === 'string' && args.name.trim() ? args.name.trim() : null;
+    }
+
+    let pid = readRequestedPid(args);
+    const windowId = readRequestedWindowId(args);
+    const needsInventory = tool === 'launch_app'
+      || pid !== undefined
+      || windowId !== undefined
+      || (tool === 'list_windows' && args.pid !== undefined);
+    if (!application && needsInventory) {
+      const inventory = await this.cua.call(
+        pid === undefined && windowId !== undefined ? 'list_windows' : 'list_apps',
+        {},
+        signal,
+      );
+      if (pid === undefined && windowId !== undefined) {
+        const window = windowRecords(inventory).find((candidate) => candidate.window_id === windowId);
+        if (window && typeof window.pid === 'number' && Number.isSafeInteger(window.pid) && window.pid > 0) {
+          pid = window.pid;
+        }
+      }
+      let apps = applicationRecords(inventory);
+      if (pid !== undefined && apps.length === 0) {
+        apps = applicationRecords(await this.cua.call('list_apps', {}, signal));
+      }
+      const requestedName = typeof args.name === 'string' ? args.name.trim().toLocaleLowerCase() : '';
+      const match = apps.find((app) => (
+        (pid !== undefined && app.pid === pid)
+        || (requestedName && typeof app.name === 'string' && app.name.trim().toLocaleLowerCase() === requestedName)
+      ));
+      if (match && typeof match.bundle_id === 'string') application = match.bundle_id.trim();
+      if (match && typeof match.name === 'string' && match.name.trim()) label = match.name.trim();
+    }
+
+    if (!application) {
+      if (!requiresApplicationIdentity(tool, args)) return { application: null, label: null };
+      throw new Error('Computer action requires a resolvable application identity.');
+    }
+    return { application, label: label || application };
+  }
+
   async callComputer(sessionId: string, tool: CuaSafeTool, args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
     this.requireComputerSupported();
     const release = this.enter('computer.call');
     try {
-      const { session: _ignoredSession, ...scopedArgs } = args;
+      const { session: _ignoredSession, ...rawArgs } = args;
+      // Same policy function the driver transport enforces, applied here so a
+      // denied call costs no driver round-trip and never resolves identity or
+      // opens a session it can never use. guardCuaCall is idempotent.
+      const { arguments: scopedArgs } = guardCuaCall(tool, rawArgs);
+      // Trusted server-side authority gate. Every caller reaching callComputer
+      // — the authenticated Unix bridge, POST /api/automation/computer/:id/call,
+      // and any future one — is checked here. Reaching this method never confers
+      // mutation authority; only a live application grant does. The identity is
+      // re-resolved from the live driver inventory on each call, so a pid that
+      // no longer belongs to the approved application fails closed.
+      if (requiresApplicationIdentity(tool, scopedArgs)) {
+        const { application, label } = await this.resolveComputerApplication(tool, scopedArgs, '', signal);
+        if (!application || !this.grants.has('application', application, sessionId)) {
+          throw new Error(`Computer access to ${label ?? application ?? 'this application'} was not granted.`);
+        }
+      }
       if (tool === 'end_session') return await this.endComputerSession(sessionId, signal);
       const { label, result } = await this.ensureComputerSession(
         sessionId,

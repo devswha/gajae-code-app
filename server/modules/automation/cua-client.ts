@@ -10,6 +10,8 @@ import type { DesktopWorkAdmission } from '@/shared/interfaces.js';
 
 import type { DesktopOwnerActivity } from '../../../shared/desktopUpdateProtocol.js';
 
+import { guardCuaCall, isCuaDriverSchemaSupported, readCuaPermissions } from './cua-capability.js';
+
 export const CUA_SAFE_TOOLS = [
   'start_session',
   'end_session',
@@ -36,6 +38,10 @@ export type CuaStatus = {
   daemon: 'running' | 'stopped' | 'unknown';
   accessibility?: boolean;
   screenRecording?: boolean;
+  /** TCC identity the driver attributed its permission answer to. */
+  permissionAttribution?: string;
+  /** Whether the installed driver matches the reviewed capability schemas. */
+  schemaSupported?: boolean;
   error?: string;
 };
 
@@ -120,14 +126,6 @@ async function runInspection(
   }).catch(() => ({ ok: false, output: 'Unable to start CUA Driver inspection.' }));
 }
 
-function permissionValue(output: string, names: string[]): boolean | undefined {
-  const line = output.split(/\r?\n/u).find((entry) => names.some((name) => entry.toLowerCase().includes(name)));
-  if (!line) return undefined;
-  if (/granted|authorized|enabled|yes|true|✅/iu.test(line)) return true;
-  if (/denied|not granted|disabled|no|false|❌/iu.test(line)) return false;
-  return undefined;
-}
-
 export class CuaDriverClient {
   private child?: ChildProcessWithoutNullStreams;
   private starting?: Promise<void>;
@@ -183,15 +181,31 @@ export class CuaDriverClient {
         inspect(['--version']),
         inspect(['status']),
         process.platform === 'darwin'
-          ? inspect(['permissions', 'status'])
+          // Structured payload is the primary interface; the text form is only
+          // a bounded fallback for a driver that does not implement --json.
+          ? inspect(['permissions', 'status', '--json'])
           : Promise.resolve({ ok: true, output: '' }),
       ]);
+      const reported = version.output.split(/\r?\n/u)[0]?.slice(0, 120);
+      let grants = process.platform === 'darwin'
+        ? readCuaPermissions(permissions)
+        : { accessibility: undefined, screenRecording: undefined, source: 'none' as const,
+          attribution: undefined as string | undefined };
+      if (process.platform === 'darwin' && !permissions.ok && grants.source === 'none') {
+        // A driver that predates `permissions status --json` rejects the flag.
+        // Retry once through the bounded text parser rather than reporting a
+        // permanent unknown; the parser still never upgrades an unrecognised
+        // or negated value to a grant.
+        grants = readCuaPermissions(await inspect(['permissions', 'status']));
+      }
       return {
         installed: true,
-        version: version.output.split(/\r?\n/u)[0]?.slice(0, 120),
+        version: reported,
         daemon: daemon.ok ? 'running' : /not running|stopped|unavailable/iu.test(daemon.output) ? 'stopped' : 'unknown',
-        accessibility: permissionValue(permissions.output, ['accessibility']),
-        screenRecording: permissionValue(permissions.output, ['screen recording', 'screen capture']),
+        accessibility: grants.accessibility,
+        screenRecording: grants.screenRecording,
+        ...(grants.attribution ? { permissionAttribution: grants.attribution } : {}),
+        schemaSupported: isCuaDriverSchemaSupported(reported),
         ...(!version.ok ? { error: version.output || 'Unable to inspect CUA Driver.' } : {}),
       };
     } finally {
@@ -203,13 +217,17 @@ export class CuaDriverClient {
 
   async call(tool: CuaSafeTool, args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
     if (!CUA_SAFE_TOOLS.includes(tool)) throw new Error('CUA Driver tool is not allowed.');
+    // Closest trusted boundary to the driver transport: every caller (agent
+    // bridge, HTTP route, internal inventory reads) passes through here, so the
+    // background-only argument policy cannot be bypassed by reaching further in.
+    const guarded = guardCuaCall(tool, args);
     const release = this.admission?.enter(`automation.computer.${tool}`);
     this.dispatching++;
     this.activityRevision++;
     try {
       if (signal?.aborted) throw new Error('CUA Driver request was cancelled.');
       await this.ensureStarted();
-      return await this.request('tools/call', { name: tool, arguments: args }, 60_000, signal);
+      return await this.request('tools/call', { name: tool, arguments: guarded.arguments }, 60_000, signal);
     } finally {
       this.dispatching--;
       this.activityRevision++;

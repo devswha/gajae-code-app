@@ -138,7 +138,15 @@
       "asideNote": "Requires the Aside CLI you installed yourself (~/.local/bin/aside or the Aside CLI app). While Aside is selected, a session that cannot find it fails to start instead of falling back to Built-in. Choose Built-in only where it is available.",
       "ego": "ego lite (Experimental)",
       "egoDescription": "ego lite browser: the built-in browser tool is hidden and browser work runs through your installed ego-browser CLI in your own logged-in browser, in its own Space.",
-      "egoNote": "Requires ego lite you installed yourself (https://lite.ego.app; onboarding registers ~/.local/bin/ego-browser) and its ego-browser skill. While ego lite is selected, a session that cannot find the CLI fails to start instead of falling back to Built-in. Choose Built-in only where it is available.",
+      "egoNote": "Requires ego lite you installed yourself (https://lite.ego.app; onboarding registers ~/.local/bin/ego-browser) and its ego-browser skill. If Ego is not ready, ordinary chat continues but browser work is unavailable; the app never falls back to another browser or computer automation.",
+      "readiness": "Readiness",
+      "readinessReady": "Ready",
+      "readinessNotReady": "Not ready",
+      "readinessUnknown": "Unknown",
+      "testConnection": "Test connection",
+      "testingConnection": "Testing connection…",
+      "connectionPassed": "ego-browser connected",
+      "connectionFailed": "ego-browser connection test failed.",
       "saveFailed": "The browser backend could not be saved."
     },
     "builtinBrowser": {

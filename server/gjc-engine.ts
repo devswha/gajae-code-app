@@ -91,9 +91,8 @@ export {
 // own `browser.backend` setting, so the runtime's Aside routing stays
 // authoritative. The ego backend (PoC) is app-owned: the worker keeps the
 // runtime on `native`, hides its browser tool and appends the app's own ego
-// routing block. An Aside or ego run with no CLI fails with the code below and
-// the fixed text is relayed instead of the generic failure; it never falls
-// back to the app's native browser.
+// routing block. Aside remains fail-closed; Ego keeps ordinary chat alive with
+// browser work disabled when its CLI is unavailable.
 export {
   DEFAULT_GJC_BROWSER_BACKEND,
   GJC_ASIDE_UNAVAILABLE_CODE,
@@ -101,9 +100,28 @@ export {
   GJC_BROWSER_BACKENDS,
   GJC_EGO_UNAVAILABLE_CODE,
   GJC_EGO_UNAVAILABLE_MESSAGE,
+  GJC_EGO_BROWSER_INSTRUCTIONS,
+  GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
+  EGO_VERSION_MATRIX,
+  EGO_EXPECTED_BUNDLE_IDENTIFIER,
+  buildGjcEgoBrowserInstructions,
+  isEgoSupportedPlatform,
   isGjcBrowserBackend,
+  probeEgoBrowserCli,
+  probeEgoReadiness,
+  quotePosixShellPath,
+  testEgoBrowserConnection,
 } from './gjc-browser-backend.js';
-export type { GjcBrowserBackend } from './gjc-browser-backend.js';
+export type {
+  EgoBrowserCliProbe,
+  EgoConnectionTestResult,
+  EgoExecFile,
+  EgoReadinessCheck,
+  EgoReadinessCode,
+  EgoReadinessProbeOptions,
+  EgoReadinessReport,
+  GjcBrowserBackend,
+} from './gjc-browser-backend.js';
 
 // The command and skill surface the runtime advertises, generated from the
 // installed runtime rather than hand-listed.

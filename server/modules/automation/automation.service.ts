@@ -1,9 +1,18 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { chmod, mkdir } from 'node:fs/promises';
 import net, { type Server as NetServer, type Socket } from 'node:net';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import {
+  GJC_BROWSER_BACKENDS,
+  isEgoSupportedPlatform,
+  probeEgoReadiness,
+  testEgoBrowserConnection,
+  type EgoConnectionTestResult,
+  type EgoReadinessReport,
+  type GjcBrowserBackend,
+} from '@/gjc-engine.js';
 import type { DesktopWorkAdmission } from '@/shared/interfaces.js';
 import type { DesktopNativeInit } from '@/shared/desktop-native-init.js';
 
@@ -200,6 +209,28 @@ export class AutomationService {
         cua,
       };
     } finally { release(); }
+  }
+
+  /** Read-only Ego diagnostics. This never starts the worker or executes a CLI. */
+  egoReadiness(): EgoReadinessReport {
+    return probeEgoReadiness({
+      home: homedir(),
+      agentDir: process.env.GJC_WORKER_AGENT_DIR ?? join(homedir(), '.gjc', 'agent'),
+      path: process.env.PATH,
+      platform: process.platform,
+    });
+  }
+
+  /** Explicit Settings action only: the service never calls this during status/GET. */
+  async testEgoConnection(): Promise<EgoConnectionTestResult> {
+    return testEgoBrowserConnection({ home: homedir(), path: process.env.PATH });
+  }
+
+  /** Browser backend choices are platform-gated; an existing stored value is not rewritten. */
+  browserBackends(): readonly GjcBrowserBackend[] {
+    return isEgoSupportedPlatform(process.platform)
+      ? GJC_BROWSER_BACKENDS
+      : GJC_BROWSER_BACKENDS.filter((backend) => backend !== 'ego');
   }
 
   async openBrowser(

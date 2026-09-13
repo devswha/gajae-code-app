@@ -1,23 +1,32 @@
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import { BROWSER_BACKENDS } from '../src/components/settings/browserBackends.js';
 
 import {
   DEFAULT_GJC_BROWSER_BACKEND,
+  EGO_VERSION_MATRIX,
   GJC_ASIDE_UNAVAILABLE_CODE,
   GJC_ASIDE_UNAVAILABLE_MESSAGE,
   GJC_BROWSER_BACKENDS,
   GJC_EGO_BROWSER_INSTRUCTIONS,
+  GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
   GJC_EGO_UNAVAILABLE_CODE,
   GJC_EGO_UNAVAILABLE_MESSAGE,
+  EGO_EXPECTED_BUNDLE_IDENTIFIER,
   GjcAsideUnavailableError,
   GjcEgoUnavailableError,
+  buildGjcEgoBrowserInstructions,
   egoBrowserCliCandidates,
   isGjcAsideUnavailableError,
   isGjcBrowserBackend,
   isGjcEgoUnavailableError,
   probeEgoBrowserCli,
+  probeEgoReadiness,
+  testEgoBrowserConnection,
 } from './gjc-browser-backend.js';
 
 test('Built-in is the default backend and public choices do not expose the runtime setting name', () => {
@@ -85,9 +94,108 @@ test('the ego-browser probe prefers the onboarding location, then PATH, and repo
 test('the app-owned ego routing block names the CLI entry point and the skill, and disables every other browser path', () => {
   assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /^<browser-backend>\n/);
   assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /\n<\/browser-backend>$/);
-  assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /ego-browser nodejs <<'EOF'/);
+  assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /'[^']*ego-browser' nodejs <<'EOF'/);
   assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /installed `ego-browser` skill/);
   assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /taskSpace\(name\)/);
   assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /NEVER use or register an MCP browser server/);
-  assert.equal(GJC_EGO_BROWSER_INSTRUCTIONS.toLowerCase().includes('aside'), false);
+  assert.match(GJC_EGO_BROWSER_INSTRUCTIONS, /never substitute.*Aside.*computer/iu);
+});
+
+test('the Ego routing block pins and POSIX-quotes the probe-resolved executable', () => {
+  const block = buildGjcEgoBrowserInstructions("/tmp/ego browser/'safe'/ego-browser");
+  assert.ok(block.includes("'/tmp/ego browser/'\\''safe'\\''/ego-browser' nodejs"));
+  assert.match(block, /ego-browser import/);
+  assert.match(block, /ego-browser upgrade/);
+  assert.match(block, /ego-browser onboarding/);
+  assert.match(block, /computer.*CUA.*browser/iu);
+});
+
+test('the unavailable Ego policy preserves ordinary chat and forbids browser substitution', () => {
+  assert.match(GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS, /ordinary chat.*continue/iu);
+  assert.match(GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS, /built-in browser.*Aside.*OS browser.*Playwright.*Puppeteer.*MCP.*computer/iu);
+  assert.match(GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS, /import.*upgrade.*onboarding/iu);
+});
+
+test('the explicit Ego connection test uses only the absolute CLI and the documented bounded checks', async () => {
+  const calls: Array<{ file: string; args: readonly string[]; options: Record<string, unknown> }> = [];
+  const result = await testEgoBrowserConnection({
+    platform: 'darwin', home: '/fixture/home',
+    probe: () => ({ ok: true, path: '/fixture/home/.local/bin/ego-browser' }),
+    execFile: async (file, args, options) => {
+      calls.push({ file, args, options: options as Record<string, unknown> });
+      return args[0] === '--version'
+        ? { stdout: 'ego-browser 0.5.0.32\n', stderr: '' }
+        : { stdout: 'ok\n', stderr: '' };
+    },
+  });
+  assert.deepEqual(result, { ok: true, status: 'connected', cliVersion: '0.5.0.32' });
+  assert.deepEqual(calls.map(({ file, args }) => ({ file, args })), [
+    { file: '/fixture/home/.local/bin/ego-browser', args: ['--version'] },
+    { file: '/fixture/home/.local/bin/ego-browser', args: ['nodejs', '-e', "console.log('ok')"] },
+  ]);
+  for (const call of calls) {
+    assert.equal(call.options.shell, false);
+    assert.equal(call.options.timeout, 2_000);
+    assert.deepEqual(call.options.env, {
+      HOME: '/fixture/home', PATH: '/fixture/home/.local/bin:/usr/bin:/bin', LANG: 'C', LC_ALL: 'C',
+    });
+  }
+});
+
+test('the explicit connection test rejects an unsupported known CLI version before nodejs', async () => {
+  const calls: string[][] = [];
+  const result = await testEgoBrowserConnection({
+    platform: 'darwin',
+    probe: () => ({ ok: true, path: '/fixture/ego-browser' }),
+    execFile: async (_file, args) => {
+      calls.push([...args]);
+      return { stdout: 'ego-browser 99.0.0.0\n', stderr: '' };
+    },
+  });
+  assert.equal(EGO_VERSION_MATRIX.cli.supported.includes('99.0.0.0'), false);
+  assert.deepEqual(result, {
+    ok: false,
+    status: 'failed',
+    errorCode: 'ego_version_unsupported',
+    message: 'The installed ego-browser CLI version is not supported.',
+    cliVersion: '99.0.0.0',
+  });
+  assert.deepEqual(calls, [['--version']]);
+});
+
+test('readiness rejects a CLI symlink to a directory and cross-checks the active app plist', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'ego-readiness-'));
+  try {
+    const cliDir = join(home, 'cli-target');
+    await mkdir(cliDir);
+    const cliPath = join(home, '.local', 'bin', 'ego-browser');
+    await mkdir(join(home, '.local', 'bin'), { recursive: true });
+    await symlink(cliDir, cliPath);
+
+    const activePath = join(home, '.local', 'share', 'ego', 'ego lite.app', 'Contents', 'Frameworks', 'ego Framework.framework', 'Versions', '0.5.0.32');
+    await mkdir(activePath, { recursive: true });
+    await symlink(activePath, join(home, '.local', 'share', 'ego', 'active_version_dir'));
+    await writeFile(join(home, '.local', 'share', 'ego', 'ego lite.app', 'Contents', 'Info.plist'), [
+      '<plist><dict>',
+      '<key>CFBundleIdentifier</key><string>com.example.untrusted</string>',
+      '<key>CFBundleShortVersionString</key><string>0.5.0.31</string>',
+      '</dict></plist>',
+    ].join(''));
+    const agentDir = join(home, 'custom-agent');
+    await mkdir(join(agentDir, 'skills', 'ego-browser'), { recursive: true });
+    await writeFile(join(agentDir, 'skills', 'ego-browser', 'SKILL.md'), '---\nversion: 2.0.0\n---\n');
+
+    const report = probeEgoReadiness({ home, agentDir, platform: 'darwin', path: '' });
+    assert.equal(report.cli.state, 'not_executable');
+    assert.equal(report.checks.ego_cli_not_executable.state, 'problem');
+    assert.equal(report.checks.ego_app_version_mismatch.state, 'problem');
+    assert.equal(report.checks.ego_app_untrusted.state, 'problem');
+    assert.equal(report.versions.app, '0.5.0.32');
+    assert.equal(report.appMetadata.version, '0.5.0.31');
+    assert.equal(report.appMetadata.bundleIdentifier, 'com.example.untrusted');
+    assert.equal(JSON.stringify(report).includes(home), false);
+    assert.equal(EGO_EXPECTED_BUNDLE_IDENTIFIER, 'com.citrolabs.ego.lite');
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 });

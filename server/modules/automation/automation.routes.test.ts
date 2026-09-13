@@ -20,6 +20,14 @@ function fakeService(calls: RecordedCall[]): AutomationService {
       set: (key, value) => { stored.set(key, value); calls.push({ method: 'browserBackend.set', payload: value }); },
     }),
     status: async () => ({ supported: true, browser: { state: 'ready' }, cua: { installed: true } }),
+    egoReadiness: () => ({
+      backend: 'ego', platform: 'darwin', supportedPlatform: true, checked: true,
+      ready: false, status: 'unknown', checks: {}, issues: [], issueCodes: [],
+      warnings: ['ego_not_connected'], versions: { cli: 'unknown', app: 'unknown', skill: 'unknown' },
+      versionMatrix: { app: { supported: [] }, cli: { supported: [] }, skill: { supported: [] } },
+      cli: { state: 'unknown' }, app: { state: 'unknown' }, skill: { state: 'unknown' },
+    }),
+    testEgoConnection: async () => { calls.push({ method: 'ego.test' }); return { ok: true, status: 'connected', cliVersion: '0.5.0.32' }; },
     openBrowser: async (sessionId: string, payload: unknown) => {
       calls.push({ method: 'open', sessionId, payload });
       return { sessionId, activeTabId: 'tab-1', tabs: [] };
@@ -166,6 +174,39 @@ test('invalid grant revoke filters return 400 without calling the grant store', 
       await response.text();
     }
     assert.deepEqual(calls, []);
+  } finally {
+    await server.close();
+  }
+});
+
+test('Ego readiness GET is filesystem-only and the connection test is explicit, with no path disclosure', async () => {
+  const calls: RecordedCall[] = [];
+  const server = await serve(createAutomationRouter(fakeService(calls)));
+  try {
+    const readiness = await server.request('/ego-readiness');
+    assert.equal(readiness.status, 200);
+    assert.deepEqual((await readiness.json() as { warnings: string[] }).warnings, ['ego_not_connected']);
+    assert.deepEqual(calls, []);
+
+    const tested = await server.request('/ego-readiness/test', { method: 'POST' });
+    assert.equal(tested.status, 200);
+    assert.deepEqual(await tested.json(), { ok: true, status: 'connected', cliVersion: '0.5.0.32' });
+    assert.deepEqual(calls, [{ method: 'ego.test' }]);
+    assert.equal(JSON.stringify(await (await server.request('/ego-readiness')).json()).includes('/home/'), false);
+  } finally {
+    await server.close();
+  }
+});
+
+test('an unsupported backend list rejects Ego without rewriting the stored choice', async () => {
+  const calls: RecordedCall[] = [];
+  const service = fakeService(calls) as unknown as { browserBackends: () => readonly string[] } & AutomationService;
+  service.browserBackends = () => ['builtin', 'aside'];
+  const server = await serve(createAutomationRouter(service));
+  try {
+    const response = await server.request('/browser-backend', { ...json({ backend: 'ego' }), method: 'PUT' });
+    assert.equal(response.status, 400);
+    assert.equal(calls.some((call) => call.method === 'browserBackend.set'), false);
   } finally {
     await server.close();
   }

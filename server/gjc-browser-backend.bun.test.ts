@@ -34,9 +34,7 @@ import { createGjcAutomationTools } from './gjc-automation-tools.js';
 import {
   GJC_ASIDE_UNAVAILABLE_CODE,
   GJC_ASIDE_UNAVAILABLE_MESSAGE,
-  GJC_EGO_BROWSER_INSTRUCTIONS,
-  GJC_EGO_UNAVAILABLE_CODE,
-  GJC_EGO_UNAVAILABLE_MESSAGE,
+  GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
   type EgoBrowserCliProbe,
   type GjcBrowserBackend,
 } from './gjc-browser-backend.js';
@@ -59,6 +57,7 @@ async function appRun(
   probe: typeof ASIDE_FOUND | typeof ASIDE_MISSING = ASIDE_FOUND,
   inheritedRuntimeBackend?: 'native' | 'aside',
   egoProbe: () => EgoBrowserCliProbe = EGO_FOUND,
+  platform: NodeJS.Platform = 'darwin',
 ) {
   const root = await mkdtemp(join(tmpdir(), 'gjc-app-browser-backend-'));
   roots.push(root);
@@ -97,9 +96,9 @@ async function appRun(
     cwd, agentDir, settings, disposeOwners,
     // The same two steps the adapter takes, in the same order: the bridge
     // first (it may refuse), then the automation transports it allows.
-    applyBackend: () => applyGjcBrowserBackend(settings, browserBackend, probe, egoProbe),
+    applyBackend: () => applyGjcBrowserBackend(settings, browserBackend, probe, egoProbe, { platform }),
     start: async () => {
-      const backend = applyGjcBrowserBackend(settings, browserBackend, probe, egoProbe);
+      const backend = applyGjcBrowserBackend(settings, browserBackend, probe, egoProbe, { platform });
       const automationTools: AutomationTools = selectGjcAutomationTools(
         createGjcAutomationTools('app-session', { select: async () => undefined }, undefined, 'ask'),
         backend,
@@ -196,8 +195,9 @@ test('an app session with ego selected keeps the runtime on native, loses every 
     assert.equal((s.session.getDiscoverableTools({ source: 'builtin' }) as Array<{ name: string }>).some((tool) => tool.name === 'browser'), false);
     // Exactly one <browser-backend> block, and it is the app's ego block, not the runtime's Aside fragment.
     assert.equal(s.prompt.split('<browser-backend>').length - 1, 1);
-    assert.ok(s.prompt.includes(GJC_EGO_BROWSER_INSTRUCTIONS));
-    assert.ok(s.prompt.includes("ego-browser nodejs <<'EOF'"));
+    assert.ok(s.prompt.includes("'/fixture/.local/bin/ego-browser' nodejs"));
+    assert.ok(s.prompt.includes('ego-browser import'));
+    assert.ok(s.prompt.includes("'/fixture/.local/bin/ego-browser' nodejs <<'EOF'"));
     assert.equal(s.prompt.includes('aside repl'), false);
     assert.equal(s.prompt.includes('browser.backend: aside'), false);
     assert.ok(s.session.getActiveToolNames().includes('bash'), 'ego lite is reached through the runtime\u2019s Bash tool');
@@ -208,14 +208,32 @@ test('an app session with ego selected keeps the runtime on native, loses every 
   } finally { await s.close(); }
 });
 
-test('ego selected without an ego-browser CLI is refused before a session exists, and no runtime setting is written', { timeout: 60_000 }, async () => {
+test('ego selected without an ego-browser CLI keeps ordinary chat alive while disabling browser work', { timeout: 60_000 }, async () => {
   const run = await appRun('ego', ASIDE_FOUND, undefined, EGO_MISSING);
+  const s = await run.start();
   try {
-    assert.throws(() => run.applyBackend(), (error: unknown) => error instanceof Error
-      && (error as { code?: string }).code === GJC_EGO_UNAVAILABLE_CODE
-      && error.message === GJC_EGO_UNAVAILABLE_MESSAGE
-      && !error.message.includes('/fixture'));
-    assert.equal(run.settings.getOverride('browser.backend'), undefined);
-    assert.equal(run.settings.getOverride('browser.enabled'), undefined);
-  } finally { await run.disposeOwners(); }
+    assert.equal(s.backend.id, 'ego');
+    assert.equal(s.backend.egoReady, false);
+    assert.equal(run.settings.get('browser.backend'), 'native');
+    assert.equal(run.settings.get('browser.enabled'), false);
+    assert.equal(s.automationTools.browser, undefined);
+    assert.ok(s.automationTools.computer);
+    assert.ok(s.prompt.includes(GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS));
+    assert.match(s.prompt, /ordinary chat.*continue/iu);
+  } finally { await s.close(); }
+});
+
+test('ego selected on a non-macOS run never probes or executes a CLI and keeps chat usable', { timeout: 60_000 }, async () => {
+  const run = await appRun('ego', ASIDE_FOUND, undefined, () => {
+    throw new Error('unsupported platforms must not probe ego-browser');
+  }, 'linux');
+  const s = await run.start();
+  try {
+    assert.equal(s.backend.id, 'ego');
+    assert.equal(s.backend.egoReady, false);
+    assert.equal(run.settings.get('browser.backend'), 'native');
+    assert.equal(run.settings.get('browser.enabled'), false);
+    assert.ok(s.prompt.includes(GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS));
+    assert.ok(s.automationTools.computer);
+  } finally { await s.close(); }
 });

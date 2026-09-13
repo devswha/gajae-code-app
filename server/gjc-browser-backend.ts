@@ -88,6 +88,7 @@ export type EgoBrowserCliProbe =
   | { ok: false; searched: string[] };
 
 export const EGO_BROWSER_COMMAND = 'ego-browser';
+export const EGO_EXPECTED_BUNDLE_IDENTIFIER = 'com.citrolabs.ego.lite';
 
 /** Ego Lite is currently a macOS-only integration. Keep this gate separate from
  * the native WebView gate: self-hosted macOS users may still use Ego without
@@ -118,7 +119,9 @@ export type EgoReadinessCode =
   | 'ego_version_unknown'
   | 'ego_version_unsupported'
   | 'ego_not_connected'
-  | 'ego_cli_app_skew';
+  | 'ego_cli_app_skew'
+  | 'ego_app_version_mismatch'
+  | 'ego_app_untrusted';
 
 export type EgoReadinessCheck = Readonly<{
   code: EgoReadinessCode;
@@ -144,6 +147,7 @@ export type EgoReadinessReport = Readonly<{
   cli: Readonly<{ state: 'ready' | 'missing' | 'dangling' | 'not_executable' | 'unknown' }>;
   app: Readonly<{ state: 'ready' | 'missing' | 'unknown' }>;
   skill: Readonly<{ state: 'ready' | 'missing' | 'dangling' | 'untrusted' | 'unknown' }>;
+  appMetadata: Readonly<{ version: string | 'unknown'; bundleIdentifier: string | 'unknown' }>;
 }>;
 
 type EgoReadinessFileSystem = {
@@ -183,7 +187,10 @@ function safePathState(filePath: string, fileSystem: EgoReadinessFileSystem, exe
     if (typeof entry.isSymbolicLink === 'function' && entry.isSymbolicLink()) {
       const target = String(fileSystem.readlinkSync(filePath));
       const targetPath = isAbsolute(target) ? target : resolve(dirname(filePath), target);
-      try { fileSystem.statSync(targetPath); }
+      try {
+        const targetEntry = fileSystem.statSync(targetPath);
+        if (typeof targetEntry.isFile !== 'function' || !targetEntry.isFile()) return 'not_executable';
+      }
       catch { return 'dangling'; }
     } else if (typeof entry.isFile !== 'function' || !entry.isFile()) {
       return 'missing';
@@ -210,13 +217,16 @@ function isContainedBy(root: string, target: string): boolean {
   return suffix === '' || (!suffix.startsWith('..') && !isAbsolute(suffix));
 }
 
-function readVersionFromPlist(filePath: string, fileSystem: EgoReadinessFileSystem): string | undefined {
+type EgoAppMetadata = { version?: string; bundleIdentifier?: string };
+
+function readAppMetadata(filePath: string, fileSystem: EgoReadinessFileSystem): EgoAppMetadata {
   try {
     const text = String(fileSystem.readFileSync(filePath, 'utf8'));
-    const match = /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/u.exec(text);
-    return match?.[1]?.trim() || undefined;
+    const version = /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/u.exec(text)?.[1]?.trim();
+    const bundleIdentifier = /<key>CFBundleIdentifier<\/key>\s*<string>([^<]+)<\/string>/u.exec(text)?.[1]?.trim();
+    return { ...(version ? { version } : {}), ...(bundleIdentifier ? { bundleIdentifier } : {}) };
   } catch {
-    return undefined;
+    return {};
   }
 }
 
@@ -298,13 +308,15 @@ export function probeEgoReadiness(options: EgoReadinessProbeOptions = {}): EgoRe
   const activeVersionDir = join(egoRoot, 'active_version_dir');
   let appState: 'ready' | 'missing' = 'missing';
   let appVersion: string | undefined;
+  let activePath: string | undefined;
   try {
     const activeEntry = fileSystem.lstatSync(activeVersionDir);
     const activeTarget = typeof activeEntry.isSymbolicLink === 'function' && activeEntry.isSymbolicLink()
       ? String(fileSystem.readlinkSync(activeVersionDir))
       : activeVersionDir;
-    const activePath = isAbsolute(activeTarget) ? activeTarget : resolve(dirname(activeVersionDir), activeTarget);
-    fileSystem.statSync(activePath);
+    activePath = isAbsolute(activeTarget) ? activeTarget : resolve(dirname(activeVersionDir), activeTarget);
+    const activeStat = fileSystem.statSync(activePath);
+    if (typeof activeStat.isDirectory === 'function' && !activeStat.isDirectory()) throw new Error('active version is not a directory');
     appState = 'ready';
     appVersion = /(?:^|[\\/])Versions[\\/]([^\\/]+)$/u.exec(activePath)?.[1];
   } catch {
@@ -317,7 +329,25 @@ export function probeEgoReadiness(options: EgoReadinessProbeOptions = {}): EgoRe
     join(home, 'Applications', 'ego lite.app', 'Contents', 'Info.plist'),
     join('/Applications', 'ego lite.app', 'Contents', 'Info.plist'),
   ];
-  for (const appPlist of appPlists) appVersion ??= readVersionFromPlist(appPlist, fileSystem);
+  const activeBundleMatch = activePath
+    ? /^(.*(?:^|[\\/])ego lite\.app)[\\/]Contents(?:[\\/]|$)/u.exec(activePath)
+    : undefined;
+  const activeAppPlist = activeBundleMatch
+    ? join(activeBundleMatch[1], 'Contents', 'Info.plist')
+    : undefined;
+  // active_version_dir normally points inside the versioned framework under
+  // the app bundle. Recover that bundle's own Info.plist so an unrelated
+  // installed app cannot satisfy the version check.
+  // (The variable is populated below when the active path was available.)
+  let appInfoVersion: string | undefined;
+  let appBundleIdentifier: string | undefined;
+  const metadataPlists = [activeAppPlist, ...appPlists].filter((value): value is string => Boolean(value));
+  for (const appPlist of metadataPlists) {
+    const metadata = readAppMetadata(appPlist, fileSystem);
+    appInfoVersion ??= metadata.version;
+    appBundleIdentifier ??= metadata.bundleIdentifier;
+  }
+  appVersion ??= appInfoVersion;
   if (appState === 'ready') addCheck(checks, { code: 'ego_app_missing', state: 'ok', checked: true });
   else addCheck(checks, { code: 'ego_app_missing', state: 'problem', checked: true });
   versions.app = appVersion ?? 'unknown';
@@ -330,6 +360,18 @@ export function probeEgoReadiness(options: EgoReadinessProbeOptions = {}): EgoRe
       } catch { return undefined; }
     })()
     : undefined;
+
+  // The active target is the authoritative versioned framework. A normal
+  // bundle's Info.plist must agree with it and carry Ego Lite's fixed bundle
+  // identifier. Mismatches are reported as state only; no path is returned.
+  if (appVersion && appInfoVersion && appVersion !== appInfoVersion) {
+    addCheck(checks, { code: 'ego_app_version_mismatch', state: 'problem', checked: true });
+  }
+  if (appBundleIdentifier !== undefined && appBundleIdentifier !== EGO_EXPECTED_BUNDLE_IDENTIFIER) {
+    addCheck(checks, { code: 'ego_app_untrusted', state: 'problem', checked: true });
+  } else if (appState === 'ready' && appBundleIdentifier === undefined) {
+    addCheck(checks, { code: 'ego_app_untrusted', state: 'unknown', checked: false });
+  }
 
   const skillPath = join(agentDir, 'skills', 'ego-browser', 'SKILL.md');
   let skillState: 'ready' | 'missing' | 'dangling' | 'untrusted' = 'missing';
@@ -386,7 +428,7 @@ export function probeEgoReadiness(options: EgoReadinessProbeOptions = {}): EgoRe
     'ego_not_supported_platform', 'ego_cli_missing', 'ego_cli_dangling', 'ego_cli_not_executable',
     'ego_app_missing', 'ego_app_not_running', 'ego_skill_missing', 'ego_skill_dangling',
     'ego_skills_untrusted', 'ego_version_unknown', 'ego_version_unsupported', 'ego_not_connected',
-    'ego_cli_app_skew',
+    'ego_cli_app_skew', 'ego_app_version_mismatch', 'ego_app_untrusted',
   ] as EgoReadinessCode[]) {
     if (!checks[code]) checks[code] = { code, state: 'unknown', checked: false };
   }
@@ -406,6 +448,7 @@ export function probeEgoReadiness(options: EgoReadinessProbeOptions = {}): EgoRe
     cli: { state: cliState === 'not_executable' ? 'not_executable' : cliState === 'dangling' ? 'dangling' : cliState === 'ready' ? 'ready' : 'missing' },
     app: { state: appState },
     skill: { state: skillState },
+    appMetadata: { version: appInfoVersion ?? 'unknown', bundleIdentifier: appBundleIdentifier ?? 'unknown' },
   };
 }
 
@@ -537,6 +580,9 @@ export async function testEgoBrowserConnection(options: {
   }
   const cliVersion = strictVersionOutput(versionOutput.stdout, versionOutput.stderr);
   if (!cliVersion) return connectionFailure('ego_connection_failed', 'failed', 'The ego-browser CLI returned an invalid version response.');
+  if (!EGO_VERSION_MATRIX.cli.supported.includes(cliVersion)) {
+    return connectionFailure('ego_version_unsupported', 'failed', 'The installed ego-browser CLI version is not supported.', cliVersion);
+  }
 
   let nodeOutput: { stdout: string | Buffer; stderr: string | Buffer };
   try {

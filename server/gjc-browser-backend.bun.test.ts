@@ -57,6 +57,7 @@ async function appRun(
   probe: typeof ASIDE_FOUND | typeof ASIDE_MISSING = ASIDE_FOUND,
   inheritedRuntimeBackend?: 'native' | 'aside',
   egoProbe: () => EgoBrowserCliProbe = EGO_FOUND,
+  platform: NodeJS.Platform = 'darwin',
 ) {
   const root = await mkdtemp(join(tmpdir(), 'gjc-app-browser-backend-'));
   roots.push(root);
@@ -95,9 +96,9 @@ async function appRun(
     cwd, agentDir, settings, disposeOwners,
     // The same two steps the adapter takes, in the same order: the bridge
     // first (it may refuse), then the automation transports it allows.
-    applyBackend: () => applyGjcBrowserBackend(settings, browserBackend, probe, egoProbe),
+    applyBackend: () => applyGjcBrowserBackend(settings, browserBackend, probe, egoProbe, { platform }),
     start: async () => {
-      const backend = applyGjcBrowserBackend(settings, browserBackend, probe, egoProbe);
+      const backend = applyGjcBrowserBackend(settings, browserBackend, probe, egoProbe, { platform });
       const automationTools: AutomationTools = selectGjcAutomationTools(
         createGjcAutomationTools('app-session', { select: async () => undefined }, undefined, 'ask'),
         backend,
@@ -219,5 +220,20 @@ test('ego selected without an ego-browser CLI keeps ordinary chat alive while di
     assert.ok(s.automationTools.computer);
     assert.ok(s.prompt.includes(GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS));
     assert.match(s.prompt, /ordinary chat.*continue/iu);
+  } finally { await s.close(); }
+});
+
+test('ego selected on a non-macOS run never probes or executes a CLI and keeps chat usable', { timeout: 60_000 }, async () => {
+  const run = await appRun('ego', ASIDE_FOUND, undefined, () => {
+    throw new Error('unsupported platforms must not probe ego-browser');
+  }, 'linux');
+  const s = await run.start();
+  try {
+    assert.equal(s.backend.id, 'ego');
+    assert.equal(s.backend.egoReady, false);
+    assert.equal(run.settings.get('browser.backend'), 'native');
+    assert.equal(run.settings.get('browser.enabled'), false);
+    assert.ok(s.prompt.includes(GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS));
+    assert.ok(s.automationTools.computer);
   } finally { await s.close(); }
 });

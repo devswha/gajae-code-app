@@ -103,6 +103,7 @@ export {
   GJC_EGO_BROWSER_INSTRUCTIONS,
   GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
   EGO_VERSION_MATRIX,
+  EGO_EXPECTED_BUNDLE_IDENTIFIER,
   buildGjcEgoBrowserInstructions,
   isEgoSupportedPlatform,
   isGjcBrowserBackend,

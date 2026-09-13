@@ -40,6 +40,7 @@ import {
   GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
   buildGjcEgoBrowserInstructions,
   GjcAsideUnavailableError,
+  isEgoSupportedPlatform,
   isGjcBrowserBackend,
   probeEgoBrowserCli,
   type EgoBrowserCliProbe,
@@ -288,7 +289,7 @@ export function applyGjcBrowserBackend(
   requested: GjcBrowserBackend | undefined,
   probe: () => AsideCliProbe,
   probeEgo: () => EgoBrowserCliProbe = probeEgoBrowserCli,
-  options: { builtinBrowserAvailable?: boolean } = {},
+  options: { builtinBrowserAvailable?: boolean; platform?: NodeJS.Platform } = {},
 ): GjcResolvedBrowserBackend {
   if (requested === 'builtin') {
     settings.override('browser.backend', 'native');
@@ -298,9 +299,17 @@ export function applyGjcBrowserBackend(
     if (!found.ok) throw new GjcAsideUnavailableError(found.searched);
     settings.override('browser.backend', 'aside');
   } else if (requested === 'ego') {
-    const found = probeEgo();
     settings.override('browser.backend', 'native');
     settings.override('browser.enabled', false);
+    // Ego Lite is a macOS-only integration. Keep the session usable on
+    // self-hosted Linux/other platforms, but never probe or route a CLI there.
+    if (!isEgoSupportedPlatform(options.platform ?? process.platform)) {
+      return {
+        id: 'ego', exposesBuiltinTool: false, egoReady: false,
+        appInstructions: GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
+      };
+    }
+    const found = probeEgo();
     if (!found.ok) {
       return {
         id: 'ego', exposesBuiltinTool: false, egoReady: false,
@@ -1109,7 +1118,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         config.browserBackend,
         this.options.probeAsideCli ?? probeAsideCli,
         this.options.probeEgoBrowserCli ?? probeEgoBrowserCli,
-        { builtinBrowserAvailable },
+        { builtinBrowserAvailable, platform: process.platform },
       );
       const trustedBuiltinBrowserAvailable = builtinBrowserAvailable && browserBackend.exposesBuiltinTool;
       const goalScope = config.appSessionId && config.goalOwner

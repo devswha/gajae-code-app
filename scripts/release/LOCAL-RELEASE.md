@@ -17,6 +17,47 @@ same commit, including annotated tags.
 
 ## Prepare the final candidate
 
+### Check and prepare the source versions
+
+The repository keeps the product release version and the native desktop
+install version in separate fields. Check the current checkout before any
+build or tag work:
+
+```sh
+npm run release:version
+```
+
+To review an explicit pair without changing files, pass both values. The
+command validates strict SemVer, the beta/stable product channel, the updater
+baseline and strict advancement from the current checkout:
+
+```sh
+npm run release:version -- \
+  --product-version REPLACE_WITH_PRODUCT_VERSION \
+  --desktop-version REPLACE_WITH_DESKTOP_VERSION
+```
+
+Only an explicit `--write` updates the four version sources. It updates the
+product version in `package.json` and both package-lock root fields, and the
+desktop version in `package.json`, `src-tauri/Cargo.toml` and the matching
+`src-tauri/Cargo.lock` package record. All files are read and validated before
+any replacement. The command does not query or alter registry dependencies,
+release tags, manifests or published history. Replacement is atomic per file;
+the four-file operation is not crash-atomic. If a filesystem failure occurs
+after one replacement, the tool makes a best-effort rollback and refuses to
+overwrite a file changed by another process:
+
+```sh
+npm run release:version -- --write \
+  --product-version REPLACE_WITH_PRODUCT_VERSION \
+  --desktop-version REPLACE_WITH_DESKTOP_VERSION
+npm run release:version
+```
+
+The publication verifier still performs the complete published-history and
+desktop-version-floor check immediately before publication. A local version
+preparation check cannot replace that network-bound guard.
+
 The parent owns the final integrated commit/version and all build, Linux,
 runtime, data-survival and GUI acceptance. Complete those gates before this
 procedure. Build the Mac app at that exact commit, sign with the existing

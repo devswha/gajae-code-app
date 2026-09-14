@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { isRestartControlResult } from '../../shared/desktopRestartProtocol.js';
+import type { DesktopOwnerActivity } from '../../shared/desktopUpdateProtocol.js';
 
 import { DesktopRestartAuthority } from './desktop-restart-authority.js';
 import { DesktopRestartBackend } from './desktop-restart-backend.js';
@@ -43,6 +44,32 @@ function shellFixture() {
     } });
   backend.attachAuthority(authority);
   return { backend, authority };
+}
+
+function browserIdle(generation = 'browser:1', patch: Partial<DesktopOwnerActivity> = {}): DesktopOwnerActivity {
+  return { ...idle(), owner: 'browser', generation, ...patch };
+}
+
+function browserFixture(refresh?: () => Promise<{ ready: boolean }>) {
+  const time = 1000;
+  let browserActivity = browserIdle();
+  const events: string[] = [];
+  let reads = 0;
+  const backend = new DesktopRestartBackend(() => time);
+  const authority = new DesktopRestartAuthority({ now: () => time,
+    requiredOwners: ['browser', 'ui-drafts'], ownerReaders: {
+      browser: { getGeneration: () => browserActivity.generation, read: () => { reads++; events.push('read'); return browserActivity; } },
+      'ui-drafts': backend.draftReader,
+    } });
+  backend.attachAuthority(authority);
+  if (refresh) backend.configureBrowserStatusRefresh(async () => { events.push('status'); return refresh(); });
+  return {
+    backend,
+    authority,
+    events,
+    readCount: () => reads,
+    setBrowserActivity: (activity: ReturnType<typeof browserIdle>) => { browserActivity = activity; },
+  };
 }
 
 test('unbound/malformed control cannot provide sealed UI evidence; status performs no owner reads', async () => {
@@ -87,6 +114,51 @@ test('native sealed prepare and exact token commit fence work without invoking a
   assert.equal(committed.token, null);
   assert.equal((await f.backend.handle({ action: 'cancel', attemptId: id }, native)).error, 'committed');
   assert.throws(() => f.authority.enterCompletion('late:completion'), { code: 'DESKTOP_RESTART_FENCED' });
+});
+
+test('browser status refresh runs before owner reads and observes native activity changes', async () => {
+  const f = browserFixture(async () => {
+    f.setBrowserActivity(browserIdle('browser:2', { running: 1 }));
+    return { ready: true };
+  });
+  f.backend.bind(native);
+  const result = await f.backend.handle(prepare, native);
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'busy');
+  assert.deepEqual(f.events, ['status', 'read']);
+  assert.equal(f.authority.state, 'open');
+});
+
+test('browser status refresh failure prevents authority preparation and remains unknown', async () => {
+  const f = browserFixture(async () => { throw new Error('browser status unavailable'); });
+  f.backend.bind(native);
+  const result = await f.backend.handle(prepare, native);
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'unknown');
+  assert.equal(f.readCount(), 0);
+  assert.equal(f.authority.state, 'open');
+});
+
+test('successful post-fence browser refresh lets the pure reader prepare an idle snapshot', async () => {
+  const f = browserFixture(async () => ({ ready: true }));
+  f.backend.bind(native);
+  const result = await f.backend.handle(prepare, native);
+  assert.equal(result.ok, true);
+  assert.deepEqual(f.events, ['status', 'read']);
+  await f.backend.handle({ action: 'cancel', attemptId: id }, native);
+});
+
+test('native browser activity after refresh invalidates commit through generation and busy checks', async () => {
+  const f = browserFixture(async () => ({ ready: true }));
+  f.backend.bind(native);
+  const prepared = await f.backend.handle(prepare, native);
+  assert.equal(prepared.ok, true);
+  assert.ok(prepared.token);
+  f.setBrowserActivity(browserIdle('browser:2', { running: 1 }));
+  const result = await f.backend.handle({ action: 'commit', attemptId: id, token: prepared.token! }, native);
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'unknown');
+  assert.equal(f.authority.state, 'open');
 });
 
 test('busy runtime reopens without discarding work and a consumed draft epoch cannot be replayed', async () => {

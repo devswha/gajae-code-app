@@ -161,6 +161,11 @@ const gjcTerminalNotificationAdapter = createGjcTerminalNotificationAdapter({
 // This is not exposed as a browser prepare/commit endpoint. Unimplemented
 // ownership readers remain explicit blockers; native install stays disabled.
 const desktopRestartBackend = new DesktopRestartBackend();
+desktopRestartBackend.configureBrowserStatusRefresh(async () => {
+    const status = await automationService.browser.status({ force: true });
+    if (status.ready !== true) throw new Error('builtin_browser_unavailable');
+    return status;
+});
 const desktopRestartAdmission = createDesktopRestartRuntime({
     chat: { getGeneration: chatRunRegistry.getGeneration, read: chatRunRegistry.snapshotActivity },
     worktrees: createSessionWorktreeDesktopRestartReader(),

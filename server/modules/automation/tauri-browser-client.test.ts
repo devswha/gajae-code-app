@@ -121,6 +121,85 @@ test('an in-flight status observation does not count as browser work', async (t)
   await pending;
 });
 
+test('a forced status refresh does not reuse a pre-fence observation', async (t) => {
+  const requests: any[] = [];
+  const sockets: net.Socket[] = [];
+  let resolveFirstSeen!: () => void;
+  let resolveSecondSeen!: () => void;
+  const firstSeen = new Promise<void>((resolve) => { resolveFirstSeen = resolve; });
+  const secondSeen = new Promise<void>((resolve) => { resolveSecondSeen = resolve; });
+  const { client } = await fixture(t, { handle: (request, socket) => {
+    requests.push(request);
+    sockets.push(socket);
+    if (requests.length === 1) resolveFirstSeen();
+    if (requests.length === 2) resolveSecondSeen();
+  } });
+  const first = client.status();
+  await firstSeen;
+  const forced = client.status({ force: true });
+  await secondSeen;
+  reply(requests[1], sockets[1]!, { ready: true, activity: { ...idle, generation: 'native-2', running: 1 } });
+  await forced;
+  reply(requests[0], sockets[0]!, { ready: true, activity: idle });
+  await assert.rejects(first, /browser_activity_changed/);
+  assert.equal(client.snapshotActivity().running, 1);
+});
+
+test('a late status response cannot clear uncertainty introduced by a command', async (t) => {
+  let statusSocket!: net.Socket;
+  let statusRequest!: any;
+  let resolveStatusSeen!: () => void;
+  const statusSeen = new Promise<void>((resolve) => { resolveStatusSeen = resolve; });
+  const { client } = await fixture(t, { handle: (request, socket) => {
+    if (request.operation === 'status') {
+      statusRequest = request;
+      statusSocket = socket;
+      resolveStatusSeen();
+    } else {
+      reply(request, socket, { ok: true });
+    }
+  } });
+  const status = client.status();
+  await statusSeen;
+  await client.command('one', { action: 'click', selector: '#submit' }, pageBinding);
+  reply(statusRequest, statusSocket, { ready: true, activity: idle });
+  await assert.rejects(status, /browser_activity_changed/);
+  const activity = client.snapshotActivity();
+  assert.equal(activity.complete, false);
+  assert.ok(activity.unknown.includes('builtin_browser_unconfirmed'));
+});
+
+test('a status response cannot clear uncertainty when a command settles during its flight', async (t) => {
+  let statusSocket!: net.Socket;
+  let statusRequest!: any;
+  let commandSocket!: net.Socket;
+  let commandRequest!: any;
+  let resolveStatusSeen!: () => void;
+  let resolveCommandSeen!: () => void;
+  const statusSeen = new Promise<void>((resolve) => { resolveStatusSeen = resolve; });
+  const commandSeen = new Promise<void>((resolve) => { resolveCommandSeen = resolve; });
+  const { client } = await fixture(t, { handle: (request, socket) => {
+    if (request.operation === 'status') {
+      statusRequest = request;
+      statusSocket = socket;
+      resolveStatusSeen();
+    } else {
+      commandRequest = request;
+      commandSocket = socket;
+      resolveCommandSeen();
+    }
+  } });
+  const command = client.command('one', { action: 'click', selector: '#submit' }, pageBinding);
+  await commandSeen;
+  const status = client.status();
+  await statusSeen;
+  reply(commandRequest, commandSocket, { ok: true });
+  await command;
+  reply(statusRequest, statusSocket, { ready: true, activity: idle });
+  await assert.rejects(status, /browser_activity_changed/);
+  assert.equal(client.snapshotActivity().complete, false);
+});
+
 test('first restart read stays unknown until external status sync, then native changes remain stale', async (t) => {
   let currentActivity = { ...idle };
   const { client, requests } = await fixture(t, { handle: (request, socket) => {

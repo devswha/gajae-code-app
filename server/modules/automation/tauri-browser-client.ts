@@ -32,6 +32,7 @@ type Options = {
 };
 type Operation = 'status' | 'open' | 'state' | 'command' | 'close';
 type BrowserStatus = { state: 'ready' | 'unavailable'; ready: boolean; engine: 'webview' };
+type StatusOptions = { force?: boolean };
 
 /** A native controller client: no child process, browser installation, frame stream or input relay. */
 export class TauriBrowserClient {
@@ -44,6 +45,7 @@ export class TauriBrowserClient {
   private readonly pending = new Map<Socket, Operation>();
   private readonly epoch = randomUUID();
   private revision = 0;
+  private activitySequence = 0;
   private native: DesktopOwnerActivity | null = null;
   private ready = false;
   private uncertain = false;
@@ -68,6 +70,7 @@ export class TauriBrowserClient {
       this.statusFlight = undefined;
       this.statusFlightBinding = null;
       this.binding = binding;
+      this.activitySequence++;
       this.ready = false;
       this.native = null;
       this.uncertain = false;
@@ -80,11 +83,18 @@ export class TauriBrowserClient {
   isReady(): boolean { return this.ready && this.binding !== null; }
   getGeneration(): string { return `${this.epoch}:${this.revision}`; }
 
-  status(): Promise<BrowserStatus> {
+  status(options: StatusOptions = {}): Promise<BrowserStatus> {
     const binding = this.binding;
     if (!binding) return Promise.resolve({ state: 'unavailable', ready: false, engine: 'webview' });
-    if (this.statusFlight && this.statusFlightBinding === binding) return this.statusFlight;
-    const flight = this.readStatus(binding);
+    if (options.force && this.statusFlight && this.statusFlightBinding === binding) {
+      // A post-fence refresh must not reuse an observation that started before
+      // the fence. Invalidate that response without treating the invalidation
+      // itself as browser activity.
+      this.activitySequence++;
+      this.statusFlight = undefined;
+      this.statusFlightBinding = null;
+    } else if (this.statusFlight && this.statusFlightBinding === binding) return this.statusFlight;
+    const flight = this.readStatus(binding, this.activitySequence);
     this.statusFlight = flight;
     this.statusFlightBinding = binding;
     void flight.then(
@@ -94,10 +104,11 @@ export class TauriBrowserClient {
     return flight;
   }
 
-  private async readStatus(binding: DesktopNativeBinding): Promise<BrowserStatus> {
+  private async readStatus(binding: DesktopNativeBinding, sequence: number): Promise<BrowserStatus> {
     try {
       const value = await this.request('status', 'status', {}, undefined, undefined, 2000) as Record<string, unknown>;
       if (this.binding !== binding) throw new Error('browser_binding_changed');
+      if (this.activitySequence !== sequence) throw new Error('browser_activity_changed');
       if (!value || value.ready !== true || !nativeActivity(value.activity)) throw new Error('browser_protocol_error');
       if (!this.ready || this.uncertain || JSON.stringify(this.native) !== JSON.stringify(value.activity)) this.revision++;
       this.ready = true;
@@ -107,7 +118,7 @@ export class TauriBrowserClient {
     } catch (error) {
       // A response from a retired binding must never poison the replacement
       // binding's cache. The binding callback already invalidated it.
-      if (this.binding === binding) {
+      if (this.binding === binding && this.activitySequence === sequence) {
         if (this.ready || !this.uncertain) this.revision++;
         this.ready = false;
         this.uncertain = true;
@@ -169,6 +180,7 @@ export class TauriBrowserClient {
     this.statusFlight = undefined;
     this.statusFlightBinding = null;
     this.binding = null;
+    this.activitySequence++;
     this.ready = false;
     this.native = null;
     this.uncertain = false;
@@ -181,6 +193,7 @@ export class TauriBrowserClient {
     if (signal?.aborted) return Promise.reject(new Error('browser_cancelled'));
     if (this.pending.size >= MAX_REQUESTS) return Promise.reject(new Error('browser_busy'));
     if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(sessionId)) return Promise.reject(new Error('browser_invalid_session'));
+    if (operation !== 'status') this.activitySequence++;
     const release = operation === 'status' || operation === 'state' ? undefined : this.admission?.enter(`browser.${operation}`);
     const id = randomUUID();
     const nonce = randomBytes(32).toString('hex');
@@ -201,6 +214,7 @@ export class TauriBrowserClient {
           // Native commands can change activity even when their waiter fails;
           // require a later authenticated status response before trusting the
           // cached owner proof again.
+          this.activitySequence++;
           this.revision++;
           this.uncertain = true;
         }

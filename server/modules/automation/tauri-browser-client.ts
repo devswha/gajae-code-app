@@ -23,8 +23,15 @@ function nativeActivity(value: unknown): value is DesktopOwnerActivity {
     && record.unknown.every((reason) => typeof reason === 'string' && /^[A-Za-z0-9._:-]{1,128}$/u.test(reason));
 }
 
-type Options = { initialization?: DesktopNativeInit; connect?: typeof connectSocket; pid?: number };
+type Options = {
+  initialization?: DesktopNativeInit;
+  connect?: typeof connectSocket;
+  pid?: number;
+  /** Refresh the local activity cache when the native binding first arrives. */
+  refreshOnBinding?: boolean;
+};
 type Operation = 'status' | 'open' | 'state' | 'command' | 'close';
+type BrowserStatus = { state: 'ready' | 'unavailable'; ready: boolean; engine: 'webview' };
 
 /** A native controller client: no child process, browser installation, frame stream or input relay. */
 export class TauriBrowserClient {
@@ -33,17 +40,21 @@ export class TauriBrowserClient {
   private unsubscribe: () => void = () => {};
   private readonly connect: typeof connectSocket;
   private readonly pid: number;
-  private readonly pending = new Set<Socket>();
+  private readonly refreshOnBinding: boolean;
+  private readonly pending = new Map<Socket, Operation>();
   private readonly epoch = randomUUID();
   private revision = 0;
   private native: DesktopOwnerActivity | null = null;
   private ready = false;
   private uncertain = false;
+  private statusFlight?: Promise<BrowserStatus>;
+  private statusFlightBinding: DesktopNativeBinding | null = null;
   private admission?: DesktopWorkAdmission;
 
   constructor(options: Options = {}) {
     this.connect = options.connect ?? connectSocket;
     this.pid = options.pid ?? process.pid;
+    this.refreshOnBinding = options.refreshOnBinding === true;
     if (options.initialization) this.configureInitialization(options.initialization);
   }
 
@@ -53,11 +64,15 @@ export class TauriBrowserClient {
     this.unsubscribe = initialization.subscribe((bindings) => {
       const binding = bindings?.browser ?? null;
       if (this.binding === binding) return;
-      for (const socket of this.pending) socket.destroy();
+      for (const socket of this.pending.keys()) socket.destroy();
+      this.statusFlight = undefined;
+      this.statusFlightBinding = null;
       this.binding = binding;
       this.ready = false;
       this.native = null;
+      this.uncertain = false;
       this.revision++;
+      if (binding && this.refreshOnBinding) void this.status().catch(() => {});
     });
   }
 
@@ -65,10 +80,24 @@ export class TauriBrowserClient {
   isReady(): boolean { return this.ready && this.binding !== null; }
   getGeneration(): string { return `${this.epoch}:${this.revision}`; }
 
-  async status(): Promise<{ state: 'ready' | 'unavailable'; ready: boolean; engine: 'webview' }> {
-    if (!this.binding) return { state: 'unavailable', ready: false, engine: 'webview' };
+  status(): Promise<BrowserStatus> {
+    const binding = this.binding;
+    if (!binding) return Promise.resolve({ state: 'unavailable', ready: false, engine: 'webview' });
+    if (this.statusFlight && this.statusFlightBinding === binding) return this.statusFlight;
+    const flight = this.readStatus(binding);
+    this.statusFlight = flight;
+    this.statusFlightBinding = binding;
+    void flight.then(
+      () => this.clearStatusFlight(flight),
+      () => this.clearStatusFlight(flight),
+    );
+    return flight;
+  }
+
+  private async readStatus(binding: DesktopNativeBinding): Promise<BrowserStatus> {
     try {
       const value = await this.request('status', 'status', {}, undefined, undefined, 2000) as Record<string, unknown>;
+      if (this.binding !== binding) throw new Error('browser_binding_changed');
       if (!value || value.ready !== true || !nativeActivity(value.activity)) throw new Error('browser_protocol_error');
       if (!this.ready || this.uncertain || JSON.stringify(this.native) !== JSON.stringify(value.activity)) this.revision++;
       this.ready = true;
@@ -76,16 +105,30 @@ export class TauriBrowserClient {
       this.native = value.activity;
       return { state: 'ready', ready: true, engine: 'webview' };
     } catch (error) {
-      if (this.ready || !this.uncertain) this.revision++;
-      this.ready = false;
-      this.uncertain = true;
+      // A response from a retired binding must never poison the replacement
+      // binding's cache. The binding callback already invalidated it.
+      if (this.binding === binding) {
+        if (this.ready || !this.uncertain) this.revision++;
+        this.ready = false;
+        this.uncertain = true;
+      }
       throw error;
     }
   }
 
-  async snapshotActivity(): Promise<DesktopOwnerActivity> {
-    if (this.binding) await this.status().catch(() => {});
-    const expected = this.initialization?.expected === true;
+  private clearStatusFlight(flight: Promise<BrowserStatus>): void {
+    if (this.statusFlight !== flight) return;
+    this.statusFlight = undefined;
+    this.statusFlightBinding = null;
+  }
+
+  /**
+   * Read the last authenticated native observation only. This is intentionally
+   * synchronous: restart authority reads may not connect, refresh, or mutate
+   * the cache while proving a generation.
+   */
+  snapshotActivity(): DesktopOwnerActivity {
+    const expected = this.initialization?.expected === true || this.binding !== null;
     const unknown = [...new Set([
       ...(this.native?.unknown ?? []),
       ...(expected && (!this.binding || !this.ready || this.uncertain) ? ['builtin_browser_unconfirmed'] : []),
@@ -93,7 +136,8 @@ export class TauriBrowserClient {
     return {
       owner: 'browser', generation: this.getGeneration(), complete: unknown.length === 0 && (this.native?.complete ?? !expected),
       starting: this.native?.starting ?? 0, queued: this.native?.queued ?? 0,
-      running: (this.native?.running ?? 0) + this.pending.size, settling: this.native?.settling ?? 0,
+      running: (this.native?.running ?? 0) + [...this.pending.values()].filter((operation) => operation !== 'status').length,
+      settling: this.native?.settling ?? 0,
       approvals: this.native?.approvals ?? 0, retained: this.native?.retained ?? 0, unknown,
     };
   }
@@ -121,9 +165,13 @@ export class TauriBrowserClient {
 
   async shutdown(): Promise<void> {
     this.unsubscribe();
-    for (const socket of this.pending) socket.destroy();
+    for (const socket of this.pending.keys()) socket.destroy();
+    this.statusFlight = undefined;
+    this.statusFlightBinding = null;
     this.binding = null;
     this.ready = false;
+    this.native = null;
+    this.uncertain = false;
     this.revision++;
   }
 
@@ -149,7 +197,13 @@ export class TauriBrowserClient {
         clearTimeout(timer);
         signal?.removeEventListener('abort', abort);
         if (socket) { this.pending.delete(socket); socket.destroy(); }
-        if (operation !== 'status') this.revision++;
+        if (operation !== 'status' && this.binding === binding) {
+          // Native commands can change activity even when their waiter fails;
+          // require a later authenticated status response before trusting the
+          // cached owner proof again.
+          this.revision++;
+          this.uncertain = true;
+        }
         buffer.fill(0);
         release?.();
         if (error) reject(new Error(error)); else resolve(result);
@@ -160,8 +214,11 @@ export class TauriBrowserClient {
       try { socket = this.connect(binding.socket); }
       catch { finish('builtin_browser_unavailable'); return; }
       const channel = socket;
-      this.pending.add(channel);
-      if (operation !== 'status') this.revision++;
+      this.pending.set(channel, operation);
+      if (operation !== 'status' && this.binding === binding) {
+        this.revision++;
+        this.uncertain = true;
+      }
       channel.once('connect', () => {
         if (settled) return;
         if (this.binding !== binding) { finish('browser_binding_changed'); return; }

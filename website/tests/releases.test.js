@@ -14,14 +14,14 @@ import {
 } from '../src/releases.js';
 
 /**
- * Reviewed public-release fixture: promote this with the verified beta.16 assets.
+ * Reviewed public-release fixture: promote this with the verified beta.17 assets.
  * A local/test candidate can advance package.json before publication; coupling
  * the page to that version would advertise download URLs that do not exist.
  * Update this fixture with RELEASE only after verifying the new public assets.
  */
-const publishedVersion = '2.0.0-beta.16';
+const publishedVersion = '2.0.0-beta.17';
 const publishedTag = `v${publishedVersion}`;
-const publishedLabel = '2026-09-13';
+const publishedLabel = '2026-09-14';
 
 test('pins the published release and its GitHub URLs independently of local candidates', () => {
   assert.equal(RELEASE.version, publishedVersion);

@@ -485,7 +485,7 @@ fn desktop_init_frame(
 
 pub fn start(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        let window = match app.get_webview_window("main") {
+        let window = match crate::main_webview_window(&app) {
             Some(window) => window,
             None => return,
         };

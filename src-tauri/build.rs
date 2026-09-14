@@ -136,6 +136,7 @@ fn main() {
             "retry_desktop_server",
             "ack_updater_screen",
             "builtin_browser_control",
+            "builtin_browser_appearance",
         ]),
     ))
     .expect("failed to run Gajae Code App desktop build script");

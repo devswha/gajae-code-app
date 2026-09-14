@@ -563,9 +563,7 @@ fn restart_context(
         .filter(|backend| backend.available())
         .cloned()
         .ok_or("updater_backend_unavailable")?;
-    let window = app
-        .get_webview_window("main")
-        .ok_or("updater_unavailable")?;
+    let window = crate::main_webview_window(&app).ok_or("updater_unavailable")?;
     let return_url = window.url().map_err(|_| "updater_unavailable")?;
     if return_url.origin().ascii_serialization() != request.origin || !spa_page(&return_url) {
         return Err("updater_unauthorized");
@@ -649,7 +647,7 @@ pub(crate) fn notify_restart_aborted(app: &AppHandle, attempt_id: &str, epoch: u
     }) else {
         return;
     };
-    let Some(window) = app.get_webview_window("main") else {
+    let Some(window) = crate::main_webview_window(&app) else {
         return;
     };
     if !window

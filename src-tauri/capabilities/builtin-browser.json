@@ -12,6 +12,7 @@
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
-    "allow-builtin-browser-control"
+    "allow-builtin-browser-control",
+    "allow-builtin-browser-appearance"
   ]
 }

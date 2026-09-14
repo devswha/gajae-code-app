@@ -236,7 +236,7 @@ fn acknowledge_deep_links(app: &tauri::AppHandle, delivery: desktop_deep_links::
     {
         return false;
     }
-    let Some(window) = app.get_webview_window("main") else {
+    let Some(window) = main_webview_window(&app) else {
         return false;
     };
     if !window.url().is_ok_and(|url| {
@@ -262,8 +262,19 @@ fn acknowledge_deep_links(app: &tauri::AppHandle, delivery: desktop_deep_links::
     true
 }
 
+// Retain the main window/view pair before attaching docked child webviews.
+// Tauri's get_webview_window intentionally returns None for multi-webview
+// windows; the original pair still owns the same live window and app view.
+struct MainWebviewWindow(tauri::WebviewWindow);
+
+pub(crate) fn main_webview_window(app: &tauri::AppHandle) -> Option<tauri::WebviewWindow> {
+    app.get_webview("main")?;
+    app.try_state::<MainWebviewWindow>()
+        .map(|main| main.0.clone())
+}
+
 fn focus_main_window(app: &tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
+    if let Some(window) = main_webview_window(&app) {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
@@ -288,7 +299,7 @@ pub(crate) fn resume_deep_links(app: &tauri::AppHandle) {
         if !updater_launch::allows_navigation_intents(&handle) {
             return;
         }
-        if let Some(window) = handle.get_webview_window("main") {
+        if let Some(window) = main_webview_window(&handle) {
             if let Ok(url) = window.url() {
                 if !handle.state::<navigation::LoopbackOrigin>().permits(&url) {
                     return;
@@ -321,7 +332,7 @@ fn route_deep_link(app: &tauri::AppHandle, url: tauri::Url) -> bool {
     {
         return false;
     }
-    if let Some(window) = app.get_webview_window("main") {
+    if let Some(window) = main_webview_window(&app) {
         if !window.url().is_ok_and(|current| {
             current.scheme() == "http"
                 && app.state::<navigation::LoopbackOrigin>().permits(&current)
@@ -351,11 +362,23 @@ async fn builtin_browser_control(
     app: tauri::AppHandle,
     webview: tauri::Webview,
     command: builtin_browser::ToolbarCommand,
-) -> Result<builtin_browser::BrowserState, String> {
+) -> Result<builtin_browser::ToolbarState, String> {
     if webview.label() != builtin_browser::CONTROLS_LABEL {
         return Err("builtin_browser_unauthorized".to_owned());
     }
     builtin_browser::toolbar_control(&app, command)
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+async fn builtin_browser_appearance(
+    app: tauri::AppHandle,
+    webview: tauri::Webview,
+) -> Result<builtin_browser::BrowserAppearance, String> {
+    if webview.label() != builtin_browser::CONTROLS_LABEL {
+        return Err("builtin_browser_unauthorized".to_owned());
+    }
+    builtin_browser::appearance(&app)
 }
 
 #[tauri::command]
@@ -365,7 +388,7 @@ fn retry_desktop_server(app: tauri::AppHandle) {
 
 #[cfg(target_os = "macos")]
 #[tauri::command]
-fn ack_updater_screen(app: tauri::AppHandle, window: tauri::WebviewWindow, epoch: u64) {
+fn ack_updater_screen(app: tauri::AppHandle, window: tauri::Webview, epoch: u64) {
     updater_launch::acknowledge_screen(&app, &window, epoch);
 }
 
@@ -465,7 +488,8 @@ fn main() {
     let builder = builder.invoke_handler(tauri::generate_handler![
         retry_desktop_server,
         ack_updater_screen,
-        builtin_browser_control
+        builtin_browser_control,
+        builtin_browser_appearance
     ]);
     #[cfg(not(target_os = "macos"))]
     let builder = builder.invoke_handler(tauri::generate_handler![retry_desktop_server]);
@@ -536,6 +560,10 @@ fn main() {
         if let Some(profile) = app.try_state::<qa_profile::QaProfile>() {
             profile.create_windows(app, &qa_windows)?;
         }
+        let main = app
+            .get_webview_window("main")
+            .ok_or("main webview is unavailable")?;
+        app.manage(MainWebviewWindow(main));
         #[cfg(target_os = "linux")]
         {
             app.manage(StartupDeepLinks::new(
@@ -663,7 +691,7 @@ fn main() {
                 has_visible_windows: false,
                 ..
             } => {
-                if let Some(window) = app.get_webview_window("main") {
+                if let Some(window) = main_webview_window(&app) {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }

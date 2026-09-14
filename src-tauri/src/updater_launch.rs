@@ -170,7 +170,7 @@ pub(crate) fn restore_screen(webview: &tauri::Webview) -> bool {
     false
 }
 
-pub(crate) fn acknowledge_screen(app: &AppHandle, window: &tauri::WebviewWindow, epoch: u64) {
+pub(crate) fn acknowledge_screen(app: &AppHandle, window: &tauri::Webview, epoch: u64) {
     if window.label() != "main" || !window.url().is_ok_and(|url| local_page(&url)) {
         return;
     }
@@ -189,9 +189,7 @@ pub(crate) fn acknowledge_screen(app: &AppHandle, window: &tauri::WebviewWindow,
 }
 
 fn show(app: &AppHandle, screen: Screen) -> Result<u64, String> {
-    let window = app
-        .get_webview_window("main")
-        .ok_or("Update window is unavailable.")?;
+    let window = crate::main_webview_window(&app).ok_or("Update window is unavailable.")?;
     let epoch = app.state::<ScreenState>().publish(screen);
     if window.url().is_ok_and(|url| local_page(&url)) {
         window
@@ -295,7 +293,7 @@ pub(crate) fn cancel_manual_display(app: &AppHandle, return_url: &tauri::Url) {
         .is_ok()
     {
         app.state::<ScreenState>().clear();
-        if let Some(window) = app.get_webview_window("main") {
+        if let Some(window) = crate::main_webview_window(&app) {
             let _ = window.navigate(return_url.clone());
         }
     }

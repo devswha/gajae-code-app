@@ -151,7 +151,7 @@
     },
     "builtinBrowser": {
       "title": "Built-in browser",
-      "description": "Open the app's built-in browser window independently of the selected GJC backend.",
+      "description": "Open the app's built-in browser in a resizable right panel, independently of the selected GJC backend.",
       "label": "Built-in browser",
       "note": "Available only in the macOS desktop app. One browser owner remains active until it is closed. HTTP(S) chat links always open in your external browser.",
       "open": "Open browser",

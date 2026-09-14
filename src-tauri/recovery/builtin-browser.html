@@ -5,17 +5,37 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'none';">
     <link rel="stylesheet" href="builtin-browser.css">
-    <title>Built-in Browser</title>
+    <title>Browser</title>
   </head>
   <body>
-    <main class="toolbar" aria-label="Built-in Browser">
-      <button data-action="back" aria-label="Back">←</button>
-      <button data-action="forward" aria-label="Forward">→</button>
-      <button data-action="reload" aria-label="Reload">↻</button>
-      <form id="url-form"><label class="sr-only" for="address">Address</label><input id="address" autocomplete="url" inputmode="url" spellcheck="false"></form>
-      <span id="profile" aria-live="polite"></span>
-      <button data-action="close" aria-label="Close">Close</button>
-      <p id="message" role="status"></p>
+    <div id="divider" role="separator" tabindex="0" aria-label="Browser width" aria-orientation="vertical" aria-valuenow="480"></div>
+    <main class="browser-chrome" aria-label="Browser">
+      <header class="panel-header">
+        <div class="page-tab" aria-label="Current page">
+          <svg class="page-symbol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a17 17 0 0 1 0 18 17 17 0 0 1 0-18Z"/></svg>
+          <span id="page-title" dir="auto">Browser</span>
+          <span id="message" role="status" hidden></span>
+          <span id="profile" class="sr-only"></span>
+          <button data-action="close" class="icon-button close-button" aria-label="Close browser">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg>
+          </button>
+        </div>
+        <button id="expand" class="icon-button expand-button" aria-label="Expand browser" aria-pressed="false">
+          <svg class="expand-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"/></svg>
+          <svg class="restore-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10h-6V4M14 10l7-7M4 14h6v6M10 14l-7 7"/></svg>
+        </button>
+      </header>
+      <nav class="navigation" aria-label="Page navigation">
+        <button data-action="back" class="icon-button" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 5-7 7 7 7M5 12h14"/></svg></button>
+        <button data-action="forward" class="icon-button" aria-label="Forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 5 7 7-7 7M5 12h14"/></svg></button>
+        <button data-action="reload" class="icon-button" aria-label="Reload"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2.3 5.7M20 7v5"/></svg></button>
+        <form id="url-form" class="address-bar">
+          <label class="sr-only" for="address">Address</label>
+          <input id="address" autocomplete="url" inputmode="url" spellcheck="false" aria-label="Address">
+          <button id="go" class="icon-button go-button" type="submit" aria-label="Go to address"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></button>
+        </form>
+      </nav>
+      <div class="loading-track" aria-hidden="true"></div>
     </main>
     <script src="builtin-browser.js"></script>
   </body>

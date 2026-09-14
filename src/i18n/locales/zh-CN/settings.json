@@ -149,7 +149,7 @@
       "connectionFailed": "ego-browser 连接测试失败。",
       "saveFailed": "无法保存浏览器后端。"
     },
-    "builtinBrowser": { "title": "内置浏览器", "description": "独立于所选 GJC 后端，打开应用的内置浏览器窗口。", "label": "内置浏览器", "note": "仅在 macOS 桌面应用中可用。关闭前会一直保留浏览器所有权。HTTP(S) 聊天链接始终在外部浏览器中打开。", "open": "打开浏览器", "opened": "已打开内置浏览器。", "failed": "无法打开浏览器。", "errors": { "busy": "内置浏览器正在使用中。请先关闭，再为此会话打开。", "unavailable": "内置浏览器暂不可用。请等待应用服务器重新连接后再试。", "invalidUrl": "无法打开此地址。请使用 HTTP 或 HTTPS 地址。", "stale": "请求完成前浏览器页面已发生变化。请重试。", "failed": "无法打开内置浏览器。请重试。" } },
+    "builtinBrowser": { "title": "内置浏览器", "description": "在可调整宽度的右侧面板中打开内置浏览器，不受所选 GJC 后端影响。", "label": "内置浏览器", "note": "仅在 macOS 桌面应用中可用。关闭前会一直保留浏览器所有权。HTTP(S) 聊天链接始终在外部浏览器中打开。", "open": "打开浏览器", "opened": "已打开内置浏览器。", "failed": "无法打开浏览器。", "errors": { "busy": "内置浏览器正在使用中。请先关闭，再为此会话打开。", "unavailable": "内置浏览器暂不可用。请等待应用服务器重新连接后再试。", "invalidUrl": "无法打开此地址。请使用 HTTP 或 HTTPS 地址。", "stale": "请求完成前浏览器页面已发生变化。请重试。", "failed": "无法打开内置浏览器。请重试。" } },
     "title": "浏览器和原生应用",
     "description": "查看单独安装的 CUA 驱动程序。",
     "notInstalled": "不可用",

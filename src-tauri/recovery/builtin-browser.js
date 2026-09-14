@@ -21,7 +21,12 @@ let pending = false;
 let editing = false;
 let currentState = null;
 const buttons = [...document.querySelectorAll('button[data-action]')];
-buttons.forEach((button, index) => { button.textContent = text[index]; button.setAttribute('aria-label', text[index]); });
+const icons = ['←', '→', '↻', '×'];
+buttons.forEach((button, index) => {
+  button.textContent = icons[index];
+  button.setAttribute('aria-label', text[index]);
+  button.title = text[index];
+});
 function active(state) { return state.tabs?.find((tab) => tab.id === state.activeTabId); }
 function failureMessage(error) {
   const detail = error instanceof Error ? error.message : String(error || '');
@@ -59,3 +64,59 @@ buttons.forEach((button) => button.addEventListener('click', () => control({ act
 address.addEventListener('focus', () => { editing = true; }); address.addEventListener('blur', () => { editing = false; });
 document.querySelector('#url-form').addEventListener('submit', (event) => { event.preventDefault(); control({ action: 'navigate', url: address.value }); });
 if (invoke) { control({ action: 'state' }); if (listen) listen('builtin-browser-state', (event) => render(event.payload)); }
+
+// Geometry changes never navigate or change the browser's document binding.
+// Coalesce pointer movement so only one native resize is pending at a time.
+const divider = document.querySelector('#divider');
+const resizeLabels = {
+  de: 'Browserbreite', en: 'Browser width', fr: 'Largeur du navigateur',
+  it: 'Larghezza del browser', ja: 'ブラウザーの幅', ko: '브라우저 너비',
+  ru: 'Ширина браузера', tr: 'Tarayıcı genişliği',
+  'zh-cn': '浏览器宽度', 'zh-tw': '瀏覽器寬度',
+};
+let drag = null;
+let nextWidth = null;
+let resizing = false;
+async function resizePanel(width) {
+  nextWidth = Math.max(0, Math.min(16384, width));
+  if (resizing || !invoke) return;
+  resizing = true;
+  try {
+    while (nextWidth !== null) {
+      const requested = nextWidth;
+      nextWidth = null;
+      await invoke('builtin_browser_control', { command: { action: 'resize', width: requested } });
+    }
+  } catch (error) {
+    nextWidth = null;
+    message.textContent = failureMessage(error);
+  } finally {
+    resizing = false;
+  }
+}
+if (divider) {
+  divider.setAttribute('aria-label', resizeLabels[language] || resizeLabels[language.slice(0, 2)] || resizeLabels.en);
+  const reflectWidth = () => divider.setAttribute('aria-valuenow', String(Math.round(window.innerWidth)));
+  reflectWidth();
+  window.addEventListener('resize', reflectWidth);
+  divider.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    divider.focus();
+    drag = { x: event.screenX, width: window.innerWidth, pointer: event.pointerId };
+    divider.setPointerCapture(event.pointerId);
+    divider.dataset.dragging = '';
+  });
+  divider.addEventListener('pointermove', (event) => {
+    if (drag && event.pointerId === drag.pointer) void resizePanel(drag.width + drag.x - event.screenX);
+  });
+  const endDrag = () => { drag = null; delete divider.dataset.dragging; };
+  divider.addEventListener('pointerup', endDrag);
+  divider.addEventListener('pointercancel', endDrag);
+  divider.addEventListener('lostpointercapture', endDrag);
+  divider.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    void resizePanel(window.innerWidth + (event.key === 'ArrowLeft' ? 40 : -40));
+  });
+}

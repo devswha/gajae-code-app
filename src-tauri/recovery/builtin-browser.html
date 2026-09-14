@@ -8,13 +8,14 @@
     <title>Built-in Browser</title>
   </head>
   <body>
+    <div id="divider" role="separator" tabindex="0" aria-label="Browser width" aria-orientation="vertical" aria-valuenow="480"></div>
     <main class="toolbar" aria-label="Built-in Browser">
       <button data-action="back" aria-label="Back">←</button>
       <button data-action="forward" aria-label="Forward">→</button>
       <button data-action="reload" aria-label="Reload">↻</button>
       <form id="url-form"><label class="sr-only" for="address">Address</label><input id="address" autocomplete="url" inputmode="url" spellcheck="false"></form>
       <span id="profile" aria-live="polite"></span>
-      <button data-action="close" aria-label="Close">Close</button>
+      <button data-action="close" aria-label="Close">×</button>
       <p id="message" role="status"></p>
     </main>
     <script src="builtin-browser.js"></script>

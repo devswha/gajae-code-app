@@ -230,10 +230,6 @@ pub fn blocking_shutdown(app: &AppHandle) {
 
 pub fn handle_close_request(window: &Window, event: &tauri::WindowEvent) {
     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-        #[cfg(target_os = "macos")]
-        if window.label() == crate::builtin_browser::WINDOW_LABEL {
-            return;
-        }
         // Keep the window alive until the server finishes: shutdown errors
         // still need a visible window, and destroying it must not skip Quit.
         api.prevent_close();
@@ -252,16 +248,12 @@ pub fn handle_close_request(window: &Window, event: &tauri::WindowEvent) {
         let _ = window.hide();
     }
     #[cfg(target_os = "macos")]
-    if matches!(event, tauri::WindowEvent::Destroyed)
-        && window.label() == crate::builtin_browser::WINDOW_LABEL
-    {
+    if matches!(event, tauri::WindowEvent::Destroyed) && window.label() == "main" {
         crate::builtin_browser::window_destroyed(window.app_handle());
         return;
     }
     #[cfg(target_os = "macos")]
-    if matches!(event, tauri::WindowEvent::Resized(_))
-        && window.label() == crate::builtin_browser::WINDOW_LABEL
-    {
+    if matches!(event, tauri::WindowEvent::Resized(_)) && window.label() == "main" {
         crate::builtin_browser::resize(window);
     }
 }
@@ -304,7 +296,7 @@ pub fn graceful_quit(app: AppHandle) {
 }
 
 fn show_shutdown_error(app: &AppHandle, error: &str) {
-    if let Some(window) = app.get_webview_window("main") {
+    if let Some(window) = crate::main_webview_window(&app) {
         let escaped =
             serde_json::to_string(error).unwrap_or_else(|_| "\"Shutdown failed\"".to_owned());
         let _ = window.eval(format!("document.body.innerHTML='<main style=\"font:16px system-ui;padding:3rem\"><h1>Gajae Code App could not quit safely</h1><pre></pre></main>';document.querySelector('pre').textContent={escaped};"));

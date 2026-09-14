@@ -33,7 +33,11 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::Digest;
 use tauri::{Emitter, Manager};
 
-pub const WINDOW_LABEL: &str = "builtin-browser";
+const HOST_WINDOW_LABEL: &str = "main";
+const MIN_APP_WIDTH: f64 = 640.0;
+const DEFAULT_APP_WIDTH: f64 = 768.0;
+const MIN_PANEL_WIDTH: f64 = 320.0;
+const DIVIDER_WIDTH: f64 = 6.0;
 pub const CONTROLS_LABEL: &str = "builtin-controls";
 pub const PAGE_LABEL: &str = "builtin-page";
 const TOOLBAR_HEIGHT: f64 = 56.0;
@@ -50,6 +54,9 @@ thread_local! {
     // WebKit preserves a named world's globals only while that world object is
     // retained. Keep the actual instance on its required main thread.
     static CONTENT_WORLD: RefCell<Option<Retained<WKContentWorld>>> = const { RefCell::new(None) };
+    // A temporary main-thread retain used to verify detachment after Wry's
+    // with_webview callback has released its own runtime handle.
+    static CLOSING_VIEW: RefCell<Option<Retained<WKWebView>>> = const { RefCell::new(None) };
 }
 
 fn retained_content_world(mtm: MainThreadMarker) -> Retained<WKContentWorld> {
@@ -161,6 +168,7 @@ pub enum ToolbarCommand {
     Forward,
     Reload,
     Close,
+    Resize { width: f64 },
 }
 
 #[derive(Clone)]
@@ -216,6 +224,7 @@ impl BridgeRun {
 pub(crate) struct BrowserCoordinator {
     state: Mutex<Coordinator>,
     destroyed: Condvar,
+    panel_width: Mutex<Option<f64>>,
     bridge: Mutex<Option<Arc<BridgeRun>>>,
 }
 
@@ -986,7 +995,7 @@ pub(crate) fn open(
         }
     };
     if existing {
-        if let Some(window) = app.get_window(WINDOW_LABEL) {
+        if let Some(window) = app.get_window(HOST_WINDOW_LABEL) {
             let _ = window.show();
             let _ = window.unminimize();
             let _ = window.set_focus();
@@ -1003,28 +1012,27 @@ pub(crate) fn open(
         }
         return state_for(app, session_id);
     }
-    if create_window(app, url).is_err() {
-        if let Some(window) = app.get_window(WINDOW_LABEL) {
-            let _ = window.destroy();
-        } else {
-            window_destroyed(app);
-        }
+    if create_panel(app, url).is_err() {
+        // A failed child creation must never destroy the app's main window.
+        // Keep ownership if native child teardown cannot be confirmed.
+        let _ = request_panel_close(app, session_id);
         return Err("builtin_browser_unavailable");
     }
     state_for(app, session_id)
 }
 
-fn create_window(app: &tauri::AppHandle, url: tauri::Url) -> Result<(), String> {
+fn create_panel(app: &tauri::AppHandle, url: tauri::Url) -> Result<(), String> {
     let app_for_build = app.clone();
     let (sender, receiver) = mpsc::sync_channel(1);
     app.run_on_main_thread(move || {
         let result = (|| {
-            let window = tauri::window::WindowBuilder::new(&app_for_build, WINDOW_LABEL)
-                .title("Gajae Built-in Browser")
-                .inner_size(1200.0, 800.0)
-                .min_inner_size(640.0, 420.0)
-                .visible(false)
-                .build()?;
+            let window = app_for_build
+                .get_window(HOST_WINDOW_LABEL)
+                .ok_or(tauri::Error::WebviewNotFound)?;
+            let main = app_for_build
+                .get_webview(HOST_WINDOW_LABEL)
+                .ok_or(tauri::Error::WebviewNotFound)?;
+            main.set_auto_resize(false)?;
             let mut controls = tauri::webview::WebviewBuilder::new(
                 CONTROLS_LABEL,
                 tauri::WebviewUrl::App("builtin-browser.html".into()),
@@ -1077,19 +1085,60 @@ fn create_window(app: &tauri::AppHandle, url: tauri::Url) -> Result<(), String> 
 }
 
 pub(crate) fn resize(window: &tauri::Window) {
-    if window.label() != WINDOW_LABEL {
+    if window.label() != HOST_WINDOW_LABEL {
         return;
     }
-    if let Some(controls) = window.get_webview(CONTROLS_LABEL) {
-        let _ = controls.with_webview(|platform| {
-            set_native_webview_frame(platform.inner(), true);
-        });
+    let docked =
+        window.get_webview(CONTROLS_LABEL).is_some() || window.get_webview(PAGE_LABEL).is_some();
+    let Some(coordinator) = window.app_handle().try_state::<BrowserCoordinator>() else {
+        return;
+    };
+    let preferred_width = coordinator.panel_width.lock().ok().and_then(|width| *width);
+    for (label, surface) in [
+        (HOST_WINDOW_LABEL, Surface::App),
+        (CONTROLS_LABEL, Surface::Controls),
+        (PAGE_LABEL, Surface::Page),
+    ] {
+        if let Some(webview) = window.get_webview(label) {
+            let _ = webview.with_webview(move |platform| {
+                set_native_webview_frame(platform.inner(), surface, docked, preferred_width);
+            });
+        }
     }
-    if let Some(page) = window.get_webview(PAGE_LABEL) {
-        let _ = page.with_webview(|platform| {
-            set_native_webview_frame(platform.inner(), false);
-        });
-    }
+}
+
+#[derive(Clone, Copy)]
+enum Surface {
+    App,
+    Controls,
+    Page,
+}
+
+fn panel_width(available: f64, preferred: Option<f64>) -> f64 {
+    let max = (available - MIN_APP_WIDTH).max(0.0);
+    // Keep the app's desktop navigation at its 768px breakpoint on first
+    // open whenever both that layout and the minimum browser width fit.
+    let initial = (available * 0.4).min((available - DEFAULT_APP_WIDTH).max(MIN_PANEL_WIDTH));
+    preferred
+        .unwrap_or(initial)
+        .clamp(MIN_PANEL_WIDTH.min(max), max)
+}
+
+fn dock_frames(layout: NSRect, flipped: bool, preferred: Option<f64>) -> (NSRect, NSRect, NSRect) {
+    let width = panel_width(layout.size.width, preferred);
+    let app_width = layout.size.width - width;
+    let app = NSRect::new(layout.origin, NSSize::new(app_width, layout.size.height));
+    // The controls webview owns the full panel so its divider can be dragged
+    // along the entire height. The page covers only the area below its toolbar.
+    let controls = NSRect::new(
+        NSPoint::new(layout.origin.x + app_width, layout.origin.y),
+        NSSize::new(width, layout.size.height),
+    );
+    let (_, mut page) = content_frames(controls, flipped);
+    let divider = DIVIDER_WIDTH.min(width);
+    page.origin.x += divider;
+    page.size.width -= divider;
+    (app, controls, page)
 }
 
 fn content_frames(layout: NSRect, flipped: bool) -> (NSRect, NSRect) {
@@ -1117,7 +1166,12 @@ fn content_frames(layout: NSRect, flipped: bool) -> (NSRect, NSRect) {
     )
 }
 
-fn set_native_webview_frame(raw: *mut std::ffi::c_void, controls: bool) {
+fn set_native_webview_frame(
+    raw: *mut std::ffi::c_void,
+    surface: Surface,
+    docked: bool,
+    preferred: Option<f64>,
+) {
     if raw.is_null() {
         return;
     }
@@ -1133,8 +1187,25 @@ fn set_native_webview_frame(raw: *mut std::ffi::c_void, controls: bool) {
             return;
         };
         let layout = parent.convertRect_fromView(window.contentLayoutRect(), None);
-        let (controls_frame, page_frame) = content_frames(layout, parent.isFlipped());
-        webview.setFrame(if controls { controls_frame } else { page_frame });
+        let frame = if docked {
+            let (app, controls, page) = dock_frames(layout, parent.isFlipped(), preferred);
+            match surface {
+                Surface::App => app,
+                Surface::Controls => controls,
+                Surface::Page => page,
+            }
+        } else {
+            layout
+        };
+        // AppKit's default fill-parent mask would otherwise stretch the app
+        // across its siblings during live window resize.
+        webview.setAutoresizingMask(if docked {
+            objc2_app_kit::NSAutoresizingMaskOptions::empty()
+        } else {
+            objc2_app_kit::NSAutoresizingMaskOptions::ViewWidthSizable
+                | objc2_app_kit::NSAutoresizingMaskOptions::ViewHeightSizable
+        });
+        webview.setFrame(frame);
     }
 }
 
@@ -1304,7 +1375,7 @@ fn clear_destroyed_state(state: &mut Coordinator) {
 }
 
 fn close(app: &tauri::AppHandle, session_id: &str) -> Result<(), &'static str> {
-    let Some(window_epoch) = request_window_destroy(app, session_id)? else {
+    let Some(window_epoch) = request_panel_close(app, session_id)? else {
         return Ok(());
     };
     let coordinator = app.state::<BrowserCoordinator>();
@@ -1329,7 +1400,7 @@ fn close(app: &tauri::AppHandle, session_id: &str) -> Result<(), &'static str> {
         .ok_or("builtin_browser_close_unconfirmed")
 }
 
-fn request_window_destroy(
+fn request_panel_close(
     app: &tauri::AppHandle,
     session_id: &str,
 ) -> Result<Option<String>, &'static str> {
@@ -1345,13 +1416,57 @@ fn request_window_destroy(
             None => return Ok(None),
         }
     };
-    if let Some(window) = app.get_window(WINDOW_LABEL) {
-        window
-            .destroy()
-            .map_err(|_| "builtin_browser_unavailable")?;
-    } else {
-        window_destroyed(app);
-    }
+    let handle = app.clone();
+    let closing_epoch = window_epoch.clone();
+    app.run_on_main_thread(move || {
+        let current = handle
+            .state::<BrowserCoordinator>()
+            .state
+            .lock()
+            .ok()
+            .and_then(|state| state.owner.as_ref().map(|owner| owner.window_epoch.clone()));
+        if current.as_deref() != Some(&closing_epoch) {
+            return;
+        }
+        // Close on the event thread: the pinned Wry dispatcher removes each
+        // child synchronously there. Verify native detachment as well as the
+        // manager entry before releasing owner/pending authority.
+        for label in [PAGE_LABEL, CONTROLS_LABEL] {
+            if let Some(view) = handle.get_webview(label) {
+                let captured = view.with_webview(move |platform| {
+                    let raw = platform.inner();
+                    // SAFETY: this callback and CLOSING_VIEW are confined to
+                    // the main thread; retain only the live platform pointer.
+                    CLOSING_VIEW.with(|slot| {
+                        *slot.borrow_mut() = unsafe { Retained::retain(raw.cast::<WKWebView>()) }
+                    });
+                });
+                let native = CLOSING_VIEW.with(|slot| slot.borrow_mut().take());
+                if captured.is_err() {
+                    return;
+                }
+                let Some(native) = native else {
+                    return;
+                };
+                if view.close().is_err() || unsafe { native.superview().is_some() } {
+                    return;
+                }
+            }
+        }
+        if handle.get_webview(PAGE_LABEL).is_some() || handle.get_webview(CONTROLS_LABEL).is_some()
+        {
+            return;
+        }
+        if let Some(window) = handle.get_window(HOST_WINDOW_LABEL) {
+            resize(&window);
+            if let Some(main) = handle.get_webview(HOST_WINDOW_LABEL) {
+                let _ = main.set_auto_resize(true);
+                let _ = main.set_focus();
+            }
+        }
+        window_destroyed(&handle);
+    })
+    .map_err(|_| "builtin_browser_unavailable")?;
     Ok(Some(window_epoch))
 }
 
@@ -1370,6 +1485,18 @@ pub(crate) fn toolbar_control(
         .ok_or("builtin_browser_not_open")?;
     match command {
         ToolbarCommand::State => {}
+        ToolbarCommand::Resize { width } => {
+            if !width.is_finite() || width < 0.0 || width > 16_384.0 {
+                return Err("builtin_browser_invalid_request".into());
+            }
+            *app.state::<BrowserCoordinator>()
+                .panel_width
+                .lock()
+                .map_err(|_| "builtin_browser_unavailable")? = Some(width);
+            if let Some(window) = app.get_window(HOST_WINDOW_LABEL) {
+                resize(&window);
+            }
+        }
         ToolbarCommand::Navigate { url } => {
             ensure_unfenced(app)?;
             let url = validated_url(app, &url).map_err(str::to_owned)?;
@@ -1394,7 +1521,7 @@ pub(crate) fn toolbar_control(
                 .map_err(|_| "builtin_browser_unavailable")?;
         }
         ToolbarCommand::Close => {
-            request_window_destroy(app, &session_id).map_err(str::to_owned)?;
+            close(app, &session_id).map_err(str::to_owned)?;
             return Ok(closed_state(&session_id));
         }
     }
@@ -1879,9 +2006,9 @@ mod tests {
                 serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
             let windows = value["windows"].as_array().cloned().unwrap_or_default();
             let webviews = value["webviews"].as_array().cloned().unwrap_or_default();
-            assert!(!windows
-                .iter()
-                .any(|label| { label == WINDOW_LABEL || label == "*" || label == "builtin-*" }));
+            assert!(!windows.iter().any(|label| {
+                label == HOST_WINDOW_LABEL || label == "*" || label == "builtin-*"
+            }));
             assert!(!webviews
                 .iter()
                 .any(|label| { label == PAGE_LABEL || label == "*" || label == "builtin-*" }));
@@ -2020,6 +2147,46 @@ mod tests {
         assert_eq!(page.origin.y, 84.0);
         assert_eq!(page.size.height, 644.0);
         assert_eq!(controls.origin.y + controls.size.height, page.origin.y);
+    }
+
+    #[test]
+    fn dock_layout_keeps_the_app_and_browser_inside_the_content_area() {
+        for flipped in [false, true] {
+            for width in [960.0, 1200.0, 1920.0] {
+                for preferred in [None, Some(0.0), Some(480.0), Some(16_384.0)] {
+                    let layout = NSRect::new(NSPoint::new(12.0, 28.0), NSSize::new(width, 700.0));
+                    let (app, controls, page) = dock_frames(layout, flipped, preferred);
+                    assert!(app.size.width >= MIN_APP_WIDTH);
+                    assert!(controls.size.width >= MIN_PANEL_WIDTH);
+                    assert_eq!(app.origin, layout.origin);
+                    assert_eq!(app.origin.x + app.size.width, controls.origin.x);
+                    assert_eq!(
+                        controls.origin.x + controls.size.width,
+                        layout.origin.x + width
+                    );
+                    assert_eq!(page.origin.x, controls.origin.x + DIVIDER_WIDTH);
+                    assert_eq!(
+                        page.origin.x + page.size.width,
+                        controls.origin.x + controls.size.width
+                    );
+                    assert_eq!(page.size.height, 700.0 - TOOLBAR_HEIGHT);
+                    assert_eq!(
+                        page.origin.y,
+                        if flipped { 28.0 + TOOLBAR_HEIGHT } else { 28.0 }
+                    );
+                }
+            }
+        }
+        assert_eq!(panel_width(1200.0, None), 432.0);
+        assert_eq!(panel_width(960.0, None), 320.0);
+        // Even transient native sizes below the configured window minimum
+        // cannot produce negative WebView dimensions.
+        let layout = NSRect::new(NSPoint::ZERO, NSSize::new(200.0, 20.0));
+        let (app, controls, page) = dock_frames(layout, true, None);
+        assert_eq!(app.size.width, 200.0);
+        assert_eq!(controls.size.width, 0.0);
+        assert_eq!(page.size.width, 0.0);
+        assert_eq!(page.size.height, 0.0);
     }
 
     #[test]

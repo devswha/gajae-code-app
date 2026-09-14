@@ -24,6 +24,7 @@ const flush = () => new Promise<void>((resolve) => queueMicrotask(() => resolve(
 
 function toolbar(invoke: (command: string, args?: Record<string, unknown>) => Promise<unknown>) {
   document.body.innerHTML = `
+    <div id="divider" role="separator" tabindex="0" aria-valuenow="480"></div>
     <main>
       <button data-action="back">Back</button>
       <button data-action="forward">Forward</button>
@@ -111,4 +112,53 @@ test('toolbar reports command errors and re-enables controls for retry', async (
   await flush();
   assert.equal(view.message.textContent, 'The browser command could not be completed. Try again.');
   assert.equal(view.reload.disabled, false);
+});
+
+test('panel divider resizes from the keyboard without issuing a navigation command', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  toolbar(async (_command, args) => {
+    calls.push(args?.command as Record<string, unknown>);
+    return state();
+  });
+  await flush();
+  const divider = document.querySelector<HTMLElement>('#divider')!;
+  assert.equal(divider.getAttribute('aria-label'), 'Browser width');
+  const width = window.innerWidth;
+  divider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+  await flush();
+  assert.deepEqual(calls.at(-1), { action: 'resize', width: width + 40 });
+  divider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  await flush();
+  assert.deepEqual(calls.at(-1), { action: 'resize', width: width - 40 });
+});
+
+test('panel dragging coalesces movement and stops after pointer cancellation', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const pending = deferred<BrowserState>();
+  toolbar(async (_command, args) => {
+    const command = args?.command as Record<string, unknown>;
+    calls.push(command);
+    return command.action === 'resize' ? pending.promise : state();
+  });
+  await flush();
+  const divider = document.querySelector<HTMLElement>('#divider')!;
+  divider.setPointerCapture = () => {};
+  const pointer = (type: string, x: number) => divider.dispatchEvent(new PointerEvent(type, {
+    button: 0, pointerId: 7, screenX: x, bubbles: true,
+  }));
+  const width = window.innerWidth;
+  pointer('pointerdown', 600);
+  pointer('pointermove', 580);
+  pointer('pointermove', 560);
+  pointer('pointermove', 540);
+  assert.equal(calls.filter((command) => command.action === 'resize').length, 1);
+  pending.resolve(state());
+  await pending.promise;
+  await flush();
+  assert.deepEqual(calls.at(-1), { action: 'resize', width: width + 60 });
+  pointer('pointercancel', 540);
+  const count = calls.length;
+  pointer('pointermove', 500);
+  assert.equal(calls.length, count);
+  assert.equal(divider.hasAttribute('data-dragging'), false);
 });

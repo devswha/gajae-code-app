@@ -297,12 +297,27 @@ test('a refused load-all surfaces the retry banner and the paged path still work
   } finally { harness.close(); }
 });
 
-test('load earlier pages further back once the loaded window is fully visible', async () => {
+test('the load-all pill follows the reader, not the transcript', async () => {
   const harness = await setup();
   try {
     assert.equal(harness.state().hasMoreMessages, true);
-    act(() => harness.state().loadEarlierMessages());
-    assert.equal(harness.pageRequests(), 1, 'nothing hidden locally, so the control fetches a page');
+    assert.equal(harness.state().showLoadAllOverlay, true, 'scrolled up with unfetched history shows the pill');
+    act(() => harness.state().setIsUserScrolledUp(false));
+    assert.equal(harness.state().showLoadAllOverlay, false, 'following the tail hides the pill');
+    act(() => harness.state().setIsUserScrolledUp(true));
+    assert.equal(harness.state().showLoadAllOverlay, true);
+    await harness.page(
+      [message('older', 10), ...harness.rows()],
+      () => {
+        assert.equal(harness.state().isLoadingMoreMessages, true);
+        assert.equal(harness.state().showLoadAllOverlay, false, 'the paged-loading spinner owns the top slot');
+      },
+      true,
+    );
+    assert.equal(harness.state().showLoadAllOverlay, true, 'idle at the top with history left shows the pill again');
+    await harness.all([message('oldest', 0), ...harness.rows()]);
+    assert.equal(harness.state().allMessagesLoaded, true);
+    assert.equal(harness.state().showLoadAllOverlay, false, 'nothing left to load');
   } finally { harness.close(); }
 });
 

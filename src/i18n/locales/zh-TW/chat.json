@@ -134,7 +134,6 @@
       "sessionMessages": "正在取得對話中的訊息…"
     },
     "messages": {
-      "loadEarlier": "取得較早的訊息",
       "loadAll": "取得所有訊息",
       "loadFullToolOutput": "取得完整的輸出",
       "loadingFullToolOutput": "正在取得完整輸出…",

@@ -134,7 +134,6 @@
       "sessionMessages": "Konuşma mesajları alınıyor…"
     },
     "messages": {
-      "loadEarlier": "Daha erken mesajlar alın",
       "loadAll": "Tüm mesajları al",
       "loadFullToolOutput": "Tam çıktı alın",
       "loadingFullToolOutput": "Çıktının tamamı alınıyor…",

@@ -134,7 +134,6 @@
       "sessionMessages": "대화 메시지 로딩 중..."
     },
     "messages": {
-      "loadEarlier": "이전 메시지 가져오기",
       "loadAll": "모든 메시지 가져오기",
       "loadFullToolOutput": "완전한 출력 가져오기",
       "loadingFullToolOutput": "완전한 출력 로딩 중...",

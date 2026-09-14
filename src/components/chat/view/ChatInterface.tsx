@@ -341,11 +341,8 @@ function ChatInterface({
               isLoadingMoreMessages={session.isLoadingMoreMessages}
               historyLoadError={session.historyLoadError}
               retryOlderMessages={session.retryOlderMessages}
-              hasMoreMessages={session.hasMoreMessages}
               totalMessages={session.totalMessages}
-              visibleMessageCount={session.visibleMessageCount}
               visibleMessages={session.visibleMessages}
-              loadEarlierMessages={session.loadEarlierMessages}
               loadAllMessages={session.loadAllMessages}
               allMessagesLoaded={session.allMessagesLoaded}
               isLoadingAllMessages={session.isLoadingAllMessages}

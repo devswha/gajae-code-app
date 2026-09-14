@@ -19,9 +19,9 @@ function renderCount(loaded: number, persistedTotal: number, extra: Partial<Comp
     scrollContainerRef: { current: null }, onWheel() {}, onTouchMove() {},
     isLoadingSessionMessages: false, chatMessages: messages,
     selectedSession: { id: 'session', provider: 'gjc' }, currentSessionId: 'session', provider: 'gjc',
-    isLoadingMoreMessages: false, hasMoreMessages: true, totalMessages: persistedTotal,
-    visibleMessageCount: 20, visibleMessages,
-    loadEarlierMessages() {}, loadAllMessages() {}, allMessagesLoaded: false,
+    isLoadingMoreMessages: false, totalMessages: persistedTotal,
+    visibleMessages,
+    loadAllMessages() {}, allMessagesLoaded: false,
     isLoadingAllMessages: false, loadAllJustFinished: false, showLoadAllOverlay: true,
     createDiff: () => [], selectedProject: { projectId: 'project', fullPath: '/project', displayName: 'Project' },
     ...extra,
@@ -30,7 +30,7 @@ function renderCount(loaded: number, persistedTotal: number, extra: Partial<Comp
 
 test('realtime rows beyond the persisted total do not show stale totals', () => {
   const html = renderCount(81, 64);
-  assert.doesNotMatch(html, /Displaying 81 of|Loaded messages:|\(64\)|\(81\)|Scroll upward for more/);
+  assert.doesNotMatch(html, /Displaying 81 of|Loaded messages:|\(64\)|\(81\)|Scroll upward for more|Get earlier messages/);
   assert.match(html, /<button[^>]*>[\s\S]*?Get all messages[\s\S]*?<\/button>/);
 });
 
@@ -55,11 +55,12 @@ test('loading and finished pagination retain their existing counter visibility',
   assert.doesNotMatch(finished, /Loaded messages:|Scroll upward for more/);
 });
 
-test('locally hidden rows retain the earlier and all-message controls without server pagination', () => {
-  const html = renderCount(81, 64, { hasMoreMessages: false });
-  assert.doesNotMatch(html, /Displaying the latest/);
-  assert.match(html, /Get earlier messages/);
-  assert.match(html, /Get all messages/);
+test('locally hidden rows leave the floating pill as the only explicit control', () => {
+  const idle = renderCount(81, 64, { showLoadAllOverlay: false });
+  assert.doesNotMatch(idle, /Displaying the latest|Get earlier messages|Get all messages/);
+  const pill = renderCount(81, 64, { showLoadAllOverlay: true });
+  assert.doesNotMatch(pill, /Get earlier messages/);
+  assert.match(pill, /Get all messages/);
 });
 
 test('all chat densities omit auto-approval rows while showing other notices and failures', () => {
@@ -72,8 +73,8 @@ test('all chat densities omit auto-approval rows while showing other notices and
   const messages = normalizedToChatMessages(records);
   for (const density of ['compact', 'balanced', 'detailed'] as const) {
     const html = renderCount(messages.length, records.length, {
-      chatMessages: messages, visibleMessages: messages, visibleMessageCount: messages.length,
-      hasMoreMessages: false, allMessagesLoaded: true, showLoadAllOverlay: false, density,
+      chatMessages: messages, visibleMessages: messages,
+      allMessagesLoaded: true, showLoadAllOverlay: false, density,
     });
     assert.doesNotMatch(html, /Auto-approved/);
     assert.match(html, /The provider reconnected\./);

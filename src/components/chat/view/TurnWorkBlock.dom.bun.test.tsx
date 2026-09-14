@@ -45,11 +45,8 @@ const paneProps = (density: ToolOutputDensity, messages = transcript) => ({
   currentSessionId: 's1',
   provider: 'gjc' as const,
   isLoadingMoreMessages: false,
-  hasMoreMessages: false,
   totalMessages: messages.length,
-  visibleMessageCount: messages.length,
   visibleMessages: messages,
-  loadEarlierMessages: () => {},
   loadAllMessages: () => {},
   allMessagesLoaded: true,
   isLoadingAllMessages: false,
@@ -247,30 +244,26 @@ test('ordinary rows keep their message ID anchors after prepend and content upda
 
 test('history shows only an active loading indicator, without an idle count barrier', () => {
   let loadAllCalls = 0;
-  let loadEarlierCalls = 0;
   const props = {
     ...paneProps('balanced'),
-    hasMoreMessages: true,
     allMessagesLoaded: false,
     totalMessages: 50,
+    showLoadAllOverlay: true,
     loadAllMessages: () => { loadAllCalls += 1; },
-    loadEarlierMessages: () => { loadEarlierCalls += 1; },
   };
   const view = render(createElement(ChatMessagesPane, props));
   const scrollPane = view.container.querySelector('.chat-messages-pane')!;
   const anchor = scrollPane.querySelector('[data-scroll-anchor]');
   assert.ok(anchor);
   assert.equal(view.container.querySelector('[data-pagination-status]'), null);
-  assert.equal(view.container.querySelector('[data-load-all-overlay]'), null);
-  // Paginated history keeps a click path to older rows and to the whole conversation.
-  const controls = scrollPane.querySelector('[data-history-controls]') as HTMLElement;
-  assert.ok(controls);
-  fireEvent.click(within(controls).getByRole('button', { name: enChat.session.messages.loadEarlier }));
-  fireEvent.click(within(controls).getByRole('button', { name: enChat.session.messages.loadAll }));
-  assert.equal(loadEarlierCalls, 1);
+  // No inline history row: the floating pill is the only explicit control.
+  assert.equal(scrollPane.querySelector('[data-history-controls]'), null);
+  const pill = view.container.querySelector('[data-load-all-overlay]')!;
+  assert.ok(pill);
+  fireEvent.click(within(pill as HTMLElement).getByRole('button', { name: `${enChat.session.messages.loadAll} (50)` }));
   assert.equal(loadAllCalls, 1);
 
-  view.rerender(createElement(ChatMessagesPane, { ...props, isLoadingMoreMessages: true }));
+  view.rerender(createElement(ChatMessagesPane, { ...props, isLoadingMoreMessages: true, showLoadAllOverlay: false }));
   const status = view.container.querySelector('[data-pagination-status]');
   assert.equal(status?.textContent, enChat.session.loading.olderMessages);
   assert.equal(status?.parentElement, scrollPane.parentElement);
@@ -285,28 +278,26 @@ test('history shows only an active loading indicator, without an idle count barr
   view.rerender(createElement(ChatMessagesPane, { ...props, isLoadingAllMessages: true }));
   const overlay = view.container.querySelector('[data-load-all-overlay]')!;
   assert.ok(overlay);
-  assert.equal(scrollPane.querySelector('[data-history-controls]'), null, 'no second entry point while loading everything');
   assert.equal(scrollPane.contains(overlay), false);
   const loadingButton = within(overlay as HTMLElement).getByRole('button') as HTMLButtonElement;
   assert.equal(loadingButton.disabled, true);
   assert.equal(loadingButton.textContent, enChat.session.messages.loadingAll);
 
-  view.rerender(createElement(ChatMessagesPane, { ...props, hasMoreMessages: false, allMessagesLoaded: true }));
+  view.rerender(createElement(ChatMessagesPane, { ...props, allMessagesLoaded: true, showLoadAllOverlay: false }));
   assert.equal(view.container.querySelector('[data-load-all-overlay]'), null);
   assert.equal(scrollPane.querySelector('[data-history-controls]'), null);
   assert.equal(view.container.querySelector('[data-pagination-status]'), null);
   assert.equal(scrollPane.querySelector('[data-scroll-anchor]'), anchor);
 
-  view.rerender(createElement(ChatMessagesPane, { ...props, hasMoreMessages: false, visibleMessageCount: 2 }));
-  fireEvent.click(within(scrollPane as HTMLElement).getByRole('button', { name: enChat.session.messages.loadEarlier }));
-  fireEvent.click(within(scrollPane as HTMLElement).getByRole('button', { name: enChat.session.messages.loadAll }));
-  assert.equal(loadEarlierCalls, 2);
-  assert.equal(loadAllCalls, 2);
+  // Locally hidden rows have no inline control either; scrolling reveals them.
+  view.rerender(createElement(ChatMessagesPane, { ...props, visibleMessages: transcript.slice(2), showLoadAllOverlay: false }));
+  assert.equal(scrollPane.querySelector('[data-history-controls]'), null);
+  assert.equal(view.container.querySelector('[data-load-all-overlay]'), null);
 });
 
 test('a history failure stays visible with an explicit retry instead of flashing a spinner', () => {
   let retries = 0;
-  const props = { ...paneProps('balanced'), hasMoreMessages: true, allMessagesLoaded: false,
+  const props = { ...paneProps('balanced'), allMessagesLoaded: false,
     historyLoadError: true, retryOlderMessages: () => { retries += 1; } };
   const view = render(createElement(ChatMessagesPane, props));
   assert.equal(view.container.querySelector('[data-pagination-status]'), null);

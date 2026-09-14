@@ -134,7 +134,6 @@
       "sessionMessages": "正在检索对话消息……"
     },
     "messages": {
-      "loadEarlier": "获取更早的消息",
       "loadAll": "获取所有消息",
       "loadFullToolOutput": "获取完整输出",
       "loadingFullToolOutput": "正在检索完整输出……",

@@ -134,3 +134,33 @@ test('presetProviders lists the distinct providers a preset names, in first-seen
     [],
   );
 });
+test('derivePresetAvailability enables proxy-rewritten presets when proxy models are present', () => {
+  const proxyOptions: ProviderModelOption[] = [
+    {
+      value: 'profile:codex-medium',
+      label: 'Codex Medium',
+      group: 'CODEX',
+      roles: {
+        default: 'myproxy/gpt-5.6-sol:low',
+        planner: 'myproxy/gpt-5.6-terra:high',
+      },
+    },
+    {
+      value: 'profile:claude-opus',
+      label: 'Claude Opus',
+      group: 'CLAUDE',
+      roles: {
+        default: 'anthropic/claude-opus-4-8:medium',
+      },
+    },
+  ];
+  const proxyModels: ProviderModelOption[] = [
+    { value: 'myproxy/gpt-5.6-sol', label: 'Sol' },
+    { value: 'myproxy/gpt-5.6-terra', label: 'Terra' },
+  ];
+
+  const availability = derivePresetAvailability(proxyOptions, proxyModels, true);
+  assert.equal(availability.get('profile:codex-medium'), true);
+  assert.equal(availability.get('profile:claude-opus'), false);
+  assert.deepEqual(presetProviders(proxyOptions[0]), ['myproxy']);
+});

@@ -5,7 +5,13 @@ import { createAgentSession, discoverAuthStorage, type AutomationTools } from '@
 import { resolveBrowserBackend } from '@gajae-code/coding-agent/browser-backend';
 import { ModelRegistry } from '@gajae-code/coding-agent/config/model-registry';
 import { mergeModelProfiles, resolveProfileBindings } from '@gajae-code/coding-agent/config/model-profiles';
-import { activateModelProfile } from '@gajae-code/coding-agent/config/model-profile-activation';
+import {
+  activateModelProfile,
+  getProxyRoutableProviders,
+  resolveProxyMode,
+  resolveProxyProviderId,
+  rewriteSelectorForProxy,
+} from '@gajae-code/coding-agent/config/model-profile-activation';
 import { resolveModelRoleValue } from '@gajae-code/coding-agent/config/model-resolver';
 import { Settings } from '@gajae-code/coding-agent/config/settings';
 import { AuthStorage } from '@gajae-code/coding-agent/session/auth-storage';
@@ -444,16 +450,46 @@ async function configuredDefaultModelId(
   credential: ExactCredentialRef,
   modelProfile?: string,
 ): Promise<string> {
+  const availableModels = await modelsForCredential(authStorage, modelRegistry, credential);
   const resolveConfigured = async (selector: Parameters<typeof resolveModelRoleValue>[0]): Promise<string | undefined> => {
-    const resolved = resolveModelRoleValue(selector, await modelsForCredential(authStorage, modelRegistry, credential), {
+    const resolved = resolveModelRoleValue(selector, availableModels, {
       settings,
       modelRegistry,
     });
     return resolved.model ? `${resolved.model.provider}/${resolved.model.id}` : undefined;
   };
+
+  const resolveProfileSelector = (profile: Parameters<typeof resolveProfileBindings>[0]): string | undefined => {
+    let selector = resolveProfileBindings(profile).defaultSelector;
+    if (!selector) return undefined;
+    if (profile.source !== 'user') {
+      try {
+        const proxyProvider = resolveProxyProviderId(settings);
+        if (proxyProvider) {
+          const proxyMode = resolveProxyMode(settings);
+          const directlyAuthenticated = new Set(
+            availableModels.map((m) => m.provider).filter((p) => p !== proxyProvider),
+          );
+          const routableProviders = getProxyRoutableProviders(profile);
+          selector = rewriteSelectorForProxy(
+            selector,
+            proxyProvider,
+            proxyMode,
+            availableModels,
+            directlyAuthenticated,
+            routableProviders,
+          );
+        }
+      } catch {
+        // Fall back to original selector if proxy rewrite fails
+      }
+    }
+    return selector;
+  };
+
   if (modelProfile) {
     const profile = modelRegistry.getModelProfile(modelProfile) ?? mergeModelProfiles().get(modelProfile);
-    const selector = profile && resolveProfileBindings(profile).defaultSelector;
+    const selector = profile && resolveProfileSelector(profile);
     const resolved = await resolveConfigured(selector);
     if (!resolved) throw new GjcModelResolutionError();
     return resolved;
@@ -467,7 +503,7 @@ async function configuredDefaultModelId(
 
   // ModelRegistry loads models.yml user profiles and merges them with builtins.
   const profile = modelRegistry.getModelProfile(profileName) ?? mergeModelProfiles().get(profileName);
-  const selector = profile && resolveProfileBindings(profile).defaultSelector;
+  const selector = profile && resolveProfileSelector(profile);
   const resolved = await resolveConfigured(selector);
   if (!resolved) throw new GjcModelResolutionError();
   return resolved;

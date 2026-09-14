@@ -4,7 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { GjcProviderModels } from '@/modules/providers/list/gjc/gjc-models.provider.js';
+import {
+  GjcProviderModels,
+  parseModelProfileConfig,
+  rewriteSelectorForProxy,
+} from '@/modules/providers/list/gjc/gjc-models.provider.js';
 
 test('GJC model catalog merges built-in and custom profiles with custom overrides', async (t) => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-profiles-'));
@@ -340,4 +344,158 @@ profiles:
   assert.ok(modelValues.includes('custom-proxy/model-b'));
   assert.ok(modelValues.includes('custom-proxy/unreferenced-custom'));
   assert.ok(!modelValues.includes('unrelated/model'));
+});
+test('parseModelProfileConfig parses proxyProvider and proxyMode correctly', () => {
+  const yaml = `
+lastChangelogVersion: 0.16.7
+configSchemaVersion: 2
+modelProfile:
+  proxyProvider: test-proxy
+  proxyMode: always
+modelRoles:
+  default: test-proxy/gemini-3.8-flash-tiered:high
+`;
+  const parsed = parseModelProfileConfig(yaml);
+  assert.equal(parsed.proxyProvider, 'test-proxy');
+  assert.equal(parsed.proxyMode, 'always');
+
+  const fallbackYaml = `
+modelProfile:
+  proxyProvider: litellm
+`;
+  const fallbackParsed = parseModelProfileConfig(fallbackYaml);
+  assert.equal(fallbackParsed.proxyProvider, 'litellm');
+  assert.equal(fallbackParsed.proxyMode, 'fallback');
+
+  const emptyParsed = parseModelProfileConfig('configSchemaVersion: 2\n');
+  assert.equal(emptyParsed.proxyProvider, undefined);
+  assert.equal(emptyParsed.proxyMode, 'fallback');
+});
+
+test('rewriteSelectorForProxy matches exact and flat proxy models while preserving suffixes', () => {
+  const proxyModels = new Set(['gpt-5.6-luna', 'openai-codex/gpt-5.6-terra', 'claude-sonnet-5']);
+
+  // Flat match
+  assert.equal(
+    rewriteSelectorForProxy('openai-codex/gpt-5.6-luna:medium', 'myproxy', proxyModels),
+    'myproxy/gpt-5.6-luna:medium',
+  );
+
+  // Exact match with provider prefix in proxy model id
+  assert.equal(
+    rewriteSelectorForProxy('openai-codex/gpt-5.6-terra:low', 'myproxy', proxyModels),
+    'myproxy/openai-codex/gpt-5.6-terra:low',
+  );
+
+  // Bare selector match
+  assert.equal(
+    rewriteSelectorForProxy('claude-sonnet-5:high', 'myproxy', proxyModels),
+    'myproxy/claude-sonnet-5:high',
+  );
+
+  // Already targeting proxyProvider
+  assert.equal(
+    rewriteSelectorForProxy('myproxy/gpt-5.6-luna:medium', 'myproxy', proxyModels),
+    'myproxy/gpt-5.6-luna:medium',
+  );
+
+  // Unmatched model remains untouched
+  assert.equal(
+    rewriteSelectorForProxy('unknown-provider/unknown-model:low', 'myproxy', proxyModels),
+    'unknown-provider/unknown-model:low',
+  );
+});
+
+test('proxyProvider and proxyMode: always rewrites built-in preset role selectors to proxy models', async (t) => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-proxy-always-'));
+  t.after(() => rm(homeDir, { recursive: true, force: true }));
+  const agentDir = path.join(homeDir, '.gjc', 'agent');
+  await mkdir(agentDir, { recursive: true });
+
+  await writeFile(path.join(agentDir, 'config.yml'), `modelProfile:
+  proxyProvider: test-proxy
+  proxyMode: always
+`, 'utf8');
+
+  await writeFile(path.join(agentDir, 'models.yml'), `providers:
+  test-proxy:
+    baseUrl: https://proxy.example.com/v1
+    api: openai-responses
+    models:
+      - id: gpt-5.6-terra
+        name: Terra
+      - id: gpt-5.6-luna
+        name: Luna
+      - id: gpt-5.6-sol
+        name: Sol
+`, 'utf8');
+
+  const catalog = await new GjcProviderModels(homeDir, async () => ({
+    ok: true,
+    result: {
+      models: [
+        { value: 'test-proxy/gpt-5.6-terra', label: 'Terra' },
+        { value: 'test-proxy/gpt-5.6-luna', label: 'Luna' },
+        { value: 'test-proxy/gpt-5.6-sol', label: 'Sol' },
+      ],
+    },
+  })).getSupportedModels();
+
+  const codexMedium = catalog.OPTIONS.find((option) => option.value === 'profile:codex-medium');
+  assert.ok(codexMedium, 'codex-medium preset should exist');
+  assert.equal(codexMedium.roles?.default, 'test-proxy/gpt-5.6-sol:low');
+  assert.equal(codexMedium.roles?.planner, 'test-proxy/gpt-5.6-terra:high');
+  assert.equal(codexMedium.roles?.executor, 'test-proxy/gpt-5.6-terra:low');
+
+  const lunamaxxing = catalog.OPTIONS.find((option) => option.value === 'profile:lunamaxxing');
+  assert.ok(lunamaxxing, 'lunamaxxing preset should exist');
+  assert.equal(lunamaxxing.roles?.default, 'test-proxy/gpt-5.6-luna:medium');
+  assert.equal(lunamaxxing.roles?.planner, 'test-proxy/gpt-5.6-luna:max');
+
+  // Proxy models should be retained in MODELS
+  const modelValues = catalog.MODELS?.map((m) => m.value) ?? [];
+  assert.ok(modelValues.includes('test-proxy/gpt-5.6-terra'));
+  assert.ok(modelValues.includes('test-proxy/gpt-5.6-luna'));
+  assert.ok(modelValues.includes('test-proxy/gpt-5.6-sol'));
+});
+
+test('proxyProvider with proxyMode: fallback preserves directly authenticated provider selectors', async (t) => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'gajae-model-proxy-fallback-'));
+  t.after(() => rm(homeDir, { recursive: true, force: true }));
+  const agentDir = path.join(homeDir, '.gjc', 'agent');
+  await mkdir(agentDir, { recursive: true });
+
+  await writeFile(path.join(agentDir, 'config.yml'), `modelProfile:
+  proxyProvider: test-proxy
+  proxyMode: fallback
+`, 'utf8');
+
+  await writeFile(path.join(agentDir, 'models.yml'), `providers:
+  test-proxy:
+    baseUrl: https://proxy.example.com/v1
+    api: openai-responses
+    models:
+      - id: gpt-5.6-terra
+        name: Terra
+      - id: gpt-5.6-luna
+        name: Luna
+      - id: gpt-5.6-sol
+        name: Sol
+`, 'utf8');
+
+  // openai-codex is directly authenticated in runtime
+  const catalog = await new GjcProviderModels(homeDir, async () => ({
+    ok: true,
+    result: {
+      models: [
+        { value: 'openai-codex/gpt-5.6-terra', label: 'Terra Direct' },
+        { value: 'test-proxy/gpt-5.6-luna', label: 'Luna Proxy' },
+      ],
+    },
+  })).getSupportedModels();
+
+  const codexMedium = catalog.OPTIONS.find((option) => option.value === 'profile:codex-medium');
+  assert.ok(codexMedium);
+  // In fallback mode with openai-codex directly authenticated, openai-codex selectors should be preserved
+  assert.equal(codexMedium.roles?.default, 'openai-codex/gpt-5.6-sol:low');
 });

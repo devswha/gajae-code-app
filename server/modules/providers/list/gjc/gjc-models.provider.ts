@@ -99,9 +99,92 @@ type ParsedProfile = {
   allModels: string[];
 };
 
-function parseConfiguredCustomProviders(source: string): { providers: string[]; models: string[] } {
+export type ModelProfileProxyConfig = {
+  proxyProvider?: string;
+  proxyMode: 'fallback' | 'always';
+};
+
+export function parseModelProfileConfig(source: string): ModelProfileProxyConfig {
+  let inModelProfile = false;
+  let proxyProvider: string | undefined;
+  let proxyMode: 'fallback' | 'always' = 'fallback';
+
+  for (const rawLine of source.split(/\r?\n/)) {
+    if (/^\s*(?:#.*)?$/.test(rawLine)) continue;
+    if (/^modelProfile:\s*$/.test(rawLine)) {
+      inModelProfile = true;
+      continue;
+    }
+    if (!inModelProfile) continue;
+    if (/^[^\s#]/.test(rawLine)) break;
+
+    const providerMatch = rawLine.match(/^\s+proxyProvider:\s*(.+)$/);
+    if (providerMatch) {
+      const id = unquoteYamlScalar(providerMatch[1]).trim().toLowerCase();
+      if (/^[a-z0-9][a-z0-9._-]*$/.test(id)) {
+        proxyProvider = id;
+      }
+      continue;
+    }
+
+    const modeMatch = rawLine.match(/^\s+proxyMode:\s*(.+)$/);
+    if (modeMatch) {
+      const mode = unquoteYamlScalar(modeMatch[1]).trim().toLowerCase();
+      if (mode === 'always' || mode === 'fallback') {
+        proxyMode = mode;
+      }
+      continue;
+    }
+  }
+
+  return { proxyProvider, proxyMode };
+}
+
+export function rewriteSelectorForProxy(
+  selector: string,
+  proxyProvider: string,
+  proxyModelIds: ReadonlySet<string>,
+): string {
+  const colonIndex = selector.indexOf(':');
+  const baseSelector = colonIndex >= 0 ? selector.slice(0, colonIndex) : selector;
+  const suffix = colonIndex >= 0 ? selector.slice(colonIndex) : '';
+
+  const slashIndex = baseSelector.indexOf('/');
+  if (slashIndex < 0) {
+    if (proxyModelIds.has(baseSelector)) {
+      return `${proxyProvider}/${baseSelector}${suffix}`;
+    }
+    const finalSegmentMatches = [...proxyModelIds].filter((id) => id.split('/').pop() === baseSelector);
+    if (finalSegmentMatches.length === 1) {
+      return `${proxyProvider}/${finalSegmentMatches[0]}${suffix}`;
+    }
+    return selector;
+  }
+
+  const directProvider = baseSelector.slice(0, slashIndex);
+  if (proxyProvider === directProvider) {
+    return selector;
+  }
+
+  const directModelId = baseSelector.slice(slashIndex + 1);
+  if (proxyModelIds.has(`${directProvider}/${directModelId}`)) {
+    return `${proxyProvider}/${directProvider}/${directModelId}${suffix}`;
+  }
+  if (proxyModelIds.has(directModelId)) {
+    return `${proxyProvider}/${directModelId}${suffix}`;
+  }
+
+  return selector;
+}
+
+function parseConfiguredCustomProviders(source: string): {
+  providers: string[];
+  models: string[];
+  modelsByProvider: Map<string, Set<string>>;
+} {
   const providers = new Set<string>();
   const models = new Set<string>();
+  const modelsByProvider = new Map<string, Set<string>>();
   let inProviders = false;
   let currentProvider: string | null = null;
   let inModels = false;
@@ -132,14 +215,22 @@ function parseConfiguredCustomProviders(source: string): { providers: string[]; 
       const idMatch = rawLine.match(/^ {6,8}-?\s*id:\s*(.+)$/);
       if (idMatch) {
         const id = unquoteYamlScalar(idMatch[1]);
-        if (id) models.add(`${currentProvider}/${id}`);
+        if (id) {
+          models.add(`${currentProvider}/${id}`);
+          let providerModels = modelsByProvider.get(currentProvider);
+          if (!providerModels) {
+            providerModels = new Set();
+            modelsByProvider.set(currentProvider, providerModels);
+          }
+          providerModels.add(id);
+        }
       }
       if (/^ {4}[^\s-]/.test(rawLine) && !rawLine.startsWith('    models:')) {
         inModels = false;
       }
     }
   }
-  return { providers: [...providers], models: [...models] };
+  return { providers: [...providers], models: [...models], modelsByProvider };
 }
 
 function parseConfiguredRoles(source: string): RoleMap {
@@ -275,10 +366,13 @@ function resolveConfiguredRoles(
   return resolved;
 }
 
-async function getGjcPresetCatalog(homeDir: string): Promise<{
+async function getGjcPresetCatalog(
+  homeDir: string,
+  runtimeCatalog?: unknown,
+): Promise<{
   catalog: ProviderModelsDefinition;
   configuredProfiles: ParsedProfile[];
-  configuredCustom: { providers: string[]; models: string[] };
+  configuredCustom: { providers: string[]; models: string[]; modelsByProvider: Map<string, Set<string>> };
 }> {
   const agentDir = path.join(homeDir, '.gjc', 'agent');
   const [configSource, modelsSource] = await Promise.all([
@@ -286,15 +380,61 @@ async function getGjcPresetCatalog(homeDir: string): Promise<{
     readFile(path.join(agentDir, 'models.yml'), 'utf8').catch(() => ''),
   ]);
   const configuredRoles = parseConfiguredRoles(configSource);
+  const proxyConfig = parseModelProfileConfig(configSource);
   const configuredProfiles = parseProfiles(modelsSource);
   const configuredCustom = parseConfiguredCustomProviders(modelsSource);
-  const profiles = new Map(GJC_BUILTIN_MODEL_PROFILES.map((profile) => [profile.name, {
-    name: profile.name,
-    label: profile.label,
-    group: profile.group,
-    description: `${profile.group} built-in preset`,
-    roles: profile.roles,
-  }]));
+
+  const proxyModelIds = new Set<string>();
+  const directlyAuthenticated = new Set<string>();
+
+  if (proxyConfig.proxyProvider) {
+    const fromCustom = configuredCustom.modelsByProvider.get(proxyConfig.proxyProvider);
+    if (fromCustom) {
+      for (const id of fromCustom) proxyModelIds.add(id);
+    }
+  }
+
+  if (runtimeCatalog) {
+    for (const m of parseRuntimeModels(runtimeCatalog)) {
+      const slash = m.value.indexOf('/');
+      if (slash > 0) {
+        const provider = m.value.slice(0, slash);
+        const modelId = m.value.slice(slash + 1);
+        if (proxyConfig.proxyProvider && provider === proxyConfig.proxyProvider) {
+          proxyModelIds.add(modelId);
+        } else {
+          directlyAuthenticated.add(provider);
+        }
+      }
+    }
+  }
+
+  const shouldRewrite = Boolean(proxyConfig.proxyProvider && proxyModelIds.size > 0);
+
+  const profiles = new Map(GJC_BUILTIN_MODEL_PROFILES.map((profile) => {
+    let roles = profile.roles;
+    if (shouldRewrite && proxyConfig.proxyProvider) {
+      const rewritten: RoleMap = {};
+      for (const [role, selector] of Object.entries(profile.roles)) {
+        if (typeof selector !== 'string') continue;
+        const slash = selector.indexOf('/');
+        const directProvider = slash >= 0 ? selector.slice(0, slash) : '';
+        if (proxyConfig.proxyMode === 'fallback' && directlyAuthenticated.has(directProvider)) {
+          rewritten[role as ProfileRole] = selector;
+          continue;
+        }
+        rewritten[role as ProfileRole] = rewriteSelectorForProxy(selector, proxyConfig.proxyProvider, proxyModelIds);
+      }
+      roles = rewritten;
+    }
+    return [profile.name, {
+      name: profile.name,
+      label: profile.label,
+      group: profile.group,
+      description: `${profile.group} built-in preset`,
+      roles,
+    }];
+  }));
 
   for (const profile of configuredProfiles) {
     profiles.set(profile.name, {
@@ -356,10 +496,8 @@ export class GjcProviderModels implements IProviderModels {
   }
 
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    const [{ catalog, configuredProfiles, configuredCustom }, runtimeCatalog] = await Promise.all([
-      getGjcPresetCatalog(this.homeDir),
-      this.loadRuntimeModels?.().catch(() => undefined),
-    ]);
+    const runtimeCatalog = await this.loadRuntimeModels?.().catch(() => undefined);
+    const { catalog, configuredProfiles, configuredCustom } = await getGjcPresetCatalog(this.homeDir, runtimeCatalog);
     const base = catalog.OPTIONS.length > 1 ? catalog : GJC_FALLBACK_MODELS;
     const referencedModels = new Set([
       ...base.OPTIONS.flatMap((option) =>

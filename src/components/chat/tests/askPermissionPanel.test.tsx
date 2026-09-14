@@ -97,6 +97,19 @@ test('a question panel never shows the always-allow action', () => {
   const html = renderBanner([workerAskRequest]);
   assert.doesNotMatch(html, /always-allow/);
 });
+test('a question panel constrains viewport height and scrolls content while keeping actions pinned', () => {
+  const html = renderBanner([workerAskRequest]);
+
+  // Viewport constraint and vertical flex on card
+  assert.match(html, /max-h-\[70dvh\]/);
+  assert.match(html, /flex-col/);
+  // Scroll container with overscroll-contain for mobile touch safety
+  assert.match(html, /overflow-y-auto/);
+  assert.match(html, /overscroll-contain/);
+  // Header and footer are shrink-0
+  assert.match(html, /shrink-0[^"]*px-4 pt-3\.5 pb-2/);
+  assert.match(html, /shrink-0[^"]*border-t/);
+});
 
 test('plan-mode requests stay out of the banner', () => {
   for (const toolName of ['ExitPlanMode', 'exit_plan_mode']) {

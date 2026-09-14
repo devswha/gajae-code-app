@@ -29,6 +29,17 @@ export function requiredReleaseAssets(version) {
   ];
 }
 
+function publishedLabelFromTimestamp(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+  return new Date(timestamp).toISOString().slice(0, 10);
+}
+
 async function fetchJson(url, { fetchImpl, token }) {
   const headers = {
     accept: 'application/vnd.github+json',
@@ -67,6 +78,7 @@ async function findNewestNonDraftRelease({ fetchImpl, repository, token }) {
 }
 
 export async function resolveWebsiteReleaseTag({
+  fallbackPublishedLabel = RELEASE.publishedLabel,
   fallbackTag = RELEASE.tag,
   fetchImpl = fetch,
   log = console.log,
@@ -79,6 +91,10 @@ export async function resolveWebsiteReleaseTag({
     if (!releaseMetadata) {
       throw new Error(`Release tag is not supported by the website: ${release.tag_name}`);
     }
+    const releasePublishedLabel = publishedLabelFromTimestamp(release.published_at);
+    if (!releasePublishedLabel) {
+      throw new Error(`Release ${release.tag_name} has no valid published_at timestamp.`);
+    }
 
     const required = requiredReleaseAssets(releaseMetadata.version);
     const assets = new Set((release.assets ?? []).map((asset) => asset.name));
@@ -89,15 +105,24 @@ export async function resolveWebsiteReleaseTag({
 
     log(`Using latest non-draft release ${release.tag_name} for website downloads.`);
     log(`Verified release assets: ${required.join(', ')}`);
-    return { releaseTag: release.tag_name, usedFallback: false };
+    return {
+      releasePublishedLabel,
+      releaseTag: release.tag_name,
+      usedFallback: false,
+    };
   } catch (error) {
     log(`Keeping checked-in website release pin ${fallbackTag}: ${error.message}`);
-    return { releaseTag: fallbackTag, usedFallback: true, reason: error.message };
+    return {
+      releasePublishedLabel: fallbackPublishedLabel,
+      releaseTag: fallbackTag,
+      usedFallback: true,
+      reason: error.message,
+    };
   }
 }
 
 export async function main({ env = process.env, fetchImpl = fetch, log = console.log } = {}) {
-  const { releaseTag } = await resolveWebsiteReleaseTag({
+  const { releasePublishedLabel, releaseTag } = await resolveWebsiteReleaseTag({
     fetchImpl,
     log,
     token: env.GITHUB_TOKEN,
@@ -105,7 +130,10 @@ export async function main({ env = process.env, fetchImpl = fetch, log = console
   if (!env.GITHUB_OUTPUT) {
     throw new Error('GITHUB_OUTPUT is not set.');
   }
-  appendFileSync(env.GITHUB_OUTPUT, `release_tag=${releaseTag}\n`);
+  appendFileSync(
+    env.GITHUB_OUTPUT,
+    `release_tag=${releaseTag}\nrelease_published_label=${releasePublishedLabel}\n`,
+  );
 }
 
 if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file:').href) {

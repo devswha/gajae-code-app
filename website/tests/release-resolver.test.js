@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import {
+  main,
   repositoryFromUrl,
   requiredReleaseAssets,
   resolveWebsiteReleaseTag,
@@ -37,6 +41,7 @@ test('resolves the first non-draft release when all expected assets exist', asyn
       {
         draft: false,
         tag_name: 'v2.0.0-beta.99',
+        published_at: '2031-01-02T23:45:00Z',
         assets: releaseAssetList('2.0.0-beta.99'),
       },
     ]);
@@ -50,7 +55,11 @@ test('resolves the first non-draft release when all expected assets exist', asyn
     token: 'workflow-token',
   });
 
-  assert.deepEqual(result, { releaseTag: 'v2.0.0-beta.99', usedFallback: false });
+  assert.deepEqual(result, {
+    releasePublishedLabel: '2031-01-02',
+    releaseTag: 'v2.0.0-beta.99',
+    usedFallback: false,
+  });
   assert.equal(calls.length, 1);
   assert.equal(
     calls[0].url,
@@ -70,6 +79,7 @@ test('falls back to the checked-in pin when release asset verification fails', a
       {
         draft: false,
         tag_name: 'v2.0.0-beta.99',
+        published_at: '2031-01-02T23:45:00Z',
         assets: releaseAssetList('2.0.0-beta.99', [missingAsset]),
       },
     ]),
@@ -82,6 +92,33 @@ test('falls back to the checked-in pin when release asset verification fails', a
   assert.match(result.reason, /missing assets/);
   assert.match(result.reason, new RegExp(missingAsset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.ok(logs.some((message) => message.startsWith('Keeping checked-in website release pin')));
+});
+
+test('writes the resolved tag and UTC publish date to the workflow output', async (context) => {
+  const outputDirectory = await mkdtemp(join(tmpdir(), 'gajae-website-release-'));
+  context.after(() => rm(outputDirectory, { recursive: true, force: true }));
+  const outputPath = join(outputDirectory, 'github-output');
+
+  await main({
+    env: {
+      GITHUB_OUTPUT: outputPath,
+      GITHUB_TOKEN: 'workflow-token',
+    },
+    fetchImpl: async () => jsonResponse([
+      {
+        draft: false,
+        tag_name: 'v2.0.0-beta.99',
+        published_at: '2031-01-03T01:00:00+02:00',
+        assets: releaseAssetList('2.0.0-beta.99'),
+      },
+    ]),
+    log: () => {},
+  });
+
+  assert.equal(
+    await readFile(outputPath, 'utf8'),
+    'release_tag=v2.0.0-beta.99\nrelease_published_label=2031-01-02\n',
+  );
 });
 
 test('falls back when the release tag is not supported by the website bundle', async () => {

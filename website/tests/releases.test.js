@@ -71,16 +71,22 @@ test('keeps every artifact and checksum on the supplied release when the version
 });
 
 test('accepts only versioned build-time release tag overrides', () => {
-  const release = releaseFromTag(' v9.9.9-test ');
+  const release = releaseFromTag(' v9.9.9-test ', '2031-01-02');
   assert.deepEqual(release, {
     version: '9.9.9-test',
     tag: 'v9.9.9-test',
     channel: 'beta',
-    publishedLabel,
+    publishedLabel: '2031-01-02',
   });
   assert.equal(releaseFromTag('latest'), null);
   assert.equal(releaseFromTag('/releases/latest/download'), null);
   assert.equal(releaseFromTag(''), null);
+});
+
+test('keeps the checked-in label when a build-time publish label is invalid or missing', () => {
+  for (const label of [undefined, '', '2031-1-2', '2031-02-29']) {
+    assert.equal(releaseFromTag('v9.9.9-test', label).publishedLabel, publishedLabel);
+  }
 });
 
 test('does not invent artifacts for platforms other than macOS and the Linux server', () => {

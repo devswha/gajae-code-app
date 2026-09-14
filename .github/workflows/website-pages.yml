@@ -61,6 +61,8 @@ jobs:
 
       - name: Build website
         env:
+          GAJAE_WEBSITE_RELEASE_PUBLISHED_LABEL: >-
+            ${{ steps.website_release.outputs.release_published_label }}
           GAJAE_WEBSITE_RELEASE_TAG: ${{ steps.website_release.outputs.release_tag }}
         run: npm run build --prefix website
 

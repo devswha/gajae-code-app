@@ -4,11 +4,14 @@ import { defineConfig } from 'vite';
 
 const rootDir = dirname(fileURLToPath(import.meta.url));
 const releaseTagOverride = process.env.GAJAE_WEBSITE_RELEASE_TAG?.trim() ?? '';
+const releasePublishedLabelOverride =
+  process.env.GAJAE_WEBSITE_RELEASE_PUBLISHED_LABEL?.trim() ?? '';
 
 export default defineConfig({
   root: rootDir,
   base: './',
   define: {
+    __GAJAE_WEBSITE_RELEASE_PUBLISHED_LABEL__: JSON.stringify(releasePublishedLabelOverride),
     __GAJAE_WEBSITE_RELEASE_TAG__: JSON.stringify(releaseTagOverride),
   },
   publicDir: 'public',

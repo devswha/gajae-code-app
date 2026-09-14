@@ -123,7 +123,9 @@ export function automationSupport(platform: NodeJS.Platform, arch: string, envir
 }
 
 export class AutomationService {
-  readonly browser = new TauriBrowserClient();
+  // Native status is synchronized when the supervisor binding arrives and by
+  // the ordinary status route. Restart readers consume only that cache.
+  readonly browser = new TauriBrowserClient({ refreshOnBinding: true });
   readonly cua = new CuaDriverClient({ onSessionClosed: (label) => {
     for (const [id, session] of this.cuaSessionLabels) {
       if (session.label === label) {

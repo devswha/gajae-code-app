@@ -10,6 +10,7 @@ type Attempt = {
   id: string; draftEpoch: number; epoch: string; token?: string; expiresAt?: number;
   prepared?: Promise<RestartControlResult>;
 };
+type BrowserStatusRefresh = () => Promise<{ ready: boolean }>;
 
 function classifyPrepareFailure(result: Extract<Awaited<ReturnType<DesktopRestartAuthority['prepare']>>, { ok: false }>): string {
   // The shell owner deliberately keeps PTY descendant uncertainty latched for
@@ -32,8 +33,19 @@ export class DesktopRestartBackend {
   private latestDraftEpoch = 0;
   private readonly generation = randomUUID();
   private revision = 0;
+  private browserStatusRefresh?: BrowserStatusRefresh;
 
   constructor(private readonly now: () => number = () => performance.now()) {}
+
+  /**
+   * Synchronize the browser cache after the native browser fence and before
+   * authority.prepare. This hook is deliberately separate from owner reads:
+   * restart snapshots remain pure while this explicit preflight may perform
+   * one bounded authenticated status request.
+   */
+  configureBrowserStatusRefresh(refresh?: BrowserStatusRefresh): void {
+    this.browserStatusRefresh = refresh;
+  }
 
   readonly draftReader = {
     getGeneration: (): string => `${this.generation}:${this.revision}`,
@@ -110,7 +122,36 @@ export class DesktopRestartBackend {
     this.active = active;
     this.revision++;
     const binding = this.nativeEpoch;
-    const prepared = authority.prepare({ attemptId: active.id, epoch: active.epoch, budgetMs: command.remainingMs }).then((result) => {
+    const prepared = this.prepareAfterBrowserRefresh(active, binding, command);
+    return prepared;
+  }
+
+  private async prepareAfterBrowserRefresh(
+    active: Attempt,
+    binding: string | undefined,
+    command: Extract<RestartControlCommand, { action: 'prepare' }>,
+  ): Promise<RestartControlResult> {
+    const authority = this.authority!;
+    const refreshStarted = this.now();
+    if (this.browserStatusRefresh) {
+      try {
+        const status = await this.browserStatusRefresh();
+        if (status.ready !== true) throw new Error('browser_status_unavailable');
+      } catch {
+        this.clear(active);
+        return this.result(false, 'unknown');
+      }
+      const elapsed = this.now() - refreshStarted;
+      if (!Number.isFinite(elapsed) || elapsed >= command.remainingMs) {
+        this.clear(active);
+        return this.result(false, 'unknown');
+      }
+    }
+    if (this.active !== active || this.nativeEpoch !== binding) return this.result(false, 'cancelled');
+    const remainingMs = this.browserStatusRefresh
+      ? Math.max(1, Math.floor(command.remainingMs - (this.now() - refreshStarted)))
+      : command.remainingMs;
+    const prepared = authority.prepare({ attemptId: active.id, epoch: active.epoch, budgetMs: remainingMs }).then((result) => {
       if (this.active !== active || this.nativeEpoch !== binding) return this.result(false, 'cancelled');
       if (!result.ok) {
         if (process.env.GJC_DESKTOP_UPDATE_PIPE === '1') {

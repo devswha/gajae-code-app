@@ -16,7 +16,11 @@ const pageBinding = { windowEpoch: 'window-one', documentEpoch: 1, origin: 'http
 const page = { sessionId: 'one', activeTabId: 'page', tabs: [{ id: 'page', title: 'Example Domain', url: 'https://example.com/', loading: false, canGoBack: false, canGoForward: false }], binding: pageBinding, profileMode: 'persistent' };
 const idle = { owner: 'browser', generation: 'native-1', complete: true, starting: 0, queued: 0, running: 0, settling: 0, approvals: 0, retained: 0, unknown: [] };
 
-async function fixture(t: TestContext, options: { badProof?: boolean; handle?: (request: any, socket: net.Socket) => void } = {}) {
+async function fixture(t: TestContext, options: {
+  badProof?: boolean;
+  refreshOnBinding?: boolean;
+  handle?: (request: any, socket: net.Socket) => void;
+} = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'gjc-native-'));
   const binding = { protocolVersion: 1, socket: join(dir, 'browser.sock'), secret: 'a'.repeat(64), epoch: 'b'.repeat(64) };
   const requests: any[] = [];
@@ -44,7 +48,7 @@ async function fixture(t: TestContext, options: { badProof?: boolean; handle?: (
   await once(server, 'listening');
   const input = new PassThrough();
   const initialization = new DesktopNativeInit({ input, platform: 'darwin', env: { GJC_DESKTOP: '1', GJC_DESKTOP_PIPE: '1' } });
-  const client = new TauriBrowserClient({ initialization });
+  const client = new TauriBrowserClient({ initialization, refreshOnBinding: options.refreshOnBinding });
   input.write(`GJC_DESKTOP_INIT ${JSON.stringify({ protocolVersion: 2, browser: binding, update: null })}\n`);
   t.after(async () => {
     await client.shutdown();
@@ -72,6 +76,175 @@ test('native readiness requires authenticated status, then state and exact page 
   assert.deepEqual(sent.payload.command, { action: 'fill', selector: '#name', text: 'Ada' });
   assert.equal(sent.pid, process.pid);
   assert.ok(sent.timeoutMs > 0 && sent.timeoutMs <= 30_000);
+});
+
+test('restart activity observation is synchronous, cached, and never performs native I/O', async (t) => {
+  const { client, requests } = await fixture(t);
+  let statusCalls = 0;
+  const status = client.status.bind(client);
+  client.status = async () => { statusCalls++; return status(); };
+  const generation = client.getGeneration();
+
+  const observation = client.snapshotActivity();
+  assert.equal(observation instanceof Promise, false);
+  assert.equal(statusCalls, 0);
+  assert.equal(requests.length, 0);
+  assert.equal(client.getGeneration(), generation);
+  assert.equal(observation.complete, false);
+  assert.deepEqual(observation.unknown, ['builtin_browser_unconfirmed']);
+});
+
+test('binding-time refresh establishes the cache before restart admission reads it', async (t) => {
+  const { client, requests } = await fixture(t, { refreshOnBinding: true });
+  for (let i = 0; i < 1_000 && !client.isReady(); i++) {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  assert.equal(client.isReady(), true);
+  assert.equal(requests.filter((request) => request.operation === 'status').length, 1);
+  assert.equal(client.snapshotActivity().complete, true);
+});
+
+test('an in-flight status observation does not count as browser work', async (t) => {
+  let statusSocket!: net.Socket;
+  let statusRequest!: any;
+  let resolveStatusSeen!: () => void;
+  const statusSeen = new Promise<void>((resolve) => { resolveStatusSeen = resolve; });
+  const { client } = await fixture(t, { handle: (request, socket) => {
+    statusRequest = request;
+    statusSocket = socket;
+    resolveStatusSeen();
+  } });
+  const pending = client.status();
+  await statusSeen;
+  assert.equal(client.snapshotActivity().running, 0);
+  reply(statusRequest, statusSocket, { ready: true, activity: idle });
+  await pending;
+});
+
+test('a forced status refresh does not reuse a pre-fence observation', async (t) => {
+  const requests: any[] = [];
+  const sockets: net.Socket[] = [];
+  let resolveFirstSeen!: () => void;
+  let resolveSecondSeen!: () => void;
+  const firstSeen = new Promise<void>((resolve) => { resolveFirstSeen = resolve; });
+  const secondSeen = new Promise<void>((resolve) => { resolveSecondSeen = resolve; });
+  const { client } = await fixture(t, { handle: (request, socket) => {
+    requests.push(request);
+    sockets.push(socket);
+    if (requests.length === 1) resolveFirstSeen();
+    if (requests.length === 2) resolveSecondSeen();
+  } });
+  const first = client.status();
+  await firstSeen;
+  const forced = client.status({ force: true });
+  await secondSeen;
+  reply(requests[1], sockets[1]!, { ready: true, activity: { ...idle, generation: 'native-2', running: 1 } });
+  await forced;
+  reply(requests[0], sockets[0]!, { ready: true, activity: idle });
+  await assert.rejects(first, /browser_activity_changed/);
+  assert.equal(client.snapshotActivity().running, 1);
+});
+
+test('a late status response cannot clear uncertainty introduced by a command', async (t) => {
+  let statusSocket!: net.Socket;
+  let statusRequest!: any;
+  let resolveStatusSeen!: () => void;
+  const statusSeen = new Promise<void>((resolve) => { resolveStatusSeen = resolve; });
+  const { client } = await fixture(t, { handle: (request, socket) => {
+    if (request.operation === 'status') {
+      statusRequest = request;
+      statusSocket = socket;
+      resolveStatusSeen();
+    } else {
+      reply(request, socket, { ok: true });
+    }
+  } });
+  const status = client.status();
+  await statusSeen;
+  await client.command('one', { action: 'click', selector: '#submit' }, pageBinding);
+  reply(statusRequest, statusSocket, { ready: true, activity: idle });
+  await assert.rejects(status, /browser_activity_changed/);
+  const activity = client.snapshotActivity();
+  assert.equal(activity.complete, false);
+  assert.ok(activity.unknown.includes('builtin_browser_unconfirmed'));
+});
+
+test('a status response cannot clear uncertainty when a command settles during its flight', async (t) => {
+  let statusSocket!: net.Socket;
+  let statusRequest!: any;
+  let commandSocket!: net.Socket;
+  let commandRequest!: any;
+  let resolveStatusSeen!: () => void;
+  let resolveCommandSeen!: () => void;
+  const statusSeen = new Promise<void>((resolve) => { resolveStatusSeen = resolve; });
+  const commandSeen = new Promise<void>((resolve) => { resolveCommandSeen = resolve; });
+  const { client } = await fixture(t, { handle: (request, socket) => {
+    if (request.operation === 'status') {
+      statusRequest = request;
+      statusSocket = socket;
+      resolveStatusSeen();
+    } else {
+      commandRequest = request;
+      commandSocket = socket;
+      resolveCommandSeen();
+    }
+  } });
+  const command = client.command('one', { action: 'click', selector: '#submit' }, pageBinding);
+  await commandSeen;
+  const status = client.status();
+  await statusSeen;
+  reply(commandRequest, commandSocket, { ok: true });
+  await command;
+  reply(statusRequest, statusSocket, { ready: true, activity: idle });
+  await assert.rejects(status, /browser_activity_changed/);
+  assert.equal(client.snapshotActivity().complete, false);
+});
+
+test('first restart read stays unknown until external status sync, then native changes remain stale', async (t) => {
+  let currentActivity = { ...idle };
+  const { client, requests } = await fixture(t, { handle: (request, socket) => {
+    if (request.operation === 'status') reply(request, socket, { ready: true, activity: currentActivity });
+    else reply(request, socket, page);
+  } });
+  const first = client.snapshotActivity();
+  assert.equal(first.complete, false);
+  assert.ok(first.unknown.includes('builtin_browser_unconfirmed'));
+  assert.equal(first.unknown.includes('owner_stale'), false);
+  assert.equal(requests.length, 0, 'restart reads must not synchronize browser status');
+
+  await client.status();
+  const prepared = client.snapshotActivity();
+  assert.equal(prepared.complete, true);
+  assert.equal(prepared.running, 0);
+  const synchronizedGeneration = client.getGeneration();
+  await client.status();
+  assert.equal(client.getGeneration(), synchronizedGeneration, 'observing an unchanged native state is not activity');
+
+  currentActivity = { ...idle, generation: 'native-2', running: 1 };
+  await client.status();
+  const changed = client.snapshotActivity();
+  assert.notEqual(changed.generation, prepared.generation);
+  assert.equal(changed.running, 1);
+});
+
+test('a status failure invalidates the cached proof until a later status succeeds', async (t) => {
+  let failStatus = false;
+  const { client } = await fixture(t, { handle: (request, socket) => {
+    if (request.operation === 'status' && failStatus) { socket.destroy(); return; }
+    reply(request, socket, request.operation === 'status' ? { ready: true, activity: idle } : page);
+  } });
+  await client.status();
+  const synchronizedGeneration = client.getGeneration();
+  failStatus = true;
+  await assert.rejects(client.status());
+  const failed = client.snapshotActivity();
+  assert.notEqual(client.getGeneration(), synchronizedGeneration);
+  assert.equal(failed.complete, false);
+  assert.ok(failed.unknown.includes('builtin_browser_unconfirmed'));
+
+  failStatus = false;
+  await client.status();
+  assert.equal(client.snapshotActivity().complete, true);
 });
 
 test('an unproven endpoint receives neither secret nor browser commands', async (t) => {
@@ -103,8 +276,10 @@ test('abort closes its request but native running work remains visible to restar
   await seen;
   controller.abort();
   await assert.rejects(command, /browser_cancelled/);
+  await client.status();
   assert.equal((await client.snapshotActivity()).running, 1);
   work = 0;
+  await client.status();
   assert.equal((await client.snapshotActivity()).running, 0);
 });
 

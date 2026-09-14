@@ -41,7 +41,18 @@ attempt by another session while it remains open fails as
 into the space to its left. Drag the vertical divider, or focus it and use the
 arrow keys, to adjust the width. Closing the panel restores the full app area;
 it never closes the main window. At narrower sizes the app uses its existing
-responsive navigation.
+responsive navigation. The expand button temporarily gives the browser the full
+window, preserving the hidden app viewport; restore returns to the same split
+width and draft. Closing an expanded browser also restores the app.
+
+The 92-point chrome has a page-title row and a separate navigation/address row,
+with SVG icons, a focusable rounded address field, loading feedback and inline
+errors. Page titles are rendered as text. The local toolbar alone can read a
+bounded snapshot of the app's computed semantic colors, font family and UI
+language; it follows `src/index.css` and the selected theme instead of keeping a
+second palette. The snapshot refreshes while the panel is visible. Expansion
+and appearance remain presentation data on the toolbar channel, outside the
+agent browser state/command protocol.
 
 The trusted toolbar/divider (`builtin-controls`) and the unprivileged remote
 page (`builtin-page`) are native sibling WebViews in `main`, using Tauri 2.11.5
@@ -87,6 +98,27 @@ Root Puppeteer dependencies are removed, but the pinned SDK still brings
 `puppeteer-core` and `@puppeteer/browsers`. Keep the extract-zip backport,
 runtime manifest checks and payload security graph until that dependency graph
 changes; this contract does not claim that packaged Puppeteer bytes are gone.
+
+## Browser chrome refinement — 2026-09-14
+
+The provided Codex browser reference informed the title pill, separate rounded
+address row, restrained borders and matching line icons. The supported controls
+now include native expand/restore in addition to the original browser actions.
+
+- `npm run verify` passed. The final native suite passed 381 tests (6 existing
+  opt-in cases ignored), plus 11 build-binding tests. Ten toolbar DOM tests cover
+  title-as-text handling, retained SVGs, loading state, app appearance, address
+  editing, expand/restore and divider input.
+- The ad-hoc macOS app built successfully using the existing verified server
+  payload. Seventeen authenticated REST/native checks passed, including denial
+  of remote access to the new appearance reader and the unchanged agent state
+  shape.
+- GUI QA confirmed matching light/dark chrome, expansion and restoration with
+  the original split width and draft, closing while expanded, and the final
+  copied app opening the redesigned panel outside the checkout.
+
+![Updated browser chrome in dark mode](images/builtin-browser-docked.png)
+![Updated browser chrome in light mode](images/builtin-browser-docked-light.png)
 
 ## Docked panel validation — 2026-09-14
 

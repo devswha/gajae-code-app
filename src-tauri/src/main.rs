@@ -362,11 +362,23 @@ async fn builtin_browser_control(
     app: tauri::AppHandle,
     webview: tauri::Webview,
     command: builtin_browser::ToolbarCommand,
-) -> Result<builtin_browser::BrowserState, String> {
+) -> Result<builtin_browser::ToolbarState, String> {
     if webview.label() != builtin_browser::CONTROLS_LABEL {
         return Err("builtin_browser_unauthorized".to_owned());
     }
     builtin_browser::toolbar_control(&app, command)
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+async fn builtin_browser_appearance(
+    app: tauri::AppHandle,
+    webview: tauri::Webview,
+) -> Result<builtin_browser::BrowserAppearance, String> {
+    if webview.label() != builtin_browser::CONTROLS_LABEL {
+        return Err("builtin_browser_unauthorized".to_owned());
+    }
+    builtin_browser::appearance(&app)
 }
 
 #[tauri::command]
@@ -476,7 +488,8 @@ fn main() {
     let builder = builder.invoke_handler(tauri::generate_handler![
         retry_desktop_server,
         ack_updater_screen,
-        builtin_browser_control
+        builtin_browser_control,
+        builtin_browser_appearance
     ]);
     #[cfg(not(target_os = "macos"))]
     let builder = builder.invoke_handler(tauri::generate_handler![retry_desktop_server]);

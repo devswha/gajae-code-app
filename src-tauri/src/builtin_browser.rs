@@ -40,7 +40,7 @@ const MIN_PANEL_WIDTH: f64 = 320.0;
 const DIVIDER_WIDTH: f64 = 6.0;
 pub const CONTROLS_LABEL: &str = "builtin-controls";
 pub const PAGE_LABEL: &str = "builtin-page";
-const TOOLBAR_HEIGHT: f64 = 56.0;
+const TOOLBAR_HEIGHT: f64 = 92.0;
 const MAX_FRAME: usize = 256 * 1024;
 const MAX_PREVIEW: usize = 32 * 1024;
 const MAX_PENDING: usize = 8;
@@ -159,6 +159,83 @@ pub struct BrowserState {
     profile_mode: &'static str,
 }
 
+// Presentation data stays on the trusted toolbar channel; agent state and
+// document bindings retain their existing protocol shape.
+#[derive(Clone, Serialize)]
+pub struct ToolbarState {
+    #[serde(flatten)]
+    state: BrowserState,
+    expanded: bool,
+}
+
+fn toolbar_state(app: &tauri::AppHandle, state: BrowserState) -> ToolbarState {
+    ToolbarState {
+        state,
+        expanded: app
+            .state::<BrowserCoordinator>()
+            .panel_expanded
+            .load(Ordering::Acquire),
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BrowserAppearance {
+    colors: BTreeMap<String, String>,
+    dark: bool,
+    language: String,
+    font_family: String,
+}
+
+pub(crate) fn appearance(app: &tauri::AppHandle) -> Result<BrowserAppearance, String> {
+    let main = app
+        .get_webview(HOST_WINDOW_LABEL)
+        .ok_or("builtin_browser_unavailable")?;
+    let url = main.url().map_err(|_| "builtin_browser_unavailable")?;
+    if !app
+        .state::<crate::navigation::LoopbackOrigin>()
+        .permits(&url)
+    {
+        return Err("builtin_browser_unavailable".into());
+    }
+    let (sender, receiver) = mpsc::sync_channel(1);
+    main.with_webview(move |platform| {
+        let raw = platform.inner();
+        if raw.is_null() {
+            let _ = sender.send(None);
+            return;
+        }
+        let handler = block2::RcBlock::new(move |value: *mut AnyObject, error: *mut NSError| {
+            let result = if error.is_null() && !value.is_null() {
+                // SAFETY: the fixed script returns a JSON NSString, never a
+                // page-selected object. Bound it before parsing or returning.
+                let json = unsafe { (*value.cast::<NSString>()).to_string() };
+                if json.len() <= 4096 {
+                    serde_json::from_str::<BrowserAppearance>(&json).ok()
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            let _ = sender.send(result);
+        });
+        // SAFETY: both the live main WKWebView and completion block are used
+        // on the WebKit thread. This script reads only app appearance fields.
+        unsafe {
+            (&*raw.cast::<WKWebView>()).evaluateJavaScript_completionHandler(
+                &NSString::from_str(include_str!("../recovery/builtin-browser-appearance.js")),
+                Some(&handler),
+            );
+        }
+    })
+    .map_err(|_| "builtin_browser_unavailable")?;
+    receiver
+        .recv_timeout(Duration::from_secs(2))
+        .map_err(|_| "builtin_browser_unavailable".to_owned())?
+        .ok_or_else(|| "builtin_browser_unavailable".to_owned())
+}
+
 #[derive(Deserialize)]
 #[serde(tag = "action", rename_all = "camelCase", deny_unknown_fields)]
 pub enum ToolbarCommand {
@@ -169,6 +246,7 @@ pub enum ToolbarCommand {
     Reload,
     Close,
     Resize { width: f64 },
+    SetExpanded { expanded: bool },
 }
 
 #[derive(Clone)]
@@ -225,6 +303,7 @@ pub(crate) struct BrowserCoordinator {
     state: Mutex<Coordinator>,
     destroyed: Condvar,
     panel_width: Mutex<Option<f64>>,
+    panel_expanded: AtomicBool,
     bridge: Mutex<Option<Arc<BridgeRun>>>,
 }
 
@@ -896,7 +975,11 @@ fn emit_state(app: &tauri::AppHandle) {
     else {
         return;
     };
-    let _ = app.emit_to(CONTROLS_LABEL, "builtin-browser-state", state);
+    let _ = app.emit_to(
+        CONTROLS_LABEL,
+        "builtin-browser-state",
+        toolbar_state(app, state),
+    );
 }
 
 fn profile_mode() -> &'static str {
@@ -1094,6 +1177,7 @@ pub(crate) fn resize(window: &tauri::Window) {
         return;
     };
     let preferred_width = coordinator.panel_width.lock().ok().and_then(|width| *width);
+    let expanded = docked && coordinator.panel_expanded.load(Ordering::Acquire);
     for (label, surface) in [
         (HOST_WINDOW_LABEL, Surface::App),
         (CONTROLS_LABEL, Surface::Controls),
@@ -1101,7 +1185,13 @@ pub(crate) fn resize(window: &tauri::Window) {
     ] {
         if let Some(webview) = window.get_webview(label) {
             let _ = webview.with_webview(move |platform| {
-                set_native_webview_frame(platform.inner(), surface, docked, preferred_width);
+                set_native_webview_frame(
+                    platform.inner(),
+                    surface,
+                    docked,
+                    preferred_width,
+                    expanded,
+                );
             });
         }
     }
@@ -1124,18 +1214,34 @@ fn panel_width(available: f64, preferred: Option<f64>) -> f64 {
         .clamp(MIN_PANEL_WIDTH.min(max), max)
 }
 
-fn dock_frames(layout: NSRect, flipped: bool, preferred: Option<f64>) -> (NSRect, NSRect, NSRect) {
+fn dock_frames(
+    layout: NSRect,
+    flipped: bool,
+    preferred: Option<f64>,
+    expanded: bool,
+) -> (NSRect, NSRect, NSRect) {
     let width = panel_width(layout.size.width, preferred);
+    // Hide the app while expanded, retaining its viewport and draft layout.
     let app_width = layout.size.width - width;
+    let width = if expanded { layout.size.width } else { width };
+    let panel_x = if expanded {
+        layout.origin.x
+    } else {
+        layout.origin.x + app_width
+    };
     let app = NSRect::new(layout.origin, NSSize::new(app_width, layout.size.height));
     // The controls webview owns the full panel so its divider can be dragged
     // along the entire height. The page covers only the area below its toolbar.
     let controls = NSRect::new(
-        NSPoint::new(layout.origin.x + app_width, layout.origin.y),
+        NSPoint::new(panel_x, layout.origin.y),
         NSSize::new(width, layout.size.height),
     );
     let (_, mut page) = content_frames(controls, flipped);
-    let divider = DIVIDER_WIDTH.min(width);
+    let divider = if expanded {
+        0.0
+    } else {
+        DIVIDER_WIDTH.min(width)
+    };
     page.origin.x += divider;
     page.size.width -= divider;
     (app, controls, page)
@@ -1171,6 +1277,7 @@ fn set_native_webview_frame(
     surface: Surface,
     docked: bool,
     preferred: Option<f64>,
+    expanded: bool,
 ) {
     if raw.is_null() {
         return;
@@ -1188,7 +1295,8 @@ fn set_native_webview_frame(
         };
         let layout = parent.convertRect_fromView(window.contentLayoutRect(), None);
         let frame = if docked {
-            let (app, controls, page) = dock_frames(layout, parent.isFlipped(), preferred);
+            let (app, controls, page) =
+                dock_frames(layout, parent.isFlipped(), preferred, expanded);
             match surface {
                 Surface::App => app,
                 Surface::Controls => controls,
@@ -1205,6 +1313,9 @@ fn set_native_webview_frame(
             objc2_app_kit::NSAutoresizingMaskOptions::ViewWidthSizable
                 | objc2_app_kit::NSAutoresizingMaskOptions::ViewHeightSizable
         });
+        if matches!(surface, Surface::App) {
+            webview.setHidden(expanded);
+        }
         webview.setFrame(frame);
     }
 }
@@ -1457,6 +1568,10 @@ fn request_panel_close(
         {
             return;
         }
+        handle
+            .state::<BrowserCoordinator>()
+            .panel_expanded
+            .store(false, Ordering::Release);
         if let Some(window) = handle.get_window(HOST_WINDOW_LABEL) {
             resize(&window);
             if let Some(main) = handle.get_webview(HOST_WINDOW_LABEL) {
@@ -1473,7 +1588,7 @@ fn request_panel_close(
 pub(crate) fn toolbar_control(
     app: &tauri::AppHandle,
     command: ToolbarCommand,
-) -> Result<BrowserState, String> {
+) -> Result<ToolbarState, String> {
     let session_id = app
         .state::<BrowserCoordinator>()
         .state
@@ -1485,6 +1600,14 @@ pub(crate) fn toolbar_control(
         .ok_or("builtin_browser_not_open")?;
     match command {
         ToolbarCommand::State => {}
+        ToolbarCommand::SetExpanded { expanded } => {
+            app.state::<BrowserCoordinator>()
+                .panel_expanded
+                .store(expanded, Ordering::Release);
+            if let Some(window) = app.get_window(HOST_WINDOW_LABEL) {
+                resize(&window);
+            }
+        }
         ToolbarCommand::Resize { width } => {
             if !width.is_finite() || width < 0.0 || width > 16_384.0 {
                 return Err("builtin_browser_invalid_request".into());
@@ -1522,10 +1645,12 @@ pub(crate) fn toolbar_control(
         }
         ToolbarCommand::Close => {
             close(app, &session_id).map_err(str::to_owned)?;
-            return Ok(closed_state(&session_id));
+            return Ok(toolbar_state(app, closed_state(&session_id)));
         }
     }
-    state_for(app, &session_id).map_err(str::to_owned)
+    state_for(app, &session_id)
+        .map(|state| toolbar_state(app, state))
+        .map_err(str::to_owned)
 }
 
 fn ensure_unfenced(app: &tauri::AppHandle) -> Result<(), String> {
@@ -2013,10 +2138,10 @@ mod tests {
                 .iter()
                 .any(|label| { label == PAGE_LABEL || label == "*" || label == "builtin-*" }));
             let permissions = value["permissions"].as_array().cloned().unwrap_or_default();
-            if permissions
-                .iter()
-                .any(|permission| permission == "allow-builtin-browser-control")
-            {
+            if permissions.iter().any(|permission| {
+                permission == "allow-builtin-browser-control"
+                    || permission == "allow-builtin-browser-appearance"
+            }) {
                 assert_eq!(value["identifier"], "builtin-browser-controls");
             }
             if value["identifier"] == "builtin-browser-controls" {
@@ -2030,7 +2155,8 @@ mod tests {
                     serde_json::json!([
                         "core:event:allow-listen",
                         "core:event:allow-unlisten",
-                        "allow-builtin-browser-control"
+                        "allow-builtin-browser-control",
+                        "allow-builtin-browser-appearance"
                     ])
                 );
             }
@@ -2135,17 +2261,17 @@ mod tests {
     fn native_content_frames_keep_toolbar_above_page_in_both_coordinate_systems() {
         let layout = NSRect::new(NSPoint::new(12.0, 28.0), NSSize::new(900.0, 700.0));
         let (controls, page) = content_frames(layout, false);
-        assert_eq!(controls.origin.y, 672.0);
-        assert_eq!(controls.size.height, 56.0);
+        assert_eq!(controls.origin.y, 728.0 - TOOLBAR_HEIGHT);
+        assert_eq!(controls.size.height, TOOLBAR_HEIGHT);
         assert_eq!(page.origin.y, 28.0);
-        assert_eq!(page.size.height, 644.0);
+        assert_eq!(page.size.height, 700.0 - TOOLBAR_HEIGHT);
         assert_eq!(page.origin.y + page.size.height, controls.origin.y);
 
         let (controls, page) = content_frames(layout, true);
         assert_eq!(controls.origin.y, 28.0);
-        assert_eq!(controls.size.height, 56.0);
-        assert_eq!(page.origin.y, 84.0);
-        assert_eq!(page.size.height, 644.0);
+        assert_eq!(controls.size.height, TOOLBAR_HEIGHT);
+        assert_eq!(page.origin.y, 28.0 + TOOLBAR_HEIGHT);
+        assert_eq!(page.size.height, 700.0 - TOOLBAR_HEIGHT);
         assert_eq!(controls.origin.y + controls.size.height, page.origin.y);
     }
 
@@ -2155,7 +2281,7 @@ mod tests {
             for width in [960.0, 1200.0, 1920.0] {
                 for preferred in [None, Some(0.0), Some(480.0), Some(16_384.0)] {
                     let layout = NSRect::new(NSPoint::new(12.0, 28.0), NSSize::new(width, 700.0));
-                    let (app, controls, page) = dock_frames(layout, flipped, preferred);
+                    let (app, controls, page) = dock_frames(layout, flipped, preferred, false);
                     assert!(app.size.width >= MIN_APP_WIDTH);
                     assert!(controls.size.width >= MIN_PANEL_WIDTH);
                     assert_eq!(app.origin, layout.origin);
@@ -2182,11 +2308,27 @@ mod tests {
         // Even transient native sizes below the configured window minimum
         // cannot produce negative WebView dimensions.
         let layout = NSRect::new(NSPoint::ZERO, NSSize::new(200.0, 20.0));
-        let (app, controls, page) = dock_frames(layout, true, None);
+        let (app, controls, page) = dock_frames(layout, true, None, false);
         assert_eq!(app.size.width, 200.0);
         assert_eq!(controls.size.width, 0.0);
         assert_eq!(page.size.width, 0.0);
         assert_eq!(page.size.height, 0.0);
+    }
+
+    #[test]
+    fn expanded_browser_preserves_the_hidden_app_viewport_and_split_width() {
+        let layout = NSRect::new(NSPoint::new(12.0, 28.0), NSSize::new(1200.0, 800.0));
+        for flipped in [false, true] {
+            let (app, _, _) = dock_frames(layout, flipped, Some(450.0), false);
+            let (hidden_app, controls, page) = dock_frames(layout, flipped, Some(450.0), true);
+            assert_eq!(hidden_app, app);
+            assert_eq!(controls, layout);
+            assert_eq!(page.origin.x, layout.origin.x);
+            assert_eq!(page.size.width, layout.size.width);
+            assert_eq!(page.size.height, layout.size.height - TOOLBAR_HEIGHT);
+            let (restored, _, _) = dock_frames(layout, flipped, Some(450.0), false);
+            assert_eq!(restored, app);
+        }
     }
 
     #[test]

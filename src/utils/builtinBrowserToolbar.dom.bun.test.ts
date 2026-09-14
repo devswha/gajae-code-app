@@ -2,12 +2,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { afterEach, test } from 'node:test';
 
+const markup = readFileSync(new URL('../../src-tauri/recovery/builtin-browser.html', import.meta.url), 'utf8');
+const appearanceSource = readFileSync(new URL('../../src-tauri/recovery/builtin-browser-appearance.js', import.meta.url), 'utf8');
 const source = readFileSync(new URL('../../src-tauri/recovery/builtin-browser.js', import.meta.url), 'utf8');
 
 type BrowserState = {
   activeTabId: string;
   profileMode: 'persistent' | 'ephemeral';
-  tabs: Array<{ id: string; url: string; loading: boolean; canGoBack: boolean; canGoForward: boolean }>;
+  expanded?: boolean;
+  tabs: Array<{ id: string; url: string; title?: string; loading: boolean; canGoBack: boolean; canGoForward: boolean }>;
 };
 
 function deferred<T>() {
@@ -22,19 +25,18 @@ function deferred<T>() {
 
 const flush = () => new Promise<void>((resolve) => queueMicrotask(() => resolve()));
 
-function toolbar(invoke: (command: string, args?: Record<string, unknown>) => Promise<unknown>) {
-  document.body.innerHTML = `
-    <div id="divider" role="separator" tabindex="0" aria-valuenow="480"></div>
-    <main>
-      <button data-action="back">Back</button>
-      <button data-action="forward">Forward</button>
-      <button data-action="reload">Reload</button>
-      <form id="url-form"><input id="address"></form>
-      <span id="profile"></span>
-      <button data-action="close">Close</button>
-      <p id="message"></p>
-    </main>`;
-  (window as Window & { __TAURI__?: unknown }).__TAURI__ = { core: { invoke } };
+function toolbar(
+  invoke: (command: string, args?: Record<string, unknown>) => Promise<unknown>,
+  appearance: unknown = { colors: {}, dark: false, language: 'en', fontFamily: 'sans-serif' },
+) {
+  // Use the actual shipped markup: title updates must not replace its SVGs,
+  // controls, accessibility labels or form relationships.
+  document.body.innerHTML = markup.match(/<body>([\s\S]*?)<\/body>/u)![1]!.replace(/<script[\s\S]*?<\/script>/gu, '');
+  (window as Window & { __TAURI__?: unknown }).__TAURI__ = { core: {
+    invoke: (command: string, args?: Record<string, unknown>) => command === 'builtin_browser_appearance'
+      ? Promise.resolve(appearance)
+      : invoke(command, args),
+  } };
   Function(source)();
   return {
     address: document.querySelector<HTMLInputElement>('#address')!,
@@ -46,6 +48,10 @@ function toolbar(invoke: (command: string, args?: Record<string, unknown>) => Pr
 }
 
 afterEach(() => {
+  window.dispatchEvent(new Event('pagehide'));
+  document.documentElement.removeAttribute('style');
+  document.documentElement.classList.remove('dark');
+  localStorage.removeItem('i18nextLng');
   document.body.innerHTML = '';
   delete (window as Window & { __TAURI__?: unknown }).__TAURI__;
 });
@@ -161,4 +167,76 @@ test('panel dragging coalesces movement and stops after pointer cancellation', a
   pointer('pointermove', 500);
   assert.equal(calls.length, count);
   assert.equal(divider.hasAttribute('data-dragging'), false);
+});
+
+test('page chrome uses the real title as text and preserves its icon controls', async () => {
+  const title = '<img src=x onerror=alert(1)> A long page title';
+  const view = toolbar(async () => state({ tabs: [{ ...state().tabs[0]!, title, loading: true }] }));
+  await flush();
+  assert.equal(document.querySelector('#page-title')!.textContent, title);
+  assert.equal(document.querySelector('#page-title img'), null);
+  assert.ok(view.reload.querySelector('svg'));
+  assert.equal(document.documentElement.dataset.loading, 'true');
+  assert.equal(document.querySelector('.navigation')!.getAttribute('aria-busy'), 'true');
+  assert.ok(view.profile.classList.contains('sr-only'));
+});
+
+test('expand and restore send presentation commands without changing the URL', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const view = toolbar(async (_command, args) => {
+    const command = args?.command as Record<string, unknown>;
+    calls.push(command);
+    return state({ expanded: command.expanded === true });
+  });
+  await flush();
+  const button = document.querySelector<HTMLButtonElement>('#expand')!;
+  const originalUrl = view.address.value;
+  button.click();
+  await flush();
+  assert.deepEqual(calls.at(-1), { action: 'setExpanded', expanded: true });
+  assert.equal(button.getAttribute('aria-pressed'), 'true');
+  assert.equal(button.getAttribute('aria-label'), 'Restore split view');
+  button.click();
+  await flush();
+  assert.deepEqual(calls.at(-1), { action: 'setExpanded', expanded: false });
+  assert.equal(view.address.value, originalUrl);
+});
+
+test('app appearance supplies semantic colors and language without exposing a page bridge', async () => {
+  const view = toolbar(async () => state(), {
+    colors: { background: '0 0% 8%', foreground: '40 8% 93%', card: 'url(https://untrusted.example)' },
+    dark: true, language: 'ko', fontFamily: 'Pretendard, sans-serif',
+  });
+  await flush();
+  assert.equal(document.documentElement.style.getPropertyValue('--browser-background'), 'hsl(0 0% 8%)');
+  assert.equal(document.documentElement.style.getPropertyValue('--browser-card'), '');
+  assert.equal(document.documentElement.style.colorScheme, 'dark');
+  assert.equal(view.address.getAttribute('aria-label'), '주소');
+  assert.equal(document.querySelector('#expand')!.getAttribute('aria-label'), '브라우저 확대');
+});
+
+test('appearance reader uses the active app tokens and stored UI language', () => {
+  document.documentElement.classList.add('dark');
+  document.documentElement.style.setProperty('--background', '0 0% 8%');
+  localStorage.setItem('i18nextLng', 'ko');
+  const appearance = JSON.parse(Function(`return ${appearanceSource}`)()) as {
+    colors: Record<string, string>; language: string; dark: boolean;
+  };
+  assert.equal(appearance.colors.background, '0 0% 8%');
+  assert.equal(appearance.language, 'ko');
+  assert.equal(appearance.dark, true);
+  assert.deepEqual(Object.keys(appearance).sort(), ['colors', 'dark', 'fontFamily', 'language']);
+});
+
+test('Escape restores the displayed URL and the address shortcut selects it', async () => {
+  const calls: unknown[] = [];
+  const view = toolbar(async (_command, args) => { calls.push(args?.command); return state(); });
+  await flush();
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'l', metaKey: true, bubbles: true }));
+  assert.equal(document.activeElement, view.address);
+  assert.equal(view.address.selectionEnd, view.address.value.length);
+  view.address.value = 'unfinished edit';
+  view.address.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(view.address.value, 'https://example.com/');
+  assert.deepEqual(calls, [{ action: 'state' }]);
 });

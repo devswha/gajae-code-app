@@ -203,6 +203,13 @@ The system uses Tailwind's 4px spacing scale. Existing values like `p-2`, `gap-2
 - **Accessibility**: disclosure buttons expose `aria-expanded` and `aria-controls`; all icon-only actions have names and titles, and every control preserves a visible focus ring.
 - **Responsive behavior**: desktop and mobile preserve the same information order and one scroll owner, with touch-sized primary rows on mobile.
 
+### Built-in Browser Panel
+
+- **Structure**: a native right panel with a 44px page-title row and a 48px navigation row. The single page title uses a rounded pill with a 16px globe and close control; back, forward and reload use matching 18px stroke icons beside a rounded address field.
+- **Surface**: browser chrome reads the app's computed semantic tokens from `src/index.css`; its `--browser-*` variables are aliases of the active app palette, not an independent palette. Muted backgrounds define the title pill and address field, with restrained border and focus-ring tokens.
+- **Behavior**: the divider supports pointer and keyboard resizing. Expand preserves the hidden conversation viewport and draft; restore returns to its previous width. Closing always restores the conversation. Titles remain plain text, and loading/error feedback stays within the chrome.
+- **Accessibility**: labelled native buttons, pressed state for expand/restore, a labelled address field, visible focus rings, reduced-motion support, and the app's selected UI language.
+
 ### Desktop Update Notice
 
 - **Placement**: a compact `bg-card`, `border-border`, `rounded-lg` card sits immediately above Settings in the fixed sidebar footer. The collapsed rail keeps an accessible update-details icon immediately above its bottom Settings control; opening details only expands the sidebar, without a modal or automatic focus change.

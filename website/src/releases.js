@@ -1,3 +1,5 @@
+/* global __GAJAE_WEBSITE_RELEASE_PUBLISHED_LABEL__, __GAJAE_WEBSITE_RELEASE_TAG__ */
+
 export const PRODUCT_NAME = 'Gajae Code App';
 export const REPOSITORY_URL = 'https://github.com/devswha/gajae-code-app';
 export const RELEASES_URL = `${REPOSITORY_URL}/releases`;
@@ -8,12 +10,48 @@ export const DOCS_SELF_HOST_URL = `${REPOSITORY_URL}/blob/main/docs/SELF-HOST.md
 export const GAJAE_CODE_URL = 'https://github.com/devswha/gajae-code';
 export const APPLE_GATEKEEPER_HELP_URL = 'https://support.apple.com/102445';
 
-export const RELEASE = {
-  version: '2.0.0-beta.14',
-  tag: 'v2.0.0-beta.14',
+const CHECKED_IN_RELEASE = {
+  version: '2.0.0-beta.17',
+  tag: 'v2.0.0-beta.17',
   channel: 'beta',
-  publishedLabel: '2026-09-10',
+  publishedLabel: '2026-09-14',
 };
+
+function isPublishedLabel(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.valueOf()) && date.toISOString().startsWith(`${value}T`);
+}
+
+export function releaseFromTag(releaseTag, publishedLabel) {
+  const tag = typeof releaseTag === 'string' ? releaseTag.trim() : '';
+  const match = /^v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(tag);
+  if (!match) {
+    return null;
+  }
+  return {
+    ...CHECKED_IN_RELEASE,
+    version: match[1],
+    tag,
+    publishedLabel: isPublishedLabel(publishedLabel)
+      ? publishedLabel
+      : CHECKED_IN_RELEASE.publishedLabel,
+  };
+}
+
+function buildReleaseOverride() {
+  if (typeof __GAJAE_WEBSITE_RELEASE_TAG__ !== 'string') {
+    return null;
+  }
+  const publishedLabel = typeof __GAJAE_WEBSITE_RELEASE_PUBLISHED_LABEL__ === 'string'
+    ? __GAJAE_WEBSITE_RELEASE_PUBLISHED_LABEL__
+    : undefined;
+  return releaseFromTag(__GAJAE_WEBSITE_RELEASE_TAG__, publishedLabel);
+}
+
+export const RELEASE = buildReleaseOverride() ?? CHECKED_IN_RELEASE;
 
 
 function releaseDownloadBase(tag = RELEASE.tag) {

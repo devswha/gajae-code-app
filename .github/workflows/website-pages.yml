@@ -8,6 +8,9 @@ on:
       - website/**
       - .github/workflows/website-pages.yml
   workflow_dispatch:
+  release:
+    types:
+      - published
 
 permissions:
   contents: read
@@ -32,6 +35,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Release events otherwise check out the tag and can redeploy stale website sources.
+          ref: main
           persist-credentials: false
 
       - name: Set up Node.js
@@ -50,7 +55,17 @@ jobs:
       - name: Test website
         run: npm test --prefix website
 
+      - name: Resolve latest website release
+        id: website_release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node website/scripts/resolve-release.mjs
+
       - name: Build website
+        env:
+          GAJAE_WEBSITE_RELEASE_PUBLISHED_LABEL: >-
+            ${{ steps.website_release.outputs.release_published_label }}
+          GAJAE_WEBSITE_RELEASE_TAG: ${{ steps.website_release.outputs.release_tag }}
         run: npm run build --prefix website
 
       - name: Upload website artifact

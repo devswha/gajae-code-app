@@ -9,21 +9,24 @@ import {
   checksumName,
   desktopDmgName,
   downloadUrl,
+  releaseFromTag,
   serverArchiveName,
 } from '../src/releases.js';
 
 /**
- * Reviewed public-release fixture: promote this with the verified beta.14 assets.
+ * Reviewed public-release fixture: promote this with the verified beta.17 assets.
  * A local/test candidate can advance package.json before publication; coupling
  * the page to that version would advertise download URLs that do not exist.
  * Update this fixture with RELEASE only after verifying the new public assets.
  */
-const publishedVersion = '2.0.0-beta.14';
+const publishedVersion = '2.0.0-beta.17';
 const publishedTag = `v${publishedVersion}`;
+const publishedLabel = '2026-09-14';
 
 test('pins the published release and its GitHub URLs independently of local candidates', () => {
   assert.equal(RELEASE.version, publishedVersion);
   assert.equal(RELEASE.tag, `v${publishedVersion}`);
+  assert.equal(RELEASE.publishedLabel, publishedLabel);
   assert.equal(desktopDmgName(), `gajae-app-desktop-${publishedVersion}-macos-arm64.dmg`);
   assert.equal(serverArchiveName(), `gajae-app-server-${publishedVersion}-linux-x64-node22.tar.gz`);
   assert.equal(
@@ -64,6 +67,25 @@ test('keeps every artifact and checksum on the supplied release when the version
     assert.equal(download.checksumHref, `${download.href}.sha256`);
     assert.equal(download.checksumFile, `${download.label}.sha256`);
     assert.ok(download.verifyCommand.endsWith(download.checksumFile));
+  }
+});
+
+test('accepts only versioned build-time release tag overrides', () => {
+  const release = releaseFromTag(' v9.9.9-test ', '2031-01-02');
+  assert.deepEqual(release, {
+    version: '9.9.9-test',
+    tag: 'v9.9.9-test',
+    channel: 'beta',
+    publishedLabel: '2031-01-02',
+  });
+  assert.equal(releaseFromTag('latest'), null);
+  assert.equal(releaseFromTag('/releases/latest/download'), null);
+  assert.equal(releaseFromTag(''), null);
+});
+
+test('keeps the checked-in label when a build-time publish label is invalid or missing', () => {
+  for (const label of [undefined, '', '2031-1-2', '2031-02-29']) {
+    assert.equal(releaseFromTag('v9.9.9-test', label).publishedLabel, publishedLabel);
   }
 });
 

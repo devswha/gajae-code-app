@@ -16,15 +16,23 @@ const draft = (): ComposerDraft => ({ projectId: 'qa', conversation: 'a', input:
 
 // A deliberately small event driver: request success and transaction completion
 // are controlled separately. It is not an IndexedDB polyfill or clone proof.
-function transactionDriver(sizeRows: Array<{ key: string; value: unknown }> = []) {
+// `stallOpens`/`stallTransactions` reproduce a WebKit storage process that never
+// answers; `unabortable` reproduces a transaction that already reached commit.
+type DriverStalls = { stallOpens?: number; stallTransactions?: number; unabortable?: boolean };
+function transactionDriver(sizeRows: Array<{ key: string; value: unknown }> = [], stalls: DriverStalls = {}) {
   const puts: unknown[] = [];
   const deletes: unknown[] = [];
+  const created: Array<{ error: DOMException | null; oncomplete: (() => void) | null; onabort: (() => void) | null }> = [];
   let options: IDBTransactionOptions | undefined;
-  let cursorIndex = 0;
+  let opens = 0;
   let closed = false;
   let aborted = false;
+  function makeTransaction() {
+  const stalled = created.length < (stalls.stallTransactions ?? 0);
+  let cursorIndex = 0;
   const cursorRequest = { result: null as unknown, onsuccess: null as (() => void) | null };
   const next = () => queueMicrotask(() => {
+    if (stalled) return;
     const row = sizeRows[cursorIndex++];
     cursorRequest.result = row ? { ...row, continue: next } : null;
     cursorRequest.onsuccess?.();
@@ -33,22 +41,30 @@ function transactionDriver(sizeRows: Array<{ key: string; value: unknown }> = []
     error: null as DOMException | null,
     oncomplete: null as (() => void) | null,
     onabort: null as (() => void) | null,
-    abort() { aborted = true; queueMicrotask(() => transaction.onabort?.()); },
+    abort() {
+      if (stalls.unabortable) throw new DOMException('Finished test transaction', 'InvalidStateError');
+      aborted = true; queueMicrotask(() => transaction.onabort?.());
+    },
     objectStore(store: string) { return { openCursor() { next(); return cursorRequest; }, put(value: unknown) { puts.push(value); return {}; }, delete(key: unknown) { deletes.push({ store, key }); return {}; } }; },
   };
+  created.push(transaction);
+  return transaction;
+  }
   const db = {
     close() { closed = true; },
-    transaction(_stores: string[], _mode: IDBTransactionMode, settings?: IDBTransactionOptions) { options = settings; return transaction; },
+    transaction(_stores: string[], _mode: IDBTransactionMode, settings?: IDBTransactionOptions) { options = settings; return makeTransaction(); },
   };
   const factory = {
     open() {
+      opens += 1;
       const request = { result: db, onsuccess: null as (() => void) | null };
-      queueMicrotask(() => request.onsuccess?.());
+      if (opens > (stalls.stallOpens ?? 0)) queueMicrotask(() => request.onsuccess?.());
       return request;
     },
   };
   Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: factory });
-  return { transaction, puts, deletes, get options() { return options; }, get closed() { return closed; }, get aborted() { return aborted; } };
+  return { puts, deletes, get transaction() { return created[created.length - 1]; }, get attempts() { return created.length; },
+    get opens() { return opens; }, get options() { return options; }, get closed() { return closed; }, get aborted() { return aborted; } };
 }
 const tick = async () => { for (let i = 0; i < 10; i += 1) await Promise.resolve(); };
 
@@ -63,6 +79,51 @@ test('put success cannot acknowledge persistence before the strict transaction c
   assert.equal(driver.closed, false);
   driver.transaction.oncomplete?.();
   assert.equal(await result, 1);
+  assert.equal(driver.closed, true);
+});
+
+test('a stalled open request is replayed instead of reporting the unsent draft unsaved', async () => {
+  const driver = transactionDriver([], { stallOpens: 1 });
+  const result = browserComposerDraftRepository.save(draft(), 0);
+  await tick();
+  assert.equal(driver.opens, 1);
+  assert.equal(driver.attempts, 0, 'an open that never answered owns no transaction');
+  await waitFor(() => assert.equal(driver.attempts, 1), { timeout: COMPOSER_STORAGE_LIMITS.timeoutMs + 1500, interval: 25 });
+  await tick();
+  assert.equal(driver.puts.length, 3);
+  driver.transaction.oncomplete?.();
+  assert.equal(await result, 1);
+});
+
+test('a stalled transaction that provably committed nothing is replayed', async () => {
+  const driver = transactionDriver([], { stallTransactions: 1 });
+  const result = browserComposerDraftRepository.save(draft(), 0);
+  await tick();
+  assert.equal(driver.attempts, 1);
+  assert.equal(driver.puts.length, 0);
+  await waitFor(() => assert.equal(driver.attempts, 2), { timeout: COMPOSER_STORAGE_LIMITS.timeoutMs + 1500, interval: 25 });
+  assert.equal(driver.aborted, true, 'the replay is only safe because the stalled attempt aborted');
+  await tick();
+  assert.equal(driver.puts.length, 3);
+  driver.transaction.oncomplete?.();
+  assert.equal(await result, 1);
+});
+
+test('a committed transaction whose event is delayed past the budget is not a timeout', async () => {
+  const driver = transactionDriver([], { unabortable: true });
+  const result = browserComposerDraftRepository.save(draft(), 0);
+  await tick();
+  assert.equal(driver.puts.length, 3);
+  await new Promise((resolve) => setTimeout(resolve, COMPOSER_STORAGE_LIMITS.timeoutMs + 100));
+  assert.equal(driver.attempts, 1, 'a transaction that cannot be aborted must never be replayed');
+  driver.transaction.oncomplete?.();
+  assert.equal(await result, 1);
+});
+
+test('a transaction that never reports its outcome still fails closed after the grace', async () => {
+  const driver = transactionDriver([], { unabortable: true });
+  await assert.rejects(browserComposerDraftRepository.save(draft(), 0), (error) => composerStorageReason(error) === 'timeout');
+  assert.equal(driver.attempts, 1);
   assert.equal(driver.closed, true);
 });
 

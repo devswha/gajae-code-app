@@ -247,13 +247,14 @@ not changed. The older session records below are historical.
   remains gated and no updater-enabled release is published. See the current
   [updater checkpoint](MACOS-UPDATER-HANDOFF.md), not the older progress records.
 
-- **Unreleased follow-up: tasks above the conversation.** `ChatTasksPanel` now
-  shows the session's live todo list above the transcript with collapse,
-  progress and bounded scrolling. The right-hand Tasks tab is retired; its
-  persisted open state closes on upgrade. The todo projection hook now lives
-  under `src/components/chat/hooks/`. This source change is **not included in
-  the published/installed beta.10** and requires a new build/release to reach
-  that desktop installation.
+- **Unreleased follow-up: one task surface.** The right-hand Tasks tab and the
+  chat column's own `ChatTasksPanel` are both retired; the agent sidebar's WORK
+  rail (`AgentSidebarWork`) is the only place the session's live todo list is
+  rendered, so an open rail no longer repeated the same checklist above the
+  transcript. The todo projection hook stays under
+  `src/components/chat/hooks/useSessionTodos.ts` and now feeds the rail. This
+  source change is **not included in the published/installed beta.10** and
+  requires a new build/release to reach that desktop installation.
 - The same unreleased UI follow-up also hides routine `Auto-approved …`
   information notices in the chat projection. Raw records, permission policy,
   approval controls, warnings and errors are unchanged.

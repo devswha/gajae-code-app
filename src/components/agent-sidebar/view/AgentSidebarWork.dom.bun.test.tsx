@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { afterEach, test } from 'node:test';
 
 import { act, cleanup, render, screen, within } from '@testing-library/react';
@@ -405,6 +406,14 @@ test('agents published for another conversation never appear in this one', async
 
   view.rerender(state.ui('session-2'));
   assert.ok(within(section()).getByText('Executor — Another conversation'));
+});
+
+test('the chat column mounts no second task list, so WORK is the only task surface', () => {
+  // The transcript used to carry its own task disclosure above the messages,
+  // which repeated this block verbatim whenever the rail was open.
+  const chat = readFileSync(new URL('../../chat/view/ChatInterface.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(chat, /TasksPanel/);
+  assert.doesNotMatch(chat, /useSessionTodos/);
 });
 
 test('Korean headings and status labels come from the same locale data as the chat card', async () => {

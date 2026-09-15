@@ -61,11 +61,7 @@
     }
   },
   "workspace": {
-    "tabs": {
-      "tasks": "할 일"
-    },
     "tasks": {
-      "progress": "{{total}}개 중 {{done}}개 완료",
       "status": {
         "pending": "대기",
         "in_progress": "진행 중",

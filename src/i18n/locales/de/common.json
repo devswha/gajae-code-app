@@ -61,11 +61,7 @@
     }
   },
   "workspace": {
-    "tabs": {
-      "tasks": "Aufgaben"
-    },
     "tasks": {
-      "progress": "{{done}} von {{total}} erledigt",
       "status": {
         "pending": "Ausstehend",
         "in_progress": "In Bearbeitung",

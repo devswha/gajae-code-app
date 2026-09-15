@@ -45,7 +45,7 @@ import CommandGateCard from './CommandGateCard';
 import AgentConfigurationPicker from './AgentConfigurationPicker';
 import ModelAndReasoningPicker from './ModelAndReasoningPicker';
 import PermissionModePicker from './PermissionModePicker';
-import ContextUsageBadge from './ContextUsageBadge';
+import ContextUsageRing from './ContextUsageRing';
 import type { ReasoningEffort } from './reasoningEffort';
 import SkillPicker from './SkillPicker';
 import WorkspaceTargetChip from './WorkspaceTargetChip';
@@ -463,7 +463,7 @@ export default function ChatComposer({
         <PromptInputFooter className="flex-wrap items-end gap-y-1">
           {/*
             Wraps rather than clips. This row carries attach, voice, two model
-            controls, skills and context usage; `overflow-hidden` meant a narrow
+            controls and skills; `overflow-hidden` meant a narrow
             viewport silently cut the trailing ones off with nothing to show
             that they existed. Wrapping costs a second line on narrow screens
             and keeps every control reachable. Keep metadata-dependent slots
@@ -522,11 +522,10 @@ export default function ChatComposer({
               onSelect={(skill, index) => onCommandSelect(skill, index, false)}
             />
 
-            <ContextUsageBadge sessionState={sessionState} onClick={onShowTokenUsage} />
-
           </PromptInputTools>
 
-          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
+          <div data-slot="prompt-input-actions" className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
+            <ContextUsageRing sessionState={sessionState} onClick={onShowTokenUsage} />
             {canSteer && (
               <PromptInputButton
                 onClick={onSteer}
@@ -566,7 +565,7 @@ export default function ChatComposer({
                   aria-label={stopLabel}
                   title={stopLabel}
                   data-run-control="stop"
-                  className="h-10 w-10 bg-foreground text-background shadow-sm hover:bg-foreground/90 active:bg-foreground/80 sm:h-10 sm:w-10"
+                  className="bg-foreground text-background shadow-sm hover:bg-foreground/90 active:bg-foreground/80"
                 />
               </Tooltip>
             ) : (
@@ -584,7 +583,6 @@ export default function ChatComposer({
                 aria-label={t('input.send')}
                 title={t('input.send')}
                 data-run-control="send"
-                className="h-10 w-10 sm:h-10 sm:w-10"
               >
                 {isVoiceBusy ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

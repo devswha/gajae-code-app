@@ -18,6 +18,7 @@
     "newTask": "新建任务项",
     "newSession": "开始对话",
     "deleteSession": "删除对话",
+    "archiveSession": "归档对话",
     "renameSession": "重命名对话",
     "regenerateTitle": "重新生成标题",
     "exportSession": "导出Markdown",
@@ -92,6 +93,8 @@
     "restoreProjectError": "发生了项目恢复错误，请重试。",
     "restoreSessionFailed": "无法恢复对话，请重试。",
     "restoreSessionError": "发生了对话恢复错误，请重试。",
+    "archiveSessionFailed": "无法归档对话，请重试。",
+    "archiveSessionError": "发生了对话归档错误，请重试。",
     "debugInfoError": "无法复制调试信息。"
   },
   "providerQuota": {

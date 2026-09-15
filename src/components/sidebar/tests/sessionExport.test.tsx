@@ -43,7 +43,6 @@ const actions = (t: TFunction, overrides: Partial<Parameters<typeof buildSession
   buildSessionActions({
     sessionId: 'session-1',
     sessionName: 'Fix the pagination bug',
-    isStarred: false,
     isProcessing: false,
     t,
     onStartEditingSession: () => undefined,

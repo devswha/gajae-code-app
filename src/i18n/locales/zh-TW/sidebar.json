@@ -18,6 +18,7 @@
     "newTask": "新的工作項目",
     "newSession": "開始對話",
     "deleteSession": "刪除對話",
+    "archiveSession": "封存對話",
     "renameSession": "重新命名對話",
     "regenerateTitle": "重新產生標題",
     "exportSession": "匯出Markdown",
@@ -92,6 +93,8 @@
     "restoreProjectError": "發生專案復原錯誤。請再試一次。",
     "restoreSessionFailed": "無法復原對話。請再試一次.",
     "restoreSessionError": "發生對話恢復錯誤。請再試一次。",
+    "archiveSessionFailed": "無法封存對話。請再試一次。",
+    "archiveSessionError": "發生對話封存錯誤。請再試一次。",
     "debugInfoError": "無法複製除錯資訊。"
   },
   "providerQuota": {

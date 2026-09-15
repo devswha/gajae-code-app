@@ -18,6 +18,7 @@
     "newTask": "새 작업 항목",
     "newSession": "대화 시작",
     "deleteSession": "대화 삭제",
+    "archiveSession": "대화 보관",
     "renameSession": "대화 이름 변경",
     "regenerateTitle": "제목 다시 생성",
     "exportSession": "Markdown로 내보내기",
@@ -92,6 +93,8 @@
     "restoreProjectError": "프로젝트 복원 오류가 발생했습니다. 다시 시도해주세요.",
     "restoreSessionFailed": "대화 복원에 실패했습니다. 다시 시도해주세요.",
     "restoreSessionError": "대화 복원 오류가 발생했습니다. 다시 시도해주세요.",
+    "archiveSessionFailed": "대화 보관에 실패했습니다. 다시 시도해주세요.",
+    "archiveSessionError": "대화 보관 오류가 발생했습니다. 다시 시도해주세요.",
     "debugInfoError": "디버그 정보를 복사하지 못했습니다."
   },
   "providerQuota": {

@@ -18,6 +18,7 @@
     "newTask": "Nouvel élément de travail",
     "newSession": "Démarrer une conversation",
     "deleteSession": "Supprimer la conversation",
+    "archiveSession": "Archiver la conversation",
     "renameSession": "Renommer la conversation",
     "regenerateTitle": "Régénérer le titre",
     "exportSession": "Exporter Markdown",
@@ -92,6 +93,8 @@
     "restoreProjectError": "Une erreur de restauration du projet s'est produite. Essayer à nouveau.",
     "restoreSessionFailed": "Impossible de restaurer la conversation. Essayer à nouveau.",
     "restoreSessionError": "Une erreur de restauration de conversation s'est produite. Essayer à nouveau.",
+    "archiveSessionFailed": "Impossible d'archiver la conversation. Essayer à nouveau.",
+    "archiveSessionError": "Une erreur d'archivage de conversation s'est produite. Essayer à nouveau.",
     "debugInfoError": "Les infos de débogage n’ont pas pu être copiées."
   },
   "providerQuota": {

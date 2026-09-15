@@ -18,6 +18,7 @@
     "newTask": "新しい作業項目",
     "newSession": "会話を開始",
     "deleteSession": "会話を削除",
+    "archiveSession": "会話をアーカイブ",
     "renameSession": "会話の名前を変更",
     "regenerateTitle": "タイトルを再生成",
     "exportSession": "Markdown でエクスポート",
@@ -92,6 +93,8 @@
     "restoreProjectError": "プロジェクトの復元でエラーが発生しました。もう一度お試しください。",
     "restoreSessionFailed": "セッションの復元に失敗しました。もう一度お試しください。",
     "restoreSessionError": "セッションの復元でエラーが発生しました。もう一度お試しください。",
+    "archiveSessionFailed": "会話のアーカイブに失敗しました。もう一度お試しください。",
+    "archiveSessionError": "会話のアーカイブでエラーが発生しました。もう一度お試しください。",
     "debugInfoError": "デバッグ情報をコピーできませんでした。"
   },
   "providerQuota": {

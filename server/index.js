@@ -71,6 +71,7 @@ import {
 } from './services/session-worktree-runtime.js';
 import { configureNativeDesktopRestartAdmission, createNativeDesktopRestartReader } from './services/gjc-git-client.js';
 import { createProjectUploadStorage, streamProjectFile } from './services/project-file-transfer.js';
+import { fileTreeRequest, getFileTree } from './services/project-file-tree.js';
 import { getProductionGjcJobGitService } from './services/gjc-job-git.service.js';
 import {
     stripAnsiSequences,
@@ -350,6 +351,7 @@ const expandWorkspacePath = (inputPath) => {
 
 // Browse filesystem endpoint for project suggestions - uses existing getFileTree
 app.get('/api/browse-filesystem', authenticateToken, asyncHandler(async (req, res) => {
+    const listing = fileTreeRequest(req, res);
     try {
         const { path: dirPath } = req.query;
 
@@ -381,8 +383,10 @@ app.get('/api/browse-filesystem', authenticateToken, asyncHandler(async (req, re
             return res.status(404).json({ error: 'Directory not accessible' });
         }
 
-        // Use existing getFileTree function with shallow depth (only direct children)
-        const fileTree = await getFileTree(resolvedPath, 1, 0, false); // maxDepth=1, showHidden=false
+        // Suggestions need immediate directories only, never their contents.
+        // Hidden folders stay in the payload: the folder browser owns a
+        // show-hidden toggle, and sorts them after the visible ones below.
+        const fileTree = await getFileTree(resolvedPath, { maxDepth: 0, directoriesOnly: true, signal: listing.signal });
 
         // Filter only directories and format for suggestions
         const directories = fileTree
@@ -424,8 +428,11 @@ app.get('/api/browse-filesystem', authenticateToken, asyncHandler(async (req, re
         });
 
     } catch (error) {
+        if (listing.signal.aborted) return;
         console.error('Error browsing filesystem:', error);
-        res.status(500).json({ error: 'Failed to browse filesystem' });
+        res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : 'Failed to browse filesystem', code: error.code });
+    } finally {
+        listing.dispose();
     }
 }));
 
@@ -652,6 +659,7 @@ app.put('/api/projects/:projectId/file', authenticateToken, asyncHandler(async (
 }));
 
 app.get('/api/projects/:projectId/files', authenticateToken, asyncHandler(async (req, res) => {
+    const listing = fileTreeRequest(req, res);
     try {
 
         // Using fsPromises from import
@@ -676,11 +684,14 @@ app.get('/api/projects/:projectId/files', authenticateToken, asyncHandler(async 
         // repo and pins the event loop for minutes, so it lists the root's own
         // entries but does not open any child repo.
         const depth = (await isWorkspaceRoot(actualPath)) ? 0 : 10;
-        const files = await getFileTree(actualPath, depth, 0, true);
+        const files = await getFileTree(actualPath, { maxDepth: depth, signal: listing.signal });
         res.json(files);
     } catch (error) {
+        if (listing.signal.aborted) return;
         console.error('[ERROR] File tree error:', error.message);
-        res.status(error.statusCode || 500).json({ error: error.message });
+        res.status(error.statusCode || 500).json({ error: error.message, code: error.code });
+    } finally {
+        listing.dispose();
     }
 }));
 
@@ -1464,153 +1475,6 @@ app.use((err, req, res, next) => {
     },
   });
 });
-
-// Helper function to convert permissions to rwx format
-function permToRwx(perm) {
-    const r = perm & 4 ? 'r' : '-';
-    const w = perm & 2 ? 'w' : '-';
-    const x = perm & 1 ? 'x' : '-';
-    return r + w + x;
-}
-
-// Directories that are almost never interesting for a project tree but can
-// contain tens of thousands of files. Skipping them before recursion keeps
-// traversal time bounded on large monorepos and high-latency filesystems
-// (NFS / SMB).
-const IGNORED_DIRS = new Set([
-    // JS / TS toolchains
-    'node_modules', 'dist', 'build', '.next', '.nuxt', '.cache', '.parcel-cache',
-    // VCS
-    '.git', '.svn', '.hg',
-    // Python
-    '__pycache__', '.pytest_cache', '.mypy_cache', '.tox', 'venv', '.venv',
-    // Rust / Go / Java / Ruby
-    'target', 'vendor',
-    // Build output / IDE
-    '.gradle', '.idea', 'coverage', '.nyc_output'
-]);
-
-const DEFAULT_FS_CONCURRENCY = 64;
-const parsedFsConcurrency = Number.parseInt(process.env.FS_CONCURRENCY || '', 10);
-const FS_CONCURRENCY = Number.isFinite(parsedFsConcurrency) && parsedFsConcurrency > 0
-    ? parsedFsConcurrency
-    : DEFAULT_FS_CONCURRENCY;
-let activeFsOperations = 0;
-const pendingFsOperations = [];
-
-async function acquire() {
-    if (activeFsOperations < FS_CONCURRENCY) {
-        activeFsOperations += 1;
-        return;
-    }
-
-    await new Promise((resolve) => {
-        pendingFsOperations.push(resolve);
-    });
-}
-
-function release() {
-    const next = pendingFsOperations.shift();
-    if (next) {
-        next();
-        return;
-    }
-
-    activeFsOperations = Math.max(0, activeFsOperations - 1);
-}
-
-async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden = true) {
-    // Using fsPromises from import
-    let entries;
-    try {
-        await acquire();
-        try {
-            entries = await fsPromises.readdir(dirPath, { withFileTypes: true });
-        } finally {
-            release();
-        }
-    } catch (error) {
-        // Expected, non-actionable races and denials stay quiet:
-        // - EACCES/EPERM: unreadable system dirs.
-        // - ENOENT/ENOTDIR: the entry vanished (or was replaced by a file)
-        //   between the parent's readdir and this recursion - routine for
-        //   ephemeral artifacts like GJC session lock files.
-        if (!['EACCES', 'EPERM', 'ENOENT', 'ENOTDIR'].includes(error.code)) {
-            console.error('Error reading directory:', error);
-        }
-        return [];
-    }
-
-    const filteredEntries = entries.filter((entry) => !(entry.isDirectory() && IGNORED_DIRS.has(entry.name)));
-
-    // Process every entry in parallel. On high-latency filesystems (NFS/SMB)
-    // serial stat() was the real bottleneck — issuing them concurrently lets
-    // the kernel pipeline the round-trips and the recursive calls overlap too.
-    const items = await Promise.all(filteredEntries.map(async (entry) => {
-        const itemPath = path.join(dirPath, entry.name);
-        const item = {
-            name: entry.name,
-            path: itemPath,
-            type: entry.isDirectory() ? 'directory' : 'file'
-        };
-
-        // Get file stats for additional metadata
-        try {
-            await acquire();
-            try {
-              const stats = await fsPromises.lstat(itemPath);
-              item.size = stats.size;
-              item.modified = stats.mtime.toISOString();
-
-              // Mark symlinks so UI can distinguish them
-              if (stats.isSymbolicLink()) {
-                item.isSymlink = true;
-              }
-
-              // Convert permissions to rwx format
-              const mode = stats.mode;
-              const ownerPerm = (mode >> 6) & 7;
-              const groupPerm = (mode >> 3) & 7;
-              const otherPerm = mode & 7;
-              item.permissions =
-                ((mode >> 6) & 7).toString() +
-                ((mode >> 3) & 7).toString() +
-                (mode & 7).toString();
-              item.permissionsRwx =
-                permToRwx(ownerPerm) +
-                permToRwx(groupPerm) +
-                permToRwx(otherPerm);
-            } finally {
-                release();
-            }
-        } catch (statError) {
-            // If stat fails, provide default values
-            item.size = 0;
-            item.modified = null;
-            item.permissions = '000';
-            item.permissionsRwx = '---------';
-        }
-
-        if (entry.isDirectory() && currentDepth < maxDepth) {
-            // Recurse. Let readdir's own EACCES bubble up through the catch in
-            // the recursive call rather than doing a separate access() probe
-            // (which doubled the round-trip count on SMB without adding info).
-            // The recursive call starts with a bounded readdir; holding a permit
-            // for the whole subtree can deadlock when sibling directories are
-            // waiting on their own children.
-            item.children = await getFileTree(itemPath, maxDepth, currentDepth + 1, showHidden);
-        }
-
-        return item;
-    }));
-
-    return items.sort((a, b) => {
-        if (a.type !== b.type) {
-            return a.type === 'directory' ? -1 : 1;
-        }
-        return a.name.localeCompare(b.name);
-    });
-}
 
 const SERVER_PORT = process.env.SERVER_PORT || 3001;
 // Loopback by default (fail-closed): this UI can run shell commands, so network

@@ -61,11 +61,7 @@
     }
   },
   "workspace": {
-    "tabs": {
-      "tasks": "Görevler"
-    },
     "tasks": {
-      "progress": "{{total}} görevden {{done}} tanesi tamam",
       "status": {
         "pending": "Bekliyor",
         "in_progress": "Devam ediyor",

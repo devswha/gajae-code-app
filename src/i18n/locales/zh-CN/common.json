@@ -61,11 +61,7 @@
     }
   },
   "workspace": {
-    "tabs": {
-      "tasks": "任务"
-    },
     "tasks": {
-      "progress": "已完成 {{done}} / {{total}}",
       "status": {
         "pending": "待处理",
         "in_progress": "进行中",

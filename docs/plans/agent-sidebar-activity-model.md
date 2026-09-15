@@ -81,7 +81,7 @@ GJC SDK (Bun worker process, in-process session.subscribe)
        chat_run frames (seq + replayGeneration), replay buffer, broadcast
   └─ client: useSessionStore (message windows), PermissionContext,
        useSessionAttentionStore, SessionStatusContext/useRunningSessionsSync
-  └─ UI: chat, PermissionRequestsBanner, ChatTasksPanel, SessionStatusDot,
+  └─ UI: chat, PermissionRequestsBanner, AgentSidebarWork, SessionStatusDot,
        sidebar rows, notification handlers
 ```
 
@@ -99,7 +99,7 @@ in-memory buffer (5 000 events; completed runs retained 5 min).
 | Waiting for approval | SDK permission provider → `GjcBunAskController.requestPermission` → `ask.presented` (`sdk-permission:<uuid>`, real `toolName`, `rawInput` as `input`) | worker `ask.presented` → browser `permission_request` frame | server mirror: `chatRunRegistry.pendingApprovals` (`{appSessionId, toolName}`); `awaitingInput = pendingApprovals.size > 0` | PermissionRequestsBanner, question panel; reply `chat.permission-response` → `ask.reply` | **survives reload** while the run lives: `chat_subscribed` carries `pendingPermissions` (chat-websocket.service.ts:275); cleared by `permission_cancelled`/complete/run end | **A** |
 | Waiting for user answer | SDK `ask` tool via `setToolUIContext` UI bridge → `sdk-ask:<uuid>` (`toolName:'ask'`, `input.questions`) | same pipe as approvals | same mirror | question panel (`ask`\|`AskUserQuestion` interception), PlanDisplay for plan exits | same as approvals; an unanswered ask blocks the tool call — the pending state itself is host-side, not an SDK event | **A** |
 | Tool execution / completion | SDK `tool_execution_start/update/end` | `tool_use {toolId, toolName, toolInput}` / `tool_result {isFinal, toolUseResult, isError}` frames; structured `details` survive as `toolUseResult` | message windows in `useSessionStore` | tool cards (`toolConfigs.ts` keyed by runtime tool name) | reload: re-fetched from REST transcript (tool results persisted in SDK JSONL) | **A** |
-| Session todos | `todo_write` tool result `details.phases` | rides `tool_result.toolUseResult` | client fold: `sessionTodos()` — latest structured result wins (useSessionTodos.ts:95) | ChatTasksPanel (per-phase checklist; first `in_progress` ?? first pending) | reload: reconstructed from REST transcript (results are persisted); **no server-side todo state** | **A** (data), fold is C |
+| Session todos | `todo_write` tool result `details.phases` | rides `tool_result.toolUseResult` | client fold: `sessionTodos()` — latest structured result wins (useSessionTodos.ts:95) | AgentSidebarWork (per-phase checklist; first `in_progress` ?? first pending) | reload: reconstructed from REST transcript (results are persisted); **no server-side todo state** | **A** (data), fold is C |
 | Session status ("one status per row") | `sessionStatusModel.deriveSessionStatus` over `{running, awaitingInput, outcome, lastViewedAt, isViewed}` (sessionStatusModel.ts:47) | REST poll + WS events | attention store (localStorage outcomes/lastViewedAt; in-memory pendingInput; 7 s reconcile against server `awaitingInput`) | SessionStatusDot/Glyph, work-list counts, sidebar rows | outcomes persist per device; running/needs_input re-derived from poll after reload | precedence `needs_input > running > ready/blocked > idle`; **A** inputs, C derivation |
 | Activity line (composer) | `status` frames: `session_state` snapshot, `token_budget`, transient activity text (compaction/retry phases), `text:'ready'` | worker events → `status` frames | message stream (transient, not persisted) | composer/status indicator | in-memory only | status text **A**; `deriveLiveActivity` label from text is **H** (heuristic — do not use for sidebar semantics) |
 | Session list | native `gajae-core watch` → `GjcSessionSynchronizer` (SQLite upsert) → `session_upserted` | WS broadcast to all clients | react-query projects/sessions cache | sidebar session rows | durable (DB) + WS deltas | **A** but the frame carries **no status field** and `messageCount` is hardcoded `0` (sessions-watcher.service.ts:122) — row state comes from the attention/running signals above |
@@ -322,8 +322,9 @@ delegation receipt; "job" = a managed durable job (native job authority).
   **latest structured result** across the message window (ops-folding is only a
   fallback for old transcripts without results). On reload the window is
   re-fetched from the REST transcript, so the todo list is reconstructed
-  without server state. `ChatTasksPanel` renders it; the `todo_write` tool card
-  itself renders the *input ops* (display only).
+  without server state. `AgentSidebarWork` renders it — the one task surface,
+  after the chat column's duplicate panel was removed; the `todo_write` tool
+  card itself renders the *input ops* (display only).
 - **Verdict**: a read-only Tasks sidebar section needs **no runtime change**.
   A `todo` change *event* would only matter if the sidebar needed updates
   decoupled from the message window — it already re-derives whenever messages

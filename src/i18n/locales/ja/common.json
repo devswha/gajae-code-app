@@ -61,11 +61,7 @@
     }
   },
   "workspace": {
-    "tabs": {
-      "tasks": "タスク"
-    },
     "tasks": {
-      "progress": "{{total}} 件中 {{done}} 件完了",
       "status": {
         "pending": "未着手",
         "in_progress": "進行中",

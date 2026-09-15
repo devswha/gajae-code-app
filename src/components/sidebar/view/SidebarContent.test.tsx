@@ -43,6 +43,17 @@ test('baseline renders project rows, nested sessions, and row-level status indic
   assert.equal(html.match(/src="\/mark\.svg"/g)?.length, 1);
 });
 
+test('work rows name their project, and only work rows do', async () => {
+  const t = await makeT();
+  const html = renderSidebarContent(t);
+
+  // The work section pools every project's conversations into one flat list,
+  // so a row there has to say which project it belongs to. The rows nested
+  // under a project header would only repeat that header.
+  const labels = [...html.matchAll(/data-slot="session-project"[^>]*>([^<]*)</g)].map((match) => match[1]);
+  assert.deepEqual(labels.sort(), ['Alpha Workspace', 'Beta Workspace']);
+});
+
 function renderWithStatuses(t: TFunction, statuses: Record<string, SessionStatus>, activeIds: string[] = []): string {
   const base = sidebarContentProps(t);
   return renderSidebarContent(t, {

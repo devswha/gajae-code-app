@@ -209,6 +209,19 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
     } catch (error) { console.error('[Sidebar] Error deleting session:', error); alert(t('messages.deleteSessionError')); }
   }, [fetchArchivedSessions, onSessionDelete, sessionDeleteConfirmation, t]);
 
+  // The row's one-click archive. It is the same soft delete the confirmation
+  // dialog offers, so it keeps the transcript and the archive screen restores
+  // it - which is why it does not ask first.
+  const archiveSession = useCallback(async (sessionId: string) => {
+    try {
+      const response = await api.deleteSession(sessionId, false);
+      if (!response.ok) { console.error('[Sidebar] Failed to archive session:', { status: response.status, error: await response.text() }); alert(t('messages.archiveSessionFailed', 'Could not archive the conversation. Try again.')); return; }
+      forgetSessionStorage(sessionId);
+      onSessionDelete?.(sessionId);
+      await fetchArchivedSessions();
+    } catch (error) { console.error('[Sidebar] Error archiving session:', error); alert(t('messages.archiveSessionError', 'A conversation archive error occurred. Try again.')); }
+  }, [fetchArchivedSessions, onSessionDelete, t]);
+
   const requestProjectDelete = useCallback((project: Project) => setDeleteConfirmation({ project, sessionCount: getProjectSessions(project).length }), [getProjectSessions]);
   const confirmDeleteProject = useCallback(async (deleteData = false) => {
     if (!deleteConfirmation) return;
@@ -296,5 +309,5 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
   }, [t]); const collapseSidebar = useCallback(() => setSidebarVisible(false), [setSidebarVisible]);
   const expandSidebar = useCallback(() => setSidebarVisible(true), [setSidebarVisible]);
 
-  return { isSidebarCollapsed: !isMobile && !sidebarVisible, expandedProjects, editingProject, showNewProject, editingName, initialSessionsLoaded, currentTime, projectSortOrder, isRefreshing, editingSession, editingSessionName, deletingProjects, loadingMoreProjects, deleteConfirmation, sessionDeleteConfirmation, filteredProjects, isArchiveOpen, archiveLoadError, archivedProjects, archivedSessions, archivedSessionsCount: archivedProjects.length + archivedSessions.length, isArchivedSessionsLoading, toggleProject, handleSessionClick, toggleStarProject, isProjectStarred, getProjectSessions, loadMoreSessionsForProject, startEditing, cancelEditing, saveProjectName, showDeleteSessionConfirmation, confirmDeleteSession, requestProjectDelete, confirmDeleteProject, handleProjectSelect, openArchivedSession, restoreArchivedProject, restoreArchivedSession, openArchive, closeArchive, refreshProjects, updateSessionSummary, regenerateSessionTitle, toggleSessionStar, exportSession, copyDebugInfo, collapseSidebar, expandSidebar, setShowNewProject, setEditingName, setEditingSession, setEditingSessionName, setDeleteConfirmation, setSessionDeleteConfirmation };
+  return { isSidebarCollapsed: !isMobile && !sidebarVisible, expandedProjects, editingProject, showNewProject, editingName, initialSessionsLoaded, currentTime, projectSortOrder, isRefreshing, editingSession, editingSessionName, deletingProjects, loadingMoreProjects, deleteConfirmation, sessionDeleteConfirmation, filteredProjects, isArchiveOpen, archiveLoadError, archivedProjects, archivedSessions, archivedSessionsCount: archivedProjects.length + archivedSessions.length, isArchivedSessionsLoading, toggleProject, handleSessionClick, toggleStarProject, isProjectStarred, getProjectSessions, loadMoreSessionsForProject, startEditing, cancelEditing, saveProjectName, showDeleteSessionConfirmation, confirmDeleteSession, archiveSession, requestProjectDelete, confirmDeleteProject, handleProjectSelect, openArchivedSession, restoreArchivedProject, restoreArchivedSession, openArchive, closeArchive, refreshProjects, updateSessionSummary, regenerateSessionTitle, toggleSessionStar, exportSession, copyDebugInfo, collapseSidebar, expandSidebar, setShowNewProject, setEditingName, setEditingSession, setEditingSessionName, setDeleteConfirmation, setSessionDeleteConfirmation };
 }

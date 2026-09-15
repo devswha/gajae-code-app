@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { Bug, Check, Download, Edit2, MoreHorizontal, RefreshCw, Star, Trash2, X } from 'lucide-react';
+import { Archive, Bug, Check, Download, Edit2, MoreHorizontal, Pin, RefreshCw, Trash2, X, type LucideIcon } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Badge, buttonVariants } from '../../../shared/view/ui';
 import ActionMenu, { type ActionMenuItem } from '../../../shared/view/ui/ActionMenu';
 import type { SessionStatus } from '../../../stores/sessionStatusModel';
 import { cn } from '../../../utils/cn';
@@ -24,8 +23,12 @@ type SidebarSessionItemProps = {
    * buttons per row, one of them display:none.
    */
   isMobile: boolean;
-  showProjectName?: boolean;
-  compact?: boolean;
+  /**
+   * Set only where one list mixes conversations from several projects, which
+   * is the work list. Rows nested under their own project header already know
+   * where they live and must not repeat it.
+   */
+  projectLabel?: string;
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
@@ -34,6 +37,8 @@ type SidebarSessionItemProps = {
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onToggleSessionStar?: (sessionId: string) => void;
+  /** Hides the conversation without touching its transcript; the archive screen brings it back. */
+  onArchiveSession?: (sessionId: string) => void;
   onRegenerateTitle?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
   /** Assembles the session's debug bundle into the clipboard, for a bug report. */
@@ -51,7 +56,7 @@ type SidebarSessionItemProps = {
 
 /**
  * Compact relative time for sidebar rows:
- * <1m, Xm, Xhr, Xd.
+ * <1m, Xm, Xh, Xd.
  */
 const formatCompactSessionAge = (dateString: string, currentTime: Date): string => {
   const date = new Date(dateString);
@@ -70,20 +75,60 @@ const formatCompactSessionAge = (dateString: string, currentTime: Date): string 
 
   const diffInHours = Math.floor(diffInMinutes / 60);
   if (diffInHours < 24) {
-    return `${diffInHours}hr`;
+    return `${diffInHours}h`;
   }
 
   const diffInDays = Math.floor(diffInHours / 24);
   return `${diffInDays}d`;
 };
 
+/**
+ * Quick actions collapse to nothing until the row is hovered or a child takes
+ * focus, so a resting row is only its title and its age. They keep their width
+ * at zero rather than `display:none` so the keyboard can still reach them, and
+ * drop pointer events while invisible: a button you cannot see must not be a
+ * button you can click.
+ */
+const COLLAPSED_ACTION =
+  'pointer-events-none w-0 opacity-0 group-hover:pointer-events-auto group-hover:w-6 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:w-6 group-focus-within:opacity-100';
+
+const ACTION_BUTTON =
+  'flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-opacity duration-150 hover:bg-accent hover:text-foreground';
+
+type RowActionProps = {
+  icon: LucideIcon;
+  label: string;
+  /** Stays on screen at rest; used for the marker a pinned row must keep showing. */
+  pinnedOpen: boolean;
+  iconClassName?: string;
+  className?: string;
+  onSelect: () => void;
+};
+
+function RowAction({ icon: Icon, label, pinnedOpen, iconClassName, className, onSelect }: RowActionProps) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      className={cn(ACTION_BUTTON, !pinnedOpen && COLLAPSED_ACTION, className)}
+      onClick={(event) => {
+        // The row itself is a link stretched under this button.
+        event.preventDefault();
+        event.stopPropagation();
+        onSelect();
+      }}
+    >
+      <Icon className={cn('h-3.5 w-3.5', iconClassName)} />
+    </button>
+  );
+}
+
 type SessionActionOptions = {
   sessionId: string;
   sessionName: string;
-  isStarred: boolean;
   isProcessing: boolean;
   t: TFunction;
-  onToggleSessionStar?: (sessionId: string) => void;
   onRegenerateTitle?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
   onCopyDebugInfo?: (sessionId: string) => void;
@@ -92,7 +137,8 @@ type SessionActionOptions = {
 };
 
 /**
- * The row's overflow menu.
+ * The row's overflow menu: what is left once pin and archive moved onto the
+ * row itself.
  *
  * Optional entries are driven by whether the host wired a handler: a menu item
  * that silently does nothing is worse than one that is absent. Exported so the
@@ -102,10 +148,8 @@ type SessionActionOptions = {
 export function buildSessionActions({
   sessionId,
   sessionName,
-  isStarred,
   isProcessing,
   t,
-  onToggleSessionStar,
   onRegenerateTitle,
   onExportSession,
   onCopyDebugInfo,
@@ -113,12 +157,6 @@ export function buildSessionActions({
   onDeleteSession,
 }: SessionActionOptions): ActionMenuItem[] {
   return [
-    ...(onToggleSessionStar ? [{
-      key: 'pin',
-      label: t(isStarred ? 'sessions.unpin' : 'sessions.pin'),
-      icon: Star,
-      onSelect: () => onToggleSessionStar(sessionId),
-    }] : []),
     {
       key: 'rename',
       label: t('sessions.renameSession'),
@@ -164,8 +202,7 @@ export default function SidebarSessionItem({
   isProcessing,
   status,
   isMobile,
-  showProjectName = false,
-  compact = false,
+  projectLabel,
   currentTime,
   editingSession,
   editingSessionName,
@@ -174,6 +211,7 @@ export default function SidebarSessionItem({
   onCancelEditingSession,
   onSaveEditingSession,
   onToggleSessionStar,
+  onArchiveSession,
   onRegenerateTitle,
   onExportSession,
   onCopyDebugInfo,
@@ -185,16 +223,18 @@ export default function SidebarSessionItem({
   const sessionView = createSessionViewModel(session, currentTime, t);
   const isSelected = selectedSession?.id === session.id;
   const isEditing = editingSession === session.id;
-  const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
+  const sessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
   const editingContainerRef = useRef<HTMLDivElement>(null);
   const isBusy = status === 'running' || status === 'needs_input';
   // The glyph takes the age's slot; `ready` keeps the age and speaks through
   // the leading dot alone.
   const showsGlyph = status !== 'idle' && status !== 'ready';
+  const isStarred = Boolean(session.isStarred);
+  // Touch has no hover to reveal anything, so the row shows its actions.
+  const actionsStayOpen = isMobile;
 
-  // The rename panel sits inside a group-hover opacity wrapper, so leaving the row
-  // would visually hide it. While editing, dismiss only when the user clicks outside
-  // the panel (matches Escape / cancel-button behaviour).
+  // While editing, dismiss only when the user clicks outside the panel
+  // (matches Escape / cancel-button behaviour).
   useEffect(() => {
     if (!isEditing) {
       return;
@@ -202,8 +242,6 @@ export default function SidebarSessionItem({
 
     const handlePointerDown = (event: MouseEvent) => {
       const container = editingContainerRef.current;
-      // While editing on touch, the row itself is the input panel, so a press
-      // outside it ends the edit.
       if (!container || !container.contains(event.target as Node)) {
         onCancelEditingSession();
       }
@@ -215,7 +253,7 @@ export default function SidebarSessionItem({
 
   // Sessions are owned by a project identified by `projectId` (DB primary key)
   // after the projectName → projectId migration.
-  const selectMobileSession = () => {
+  const selectSession = () => {
     onProjectSelect(project);
     onSessionSelect(session, project.projectId);
   };
@@ -227,14 +265,59 @@ export default function SidebarSessionItem({
   const requestDeleteSession = () => {
     onDeleteSession(project.projectId, session.id, sessionView.sessionName, session.__provider);
   };
-  const isStarred = Boolean(session.isStarred);
+
+  // Renaming takes the row over as an input with its own buttons, on every
+  // device: a rename panel that only existed on desktop made the menu item a
+  // silent no-op on touch.
+  if (isEditing) {
+    return (
+      <div className="group relative" data-session-status={status}>
+        <SessionStatusDot status={status} t={t} />
+        <div
+          ref={editingContainerRef}
+          className="my-0.5 flex items-center gap-1 rounded-md border border-border bg-card px-1.5 py-1"
+        >
+          <input
+            type="text"
+            value={editingSessionName}
+            onChange={(event) => onEditingSessionNameChange(event.target.value)}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === 'Enter') {
+                saveEditedSession();
+              } else if (event.key === 'Escape') {
+                onCancelEditingSession();
+              }
+            }}
+            className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-0.5 text-sm focus:ring-1 focus:ring-primary focus:outline-hidden"
+            autoFocus
+          />
+          <button
+            type="button"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary/10 hover:bg-primary/20"
+            onClick={saveEditedSession}
+            title={t('tooltips.save')}
+          >
+            <Check className="h-3.5 w-3.5 text-primary" />
+          </button>
+          <button
+            type="button"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted hover:bg-accent"
+            onClick={onCancelEditingSession}
+            title={t('tooltips.cancel')}
+          >
+            <X className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const sessionActions = buildSessionActions({
     sessionId: session.id,
     sessionName: sessionView.sessionName,
-    isStarred,
     isProcessing,
     t,
-    onToggleSessionStar,
     onRegenerateTitle,
     onExportSession,
     onCopyDebugInfo,
@@ -242,233 +325,103 @@ export default function SidebarSessionItem({
     onDeleteSession: requestDeleteSession,
   });
 
-  const renderSessionMenu = () => (
-    <div
-      className="flex"
-      onClick={(event) => event.stopPropagation()}
-    >
-      <ActionMenu
-        label=""
-        ariaLabel={t('tooltips.sessionActions')}
-        items={sessionActions}
-        icon={MoreHorizontal}
-        variant="ghost"
-        size="icon"
-        triggerClassName="size-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-      />
-    </div>
+  // The whole row is the target. It is a stretched link rather than a wrapper
+  // so the quick actions can sit in the flow beside the title instead of
+  // covering it - buttons cannot be nested inside an anchor.
+  const rowTarget = isMobile ? (
+    <button
+      type="button"
+      className="absolute inset-0 rounded-md"
+      aria-label={sessionView.sessionName}
+      onClick={selectSession}
+    />
+  ) : (
+    <a
+      href={`/session/${session.id}`}
+      className="absolute inset-0 rounded-md"
+      aria-label={sessionView.sessionName}
+      // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
+      // native right-click menu use the href to open a new tab/window.
+      onClick={(event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        onSessionSelect(session, project.projectId);
+      }}
+    />
   );
-
-  const title = (
-    <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-normal text-foreground">
-      {isStarred && <Star className="size-3 shrink-0 fill-current text-primary" aria-label={t('sessions.pin')} />}
-      <span className="truncate">{sessionView.sessionName}</span>
-    </div>
-  );
-
-  const renderSecondaryLine = () => (
-    <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-      {showProjectName && <span className="truncate text-[11px] text-muted-foreground">{project.displayName}</span>}
-      {!showProjectName && sessionView.messageCount > 0 && (
-        <Badge variant="secondary" className="px-1 py-0 text-xs">
-          {sessionView.messageCount}
-        </Badge>
-      )}
-    </div>
-  );
-
-  if (isMobile) {
-    // Touch rows keep the menu inline and always visible: there is no hover to
-    // reveal it, and the whole row is the tap target.
-    if (isEditing) {
-      // Renaming takes the row over as an input with its own buttons; the row
-      // stops selecting the session while the keyboard is up.
-      return (
-        <div className="group relative" data-session-status={status}>
-          <SessionStatusDot status={status} t={t} />
-          <div
-            ref={editingContainerRef}
-            className="relative mx-0 my-0.5 rounded-lg border border-border bg-card p-2"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-center gap-1.5">
-              <input
-                type="text"
-                value={editingSessionName}
-                onChange={(event) => onEditingSessionNameChange(event.target.value)}
-                onKeyDown={(event) => {
-                  event.stopPropagation();
-                  if (event.key === 'Enter') {
-                    saveEditedSession();
-                  } else if (event.key === 'Escape') {
-                    onCancelEditingSession();
-                  }
-                }}
-                className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 text-sm focus:ring-1 focus:ring-primary focus:outline-hidden"
-                autoFocus
-              />
-              <button
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-primary/10 hover:bg-primary/20"
-                onClick={saveEditedSession}
-                title={t('tooltips.save')}
-              >
-                <Check className="h-3.5 w-3.5 text-primary" />
-              </button>
-              <button
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted hover:bg-accent"
-                onClick={onCancelEditingSession}
-                title={t('tooltips.cancel')}
-              >
-                <X className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div className="group relative" data-session-status={status}>
-        <SessionStatusDot status={status} t={t} />
-        <div
-          className={cn(
-            'active:scale-0.98 relative mx-0 my-0.5 rounded-lg border border-transparent bg-transparent p-2 transition-all duration-150',
-            isSelected ? 'bg-accent text-accent-foreground' : '',
-            !isSelected && isBusy
-              ? 'bg-muted/30'
-              : !isSelected && sessionView.isActive
-              ? 'bg-muted/30'
-              : 'hover:bg-accent/70',
-          )}
-          onClick={selectMobileSession}
-        >
-          <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                {title}
-                {showsGlyph ? (
-                  <SessionStatusGlyph status={status} t={t} />
-                ) : compactSessionAge && (
-                  <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
-                )}
-              </div>
-              {renderSecondaryLine()}
-            </div>
-
-            {renderSessionMenu()}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="group relative" data-session-status={status}>
-      <SessionStatusDot status={status} t={t} />
-      <a
-        href={`/session/${session.id}`}
-        className={cn(
-          buttonVariants({ variant: 'ghost' }),
-          compact
-            ? 'h-8 min-h-8 w-full justify-start rounded-md border border-transparent bg-transparent px-2 py-1 text-left font-normal transition-colors duration-150'
-            : 'h-auto min-h-9 w-full justify-start rounded-lg border border-transparent bg-transparent px-2.5 py-2 text-left font-normal transition-all duration-150',
-          isSelected ? 'bg-accent text-accent-foreground' : '',
-          !isSelected && isBusy
+    <div
+      className={cn(
+        'group relative my-0.5 flex h-8 items-center gap-1 rounded-md border border-transparent px-2 transition-colors duration-150',
+        isSelected
+          ? 'bg-accent text-accent-foreground'
+          : isBusy || sessionView.isActive
             ? 'bg-muted/30 hover:bg-muted/40'
-            : !isSelected && sessionView.isActive
-              ? 'bg-muted/30 hover:bg-muted/40'
-              : 'hover:bg-accent/70',
-        )}
-        // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
-        // native right-click menu use the href to open a new tab/window.
-        onClick={(event) => {
-          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-          event.preventDefault();
-          onSessionSelect(session, project.projectId);
-        }}
-      >
-        <div className={cn('flex w-full min-w-0 items-center', compact ? 'gap-1.5' : 'gap-2')}>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              {title}
-              {showsGlyph ? (
-                <SessionStatusGlyph
-                  status={status}
-                  t={t}
-                  className={cn('transition-opacity duration-200', isEditing ? 'opacity-0' : 'group-hover:opacity-0')}
-                />
-              ) : compactSessionAge && (
-                <span
-                  className={cn(
-                    'ml-auto shrink-0 text-[11px] text-muted-foreground transition-opacity duration-200',
-                    isEditing ? 'opacity-0' : 'group-hover:opacity-0',
-                  )}
-                >
-                  {compactSessionAge}
-                </span>
-              )}
-            </div>
-            {!compact && renderSecondaryLine()}
-          </div>
-        </div>
-      </a>
+            : 'hover:bg-accent/70',
+      )}
+      data-session-status={status}
+    >
+      {rowTarget}
+      {/* After the stretched link so the dot keeps its own tooltip. */}
+      <SessionStatusDot status={status} t={t} />
 
-      <div
-        ref={editingContainerRef}
-        className={cn(
-          'absolute top-1/2 right-2 flex -translate-y-1/2 transform items-center gap-1 transition-all duration-200',
-          // The translate transform makes this wrapper a stacking context, which
-          // traps the action menu's z-50 inside it - without an explicit z-index
-          // the NEXT session rows paint over the open menu and steal its clicks.
-          // Keep the wrapper lifted and visible for exactly as long as the menu
-          // is open (aria-expanded), which also survives browsers that do not
-          // focus buttons on click (no group-focus-within there).
-          'has-aria-expanded:z-50 has-aria-expanded:opacity-100',
-          isEditing ? 'opacity-100' : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
+      <span className="min-w-0 flex-1 truncate text-sm font-normal text-foreground">
+        {sessionView.sessionName}
+      </span>
+
+      {projectLabel && (
+        // Capped so a long project name can never crowd out the title it
+        // qualifies; it truncates on its own.
+        <span data-slot="session-project" className="max-w-[40%] min-w-0 shrink truncate text-[11px] text-muted-foreground">
+          {projectLabel}
+        </span>
+      )}
+
+      <div className="relative flex shrink-0 items-center gap-0.5">
+        {onToggleSessionStar && (
+          <RowAction
+            icon={Pin}
+            label={t(isStarred ? 'sessions.unpin' : 'sessions.pin')}
+            // A pinned row has to say so while nobody is pointing at it.
+            pinnedOpen={actionsStayOpen || isStarred}
+            className={cn(isStarred && 'text-primary')}
+            iconClassName={cn(isStarred && 'fill-current')}
+            onSelect={() => onToggleSessionStar(session.id)}
+          />
         )}
-      >
-        {isEditing ? (
-          <>
-            <input
-              type="text"
-              value={editingSessionName}
-              onChange={(event) => onEditingSessionNameChange(event.target.value)}
-              onKeyDown={(event) => {
-                event.stopPropagation();
-                if (event.key === 'Enter') {
-                  saveEditedSession();
-                } else if (event.key === 'Escape') {
-                  onCancelEditingSession();
-                }
-              }}
-              onClick={(event) => event.stopPropagation()}
-              className="w-32 rounded border border-border bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
-              autoFocus
-            />
-            <button
-              className="flex h-6 w-6 items-center justify-center rounded bg-primary/10 hover:bg-primary/20"
-              onClick={(event) => {
-                event.stopPropagation();
-                saveEditedSession();
-              }}
-              title={t('tooltips.save')}
-            >
-              <Check className="h-3 w-3 text-primary" />
-            </button>
-            <button
-              className="flex h-6 w-6 items-center justify-center rounded bg-muted hover:bg-accent"
-              onClick={(event) => {
-                event.stopPropagation();
-                onCancelEditingSession();
-              }}
-              title={t('tooltips.cancel')}
-            >
-              <X className="h-3 w-3 text-muted-foreground" />
-            </button>
-          </>
-        ) : (
-          renderSessionMenu()
+        {/* Archiving a live run would drop it out of the sidebar mid-turn. */}
+        {onArchiveSession && !isProcessing && (
+          <RowAction
+            icon={Archive}
+            label={t('sessions.archiveSession', 'Archive conversation')}
+            pinnedOpen={actionsStayOpen}
+            onSelect={() => onArchiveSession(session.id)}
+          />
         )}
+        <ActionMenu
+          label=""
+          ariaLabel={t('tooltips.sessionActions')}
+          items={sessionActions}
+          icon={MoreHorizontal}
+          variant="ghost"
+          size="icon"
+          className={cn(
+            !actionsStayOpen && COLLAPSED_ACTION,
+            // The open menu has to outlive the hover that revealed it and paint
+            // over the rows below, which otherwise steal its clicks.
+            'has-aria-expanded:pointer-events-auto has-aria-expanded:z-50 has-aria-expanded:w-6 has-aria-expanded:opacity-100',
+          )}
+          triggerClassName="h-6 w-6 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+        />
       </div>
+
+      {/* One slot on the trailing edge: the age, or the glyph that replaces it.
+          It stays out of the pointer's way so the stretched link keeps the
+          whole width of the row. */}
+      <span className="flex w-8 shrink-0 justify-end text-[11px] text-muted-foreground">
+        {showsGlyph ? <SessionStatusGlyph status={status} t={t} /> : sessionAge}
+      </span>
     </div>
   );
 }

@@ -18,6 +18,7 @@
     "newTask": "Yeni iş öğesi",
     "newSession": "Konuşmayı başlat",
     "deleteSession": "Görüşmeyi sil",
+    "archiveSession": "Görüşmeyi arşivle",
     "renameSession": "Konuşmayı yeniden adlandır",
     "regenerateTitle": "Başlığı yeniden oluştur",
     "exportSession": "İhracat İndirimi",
@@ -92,6 +93,8 @@
     "restoreProjectError": "Bir proje geri yükleme hatası oluştu. Tekrar deneyin.",
     "restoreSessionFailed": "Görüşme geri yüklenemedi. Tekrar deneyin.",
     "restoreSessionError": "Konuşma geri yükleme hatası oluştu. Tekrar deneyin.",
+    "archiveSessionFailed": "Görüşme arşivlenemedi. Tekrar deneyin.",
+    "archiveSessionError": "Konuşma arşivleme hatası oluştu. Tekrar deneyin.",
     "debugInfoError": "Hata ayıklama bilgisi kopyalanamadı."
   },
   "providerQuota": {

@@ -18,6 +18,7 @@
     "newTask": "Nuovo oggetto di lavoro",
     "newSession": "Inizia la conversazione",
     "deleteSession": "Elimina conversazione",
+    "archiveSession": "Archivia conversazione",
     "renameSession": "Rinomina conversazione",
     "regenerateTitle": "Rigenera titolo",
     "exportSession": "Esporta Markdown",
@@ -92,6 +93,8 @@
     "restoreProjectError": "Si è verificato un errore di ripristino del progetto. Riprova.",
     "restoreSessionFailed": "Impossibile ripristinare la conversazione. Riprova.",
     "restoreSessionError": "Si è verificato un errore di ripristino della conversazione. Riprova.",
+    "archiveSessionFailed": "Impossibile archiviare la conversazione. Riprova.",
+    "archiveSessionError": "Si è verificato un errore di archiviazione della conversazione. Riprova.",
     "debugInfoError": "Impossibile copiare le informazioni di debug."
   },
   "providerQuota": {

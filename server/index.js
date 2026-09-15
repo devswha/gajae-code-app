@@ -383,8 +383,10 @@ app.get('/api/browse-filesystem', authenticateToken, asyncHandler(async (req, re
             return res.status(404).json({ error: 'Directory not accessible' });
         }
 
-        // Suggestions need immediate, visible directories only. Never scan their contents.
-        const fileTree = await getFileTree(resolvedPath, { maxDepth: 0, showHidden: false, directoriesOnly: true, signal: listing.signal });
+        // Suggestions need immediate directories only, never their contents.
+        // Hidden folders stay in the payload: the folder browser owns a
+        // show-hidden toggle, and sorts them after the visible ones below.
+        const fileTree = await getFileTree(resolvedPath, { maxDepth: 0, directoriesOnly: true, signal: listing.signal });
 
         // Filter only directories and format for suggestions
         const directories = fileTree

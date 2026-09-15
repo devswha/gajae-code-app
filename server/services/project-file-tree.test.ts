@@ -79,18 +79,22 @@ test('tree preserves metadata, sorting and dotfiles while excluding runtime scra
   assert.equal(link.children, undefined);
 });
 
-test('filesystem suggestions enumerate only visible immediate directories', async (t) => {
+test('filesystem suggestions enumerate immediate directories without reading their contents', async (t) => {
   const root = await fixture(t);
   await fs.mkdir(path.join(root, 'project/child'), { recursive: true });
   await fs.mkdir(path.join(root, '.hidden'));
   await fs.writeFile(path.join(root, 'README.md'), 'x');
   const open = t.mock.method(fs, 'opendir');
   const stats = t.mock.method(fs, 'lstat');
-  const tree = await getFileTree(root, { maxDepth: 0, showHidden: false, directoriesOnly: true });
-  assert.deepEqual(paths(tree), ['project']);
-  assert.equal(tree[0].children, undefined);
+  // The folder browser owns the show-hidden toggle, so hidden directories stay
+  // in the listing; only files and every directory's contents are skipped.
+  const tree = await getFileTree(root, { maxDepth: 0, directoriesOnly: true });
+  assert.deepEqual(paths(tree), ['.hidden', 'project']);
+  assert.equal(tree.find((node) => node.name === 'project')!.children, undefined);
   assert.equal(open.mock.callCount(), 1);
-  assert.deepEqual(stats.mock.calls.map((call) => call.arguments[0]), [path.join(root, 'project')]);
+  assert.deepEqual(stats.mock.calls.map((call) => String(call.arguments[0])).sort(),
+    [path.join(root, '.hidden'), path.join(root, 'project')].sort());
+  assert.deepEqual(paths(await getFileTree(root, { maxDepth: 0, showHidden: false, directoriesOnly: true })), ['project']);
 });
 
 test('wide directories fail with 413 without reading or scheduling the remaining entries', async (t) => {

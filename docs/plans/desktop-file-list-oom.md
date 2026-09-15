@@ -38,8 +38,9 @@ No heap snapshot was available to attribute every retained byte at the crash.
   handler's desktop activity ownership. An already-issued disk operation must
   settle before its scan slot is released; a stuck filesystem is not certified
   idle merely because a timer elapsed.
-- Filesystem suggestions read visible immediate directories only. Previously
-  `maxDepth=1` read each child's contents and `showHidden=false` was unused.
+- Filesystem suggestions read immediate directories only; previously
+  `maxDepth=1` also read every child's contents. Hidden directories stay in the
+  payload because the folder browser owns the show-hidden toggle.
 
 ## Verification
 

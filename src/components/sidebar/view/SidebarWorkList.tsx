@@ -33,6 +33,7 @@ export default function SidebarWorkList({ projectListProps }: SidebarWorkListPro
     onCancelEditingSession,
     onSaveEditingSession,
     onToggleSessionStar,
+    onArchiveSession,
     onRegenerateTitle,
     onExportSession,
     onCopyDebugInfo,
@@ -72,8 +73,7 @@ export default function SidebarWorkList({ projectListProps }: SidebarWorkListPro
           isProcessing={activeSessions.has(session.id)}
           status={status}
           isMobile={isMobile}
-          showProjectName
-          compact
+          projectLabel={project.displayName}
           currentTime={currentTime}
           editingSession={editingSession}
           editingSessionName={editingSessionName}
@@ -82,6 +82,7 @@ export default function SidebarWorkList({ projectListProps }: SidebarWorkListPro
           onCancelEditingSession={onCancelEditingSession}
           onSaveEditingSession={onSaveEditingSession}
           onToggleSessionStar={onToggleSessionStar}
+          onArchiveSession={onArchiveSession}
           onRegenerateTitle={onRegenerateTitle}
           onExportSession={onExportSession}
           onCopyDebugInfo={onCopyDebugInfo}

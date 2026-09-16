@@ -18,6 +18,7 @@
     "newTask": "Neues Arbeitselement",
     "newSession": "Gespräch beginnen",
     "deleteSession": "Konversation löschen",
+    "archiveSession": "Konversation archivieren",
     "renameSession": "Konversation umbenennen",
     "regenerateTitle": "Titel neu erzeugen",
     "exportSession": "Exportieren Sie Markdown",
@@ -92,6 +93,8 @@
     "restoreProjectError": "Bei der Projektwiederherstellung ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
     "restoreSessionFailed": "Konversation konnte nicht wiederhergestellt werden. Versuchen Sie es erneut.",
     "restoreSessionError": "Beim Wiederherstellen der Konversation ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
+    "archiveSessionFailed": "Konversation konnte nicht archiviert werden. Versuchen Sie es erneut.",
+    "archiveSessionError": "Beim Archivieren der Konversation ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
     "debugInfoError": "Die Debug-Infos konnten nicht kopiert werden."
   },
   "providerQuota": {

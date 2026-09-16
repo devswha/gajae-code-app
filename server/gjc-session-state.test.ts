@@ -113,10 +113,47 @@ test('blank and malformed fields are dropped rather than forwarded', () => {
     {
       model: { id: '   ' },
       thinkingLevel: 42,
+      serviceTier: 7,
       getContextUsage: () => ({ tokens: -1, contextWindow: 0, source: '' }),
     },
     manager(''),
   );
 
   assert.equal(snapshot, undefined);
+});
+
+/*
+ * The service tier is the one run fact that changes what a turn costs, and the
+ * app reported every other pinned fact while never naming it.
+ */
+
+test('the resolved service tier is read off the session', () => {
+  const snapshot = readSessionSnapshot(session({ serviceTier: 'priority' }), manager());
+
+  assert.equal(snapshot?.serviceTier, 'priority');
+});
+
+test('an omitted tier stays absent instead of becoming a default', () => {
+  // `undefined` is the runtime saying "omit service_tier", which is its own
+  // default. Inventing a string here would make the footer claim a tier the
+  // request never carried.
+  const omitted = readSessionSnapshot(session(), manager());
+  assert.equal('serviceTier' in (omitted ?? {}), false);
+
+  const blank = readSessionSnapshot(session({ serviceTier: '  ' }), manager());
+  assert.equal('serviceTier' in (blank ?? {}), false);
+});
+
+test('a throwing tier getter does not take the rest of the snapshot down', () => {
+  const snapshot = readSessionSnapshot(
+    {
+      model: { id: 'gpt-test' },
+      get serviceTier(): string { throw new Error('tier unavailable'); },
+      getContextUsage: () => ({ tokens: 10, contextWindow: 100, percent: 10 }),
+    },
+    manager(),
+  );
+
+  assert.equal(snapshot?.cwd, '/repos/app');
+  assert.equal(snapshot?.serviceTier, undefined);
 });

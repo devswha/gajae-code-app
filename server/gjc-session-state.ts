@@ -19,6 +19,16 @@ export type GjcSessionSnapshot = {
   modelId?: string;
   /** Reasoning effort, as the session reports it (`off`, `low`, `high`, ...). */
   thinkingLevel?: string;
+  /**
+   * Billing tier the run actually resolved to (`priority`, `flex`, ...).
+   *
+   * Absent when the runtime omits the parameter, which is its default. This is
+   * not cosmetic: on Anthropic `priority` is realized as `speed: "fast"` on
+   * supported Opus models, so it changes what a turn costs. The app pins the
+   * model, the effort and the chain per run but never named the tier, which
+   * left sessions billing at a rate nothing in the app could report.
+   */
+  serviceTier?: string;
   /** Absolute working directory this session is bound to. */
   cwd?: string;
   contextTokens?: number;
@@ -32,6 +42,7 @@ export type GjcSessionSnapshot = {
 type SessionLike = {
   model?: { id?: unknown } | null;
   thinkingLevel?: unknown;
+  serviceTier?: unknown;
   getContextUsage?: () => unknown;
   getGoalModeState?: () => unknown;
 };
@@ -77,6 +88,12 @@ export function readSessionSnapshot(
 
     const thinkingLevel = text(live?.thinkingLevel);
     if (thinkingLevel) snapshot.thinkingLevel = thinkingLevel;
+
+    // `undefined` is a real answer here - it is how the runtime says "omit
+    // service_tier" - so an absent tier stays absent rather than becoming a
+    // string the footer would have to special-case.
+    const serviceTier = text(live?.serviceTier);
+    if (serviceTier) snapshot.serviceTier = serviceTier;
 
     const usage = live?.getContextUsage?.();
     if (usage && typeof usage === 'object') {

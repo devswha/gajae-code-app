@@ -84,6 +84,7 @@
       "changes": "Modifications",
       "branch": "Branche",
       "directory": "Répertoire",
+      "serviceTier": "Niveau de service",
       "refresh": "Recharger l'état Git",
       "notARepository": "Ce dossier n'est pas un dépôt Git",
       "gitUnavailable": "Impossible de lire l'état Git"

@@ -237,3 +237,19 @@ test('ego selected on a non-macOS run never probes or executes a CLI and keeps c
     assert.ok(s.automationTools.computer);
   } finally { await s.close(); }
 });
+
+test('a run that names no backend takes the app default, not the user\u2019s runtime setting', { timeout: 60_000 }, async () => {
+  // Settings > Automation is where this is chosen. An omitted backend used to
+  // fall through to `browser.backend` in ~/.gjc, so a runtime setting the app
+  // never made could decide how an app session browses.
+  const run = await appRun(undefined, ASIDE_FOUND, 'aside', () => {
+    throw new Error('the app default must not probe ego-browser');
+  });
+  const s = await run.start();
+  try {
+    assert.equal(s.backend.id, 'native');
+    assert.equal(run.settings.get('browser.backend'), 'native');
+    assert.equal(s.prompt.includes(GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS), false);
+    assert.doesNotMatch(s.prompt, /aside/iu);
+  } finally { await s.close(); }
+});

@@ -231,13 +231,17 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
         return next;
       });
       if (alias && sessionId === alias) navigate(`/session/${update.sessionId}`);
-      // A confirmed /handoff moved the runtime to a fresh session: the first
-      // upsert for a different session in that project is it — follow, or the
-      // app stays on the old session while the backend moved on (issue #6).
+      // A confirmed /handoff moved the runtime to a fresh session: follow the
+      // session the runtime reported, or the app stays on the old one while the
+      // backend moved on (issue #6). Only that session - "the next session in
+      // this project" let a third session created in the same window steal the
+      // window from the handoff the user just made.
       const pending = useAppShellStore.getState().pendingHandoff;
       if (pending
         && Date.now() - pending.at < 120_000
         && update.sessionId !== pending.fromSessionId
+        && Boolean(pending.providerSessionId)
+        && update.providerSessionId === pending.providerSessionId
         && (!pending.projectId || update.project?.projectId === pending.projectId)
         // unless the viewer deliberately moved on to a different session meanwhile.
         && (!pending.fromSessionId || !sessionId || sessionId === pending.fromSessionId)) {

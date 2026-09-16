@@ -12,17 +12,13 @@ import {
   GJC_BROWSER_BACKENDS,
   GJC_EGO_BROWSER_INSTRUCTIONS,
   GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
-  GJC_EGO_UNAVAILABLE_CODE,
-  GJC_EGO_UNAVAILABLE_MESSAGE,
   EGO_EXPECTED_BUNDLE_IDENTIFIER,
   GjcAsideUnavailableError,
-  GjcEgoUnavailableError,
   buildGjcEgoBrowserInstructions,
   execEgoFile,
   egoBrowserCliCandidates,
   isGjcAsideUnavailableError,
   isGjcBrowserBackend,
-  isGjcEgoUnavailableError,
   probeEgoBrowserCli,
   probeEgoReadiness,
   testEgoBrowserConnection,
@@ -51,20 +47,6 @@ test('an unavailable Aside CLI fails with a stable code and fixed text that carr
   assert.equal(isGjcAsideUnavailableError(error), true);
   assert.equal(isGjcAsideUnavailableError(new Error(GJC_ASIDE_UNAVAILABLE_MESSAGE)), false);
   assert.equal(isGjcAsideUnavailableError({ code: GJC_ASIDE_UNAVAILABLE_CODE }), false);
-});
-
-test('an unavailable ego-browser CLI fails with a stable code and fixed text that carries no probe detail', () => {
-  const error = new GjcEgoUnavailableError(['/home/someone/.local/bin/ego-browser', 'PATH (ego-browser)']);
-  assert.equal(error.code, GJC_EGO_UNAVAILABLE_CODE);
-  assert.equal(error.code, 'ego_unavailable');
-  assert.equal(error.message, GJC_EGO_UNAVAILABLE_MESSAGE);
-  assert.equal(error.message.includes('/home/someone'), false);
-  assert.match(error.message, /Built-in/);
-  assert.deepEqual(error.searched, ['/home/someone/.local/bin/ego-browser', 'PATH (ego-browser)']);
-  assert.equal(isGjcEgoUnavailableError(error), true);
-  assert.equal(isGjcEgoUnavailableError(new GjcAsideUnavailableError()), false);
-  assert.equal(isGjcAsideUnavailableError(error), false);
-  assert.equal(isGjcEgoUnavailableError(new Error(GJC_EGO_UNAVAILABLE_MESSAGE)), false);
 });
 
 test('the ego-browser probe prefers the onboarding location, then PATH, and reports what it searched', () => {

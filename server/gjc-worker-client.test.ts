@@ -23,6 +23,7 @@ import {
   resolveGjcResumeSessionRoot,
 } from './gjc-worker-client.js';
 import { GJC_MODEL_UNRESOLVED_CODE, GJC_MODEL_UNRESOLVED_MESSAGE } from './gjc-model-resolution.js';
+import { SERVER_ONLY_ENVIRONMENT_NAMES } from './shared/child-environment.js';
 import {
   GJC_ASIDE_UNAVAILABLE_CODE,
   GJC_ASIDE_UNAVAILABLE_MESSAGE,
@@ -478,7 +479,8 @@ test('rejects an oversized start frame as not_started without terminating its wo
 });
 
 /**
- * The launch env is process.env extended by exactly one injected key:
+ * The launch env is process.env, minus the credentials that authenticate a
+ * caller to this server, extended by exactly one injected key:
  * GJC_WORKER_AGENT_DIR (explicit app-owned auth/config injection, F12).
  */
 function environmentExtendsProcessEnvWithAgentDir(environment: NodeJS.ProcessEnv | undefined): boolean {
@@ -487,12 +489,45 @@ function environmentExtendsProcessEnvWithAgentDir(environment: NodeJS.ProcessEnv
   if (typeof environment.GJC_WORKER_AGENT_DIR !== 'string' || environment.GJC_WORKER_AGENT_DIR.length === 0) return false;
   for (const key of Object.keys(process.env)) {
     if (key === 'GJC_WORKER_AGENT_DIR') continue;
+    if (SERVER_ONLY_ENVIRONMENT_NAMES.includes(key)) {
+      if (environment[key] !== undefined) return false;
+      continue;
+    }
     if (environment[key] !== process.env[key]) return false;
     keys.delete(key);
   }
   keys.delete('GJC_WORKER_AGENT_DIR');
   return keys.size === 0;
 }
+
+test('the worker never inherits the keys that authenticate a caller to this server', async () => {
+  // The worker runs the agent's own `bash`: `env` in a chat turn, a crash
+  // report or /proc/<pid>/environ would otherwise hand out the desktop key.
+  const child = new FakeChild();
+  const peer = new FakePeer(child);
+  peer.handle((request) => peer.respond(request));
+  let environment: NodeJS.ProcessEnv | undefined;
+  const supervisor = new GjcWorkerSupervisor({
+    ...runtime(child),
+    environment: {
+      PATH: '/usr/bin',
+      HOME: '/home/owner',
+      GJC_DESKTOP_API_KEY: 'a'.repeat(64),
+      GJC_DESKTOP_BOOTSTRAP_NONCE: 'b'.repeat(64),
+      API_KEY: 'self-hosted-key',
+    },
+    spawn: (_command, _args, options) => {
+      environment = options.env;
+      return child;
+    },
+  });
+
+  await spawn(supervisor, 'source', {}, { send() {} });
+
+  assert.equal(environment?.PATH, '/usr/bin');
+  assert.equal(environment?.HOME, '/home/owner');
+  for (const name of SERVER_ONLY_ENVIRONMENT_NAMES) assert.equal(environment?.[name], undefined, name);
+});
 
 test('wraps the source worker with Bun while only adding the injected agent directory', async () => {
   const child = new FakeChild();

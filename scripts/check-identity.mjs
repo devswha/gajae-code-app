@@ -351,9 +351,45 @@ function validatePackageMetadata(packageJson, packageLock) {
   assertEqual('package-lock.json Node engine', lockRoot?.engines?.node, packageJson.engines?.node);
 }
 
+/**
+ * The desktop shell is the other half of this product's identity.
+ *
+ * `package.json`'s electron-shaped `build` block is checked above, but the app
+ * that actually ships is the Tauri bundle: its identifier is what macOS and the
+ * updater key on, its deep-link scheme is what `gajae-app://` links reach, and
+ * its crate is what the bundle is built from. All of those could drift from
+ * shared/productIdentity.js with the identity gate still green.
+ *
+ * The crate's own version is deliberately not compared to the product version:
+ * they are separate numbers, bound and validated together by
+ * src-tauri/update_build_binding.rs.
+ */
+async function validateDesktopShellMetadata() {
+  const tauriConfig = await readJson('src-tauri/tauri.conf.json');
+  if (!tauriConfig) return;
+  assertEqual('tauri.conf.json identifier', tauriConfig.identifier, DESKTOP_APP_ID);
+  assertEqual('tauri.conf.json productName', tauriConfig.productName, PRODUCT_NAME);
+  assertExactObject(
+    'tauri.conf.json deep-link schemes',
+    tauriConfig.plugins?.['deep-link']?.desktop?.schemes,
+    [URL_SCHEME],
+  );
+
+  let cargoToml;
+  try {
+    cargoToml = await readFile(resolve(REPOSITORY_ROOT, 'src-tauri/Cargo.toml'), 'utf8');
+  } catch (error) {
+    addError(`src-tauri/Cargo.toml: could not read (${error.message})`);
+    return;
+  }
+  const packageSection = cargoToml.slice(cargoToml.indexOf('[package]'));
+  assertEqual('src-tauri/Cargo.toml name', /^name\s*=\s*"([^"]+)"/m.exec(packageSection)?.[1], `${PACKAGE_NAME}-desktop`);
+}
+
 const packageJson = await readJson('package.json');
 const packageLock = await readJson('package-lock.json');
 validatePackageMetadata(packageJson, packageLock);
+await validateDesktopShellMetadata();
 await walkDirectory(REPOSITORY_ROOT, 'source');
 
 for (const generatedDirectory of GENERATED_DIRECTORIES) {

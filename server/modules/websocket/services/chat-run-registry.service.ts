@@ -52,7 +52,11 @@ function scheduleCompletedRunRemoval(run: ChatRun): void {
 
 function decorateRunEvent(run: ChatRun, event: NormalizedMessage): NormalizedMessage | null {
   if (runsByAppSession.get(run.appSessionId) !== run) return null;
-  if (run.status === 'completed' && event.kind === 'complete') return null;
+  // A completed run is over, aborted or not. Its late frames - text a stopped
+  // worker was still producing, a tool that had not noticed yet - would attach
+  // to a transcript the user already saw end. Titles and session ids do not
+  // pass through here (ChatSessionWriter handles them before this).
+  if (run.status === 'completed') return null;
 
   const sequence = ++run.lastSeq;
   activityRevision += 1n;

@@ -28,11 +28,15 @@ type Call = [string, ...unknown[]];
 
 function fakeStore(calls: Call[]): SessionStore {
   const record = (name: string) => (...args: unknown[]) => { calls.push([name, ...args]); };
+  // Status is modelled rather than stubbed away: a live turn marks its session
+  // streaming once, not on every frame it produces.
+  const statuses = new Map<string, string>();
   return {
     acceptRealtimeEvent: () => true,
     getReplayCursor: () => ({ replayGeneration: null, lastSeq: 0 }),
     trackReplayFrame: () => true,
-    getSessionSlot: () => undefined,
+    getSessionSlot: (id: string) => (statuses.has(id) ? { status: statuses.get(id), realtimeMessages: [] } : undefined),
+    setStatus: (id: string, status: string) => { statuses.set(id, status); calls.push(['setStatus', id, status]); },
     updateStreaming: record('updateStreaming'),
     finalizeStreaming: record('finalizeStreaming'),
     appendRealtime: record('appendRealtime'),
@@ -90,6 +94,7 @@ test('an answer that arrives whole on stream_end is shown without any delta', ()
   send({ kind: 'stream_end', sessionId: 'visible', timestamp: '2026-01-01T00:00:01Z', content: 'The moon is far.' } as ServerEvent);
 
   assert.deepEqual(calls, [
+    ['setStatus', 'visible', 'streaming'],
     ['updateStreaming', 'visible', 'The moon is far.', 'gjc', '2026-01-01T00:00:01Z'],
     ['finalizeStreaming', 'visible'],
   ]);
@@ -102,6 +107,7 @@ test('stream_end outranks the deltas a late viewer accumulated', async () => {
   send({ kind: 'stream_end', sessionId: 'visible', content: 'The moon is far.' } as ServerEvent);
 
   assert.deepEqual(calls, [
+    ['setStatus', 'visible', 'streaming'],
     ['updateStreaming', 'visible', 'is far.', 'gjc', undefined],
     ['updateStreaming', 'visible', 'The moon is far.', 'gjc', undefined],
     ['finalizeStreaming', 'visible'],
@@ -112,7 +118,7 @@ test('an empty stream_end after no deltas finalizes nothing', () => {
   const { calls, send } = mount();
   send({ kind: 'stream_end', sessionId: 'visible', content: '' } as ServerEvent);
 
-  assert.deepEqual(calls, [['finalizeStreaming', 'visible']]);
+  assert.deepEqual(calls, [['setStatus', 'visible', 'streaming'], ['finalizeStreaming', 'visible']]);
 });
 
 test('interleaved background deltas never enter the visible answer', () => {
@@ -361,3 +367,32 @@ for (const endContent of ['A first answer', '']) {
     assert.equal(store.getSessionSlot('a')!.realtimeMessages.some((row) => row.id === '__streaming_a'), false);
   });
 }
+
+test('a live turn marks its session streaming and the end of the turn releases it', () => {
+  // The store has always guarded reconcile and eviction with this status, and
+  // production never set it: a mid-turn upsert or history refetch could
+  // reorder or drop what was arriving.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = renderHook(useSessionStore, {
+    wrapper: ({ children }) => createElement(QueryClientProvider, { client }, children),
+  });
+  const { send } = mount(view.result.current);
+  send({ kind: 'stream_delta', sessionId: 'visible', content: 'thinking out loud' } as ServerEvent);
+  assert.equal(view.result.current.getSessionSlot('visible')?.status, 'streaming');
+  send({ kind: 'complete', sessionId: 'visible', exitCode: 0 } as ServerEvent);
+  assert.equal(view.result.current.getSessionSlot('visible')?.status, 'idle');
+});
+
+test('a frame that names no session is never attached to the open conversation', () => {
+  // Job projection frames carry a jobId, not a sessionId. Falling back to
+  // whatever is on screen turned them into ghost rows in someone's chat.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = renderHook(useSessionStore, {
+    wrapper: ({ children }) => createElement(QueryClientProvider, { client }, children),
+  });
+  const { send } = mount(view.result.current);
+  send({ protocolVersion: 1, kind: 'gjc_job_error', code: 'authority_unavailable', retryable: true, message: 'authority_unavailable', jobId: 'job-a' } as unknown as ServerEvent);
+  send({ protocolVersion: 1, kind: 'gjc_job_event', subscriptionId: 'gjc-1', jobId: 'job-a', event: { eventId: 'e1', sequence: 1, payload: {} } } as unknown as ServerEvent);
+  assert.deepEqual(view.result.current.getMessages('visible'), []);
+  assert.equal(view.result.current.getSessionSlot('visible')?.status, undefined);
+});

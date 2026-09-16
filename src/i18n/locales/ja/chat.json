@@ -86,6 +86,14 @@
       "signInRequired": "このプリセットを使うには、設定で {{provider}} にサインインしてください"
     },
     "attachImages": "画像を添付",
+    "attachment": {
+      "onlyImages": "添付できるのは画像だけのため、{{names}} は追加されませんでした。テキストファイルは @ で参照するか、内容を貼り付けてください。",
+      "tooLarge": "{{names}} は 5MB を超えています。",
+      "empty": "{{names}} は空です。",
+      "tooMany": "画像は最大 {{count}} 件までのため、{{names}} は追加されませんでした。",
+      "dropHere": "ここに画像をドロップ",
+      "dismiss": "この通知を閉じる"
+    },
     "send": "送信",
     "stop": "停止",
     "hintText": {

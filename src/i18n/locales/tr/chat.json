@@ -86,6 +86,14 @@
       "signInRequired": "Bu ön ayarı kullanmak için Ayarlar’dan {{provider}} hesabına giriş yapın"
     },
     "attachImages": "Resim ekle",
+    "attachment": {
+      "onlyImages": "Yalnızca görsel eklenebilir, bu yüzden {{names}} eklenmedi. Metin dosyasına @ ile başvurun veya içeriğini yapıştırın.",
+      "tooLarge": "{{names}} 5 MB’tan büyük.",
+      "empty": "{{names}} boş.",
+      "tooMany": "En fazla {{count}} görsel eklenebilir, bu yüzden {{names}} eklenmedi.",
+      "dropHere": "Görselleri buraya bırakın",
+      "dismiss": "Bu bildirimi kapat"
+    },
     "send": "Mesajı gönder",
     "stop": "Çalışmayı durdur",
     "hintText": {

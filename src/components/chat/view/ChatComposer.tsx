@@ -11,7 +11,7 @@ import type {
   TouchEvent,
 } from 'react';
 import type { DropzoneInputProps, DropzoneRootProps } from 'react-dropzone';
-import { PlusIcon, Loader2, ArrowUpIcon, ForwardIcon } from 'lucide-react';
+import { PlusIcon, Loader2, ArrowUpIcon, ForwardIcon, AlertTriangleIcon, XIcon } from 'lucide-react';
 
 import { classifyCommandInput, isAutoSendable } from '../commandDispatchPolicy';
 import { isComposerSealed, registerComposerInputValue, subscribeComposerFreeze } from '../../../shared/composerFreeze';
@@ -97,8 +97,8 @@ interface ChatComposerProps {
   onCancelCommandGate: () => void;
   attachedImages: File[];
   onRemoveImage: (index: number) => void;
-  uploadingImages: Map<string, number>;
-  imageErrors: Map<string, string>;
+  attachmentNotice: string | null;
+  onDismissAttachmentNotice: () => void;
   showFileDropdown: boolean;
   filteredFiles: MentionableFile[];
   selectedFileIndex: number;
@@ -175,8 +175,8 @@ export default function ChatComposer({
   onCancelCommandGate,
   attachedImages,
   onRemoveImage,
-  uploadingImages,
-  imageErrors,
+  attachmentNotice,
+  onDismissAttachmentNotice,
   showFileDropdown,
   filteredFiles,
   selectedFileIndex,
@@ -412,22 +412,35 @@ export default function ChatComposer({
                     d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                   />
                 </svg>
-                <p className="text-sm font-medium">Drop images here</p>
+                <p className="text-sm font-medium">{t('input.attachment.dropHere')}</p>
               </div>
             </div>
+          )}
+          {attachmentNotice && (
+            <PromptInputHeader>
+              {/* A refused attachment is reported here. The desktop open panel
+                  ignores `accept`, so the composer is handed files it cannot
+                  take, and discarding them silently reads as a broken button. */}
+              <div role="status" className="flex w-full items-start gap-2 rounded-xl border border-border bg-muted px-3 py-2 text-xs text-foreground">
+                <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
+                <span className="flex-1">{attachmentNotice}</span>
+                <button
+                  type="button"
+                  onClick={onDismissAttachmentNotice}
+                  aria-label={t('input.attachment.dismiss')}
+                  className="shrink-0 rounded-md p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <XIcon className="size-3.5" aria-hidden="true" />
+                </button>
+              </div>
+            </PromptInputHeader>
           )}
           {attachedImages.length > 0 && (
             <PromptInputHeader>
               <div className="rounded-xl bg-muted/40 p-2">
                 <div className="flex flex-wrap gap-2">
                   {attachedImages.map((file, index) => (
-                    <ImageAttachment
-                      key={index}
-                      file={file}
-                      onRemove={() => onRemoveImage(index)}
-                      uploadProgress={uploadingImages.get(file.name)}
-                      error={imageErrors.get(file.name)}
-                    />
+                    <ImageAttachment key={index} file={file} onRemove={() => onRemoveImage(index)} />
                   ))}
                 </div>
               </div>

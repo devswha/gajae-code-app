@@ -256,8 +256,8 @@ function ChatInterface({
       onCancelCommandGate={composer.cancelCommandGate}
       attachedImages={composer.attachedImages}
       onRemoveImage={(index) => composer.setAttachedImages((images) => images.filter((_, imageIndex) => imageIndex !== index))}
-      uploadingImages={composer.uploadingImages}
-      imageErrors={composer.imageErrors}
+      attachmentNotice={composer.attachmentNotice}
+      onDismissAttachmentNotice={composer.dismissAttachmentNotice}
       showFileDropdown={composer.showFileDropdown}
       filteredFiles={composer.filteredFiles}
       selectedFileIndex={composer.selectedFileIndex}

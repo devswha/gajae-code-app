@@ -117,6 +117,7 @@ function Composer({ repository, overrides = {} }: { repository: Repository; over
       onEditQueuedDraft={c.editQueuedDraft} onDeleteQueuedDraft={c.deleteQueuedDraft} onMoveQueuedDraft={c.moveQueuedDraft}
       onConfirmCommandGate={c.confirmCommandGate} onCancelCommandGate={c.cancelCommandGate}
       onRemoveImage={(index) => c.setAttachedImages((files) => files.filter((_, position) => position !== index))}
+      onDismissAttachmentNotice={c.dismissAttachmentNotice}
       onSelectFile={c.selectFile} onCommandSelect={c.handleCommandSelect}
       onCloseCommandMenu={c.resetCommandMenuState} isCommandMenuOpen={c.showCommandMenu}
       onInputChange={c.handleInputChange} onTextareaClick={c.handleTextareaClick} onTextareaKeyDown={c.handleKeyDown}

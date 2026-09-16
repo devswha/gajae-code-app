@@ -218,6 +218,14 @@ method or frame changes; the policy travels inside existing payloads:
   records and permission handling are unchanged. Other info notices, warnings,
   errors, and actual approval requests remain visible.
   No permission request crosses to the host, so the run is never reported as awaiting input.
+- The runtime's `priority` notice for a rejected fast mode ("Priority/fast mode
+  rejected for this model; retried without it. Fast mode is off for this model
+  until you re-enable it with /fast on.") is omitted from chat rows the same
+  way, at any level and with or without the `priority: ` source prefix. The
+  turn already ran without priority, the app exposes no fast-mode control, and
+  the runtime re-warns once per model in every session. The notice is still
+  recorded, exported and forwarded; only the chat row is dropped. Any other
+  wording, including a different source prefix or extra text, stays visible.
 - Any other gated call is an `ask.presented` event whose message is a
   `permission_request` with `requestId` prefixed `sdk-permission:`, the
   runtime's `toolName`, its `rawInput` as `input`, and a `context` naming the

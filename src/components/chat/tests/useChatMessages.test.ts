@@ -152,6 +152,28 @@ test('routine auto-approval info notices are omitted for every automatic policy'
   }
 });
 
+test('the runtime fast-mode fallback notice is omitted however the worker labels it', () => {
+  const line = 'Priority/fast mode rejected for this model; retried without it. Fast mode is off for this model until you re-enable it with /fast on.';
+  for (const content of [line, `priority: ${line}`, `  priority: ${line}\n`]) {
+    for (const level of [undefined, 'info', 'warning'] as const) {
+      assert.deepEqual(normalizedToChatMessages([row({ kind: 'system_notice', level, content })]), [], `${level}: ${content}`);
+    }
+  }
+});
+
+test('other priority and fast-mode wording stays visible', () => {
+  for (const content of [
+    'priority: Priority/fast mode rejected for this model; retried without it.',
+    'Priority/fast mode rejected for this model; retried without it. Fast mode is off for this model until you re-enable it with /fast on. The model also changed.',
+    'routing: Priority/fast mode rejected for this model; retried without it. Fast mode is off for this model until you re-enable it with /fast on.',
+    'Fast mode is off for this model until you re-enable it with /fast on.',
+  ]) {
+    const [message] = normalizedToChatMessages([row({ kind: 'system_notice', level: 'warning', content })]);
+    assert.equal(message.content, content);
+    assert.equal(message.isSystemNotice, true);
+  }
+});
+
 test('hiding a notice does not delete raw records or disturb projection identity', () => {
   const notice = Object.freeze(row({ kind: 'system_notice', level: 'info', content: 'Auto-approved bash (bypass)' }));
   const user = row({ role: 'user', content: 'Run the check' });

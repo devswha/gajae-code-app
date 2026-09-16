@@ -43,6 +43,14 @@ const cleanAssistantText = (value: string) => formatUsageLimitText(cleanUserText
 // Match only the worker's routine auto-approval line, never arbitrary prose or warnings.
 const AUTO_APPROVAL_NOTICE = /^Auto-approved [^\s()]+ \((?:bypass|always allow|auto-approve edits)\)$/;
 
+// The runtime's fast-mode fallback: the provider refused `speed: "fast"` for
+// this model, the turn was retried without it and already succeeded. Nothing
+// in the answer changes and the app has no fast-mode control, so the line is
+// noise that repeats once per model in every session. The exact sentence is
+// matched - with or without the `priority` source prefix the worker prepends -
+// so no other priority or routing warning is ever hidden.
+const FAST_MODE_FALLBACK_NOTICE = /^(?:priority: )?Priority\/fast mode rejected for this model; retried without it\. Fast mode is off for this model until you re-enable it with \/fast on\.$/;
+
 /** A call's result: inline on the row, or the `tool_result` row it pairs with. */
 type AttachedResult = NonNullable<NormalizedMessage['toolResult']> | NormalizedMessage | null | undefined;
 
@@ -169,6 +177,7 @@ function convertRow(message: NormalizedMessage, attachedResult: AttachedResult):
     const content = message.content?.trim();
     // Keep the raw record and permission policy intact; omit only this chat row.
     if (content && (message.level ?? 'info') === 'info' && AUTO_APPROVAL_NOTICE.test(content)) return output;
+    if (content && FAST_MODE_FALLBACK_NOTICE.test(content)) return output;
     if (content) output.push({ type: 'assistant', content, timestamp: message.timestamp, isSystemNotice: true, noticeLevel: message.level ?? 'info', ...common });
     return output;
   }

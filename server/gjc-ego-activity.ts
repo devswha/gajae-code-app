@@ -246,3 +246,104 @@ export async function readEgoActivity(options: {
     return { spaces: [], unavailable: true };
   }
 }
+
+/**
+ * A frame of what the agent's page looks like right now.
+ *
+ * This is the one place the app uses ego's `page.cdp()` escape hatch, and it
+ * uses exactly one read-only method: `Page.captureScreenshot`. The alternative,
+ * `page.screenshot({ path })`, would write pictures of the user's logged-in
+ * browser to disk; the CDP call hands back bytes that never leave memory.
+ *
+ * A frame is a thumbnail, not a screen recording: it is scaled to at most
+ * `EGO_FRAME_MAX_WIDTH` and JPEG-compressed inside ego before it crosses the
+ * process boundary. Capture is also allowed to fail - a minimized ego window
+ * produces no compositor frames at all, which is why the timeout is short and
+ * a miss renders nothing instead of retrying.
+ */
+const EGO_FRAME_MAX_WIDTH = 640;
+const EGO_FRAME_QUALITY = 35;
+const EGO_FRAME_TIMEOUT_MS = 2_500;
+const EGO_FRAME_MAX_BUFFER = 4 * 1024 * 1024;
+const EGO_FRAME_MAX_BYTES = 1024 * 1024;
+/** ego's durable managed-page labels; nothing else may be interpolated. */
+const EGO_PAGE_LABEL = /^p[0-9]{1,4}$/u;
+
+/**
+ * The frame program. Unlike the observation script this one is parameterised,
+ * so both values are validated before they reach it: the space id must be a
+ * safe positive integer and the page label must be one of ego's own `pN`
+ * labels. Nothing else is interpolated, and a rejected value throws instead of
+ * being escaped into the program.
+ */
+export function buildEgoFrameScript(spaceId: number, label: string): string {
+  if (!Number.isSafeInteger(spaceId) || spaceId <= 0) {
+    throw new Error('An ego frame needs a positive integer space id.');
+  }
+  if (!EGO_PAGE_LABEL.test(label)) {
+    throw new Error('An ego frame needs an ego page label such as p1.');
+  }
+  return `const task = await taskSpace(${spaceId});
+const page = task.page("${label}");
+const info = await page.info();
+const width = Math.max(1, Math.round(info.w || 0));
+const height = Math.max(1, Math.round(info.h || 0));
+const scale = Math.min(1, ${EGO_FRAME_MAX_WIDTH} / width);
+const shot = await page.cdp("Page.captureScreenshot", {
+  format: "jpeg",
+  quality: ${EGO_FRAME_QUALITY},
+  clip: { x: 0, y: 0, width, height, scale },
+}, { timeout: 2000 });
+console.log(JSON.stringify({
+  v: 1,
+  w: Math.round(width * scale),
+  h: Math.round(height * scale),
+  jpeg: shot && typeof shot.data === "string" ? shot.data : "",
+}));`;
+}
+
+export type EgoFrame = Readonly<{ jpeg: Buffer; width: number; height: number }>;
+
+/** JPEG bytes only: a frame that is not a JPEG is dropped rather than relayed. */
+export function parseEgoFrameOutput(output: string): EgoFrame | undefined {
+  const record = reportLine(output);
+  if (!record) return undefined;
+  const { w, h, jpeg } = record;
+  if (typeof jpeg !== 'string' || !jpeg || typeof w !== 'number' || typeof h !== 'number') return undefined;
+  if (jpeg.length > EGO_FRAME_MAX_BYTES * 2) return undefined;
+  const bytes = Buffer.from(jpeg, 'base64');
+  if (bytes.length === 0 || bytes.length > EGO_FRAME_MAX_BYTES) return undefined;
+  if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return undefined;
+  return { jpeg: bytes, width: Math.round(w), height: Math.round(h) };
+}
+
+export async function readEgoFrame(options: {
+  cliPath: string;
+  spaceId: number;
+  label: string;
+  execFile?: EgoActivityExecFile;
+  env?: NodeJS.ProcessEnv;
+}): Promise<EgoFrame | undefined> {
+  const exec = options.execFile ?? execEgoFile;
+  let script: string;
+  try {
+    script = buildEgoFrameScript(options.spaceId, options.label);
+  } catch {
+    return undefined;
+  }
+  try {
+    const { stdout, stderr } = await exec(options.cliPath, ['nodejs', '-e', script], {
+      timeout: EGO_FRAME_TIMEOUT_MS,
+      maxBuffer: EGO_FRAME_MAX_BUFFER,
+      shell: false,
+      env: {
+        PATH: options.env?.PATH ?? '/usr/bin:/bin',
+        HOME: options.env?.HOME ?? '',
+      },
+    });
+    return parseEgoFrameOutput(egoCliOutput(stdout, stderr));
+  } catch {
+    // A minimized window, a closed space or a busy renderer: no frame, no noise.
+    return undefined;
+  }
+}

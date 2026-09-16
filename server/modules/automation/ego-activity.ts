@@ -17,9 +17,11 @@ import {
   isEgoSupportedPlatform,
   probeEgoBrowserCli,
   readEgoActivity,
+  readEgoFrame,
   selectEgoActivitySpaces,
   type EgoActivityPage,
   type EgoActivitySnapshot,
+  type EgoFrame,
   type GjcBrowserBackend,
 } from '@/gjc-engine.js';
 import { appConfigDb } from '@/modules/database/index.js';
@@ -27,11 +29,21 @@ import { appConfigDb } from '@/modules/database/index.js';
 import { browserBackendStore, type BrowserBackendStore } from './browser-backend.js';
 
 const CONFIG_KEY = 'automation.egoActivity.v1';
+const FRAME_CONFIG_KEY = 'automation.egoActivityFrame.v1';
 
 /** One execution serves every session that asks inside this window. */
 const SNAPSHOT_TTL_MS = 1_000;
+/** Frames are per page and change constantly; they get their own, shorter window. */
+const FRAME_TTL_MS = 900;
 
-/** Opt-in, off by default: this renders a logged-in personal browser. */
+/**
+ * Opt-in, off by default: this renders a logged-in personal browser.
+ *
+ * The picture is a second, separate switch on purpose. An address is a line of
+ * text the user can read past; a frame of the page is whatever happens to be on
+ * screen in a signed-in profile, so agreeing to one is not agreeing to the
+ * other.
+ */
 export class EgoActivityStore {
   constructor(private readonly storage: Pick<typeof appConfigDb, 'get' | 'set'> = appConfigDb) {}
 
@@ -42,6 +54,16 @@ export class EgoActivityStore {
   set(value: unknown): boolean {
     if (typeof value !== 'boolean') throw new Error('Ego browser activity must be true or false.');
     this.storage.set(CONFIG_KEY, value ? '1' : '0');
+    return value;
+  }
+
+  frames(): boolean {
+    return this.storage.get(FRAME_CONFIG_KEY) === '1';
+  }
+
+  setFrames(value: unknown): boolean {
+    if (typeof value !== 'boolean') throw new Error('Ego browser frames must be true or false.');
+    this.storage.set(FRAME_CONFIG_KEY, value ? '1' : '0');
     return value;
   }
 }
@@ -56,35 +78,43 @@ export type EgoActivityResponse = Readonly<{
   backend: GjcBrowserBackend;
   /** ego lite is a macOS-only integration; elsewhere the surface is never offered. */
   supported: boolean;
+  /** The stored frame opt-in. */
+  framesConfigured: boolean;
+  /** Frames are live for this session: the activity surface is on and frames are opted in too. */
+  frames: boolean;
   spaces: readonly Readonly<{ id: number; name: string; pages: readonly EgoActivityPage[] }>[];
   /** The CLI could not be read; show nothing rather than a stale or invented state. */
   unavailable?: true;
 }>;
 
 type EgoActivityReaderDeps = {
-  store?: Pick<EgoActivityStore, 'get'>;
+  store?: Pick<EgoActivityStore, 'get' | 'frames'>;
   backend?: Pick<BrowserBackendStore, 'get'>;
   probe?: typeof probeEgoBrowserCli;
   read?: typeof readEgoActivity;
+  frame?: typeof readEgoFrame;
   platform?: NodeJS.Platform;
   now?: () => number;
 };
 
 export class EgoActivityReader {
-  private readonly store: Pick<EgoActivityStore, 'get'>;
+  private readonly store: Pick<EgoActivityStore, 'get' | 'frames'>;
   private readonly backend: Pick<BrowserBackendStore, 'get'>;
   private readonly probe: typeof probeEgoBrowserCli;
   private readonly read: typeof readEgoActivity;
+  private readonly frameReader: typeof readEgoFrame;
   private readonly platform: NodeJS.Platform;
   private readonly now: () => number;
   private cached?: { at: number; snapshot: EgoActivitySnapshot };
   private inFlight?: Promise<EgoActivitySnapshot>;
+  private cachedFrame?: { at: number; key: string; frame: EgoFrame | undefined };
 
   constructor(deps: EgoActivityReaderDeps = {}) {
     this.store = deps.store ?? egoActivityStore;
     this.backend = deps.backend ?? browserBackendStore;
     this.probe = deps.probe ?? probeEgoBrowserCli;
     this.read = deps.read ?? readEgoActivity;
+    this.frameReader = deps.frame ?? readEgoFrame;
     this.platform = deps.platform ?? process.platform;
     this.now = deps.now ?? Date.now;
   }
@@ -98,23 +128,51 @@ export class EgoActivityReader {
     const backend = this.backend.get();
     const supported = isEgoSupportedPlatform(this.platform);
     const configured = this.store.get();
+    const framesConfigured = this.store.frames();
     const enabled = supported && backend === 'ego' && configured;
-    if (!enabled || !appSessionId) return { configured, enabled, backend, supported, spaces: [] };
+    const frames = enabled && framesConfigured;
+    const off = { configured, framesConfigured, enabled, frames, backend, supported, spaces: [] };
+    if (!enabled || !appSessionId) return off;
 
     const found = this.probe();
-    if (!found.ok) return { configured, enabled, backend, supported, spaces: [], unavailable: true };
+    if (!found.ok) return { ...off, unavailable: true };
 
     const snapshot = await this.observe(found.path);
     const spaces = selectEgoActivitySpaces(snapshot, egoActivityToken(appSessionId))
       .map((space) => ({ id: space.id, name: space.name, pages: space.pages }));
     return {
-      configured,
-      enabled,
-      backend,
-      supported,
+      ...off,
       spaces,
       ...(snapshot.unavailable ? { unavailable: true as const } : {}),
     };
+  }
+
+  /**
+   * One frame of a page this session is driving.
+   *
+   * The picture is gated twice over: the activity surface has to be live, the
+   * frame opt-in has to be on, and the requested space and page must appear in
+   * this session's own attributed snapshot. A page the session did not open,
+   * or a space another session minted, never reaches the capture.
+   */
+  async frame(appSessionId: string, spaceId: number, label: string): Promise<EgoFrame | undefined> {
+    const state = await this.snapshot(appSessionId);
+    if (!state.frames) return undefined;
+    const space = state.spaces.find((candidate) => candidate.id === spaceId);
+    if (!space || !space.pages.some((page) => page.label === label)) return undefined;
+
+    const found = this.probe();
+    if (!found.ok) return undefined;
+
+    const key = `${spaceId}:${label}`;
+    const now = this.now();
+    if (this.cachedFrame && this.cachedFrame.key === key && now - this.cachedFrame.at < FRAME_TTL_MS) {
+      return this.cachedFrame.frame;
+    }
+    const frame = await this.frameReader({ cliPath: found.path, spaceId, label, env: process.env })
+      .catch(() => undefined);
+    this.cachedFrame = { at: this.now(), key, frame };
+    return frame;
   }
 
   /** Cache and single-flight: concurrent sessions never multiply CLI processes. */

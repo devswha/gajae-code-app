@@ -1,9 +1,13 @@
 import { ChevronRight, Globe } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../shared/view/ui/Collapsible';
 import { cn } from '../../../utils/cn';
-import type { EgoActivityPage, EgoActivitySpace } from '../hooks/useEgoActivity';
+import { egoFrameUrl, type EgoActivityPage, type EgoActivitySpace } from '../hooks/useEgoActivity';
+
+/** Display cadence of the frame; the server serves one capture per page per window. */
+const FRAME_INTERVAL_MS = 1_200;
 
 /** Keep the lane compact; the rest is counted, never listed. */
 const MAX_BROWSER_ROWS = 2;
@@ -16,6 +20,37 @@ const currentPage = (space: EgoActivitySpace): EgoActivityPage | undefined =>
   space.pages.find((page) => page.active) ?? space.pages[0];
 
 /**
+ * A frame of the page the agent is on, refreshed while the row is open.
+ *
+ * It mounts only inside an expanded row, so a collapsed lane captures nothing:
+ * the picture costs a capture in the user's real browser, and it is taken only
+ * while somebody is actually looking at it. A capture that fails - a minimized
+ * ego window produces none at all - removes the image instead of leaving a
+ * stale one behind.
+ */
+function BrowserFrame({ sessionId, spaceId, label }: { sessionId: string; spaceId: number; label: string }) {
+  const { t } = useTranslation();
+  const [tick, setTick] = useState(0);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => setTick((value) => value + 1), FRAME_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, []);
+
+  if (failed) return null;
+  return (
+    <img
+      src={egoFrameUrl(sessionId, spaceId, label, tick)}
+      alt={t('agentSidebar.work.browserFrame')}
+      onError={() => setFailed(true)}
+      onLoad={() => setFailed(false)}
+      className="mb-1 w-full rounded-md border border-border/60 bg-muted/30"
+    />
+  );
+}
+
+/**
  * What the agent's ego lite browser is doing, inside the WORK lane.
  *
  * The collapsed row answers the lane's question - which Space, and the page it
@@ -24,7 +59,13 @@ const currentPage = (space: EgoActivitySpace): EgoActivityPage | undefined =>
  * render only what ego reported: no action verbs, no elapsed time, no progress
  * claims, and no page the agent did not open.
  */
-export default function AgentSidebarBrowser({ spaces }: { spaces: readonly EgoActivitySpace[] }) {
+export default function AgentSidebarBrowser({ spaces, sessionId, frames }: {
+  spaces: readonly EgoActivitySpace[];
+  /** Needed to ask for a frame; without it only the text rows render. */
+  sessionId?: string;
+  /** The separate picture opt-in, as the server reports it for this session. */
+  frames?: boolean;
+}) {
   const { t } = useTranslation();
   if (spaces.length === 0) return null;
 
@@ -54,6 +95,11 @@ export default function AgentSidebarBrowser({ spaces }: { spaces: readonly EgoAc
                   )}
                 </CollapsibleTrigger>
                 <CollapsibleContent>
+                  {frames && sessionId && page ? (
+                    <div className="px-2 pt-1 pl-7">
+                      <BrowserFrame sessionId={sessionId} spaceId={space.id} label={page.label} />
+                    </div>
+                  ) : null}
                   <ul className="pb-1 pl-7">
                     {space.pages.map((item) => (
                       <li

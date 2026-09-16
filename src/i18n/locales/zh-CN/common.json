@@ -97,7 +97,8 @@
       "browserRunning": "浏览中",
       "browserSpace": "浏览器空间 {{id}}",
       "browserMore": "还有 {{count}} 个",
-      "browserActivePage": "当前页面"
+      "browserActivePage": "当前页面",
+      "browserFrame": "浏览器画面"
     },
     "actionRequired": {
       "title": "需要回复",

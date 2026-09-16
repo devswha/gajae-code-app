@@ -22,10 +22,18 @@ const space = (overrides: Partial<EgoActivitySpace> = {}): EgoActivitySpace => (
   ...overrides,
 });
 
-async function setup(spaces: EgoActivitySpace[]) {
+async function setup(spaces: EgoActivitySpace[], options: { frames?: boolean; sessionId?: string } = {}) {
   const i18n = createInstance();
   await i18n.init({ lng: 'en', fallbackLng: 'en', resources: { en: { translation: enCommon } }, interpolation: { escapeValue: false } });
-  return render(<I18nextProvider i18n={i18n}><AgentSidebarBrowser spaces={spaces} /></I18nextProvider>);
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <AgentSidebarBrowser
+        spaces={spaces}
+        sessionId={'sessionId' in options ? options.sessionId : 'session-1'}
+        frames={options.frames ?? false}
+      />
+    </I18nextProvider>,
+  );
 }
 
 const row = (name: RegExp) => screen.getByRole('button', { name });
@@ -82,6 +90,44 @@ test('simultaneous Spaces are capped and the rest are counted, never listed', as
   assert.ok(row(/space 2/));
   assert.equal(screen.queryByRole('button', { name: /space 3/ }), null);
   assert.ok(screen.getByText('+2 more'));
+});
+
+test('the page picture appears only when its own opt-in is on, and only inside an open row', async () => {
+  await setup([space()], { frames: true });
+
+  // A collapsed row costs no capture in the user's real browser.
+  assert.equal(screen.queryByRole('img', { name: 'Browser screen' }), null);
+
+  fireEvent.click(row(/check the release dashboard/));
+  const frame = screen.getByRole('img', { name: 'Browser screen' }) as HTMLImageElement;
+  const url = new URL(frame.src, 'http://localhost');
+  assert.equal(url.pathname, '/api/automation/ego-activity/frame');
+  assert.equal(url.searchParams.get('sessionId'), 'session-1');
+  assert.equal(url.searchParams.get('space'), '15');
+  // The active page is the one shown, not merely the first.
+  assert.equal(url.searchParams.get('page'), 'p1');
+
+  fireEvent.click(row(/check the release dashboard/));
+  assert.equal(screen.queryByRole('img', { name: 'Browser screen' }), null);
+});
+
+test('with the picture opt-in off the row still expands, it just has no picture', async () => {
+  await setup([space()], { frames: false });
+  fireEvent.click(row(/check the release dashboard/));
+
+  assert.equal(screen.queryByRole('img', { name: 'Browser screen' }), null);
+  assert.ok(screen.getByText('Changelog'), 'the page list is unaffected');
+});
+
+test('a capture that cannot be taken removes the picture instead of leaving a stale one', async () => {
+  await setup([space()], { frames: true });
+  fireEvent.click(row(/check the release dashboard/));
+
+  const frame = screen.getByRole('img', { name: 'Browser screen' });
+  // A minimized ego window produces no frame at all, and the endpoint 404s.
+  fireEvent.error(frame);
+  assert.equal(screen.queryByRole('img', { name: 'Browser screen' }), null);
+  assert.ok(screen.getByText('Releases'), 'the addresses stay, because those never depend on a capture');
 });
 
 test('no spaces means no block at all: the lane stays silent rather than empty', async () => {

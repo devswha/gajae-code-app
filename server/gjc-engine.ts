@@ -120,10 +120,13 @@ export {
   EGO_ACTIVITY_SCRIPT,
   EGO_ACTIVITY_TOKEN_PREFIX,
   EMPTY_EGO_ACTIVITY,
+  buildEgoFrameScript,
   egoActivityToken,
   matchesEgoActivityToken,
   parseEgoActivityOutput,
+  parseEgoFrameOutput,
   readEgoActivity,
+  readEgoFrame,
   selectEgoActivitySpaces,
 } from './gjc-ego-activity.js';
 export type {
@@ -131,6 +134,7 @@ export type {
   EgoActivityPage,
   EgoActivitySnapshot,
   EgoActivitySpace,
+  EgoFrame,
 } from './gjc-ego-activity.js';
 
 export type {

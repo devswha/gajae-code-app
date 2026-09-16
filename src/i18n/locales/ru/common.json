@@ -97,7 +97,8 @@
       "browserRunning": "Работа в браузере",
       "browserSpace": "Пространство браузера {{id}}",
       "browserMore": "+{{count}} ещё",
-      "browserActivePage": "Текущая страница"
+      "browserActivePage": "Текущая страница",
+      "browserFrame": "Экран браузера"
     },
     "actionRequired": {
       "title": "Требуется ответ",

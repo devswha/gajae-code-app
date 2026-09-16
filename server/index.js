@@ -14,6 +14,7 @@ import {
     AppError, WORKSPACES_ROOT, asyncHandler, getHttpActivityGeneration,
     getOpenCodeDatabasePath, snapshotHttpActivity, validateWorkspacePath,
 } from '@/shared/utils.js';
+import { projectFileResponseHeaders } from '@/shared/project-file-response.js';
 import {
     configureInternalDesktopAdmission,
     enterInternalActivity,
@@ -565,9 +566,11 @@ app.get('/api/projects/:projectId/files/content', authenticateToken, asyncHandle
             return res.status(404).json({ error: 'File not found' });
         }
 
-        // Get file extension and set appropriate content type
-        const mimeType = mime.lookup(readablePath) || 'application/octet-stream';
-        res.setHeader('Content-Type', mimeType);
+        // Workspace bytes are content the app did not write, so they are never
+        // served as a sniffable same-origin document. See project-file-response.
+        for (const [header, value] of Object.entries(projectFileResponseHeaders(mime.lookup(readablePath)))) {
+            res.setHeader(header, value);
+        }
 
         // Keep the admission lease until the source descriptor actually closes,
         // including a disconnected viewer or a source read error.
@@ -1444,6 +1447,11 @@ app.get('*', (req, res) => {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
+        // Nothing frames this app, and a framed copy is how a page on another
+        // origin gets the owner's session to click for it. `frame-ancestors`
+        // only works as a header, which is why it is not in index.html.
+        res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+        res.setHeader('X-Frame-Options', 'DENY');
         res.sendFile(indexPath);
     } else {
         // In development, redirect to Vite dev server only if dist doesn't exist

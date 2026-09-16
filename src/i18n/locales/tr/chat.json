@@ -274,5 +274,12 @@
       "partial": "Kısmi eşleşme",
       "recent": "Son etkinlik"
     }
+  },
+  "sessionWorktree": {
+    "label": "Çalışma konumu",
+    "project": "Proje",
+    "newWorktree": "Yeni çalışma ağacı",
+    "worktree": "Çalışma ağacı",
+    "preparing": "Çalışma ağacı hazırlanıyor"
   }
 }

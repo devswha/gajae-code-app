@@ -274,5 +274,12 @@
       "partial": "Correspondance partielle",
       "recent": "Récemment actif"
     }
+  },
+  "sessionWorktree": {
+    "label": "Dossier d’exécution",
+    "project": "Projet",
+    "newWorktree": "Nouveau worktree",
+    "worktree": "Worktree",
+    "preparing": "Préparation du worktree"
   }
 }

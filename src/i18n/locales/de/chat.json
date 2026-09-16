@@ -274,5 +274,12 @@
       "partial": "Teilweise Übereinstimmung",
       "recent": "Kürzlich aktiv"
     }
+  },
+  "sessionWorktree": {
+    "label": "Ausführungsort",
+    "project": "Projekt",
+    "newWorktree": "Neuer Worktree",
+    "worktree": "Worktree",
+    "preparing": "Worktree wird vorbereitet"
   }
 }

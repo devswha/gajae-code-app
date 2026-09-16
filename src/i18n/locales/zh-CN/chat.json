@@ -274,5 +274,12 @@
       "partial": "部分匹配",
       "recent": "最近活跃"
     }
+  },
+  "sessionWorktree": {
+    "label": "运行位置",
+    "project": "项目",
+    "newWorktree": "新建工作树",
+    "worktree": "工作树",
+    "preparing": "正在准备工作树"
   }
 }

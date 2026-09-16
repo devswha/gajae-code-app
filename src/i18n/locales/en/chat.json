@@ -274,5 +274,12 @@
       "partial": "Partial match",
       "recent": "Recently active"
     }
+  },
+  "sessionWorktree": {
+    "label": "Run location",
+    "project": "Project",
+    "newWorktree": "New worktree",
+    "worktree": "Worktree",
+    "preparing": "Preparing worktree"
   }
 }

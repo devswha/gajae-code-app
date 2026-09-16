@@ -11,6 +11,7 @@ import { useLegacySkipPermissionsMigration, useProjectPermissions } from '../../
 import type { ProjectSession } from '../../../types/app';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useSessionLocation } from '../hooks/useSessionLocation';
+import { useProjectGitSummary } from '../../workspace/hooks/useProjectGitSummary';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatSessionState } from '../hooks/useChatSessionState';
@@ -21,6 +22,7 @@ import { deriveLiveActivity } from '../utils/toolActivity';
 import OAuthLoginDialog from '../OAuthLoginDialog';
 import { useGoalControls } from '../hooks/useGoalControls';
 
+import SessionWorktreePicker from './SessionWorktreePicker';
 import GoalControls from './GoalControls';
 import ChatComposer from './ChatComposer';
 import ChatMessagesPane from './ChatMessagesPane';
@@ -87,7 +89,15 @@ function ChatInterface({
   });
 
   const { setCurrentSessionId } = session;
-  const sessionLocation = useSessionLocation(selectedSession?.id ?? session.currentSessionId);
+  const locationSessionId = selectedSession?.id ?? session.currentSessionId;
+  const sessionLocation = useSessionLocation(locationSessionId);
+  // A managed worktree is a git worktree, so it exists only for a repository.
+  // The summary is the same query the Environment rail already runs, and it is
+  // the only thing here that knows the answer: until it does, or when it says
+  // no, the picker stays on the project so the worktree route is never called
+  // where it would simply fail.
+  const projectGit = useProjectGitSummary(selectedProject?.projectId, Boolean(selectedProject?.projectId), locationSessionId ?? undefined, selectedProject?.fullPath);
+  const projectIsRepository = projectGit.state.kind === 'ready';
   const establishSession = useCallback<NonNullable<ChatInterfaceProps['onSessionEstablished']>>((id, context) => {
     setCurrentSessionId(id);
     onSessionEstablished?.(id, context);
@@ -96,6 +106,10 @@ function ChatInterface({
 
   const composer = useChatComposerState({
     executionCwd: sessionLocation.data?.cwd,
+    // An unattended run commits, pushes and switches branches on whatever
+    // checkout it was given, so a repository session starts isolated and the
+    // user opts back into the shared checkout rather than out of it.
+    defaultUseWorktree: projectIsRepository,
     selectedProject,
     selectedSession,
     currentSessionId: session.currentSessionId,
@@ -247,6 +261,9 @@ function ChatInterface({
       onSteer={composer.handleSteer}
       isDragActive={composer.isDragActive}
       sessionPinnedModel={sessionPinnedModel}
+      sessionLocationControl={projectIsRepository || locationSessionId
+        ? <SessionWorktreePicker value={composer.useWorktree} onChange={composer.setUseWorktree} sessionId={locationSessionId} location={sessionLocation.data} disabled={session.isProcessing} />
+        : null}
       queuedDrafts={composer.queuedDrafts}
       onEditQueuedDraft={composer.editQueuedDraft}
       onDeleteQueuedDraft={composer.deleteQueuedDraft}

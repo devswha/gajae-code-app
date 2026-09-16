@@ -274,5 +274,12 @@
       "partial": "部分一致",
       "recent": "最近の活動"
     }
+  },
+  "sessionWorktree": {
+    "label": "実行場所",
+    "project": "プロジェクト",
+    "newWorktree": "新しいワークツリー",
+    "worktree": "ワークツリー",
+    "preparing": "ワークツリーを準備中"
   }
 }

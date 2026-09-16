@@ -16,6 +16,7 @@ const idleWithQueue: QueueFlushInput = {
   awaitingDispatchedTurn: false,
   composerHasInput: false,
   headAwaitingSteer: false,
+  turnAborted: false,
 };
 
 test('a turn that just ended flushes the head immediately', () => {
@@ -91,6 +92,16 @@ test('a head still waiting on its steer answer is never sent from here', () => {
   assert.deepEqual(decideQueueFlush({ ...idleWithQueue, headAwaitingSteer: true }), {
     action: 'skip',
     reason: 'head-awaiting-steer',
+  });
+});
+
+test('Stop keeps the queue but never sends it', () => {
+  // Aborting clears isLoading the same way a finished turn does. Without this
+  // the next queued draft leaves with no delay, so Stop reads as "pause, then
+  // resume" - the one thing the user asked it not to do.
+  assert.deepEqual(decideQueueFlush({ ...idleWithQueue, turnAborted: true }), {
+    action: 'skip',
+    reason: 'turn-aborted',
   });
 });
 

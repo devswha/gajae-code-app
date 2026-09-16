@@ -158,6 +158,22 @@ describe('chat run event protocol', () => {
 });
 
 describe('chat run lifecycle', () => {
+  test('a completed run publishes nothing further, whatever the worker is still doing', async () => {
+    // Stop completes the run while the worker is still unwinding: its late text
+    // and tool frames would attach to a transcript the user already saw end.
+    await openDatabase(() => {
+      const { run, socket } = createRun('stopped');
+      run.writer.send({ kind: 'stream_delta', provider: 'gjc', sessionId: 'native', content: 'before' });
+      chatRunRegistry.completeRunIfCurrent(run, { exitCode: 0, aborted: true });
+      run.writer.send({ kind: 'stream_delta', provider: 'gjc', sessionId: 'native', content: 'after the stop' });
+      run.writer.send({ kind: 'tool_use', provider: 'gjc', sessionId: 'native', toolName: 'bash', toolId: 'late' });
+      run.writer.send({ kind: 'complete', provider: 'gjc', sessionId: 'native', exitCode: 0 });
+      assert.deepEqual(socket.messages.map((frame) => frame.kind), ['stream_delta', 'complete']);
+      assert.equal(socket.messages.at(-1)?.aborted, true);
+      assert.deepEqual(chatRunRegistry.replayEvents('stopped', 0, run.replayGeneration).map((frame) => frame.kind), ['stream_delta', 'complete']);
+    });
+  });
+
   test('obsolete writers cannot publish into a replacement run', async () => {
     await openDatabase(() => {
       const { run: oldRun, socket } = createRun('obsolete');

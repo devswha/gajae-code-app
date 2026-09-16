@@ -70,6 +70,8 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   const composerOwner = JSON.stringify([projectId, conversation]);
   const queueOwner = useRef(composerOwner);
   const queueInFlight = useRef(false);
+  /** The session whose turn the user stopped, until they start another one. */
+  const abortedTurn = useRef<string | null>(null);
   const dispatchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const priorLoading = useRef(isLoading);
   const priorConversation = useRef(composerOwner);
@@ -205,6 +207,8 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
       }
       if (!allocation || !isCurrent()) return;
       const { id, context } = allocation;
+      // A new turn the user asked for reopens the queue that Stop closed.
+      abortedTurn.current = null;
       if (sendMessage({ type: 'chat.send', sessionId: id, content: text, options: { ...sendOptions, images, goalUiVersion: 1 } }) === false) {
         addMessage({ type: 'error', content: 'Connection lost. Your draft has been kept; retry when connected.', timestamp: new Date() });
         return;
@@ -287,7 +291,7 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
     priorLoading.current = isLoading;
     if (isLoading || switched) { queueInFlight.current = false; if (dispatchTimer.current) clearTimeout(dispatchTimer.current); }
     const head = queuedDrafts[0];
-    const verdict = decideQueueFlush({ sessionSwitched: switched, isLoading, wasLoading: wasBusy, queueLength: queuedDrafts.length, awaitingDispatchedTurn: queueInFlight.current, composerHasInput: Boolean(input.trim()) || attachedImages.length > 0, headAwaitingSteer: Boolean(head?.pendingSteer || head?.requiresReview) });
+    const verdict = decideQueueFlush({ sessionSwitched: switched, isLoading, wasLoading: wasBusy, queueLength: queuedDrafts.length, awaitingDispatchedTurn: queueInFlight.current, composerHasInput: Boolean(input.trim()) || attachedImages.length > 0, headAwaitingSteer: Boolean(head?.pendingSteer || head?.requiresReview), turnAborted: abortedTurn.current !== null && abortedTurn.current === conversation });
     if (composerFrozen || !draftReady || draftPersistence.phase === 'error' || verdict.action !== 'flush' || !head) return;
     const timer = setTimeout(() => {
       if (isComposerFrozen()) return;
@@ -379,7 +383,9 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   // The Changes tab's line comments arrive here: one new paragraph with the
   // reference and the quote, focus moved to the composer, ready to send.
   const insertAtEnd = useCallback((text: string) => { if (isComposerSealed() || !text.trim()) return; const next = inputRef.current.trim() ? `${inputRef.current.trimEnd()}\n\n${text}` : text; setInput(next); inputRef.current = next; textareaRef.current?.focus(); }, [setInput]);
-  const handleAbortSession = useCallback(() => { if (isComposerSealed() || !canAbortSession) return; const id = selectedSession?.id || currentSessionId; if (!id) { console.warn('Abort requested but no session ID is available.'); return; } sendMessage({ type: 'chat.abort', sessionId: id }); }, [canAbortSession, currentSessionId, selectedSession?.id, sendMessage]);
+  // Stop ends the turn without ending the user's intent to stop: the queued
+  // drafts stay, but nothing sends them until the user starts a turn again.
+  const handleAbortSession = useCallback(() => { if (isComposerSealed() || !canAbortSession) return; const id = selectedSession?.id || currentSessionId; if (!id) { console.warn('Abort requested but no session ID is available.'); return; } abortedTurn.current = id; sendMessage({ type: 'chat.abort', sessionId: id }); }, [canAbortSession, currentSessionId, selectedSession?.id, sendMessage]);
   const handlePermissionDecision = useCallback((requestIds: string | string[], decision: PermissionDecision) => {
     const finishOperation = beginComposerOperation('send');
     if (!finishOperation) return;

@@ -32,6 +32,8 @@ interface UseChatRealtimeHandlersArgs {
 }
 
 const skipsStore = new Set(['complete', 'status', 'permission_request', 'permission_cancelled']);
+/** Frames that only a live turn produces: their arrival is what "streaming" means. */
+const STREAMING_TURN_KINDS = new Set(['stream_delta', 'stream_end', 'text', 'thinking', 'tool_use', 'tool_result', 'permission_request']);
 
 export function useChatRealtimeHandlers({
   subscribe, provider, selectedSession, currentSessionId, setTokenBudget, setSessionState,
@@ -58,7 +60,11 @@ export function useChatRealtimeHandlers({
     };
     const resolveSession = (event: ServerEvent) => {
       const visible = displayedSession.current;
-      const sessionId = typeof event.sessionId === 'string' && event.sessionId ? event.sessionId : visible;
+      // A frame that does not name a session does not belong to one. Job
+      // projection frames and connection-level frames have no `sessionId`,
+      // and attaching them to whatever happens to be on screen is how they
+      // became ghost rows and phantom errors in an open conversation.
+      const sessionId = typeof event.sessionId === 'string' && event.sessionId ? event.sessionId : null;
       return { sessionId, visible };
     };
     const commitPermissions = (next: PendingPermissionRequest[]) => {
@@ -92,6 +98,15 @@ export function useChatRealtimeHandlers({
       // Subscription responses may race and replay the same frames twice.
       // Deduplicate before converting stream_end into a new synthetic text id.
       if (sessionId && !sessionStore.acceptRealtimeEvent(sessionId, event.id)) return;
+
+      // A live turn owns its message window: while it streams, the observer
+      // query must not reconcile history over the top of it, and the slot must
+      // not be evicted. The store has always had this status; production never
+      // set it, so every mid-turn upsert or history refetch could reorder or
+      // drop what was arriving.
+      if (sessionId && STREAMING_TURN_KINDS.has(event.kind) && sessionStore.getSessionSlot(sessionId)?.status !== 'streaming') {
+        sessionStore.setStatus(sessionId, 'streaming');
+      }
 
       if (event.kind === 'websocket_reconnected') {
         onWebSocketReconnect?.();
@@ -180,6 +195,7 @@ export function useChatRealtimeHandlers({
 
       if (event.kind === 'complete') {
         if (sessionId === visible) flushStreaming(sessionId, false);
+        if (sessionId && sessionStore.getSessionSlot(sessionId)?.status === 'streaming') sessionStore.setStatus(sessionId, 'idle');
         onSessionIdle?.(sessionId);
         if (sessionId === visible) commitPermissions([]);
         if (event.aborted) return;

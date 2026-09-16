@@ -1433,6 +1433,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
               writer.send({ kind: 'session_title', title: sessionManager.getSessionName(), source: 'auto', sessionId: sessionManager.getSessionId() });
             })
           : null;
+        // Stop can land after the session exists but before its first prompt:
+        // goal control, a builtin command and the title task all await here,
+        // and `session.abort()` has nothing to interrupt yet. Without this the
+        // turn starts anyway and Stop reads as "pause, then resume".
+        if (activeRun.abortState !== 'idle') promptMessage = null;
         let promptError: unknown;
         try {
           if (promptMessage !== null) {

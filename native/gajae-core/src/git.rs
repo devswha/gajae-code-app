@@ -777,8 +777,21 @@ where
     })
 }
 
+/// The environment every `git` this core runs is given, and nothing else.
+///
+/// The two config variables are the point: `git worktree add` checks a tree
+/// out, and a checkout runs whatever `filter.<name>.smudge` the *config* names,
+/// with `core.hooksPath=/dev/null` doing nothing about it. Excluding the system
+/// and global config files means a filter, an alias, a credential helper or an
+/// `includeIf` planted there cannot turn creating a worktree into running a
+/// command.
+///
+/// A filter defined in the repository's own `.git/config` still runs: git has
+/// no switch that turns filters off, and overriding the names found there
+/// breaks the legitimate ones (git-lfs is a process filter). That trust is the
+/// same one `git status` already places in a checkout the user opened.
 fn git_environment() -> Vec<(String, String)> {
-    ["PATH", "HOME"]
+    let mut environment: Vec<(String, String)> = ["PATH", "HOME"]
         .into_iter()
         .chain(if cfg!(windows) {
             vec!["SystemRoot", "TEMP", "TMP"]
@@ -786,7 +799,13 @@ fn git_environment() -> Vec<(String, String)> {
             Vec::new()
         })
         .filter_map(|key| std::env::var(key).ok().map(|value| (key.to_owned(), value)))
-        .collect()
+        .collect();
+    environment.push(("GIT_CONFIG_NOSYSTEM".to_owned(), "1".to_owned()));
+    environment.push((
+        "GIT_CONFIG_GLOBAL".to_owned(),
+        if cfg!(windows) { "NUL" } else { "/dev/null" }.to_owned(),
+    ));
+    environment
 }
 
 fn read_limited<R: Read + Send + 'static>(
@@ -1155,12 +1174,70 @@ mod tests {
     }
 
     #[test]
-    fn git_environment_is_an_allowlist() {
+    fn git_environment_is_an_allowlist_that_excludes_system_and_global_config() {
         let environment = git_environment();
         assert!(environment.iter().all(|(key, _)| matches!(
             key.as_str(),
-            "PATH" | "HOME" | "SystemRoot" | "TEMP" | "TMP"
+            "PATH"
+                | "HOME"
+                | "SystemRoot"
+                | "TEMP"
+                | "TMP"
+                | "GIT_CONFIG_NOSYSTEM"
+                | "GIT_CONFIG_GLOBAL"
         )));
+        // A checkout runs the smudge filters the config names, and hooksPath
+        // does nothing about that: a filter planted in the system or global
+        // config would run when a managed worktree is created.
+        assert_eq!(
+            environment
+                .iter()
+                .find(|(key, _)| key == "GIT_CONFIG_NOSYSTEM")
+                .map(|(_, value)| value.as_str()),
+            Some("1")
+        );
+        assert!(
+            environment
+                .iter()
+                .any(|(key, value)| key == "GIT_CONFIG_GLOBAL" && !value.is_empty())
+        );
+    }
+
+    #[test]
+    fn a_filter_in_the_users_gitconfig_is_not_visible_to_this_core() {
+        // `core.hooksPath=/dev/null` disables hooks, not checkout filters: a
+        // `filter.<name>.smudge` in the user's own gitconfig runs when
+        // `git worktree add` checks the tree out. The config this core's git
+        // reads must therefore not include it.
+        let repo = TestRepo::new();
+        let home = repo.path.join("fake-home");
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::write(
+            home.join(".gitconfig"),
+            "[filter \"hostile\"]\n\tsmudge = sh -c 'touch /tmp/gajae-smudge-ran && cat'\n",
+        )
+        .unwrap();
+
+        let read_filter = |environment: Vec<(String, String)>| {
+            let mut command = std::process::Command::new("git");
+            command
+                .current_dir(&repo.path)
+                .env_clear()
+                .envs(environment)
+                .env("HOME", &home)
+                .args(["config", "--get", "filter.hostile.smudge"]);
+            let output = command.output().unwrap();
+            String::from_utf8_lossy(&output.stdout).trim().to_owned()
+        };
+
+        // The fixture is real: a git that reads the user's gitconfig finds it.
+        let unguarded: Vec<(String, String)> = git_environment()
+            .into_iter()
+            .filter(|(key, _)| key != "GIT_CONFIG_GLOBAL")
+            .collect();
+        assert!(read_filter(unguarded).contains("gajae-smudge-ran"));
+
+        assert_eq!(read_filter(git_environment()), "");
     }
 
     #[test]

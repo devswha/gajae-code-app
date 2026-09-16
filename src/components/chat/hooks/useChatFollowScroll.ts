@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { RefObject, SetStateAction } from 'react';
+import type { SetStateAction } from 'react';
 
 const BOTTOM_THRESHOLD = 50;
 
 type UseChatFollowScrollArgs = {
-  scrollContainerRef: RefObject<HTMLDivElement | null>;
+  // The attached node, not a ref object: the transcript pane mounts and
+  // unmounts under the landing view while this hook stays mounted, so a ref
+  // read at first-effect time binds listeners to nothing and never retries.
+  container: HTMLDivElement | null;
   enabled: boolean;
 };
 
@@ -12,7 +15,7 @@ function isNearBottom(node: HTMLDivElement) {
   return node.scrollHeight - node.scrollTop - node.clientHeight < BOTTOM_THRESHOLD;
 }
 
-export function useChatFollowScroll({ scrollContainerRef, enabled }: UseChatFollowScrollArgs) {
+export function useChatFollowScroll({ container, enabled }: UseChatFollowScrollArgs) {
   const [isFollowing, setIsFollowing] = useState(true);
   const isFollowingRef = useRef(true);
   const enabledRef = useRef(enabled);
@@ -25,17 +28,15 @@ export function useChatFollowScroll({ scrollContainerRef, enabled }: UseChatFoll
   }, []);
   const follow = useCallback(() => setFollowing(true), [setFollowing]);
   const scrollToBottom = useCallback(() => {
-    const node = scrollContainerRef.current;
-    if (node) node.scrollTop = node.scrollHeight;
+    if (container) container.scrollTop = container.scrollHeight;
     setFollowing(true);
-  }, [scrollContainerRef, setFollowing]);
+  }, [container, setFollowing]);
   const handleScroll = useCallback(() => {
-    const node = scrollContainerRef.current;
-    if (node && isNearBottom(node)) follow();
-  }, [follow, scrollContainerRef]);
+    if (container && isNearBottom(container)) follow();
+  }, [container, follow]);
 
   useEffect(() => {
-    const node = scrollContainerRef.current;
+    const node = container;
     if (!node) return;
 
     const stopFollowing = () => setFollowing(false);
@@ -75,10 +76,10 @@ export function useChatFollowScroll({ scrollContainerRef, enabled }: UseChatFoll
       node.removeEventListener('pointerdown', onPointerDown);
       node.removeEventListener('keydown', onKeyDown);
     };
-  }, [handleScroll, scrollContainerRef, setFollowing]);
+  }, [container, handleScroll, setFollowing]);
 
   useEffect(() => {
-    const node = scrollContainerRef.current;
+    const node = container;
     if (!node || typeof ResizeObserver === 'undefined') return;
     let content = node.firstElementChild;
     const observer = new ResizeObserver(() => {
@@ -97,7 +98,7 @@ export function useChatFollowScroll({ scrollContainerRef, enabled }: UseChatFoll
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [enabled, scrollContainerRef]);
+  }, [container, enabled]);
 
   return { isFollowing, setFollowing, follow, scrollToBottom, handleScroll };
 }

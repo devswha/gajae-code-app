@@ -129,6 +129,16 @@ export function useChatSessionState({
   const [searchTarget, setSearchTarget] = useState<SearchRequest | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // The transcript pane is mounted and unmounted under the landing view while
+  // this hook stays mounted, and the interface is never remounted per session.
+  // Scroll behaviour therefore hangs off the attached node, not off a ref read
+  // once at mount: the ref stays for synchronous reads, the state re-binds
+  // listeners and observers every time the pane attaches.
+  const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
+  const attachScrollContainer = useCallback((node: HTMLDivElement | null) => {
+    scrollContainerRef.current = node;
+    setScrollContainer(node);
+  }, []);
   const activeSession = selectedSession?.id || currentSessionId || null;
   const activeSessionRef = useRef(activeSession);
   activeSessionRef.current = activeSession;
@@ -241,7 +251,7 @@ export function useChatSessionState({
     isFollowing,
     setFollowing,
     scrollToBottom,
-  } = useChatFollowScroll({ scrollContainerRef, enabled: followScrollEnabled });
+  } = useChatFollowScroll({ container: scrollContainer, enabled: followScrollEnabled });
   const isUserScrolledUp = !isFollowing;
   const setIsUserScrolledUp = useCallback<Dispatch<SetStateAction<boolean>>>((value) => {
     setFollowing(previous => {
@@ -346,12 +356,12 @@ export function useChatSessionState({
       initialScrollRef.current = false;
       return;
     }
-    if (!initialScrollRef.current || isLoadingSessionMessages || !scrollContainerRef.current) return;
+    if (!initialScrollRef.current || isLoadingSessionMessages || !scrollContainer) return;
     if (!chatMessages.length || searchInProgressRef.current) {
       initialScrollRef.current = false;
       return;
     }
-    const node = scrollContainerRef.current;
+    const node = scrollContainer;
     let frames = 0;
     let unchanged = 0;
     let height = 0;
@@ -370,7 +380,7 @@ export function useChatSessionState({
     };
     frameId = requestAnimationFrame(settle);
     return () => cancelAnimationFrame(frameId);
-  }, [chatMessages.length, isFollowing, isLoadingSessionMessages]);
+  }, [chatMessages.length, isFollowing, isLoadingSessionMessages, scrollContainer]);
 
   useEffect(() => {
     if (!selectedProject || !selectedSession) {
@@ -550,11 +560,11 @@ export function useChatSessionState({
     if (hasNewTailContent(before.messages, chatMessages)) setHasNewMessagesBelow(true);
   }, [activeSession, chatMessages, isFollowing, isLoadingSessionMessages]);
   useEffect(() => {
-    const node = scrollContainerRef.current;
+    const node = scrollContainer;
     if (!node) return;
     node.addEventListener('scroll', handleScroll);
     return () => node.removeEventListener('scroll', handleScroll);
-  }, [handleScroll]);
+  }, [handleScroll, scrollContainer]);
 
   const loadAllMessages = useCallback(async () => {
     if (!selectedProject || !selectedSession || isLoadingAllMessages) return;
@@ -632,6 +642,7 @@ export function useChatSessionState({
     showLoadAllOverlay,
     createDiff,
     scrollContainerRef,
+    attachScrollContainer,
     scrollToBottom,
     scrollToBottomAndReset,
     isNearBottom,

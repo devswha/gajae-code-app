@@ -32,7 +32,10 @@ function lastMessageOf(item: PaneListItem): ChatMessage | null {
 }
 
 interface ChatMessagesPaneProps {
+  /** Synchronous reads (anchoring, near-bottom checks) by the owning session state. */
   scrollContainerRef: RefObject<HTMLDivElement | null>;
+  /** Callback ref that publishes the attached pane so scroll behaviour re-binds on every mount. */
+  attachScrollContainer: (node: HTMLDivElement | null) => void;
   preserveScrollPosition?: boolean;
   onWheel: () => void;
   onTouchMove: () => void;
@@ -67,6 +70,7 @@ interface ChatMessagesPaneProps {
 
 function ChatMessagesPane({
   scrollContainerRef,
+  attachScrollContainer,
   preserveScrollPosition = false,
   onWheel,
   onTouchMove,
@@ -138,7 +142,7 @@ function ChatMessagesPane({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div
-        ref={scrollContainerRef}
+        ref={attachScrollContainer}
         onWheel={onWheel}
         onTouchMove={onTouchMove}
         className="chat-messages-pane relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-3 pb-3 sm:pt-4 sm:pb-4"

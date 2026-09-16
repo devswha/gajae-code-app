@@ -325,6 +325,7 @@ function ChatInterface({
           <>
             <ChatMessagesPane
               scrollContainerRef={session.scrollContainerRef}
+              attachScrollContainer={session.attachScrollContainer}
               preserveScrollPosition={session.isUserScrolledUp && !session.isLoadingSessionMessages}
               onWheel={session.handleScroll}
               onTouchMove={session.handleScroll}

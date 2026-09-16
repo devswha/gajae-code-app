@@ -164,7 +164,8 @@ const message = (id: string, seconds: number, content = id): NormalizedMessage =
   provider: 'gjc', kind: 'text', role: 'assistant', content,
 });
 
-async function setup() {
+async function setup(options: { pane?: boolean } = {}) {
+  let pane = options.pane ?? true;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () => new Response('{}', { status: 200 })) as typeof fetch;
   let rows = [message('first', 20), message('latest', 30)];
@@ -190,7 +191,8 @@ async function setup() {
   };
   function Harness() {
     state = useChatSessionState(props);
-    return <div ref={state.scrollContainerRef}><div /></div>;
+    // Production wiring: the pane publishes its node through the callback ref.
+    return pane ? <div ref={state.attachScrollContainer}><div /></div> : null;
   }
   const view = render(<Harness />);
   await act(async () => {});
@@ -204,6 +206,13 @@ async function setup() {
     rows: () => rows,
     update,
     pageRequests: () => pageRequests,
+    mountPane() {
+      pane = true;
+      act(() => { view.rerender(<Harness />); });
+      const node = state!.scrollContainerRef.current;
+      assert.ok(node, 'the attached pane is published to the session state');
+      return node;
+    },
     async page(next: NormalizedMessage[], beforeResolve?: () => void, hasMore = false) {
       let request: Promise<void>;
       act(() => { request = state!.handleScroll(); });
@@ -389,6 +398,18 @@ test('a genuine append in the same commit as prepend is announced', async () => 
     assert.equal(harness.state().hasNewMessagesBelow, true);
     act(() => harness.state().scrollToBottomAndReset());
     assert.equal(harness.state().hasNewMessagesBelow, false);
+  } finally { harness.close(); }
+});
+
+test('a pane attached after the landing view still binds the transcript scroll listener', async () => {
+  // The chat interface is never remounted per session: until the first message
+  // lands, the landing view owns the viewport and there is no pane to bind.
+  const harness = await setup({ pane: false });
+  try {
+    const node = harness.mountPane();
+    assert.equal(harness.pageRequests(), 0);
+    await act(async () => { node.dispatchEvent(new Event('scroll')); });
+    assert.equal(harness.pageRequests(), 1);
   } finally { harness.close(); }
 });
 

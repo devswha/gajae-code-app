@@ -97,7 +97,8 @@
       "browserRunning": "ブラウザ操作中",
       "browserSpace": "ブラウザースペース {{id}}",
       "browserMore": "他 {{count}} 件",
-      "browserActivePage": "現在のページ"
+      "browserActivePage": "現在のページ",
+      "browserFrame": "ブラウザ画面"
     },
     "actionRequired": {
       "title": "応答が必要",

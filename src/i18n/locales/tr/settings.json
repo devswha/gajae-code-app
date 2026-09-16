@@ -149,6 +149,8 @@
       "connectionFailed": "ego-browser bağlantı testi başarısız oldu.",
       "activity": "Tarayıcı etkinliğini göster",
       "activityDescription": "Çalışma sürerken ego lite Space'ini, sayfalarını ve geçerli adreslerini okur ve ajan kenar çubuğunda gösterir. Hiçbir şey saklanmaz, yalnızca bu oturumun oluşturduğu ajana ait Space'ler okunur ve sorgu dizeleri kaldırılır.",
+      "activityFrame": "Tarayıcı ekranını göster",
+      "activityFrameDescription": "Ajanın bulunduğu sayfanın küçük bir görüntüsünü, satır açıkken saniyede bir kadar yenileyerek gösterir. Oturumu açık tarayıcının küçültülmüş bir görüntüsüdür, yalnızca satır genişletilmişken alınır ve saklanmaz.",
       "saveFailed": "Tarayıcı arka ucu kaydedilemedi."
     },
     "builtinBrowser": { "title": "Yerleşik tarayıcı", "description": "Seçilen GJC arka ucundan bağımsız olarak yerleşik tarayıcıyı genişliği ayarlanabilir sağ panelde açın.", "label": "Yerleşik tarayıcı", "note": "Yalnızca macOS masaüstü uygulamasında kullanılabilir. Kapatılana kadar tarayıcının sahibi bir oturumdur. HTTP(S) sohbet bağlantıları her zaman harici tarayıcıda açılır.", "open": "Tarayıcıyı aç", "opened": "Yerleşik tarayıcı açıldı.", "failed": "Tarayıcı açılamadı.", "errors": { "busy": "Yerleşik tarayıcı zaten kullanımda. Bu oturum için açmadan önce kapatın.", "unavailable": "Yerleşik tarayıcı kullanılamıyor. Uygulama sunucusunun yeniden bağlanmasını bekleyip tekrar deneyin.", "invalidUrl": "Bu adres açılamıyor. Bir HTTP veya HTTPS adresi kullanın.", "stale": "İstek tamamlanmadan tarayıcı sayfası değişti. Tekrar deneyin.", "failed": "Yerleşik tarayıcı açılamadı. Tekrar deneyin." } },

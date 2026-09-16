@@ -13,12 +13,14 @@ export type EgoActivitySpace = { id: number; name: string; pages: EgoActivityPag
 export type EgoActivity = {
   /** The surface is live for this session: opted in, supported, backend is ego. */
   enabled: boolean;
+  /** The separate picture opt-in is on too, so a page may be shown as a frame. */
+  frames: boolean;
   spaces: EgoActivitySpace[];
   /** ego lite could not be read; show nothing rather than a stale state. */
   unavailable: boolean;
 };
 
-const IDLE: EgoActivity = { enabled: false, spaces: [], unavailable: false };
+const IDLE: EgoActivity = { enabled: false, frames: false, spaces: [], unavailable: false };
 
 /**
  * How often the browser state is re-read while a run is in flight. The server
@@ -29,6 +31,12 @@ const EGO_ACTIVITY_REFETCH_MS = 1_500;
 
 export const egoActivityQueryKey = (sessionId: string) => ['ego-activity', sessionId] as const;
 
+/** The frame endpoint for one page; the tick is what makes the browser re-fetch it. */
+export function egoFrameUrl(sessionId: string, spaceId: number, label: string, tick: number): string {
+  const params = new URLSearchParams({ sessionId, space: String(spaceId), page: label, t: String(tick) });
+  return `/api/automation/ego-activity/frame?${params.toString()}`;
+}
+
 function parse(payload: unknown): EgoActivity {
   if (!payload || typeof payload !== 'object') return IDLE;
   const record = payload as Record<string, unknown>;
@@ -36,6 +44,7 @@ function parse(payload: unknown): EgoActivity {
   const spaces = Array.isArray(record.spaces) ? record.spaces : [];
   return {
     enabled: true,
+    frames: record.frames === true,
     unavailable: record.unavailable === true,
     spaces: spaces.flatMap((entry) => {
       if (!entry || typeof entry !== 'object') return [];

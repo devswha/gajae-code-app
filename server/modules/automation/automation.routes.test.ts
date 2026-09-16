@@ -36,13 +36,26 @@ function fakeService(calls: RecordedCall[]): AutomationService {
         calls.push({ method: 'egoActivity.set', payload: value });
         return value;
       },
+      frames: () => stored.get('automation.egoActivityFrame.v1') === '1',
+      setFrames: (value: unknown) => {
+        if (typeof value !== 'boolean') throw new Error('Ego browser frames must be true or false.');
+        stored.set('automation.egoActivityFrame.v1', value ? '1' : '0');
+        calls.push({ method: 'egoActivity.setFrames', payload: value });
+        return value;
+      },
     },
     egoActivitySnapshot: async (sessionId?: string) => {
       calls.push({ method: 'egoActivity.snapshot', ...(sessionId ? { sessionId } : {}) });
       return {
-        configured: true, enabled: true, supported: true, backend: 'ego',
+        configured: true, enabled: true, framesConfigured: true, frames: true, supported: true, backend: 'ego',
         spaces: [{ id: 3, name: 'check the dashboard', pages: [{ label: 'p1', url: 'https://example.com', title: 'Example', active: true }] }],
       };
+    },
+    egoActivityFrame: async (sessionId: string, spaceId: number, label: string) => {
+      calls.push({ method: 'egoActivity.frame', sessionId, payload: `${spaceId}:${label}` });
+      return label === 'p1'
+        ? { jpeg: Buffer.from([0xff, 0xd8, 0xff, 0xd9]), width: 640, height: 350 }
+        : undefined;
     },
     openBrowser: async (sessionId: string, payload: unknown) => {
       calls.push({ method: 'open', sessionId, payload });
@@ -239,6 +252,49 @@ test('ego activity is session-scoped, never cached by a client, and its opt-in o
       { method: 'egoActivity.snapshot' },
       { method: 'egoActivity.set', payload: true },
     ], 'an invalid session id never reaches the service');
+  } finally {
+    await server.close();
+  }
+});
+
+test('an ego frame is served as bytes, never stored, and 404s unless the page is this session\'s', async () => {
+  const calls: RecordedCall[] = [];
+  const server = await serve(createAutomationRouter(fakeService(calls)));
+  try {
+    const frame = await server.request('/ego-activity/frame?sessionId=session-a&space=3&page=p1');
+    assert.equal(frame.status, 200);
+    assert.equal(frame.headers.get('content-type'), 'image/jpeg');
+    assert.equal(frame.headers.get('cache-control'), 'no-store');
+    assert.deepEqual([...new Uint8Array(await frame.arrayBuffer())], [0xff, 0xd8, 0xff, 0xd9]);
+
+    // The service declines an unattributed page; the route says so without detail.
+    assert.equal((await server.request('/ego-activity/frame?sessionId=session-a&space=3&page=p9')).status, 404);
+
+    for (const bad of [
+      '/ego-activity/frame?space=3&page=p1',
+      '/ego-activity/frame?sessionId=../../etc&space=3&page=p1',
+      '/ego-activity/frame?sessionId=session-a&space=0&page=p1',
+      '/ego-activity/frame?sessionId=session-a&space=abc&page=p1',
+      '/ego-activity/frame?sessionId=session-a&space=3',
+    ]) {
+      assert.equal((await server.request(bad)).status, 400, bad);
+    }
+
+    assert.deepEqual(calls.filter((call) => call.method === 'egoActivity.frame').map((call) => call.payload), ['3:p1', '3:p9'],
+      'a malformed request never reaches the service');
+  } finally {
+    await server.close();
+  }
+});
+
+test('the frame opt-in is separate from the activity opt-in and is boolean-only', async () => {
+  const calls: RecordedCall[] = [];
+  const server = await serve(createAutomationRouter(fakeService(calls)));
+  try {
+    assert.equal((await server.request('/ego-activity', { ...json({ frames: true }), method: 'PUT' })).status, 200);
+    assert.equal((await server.request('/ego-activity', { ...json({ frames: 'yes' }), method: 'PUT' })).status, 400);
+    assert.equal((await server.request('/ego-activity', { ...json({}), method: 'PUT' })).status, 400);
+    assert.deepEqual(calls.map((call) => call.method), ['egoActivity.setFrames']);
   } finally {
     await server.close();
   }

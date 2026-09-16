@@ -10,6 +10,7 @@ import {
   probeEgoReadiness,
   testEgoBrowserConnection,
   type EgoConnectionTestResult,
+  type EgoFrame,
   type EgoReadinessReport,
   type GjcBrowserBackend,
 } from '@/gjc-engine.js';
@@ -242,6 +243,11 @@ export class AutomationService {
    */
   async egoActivitySnapshot(appSessionId?: string): Promise<EgoActivityResponse> {
     return this.egoActivityReader.snapshot(appSessionId);
+  }
+
+  /** One frame of a page this session's own ego Space is showing, or nothing. */
+  async egoActivityFrame(appSessionId: string, spaceId: number, label: string): Promise<EgoFrame | undefined> {
+    return this.egoActivityReader.frame(appSessionId, spaceId, label);
   }
 
   /** Browser backend choices are platform-gated; an existing stored value is not rewritten. */

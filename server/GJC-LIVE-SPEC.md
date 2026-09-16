@@ -326,6 +326,21 @@ one-second window, URLs are reduced to origin and path, nothing is persisted,
 and any failure reports `unavailable` instead of surfacing an error into the
 run. The design record is `docs/plans/ego-activity-contract.md`.
 
+`GET /api/automation/ego-activity/frame?sessionId=&space=&page=` answers one
+JPEG of a page that session's own Space is showing. It requires a second opt-in
+(`automation.egoActivityFrame.v1`, off by default) on top of the activity
+surface, and the requested space and page must appear in that session's
+attributed snapshot, so a page the session never opened cannot be captured. The
+frame program is built by `buildEgoFrameScript`, which interpolates only a
+validated positive integer space id and an ego page label (`/^p[0-9]{1,4}$/`)
+and refuses anything else; it calls exactly one CDP method,
+`Page.captureScreenshot`, at JPEG quality 35 scaled to at most 640px wide, and
+returns base64 bytes so no picture of a signed-in browser is ever written to
+disk. Non-JPEG payloads and frames above 1 MB are dropped. One capture serves a
+page for 900 ms, responses are `no-store`, and a capture that fails (a
+minimized ego window produces no compositor frames) answers 404 rather than
+retrying.
+
 The Built-in tool exposes only `open`, `close`, and `act`. Its act verbs are
 `navigate`, `back`, `forward`, `reload`, `observe`, `extract`, `click`, and
 `fill`; click/fill require CSS selectors, and extract accepts an optional

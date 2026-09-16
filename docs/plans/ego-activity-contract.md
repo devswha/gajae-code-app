@@ -1,7 +1,7 @@
 # ego browser activity contract
 
-Status: PR 1 and PR 2 of §11 shipped (reader, opt-in, WORK row, space detail);
-PR 3 (live frame) is not implemented (2026-09-16).
+Status: §11 shipped in full - PR 1 (reader, opt-in, WORK row), PR 2 (space
+detail), PR 3 (page frame) - 2026-09-16.
 Question answered: **can Gajae Code App render what the ego lite browser is
 doing while a session drives it, and what would it cost?**
 
@@ -217,10 +217,12 @@ a tailnet. Non-negotiables:
    that opened three tabs is when one line stops being enough. A second section
    repeating the row was rejected: in a 256 px lane that is duplication, not
    detail.
-3. **Live frame.** ~1 fps screenshot of the active agent tab in the panel,
-   expandable. Read-only image: driving the browser from the app UI is a
+3. **Page frame** (`AgentSidebarBrowser.tsx`). A scaled-down JPEG of the active
+   page inside the expanded row, refreshed ~1/s while it is open, removed on a
+   failed capture. Read-only image: driving the browser from the app UI is a
    different product with a much larger security surface and is **not** part of
-   this work.
+   this work. Captures happen only while a row is expanded, so a collapsed lane
+   costs nothing in the user's real browser.
 
 Cost note: 10 locales (`src/i18n/locales/*`) and DOM tests
 (`*.dom.bun.test.tsx`) are part of each UI step, not an afterthought.
@@ -277,8 +279,27 @@ Cost note: 10 locales (`src/i18n/locales/*`) and DOM tests
   with no page yet is not expandable, the active page is marked with
   `aria-current` rather than by colour, and a page without a title falls back to
   its address. i18n ×10, DOM tests.
-- **PR 3 — live frame.** Screenshot poll, PNG endpoint with TTL cache, second
-  opt-in switch, privacy gates, tests. ~400 lines. Not implemented.
+- **PR 3 — page frame.** **Shipped.** `buildEgoFrameScript` + `readEgoFrame`,
+  `GET /api/automation/ego-activity/frame`, a second opt-in
+  (`automation.egoActivityFrame.v1`) that cannot be switched on before the
+  activity surface, and a picture that mounts only inside an expanded row.
+
+  Three things changed against the plan, all from measurement:
+
+  - **The capture is the one CDP call the app makes.** `page.screenshot({path})`
+    would write pictures of a signed-in browser to disk;
+    `Page.captureScreenshot` hands back base64 that stays in memory. The
+    read-only allowlist is widened by exactly that one method, written down in
+    AGENTS.md.
+  - **Occlusion is not the blocker it first appeared to be.** An early probe
+    made every capture time out and nearly killed this PR; a controlled rerun
+    with the ego window behind the app gave 10/10 captures, median 50 ms,
+    145 KB full size and 27 KB scaled to 640px. The real failure mode is a
+    **minimized** window, which produces no compositor frames at all - hence the
+    short timeout and a 404 that renders nothing rather than a retry loop.
+  - **The frame is parameterised, unlike the observation script**, so the
+    parameters are validated instead of escaped: a positive integer space id and
+    an ego `pN` label, with everything else refused before the program is built.
 
 PR 1 is the only one that carries new authority; 2 and 3 are additive UI over
 the snapshot it already produces. Each is independently shippable, and each

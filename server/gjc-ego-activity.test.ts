@@ -4,10 +4,13 @@ import test from 'node:test';
 import {
   EGO_ACTIVITY_SCRIPT,
   EGO_ACTIVITY_TOKEN_PREFIX,
+  buildEgoFrameScript,
   egoActivityToken,
   matchesEgoActivityToken,
   parseEgoActivityOutput,
+  parseEgoFrameOutput,
   readEgoActivity,
+  readEgoFrame,
   selectEgoActivitySpaces,
   type EgoActivityExecFile,
 } from './gjc-ego-activity.js';
@@ -130,6 +133,55 @@ test('the CLI is executed without a shell, with a minimal environment and the fi
   assert.equal(calls[0].options.shell, false);
   assert.deepEqual(calls[0].options.env, { PATH: '/usr/bin', HOME: '/Users/me' }, 'no user environment reaches ego');
   assert.equal(typeof calls[0].options.timeout, 'number');
+});
+
+test('the frame program interpolates only a validated space id and ego page label', () => {
+  const script = buildEgoFrameScript(15, 'p2');
+  assert.match(script, /await taskSpace\(15\);/u);
+  assert.match(script, /task\.page\("p2"\)/u);
+  // Exactly one CDP method, read-only, and the frame is scaled down inside ego
+  // rather than shipped at full size.
+  assert.equal((script.match(/page\.cdp\(/gu) ?? []).length, 1);
+  assert.match(script, /"Page\.captureScreenshot"/u);
+  assert.match(script, /format: "jpeg"/u);
+  assert.match(script, /Math\.min\(1, 640 \/ width\)/u);
+  for (const forbidden of ['goto', 'click', 'evaluate', 'finish', 'adopt', 'handOff', 'events(']) {
+    assert.equal(script.includes(forbidden), false, forbidden);
+  }
+
+  // A value that is not a space id or an ego page label never reaches the
+  // program; it is refused rather than escaped into it.
+  for (const badSpace of [0, -1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 2]) {
+    assert.throws(() => buildEgoFrameScript(badSpace, 'p1'), /positive integer space id/u, String(badSpace));
+  }
+  for (const badLabel of ['', 'p', 'P1', 'p1"); await task.finish({ keep: [] }); //', 'main', 'p12345', '1']) {
+    assert.throws(() => buildEgoFrameScript(3, badLabel), /ego page label/u, JSON.stringify(badLabel));
+  }
+});
+
+test('only JPEG bytes are relayed as a frame, and oversized or foreign payloads are dropped', async () => {
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0xff, 0xd9]);
+  const frame = parseEgoFrameOutput(`${JSON.stringify({ v: 1, w: 640, h: 350, jpeg: jpeg.toString('base64') })}\n`);
+  assert.equal(frame?.width, 640);
+  assert.equal(frame?.height, 350);
+  assert.deepEqual(frame?.jpeg, jpeg);
+
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64');
+  for (const broken of [
+    JSON.stringify({ v: 1, w: 640, h: 350, jpeg: png }),
+    JSON.stringify({ v: 1, w: 640, h: 350, jpeg: '' }),
+    JSON.stringify({ v: 1, jpeg: jpeg.toString('base64') }),
+    JSON.stringify({ v: 2, w: 1, h: 1, jpeg: jpeg.toString('base64') }),
+    'not json',
+  ]) {
+    assert.equal(parseEgoFrameOutput(broken), undefined, broken.slice(0, 40));
+  }
+
+  // A capture that fails, times out or returns nothing is simply no frame.
+  const failing = await readEgoFrame({ cliPath: '/tmp/ego-browser', spaceId: 3, label: 'p1', execFile: async () => { throw new Error('timeout'); } });
+  assert.equal(failing, undefined);
+  const refused = await readEgoFrame({ cliPath: '/tmp/ego-browser', spaceId: 3, label: 'nope', execFile: async () => { throw new Error('must not run'); } });
+  assert.equal(refused, undefined, 'an invalid label never reaches the CLI');
 });
 
 test('a broken, closed or upgrading ego lite hides the surface instead of failing a run', async () => {

@@ -16,6 +16,7 @@ type Call = { path: string; method: string; body?: unknown };
 type ApiOptions = {
   backend?: 'builtin' | 'aside' | 'ego';
   egoActivity?: boolean;
+  egoFrames?: boolean;
   rejectBackendSave?: boolean;
   browserOpen?: Response | Error;
   browserReady?: boolean;
@@ -38,6 +39,7 @@ function fakeApi(options: ApiOptions = {}) {
   const calls: Call[] = [];
   let backend = options.backend ?? 'builtin';
   let egoActivity = options.egoActivity ?? false;
+  let egoFrames = options.egoFrames ?? false;
   let grants = options.grants ?? { always: { origins: [], applications: [] } };
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
@@ -72,9 +74,18 @@ function fakeApi(options: ApiOptions = {}) {
       return new Response(JSON.stringify({ backend, backends: ['builtin', 'aside', 'ego'] }));
     }
     if (path === '/api/automation/ego-activity') {
-      if (method === 'PUT') egoActivity = (body as { enabled: boolean }).enabled;
-      // Without a session id the route reports the stored opt-in and observes nothing.
-      return new Response(JSON.stringify({ configured: egoActivity, enabled: egoActivity, supported: true, backend, spaces: [] }));
+      if (method === 'PUT') {
+        const update = body as { enabled?: boolean; frames?: boolean };
+        if ('enabled' in update) egoActivity = update.enabled === true;
+        if ('frames' in update) egoFrames = update.frames === true;
+        return new Response(JSON.stringify({ ...('enabled' in update ? { enabled: egoActivity } : {}), ...('frames' in update ? { frames: egoFrames } : {}) }));
+      }
+      // Without a session id the route reports the stored opt-ins and observes nothing.
+      return new Response(JSON.stringify({
+        configured: egoActivity, enabled: egoActivity,
+        framesConfigured: egoFrames, frames: egoActivity && egoFrames,
+        supported: true, backend, spaces: [],
+      }));
     }
     if (path.startsWith('/api/browser/') && method === 'POST') {
       if (options.browserOpen instanceof Error) throw options.browserOpen;
@@ -160,6 +171,30 @@ test('the browser activity opt-in belongs to ego, is off by default and persists
 
   fireEvent.change(backendSelect(), { target: { value: 'builtin' } });
   await waitFor(() => assert.equal(screen.queryByRole('switch', { name: activityLabel }), null));
+});
+
+test('the picture is a second switch: off by default and unavailable until activity is on', async () => {
+  const calls = fakeApi({ backend: 'ego' });
+  await mount();
+  const activity = english.automation.browserBackend.activity;
+  const frame = english.automation.browserBackend.activityFrame;
+
+  const frameToggle = await screen.findByRole('switch', { name: frame });
+  assert.equal(frameToggle.getAttribute('aria-checked'), 'false');
+  // Seeing an address is not agreeing to see the page, so the picture cannot be
+  // switched on before the surface it lives in.
+  assert.equal((frameToggle as HTMLButtonElement).disabled, true);
+  assert.ok(screen.getByText(english.automation.browserBackend.activityFrameDescription));
+
+  fireEvent.click(screen.getByRole('switch', { name: activity }));
+  await waitFor(() => assert.equal((screen.getByRole('switch', { name: frame }) as HTMLButtonElement).disabled, false));
+
+  fireEvent.click(screen.getByRole('switch', { name: frame }));
+  await waitFor(() => assert.equal(screen.getByRole('switch', { name: frame }).getAttribute('aria-checked'), 'true'));
+  assert.deepEqual(calls.filter((call) => call.method === 'PUT' && call.path === '/api/automation/ego-activity').map((call) => call.body), [
+    { enabled: true },
+    { frames: true },
+  ]);
 });
 
 test('a rejected backend save keeps the persisted choice and reports the failure', async () => {

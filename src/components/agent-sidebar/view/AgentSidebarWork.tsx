@@ -57,7 +57,8 @@ export default function AgentSidebarWork({ sessionId, sessionStore }: AgentSideb
   // Only the published activity of this very session counts; a snapshot left
   // over from another conversation must never read as this one running.
   const running = Boolean(sessionId) && status.sessionId === sessionId && status.activity.running;
-  const browserSpaces = useEgoActivity(sessionId, running).spaces;
+  const browser = useEgoActivity(sessionId, running);
+  const browserSpaces = browser.spaces;
 
   if (!hasTasks && !running && agents.length === 0) {
     return null;
@@ -100,7 +101,7 @@ export default function AgentSidebarWork({ sessionId, sessionStore }: AgentSideb
           <span className="min-w-0 flex-1 truncate text-foreground">{t('agentSidebar.work.working')}</span>
         </div>
       ) : null}
-      <AgentSidebarBrowser spaces={browserSpaces} />
+      <AgentSidebarBrowser spaces={browserSpaces} sessionId={sessionId} frames={browser.frames} />
       {agents.length > 0 && (
         <div>
           <p className="px-2 pt-1 pb-0.5 text-[10px] font-medium tracking-wide text-muted-foreground/70">{t('agentSidebar.work.agents')}</p>

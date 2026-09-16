@@ -97,6 +97,19 @@ not disturb a script already working in the same space. Attribution uses a token
 the app mints from the app session id (`egoActivityToken`) and requires in the
 routing block's space-naming rule, so no Bash command is ever parsed.
 
+`Settings > Automation > Show the browser screen` is a second, separate opt-in
+(`automation.egoActivityFrame.v1`, off by default, and unavailable until the
+activity surface is on). With it enabled, expanding a Space row adds a small
+JPEG of the page the agent is on, refreshed about once a second while the row
+stays open. `GET /api/automation/ego-activity/frame?sessionId=&space=&page=`
+serves it: the space and page must be in that session's attributed snapshot,
+the program interpolates only a validated space id and `pN` label, it calls
+exactly one CDP method (`Page.captureScreenshot`, quality 35, scaled to ≤640px)
+and returns bytes, so nothing is written to disk. Measured on ego-browser
+0.5.0.32 with the ego window behind the app: 10/10 captures, median 50 ms,
+27 KB scaled. A **minimized** ego window produces no compositor frames at all -
+that capture times out and the surface simply shows no picture.
+
 Bounds: nothing executes while the surface is off, the backend is not ego, the
 platform is unsupported or no session id is supplied; only agent-created,
 agent-owned spaces carrying this session's token and their agent-opened pages

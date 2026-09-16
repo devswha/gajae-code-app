@@ -97,7 +97,8 @@
       "browserRunning": "Navigazione in corso",
       "browserSpace": "Spazio browser {{id}}",
       "browserMore": "+{{count}} altri",
-      "browserActivePage": "Pagina attiva"
+      "browserActivePage": "Pagina attiva",
+      "browserFrame": "Schermata del browser"
     },
     "actionRequired": {
       "title": "Risposta richiesta",

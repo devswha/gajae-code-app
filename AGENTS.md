@@ -224,7 +224,14 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   script is a fixed constant limited to `listTaskSpaces`/`taskSpace`/`tabs`; it
   never navigates, evaluates, adopts, claims, finishes or calls `page.events()`
   (a destructive read), only sees agent-owned spaces carrying this session's
-  app-minted token, and fails soft. The API reference is the
+  app-minted token, and fails soft. Page frames are a second, separate opt-in
+  (`automation.egoActivityFrame.v1`, also off by default) and the only place the
+  app uses `page.cdp()`: exactly one read-only method,
+  `Page.captureScreenshot`, scaled down inside ego, captured only for a page in
+  this session's attributed snapshot and only while its row is expanded, held in
+  memory and never written to disk. Do not widen either script, and never
+  substitute `page.screenshot({ path })`, which would leave pictures of a
+  signed-in browser on disk. The API reference is the
   user-installed `ego-browser` skill, never a copy in the app. Ego is currently
   selectable only on macOS; Built-in remains macOS desktop-only; see
   `docs/BUILTIN-BROWSER.md`. See `docs/BROWSER-ASIDE-POC.md`,

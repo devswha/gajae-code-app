@@ -51,6 +51,7 @@ export default function AutomationSettingsTab() {
   const [egoReadiness, setEgoReadiness] = useState<EgoReadiness | null>(null);
   const [egoConnection, setEgoConnection] = useState<EgoConnection | null>(null);
   const [egoActivity, setEgoActivity] = useState(false);
+  const [egoFrames, setEgoFrames] = useState(false);
   const [testingEgoConnection, setTestingEgoConnection] = useState(false);
   const [builtinBrowserStatus, setBuiltinBrowserStatus] = useState<string | null>(null);
   const selectedProjectId = useAppShellStore((state) => state.selectedProject?.projectId);
@@ -80,7 +81,11 @@ export default function AutomationSettingsTab() {
         }
       }
       if (egoReadinessResponse.ok) setEgoReadiness(await egoReadinessResponse.json() as EgoReadiness);
-      if (egoActivityResponse.ok) setEgoActivity((await egoActivityResponse.json() as { configured?: boolean }).configured === true);
+      if (egoActivityResponse.ok) {
+        const activity = await egoActivityResponse.json() as { configured?: boolean; framesConfigured?: boolean };
+        setEgoActivity(activity.configured === true);
+        setEgoFrames(activity.framesConfigured === true);
+      }
     } finally {
       setLoading(false);
     }
@@ -113,6 +118,20 @@ export default function AutomationSettingsTab() {
       return;
     }
     setEgoActivity((await response.json() as { enabled?: boolean }).enabled === true);
+  };
+
+  const changeEgoFrames = async (frames: boolean) => {
+    setEgoFrames(frames);
+    const response = await fetch('/api/automation/ego-activity', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ frames }),
+    });
+    if (!response.ok) {
+      setEgoFrames(!frames);
+      return;
+    }
+    setEgoFrames((await response.json() as { frames?: boolean }).frames === true);
   };
 
   const testEgoConnection = async () => {
@@ -179,6 +198,16 @@ export default function AutomationSettingsTab() {
                 checked={egoActivity}
                 onChange={(value) => void changeEgoActivity(value)}
                 ariaLabel={t('automation.browserBackend.activity')}
+              />
+            </SettingsRow>
+          ) : null}
+          {browserBackend === 'ego' ? (
+            <SettingsRow label={t('automation.browserBackend.activityFrame')} description={t('automation.browserBackend.activityFrameDescription')}>
+              <SettingsToggle
+                checked={egoFrames}
+                onChange={(value) => void changeEgoFrames(value)}
+                ariaLabel={t('automation.browserBackend.activityFrame')}
+                disabled={!egoActivity}
               />
             </SettingsRow>
           ) : null}

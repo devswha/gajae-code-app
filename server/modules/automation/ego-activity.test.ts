@@ -16,15 +16,18 @@ function memoryStorage(seed: Record<string, string> = {}) {
 
 function reader(options: {
   configured?: boolean;
+  frames?: boolean;
   backend?: 'builtin' | 'aside' | 'ego';
   platform?: NodeJS.Platform;
   probe?: () => { ok: true; path: string } | { ok: false; searched: string[] };
   snapshot?: EgoActivitySnapshot;
+  frame?: (input: { cliPath: string; spaceId: number; label: string }) => Promise<{ jpeg: Buffer; width: number; height: number } | undefined>;
   now?: () => number;
 } = {}) {
   const reads: string[] = [];
+  const frames: string[] = [];
   const instance = new EgoActivityReader({
-    store: { get: () => options.configured ?? true },
+    store: { get: () => options.configured ?? true, frames: () => options.frames ?? false },
     backend: { get: () => options.backend ?? 'ego' },
     platform: options.platform ?? 'darwin',
     probe: options.probe ?? (() => ({ ok: true, path: '/Users/me/.local/bin/ego-browser' })),
@@ -32,9 +35,15 @@ function reader(options: {
       reads.push(cliPath);
       return options.snapshot ?? { spaces: [] };
     },
+    frame: async ({ spaceId, label }) => {
+      frames.push(`${spaceId}:${label}`);
+      return options.frame
+        ? options.frame({ cliPath: '', spaceId, label })
+        : { jpeg: Buffer.from([0xff, 0xd8, 0xff, 0xd9]), width: 640, height: 350 };
+    },
     ...(options.now ? { now: options.now } : {}),
   });
-  return { instance, reads };
+  return { instance, reads, frames };
 }
 
 test('the opt-in is off by default, stores one key and refuses anything but a boolean', () => {
@@ -102,6 +111,49 @@ test('only the spaces this session minted are returned, and the token never leav
   assert.equal(result.spaces[0].name, 'check the dashboard');
   assert.equal('token' in result.spaces[0], false);
   assert.deepEqual((await instance.snapshot('session-c')).spaces, []);
+});
+
+test('a frame needs its own opt-in, and only for a page this session actually opened', async () => {
+  const mine = egoActivityToken('session-a');
+  const snapshot: EgoActivitySnapshot = {
+    spaces: [{ id: 3, token: mine, name: 'work', pages: [{ label: 'p1', url: 'https://example.com', title: 'Example', active: true }] }],
+  };
+
+  // Activity on, frames off: the address renders, the picture does not.
+  const off = reader({ snapshot, frames: false });
+  assert.equal((await off.instance.snapshot('session-a')).frames, false);
+  assert.equal(await off.instance.frame('session-a', 3, 'p1'), undefined);
+  assert.deepEqual(off.frames, [], 'no capture runs while the frame opt-in is off');
+
+  const on = reader({ snapshot, frames: true });
+  const frame = await on.instance.frame('session-a', 3, 'p1');
+  assert.equal(frame?.width, 640);
+  assert.deepEqual(on.frames, ['3:p1']);
+
+  // Attribution gates the capture: another session's space, an unknown space
+  // and a page the session never opened all stop before the CLI.
+  assert.equal(await on.instance.frame('session-b', 3, 'p1'), undefined);
+  assert.equal(await on.instance.frame('session-a', 99, 'p1'), undefined);
+  assert.equal(await on.instance.frame('session-a', 3, 'p9'), undefined);
+  assert.deepEqual(on.frames, ['3:p1'], 'only the attributed page was ever captured');
+});
+
+test('repeat frame requests inside the window reuse one capture', async () => {
+  let clock = 5_000;
+  const mine = egoActivityToken('session-a');
+  const { instance, frames } = reader({
+    frames: true,
+    now: () => clock,
+    snapshot: { spaces: [{ id: 3, token: mine, name: 'work', pages: [{ label: 'p1', url: 'https://example.com', title: 'Example', active: true }] }] },
+  });
+
+  await instance.frame('session-a', 3, 'p1');
+  await instance.frame('session-a', 3, 'p1');
+  assert.equal(frames.length, 1);
+
+  clock += 1_000;
+  await instance.frame('session-a', 3, 'p1');
+  assert.equal(frames.length, 2, 'a frame older than its window is never served');
 });
 
 test('concurrent sessions share one execution, and the cache expires', async () => {

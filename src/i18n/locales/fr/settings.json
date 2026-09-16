@@ -147,6 +147,8 @@
       "testingConnection": "Test de connexion…",
       "connectionPassed": "ego-browser est connecté",
       "connectionFailed": "Le test de connexion ego-browser a échoué.",
+      "activity": "Afficher l'activité du navigateur",
+      "activityDescription": "Lit l'espace ego lite, ses pages et leur adresse actuelle pendant l'exécution et les affiche dans la barre latérale de l'agent. Rien n'est stocké, seuls les espaces de l'agent créés par cette session sont lus et les chaînes de requête sont supprimées.",
       "saveFailed": "Le backend du navigateur n'a pas pu être enregistré."
     },
     "builtinBrowser": { "title": "Navigateur intégré", "description": "Ouvrez le navigateur intégré dans un panneau droit redimensionnable, indépendamment du backend GJC sélectionné.", "label": "Navigateur intégré", "note": "Disponible uniquement dans l’app macOS. Une session conserve la propriété du navigateur jusqu’à sa fermeture. Les liens HTTP(S) du chat s’ouvrent toujours dans le navigateur externe.", "open": "Ouvrir le navigateur", "opened": "Navigateur intégré ouvert.", "failed": "Impossible d’ouvrir le navigateur.", "errors": { "busy": "Le navigateur intégré est déjà utilisé. Fermez-le avant de l’ouvrir pour cette session.", "unavailable": "Le navigateur intégré est indisponible. Attendez que le serveur de l’app se reconnecte, puis réessayez.", "invalidUrl": "Cette adresse ne peut pas être ouverte. Utilisez une adresse HTTP ou HTTPS.", "stale": "La page du navigateur a changé avant la fin de la requête. Réessayez.", "failed": "Impossible d’ouvrir le navigateur intégré. Réessayez." } },

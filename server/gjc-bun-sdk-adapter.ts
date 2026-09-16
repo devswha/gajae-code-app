@@ -52,6 +52,7 @@ import {
   type EgoBrowserCliProbe,
   type GjcBrowserBackend,
 } from './gjc-browser-backend.js';
+import { egoActivityToken } from './gjc-ego-activity.js';
 import { resolveContainedExportCommand } from './gjc-export-path.js';
 import { readSessionSnapshot } from './gjc-session-state.js';
 import { GjcGoalSession, GJC_GOAL_MODEL_OPERATIONS, matchesGjcGoalOwner, readPersistedGjcGoal, type GjcGoalScope } from './gjc-goal-session.js';
@@ -297,7 +298,7 @@ export function applyGjcBrowserBackend(
   requested: GjcBrowserBackend | undefined,
   probe: () => AsideCliProbe,
   probeEgo: () => EgoBrowserCliProbe = probeEgoBrowserCli,
-  options: { builtinBrowserAvailable?: boolean; platform?: NodeJS.Platform } = {},
+  options: { builtinBrowserAvailable?: boolean; platform?: NodeJS.Platform; appSessionId?: string } = {},
 ): GjcResolvedBrowserBackend {
   if (requested === 'builtin') {
     settings.override('browser.backend', 'native');
@@ -324,9 +325,12 @@ export function applyGjcBrowserBackend(
         appInstructions: GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
       };
     }
+    // The activity token lets the app attribute a live ego space to this
+    // session; it is derived from the app session id, never stored or sent.
+    const activityToken = options.appSessionId ? egoActivityToken(options.appSessionId) : undefined;
     return {
       id: 'ego', exposesBuiltinTool: false, egoReady: true, egoCliPath: found.path,
-      appInstructions: buildGjcEgoBrowserInstructions(found.path),
+      appInstructions: buildGjcEgoBrowserInstructions(found.path, activityToken),
     };
   }
   const { id, exposesBuiltinTool } = resolveBrowserBackend(settings);
@@ -1156,7 +1160,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         config.browserBackend,
         this.options.probeAsideCli ?? probeAsideCli,
         this.options.probeEgoBrowserCli ?? probeEgoBrowserCli,
-        { builtinBrowserAvailable, platform: this.options.platform ?? process.platform },
+        {
+          builtinBrowserAvailable,
+          platform: this.options.platform ?? process.platform,
+          ...(typeof config.appSessionId === 'string' && config.appSessionId ? { appSessionId: config.appSessionId } : {}),
+        },
       );
       const trustedBuiltinBrowserAvailable = builtinBrowserAvailable && browserBackend.exposesBuiltinTool;
       const goalScope = config.appSessionId && config.goalOwner

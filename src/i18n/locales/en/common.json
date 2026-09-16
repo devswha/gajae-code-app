@@ -92,7 +92,11 @@
       "title": "Work",
       "working": "Working",
       "agents": "Agents",
-      "agentRunning": "Running"
+      "agentRunning": "Running",
+      "browser": "Browser",
+      "browserRunning": "Browsing",
+      "browserSpace": "Browser space {{id}}",
+      "browserMore": "+{{count}} more"
     },
     "actionRequired": {
       "title": "Action required",

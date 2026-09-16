@@ -26,6 +26,7 @@ import {
   probeEgoReadiness,
   testEgoBrowserConnection,
 } from './gjc-browser-backend.js';
+import { egoActivityToken } from './gjc-ego-activity.js';
 
 test('Built-in is the default backend and public choices do not expose the runtime setting name', () => {
   assert.equal(DEFAULT_GJC_BROWSER_BACKEND, 'builtin');
@@ -102,6 +103,22 @@ test('the Ego routing block pins and POSIX-quotes the probe-resolved executable'
   assert.match(block, /ego-browser upgrade/);
   assert.match(block, /ego-browser onboarding/);
   assert.match(block, /computer.*CUA.*browser/iu);
+});
+
+test('the space naming rule carries only an app-minted token, and an unrecognized one is dropped', () => {
+  const token = egoActivityToken('app-session-1');
+  const block = buildGjcEgoBrowserInstructions('/fixture/home/.local/bin/ego-browser', token);
+  assert.ok(block.includes(`\`"${token} <short goal>"\``));
+  assert.match(block, /token is a label only, never something to type into a page/u);
+
+  // Attribution is a display concern; a malformed or injected token never
+  // reaches the prompt, and the block stays valid without one.
+  for (const rejected of ['gjc-ZZZZZZZZ', 'gjc-123', '"; rm -rf /', 'gjc-12345678 extra', '', undefined]) {
+    const plain = buildGjcEgoBrowserInstructions('/fixture/home/.local/bin/ego-browser', rejected);
+    assert.equal(plain.includes('Name that space'), false, JSON.stringify(rejected));
+    assert.match(plain, /^<browser-backend>\n/u);
+    assert.match(plain, /taskSpace\(name\)/u);
+  }
 });
 
 test('the unavailable Ego policy preserves ordinary chat and forbids browser substitution', () => {

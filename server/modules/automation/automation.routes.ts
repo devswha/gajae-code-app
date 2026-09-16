@@ -116,6 +116,34 @@ export function createAutomationRouter(service: AutomationService = automationSe
     }
   }));
 
+  // What the agent's ego browser is doing, for one app session. This is the
+  // only polled route that may execute the ego CLI, and only while the surface
+  // is enabled and the run's backend is ego; the service bounds the rest.
+  router.get('/ego-activity', asyncHandler(async (request, response) => {
+    const requested = request.query.sessionId;
+    if (requested !== undefined && (typeof requested !== 'string' || !safeSessionId(requested))) {
+      response.status(400).json({ error: 'Invalid automation session id.' });
+      return;
+    }
+    try {
+      // Personal browser state is never cached by a proxy or the client.
+      response.set('Cache-Control', 'no-store');
+      response.json(await service.egoActivitySnapshot(requested));
+    } catch (error) {
+      errorResponse(response, error);
+    }
+  }));
+
+  // The opt-in itself: rendering a logged-in personal browser is never on by
+  // default and is never turned on by a run.
+  router.put('/ego-activity', asyncHandler((request, response) => {
+    try {
+      response.json({ enabled: service.egoActivity.set(request.body?.enabled) });
+    } catch (error) {
+      response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid ego activity setting.' });
+    }
+  }));
+
   // Deliberately POST: only an explicit user action may execute the two
   // documented, bounded ego-browser checks.
   router.post('/ego-readiness/test', asyncHandler(async (_request, response) => {

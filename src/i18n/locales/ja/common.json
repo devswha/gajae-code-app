@@ -92,7 +92,11 @@
       "title": "作業",
       "working": "実行中",
       "agents": "エージェント",
-      "agentRunning": "実行中"
+      "agentRunning": "実行中",
+      "browser": "ブラウザ",
+      "browserRunning": "ブラウザ操作中",
+      "browserSpace": "ブラウザースペース {{id}}",
+      "browserMore": "他 {{count}} 件"
     },
     "actionRequired": {
       "title": "応答が必要",

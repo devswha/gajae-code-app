@@ -216,9 +216,15 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   runtime on `native` with `browser.enabled=false`, and pins the probe-resolved
   absolute CLI path. If Ego is not ready, the run keeps ordinary chat/coding
   available while browser work is disabled; it never substitutes Built-in,
-  Aside, an OS browser, Playwright/Puppeteer/MCP or computer/CUA. Only the
-  explicit Settings Test connection action may execute `--version` and the
-  documented non-mutating `nodejs` check. The API reference is the
+  Aside, an OS browser, Playwright/Puppeteer/MCP or computer/CUA. The app may
+  execute the ego CLI from exactly two places: the explicit Settings Test
+  connection action (`--version` plus the documented non-mutating `nodejs`
+  check) and the opt-in browser activity reader (`server/gjc-ego-activity.ts`,
+  off by default, only while an ego-backed session is running). The reader's
+  script is a fixed constant limited to `listTaskSpaces`/`taskSpace`/`tabs`; it
+  never navigates, evaluates, adopts, claims, finishes or calls `page.events()`
+  (a destructive read), only sees agent-owned spaces carrying this session's
+  app-minted token, and fails soft. The API reference is the
   user-installed `ego-browser` skill, never a copy in the app. Ego is currently
   selectable only on macOS; Built-in remains macOS desktop-only; see
   `docs/BUILTIN-BROWSER.md`. See `docs/BROWSER-ASIDE-POC.md`,

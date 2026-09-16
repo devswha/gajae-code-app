@@ -92,7 +92,11 @@
       "title": "Работа",
       "working": "Выполняется",
       "agents": "Агенты",
-      "agentRunning": "Выполняется"
+      "agentRunning": "Выполняется",
+      "browser": "Браузер",
+      "browserRunning": "Работа в браузере",
+      "browserSpace": "Пространство браузера {{id}}",
+      "browserMore": "+{{count}} ещё"
     },
     "actionRequired": {
       "title": "Требуется ответ",

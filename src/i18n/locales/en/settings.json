@@ -147,6 +147,8 @@
       "testingConnection": "Testing connection…",
       "connectionPassed": "ego-browser connected",
       "connectionFailed": "ego-browser connection test failed.",
+      "activity": "Show browser activity",
+      "activityDescription": "Reads your ego lite Space, its pages and their current address while a run is working, and shows them in the agent sidebar. Nothing is stored, only agent-owned Spaces this session created are read, and query strings are dropped.",
       "saveFailed": "The browser backend could not be saved."
     },
     "builtinBrowser": {

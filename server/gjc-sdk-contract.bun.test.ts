@@ -45,6 +45,7 @@ import {
   GJC_EGO_BROWSER_INSTRUCTIONS,
   GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
 } from './gjc-browser-backend.js';
+import { egoActivityToken } from './gjc-ego-activity.js';
 import { GJC_CLEANUP_UNCONFIRMED_CODE } from './gjc-cleanup-error.js';
 import { isVerifiedSdkPatch, verifyRuntimeManifest } from './gjc-runtime-manifest.js';
 
@@ -2404,6 +2405,10 @@ test('selecting ego keeps the runtime on native, disables its browser tool, with
     assert.equal(appended[0], 'runtime-default');
     assert.match(appended.at(-1) ?? '', /'\/fake\/\.local\/bin\/ego-browser' nodejs/);
     assert.ok((appended.at(-1) ?? '').includes('ego-browser onboarding'));
+    // The space naming rule is how the app attributes a live ego space to this
+    // session without parsing Bash; the token is derived from the app session id.
+    assert.ok((appended.at(-1) ?? '').includes(`"${egoActivityToken('app-session-ego')} <short goal>"`));
+    assert.equal(JSON.stringify(f.frames).includes(egoActivityToken('app-session-ego')), false, 'the token is prompt plumbing, not wire state');
     assert.equal(appended.join('\n').toLowerCase().includes('aside repl'), false);
     assert.equal(egoProbes, 1);
     assert.equal(asideProbes, 0);

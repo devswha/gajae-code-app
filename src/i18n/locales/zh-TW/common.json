@@ -92,7 +92,11 @@
       "title": "工作",
       "working": "運行中",
       "agents": "代理",
-      "agentRunning": "執行中"
+      "agentRunning": "執行中",
+      "browser": "瀏覽器",
+      "browserRunning": "瀏覽中",
+      "browserSpace": "瀏覽器空間 {{id}}",
+      "browserMore": "還有 {{count}} 個"
     },
     "actionRequired": {
       "title": "需要回覆",

@@ -147,6 +147,8 @@
       "testingConnection": "Verbindung wird getestet…",
       "connectionPassed": "ego-browser ist verbunden",
       "connectionFailed": "Der ego-browser-Verbindungstest ist fehlgeschlagen.",
+      "activity": "Browser-Aktivität anzeigen",
+      "activityDescription": "Liest während eines laufenden Durchlaufs den ego-lite-Space, seine Seiten und deren aktuelle Adresse und zeigt sie in der Agent-Seitenleiste. Nichts wird gespeichert, es werden nur agenteneigene Spaces dieser Sitzung gelesen und Query-Strings entfernt.",
       "saveFailed": "Das Browser-Backend konnte nicht gespeichert werden."
     },
     "builtinBrowser": { "title": "Integrierter Browser", "description": "Öffnet den integrierten Browser in einem rechten Bereich mit veränderbarer Breite, unabhängig vom gewählten GJC-Backend.", "label": "Integrierter Browser", "note": "Nur in der macOS-Desktop-App verfügbar. Der Browser bleibt bis zum Schließen im Besitz einer Sitzung. HTTP(S)-Chat-Links werden immer im externen Browser geöffnet.", "open": "Browser öffnen", "opened": "Integrierter Browser geöffnet.", "failed": "Browser konnte nicht geöffnet werden.", "errors": { "busy": "Der integrierte Browser wird bereits verwendet. Schließen Sie ihn, bevor Sie ihn für diese Sitzung öffnen.", "unavailable": "Der integrierte Browser ist nicht verfügbar. Warten Sie, bis der App-Server wieder verbunden ist, und versuchen Sie es erneut.", "invalidUrl": "Diese Adresse kann nicht geöffnet werden. Verwenden Sie eine HTTP- oder HTTPS-Adresse.", "stale": "Die Browserseite hat sich vor Abschluss der Anfrage geändert. Versuchen Sie es erneut.", "failed": "Der integrierte Browser konnte nicht geöffnet werden. Versuchen Sie es erneut." } },

@@ -80,19 +80,49 @@ async function closureFiles(packageName, packageRoot, filenames) {
   })));
 }
 
+/** The integrity this repository already resolved for a package, from its lockfile. */
+async function lockfileIntegrity(packageName, version) {
+  const lockfile = JSON.parse(await fs.readFile(path.join(rootDir, 'package-lock.json'), 'utf8'));
+  const entry = lockfile.packages?.[`node_modules/${packageName}`];
+  if (!entry) throw new Error(`${packageName} is not in package-lock.json; the manifest cannot vouch for it.`);
+  if (entry.version !== version) {
+    throw new Error(`${packageName} is locked at ${entry.version}, not the requested ${version}.`);
+  }
+  if (typeof entry.integrity !== 'string' || !entry.integrity.startsWith('sha512-')) {
+    throw new Error(`${packageName} has no sha512 integrity in package-lock.json.`);
+  }
+  return entry.integrity;
+}
+
+async function tarballIntegrity(tarballPath) {
+  const digest = crypto.createHash('sha512').update(await fs.readFile(tarballPath)).digest('base64');
+  return `sha512-${digest}`;
+}
+
 /**
  * Unpacks a platform's natives package from the registry into a temp directory
  * and returns its root. Used only for a platform this machine cannot install.
+ *
+ * The tarball is checked against the integrity this repository already resolved
+ * in its lockfile: the hashes that go into the runtime manifest decide what the
+ * packaged worker will refuse to load, so "whatever the registry served during
+ * this build" is not a good enough provenance for them.
  */
 async function fetchPlatformRoot(platform, version) {
   const platformPackage = `@gajae-code/natives-${platform}`;
+  const expectedIntegrity = await lockfileIntegrity(platformPackage, version);
   const destination = await fs.mkdtemp(path.join(os.tmpdir(), `gjc-natives-${platform}-`));
   const { stdout } = await execFile('npm', [
-    'pack', `${platformPackage}@${version}`, '--pack-destination', destination, '--silent',
+    'pack', `${platformPackage}@${version}`, '--pack-destination', destination, '--silent', '--ignore-scripts',
   ], { cwd: rootDir });
   const tarball = stdout.trim().split('\n').pop();
   if (!tarball) throw new Error(`npm pack produced no tarball for ${platformPackage}@${version}.`);
-  await execFile('tar', ['-xzf', path.join(destination, tarball), '-C', destination]);
+  const tarballPath = path.join(destination, tarball);
+  const actualIntegrity = await tarballIntegrity(tarballPath);
+  if (actualIntegrity !== expectedIntegrity) {
+    throw new Error(`${platformPackage}@${version} does not match its locked integrity (${expectedIntegrity}).`);
+  }
+  await execFile('tar', ['-xzf', tarballPath, '-C', destination]);
   return path.join(destination, 'package');
 }
 

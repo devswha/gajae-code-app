@@ -47,6 +47,10 @@ async function git(root: string, args: string[]) { return execFile('git', args, 
 
 async function fixture(t: test.TestContext) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'gjc-slice4-driver-')));
+  // Job and session paths pass the workspace gate, so this fixture's git tree
+  // is the workspace root while the test runs.
+  const originalWorkspacesRoot = process.env.WORKSPACES_ROOT;
+  process.env.WORKSPACES_ROOT = root;
   await git(root, ['init']);
   await writeFile(join(root, '.git', 'info', 'exclude'), '.gjc-worktrees/\n');
   await git(root, ['config', 'user.email', 'e2e@example.test']);
@@ -64,7 +68,7 @@ async function fixture(t: test.TestContext) {
     gitForProject: project => { assert.equal(project, root); return gitClient; },
     broadcast: (jobId, event) => broadcasts.push({ jobId, event }),
   });
-  t.after(async () => { jobs.close(); gitClient.close(); await rm(join(root, '..', `${basename(root)}.jobs.sqlite3`), { force: true }); await rm(root, { recursive: true, force: true }); });
+  t.after(async () => { if (originalWorkspacesRoot === undefined) delete process.env.WORKSPACES_ROOT; else process.env.WORKSPACES_ROOT = originalWorkspacesRoot; jobs.close(); gitClient.close(); await rm(join(root, '..', `${basename(root)}.jobs.sqlite3`), { force: true }); await rm(root, { recursive: true, force: true }); });
   return { root, jobs, gitClient, supervisor, orchestrator, broadcasts };
 }
 

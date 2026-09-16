@@ -64,8 +64,8 @@ npm test                 # all tests via scripts/run-tests.mjs (node:test + bun 
 npm run typecheck        # tsc on both tsconfig.json and server/tsconfig.json
 npm run lint             # eslint src/ server/ shared/ scripts/ + configs
 npm run check:core       # cargo fmt --check + clippy -D warnings + cargo test
-npm run verify           # FULL GATE: audit + typecheck + check:core + test + lint + check:identity + build
-npm run test:e2e:gjc     # 7 GJC wire/browser e2e tests (separate from npm test)
+npm run verify           # FULL GATE: audit + typecheck + check:core + test + test:e2e:gjc + lint + check:identity + build
+npm run test:e2e:gjc     # 8 GJC wire/browser e2e tests (also part of verify; not part of npm test)
 npm run desktop:dev      # Tauri dev shell
 npm run server:payload:macos # embedded macOS server payload + sidecar (prerequisite for src-tauri cargo test)
 GJC_UPDATE_MODE=disabled env -u CI npm run tauri -- build --bundles app # ad-hoc macOS app bundle (unsigned, no updater)

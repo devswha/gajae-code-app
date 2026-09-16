@@ -93,11 +93,39 @@ function providerRunId(run: NonNullable<ReturnType<typeof chatRunRegistry.getRun
   return run.providerSessionId ?? run.writer.getAbortHandle();
 }
 
-async function resolveRequestedModel(dependencies: ChatWebSocketDependencies, provider: LLMProvider, sessionId: string, requestedModel: string | null, firstTurn: boolean): Promise<string | undefined> {
+/**
+ * The only `chat.send` options a browser contributes.
+ *
+ * `model` and `images` are handled explicitly below (resolved against the
+ * session's pin, filtered to the upload store), and the goal fields are set
+ * from the connection's own identity. Everything the runtime takes as policy -
+ * `sessionRoot`, `toolNames`, `spawns`, `bashPolicy`, `credential`,
+ * `permissions`, `browserBackend`, `cwd`, `projectPath` - comes from the
+ * server, so an allowlist is the only shape that stays correct when the worker
+ * learns a new option.
+ */
+const CLIENT_CHAT_OPTION_NAMES: readonly string[] = ['effort', 'sessionSummary'];
+
+function clientChatOptions(requestOptions: AnyRecord): AnyRecord {
+  const accepted: AnyRecord = {};
+  for (const name of CLIENT_CHAT_OPTION_NAMES) {
+    if (requestOptions[name] !== undefined) accepted[name] = requestOptions[name];
+  }
+  return accepted;
+}
+
+/** A model resolver that failed: the run stops instead of using the browser's model. */
+const MODEL_UNRESOLVED = Symbol('model-unresolved');
+
+async function resolveRequestedModel(dependencies: ChatWebSocketDependencies, provider: LLMProvider, sessionId: string, requestedModel: string | null, firstTurn: boolean): Promise<string | undefined | typeof MODEL_UNRESOLVED> {
   try {
     return await (dependencies.resolveSessionModel ?? defaultResolveSessionModel)(provider, sessionId, requestedModel, { firstTurn });
-  } catch {
-    return requestedModel ?? undefined;
+  } catch (error) {
+    // A resume session's model is pinned. If that pin cannot be read, falling
+    // back to the model the browser sent lets a client change the model of a
+    // session it is only resuming, so the turn fails instead.
+    console.error('[Chat] Failed to resolve the session model', { sessionId, error: error instanceof Error ? error.message : String(error) });
+    return MODEL_UNRESOLVED;
   }
 }
 
@@ -143,9 +171,16 @@ async function sendChat(ws: WebSocket, userId: string | number | null, data: Any
   // A session with no provider id yet is on its first turn: an explicit model
   // chosen for it becomes its pin (see resolveResumeModel).
   const model = await resolveRequestedModel(dependencies, provider, sessionId, requestedModel, !storedSession.provider_session_id);
-  // The permission policy is the project's, read here and never taken from the
-  // request: a browser cannot widen it by sending `skipPermissions` or a mode.
-  const { permissions: _clientPermissions, skipPermissions: _legacySkip, goalOwner: _goalOwner, goalCommand: _goalCommand, goalUiVersion: _goalUiVersion, ...acceptedOptions } = requestOptions;
+  if (model === MODEL_UNRESOLVED) {
+    protocolFailure(ws, 'MODEL_UNAVAILABLE', 'The session model could not be resolved.', sessionId);
+    chatRunRegistry.completeRunIfCurrent(run, { exitCode: 1 });
+    return;
+  }
+  // Everything else about the run - the permission policy, the session root,
+  // the tool set, the credential, the bash policy, the spawn policy - is server
+  // policy read from the project and the stored session. The browser only
+  // contributes the few UI choices below; anything else it sends is dropped.
+  const acceptedOptions = clientChatOptions(requestOptions);
   const options: AnyRecord = {
     ...acceptedOptions,
     ...(dependencies.goalSupervisor && userId !== null && requestOptions.goalUiVersion === 1 ? { goalUiVersion: 1 } : {}),
@@ -286,7 +321,7 @@ function permissionResponse(data: AnyRecord, dependencies: ChatWebSocketDependen
   // "Always" rides with both answers: allow_always persists a project rule,
   // reject_always only tells the run to stop asking - a permanent deny list
   // is not something the browser gets to write.
-  const always = data.always === true;
+  let always = data.always === true;
   if (allow && always && pending?.toolName) {
     // "Always allow" is remembered for the project before the reply reaches
     // the worker, so a second device (or the next run) never sees the card.
@@ -295,7 +330,18 @@ function permissionResponse(data: AnyRecord, dependencies: ChatWebSocketDependen
       try {
         (dependencies.grantAlwaysAllow ?? grantProjectAlwaysAllow)(projectPath, pending.toolName);
       } catch (error) {
+        // The rule was not stored, so this answer is a one-shot allow and the
+        // user is told. Passing `always` on anyway would let the worker stop
+        // asking for a permission the project never recorded.
         console.error('[Chat] Failed to persist always-allow', { projectPath, toolName: pending.toolName, error: error instanceof Error ? error.message : String(error) });
+        always = false;
+        chatRunRegistry.getRun(pending.appSessionId)?.writer.send({
+          kind: 'permission_always_failed',
+          requestId: data.requestId,
+          sessionId: pending.appSessionId,
+          toolName: pending.toolName,
+          message: 'The tool ran once, but "Always allow" could not be saved for this project.',
+        });
       }
     }
   }

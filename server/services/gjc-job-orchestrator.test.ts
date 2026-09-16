@@ -90,6 +90,20 @@ test('start reserves before creating a worktree, admits caller-owned run id, the
   await Promise.resolve();
   assert.equal(completed, false);
 });
+test('a dispatched job run carries the project\'s stored permission policy', async () => {
+  // A job is a turn like any other. Without this it starts on the SDK default,
+  // which allows every tool no matter what the project's mode says, while a
+  // chat turn on the same project shows a permission card.
+  const jobs = new Jobs(); const git = new Git(); const supervisor = new Supervisor();
+  const asked: Array<string | null | undefined> = [];
+  const orchestrator = new JobOrchestrator({
+    jobs, git, supervisor, owner: 'owner', createId: () => 'abc',
+    resolveRunPermissions: (projectRoot) => { asked.push(projectRoot); return { mode: 'ask', allowAlways: ['bash'] }; },
+  });
+  await orchestrator.start('gjc', 'app-1', '/project', 'hello', options);
+  assert.deepEqual(asked, ['/project']);
+  assert.deepEqual(supervisor.input?.options?.permissions, { mode: 'ask', allowAlways: ['bash'] });
+});
 test('completion resolves only after durable finalization succeeds', async () => {
   const jobs = new Jobs(); const git = new Git();
   let settle!: () => void; const workerCompletion = new Promise<void>((resolve) => { settle = resolve; });

@@ -102,7 +102,7 @@ test('a dispatched job run carries the project\'s stored permission policy', asy
   });
   await orchestrator.start('gjc', 'app-1', '/project', 'hello', options);
   assert.deepEqual(asked, ['/project']);
-  assert.deepEqual(supervisor.input?.options.permissions, { mode: 'ask', allowAlways: ['bash'] });
+  assert.deepEqual(supervisor.input?.options?.permissions, { mode: 'ask', allowAlways: ['bash'] });
 });
 test('completion resolves only after durable finalization succeeds', async () => {
   const jobs = new Jobs(); const git = new Git();

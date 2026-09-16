@@ -29,7 +29,7 @@ test('arms before watermark read and flushes a live event that arrives during it
   const socket = new FakeSocket();
   const pending = service.handle(socket as any, { protocolVersion: 1, type: 'gjc.job.subscribe', jobId: 'job-a', after: 0 });
   service.publish('job-a', event(2));
-  snapshot.resolve({ lastSequence: 1 });
+  snapshot.resolve({ jobId: 'job-a', state: 'running', lastSequence: 1 });
   await pending;
   await replay(service, socket, subscriptionId(socket), 0);
   assert.deepEqual(frame(socket, 'gjc_job_event').map(item => item.event.sequence), [2]);
@@ -38,7 +38,7 @@ test('arms before watermark read and flushes a live event that arrives during it
 test('replay watermark excludes concurrent appends and emits every sequence once in order', async () => {
   const calls: any[] = [];
   const authority: Authority = {
-    get: async () => ({ lastSequence: 3 }),
+    get: async () => ({ jobId: 'job-a', state: 'running', lastSequence: 3 }),
     replayEvents: async params => {
       calls.push(params);
       if (params.after === 0) { service.publish('job-a', event(4)); return { events: [event(1)] }; }
@@ -56,7 +56,7 @@ test('replay watermark excludes concurrent appends and emits every sequence once
 });
 
 test('done replay chunk precedes live flush and discards buffered watermark events', async () => {
-  const service = new GjcJobProjectionService({ get: async () => ({ lastSequence: 2 }), replayEvents: async () => ({ events: [event(1), event(2)] }) });
+  const service = new GjcJobProjectionService({ get: async () => ({ jobId: 'job-a', state: 'running', lastSequence: 2 }), replayEvents: async () => ({ events: [event(1), event(2)] }) });
   const socket = new FakeSocket();
   const id = await subscribe(service, socket);
   service.publish('job-a', event(2));
@@ -67,7 +67,7 @@ test('done replay chunk precedes live flush and discards buffered watermark even
 });
 
 test('duplicate callback is ignored while conflicting event identity terminates only that subscription', async () => {
-  const service = new GjcJobProjectionService({ get: async () => ({ lastSequence: 0 }), replayEvents: async () => ({ events: [] }) });
+  const service = new GjcJobProjectionService({ get: async () => ({ jobId: 'job-a', state: 'running', lastSequence: 0 }), replayEvents: async () => ({ events: [] }) });
   const first = new FakeSocket(); const second = new FakeSocket();
   const firstId = await subscribe(service, first);
   await service.handle(second as any, { protocolVersion: 1, type: 'gjc.job.subscribe', jobId: 'job-b', after: 0 });
@@ -82,14 +82,14 @@ test('duplicate callback is ignored while conflicting event identity terminates 
 });
 
 test('rejects cursor ahead of the watermark', async () => {
-  const service = new GjcJobProjectionService({ get: async () => ({ lastSequence: 2 }), replayEvents: async () => ({ events: [] }) });
+  const service = new GjcJobProjectionService({ get: async () => ({ jobId: 'job-a', state: 'running', lastSequence: 2 }), replayEvents: async () => ({ events: [] }) });
   const socket = new FakeSocket();
   await service.handle(socket as any, { protocolVersion: 1, type: 'gjc.job.subscribe', jobId: 'job-a', after: 3 });
   assert.equal(frame(socket, 'gjc_job_error').at(-1)?.code, 'cursor_ahead');
 });
 
 test('closes only the overflowing replay buffer so durable replay can recover', async () => {
-  const service = new GjcJobProjectionService({ get: async () => ({ lastSequence: 5001 }), replayEvents: async () => ({ events: [] }) });
+  const service = new GjcJobProjectionService({ get: async () => ({ jobId: 'job-a', state: 'running', lastSequence: 5001 }), replayEvents: async () => ({ events: [] }) });
   const socket = new FakeSocket();
   await subscribe(service, socket);
   for (let sequence = 1; sequence <= 5001; sequence++) service.publish('job-a', event(sequence));
@@ -99,7 +99,7 @@ test('closes only the overflowing replay buffer so durable replay can recover', 
 
 test('times out an unavailable replay using the injected timeout', async () => {
   const never = deferred<any>();
-  const service = new GjcJobProjectionService({ get: async () => ({ lastSequence: 1 }), replayEvents: () => never.promise }, 5);
+  const service = new GjcJobProjectionService({ get: async () => ({ jobId: 'job-a', state: 'running', lastSequence: 1 }), replayEvents: () => never.promise }, 5);
   const socket = new FakeSocket();
   const id = await subscribe(service, socket);
   void replay(service, socket, id, 0);
@@ -108,7 +108,7 @@ test('times out an unavailable replay using the injected timeout', async () => {
 });
 
 test('socket close removes all child subscriptions and their buffered state', async () => {
-  const service = new GjcJobProjectionService({ get: async () => ({ lastSequence: 1 }), replayEvents: async () => ({ events: [event(1)] }) });
+  const service = new GjcJobProjectionService({ get: async () => ({ jobId: 'job-a', state: 'running', lastSequence: 1 }), replayEvents: async () => ({ events: [event(1)] }) });
   const socket = new FakeSocket();
   await subscribe(service, socket);
   socket.emit('close');
@@ -133,13 +133,52 @@ test('projection byte budget clamps to the protocol bounds', () => {
 });
 test('rejects replay after the done marker and never calls authority again', async () => {
   let calls = 0;
-  const service = new GjcJobProjectionService({ get: async () => ({ lastSequence: 0 }), replayEvents: async () => { calls++; return { events: [] }; } });
+  const service = new GjcJobProjectionService({ get: async () => ({ jobId: 'job-a', state: 'running', lastSequence: 0 }), replayEvents: async () => { calls++; return { events: [] }; } });
   const socket = new FakeSocket();
   const id = await subscribe(service, socket);
   await replay(service, socket, id, 0);
   await replay(service, socket, id, 0);
   assert.equal(calls, 1);
   assert.equal(frame(socket, 'gjc_job_error').at(-1)?.code, 'protocol_violation');
+});
+
+test('the wire snapshot carries the public job fields and never the native lease', async () => {
+  // lease owner/generation and the dispatch checkpoint fence one dispatcher
+  // against another. A browser has no use for them, and a leaked lease is
+  // material for a caller trying to drive the authority itself.
+  const service = new GjcJobProjectionService({
+    get: async () => ({
+      jobId: 'job-a', provider: 'gjc', state: 'running', lastSequence: 2, createdAt: '2026-01-01T00:00:00Z',
+      prompt: 'the prompt', worktreeId: 'wt-1', branch: 'job/job-a', repositoryRoot: '/repo', baseCommit: 'abc',
+      currentRun: { runId: 'run-1', appSessionId: 'app-1', providerSessionId: 'provider-1', internalCursor: 7 },
+      lease: { owner: 'dispatcher-1', generation: 4 }, dispatchCheckpoint: { runId: 'run-1' },
+    }),
+    replayEvents: async () => ({ events: [] }),
+  });
+  const socket = new FakeSocket();
+  await subscribe(service, socket);
+  const snapshot = frame(socket, 'gjc_job_subscribed').at(-1)!.snapshot;
+  assert.deepEqual(Object.keys(snapshot).sort(), [
+    'baseCommit', 'branch', 'createdAt', 'currentRun', 'jobId', 'lastSequence', 'prompt', 'provider', 'repositoryRoot', 'state', 'worktreeId',
+  ]);
+  assert.deepEqual(Object.keys(snapshot.currentRun).sort(), ['appSessionId', 'providerSessionId', 'runId']);
+  assert.equal(snapshot.state, 'running');
+});
+
+test('a rejected frame still names the job it was for', async () => {
+  // The client matches a failure to its subscription by job id. Without one it
+  // drops the error and the panel keeps spinning with no explanation.
+  const service = new GjcJobProjectionService({ get: async () => ({ jobId: 'job-a', state: 'running', lastSequence: 0 }), replayEvents: async () => ({ events: [] }) });
+  const socket = new FakeSocket();
+  await service.handle(socket as any, { protocolVersion: 1, type: 'gjc.job.replay', jobId: 'job-a', subscriptionId: 'gjc-unknown', after: 0 });
+  const rejected = frame(socket, 'gjc_job_error').at(-1)!;
+  assert.equal(rejected.code, 'invalid_request');
+  assert.equal(rejected.jobId, 'job-a');
+
+  await service.handle(socket as any, { protocolVersion: 1, type: 'gjc.job.subscribe', jobId: 'job-a', after: 'not-a-cursor' });
+  const malformed = frame(socket, 'gjc_job_error').at(-1)!;
+  assert.equal(malformed.code, 'invalid_request');
+  assert.equal(malformed.jobId, 'job-a');
 });
 
 test('rejects oversized identifiers before authority access', async () => {
@@ -153,7 +192,7 @@ test('rejects oversized identifiers before authority access', async () => {
 
 test('late replay completion after timeout cannot send a chunk or enter live state', async () => {
   const pending = deferred<any>();
-  const service = new GjcJobProjectionService({ get: async () => ({ lastSequence: 1 }), replayEvents: () => pending.promise }, 5);
+  const service = new GjcJobProjectionService({ get: async () => ({ jobId: 'job-a', state: 'running', lastSequence: 1 }), replayEvents: () => pending.promise }, 5);
   const socket = new FakeSocket();
   const id = await subscribe(service, socket);
   void replay(service, socket, id, 0);

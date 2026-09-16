@@ -144,6 +144,13 @@ const useWebSocketConnection = (): WebSocketContextType => {
       sendFrame(jobFrame('gjc.job.replay', intent.jobId, { subscriptionId: message.subscriptionId, after: intent.getCursor() }));
       return;
     }
+    // A failure reaches its subscriber even when the subscription was never
+    // confirmed: a rejected subscribe has no subscription id, and dropping it
+    // leaves the panel spinning with nothing to explain why.
+    if (message.kind === 'gjc_job_error') {
+      if (message.subscriptionId === undefined || intent.subscriptionId === null || intent.subscriptionId === message.subscriptionId) intent.onError(message.code);
+      return;
+    }
     if (intent.subscriptionId !== message.subscriptionId) return;
     if (message.kind === 'gjc_job_replay_chunk') {
       if (intent.watermark !== message.watermark) {
@@ -153,8 +160,6 @@ const useWebSocketConnection = (): WebSocketContextType => {
       }
     } else if (message.kind === 'gjc_job_event') {
       intent.applyLiveEvent(message.event);
-    } else if (message.kind === 'gjc_job_error') {
-      intent.onError(message.code);
     }
   }, [sendFrame]);
 

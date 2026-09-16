@@ -36,9 +36,12 @@ test('a path outside the workspace root is refused, sync and async alike', async
   await inWorkspaceRoot(async () => {
     const outside = await realpath(await mkdtemp(path.join(tmpdir(), 'workspace-outside-')));
     try {
+      // The refusal reason depends on where the OS puts temporary files (a
+      // Linux runner's /tmp is also a protected system directory); that it is
+      // refused at all is the contract.
       const asynchronous = await validateWorkspacePath(outside);
       assert.equal(asynchronous.valid, false);
-      assert.match(asynchronous.error ?? '', /workspace root/);
+      assert.ok(asynchronous.error);
       assert.equal(validateWorkspacePathSync(outside).valid, false);
     } finally {
       await rm(outside, { recursive: true, force: true });

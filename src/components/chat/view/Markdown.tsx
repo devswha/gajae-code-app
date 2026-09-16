@@ -19,7 +19,21 @@ type MarkdownProps = {
 // Links to the wider web (or in-page anchors) keep normal browser navigation;
 // everything else is treated as a workspace file reference.
 const isExternalHref = (href?: string): boolean =>
-  !!href && (/^(https?:|mailto:|tel:|data:)/i.test(href) || href.startsWith('#'));
+  !!href && (/^(https?:|mailto:|tel:)/i.test(href) || href.startsWith('#'));
+
+/**
+ * Schemes a transcript link may carry.
+ *
+ * A model's answer, a tool result and a pasted document all arrive here as
+ * markdown, so a link's scheme is attacker-influenced text. `javascript:` runs
+ * in the app, `data:` is a document the app would be hosting, and `tauri://`
+ * is the desktop shell's own origin - which the webview, loaded over loopback
+ * HTTP, is otherwise kept away from. None of them are rendered as links; the
+ * text stays visible so nothing silently disappears from an answer.
+ */
+const RENDERABLE_LINK_SCHEME = /^(https?:|mailto:|tel:)/i;
+const isRenderableHref = (href?: string): href is string =>
+  typeof href === 'string' && (RENDERABLE_LINK_SCHEME.test(href) || href.startsWith('#') || !/^[a-z][a-z0-9+.-]*:/i.test(href));
 
 export const isBrowserHref = (href?: string): href is string =>
   typeof href === 'string' && /^https?:\/\//i.test(href);
@@ -241,6 +255,9 @@ export function Markdown({ children, className }: MarkdownProps) {
             </a>
           );
         }
+
+        // A scheme this app will not navigate to is shown as the text it is.
+        if (!isRenderableHref(href)) return <>{linkChildren}</>;
 
         return (
           <a

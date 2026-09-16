@@ -69,6 +69,12 @@ taken from a client request.
   timeout, first parsing `--version` and then running the documented
   `nodejs -e "console.log('ok')"` round trip. It never runs `import`, `upgrade`
   or `onboarding`.
+- Both CLI callers share one runner (`execEgoFile`) because ego-browser 0.5
+  behaves two ways a plain `promisify(execFile)` gets wrong: it waits for EOF
+  on stdin before running a `nodejs` program, so the parent must close the
+  child's stdin or every call dies on its timeout; and when its output is piped
+  it writes both the program's `console.log` and the `--version` banner to
+  **stderr**. Checks read the combined content, never the stream it arrived on.
 - A missing or not-ready Ego CLI keeps the session alive for ordinary chat and
   coding while browser work is unavailable. There is no fallback or
   substitution to Built-in, Aside, an OS browser, Playwright, Puppeteer, MCP

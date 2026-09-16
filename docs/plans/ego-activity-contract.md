@@ -32,6 +32,22 @@ All numbers are live probes on this machine, 2026-09-16, ego-browser
 | The held script afterwards | completed its remaining `goto` and `finish({keep: []})`; the space then disappeared from `listTaskSpaces()` | — |
 | Script stdout during a long round (`console.log` at t≈0, read at t=3 s) | **empty**; all lines appeared only when the CLI process exited | — |
 
+Implementation added two more, both found by running the real CLI from the
+server instead of a shell, and both now covered by tests:
+
+| Probe | Result |
+| --- | --- |
+| `nodejs -e <script>` through `child_process.execFile` | **hangs** until the timeout kills it: the CLI waits for EOF on stdin before running the program, and an inherited pipe never closes |
+| the same call with the child's stdin closed | answers in ~0.1 s |
+| where a piped CLI writes | **stderr** — both the program's `console.log` and the `--version` banner; stdout stays empty |
+
+The second row also explains a shipped bug: `testEgoBrowserConnection` (Settings
+> Test connection) used `promisify(execFile)` and required the version on
+stdout with an empty stderr, so against ego-browser 0.5.0.32 it reported
+`ego_connection_failed` for a perfectly healthy install. Both callers now share
+one runner that closes stdin and judges content rather than the stream it
+arrived on.
+
 Two of those rows decide the design:
 
 - **Concurrent observation is safe.** A second CLI process reading a live

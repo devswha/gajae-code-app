@@ -96,7 +96,8 @@
       "browser": "Browser",
       "browserRunning": "Im Browser aktiv",
       "browserSpace": "Browser-Space {{id}}",
-      "browserMore": "+{{count}} weitere"
+      "browserMore": "+{{count}} weitere",
+      "browserActivePage": "Aktive Seite"
     },
     "actionRequired": {
       "title": "Antwort erforderlich",

@@ -1,4 +1,3 @@
-import { Globe } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useSessionStatus } from '../../../contexts/SessionStatusContext';
@@ -7,21 +6,14 @@ import { cn } from '../../../utils/cn';
 import { useSessionDelegations } from '../../chat/hooks/useSessionDelegations';
 import { useSessionTodos } from '../../chat/hooks/useSessionTodos';
 import { TODO_STATUS_ICON } from '../../chat/view/todoStatusIcon';
-import { useEgoActivity, type EgoActivitySpace } from '../hooks/useEgoActivity';
+import { useEgoActivity } from '../hooks/useEgoActivity';
 
-/** Keep the lane compact; the rest is counted, never listed. */
-const MAX_BROWSER_ROWS = 2;
+import AgentSidebarBrowser from './AgentSidebarBrowser';
 
 const { Icon: WorkingIcon, className: workingIconClassName } = TODO_STATUS_ICON.in_progress;
 
 /** The runtime names agents in lowercase ('executor'); the lane shows them as labels. */
 const agentLabel = (agent: string) => (agent ? agent[0].toUpperCase() + agent.slice(1) : agent);
-
-/**
- * The page the browser is on: ego marks exactly one tab active per space, and
- * a space that has just been created has none yet.
- */
-const currentPage = (space: EgoActivitySpace) => space.pages.find((page) => page.active) ?? space.pages[0];
 
 export type AgentSidebarWorkProps = {
   sessionId?: string;
@@ -108,32 +100,7 @@ export default function AgentSidebarWork({ sessionId, sessionStore }: AgentSideb
           <span className="min-w-0 flex-1 truncate text-foreground">{t('agentSidebar.work.working')}</span>
         </div>
       ) : null}
-      {browserSpaces.length > 0 && (
-        <div>
-          <p className="px-2 pt-1 pb-0.5 text-[10px] font-medium tracking-wide text-muted-foreground/70">{t('agentSidebar.work.browser')}</p>
-          <ul>
-            {browserSpaces.slice(0, MAX_BROWSER_ROWS).map((space) => {
-              const page = currentPage(space);
-              const goal = space.name || t('agentSidebar.work.browserSpace', { id: space.id });
-              return (
-                <li key={space.id} className="flex items-start gap-2 px-2 py-1" title={`${goal}${page?.url ? ` — ${page.url}` : ''}`}>
-                  <Globe className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="sr-only">{t('agentSidebar.work.browserRunning')}: </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-foreground">{goal}</span>
-                    {page?.url ? <span className="block truncate text-muted-foreground">{page.url}</span> : null}
-                  </span>
-                </li>
-              );
-            })}
-            {browserSpaces.length > MAX_BROWSER_ROWS && (
-              <li className="px-2 py-1 pl-7 text-muted-foreground">
-                {t('agentSidebar.work.browserMore', { count: browserSpaces.length - MAX_BROWSER_ROWS })}
-              </li>
-            )}
-          </ul>
-        </div>
-      )}
+      <AgentSidebarBrowser spaces={browserSpaces} />
       {agents.length > 0 && (
         <div>
           <p className="px-2 pt-1 pb-0.5 text-[10px] font-medium tracking-wide text-muted-foreground/70">{t('agentSidebar.work.agents')}</p>

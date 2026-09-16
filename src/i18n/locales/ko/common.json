@@ -96,7 +96,8 @@
       "browser": "브라우저",
       "browserRunning": "브라우저 작업 중",
       "browserSpace": "브라우저 공간 {{id}}",
-      "browserMore": "+{{count}}개 더"
+      "browserMore": "+{{count}}개 더",
+      "browserActivePage": "현재 페이지"
     },
     "actionRequired": {
       "title": "응답 필요",

@@ -286,7 +286,9 @@ test('long task text truncates to one compact line and keeps the full value on t
   assert.equal(within(section()).queryByText('Keep it compact.'), null);
 });
 
-test('the block stays a projection: no controls, no guessed state, no agent, IRC or browser surface', async () => {
+test('without a reported browser the block is pure projection: no controls, no guessed state, no agent or IRC surface', async () => {
+  // The ego browser rows are the one control the lane can grow, and only when
+  // the server reports a live Space for this session (off here, as by default).
   const state = await setup();
   state.publish('session-1', plan);
   render(state.ui('session-1', running('session-1')));

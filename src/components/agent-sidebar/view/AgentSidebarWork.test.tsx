@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -20,7 +21,13 @@ function storeWith(phases: unknown[]): SessionStore {
 }
 
 function render(store: SessionStore, sessionId = 'session-1'): string {
-  return renderToStaticMarkup(createElement(AgentSidebarWork, { sessionId, sessionStore: store }));
+  // The lane reads the ego browser surface through TanStack Query, the way the
+  // app provides it; a static render runs no effect, so nothing is fetched.
+  return renderToStaticMarkup(createElement(
+    QueryClientProvider,
+    { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+    createElement(AgentSidebarWork, { sessionId, sessionStore: store }),
+  ));
 }
 
 test('a session without a todo list and without published activity renders nothing', () => {

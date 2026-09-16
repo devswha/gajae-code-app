@@ -24,6 +24,26 @@ function activeModelPath(sessionId: string) {
   return `/api/providers/gjc/sessions/${encodeURIComponent(sessionId)}/active-model`;
 }
 
+/**
+ * Whether a catalog still offers a remembered selection.
+ *
+ * The composer's model control writes either a preset from `OPTIONS` or a raw
+ * model id from `MODELS`, so both lists decide. Checking `OPTIONS` alone threw
+ * every raw model pick away and rewrote the record as `default`, which is how
+ * a chosen model quietly became "current configuration" on the next load.
+ *
+ * A catalog with no `MODELS` is an unreachable runtime, and an empty one is
+ * "no provider signed in". Neither is a verdict on the chosen model, so the
+ * selection stands until a catalog that knows its models contradicts it.
+ */
+function catalogOffers(definition: ProviderModelsDefinition, candidate: string | null): candidate is string {
+  if (!candidate) return false;
+  if (definition.OPTIONS.some(({ value }) => value === candidate)) return true;
+  const models = definition.MODELS;
+  if (!models || models.length === 0) return true;
+  return models.some(({ value }) => value === candidate);
+}
+
 export function useChatProviderState({ selectedSession, selectedProject: _selectedProject }: UseChatProviderStateArgs) {
   const [gjcModel, setGjcModelState] = useState(savedModel);
   const [sessionPinnedModel, setSessionPinnedModel] = useState<string | null>(null);
@@ -89,10 +109,9 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
       setProviderModelCacheCatalog({ gjc: cache });
       setGjcModelState((current) => {
         const stored = localStorage.getItem('gjc-model');
-        const options = definition.OPTIONS;
-        const selected = options.some(({ value }) => value === stored)
-          ? stored!
-          : options.some(({ value }) => value === current)
+        const selected = catalogOffers(definition, stored)
+          ? stored
+          : catalogOffers(definition, current)
             ? current
             : definition.DEFAULT;
         if (stored !== selected) localStorage.setItem('gjc-model', selected);

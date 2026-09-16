@@ -25,11 +25,7 @@ import GoalControls from './GoalControls';
 import ChatComposer from './ChatComposer';
 import ChatMessagesPane from './ChatMessagesPane';
 import CommandResultModal from './CommandResultModal';
-import type { ReasoningEffort } from './reasoningEffort';
-
-const REASONING_EFFORTS = new Set<ReasoningEffort>([
-  'default', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max',
-]);
+import { isReasoningEffort, readReasoningEffort, rememberReasoningEffort, type ReasoningEffort } from './reasoningEffort';
 
 function ComposerSurface(props: ComponentProps<typeof ChatComposer>) {
   return <ChatComposer {...props} />;
@@ -77,7 +73,7 @@ function ChatInterface({
   const oauthLogin = useOAuthLogin();
   const projectPermissions = useProjectPermissions(selectedProject?.projectId);
   useLegacySkipPermissionsMigration(selectedProject?.projectId, projectPermissions.setMode);
-  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>('default');
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(readReasoningEffort);
   const reasoningSessionRef = useRef<string | null>(selectedSession?.id ?? null);
 
   useEffect(() => {
@@ -136,15 +132,21 @@ function ChatInterface({
   useEffect(() => {
     const prior = reasoningSessionRef.current;
     const selected = selectedSession?.id ?? null;
-    if (prior && prior !== selected) setReasoningEffort('default');
+    // Leaving a session drops the level its run reported, not the user's own
+    // choice: the composer sends its effort with every message, so what it
+    // shows for the next session is the standing choice, not "Default".
+    if (prior && prior !== selected) setReasoningEffort(readReasoningEffort());
     reasoningSessionRef.current = selected;
   }, [selectedSession?.id]);
 
+  const chooseReasoningEffort = useCallback((value: ReasoningEffort) => {
+    rememberReasoningEffort(value);
+    setReasoningEffort(value);
+  }, []);
+
   useEffect(() => {
     const serverValue = session.sessionState?.thinkingLevel;
-    if (typeof serverValue === 'string' && REASONING_EFFORTS.has(serverValue as ReasoningEffort)) {
-      setReasoningEffort(serverValue as ReasoningEffort);
-    }
+    if (typeof serverValue === 'string' && isReasoningEffort(serverValue)) setReasoningEffort(serverValue);
   }, [session.sessionState?.thinkingLevel]);
 
   const reconnectChat = useCallback(async () => {
@@ -293,7 +295,7 @@ function ChatInterface({
       modelPickerOpenTrigger={composer.modelPickerTrigger}
       onSelectModelPreset={(model) => selectProviderModel('gjc', model, session.currentSessionId || selectedSession?.id || null)}
       reasoningEffort={reasoningEffort}
-      onSelectReasoningEffort={setReasoningEffort}
+      onSelectReasoningEffort={chooseReasoningEffort}
       permissions={projectPermissions.permissions}
       onSelectPermissionMode={projectPermissions.setMode}
       permissionsBusy={projectPermissions.isSettingMode}

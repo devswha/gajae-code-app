@@ -96,7 +96,8 @@
       "browser": "Браузер",
       "browserRunning": "Работа в браузере",
       "browserSpace": "Пространство браузера {{id}}",
-      "browserMore": "+{{count}} ещё"
+      "browserMore": "+{{count}} ещё",
+      "browserActivePage": "Текущая страница"
     },
     "actionRequired": {
       "title": "Требуется ответ",

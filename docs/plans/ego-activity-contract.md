@@ -1,7 +1,7 @@
 # ego browser activity contract
 
-Status: PR 1 of §11 shipped (observer, opt-in, WORK row); PR 3 (live frame) is
-not implemented (2026-09-16).
+Status: PR 1 and PR 2 of §11 shipped (reader, opt-in, WORK row, space detail);
+PR 3 (live frame) is not implemented (2026-09-16).
 Question answered: **can Gajae Code App render what the ego lite browser is
 doing while a session drives it, and what would it cost?**
 
@@ -208,13 +208,15 @@ a tailnet. Non-negotiables:
 ## 8. UI surfaces, in the order they should ship
 
 1. **WORK row** (`AgentSidebarWork.tsx`). One row while an attributed space is
-   live: `Browser · ego lite` with `Space 15 · example.com`. Same composition
+   live: the Space's goal and the page ego reports as active. Same composition
    rules the Aside design fixed: in-flight only, never replaces or reorders
    TODOs, capped with `+N`, static subtitle, no elapsed-time or progress
    claims.
-2. **Sidebar panel.** Space name, managed pages with their current URL/title,
-   which tab is active, and a link that focuses ego lite. This is where the
-   "what is the browser doing" question is actually answered.
+2. **Space detail** (`AgentSidebarBrowser.tsx`). The same row expands to the
+   Space's other pages with their titles and addresses, because a browser job
+   that opened three tabs is when one line stops being enough. A second section
+   repeating the row was rejected: in a 256 px lane that is duplication, not
+   detail.
 3. **Live frame.** ~1 fps screenshot of the active agent tab in the panel,
    expandable. Read-only image: driving the browser from the app UI is a
    different product with a much larger security surface and is **not** part of
@@ -269,9 +271,12 @@ Cost note: 10 locales (`src/i18n/locales/*`) and DOM tests
   its run-registry wiring unnecessary; and the per-call "bash in flight" gate
   was dropped, because ego's own space lifecycle already answers when browser
   work exists and a Bash-derived gate would add a second, weaker source.
-- **PR 2 — space detail.** Every page of the live space with its title, address
-  and which one is active, as a disclosure on the WORK row rather than a second
-  section repeating it. i18n ×10, DOM tests.
+- **PR 2 — space detail.** **Shipped** as `AgentSidebarBrowser.tsx`: every page
+  of the live space with its title, address and which one is active, as a
+  disclosure on the WORK row rather than a second section repeating it. A space
+  with no page yet is not expandable, the active page is marked with
+  `aria-current` rather than by colour, and a page without a title falls back to
+  its address. i18n ×10, DOM tests.
 - **PR 3 — live frame.** Screenshot poll, PNG endpoint with TTL cache, second
   opt-in switch, privacy gates, tests. ~400 lines. Not implemented.
 

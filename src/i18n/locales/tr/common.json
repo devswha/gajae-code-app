@@ -96,7 +96,8 @@
       "browser": "Tarayıcı",
       "browserRunning": "Tarayıcıda çalışıyor",
       "browserSpace": "Tarayıcı alanı {{id}}",
-      "browserMore": "+{{count}} daha"
+      "browserMore": "+{{count}} daha",
+      "browserActivePage": "Etkin sayfa"
     },
     "actionRequired": {
       "title": "Yanıt gerekiyor",

@@ -169,7 +169,15 @@
     "noGrants": "没有保存的自动化批准。",
     "origin": "站点来源",
     "application": "桌面应用",
-    "revoke": "移除批准"
+    "revoke": "移除批准",
+    "withheld": "应用中停用的运行时功能",
+    "withheldDescription": "工具集由应用决定。无论你的 GJC 配置如何，以下运行时功能在所有会话中都保持关闭。",
+    "withheldMcp": "MCP 服务器",
+    "withheldMcpReason": "不会加载你 GJC 设置中的服务器和项目里的 .mcp.json，以免应用从未选择的工具进入会话。",
+    "withheldToolDiscovery": "工具发现",
+    "withheldToolDiscoveryReason": "会话无法在运行时激活额外工具；应用选定的集合就是全部集合。",
+    "withheldAstEdit": "AST 编辑",
+    "withheldAstEditReason": "它只预览改写，并通过应用未开放的工具来应用，因此会展示会话永远无法提交的编辑。"
   },
   "notifications": {
     "title": "通知",

@@ -169,7 +169,15 @@
     "noGrants": "Keine gespeicherten Automatisierungsgenehmigungen.",
     "origin": "Herkunft der Website",
     "application": "Desktop-Anwendung",
-    "revoke": "Genehmigung entfernen"
+    "revoke": "Genehmigung entfernen",
+    "withheld": "In der App deaktivierte Laufzeitfunktionen",
+    "withheldDescription": "Die App bestimmt ihren eigenen Werkzeugsatz. Unabhängig von Ihrer GJC-Konfiguration bleiben diese Laufzeitfunktionen in jeder Sitzung aus.",
+    "withheldMcp": "MCP-Server",
+    "withheldMcpReason": "Server aus Ihren GJC-Einstellungen und eine .mcp.json im Projekt werden nicht geladen, damit keine Werkzeuge in eine Sitzung gelangen, die die App nie gewählt hat.",
+    "withheldToolDiscovery": "Werkzeugsuche",
+    "withheldToolDiscoveryReason": "Sitzungen können zur Laufzeit keine weiteren Werkzeuge aktivieren; der von der App gewählte Satz ist der gesamte Satz.",
+    "withheldAstEdit": "AST-Bearbeitung",
+    "withheldAstEditReason": "Sie zeigt Änderungen nur als Vorschau und wendet sie über ein Werkzeug an, das die App nicht bereitstellt — sie würde also Änderungen anbieten, die eine Sitzung nie übernehmen könnte."
   },
   "notifications": {
     "title": "Hinweise",

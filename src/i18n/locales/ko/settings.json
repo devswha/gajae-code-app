@@ -169,7 +169,15 @@
     "noGrants": "저장된 자동화 승인 없음.",
     "origin": "사이트 원본",
     "application": "데스크톱 애플리케이션",
-    "revoke": "승인 취소"
+    "revoke": "승인 취소",
+    "withheld": "앱에서 비활성화된 런타임 기능",
+    "withheldDescription": "앱이 자체 도구 집합을 결정합니다. GJC 설정과 무관하게 아래 런타임 기능은 모든 세션에서 꺼져 있습니다.",
+    "withheldMcp": "MCP 서버",
+    "withheldMcpReason": "GJC 설정의 서버와 프로젝트의 .mcp.json을 불러오지 않습니다. 앱이 선택하지 않은 도구가 세션에 닿지 못하게 합니다.",
+    "withheldToolDiscovery": "도구 탐색",
+    "withheldToolDiscoveryReason": "세션이 실행 중에 도구를 추가로 활성화할 수 없습니다. 앱이 선택한 집합이 전부입니다.",
+    "withheldAstEdit": "AST 편집",
+    "withheldAstEditReason": "수정안을 미리 보여주기만 하고 적용은 앱이 노출하지 않는 도구로 합니다. 세션이 절대 커밋할 수 없는 편집을 광고하게 됩니다."
   },
   "notifications": {
     "title": "알림 메시지",

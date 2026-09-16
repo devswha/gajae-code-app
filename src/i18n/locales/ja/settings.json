@@ -169,7 +169,15 @@
     "noGrants": "保存された自動化の承認はありません。",
     "origin": "サイトのオリジン",
     "application": "デスクトップアプリケーション",
-    "revoke": "承認を削除"
+    "revoke": "承認を削除",
+    "withheld": "アプリで無効なランタイム機能",
+    "withheldDescription": "ツールセットはアプリが決定します。GJC の設定にかかわらず、以下のランタイム機能はすべてのセッションで無効です。",
+    "withheldMcp": "MCP サーバー",
+    "withheldMcpReason": "GJC 設定のサーバーとプロジェクトの .mcp.json は読み込まれません。アプリが選んでいないツールがセッションに届かないようにします。",
+    "withheldToolDiscovery": "ツール探索",
+    "withheldToolDiscoveryReason": "セッションは実行中に追加のツールを有効化できません。アプリが選んだ集合がすべてです。",
+    "withheldAstEdit": "AST 編集",
+    "withheldAstEditReason": "書き換えをプレビューするだけで、適用にはアプリが公開していないツールを使うため、セッションが決して確定できない編集を提示することになります。"
   },
   "notifications": {
     "title": "通知",

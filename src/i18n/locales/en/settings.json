@@ -184,7 +184,15 @@
     "noGrants": "No saved automation approvals.",
     "origin": "Site origin",
     "application": "Desktop application",
-    "revoke": "Remove approval"
+    "revoke": "Remove approval",
+    "withheld": "Withheld runtime features",
+    "withheldDescription": "The app decides its own tool set. These runtime features stay off for every session, whatever your GJC configuration says.",
+    "withheldMcp": "MCP servers",
+    "withheldMcpReason": "Servers from your GJC settings and a project .mcp.json are not loaded, so tools the app never chose cannot reach a session.",
+    "withheldToolDiscovery": "Tool discovery",
+    "withheldToolDiscoveryReason": "Sessions cannot activate additional tools at runtime; the app-selected set is the whole set.",
+    "withheldAstEdit": "AST edit",
+    "withheldAstEditReason": "It only previews rewrites and applies them through a tool the app does not expose, so it would advertise edits a session could never commit."
   },
   "notifications": {
     "title": "Notifications",

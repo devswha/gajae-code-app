@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ExternalLink, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
+import { ExternalLink, RefreshCw, ShieldCheck, SquareSlash, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useAppShellStore } from '../../../../stores/useAppShellStore';
@@ -303,6 +303,34 @@ export default function AutomationSettingsTab() {
               <div className="min-w-0"><p className="truncate text-sm text-foreground">{grant.value}</p><p className="text-xs text-muted-foreground">{t(`automation.${grant.kind}`)}</p></div>
               <button type="button" onClick={() => void revoke(grant.kind, grant.value)} aria-label={t('automation.revoke')} className="rounded-md p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
             </div>
+          ))}
+        </SettingsCard>
+      </SettingsSection>
+
+      {/*
+        * The app overrides four runtime settings for every session:
+        * `mcp.discoveryMode`, `mcp.enableProjectConfig`, `tools.discoveryMode`
+        * and `astEdit.enabled`. Those overrides are a deliberate boundary and
+        * they stay - but until now nothing said so. A user whose MCP servers
+        * work in the GJC CLI found them simply absent here, with no error and
+        * no explanation, which is an unanswerable support question.
+        *
+        * Reports, not controls: there is nothing to toggle, because the point
+        * is that a session cannot toggle them either.
+        */}
+      <SettingsSection title={t('automation.withheld')} description={t('automation.withheldDescription')}>
+        <SettingsCard>
+          {([
+            ['mcp', 'automation.withheldMcp', 'automation.withheldMcpReason'],
+            ['toolDiscovery', 'automation.withheldToolDiscovery', 'automation.withheldToolDiscoveryReason'],
+            ['astEdit', 'automation.withheldAstEdit', 'automation.withheldAstEditReason'],
+          ] as const).map(([key, label, reason]) => (
+            <SettingsRow key={key} label={t(label)} description={t(reason)}>
+              <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <SquareSlash className="h-3.5 w-3.5" aria-hidden />
+                {t('automation.notInstalled')}
+              </span>
+            </SettingsRow>
           ))}
         </SettingsCard>
       </SettingsSection>

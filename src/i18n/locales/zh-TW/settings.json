@@ -169,7 +169,15 @@
     "noGrants": "無存儲自動化批准。",
     "origin": "網站原始碼",
     "application": "桌面應用程式",
-    "revoke": "移除批准"
+    "revoke": "移除批准",
+    "withheld": "應用程式中停用的執行階段功能",
+    "withheldDescription": "工具集由應用程式決定。無論你的 GJC 設定為何，以下執行階段功能在所有工作階段中都保持關閉。",
+    "withheldMcp": "MCP 伺服器",
+    "withheldMcpReason": "不會載入你 GJC 設定中的伺服器與專案中的 .mcp.json，以免應用程式從未選擇的工具進入工作階段。",
+    "withheldToolDiscovery": "工具探索",
+    "withheldToolDiscoveryReason": "工作階段無法在執行期間啟用額外工具；應用程式選定的集合就是全部集合。",
+    "withheldAstEdit": "AST 編輯",
+    "withheldAstEditReason": "它只預覽改寫，並透過應用程式未開放的工具套用，因此會展示工作階段永遠無法提交的編輯。"
   },
   "notifications": {
     "title": "通知",

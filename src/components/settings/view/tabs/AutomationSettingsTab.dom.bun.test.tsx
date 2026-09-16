@@ -318,3 +318,58 @@ test('browser routing wording keys have parity across all ten settings locales',
     for (const [key, text] of Object.entries(actual)) assert.ok(text.trim().length > 0, `${locale}${key}`);
   }
 });
+
+/*
+ * The app overrides `mcp.discoveryMode`, `mcp.enableProjectConfig`,
+ * `tools.discoveryMode` and `astEdit.enabled` for every session. The overrides
+ * are the right call; saying nothing about them was not. "Works in the CLI,
+ * missing in the app, no error message" is an unanswerable support question.
+ */
+
+test('the withheld runtime features are reported with a reason for each', async () => {
+  fakeApi();
+  await mount();
+  await waitFor(() => assert.equal(backendSelect().disabled, false));
+
+  assert.ok(screen.getByText(english.automation.withheld));
+  assert.ok(screen.getByText(english.automation.withheldDescription));
+
+  for (const [label, reason] of [
+    [english.automation.withheldMcp, english.automation.withheldMcpReason],
+    [english.automation.withheldToolDiscovery, english.automation.withheldToolDiscoveryReason],
+    [english.automation.withheldAstEdit, english.automation.withheldAstEditReason],
+  ]) {
+    assert.ok(screen.getByText(label), label);
+    assert.ok(screen.getByText(reason), reason);
+  }
+});
+
+test('the withheld block offers nothing to switch on', async () => {
+  fakeApi();
+  await mount();
+  await waitFor(() => assert.equal(backendSelect().disabled, false));
+
+  // A session cannot turn these on either, so a control here would be a lie.
+  const row = screen.getByText(english.automation.withheldMcp).closest('div')?.parentElement;
+  assert.ok(row);
+  assert.equal(row.querySelector('button, input, select'), null);
+});
+
+test('withheld-feature wording keys have parity across all ten settings locales', () => {
+  const keys = [
+    'withheld', 'withheldDescription',
+    'withheldMcp', 'withheldMcpReason',
+    'withheldToolDiscovery', 'withheldToolDiscoveryReason',
+    'withheldAstEdit', 'withheldAstEditReason',
+  ] as const;
+
+  for (const locale of ['en', 'ko', 'de', 'fr', 'it', 'ja', 'ru', 'tr', 'zh-CN', 'zh-TW']) {
+    const file = new URL(`../../../../i18n/locales/${locale}/settings.json`, import.meta.url);
+    const translated = JSON.parse(readFileSync(file, 'utf8')) as { automation?: Record<string, unknown> };
+    for (const key of keys) {
+      const text = translated.automation?.[key];
+      assert.equal(typeof text, 'string', `${locale}.automation.${key}`);
+      assert.ok(String(text).trim().length > 0, `${locale}.automation.${key}`);
+    }
+  }
+});

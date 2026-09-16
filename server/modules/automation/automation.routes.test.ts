@@ -28,6 +28,22 @@ function fakeService(calls: RecordedCall[]): AutomationService {
       cli: { state: 'unknown' }, app: { state: 'unknown' }, skill: { state: 'unknown' },
     }),
     testEgoConnection: async () => { calls.push({ method: 'ego.test' }); return { ok: true, status: 'connected', cliVersion: '0.5.0.32' }; },
+    egoActivity: {
+      get: () => stored.get('automation.egoActivity.v1') === '1',
+      set: (value: unknown) => {
+        if (typeof value !== 'boolean') throw new Error('Ego browser activity must be true or false.');
+        stored.set('automation.egoActivity.v1', value ? '1' : '0');
+        calls.push({ method: 'egoActivity.set', payload: value });
+        return value;
+      },
+    },
+    egoActivitySnapshot: async (sessionId?: string) => {
+      calls.push({ method: 'egoActivity.snapshot', ...(sessionId ? { sessionId } : {}) });
+      return {
+        configured: true, enabled: true, supported: true, backend: 'ego',
+        spaces: [{ id: 3, name: 'check the dashboard', pages: [{ label: 'p1', url: 'https://example.com', title: 'Example', active: true }] }],
+      };
+    },
     openBrowser: async (sessionId: string, payload: unknown) => {
       calls.push({ method: 'open', sessionId, payload });
       return { sessionId, activeTabId: 'tab-1', tabs: [] };
@@ -193,6 +209,36 @@ test('Ego readiness GET is filesystem-only and the connection test is explicit, 
     assert.deepEqual(await tested.json(), { ok: true, status: 'connected', cliVersion: '0.5.0.32' });
     assert.deepEqual(calls, [{ method: 'ego.test' }]);
     assert.equal(JSON.stringify(await (await server.request('/ego-readiness')).json()).includes('/home/'), false);
+  } finally {
+    await server.close();
+  }
+});
+
+test('ego activity is session-scoped, never cached by a client, and its opt-in only accepts a boolean', async () => {
+  const calls: RecordedCall[] = [];
+  const server = await serve(createAutomationRouter(fakeService(calls)));
+  try {
+    const scoped = await server.request('/ego-activity?sessionId=session-a');
+    assert.equal(scoped.status, 200);
+    assert.equal(scoped.headers.get('cache-control'), 'no-store', 'personal browser state is never stored by a proxy or client');
+    assert.deepEqual(((await scoped.json()) as { spaces: unknown }).spaces, [
+      { id: 3, name: 'check the dashboard', pages: [{ label: 'p1', url: 'https://example.com', title: 'Example', active: true }] },
+    ]);
+
+    // Settings reads the opt-in without a session, which never observes a browser.
+    assert.equal((await server.request('/ego-activity')).status, 200);
+
+    const invalid = await server.request('/ego-activity?sessionId=../../etc/passwd');
+    assert.equal(invalid.status, 400);
+
+    assert.equal((await server.request('/ego-activity', { ...json({ enabled: true }), method: 'PUT' })).status, 200);
+    assert.equal((await server.request('/ego-activity', { ...json({ enabled: 'yes' }), method: 'PUT' })).status, 400);
+
+    assert.deepEqual(calls, [
+      { method: 'egoActivity.snapshot', sessionId: 'session-a' },
+      { method: 'egoActivity.snapshot' },
+      { method: 'egoActivity.set', payload: true },
+    ], 'an invalid session id never reaches the service');
   } finally {
     await server.close();
   }

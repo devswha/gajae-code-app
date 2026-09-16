@@ -92,7 +92,11 @@
       "title": "İş",
       "working": "Çalışıyor",
       "agents": "Aracılar",
-      "agentRunning": "Çalışıyor"
+      "agentRunning": "Çalışıyor",
+      "browser": "Tarayıcı",
+      "browserRunning": "Tarayıcıda çalışıyor",
+      "browserSpace": "Tarayıcı alanı {{id}}",
+      "browserMore": "+{{count}} daha"
     },
     "actionRequired": {
       "title": "Yanıt gerekiyor",

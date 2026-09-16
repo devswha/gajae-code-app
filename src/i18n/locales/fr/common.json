@@ -92,7 +92,11 @@
       "title": "Travail",
       "working": "En cours",
       "agents": "Agents",
-      "agentRunning": "En cours"
+      "agentRunning": "En cours",
+      "browser": "Navigateur",
+      "browserRunning": "Navigation en cours",
+      "browserSpace": "Espace navigateur {{id}}",
+      "browserMore": "+{{count}} autres"
     },
     "actionRequired": {
       "title": "Réponse requise",

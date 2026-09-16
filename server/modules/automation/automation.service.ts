@@ -21,6 +21,7 @@ import { isBuiltinBrowserBinding, type BuiltinBrowserBinding, type BuiltinBrowse
 
 import { AutomationGrantStore, type AutomationGrant } from './automation-grants.js';
 import { browserBackendStore } from './browser-backend.js';
+import { egoActivityReader, egoActivityStore, type EgoActivityResponse } from './ego-activity.js';
 import { TauriBrowserClient } from './tauri-browser-client.js';
 import { automationOrigin } from './automation-url.js';
 import { CuaDriverClient, isCuaSafeTool, type CuaSafeTool } from './cua-client.js';
@@ -137,6 +138,9 @@ export class AutomationService {
   readonly grants = new AutomationGrantStore();
   /** The app's browser backend choice for GJC runs; the runtime owns everything it selects. */
   readonly browserBackend = browserBackendStore;
+  /** Opt-in rendering of the agent's ego browser state; off by default. */
+  readonly egoActivity = egoActivityStore;
+  private readonly egoActivityReader = egoActivityReader;
   private readonly capabilities = automationSupport(process.platform, process.arch, process.env);
   get supported(): boolean { return this.browser.isReady(); }
   private readonly bridgeToken = randomBytes(32).toString('hex');
@@ -226,6 +230,18 @@ export class AutomationService {
   /** Explicit Settings action only: the service never calls this during status/GET. */
   async testEgoConnection(): Promise<EgoConnectionTestResult> {
     return testEgoBrowserConnection({ home: homedir(), path: process.env.PATH });
+  }
+
+  /**
+   * What the agent's ego browser is doing for one app session.
+   *
+   * Unlike the readiness probe this may execute the ego CLI, so it stays
+   * bounded by the reader: nothing runs unless the surface is enabled and the
+   * backend is ego, the observation script is fixed and read-only, and one
+   * execution is shared across sessions inside a short window.
+   */
+  async egoActivitySnapshot(appSessionId?: string): Promise<EgoActivityResponse> {
+    return this.egoActivityReader.snapshot(appSessionId);
   }
 
   /** Browser backend choices are platform-gated; an existing stored value is not rewritten. */

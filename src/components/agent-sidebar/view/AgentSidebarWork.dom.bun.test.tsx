@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { afterEach, test } from 'node:test';
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
@@ -16,7 +17,21 @@ import type { SessionTodoPhase } from '../../chat/hooks/useSessionTodos';
 
 import AgentSidebarWork from './AgentSidebarWork';
 
-afterEach(cleanup);
+const originalFetch = globalThis.fetch;
+afterEach(() => {
+  cleanup();
+  globalThis.fetch = originalFetch;
+});
+
+/** The ego activity surface the server would report; off unless a test says otherwise. */
+function stubEgoActivity(payload: Record<string, unknown>) {
+  const calls: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    calls.push(String(input));
+    return new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof globalThis.fetch;
+  return calls;
+}
 
 const plan: SessionTodoPhase[] = [{
   name: 'Implementation',
@@ -111,16 +126,28 @@ async function setup(lng = 'en') {
   const i18n = createInstance();
   await i18n.init({ lng, fallbackLng: 'en', resources: { en: { translation: enCommon }, ko: { translation: koCommon } }, interpolation: { escapeValue: false } });
   const state = createStore();
+  // The surface is off until a test turns it on, so no test reaches the network.
+  stubEgoActivity({ enabled: false, spaces: [] });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const ui = (sessionId: string | undefined, snapshot: SessionStatusSnapshot = EMPTY_SESSION_STATUS) => (
-    <I18nextProvider i18n={i18n}>
-      <SessionStatusProvider>
-        <Publisher snapshot={snapshot}>
-          <AgentSidebarWork sessionId={sessionId} sessionStore={state.store} />
-        </Publisher>
-      </SessionStatusProvider>
-    </I18nextProvider>
+    <QueryClientProvider client={client}>
+      <I18nextProvider i18n={i18n}>
+        <SessionStatusProvider>
+          <Publisher snapshot={snapshot}>
+            <AgentSidebarWork sessionId={sessionId} sessionStore={state.store} />
+          </Publisher>
+        </SessionStatusProvider>
+      </I18nextProvider>
+    </QueryClientProvider>
   );
   return { ...state, ui };
+}
+
+/** Lets the ego activity query settle before the assertions read the lane. */
+async function settle() {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await act(async () => { await new Promise((resolve) => { setTimeout(resolve, 0); }); });
+  }
 }
 
 const section = () => screen.getByRole('region', { name: 'Work' });
@@ -406,6 +433,83 @@ test('agents published for another conversation never appear in this one', async
 
   view.rerender(state.ui('session-2'));
   assert.ok(within(section()).getByText('Executor — Another conversation'));
+});
+
+test('a live ego space answers "what is happening" and replaces the generic Working row', async () => {
+  const state = await setup();
+  stubEgoActivity({
+    enabled: true,
+    spaces: [{ id: 15, name: 'check the release dashboard', pages: [
+      { label: 'p1', url: 'https://example.com/releases', title: 'Releases', active: true },
+      { label: 'p2', url: 'https://example.com/old', title: 'Old', active: false },
+    ] }],
+  });
+  render(state.ui('session-1', running('session-1')));
+  await settle();
+
+  const region = section();
+  assert.ok(within(region).getByText('Browser'));
+  assert.ok(within(region).getByText('check the release dashboard'));
+  // The current page is the one ego marks active, and only that one.
+  assert.ok(within(region).getByText('https://example.com/releases'));
+  assert.equal(within(region).queryByText('https://example.com/old'), null);
+  assert.equal(within(region).queryByText('Working'), null, 'the browser row is the better answer to the same question');
+  // Nothing is narrated: no action verbs, no elapsed time, no progress claim.
+  assert.doesNotMatch(region.textContent!, /click|typing|loading|%|second/i);
+});
+
+test('an idle session never observes the browser at all', async () => {
+  const state = await setup();
+  const calls = stubEgoActivity({ enabled: true, spaces: [{ id: 15, name: 'leftover space', pages: [] }] });
+  state.publish('session-1', plan);
+  render(state.ui('session-1'));
+  await settle();
+
+  assert.deepEqual(calls, [], 'an idle session must not keep a personal browser under observation');
+  assert.equal(within(section()).queryByText('Browser'), null);
+});
+
+test('a surface the server reports as off renders nothing and stops asking', async () => {
+  const state = await setup();
+  const calls = stubEgoActivity({ enabled: false, spaces: [] });
+  render(state.ui('session-1', running('session-1')));
+  await settle();
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /\/api\/automation\/ego-activity\?sessionId=session-1$/);
+  const region = section();
+  assert.equal(within(region).queryByText('Browser'), null);
+  assert.ok(within(region).getByText('Working'), 'the run is still running, and still says only that');
+});
+
+test('tasks stay first and simultaneous spaces are capped with an overflow marker', async () => {
+  const state = await setup();
+  stubEgoActivity({
+    enabled: true,
+    spaces: [1, 2, 3, 4].map((id) => ({ id, name: `space ${id}`, pages: [{ label: 'p1', url: `https://example.com/${id}`, title: 'x', active: true }] })),
+  });
+  state.publish('session-1', plan);
+  render(state.ui('session-1', running('session-1')));
+  await settle();
+
+  const region = section();
+  const rows = within(region).getAllByRole('listitem');
+  assert.equal(rows[0].textContent!.includes('Inspect current code'), true, 'tasks are never replaced or reordered');
+  assert.ok(within(region).getByText('space 1'));
+  assert.ok(within(region).getByText('space 2'));
+  assert.equal(within(region).queryByText('space 3'), null);
+  assert.ok(within(region).getByText('+2 more'));
+});
+
+test('a space with no page yet renders its goal without inventing an address', async () => {
+  const state = await setup();
+  stubEgoActivity({ enabled: true, spaces: [{ id: 21, name: '', pages: [] }] });
+  render(state.ui('session-1', running('session-1')));
+  await settle();
+
+  const region = section();
+  assert.ok(within(region).getByText('Browser space 21'));
+  assert.doesNotMatch(region.textContent!, /http/);
 });
 
 test('the chat column mounts no second task list, so WORK is the only task surface', () => {

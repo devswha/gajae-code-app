@@ -617,14 +617,26 @@ export function quotePosixShellPath(filePath: string): string {
   return `'${filePath.replaceAll("'", "'\\''")}'`;
 }
 
+/** Only an app-minted token may be interpolated into the naming rule. */
+const EGO_ACTIVITY_TOKEN_SHAPE = /^gjc-[0-9a-f]{8}$/u;
+
 /**
  * App-owned routing block for the ego backend, appended to the system prompt
  * the way the runtime appends its own Aside block. The executable path comes
  * from the probe and is quoted before interpolation, so the shell runs the
  * exact file that was checked rather than resolving a bare name again.
+ *
+ * `activityToken` is the app-minted session label (`egoActivityToken`) the
+ * space name must carry, so the app can attribute a live ego space to this
+ * session without parsing Bash commands. An unrecognized token is dropped
+ * rather than written into the prompt.
  */
-export function buildGjcEgoBrowserInstructions(cliPath: string): string {
+export function buildGjcEgoBrowserInstructions(cliPath: string, activityToken?: string): string {
   const command = quotePosixShellPath(cliPath);
+  const token = activityToken && EGO_ACTIVITY_TOKEN_SHAPE.test(activityToken) ? activityToken : undefined;
+  const naming = token
+    ? `\n- Name that space \`"${token} <short goal>"\` - exactly this session's token, then a few plain words. The app matches the prefix to show what the browser is doing; a space without it is shown to nobody, and the token is a label only, never something to type into a page.`
+    : '';
   return `<browser-backend>
 Browser backend: ego lite (ego-browser CLI). The built-in browser tool is disabled by configuration. NEVER use or register an MCP browser server, and never launch Playwright, Puppeteer or another browser.
 
@@ -634,7 +646,7 @@ Routing:
 
 Procedure:
 - Load the installed \`ego-browser\` skill before the first browser action; it is the complete API reference (TaskSpace, Page, FileChooser, mouse, keyboard). Use only the API it lists, never inferred Playwright methods.
-- Use exactly one TaskSpace per user goal: create it once with \`taskSpace(name)\`, print its \`spaceId\`, and resume that same space in later invocations with \`taskSpace(id)\`. Every invocation is a fresh Node.js process; spaces, tabs and Page labels persist, JavaScript variables do not.
+- Use exactly one TaskSpace per user goal: create it once with \`taskSpace(name)\`, print its \`spaceId\`, and resume that same space in later invocations with \`taskSpace(id)\`. Every invocation is a fresh Node.js process; spaces, tabs and Page labels persist, JavaScript variables do not.${naming}
 - Print results with \`console.log\`; returned values are not emitted. Take a \`page.snapshot()\` before acting, prefer refs from that snapshot, and verify every meaningful action with a fresh URL/title, snapshot or screenshot.
 - When the task succeeds, call \`await task.finish({ keep: [] })\` exactly once. Do not call \`finish()\` after a hand-off to the user or an error.
 

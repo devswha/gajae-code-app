@@ -30,8 +30,16 @@ function developmentProxy(address) {
   }
 }
 
+/*
+ * The dev server proxies /api, /ws and /shell to the API on loopback, which is
+ * a server that runs shell commands. Listening on 0.0.0.0 by default put that
+ * proxy - and therefore the loopback API, which the browser's same-origin
+ * policy would otherwise keep to this machine - on every interface of whatever
+ * network the developer happened to be on. Exposing it is a decision, so it is
+ * now an explicit HOST, exactly like the server's own bind.
+ */
 function developmentServer(environment) {
-  const requestedHost = environment.HOST || '0.0.0.0'
+  const requestedHost = environment.HOST || 'localhost'
   const servicePort = environment.SERVER_PORT || environment.PORT || 3001
   const upstreamAddress = `${getConnectableHost(requestedHost)}:${servicePort}`
   const allowedHosts = parseAllowedHosts(environment.ALLOWED_HOSTS)
@@ -76,5 +84,8 @@ function applicationConfiguration(mode) {
 }
 
 const viteConfiguration = defineConfig(({ mode }) => applicationConfiguration(mode))
+
+/** Test seam: the bind decision, without loading an environment or starting Vite. */
+export { developmentServer }
 
 export default viteConfiguration

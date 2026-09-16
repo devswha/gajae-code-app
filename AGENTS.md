@@ -59,7 +59,7 @@ job projection protocol). `scripts/` holds build/release/verify tooling.
 ## Commands
 
 ```bash
-npm run dev              # server (tsx, :3001) + vite client (:5173); prebuilds rust core
+npm run dev              # server (tsx, :3001) + vite client (:5173, loopback unless HOST is set); prebuilds rust core
 npm test                 # all tests via scripts/run-tests.mjs (node:test + bun test)
 npm run typecheck        # tsc on both tsconfig.json and server/tsconfig.json
 npm run lint             # eslint src/ server/ shared/ scripts/ + configs

@@ -150,9 +150,12 @@ session over `chat.send`, Bash approved through the app's permission card):
 
 ## Follow-ups (not implemented)
 
-- Surfacing the running Space in the WORK sidebar; see the authority analysis
-  in `docs/plans/aside-activity-contract.md` — the same "prompt-routed Bash"
-  limits apply to ego.
+- Surfacing the running Space in the WORK sidebar and the agent sidebar; see
+  `docs/plans/ego-activity-contract.md`. The Aside limits on prompt-routed Bash
+  (`docs/plans/aside-activity-contract.md`) do **not** decide this one: ego lite
+  answers `listTaskSpaces()` / `tabs()` / `screenshot()` from an independent
+  process in ~0.12-0.17 s without disturbing the agent's own round, so the app
+  can render ego-authoritative state instead of parsing Bash.
 - Runtime-native `browser.backend=ego` in `@gajae-code/coding-agent`, at which
   point the app's probe and block move there and this PoC collapses to the
   Aside shape.

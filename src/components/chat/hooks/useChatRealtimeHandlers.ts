@@ -215,6 +215,18 @@ export function useChatRealtimeHandlers({
         }
         return;
       }
+      // "Always allow" that could not be written to the project. The tool ran
+      // this once; saying nothing would leave the user believing the rule is in
+      // place while the next run asks again.
+      if (event.kind === 'permission_always_failed') {
+        if (sessionId) {
+          sessionStore.appendRealtime(sessionId, {
+            id: `permission_always_failed_${event.requestId ?? Date.now()}`, sessionId, timestamp: new Date().toISOString(), provider,
+            kind: 'error', content: String(event.message || 'Always allow could not be saved for this project.'),
+          } as NormalizedMessage);
+        }
+        return;
+      }
       if (event.kind === 'status') {
         if (event.text === 'token_budget' && event.tokenBudget) {
           if (sessionId === visible) setTokenBudget(event.tokenBudget as Record<string, unknown>);

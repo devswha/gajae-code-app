@@ -8,6 +8,7 @@ import { createJobTerminalPayload, isJobProjectionEvent, jobTerminalEventId, typ
 import type { DesktopOwnerActivity } from '../../shared/desktopUpdateProtocol.js';
 import { getGjcWorkerSupervisor, type GjcWorkerAbortOutcome, type GjcWorkerOptions, type GjcWorkerOutcome, type GjcWorkerReapOutcome, type GjcWorkerRun, type GjcWorkerSpawnRun, type GjcWorkerWriter } from '../gjc-worker-client.js';
 import { getDatabasePath } from '../modules/database/connection.js';
+import { resolveProjectRunPermissions } from '../modules/projects/index.js';
 import type { DesktopWorkAdmission } from '../shared/interfaces.js';
 
 import { GjcGitClient } from './gjc-git-client.js';
@@ -33,7 +34,10 @@ export type JobOrchestratorOptions = GjcWorkerOptions & {
   retainWorkspaceOnFailure?: boolean;
 };
 export type JobRunHandle = { jobId: string; runId?: string; state: string; started: Promise<void>; completion: Promise<void>; abortHandle: string };
-export type JobOrchestratorDependencies = { jobs: JobAuthority; git?: GitWorktrees; gitForProject?: (projectRoot: string) => GitWorktrees; supervisor: JobSupervisor; owner?: string; createId?: () => string; broadcast?: (jobId: string, event: JobProjectionEvent) => void; stopCompletionTimeoutMs?: number; desktopAdmission?: DesktopWorkAdmission; initialize?: () => Promise<unknown> };
+export type JobOrchestratorDependencies = { jobs: JobAuthority; git?: GitWorktrees; gitForProject?: (projectRoot: string) => GitWorktrees; supervisor: JobSupervisor; owner?: string; createId?: () => string; broadcast?: (jobId: string, event: JobProjectionEvent) => void; stopCompletionTimeoutMs?: number; desktopAdmission?: DesktopWorkAdmission; initialize?: () => Promise<unknown>;
+  /** The project's stored permission policy. Production passes the same resolver chat uses. */
+  resolveRunPermissions?: (projectRoot: string | null | undefined) => Record<string, unknown>;
+};
 export class GjcCapacityExhaustedError extends Error { constructor(public readonly jobId: string) { super(`GJC job ${jobId} is waiting for capacity.`); this.name = 'GjcCapacityExhaustedError'; } }
 
 const desktopContinuation = new AsyncLocalStorage<() => boolean>();
@@ -342,7 +346,11 @@ export class JobOrchestrator {
       expected = lease(current);
       if (signal?.aborted) return await cancelled();
       const scope: PersistenceScope = { pending: new Set(), ownsWork: () => dispatching || this.activeRuns.get(jobId)?.runId === runId };
-      run = this.deps.supervisor.spawnRun({ runId, appSessionId, message, options: { ...workerOptions, cwd, sessionId, notificationOwner: 'terminal-adapter' }, writer: this.writer(jobId, current, runId, options.writer, scope) });
+      // A job is a turn like any other, so it runs under the project's stored
+      // permission policy. Without this the run starts on the SDK default,
+      // which allows every tool regardless of the project's ask/bypass choice.
+      const permissions = this.deps.resolveRunPermissions?.(current.repositoryRoot);
+      run = this.deps.supervisor.spawnRun({ runId, appSessionId, message, options: { ...workerOptions, cwd, sessionId, notificationOwner: 'terminal-adapter', ...(permissions ? { permissions } : {}) }, writer: this.writer(jobId, current, runId, options.writer, scope) });
       this.activeRuns.set(jobId, { runId, lease: expected, abortHandle: run.abortHandle, run });
       this.activityChanged();
       const ownedRun = run;
@@ -583,7 +591,7 @@ export function getProductionJobOrchestrator(): ProductionOrchestrator {
     if (!client) { client = new GjcGitClient({ workdir: projectRoot }); clients.set(projectRoot, client); }
     return client;
   };
-  const orchestrator = new JobOrchestrator({ jobs, gitForProject, supervisor: getGjcWorkerSupervisor(), desktopAdmission: productionDesktopAdmission, initialize: () => mkdir(dirname(database), { recursive: true }) }) as ProductionOrchestrator;
+  const orchestrator = new JobOrchestrator({ jobs, gitForProject, supervisor: getGjcWorkerSupervisor(), desktopAdmission: productionDesktopAdmission, resolveRunPermissions: resolveProjectRunPermissions, initialize: () => mkdir(dirname(database), { recursive: true }) }) as ProductionOrchestrator;
   orchestrator.close = () => { orchestrator.markClosed(); jobs.close(); productionAuthority = undefined; for (const client of clients.values()) client.close(); clients.clear(); production = undefined; };
   production = orchestrator;
   return orchestrator;

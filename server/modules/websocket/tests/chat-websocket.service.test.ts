@@ -273,6 +273,117 @@ test('chat.send carries the project\'s stored permission policy and ignores what
   });
 });
 
+test('chat.send forwards only the browser\'s own UI options, never session or tool policy', async () => {
+  // Permission mode was already server-owned; sessionRoot, toolNames, spawns,
+  // bashPolicy and credential are the rest of the same contract. A browser that
+  // can move the session root or widen the tool set makes the policy meaningless.
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('contract-session', 'gjc', '/workspace/contract-project');
+    const socket = new FakeWebSocket();
+    let receivedOptions: Record<string, unknown> | undefined;
+
+    handleChatConnection(socket as unknown as WebSocket, { user: { id: 'user-1' } } as never, {
+      spawnFns: {
+        gjc: (_command, options, writer) => {
+          receivedOptions = options;
+          (writer as { sendComplete(options: { exitCode: number }): void }).sendComplete({ exitCode: 0 });
+          return Promise.resolve();
+        },
+      },
+      abortFns: { gjc: async () => false },
+      resolveToolApproval() {},
+      getPendingApprovalsForSession: () => [],
+      resolveSessionModel: async () => 'pinned-model',
+    });
+
+    socket.emit('message', JSON.stringify({
+      type: 'chat.send',
+      sessionId: 'contract-session',
+      content: 'run it',
+      options: {
+        effort: 'high', sessionSummary: 'A label',
+        sessionRoot: '/etc', cwd: '/etc', projectPath: '/etc',
+        toolNames: ['bash', 'computer'], spawns: '*', bashPolicy: { allowedPrefixes: ['sudo'] },
+        credential: { kind: 'inline', value: 'secret' }, browserBackend: 'builtin',
+      },
+    }));
+    await flushMessages();
+    await flushMessages();
+
+    assert.equal(receivedOptions?.effort, 'high');
+    assert.equal(receivedOptions?.sessionSummary, 'A label');
+    assert.equal(receivedOptions?.model, 'pinned-model');
+    assert.equal(receivedOptions?.cwd, '/workspace/contract-project');
+    assert.equal(receivedOptions?.projectPath, '/workspace/contract-project');
+    for (const name of ['sessionRoot', 'toolNames', 'spawns', 'bashPolicy', 'credential', 'browserBackend']) {
+      assert.equal(name in (receivedOptions ?? {}), false, `${name} must not come from the browser`);
+    }
+    socket.emit('close');
+  });
+});
+
+test('chat.send refuses the turn when the session model cannot be resolved', async () => {
+  // A resume session's model is pinned. Falling back to the browser's model on
+  // a storage failure would let a client repin a session it is only resuming.
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('pin-session', 'gjc', '/workspace/pin-project');
+    const socket = new FakeWebSocket();
+    let spawns = 0;
+
+    handleChatConnection(socket as unknown as WebSocket, { user: { id: 'user-1' } } as never, {
+      spawnFns: { gjc: () => { spawns += 1; return Promise.resolve(); } },
+      abortFns: { gjc: async () => false },
+      resolveToolApproval() {},
+      getPendingApprovalsForSession: () => [],
+      resolveSessionModel: async () => { throw new Error('model store unavailable'); },
+    });
+
+    socket.emit('message', JSON.stringify({
+      type: 'chat.send', sessionId: 'pin-session', content: 'run it', options: { model: 'attacker-model' },
+    }));
+    await flushMessages();
+    await flushMessages();
+
+    assert.equal(spawns, 0, 'no run starts on an unresolved model');
+    const failure = socket.sent.find((frame) => frame.kind === 'protocol_error');
+    assert.equal(failure?.code, 'MODEL_UNAVAILABLE');
+    assert.equal(chatRunRegistry.isProcessing('pin-session'), false, 'the run registry is released');
+    socket.emit('close');
+  });
+});
+
+test('a failed always-allow persist downgrades the answer to one shot and says so', async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('persist-session', 'gjc', '/workspace/persist-project');
+    const socket = new FakeWebSocket();
+    const decisions: Array<{ requestId: string; decision: Record<string, unknown> }> = [];
+
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'persist-session', provider: 'gjc', providerSessionId: null,
+      connection: socket as unknown as WebSocket, userId: 'user-1',
+    });
+    assert.ok(run);
+    handleChatConnection(socket as unknown as WebSocket, { user: { id: 'user-1' } } as never, {
+      spawnFns: {} as never,
+      abortFns: {} as never,
+      resolveToolApproval: (requestId, decision) => { decisions.push({ requestId, decision }); },
+      getPendingApprovalsForSession: () => [],
+      grantAlwaysAllow: () => { throw new Error('project policy store unavailable'); },
+    });
+
+    run.writer.send({ kind: 'permission_request', provider: 'gjc', sessionId: 'persist-session', requestId: 'perm-1', toolName: 'bash', input: { command: 'ls' } });
+    socket.emit('message', JSON.stringify({ type: 'chat.permission-response', requestId: 'perm-1', allow: true, always: true }));
+    await flushMessages();
+
+    assert.deepEqual(decisions.map(({ decision }) => decision.allow), [true], 'this turn is still answered');
+    assert.equal('always' in decisions[0]!.decision, false, 'the worker is not told to stop asking');
+    const notice = socket.sent.find((frame) => frame.kind === 'permission_always_failed');
+    assert.equal(notice?.requestId, 'perm-1');
+    assert.equal(notice?.toolName, 'bash');
+    socket.emit('close');
+  });
+});
+
 test('chat.permission-response with always remembers the provider\'s tool for the project', async () => {
   await withIsolatedDatabase(async () => {
     sessionsDb.createAppSession('always-session', 'gjc', '/workspace/always-project');

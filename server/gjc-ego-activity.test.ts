@@ -99,11 +99,22 @@ test('long titles, long names and oversized lists are capped', () => {
   assert.equal(snapshot.spaces[0].name.length <= 80, true);
 });
 
+test('the report is found wherever the CLI wrote it: stderr, and around its own notices', async () => {
+  const token = egoActivityToken('session-a');
+  const report = JSON.stringify({ v: 1, spaces: [{ id: 3, name: `${token} work`, pages: [] }] });
+  // ego-browser 0.5 writes a piped program's console.log to stderr, and may add
+  // its own lines before or after it.
+  const parsed = parseEgoActivityOutput(`ego lite notice\n${report}\n[ego-browser:notice] an update is available\n`);
+  assert.deepEqual(parsed.spaces.map((space) => space.id), [3]);
+  assert.deepEqual(parseEgoActivityOutput(`${report}\n{"v":2,"spaces":[]}`).spaces.map((space) => space.id), [3]);
+});
+
 test('the CLI is executed without a shell, with a minimal environment and the fixed script', async () => {
   const calls: { file: string; args: readonly string[]; options: Record<string, unknown> }[] = [];
   const execFile: EgoActivityExecFile = async (file, args, options) => {
     calls.push({ file, args, options: options as unknown as Record<string, unknown> });
-    return { stdout: output([{ id: 3, name: `${egoActivityToken('s')} work`, pages: [] }]), stderr: '' };
+    // Both streams are read; this CLI answers on stderr when it is piped.
+    return { stdout: '', stderr: output([{ id: 3, name: `${egoActivityToken('s')} work`, pages: [] }]) };
   };
 
   const snapshot = await readEgoActivity({

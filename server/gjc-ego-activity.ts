@@ -25,9 +25,9 @@
  * - every failure is soft: the surface disappears, the run is untouched.
  */
 
-import { execFile as execFileCallback } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { promisify } from 'node:util';
+
+import { egoCliOutput, execEgoFile, type EgoExecFile } from './gjc-browser-backend.js';
 
 /** Prefix of every app-minted ego space token; also the script-side filter. */
 export const EGO_ACTIVITY_TOKEN_PREFIX = 'gjc-';
@@ -113,13 +113,8 @@ export type EgoActivitySnapshot = Readonly<{
 
 export const EMPTY_EGO_ACTIVITY: EgoActivitySnapshot = Object.freeze({ spaces: [] });
 
-export type EgoActivityExecFile = (
-  file: string,
-  args: readonly string[],
-  options: { timeout: number; maxBuffer: number; encoding: 'utf8'; env: NodeJS.ProcessEnv; shell: false },
-) => Promise<{ stdout: string | Buffer; stderr: string | Buffer }>;
-
-const execEgoFile = promisify(execFileCallback) as unknown as EgoActivityExecFile;
+/** The same seam the connection test uses; it closes stdin and returns both streams. */
+export type EgoActivityExecFile = EgoExecFile;
 
 /** Query strings and fragments are dropped: session tokens live there. */
 function safeUrl(value: unknown): string {
@@ -168,22 +163,30 @@ function parsePages(value: unknown): EgoActivityPage[] {
   return pages;
 }
 
+/** The CLI prefixes and appends its own notices, so find the report, don't assume its position. */
+function reportLine(output: string): Record<string, unknown> | undefined {
+  const lines = output.split('\n').map((entry) => entry.trim()).filter(Boolean).reverse();
+  for (const line of lines) {
+    if (!line.startsWith('{')) continue;
+    try {
+      const payload: unknown = JSON.parse(line);
+      if (payload && typeof payload === 'object' && (payload as Record<string, unknown>).v === 1) {
+        return payload as Record<string, unknown>;
+      }
+    } catch {
+      // Not the report; keep looking at the CLI's other chatter.
+    }
+  }
+  return undefined;
+}
+
 /**
  * Shape-check and bound the CLI's answer. Anything unexpected yields an empty
  * snapshot rather than a partially trusted one.
  */
-export function parseEgoActivityOutput(stdout: string): EgoActivitySnapshot {
-  const line = stdout.split('\n').map((entry) => entry.trim()).filter(Boolean).pop();
-  if (!line) return EMPTY_EGO_ACTIVITY;
-  let payload: unknown;
-  try {
-    payload = JSON.parse(line);
-  } catch {
-    return EMPTY_EGO_ACTIVITY;
-  }
-  if (!payload || typeof payload !== 'object') return EMPTY_EGO_ACTIVITY;
-  const record = payload as Record<string, unknown>;
-  if (record.v !== 1 || !Array.isArray(record.spaces)) return EMPTY_EGO_ACTIVITY;
+export function parseEgoActivityOutput(output: string): EgoActivitySnapshot {
+  const record = reportLine(output);
+  if (!record || !Array.isArray(record.spaces)) return EMPTY_EGO_ACTIVITY;
   const spaces: EgoActivitySpace[] = [];
   for (const entry of record.spaces) {
     if (!entry || typeof entry !== 'object') continue;
@@ -204,13 +207,6 @@ export function parseEgoActivityOutput(stdout: string): EgoActivitySnapshot {
   return { spaces };
 }
 
-/**
- * Run the fixed observation script once against the probe-resolved CLI.
- *
- * `cliPath` is the absolute path `probeEgoBrowserCli` already verified; it is
- * executed with `shell: false` and a minimal environment, so no shell parses
- * it and no user environment reaches ego.
- */
 /** The spaces this session minted; attribution never guesses at an unlabelled space. */
 export function selectEgoActivitySpaces(
   snapshot: EgoActivitySnapshot,
@@ -219,6 +215,14 @@ export function selectEgoActivitySpaces(
   return snapshot.spaces.filter((space) => space.token === token);
 }
 
+/**
+ * Run the fixed observation script once against the probe-resolved CLI.
+ *
+ * `cliPath` is the absolute path `probeEgoBrowserCli` already verified; it is
+ * executed with `shell: false` and a minimal environment, so no shell parses
+ * it and no user environment reaches ego. Both streams are read, because a
+ * piped ego CLI writes the program's own output to stderr.
+ */
 export async function readEgoActivity(options: {
   cliPath: string;
   execFile?: EgoActivityExecFile;
@@ -226,17 +230,16 @@ export async function readEgoActivity(options: {
 }): Promise<EgoActivitySnapshot> {
   const exec = options.execFile ?? execEgoFile;
   try {
-    const { stdout } = await exec(options.cliPath, ['nodejs', '-e', EGO_ACTIVITY_SCRIPT], {
+    const { stdout, stderr } = await exec(options.cliPath, ['nodejs', '-e', EGO_ACTIVITY_SCRIPT], {
       timeout: EGO_ACTIVITY_TIMEOUT_MS,
       maxBuffer: EGO_ACTIVITY_MAX_BUFFER,
-      encoding: 'utf8',
       shell: false,
       env: {
         PATH: options.env?.PATH ?? '/usr/bin:/bin',
         HOME: options.env?.HOME ?? '',
       },
     });
-    return parseEgoActivityOutput(String(stdout));
+    return parseEgoActivityOutput(egoCliOutput(stdout, stderr));
   } catch {
     // A broken, upgrading or closed ego lite must never surface as an error in
     // a coding session; the panel simply has nothing to show.

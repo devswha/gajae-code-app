@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { request as httpRequest } from 'node:http';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 
 import WebSocket from 'ws';
@@ -9,16 +12,21 @@ import { createGjcAppFactory } from '../../app-factory.js';
 import { validateApiKey } from '../../middleware/auth.js';
 
 async function fixture(t: TestContext, allowedHosts?: string) {
-  const previous = Object.fromEntries(['ALLOWED_HOSTS', 'API_KEY', 'GJC_DESKTOP'].map((key) => [key, process.env[key]]));
+  const previous = Object.fromEntries(['ALLOWED_HOSTS', 'API_KEY', 'GJC_DESKTOP', 'WORKSPACES_ROOT'].map((key) => [key, process.env[key]]));
   delete process.env.API_KEY;
   delete process.env.GJC_DESKTOP;
   if (allowedHosts === undefined) delete process.env.ALLOWED_HOSTS;
   else process.env.ALLOWED_HOSTS = allowedHosts;
-  t.after(() => {
+  // This suite is about origin admission, so the job payload's project path has
+  // to be a real directory inside the workspace root the gate checks.
+  const projectRoot = await realpath(await mkdtemp(path.join(tmpdir(), 'request-origin-routes-')));
+  process.env.WORKSPACES_ROOT = projectRoot;
+  t.after(async () => {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
+    await rm(projectRoot, { recursive: true, force: true });
   });
   const calls = { starts: 0, lists: 0, owners: 0 };
   const { server, wss } = createGjcAppFactory({
@@ -48,7 +56,7 @@ async function fixture(t: TestContext, allowedHosts?: string) {
   return {
     calls,
     request: (headers: Record<string, string>, method = 'POST') => new Promise<{ status: number; body: string }>((resolve, reject) => {
-      const payload = method === 'POST' ? JSON.stringify({ projectPath: '/fixture-only', message: 'never call a model' }) : undefined;
+      const payload = method === 'POST' ? JSON.stringify({ projectPath: projectRoot, message: 'never call a model' }) : undefined;
       const request = httpRequest({
         hostname: '127.0.0.1', port: address.port, path: '/api/gjc/jobs', method,
         headers: { ...(payload ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } : {}), ...headers },

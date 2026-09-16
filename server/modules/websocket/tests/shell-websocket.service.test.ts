@@ -49,6 +49,8 @@ async function fixture(t: TestContext) {
       normalizeDetectedUrl: () => null,
       extractUrlsFromText: () => [],
       shouldAutoOpenUrlFromOutput: () => false,
+      // The real gate is the workspace root; this fixture's tree is a temp dir.
+      validateProjectPath: () => ({ valid: true }),
     });
     return socket;
   };

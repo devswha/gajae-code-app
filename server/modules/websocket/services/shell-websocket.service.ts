@@ -8,7 +8,7 @@ import { WebSocket, type RawData } from 'ws';
 
 import { childEnvironment } from '@/shared/child-environment.js';
 import type { DesktopWorkAdmission } from '@/shared/interfaces.js';
-import { parseIncomingJsonObject } from '@/shared/utils.js';
+import { parseIncomingJsonObject, validateWorkspacePathSync } from '@/shared/utils.js';
 
 import type { DesktopOwnerActivity } from '../../../../shared/desktopUpdateProtocol.js';
 
@@ -21,6 +21,8 @@ type ShellWebSocketDependencies = {
   normalizeDetectedUrl: (url: string) => string | null;
   extractUrlsFromText: (content: string) => string[];
   shouldAutoOpenUrlFromOutput: (content: string) => boolean;
+  /** The workspace gate a PTY's working directory has to pass. Injected for tests. */
+  validateProjectPath?: (candidate: string) => { valid: boolean; error?: string };
 };
 
 const sessions = new Map<string, PtySessionEntry>();
@@ -215,6 +217,14 @@ export function handleShellConnection(ws: WebSocket, dependencies: ShellWebSocke
     const previous = restart ? undefined : sessions.get(nextKey);
     const cwd = path.resolve(projectPath);
     if (!previous) {
+      // A terminal's working directory is the same decision as a project's, so
+      // it passes the same gate: the client picks where the PTY starts, and
+      // without this it could name any directory on the machine.
+      const jailed = (dependencies.validateProjectPath ?? validateWorkspacePathSync)(cwd);
+      if (!jailed.valid) {
+        write({ type: 'error', message: 'Invalid project path' });
+        return;
+      }
       try {
         if (!fs.statSync(cwd).isDirectory()) throw new Error('Not a directory');
       } catch {

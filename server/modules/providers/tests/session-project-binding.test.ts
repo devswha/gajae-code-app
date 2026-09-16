@@ -16,13 +16,19 @@ import { AppError } from '@/shared/utils.js';
 async function fixture(t: test.TestContext) {
   const directory = await mkdtemp(path.join(tmpdir(), 'session-project-binding-'));
   const previous = process.env.DATABASE_PATH;
+  const previousRoot = process.env.WORKSPACES_ROOT;
   closeConnection();
   process.env.DATABASE_PATH = path.join(directory, 'app.db');
+  // Session paths pass the same workspace gate a project does, so the fixture
+  // tree has to be the workspace root for the duration of the test.
+  process.env.WORKSPACES_ROOT = await realpath(directory);
   await initializeDatabase();
   t.after(async () => {
     closeConnection();
     if (previous === undefined) delete process.env.DATABASE_PATH;
     else process.env.DATABASE_PATH = previous;
+    if (previousRoot === undefined) delete process.env.WORKSPACES_ROOT;
+    else process.env.WORKSPACES_ROOT = previousRoot;
     await rm(directory, { recursive: true, force: true });
   });
   const original = path.join(directory, 'project');
@@ -64,6 +70,22 @@ test('POST sessions awaits canonical binding and returns the created identity', 
   assert.ok(data.sessionId);
   assert.equal(data.projectPath, f.canonical);
   assert.equal(sessionsDb.countSessionsByProjectPath(f.canonical), 1);
+});
+
+test('a session cannot take a project path outside the workspace root', async (t) => {
+  // The session's project path is the agent's working root. Without the same
+  // gate a project registration passes, `/` - or any tree the owner never
+  // opened - becomes a machine-wide root for its tools.
+  const f = await fixture(t);
+  const outside = await mkdtemp(path.join(tmpdir(), 'session-outside-root-'));
+  t.after(() => rm(outside, { recursive: true, force: true }));
+  for (const input of [outside, path.parse(f.canonical).root]) {
+    await assert.rejects(
+      sessionsService.createAppSession('gjc', input),
+      (error: unknown) => error instanceof AppError && error.statusCode === 400,
+    );
+  }
+  assert.equal(sessionsDb.countSessionsByProjectPath(outside), 0);
 });
 
 test('unavailable paths and aliases into native worktrees fail before session persistence', async (t) => {

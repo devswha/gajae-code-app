@@ -160,6 +160,13 @@ function protectedWorkspacePath(candidate: string): string | undefined {
   if (FORBIDDEN_WORKSPACE_PATHS.includes(candidate) || candidate === '/') {
     return 'Cannot use system-critical directories as workspace locations';
   }
+  // A deployment that names its own workspace root has already chosen that
+  // tree; the list below exists to stop a default-rooted install from adopting
+  // /etc or /tmp, not to overrule an operator who pointed WORKSPACES_ROOT at a
+  // directory underneath one of them (a packaged smoke run, a QA home, a test
+  // fixture). The exact protected paths above stay refused either way.
+  const configuredRoot = normalizeProjectPath(process.env.WORKSPACES_ROOT ?? '');
+  if (configuredRoot && !outsideRoot(candidate, configuredRoot)) return undefined;
   for (const protectedPath of FORBIDDEN_WORKSPACE_PATHS) {
     const canonicalProtectedPath = normalizeProjectPath(protectedPath);
     if (candidate !== canonicalProtectedPath && !candidate.startsWith(`${canonicalProtectedPath}${path.sep}`)) continue;

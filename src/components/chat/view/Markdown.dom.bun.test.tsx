@@ -36,3 +36,21 @@ test('absolute HTTP(S) Markdown links always use the external browser action', (
     unregister();
   }
 });
+
+test('a transcript link cannot carry a scheme the app would not navigate to', () => {
+  // The markdown in an answer is attacker-influenced text. `javascript:` runs
+  // in the app, `data:` makes the app the host of a document, and `tauri://`
+  // is the desktop shell's own origin - which this webview, loaded over
+  // loopback HTTP, is deliberately kept off. The text stays; the link does not.
+  const view = render(
+    <Markdown>
+      {'[run it](javascript:alert(1)) [inline doc](data:text/html,<script>alert(1)</script>) [shell](tauri://localhost/index.html) [ok](https://example.com/)'}
+    </Markdown>,
+  );
+  for (const name of ['run it', 'inline doc', 'shell']) {
+    assert.equal(screen.queryByRole('link', { name }), null, name);
+    assert.ok(screen.getByText(name), `${name} is still readable`);
+  }
+  assert.ok(screen.getByRole('link', { name: 'ok' }), 'an https link is untouched');
+  view.unmount();
+});

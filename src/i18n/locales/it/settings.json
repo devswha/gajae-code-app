@@ -169,7 +169,15 @@
     "noGrants": "Nessuna approvazione di automazione salvata.",
     "origin": "Origine del sito",
     "application": "Applicazione desktop",
-    "revoke": "Rimuovi l'approvazione"
+    "revoke": "Rimuovi l'approvazione",
+    "withheld": "Funzioni del runtime disattivate nell'app",
+    "withheldDescription": "L'app decide il proprio insieme di strumenti. Qualunque sia la tua configurazione GJC, queste funzioni del runtime restano disattivate in ogni sessione.",
+    "withheldMcp": "Server MCP",
+    "withheldMcpReason": "I server dalle tue impostazioni GJC e un .mcp.json di progetto non vengono caricati, così nessuno strumento che l'app non ha scelto raggiunge una sessione.",
+    "withheldToolDiscovery": "Rilevamento strumenti",
+    "withheldToolDiscoveryReason": "Le sessioni non possono attivare altri strumenti in esecuzione; l'insieme scelto dall'app è l'insieme completo.",
+    "withheldAstEdit": "Modifica AST",
+    "withheldAstEditReason": "Si limita ad anteprimare le riscritture e le applica tramite uno strumento che l'app non espone, quindi proporrebbe modifiche che una sessione non potrebbe mai confermare."
   },
   "notifications": {
     "title": "Avvisi",

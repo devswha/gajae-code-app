@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createElement } from 'react';
 
@@ -37,7 +38,10 @@ function createStore(phases: unknown[] = []) {
 
 function Harness({ mobile = false, sessionStore = createStore() }: { mobile?: boolean; sessionStore?: SessionStore }) {
   const sidebar = useAgentSidebar();
-  return createElement('div', null,
+  // The WORK lane reads the ego browser surface through TanStack Query, which
+  // the app provides at its root; the stubbed fetch below answers it as "off".
+  return createElement(QueryClientProvider, { client: new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }) },
+    createElement('div', null,
     createElement('button', { onClick: sidebar.open }, 'Open'),
     createElement('button', { onClick: sidebar.toggle }, 'Toggle'),
     sidebar.isOpen
@@ -50,6 +54,7 @@ function Harness({ mobile = false, sessionStore = createStore() }: { mobile?: bo
         sessionStore,
       })
       : null,
+    ),
   );
 }
 

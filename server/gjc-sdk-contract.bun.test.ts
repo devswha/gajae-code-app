@@ -348,11 +348,17 @@ async function fixture(
   // fake has to carry `override` like the real Settings does. Without it every
   // session creation threw and the whole file failed on "Fake session was not
   // created", which named the symptom and hid the cause.
+  //
+  // `has` is the same hazard: the compaction policy asks it before choosing a
+  // default, and a clone missing it throws during session creation. Real
+  // Settings answers for loaded settings and overrides but not schema
+  // defaults, and this store holds exactly those.
   const overrides = new Map<string, unknown>();
   const settingsClone = () => ({
     getModelRole: () => defaultModel || undefined,
     override: (key: string, value: unknown) => { overrides.set(key, value); },
     get: (key: string) => overrides.get(key),
+    has: (key: string) => overrides.has(key),
   });
   const settings = {
     getAppLifecycleActivity: () => idleLeaf('settings'),
@@ -2042,6 +2048,10 @@ test('settings loader resolves the current default model role for each run', asy
       getModelRole: () => `contract-provider/${modelId}`,
       override: () => undefined,
       get: () => undefined,
+      // This clone discards writes, so nothing is ever "present": the
+      // compaction policy sees an unconfigured session, which is what this
+      // test wants it to see.
+      has: () => false,
     }),
   });
   const f = await fixture(
@@ -3884,6 +3894,26 @@ test('starting a session forces the tool settings the app policy declares', asyn
     assert.equal(f.toolPolicyOverrides.get('astEdit.enabled'), false);
     assert.equal(f.toolPolicyOverrides.get('tools.discoveryMode'), 'off');
     assert.equal(f.toolPolicyOverrides.get('mcp.discoveryMode'), false);
+
+    session.complete();
+    await run;
+  } finally {
+    await f.close();
+  }
+});
+
+test('starting a session turns adaptive compaction on', async () => {
+  const f = await fixture();
+  try {
+    // The static threshold only fires near `contextWindow - reserve`. On a
+    // 1M-token model a long app run never gets there and resends its whole
+    // prefix every turn instead, which is where the cache-read bill comes from.
+    const run = f.host.handle(request('session.start', 'compaction-policy', { message: 'hello', options: f.options }));
+    const session = await firstSession(f.sessions);
+
+    assert.equal(f.toolPolicyOverrides.get('compaction.adaptive.enabled'), true);
+    assert.equal(f.toolPolicyOverrides.get('compaction.adaptive.baseThresholdPercent'), 75);
+    assert.equal(f.toolPolicyOverrides.get('compaction.adaptive.minThresholdPercent'), 50);
 
     session.complete();
     await run;

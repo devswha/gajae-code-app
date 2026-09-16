@@ -88,6 +88,8 @@ interface ChatComposerProps {
   isDragActive: boolean;
   /** Model pinned to this session, if any; outranks the last-run model. */
   sessionPinnedModel?: string | null;
+  /** The run-location control, rendered first among the composer tools. */
+  sessionLocationControl?: ReactNode;
   queuedDrafts: QueuedDraft[];
   onEditQueuedDraft: (index: number) => void;
   onDeleteQueuedDraft: (index: number) => void;
@@ -166,6 +168,7 @@ export default function ChatComposer({
   onSteer,
   isDragActive,
   sessionPinnedModel,
+  sessionLocationControl,
   queuedDrafts,
   onEditQueuedDraft,
   onDeleteQueuedDraft,
@@ -484,6 +487,8 @@ export default function ChatComposer({
             can wrap separately when a split pane leaves too little room.
           */}
           <PromptInputTools className="min-w-32 flex-1 basis-0 flex-wrap gap-y-1">
+            {sessionLocationControl}
+
             <PromptInputButton
               tooltip={{ content: t('input.attachImages') }}
               onClick={openImagePicker}

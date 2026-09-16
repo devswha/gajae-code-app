@@ -274,5 +274,12 @@
       "partial": "部分符合",
       "recent": "最近活躍"
     }
+  },
+  "sessionWorktree": {
+    "label": "執行位置",
+    "project": "專案",
+    "newWorktree": "新增工作樹",
+    "worktree": "工作樹",
+    "preparing": "正在準備工作樹"
   }
 }

@@ -27,7 +27,15 @@ import { useSlashCommands } from './useSlashCommands';
 import { useWorkspaceTarget, type WorkspaceCandidate } from './useWorkspaceTarget';
 import { newQueuedDraftId, settleRetainedComposerSteer, useDurableComposerDraft } from './useDurableComposerDraft';
 
-interface UseChatComposerStateArgs { draftRepository?: ComposerDraftRepository; executionCwd?: string | null; selectedProject: Project | null; selectedSession: ProjectSession | null; currentSessionId: string | null; gjcModel: string; reasoningEffort?: string; isLoading: boolean; canAbortSession: boolean; tokenBudget: Record<string, unknown> | null; sendMessage: (message: unknown) => boolean | void; sendByCtrlEnter?: boolean; onSessionProcessing?: MarkSessionProcessing; onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void; onInputFocusChange?: (focused: boolean) => void; onCommandGateChange?: (gate: PendingCommandGate | null) => void; onShowSettings?: () => void; onLogin?: (providerId?: string) => void; scrollToBottom: () => void; addMessage: (msg: ChatMessage) => void; setIsUserScrolledUp: (isScrolledUp: boolean) => void; setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>; }
+interface UseChatComposerStateArgs { draftRepository?: ComposerDraftRepository; executionCwd?: string | null; selectedProject: Project | null; selectedSession: ProjectSession | null; currentSessionId: string | null; gjcModel: string; reasoningEffort?: string; isLoading: boolean; canAbortSession: boolean; tokenBudget: Record<string, unknown> | null; sendMessage: (message: unknown) => boolean | void; sendByCtrlEnter?: boolean; onSessionProcessing?: MarkSessionProcessing; onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void; onInputFocusChange?: (focused: boolean) => void; onCommandGateChange?: (gate: PendingCommandGate | null) => void; onShowSettings?: () => void; onLogin?: (providerId?: string) => void;
+  /**
+   * What the run-location picker shows before the user touches it.
+   *
+   * The caller owns this because the answer depends on whether the project is
+   * a git repository, which the composer never asks about. An untouched picker
+   * follows it; an explicit choice outranks it until the project changes.
+   */
+  defaultUseWorktree?: boolean; scrollToBottom: () => void; addMessage: (msg: ChatMessage) => void; setIsUserScrolledUp: (isScrolledUp: boolean) => void; setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>; }
 interface MentionableFile { name: string; path: string; }
 export type ModelCommandData = { current?: { provider?: string; providerLabel?: string; model?: string }; available?: Partial<Record<LLMProvider, string[]>>; availableModels?: string[]; availableOptions?: Array<{ value: string; label?: string; description?: string }>; defaultModel?: string; cache?: ProviderModelsCacheInfo; };
 export type CostCommandData = { tokenUsage?: { used?: number; total?: number }; tokenBreakdown?: { input?: number; output?: number }; provider?: string; model?: string; };
@@ -47,7 +55,7 @@ const resetBox = (setInput: (value: string) => void, value: MutableRefObject<str
 
 export function useChatComposerState(args: UseChatComposerStateArgs) {
   const { t } = useTranslation('chat');
-  const { executionCwd, selectedProject, selectedSession, currentSessionId, gjcModel, reasoningEffort = 'default', isLoading, canAbortSession, tokenBudget, sendMessage, sendByCtrlEnter, onSessionProcessing, onSessionEstablished, onInputFocusChange, onCommandGateChange, onShowSettings, onLogin, scrollToBottom, addMessage, setIsUserScrolledUp, setPendingPermissionRequests } = args;
+  const { executionCwd, selectedProject, selectedSession, currentSessionId, gjcModel, reasoningEffort = 'default', isLoading, canAbortSession, tokenBudget, sendMessage, sendByCtrlEnter, onSessionProcessing, onSessionEstablished, onInputFocusChange, onCommandGateChange, onShowSettings, onLogin, scrollToBottom, addMessage, setIsUserScrolledUp, setPendingPermissionRequests, defaultUseWorktree = false } = args;
   const projectId = selectedProject?.projectId;
   const conversation = selectedSession?.id || currentSessionId || null;
   const drafts = useDurableComposerDraft(projectId, conversation, args.draftRepository);
@@ -57,6 +65,12 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   const [isTextareaExpanded, setExpanded] = useState(false);
   const [isInputFocused, setFocused] = useState(false);
   const [commandModalPayload, setModal] = useState<CommandModalPayload | null>(null);
+  // `null` means "not chosen", which is different from "chose Project": only
+  // the former follows `defaultUseWorktree` when it resolves, and the choice is
+  // dropped when the project changes so one project's answer is not carried
+  // into another that may not even be a repository.
+  const [worktreeChoice, setWorktreeChoice] = useState<boolean | null>(null);
+  const useWorktree = worktreeChoice ?? defaultUseWorktree;
   const [modelPickerTrigger, setModelPickerTrigger] = useState(0);
   const [pendingCommandGate, setGateState] = useState<PendingCommandGate | null>(null);
   const [queuePulse, setQueuePulse] = useState(0);
@@ -110,6 +124,11 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
       if (submissionOwner.current === owner) submissionOwner.current = null;
     };
   }, [conversation, projectId]);
+  // A run location is chosen per project. Carrying one project's answer into
+  // the next would silently pick a location for a repository the user never
+  // looked at - and for a project that is not a repository at all, the
+  // worktree route would simply fail.
+  useEffect(() => { setWorktreeChoice(null); }, [projectId]);
   useEffect(() => { inputRef.current = input; }, [input]);
   useEffect(() => { liveImages.current = attachedImages; }, [attachedImages]);
 
@@ -154,7 +173,10 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
     if (!isCurrent()) return null;
     const project = target ? await descend(target) : selectedProject;
     if (!isCurrent()) return null;
-    const response = await authenticatedFetch('/api/providers/sessions', { method: 'POST', body: JSON.stringify({ provider: 'gjc', projectPath: project?.fullPath || project?.path || '' }) });
+    // The worktree route allocates the session and its managed checkout in one
+    // transaction; the ordinary route binds the session to the project itself.
+    // Both return the same `sessionId`, so nothing downstream branches on this.
+    const response = await authenticatedFetch(useWorktree ? '/api/providers/worktree-sessions' : '/api/providers/sessions', { method: 'POST', body: JSON.stringify({ provider: 'gjc', projectPath: project?.fullPath || project?.path || '' }) });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       throw new Error(typeof body.error === 'string' ? body.error : body.error?.message ?? `Failed to create session (${response.status})`);
@@ -162,7 +184,7 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
     id = (await response.json())?.data?.sessionId || null;
     if (!id) throw new Error('no session id returned.');
     return { id, context: { provider: 'gjc', project: project!, summary } };
-  }, [currentSessionId, descend, resolveForSend, selectedProject, selectedSession]);
+  }, [currentSessionId, descend, resolveForSend, selectedProject, selectedSession, useWorktree]);
 
   const handleSubmit = useCallback(async (event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>, queued?: QueuedDraft) => {
     event.preventDefault(); const text = queued?.content ?? inputRef.current; if (!text.trim() || !selectedProject) return;
@@ -415,5 +437,5 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
     } finally { finishOperation(); }
   }, [sendMessage, setPendingPermissionRequests]);
   const handleInputFocusChange = useCallback((focused: boolean) => { setFocused(focused); onInputFocusChange?.(focused); }, [onInputFocusChange]);
-  return { composerFrozen, draftPersistence, draftReady, retryDraftPersistence, input, setInput, textareaRef, inputHighlightRef, isTextareaExpanded, slashCommandsCount, skillCommands: slashCommands.filter((command) => command.type === 'skill'), filteredCommands, frequentCommands, commandQuery, showCommandMenu, selectedCommandIndex, resetCommandMenuState, handleCommandSelect, handleToggleCommandMenu, showFileDropdown, filteredFiles: filteredFiles as MentionableFile[], selectedFileIndex, renderInputWithMentions, selectFile, attachedImages, setAttachedImages, attachmentNotice, dismissAttachmentNotice: () => setAttachmentNotice(null), getRootProps, getInputProps, isDragActive, openImagePicker: open, handleSubmit, handleSteer, modelPickerTrigger, queuedDrafts, editQueuedDraft, deleteQueuedDraft, moveQueuedDraft, resolveSteerResult, pendingCommandGate, confirmCommandGate, cancelCommandGate, handleVoiceTranscript, insertAtEnd, handleInputChange, handleKeyDown, handlePaste, handleTextareaClick: (event: MouseEvent<HTMLTextAreaElement>) => setCursorPosition(event.currentTarget.selectionStart), handleTextareaInput, syncInputOverlayScroll, handleClearInput, handleAbortSession, handlePermissionDecision, handleInputFocusChange, isInputFocused, commandModalPayload, closeCommandModal: () => setModal(null), showCostModal, isWorkspace: workspaceTarget.isWorkspace, workspaceCandidates: workspaceTarget.candidates, workspaceTargetValue: workspaceTarget.target, pickWorkspaceTarget: workspaceTarget.pickTarget };
+  return { useWorktree, setUseWorktree: setWorktreeChoice, composerFrozen, draftPersistence, draftReady, retryDraftPersistence, input, setInput, textareaRef, inputHighlightRef, isTextareaExpanded, slashCommandsCount, skillCommands: slashCommands.filter((command) => command.type === 'skill'), filteredCommands, frequentCommands, commandQuery, showCommandMenu, selectedCommandIndex, resetCommandMenuState, handleCommandSelect, handleToggleCommandMenu, showFileDropdown, filteredFiles: filteredFiles as MentionableFile[], selectedFileIndex, renderInputWithMentions, selectFile, attachedImages, setAttachedImages, attachmentNotice, dismissAttachmentNotice: () => setAttachmentNotice(null), getRootProps, getInputProps, isDragActive, openImagePicker: open, handleSubmit, handleSteer, modelPickerTrigger, queuedDrafts, editQueuedDraft, deleteQueuedDraft, moveQueuedDraft, resolveSteerResult, pendingCommandGate, confirmCommandGate, cancelCommandGate, handleVoiceTranscript, insertAtEnd, handleInputChange, handleKeyDown, handlePaste, handleTextareaClick: (event: MouseEvent<HTMLTextAreaElement>) => setCursorPosition(event.currentTarget.selectionStart), handleTextareaInput, syncInputOverlayScroll, handleClearInput, handleAbortSession, handlePermissionDecision, handleInputFocusChange, isInputFocused, commandModalPayload, closeCommandModal: () => setModal(null), showCostModal, isWorkspace: workspaceTarget.isWorkspace, workspaceCandidates: workspaceTarget.candidates, workspaceTargetValue: workspaceTarget.target, pickWorkspaceTarget: workspaceTarget.pickTarget };
 }

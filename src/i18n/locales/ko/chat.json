@@ -274,5 +274,12 @@
       "partial": "부분 일치",
       "recent": "최근 활동"
     }
+  },
+  "sessionWorktree": {
+    "label": "실행 위치",
+    "project": "프로젝트",
+    "newWorktree": "새 워크트리",
+    "worktree": "워크트리",
+    "preparing": "워크트리 준비 중"
   }
 }

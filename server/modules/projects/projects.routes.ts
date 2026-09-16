@@ -1,6 +1,6 @@
 import express from 'express';
 
-import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
+import { archiveProject, restoreArchivedProject } from '@/modules/projects/services/project-archive.service.js';
 import { startCloneProject, type CloneProjectOperation } from '@/modules/projects/services/project-clone.service.js';
 import { createProject, promoteProjectOrigin, updateProjectDisplayName } from '@/modules/projects/services/project-management.service.js';
 import { startScratchWorkspace } from '@/modules/projects/services/scratch-workspace.service.js';
@@ -215,9 +215,10 @@ router.post('/:projectId/restore', asyncHandler(async (request, response) => {
   response.json(createApiSuccessResponse({ projectId, isArchived: false }));
 }));
 
-router.delete('/:projectId', asyncHandler(async (request, response) => {
-  await deleteOrArchiveProject(routeProjectId(request.params.projectId), request.query.force === 'true');
-  response.json({ success: true });
+router.post('/:projectId/archive', asyncHandler(async (request, response) => {
+  const projectId = routeProjectId(request.params.projectId);
+  archiveProject(projectId);
+  response.json(createApiSuccessResponse({ projectId, isArchived: true }));
 }));
 
 export default router;

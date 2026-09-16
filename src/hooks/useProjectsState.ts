@@ -364,7 +364,9 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
     if (selected) setSelectedProject((current) => current?.projectId === projectId ? selected : current);
   }, [client, projects, setSelectedProject]);
 
-  const handleProjectDelete = useCallback((projectId: string) => {
+  // An archived project leaves the active list; it still exists, and the archive
+  // screen puts it back, so this only drops it from the cached list and view.
+  const handleProjectArchive = useCallback((projectId: string) => {
     if (selectedProject?.projectId === projectId) {
       setSelectedProject(null);
       setSelectedSession(null);
@@ -373,7 +375,7 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
     client.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (cached) => (cached ?? []).filter((project) => project.projectId !== projectId));
   }, [client, leaveSessionRoute, selectedProject?.projectId, setSelectedProject, setSelectedSession]);
 
-  const sidebarSharedProps = useMemo(() => ({ activeSessions, onProjectSelect: handleProjectSelect, onSessionSelect: handleSessionSelect, onNewSession: handleNewSession, onSessionDelete: handleSessionDelete, onLoadMoreSessions: loadMoreProjectSessions, onProjectDelete: handleProjectDelete, onRefresh: handleSidebarRefresh, isMobile }), [activeSessions, handleNewSession, handleProjectDelete, handleProjectSelect, handleSessionDelete, handleSessionSelect, handleSidebarRefresh, isMobile, loadMoreProjectSessions]);
+  const sidebarSharedProps = useMemo(() => ({ activeSessions, onProjectSelect: handleProjectSelect, onSessionSelect: handleSessionSelect, onNewSession: handleNewSession, onSessionDelete: handleSessionDelete, onLoadMoreSessions: loadMoreProjectSessions, onProjectArchive: handleProjectArchive, onRefresh: handleSidebarRefresh, isMobile }), [activeSessions, handleNewSession, handleProjectArchive, handleProjectSelect, handleSessionDelete, handleSessionSelect, handleSidebarRefresh, isMobile, loadMoreProjectSessions]);
 
-  return { projects, selectedProject, selectedSession, activeTab, sidebarOpen, isLoadingProjects: query.isLoading, loadingProgress, isInputFocused, showSettings, settingsInitialTab, newSessionTrigger, setActiveTab, setSidebarOpen, setIsInputFocused, setShowSettings, openSettings, fetchProjects: refetch, refreshProjectsSilently: refetch, registerOptimisticSession, sidebarSharedProps, handleProjectSelect, handleSessionSelect, handleNewSession, handleSessionDelete, loadMoreProjectSessions, handleProjectDelete, handleSidebarRefresh };
+  return { projects, selectedProject, selectedSession, activeTab, sidebarOpen, isLoadingProjects: query.isLoading, loadingProgress, isInputFocused, showSettings, settingsInitialTab, newSessionTrigger, setActiveTab, setSidebarOpen, setIsInputFocused, setShowSettings, openSettings, fetchProjects: refetch, refreshProjectsSilently: refetch, registerOptimisticSession, sidebarSharedProps, handleProjectSelect, handleSessionSelect, handleNewSession, handleSessionDelete, loadMoreProjectSessions, handleProjectArchive, handleSidebarRefresh };
 }

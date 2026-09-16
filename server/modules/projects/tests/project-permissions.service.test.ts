@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { parseGjcRunPermissions } from '@/gjc-engine.js';
-import { closeConnection, initializeDatabase, projectPermissionsDb, projectsDb } from '@/modules/database/index.js';
+import { closeConnection, getConnection, initializeDatabase, projectPermissionsDb, projectsDb } from '@/modules/database/index.js';
 import {
   getProjectPermissions,
   grantProjectAlwaysAllow,
@@ -150,11 +150,13 @@ test('a policy that returns to the default is deleted rather than stored', async
   });
 });
 
-test('deleting a project removes its policy', async () => {
+// No product path deletes a project row any more - the sidebar only archives -
+// so the row goes away here by hand, to keep the schema's cascade under test.
+test('deleting a project row removes its policy', async () => {
   await withDatabase(() => {
     const alpha = project('/work/alpha');
     grantProjectAlwaysAllow(alpha.path, 'bash');
-    projectsDb.deleteProjectById(alpha.id);
+    getConnection().prepare('DELETE FROM projects WHERE project_id = ?').run(alpha.id);
     assert.deepEqual(projectPermissionsDb.listConfigured(), []);
   });
 });

@@ -2,7 +2,6 @@
   "projects": {
     "title": "工作区",
     "newProject": "添加项目",
-    "deleteProject": "移除工作区",
     "renameProject": "重命名工作区",
     "noProjects": "暂无工作区",
     "addFirst": "添加",
@@ -37,7 +36,7 @@
     "createSession": "开始对话",
     "refresh": "重新加载项目和对话 (Ctrl+R)",
     "renameProject": "重命名工作区 (F2)",
-    "deleteProject": "从侧边栏移除此项目 (Delete)",
+    "archiveProject": "将该项目移入归档（不会删除任何内容）",
     "addToFavorites": "标记为收藏",
     "removeFromFavorites": "取消收藏标记",
     "editSessionName": "编辑对话名称",
@@ -85,8 +84,8 @@
     "renameSessionError": "发生了对话重命名错误，请重试。",
     "regenerateTitleFailed": "无法重新生成标题。请重试。",
     "exportSessionError": "无法导出对话，请重试。",
-    "deleteProjectFailed": "无法移除该项目，请重试。",
-    "deleteProjectError": "发生了项目移除错误，请重试。",
+    "archiveProjectFailed": "无法归档项目，请重试。",
+    "archiveProjectError": "归档项目时出错，请重试。",
     "updateProjectError": "发生了项目更新错误，请重试。",
     "refreshError": "无法刷新，请重试。",
     "restoreProjectFailed": "无法恢复该项目，请重试。",
@@ -114,11 +113,7 @@
     "updateAvailable": "有新版本可用"
   },
   "deleteConfirmation": {
-    "deleteProject": "删除工作区",
     "deleteSession": "删除对话",
-    "confirmDelete": "请选择要执行的操作",
-    "sessionCount_one": "该项目中有{{count}}条对话。",
-    "sessionCount_other": "该项目中共有{{count}}条对话。",
-    "deleteAllData": "清空所有记录"
+    "confirmDelete": "请选择要执行的操作"
   }
 }

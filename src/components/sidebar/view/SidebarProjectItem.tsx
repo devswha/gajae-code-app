@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Edit3, Folder, Plus, Star, Trash2, X } from 'lucide-react';
+import { Archive, Check, ChevronRight, Edit3, Folder, Plus, Star, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { cn } from '../../../utils/cn';
@@ -17,7 +17,7 @@ type SidebarProjectItemProps = {
   isExpanded: boolean;
   isMobile: boolean;
   showSessions: boolean;
-  isDeleting: boolean;
+  isArchiving: boolean;
   isStarred: boolean;
   editingProject: string | null;
   editingName: string;
@@ -34,7 +34,7 @@ type SidebarProjectItemProps = {
   onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectName: string) => void;
-  onDeleteProject: (project: Project) => void;
+  onArchiveProject: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
   onDeleteSession: (projectName: string, sessionId: string, sessionTitle: string, provider: LLMProvider) => void;
   onLoadMoreSessions: (projectId: string) => void;
@@ -60,7 +60,7 @@ export default function SidebarProjectItem({
   isExpanded,
   isMobile,
   showSessions,
-  isDeleting,
+  isArchiving,
   isStarred,
   editingProject,
   editingName,
@@ -77,7 +77,7 @@ export default function SidebarProjectItem({
   onStartEditingProject,
   onCancelEditingProject,
   onSaveProjectName,
-  onDeleteProject,
+  onArchiveProject,
   onSessionSelect,
   onDeleteSession,
   onLoadMoreSessions,
@@ -111,7 +111,7 @@ export default function SidebarProjectItem({
   const saveProjectName = () => onSaveProjectName(project.projectId);
 
   return (
-    <div className={cn('space-y-1', isDeleting && 'pointer-events-none opacity-50')}>
+    <div className={cn('space-y-1', isArchiving && 'pointer-events-none opacity-50')}>
       <div className="group/project relative">
         {isEditing ? (
           <div className="flex items-center gap-1 px-1.5 py-1">
@@ -187,8 +187,8 @@ export default function SidebarProjectItem({
               <button className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground" onClick={() => onStartEditingProject(project)} aria-label={t('tooltips.renameProject')} title={t('tooltips.renameProject')}>
                 <Edit3 className="size-3.5" />
               </button>
-              <button className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-destructive" onClick={() => onDeleteProject(project)} aria-label={t('tooltips.deleteProject')} title={t('tooltips.deleteProject')}>
-                <Trash2 className="size-3.5" />
+              <button className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground" onClick={() => onArchiveProject(project)} aria-label={t('tooltips.archiveProject')} title={t('tooltips.archiveProject')}>
+                <Archive className="size-3.5" />
               </button>
             </div>
           </>

@@ -119,7 +119,7 @@ test('a remembered project that no longer exists is ignored', async () => {
   }
 });
 
-test('deleting the selected project forgets it, so a reload does not bring it back', async () => {
+test('archiving the selected project forgets it, so a reload does not bring it back', async () => {
   // Three, so that two remain and neither selects itself as a lone project.
   const restore = serveProjects([...twoProjects, project('project-3', 'Project three')]);
   try {
@@ -128,7 +128,7 @@ test('deleting the selected project forgets it, so a reload does not bring it ba
     act(() => { app.getState().handleProjectSelect(twoProjects[0]); });
     assert.equal(localStorage.getItem('selectedProjectId'), 'project-1');
 
-    act(() => { app.getState().handleProjectDelete('project-1'); });
+    act(() => { app.getState().handleProjectArchive('project-1'); });
     await act(async () => { await Promise.resolve(); });
     assert.equal(localStorage.getItem('selectedProjectId'), null);
     assert.equal(app.getState().selectedProject, null);

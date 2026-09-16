@@ -14,10 +14,22 @@ const OBSOLETE_SIDEBAR_KEYS = [
   'search',
 ] as const;
 
+// The project row can only archive a workspace now. This copy offered to remove
+// a project and erase its data, and it must not reappear in any locale.
+const REMOVED_PROJECT_DELETION_KEYS = [
+  'projects.deleteProject',
+  'tooltips.deleteProject',
+  'messages.deleteProjectFailed',
+  'messages.deleteProjectError',
+  'deleteConfirmation.deleteProject',
+  'deleteConfirmation.deleteAllData',
+  'deleteConfirmation.sessionCount_one',
+  'deleteConfirmation.sessionCount_other',
+] as const;
+
 const RETAINED_SIDEBAR_KEYS = [
   'projects.title',
   'projects.newProject',
-  'projects.deleteProject',
   'projects.renameProject',
   'projects.noProjects',
   'projects.loadingProjects',
@@ -38,7 +50,7 @@ const RETAINED_SIDEBAR_KEYS = [
   'tooltips.createSession',
   'tooltips.hideSidebar',
   'tooltips.renameProject',
-  'tooltips.deleteProject',
+  'tooltips.archiveProject',
   'tooltips.addToFavorites',
   'tooltips.removeFromFavorites',
   'tooltips.editSessionName',
@@ -51,8 +63,8 @@ const RETAINED_SIDEBAR_KEYS = [
   'actions.joinCommunity',
   'messages.refreshError',
   'messages.debugInfoError',
-  'messages.deleteProjectFailed',
-  'messages.deleteProjectError',
+  'messages.archiveProjectFailed',
+  'messages.archiveProjectError',
 ] as const;
 
 function localeNames(): string[] {
@@ -95,6 +107,21 @@ test('Given simplified sidebar navigation when locale files are parsed then obso
 
     if (valueAt(common, 'mainContent.delegateJob') !== undefined) {
       failures.push(`${locale}/common.json:mainContent.delegateJob`);
+    }
+  }
+
+  assert.deepEqual(failures, []);
+});
+
+test('Given archive-only project removal when locale files are parsed then project deletion copy is absent', () => {
+  const failures: string[] = [];
+
+  for (const locale of localeNames()) {
+    const sidebar = readJson(path.join(LOCALES_DIR, locale, 'sidebar.json'));
+    for (const keyPath of REMOVED_PROJECT_DELETION_KEYS) {
+      if (valueAt(sidebar, keyPath) !== undefined) {
+        failures.push(`${locale}/sidebar.json:${keyPath}`);
+      }
     }
   }
 

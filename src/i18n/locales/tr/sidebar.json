@@ -2,7 +2,6 @@
   "projects": {
     "title": "Çalışma alanları",
     "newProject": "Proje ekle",
-    "deleteProject": "Çalışma alanını kaldır",
     "renameProject": "Çalışma alanını yeniden adlandırın",
     "noProjects": "Henüz çalışma alanı yok",
     "addFirst": "Ekle",
@@ -37,7 +36,7 @@
     "createSession": "Konuşma başlat",
     "refresh": "Projeleri ve konuşmaları yeniden yükle (Ctrl+R)",
     "renameProject": "Çalışma alanını yeniden adlandırın (F2)",
-    "deleteProject": "Bu projeyi kenar çubuğundan kaldır (Sil)",
+    "archiveProject": "Bu projeyi arşive taşı (hiçbir şey silinmez)",
     "addToFavorites": "Favori olarak işaretle",
     "removeFromFavorites": "Favori işaretini kaldır",
     "editSessionName": "Görüşme adını düzenleyin",
@@ -85,8 +84,8 @@
     "renameSessionError": "Konuşmayı yeniden adlandırma hatası oluştu. Tekrar deneyin.",
     "regenerateTitleFailed": "Başlık yeniden oluşturulamadı. Tekrar deneyin.",
     "exportSessionError": "Görüşme dışa aktarılamadı. Tekrar deneyin.",
-    "deleteProjectFailed": "Proje kaldırılamadı. Tekrar deneyin.",
-    "deleteProjectError": "Bir proje kaldırma hatası oluştu. Tekrar deneyin.",
+    "archiveProjectFailed": "Proje arşivlenemedi. Tekrar deneyin.",
+    "archiveProjectError": "Proje arşivlenirken bir hata oluştu. Tekrar deneyin.",
     "updateProjectError": "Bir proje güncelleme hatası oluştu. Tekrar deneyin.",
     "refreshError": "Yenilenemedi. Tekrar deneyin.",
     "restoreProjectFailed": "Proje geri yüklenemedi. Tekrar deneyin.",
@@ -114,11 +113,7 @@
     "updateAvailable": "Yeni güncelleme mevcut"
   },
   "deleteConfirmation": {
-    "deleteProject": "Çalışma alanını kaldır",
     "deleteSession": "Görüşmeyi sil",
-    "confirmDelete": "Ne yapacağınızı seçin",
-    "sessionCount_one": "Bu projede {{count}} görüşme var.",
-    "sessionCount_other": "Bu projede {{count}} görüşme var.",
-    "deleteAllData": "Tüm verileri kalıcı olarak sil"
+    "confirmDelete": "Ne yapacağınızı seçin"
   }
 }

@@ -21,7 +21,7 @@ import type { SidebarProjectListProps } from './SidebarProjectList';
 function Sidebar(props: SidebarProps) {
   // Keep the shared native client alive across expanded/collapsed subscriptions.
   useDesktopUpdate();
-  const { activeSessions, onProjectSelect, onSessionSelect, onNewSession, onSessionDelete, onLoadMoreSessions, onProjectDelete, onRefresh, isMobile } = props;
+  const { activeSessions, onProjectSelect, onSessionSelect, onNewSession, onSessionDelete, onLoadMoreSessions, onProjectArchive, onRefresh, isMobile } = props;
   const { t } = useTranslation(['sidebar', 'common']);
   const { isPWA } = useDeviceSettings({ trackMobile: false });
   const { preferences, setPreference } = useUiPreferences();
@@ -48,7 +48,7 @@ function Sidebar(props: SidebarProps) {
     onSessionSelect,
     onSessionDelete,
     onLoadMoreSessions,
-    onProjectDelete,
+    onProjectArchive,
     setSidebarVisible: (visible) => setPreference('sidebarVisible', visible),
     sidebarVisible: preferences.sidebarVisible,
   });
@@ -77,7 +77,7 @@ function Sidebar(props: SidebarProps) {
     currentTime: controller.currentTime,
     editingSession: controller.editingSession,
     editingSessionName: controller.editingSessionName,
-    deletingProjects: controller.deletingProjects,
+    archivingProjects: controller.archivingProjects,
     getProjectSessions: controller.getProjectSessions,
     loadingMoreProjects: controller.loadingMoreProjects,
     activeSessions,
@@ -90,7 +90,7 @@ function Sidebar(props: SidebarProps) {
     onStartEditingProject: controller.startEditing,
     onCancelEditingProject: controller.cancelEditing,
     onSaveProjectName: (projectId) => { void controller.saveProjectName(projectId); },
-    onDeleteProject: controller.requestProjectDelete,
+    onArchiveProject: (project) => { void controller.archiveProject(project); },
     onSessionSelect: controller.handleSessionClick,
     onDeleteSession: controller.showDeleteSessionConfirmation,
     onLoadMoreSessions: controller.loadMoreSessionsForProject,
@@ -123,9 +123,6 @@ function Sidebar(props: SidebarProps) {
         showNewProject={controller.showNewProject}
         onCloseNewProject={() => controller.setShowNewProject(false)}
         onProjectCreated={() => { void palette.refreshProjects(); }}
-        deleteConfirmation={controller.deleteConfirmation}
-        onCancelDeleteProject={() => controller.setDeleteConfirmation(null)}
-        onConfirmDeleteProject={controller.confirmDeleteProject}
         sessionDeleteConfirmation={controller.sessionDeleteConfirmation}
         onCancelDeleteSession={() => controller.setSessionDeleteConfirmation(null)}
         onConfirmDeleteSession={controller.confirmDeleteSession}

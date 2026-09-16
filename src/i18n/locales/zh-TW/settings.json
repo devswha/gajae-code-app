@@ -147,6 +147,8 @@
       "testingConnection": "正在測試連線…",
       "connectionPassed": "ego-browser 已連線",
       "connectionFailed": "ego-browser 連線測試失敗。",
+      "activity": "顯示瀏覽器活動",
+      "activityDescription": "執行期間讀取 ego lite 的 Space、頁面及其目前網址，並顯示在代理側邊欄中。不會儲存，僅讀取本工作階段建立的代理自有 Space，並移除查詢字串。",
       "saveFailed": "無法儲存瀏覽器後端。"
     },
     "builtinBrowser": { "title": "內建瀏覽器", "description": "在可調整寬度的右側面板中開啟內建瀏覽器，不受所選 GJC 後端影響。", "label": "內建瀏覽器", "note": "僅在 macOS 桌面應用程式中可用。關閉前會一直保留瀏覽器擁有權。HTTP(S) 聊天連結一律在外部瀏覽器中開啟。", "open": "開啟瀏覽器", "opened": "已開啟內建瀏覽器。", "failed": "無法開啟瀏覽器。", "errors": { "busy": "內建瀏覽器正在使用中。請先關閉，再為此工作階段開啟。", "unavailable": "內建瀏覽器目前無法使用。請等待應用程式伺服器重新連線後再試。", "invalidUrl": "無法開啟此位址。請使用 HTTP 或 HTTPS 位址。", "stale": "要求完成前瀏覽器頁面已變更。請再試一次。", "failed": "無法開啟內建瀏覽器。請再試一次。" } },

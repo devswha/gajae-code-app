@@ -309,6 +309,23 @@ a minimal environment and a two-second bound for `--version` followed by the
 documented `nodejs -e "console.log('ok')"` round trip. It never invokes
 `import`, `upgrade` or `onboarding`.
 
+`GET /api/automation/ego-activity?sessionId=…` is the second and last place the
+app may execute the ego CLI. It answers what the agent's browser is doing, from
+ego itself: the ego backend routes browser work through Bash, so the runtime
+sees only an opaque command, and the CLI buffers the model's own output until
+the round ends. The surface is opt-in (`automation.egoActivity.v1`, off by
+default) and executes nothing unless the stored backend is `ego`, the platform
+supports it and a session id is supplied; Settings reads the opt-in without one.
+The observation program (`EGO_ACTIVITY_SCRIPT`) is a fixed constant with no
+interpolation, calls only `listTaskSpaces()`, `taskSpace(id)` and `tabs()`, and
+yields only agent-created, agent-owned spaces whose name starts with the
+app-minted session token (`egoActivityToken`, derived from the app session id
+and written into the routing block's naming rule) and, inside them, only
+agent-opened managed pages. One execution is shared by every reader inside a
+one-second window, URLs are reduced to origin and path, nothing is persisted,
+and any failure reports `unavailable` instead of surfacing an error into the
+run. The design record is `docs/plans/ego-activity-contract.md`.
+
 The Built-in tool exposes only `open`, `close`, and `act`. Its act verbs are
 `navigate`, `back`, `forward`, `reload`, `observe`, `extract`, `click`, and
 `fill`; click/fill require CSS selectors, and extract accepts an optional

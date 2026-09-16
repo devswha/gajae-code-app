@@ -1,6 +1,7 @@
 # ego browser activity contract
 
-Status: research/design only — no production code changed (2026-09-16).
+Status: PR 1 of §11 shipped (observer, opt-in, WORK row); PR 3 (live frame) is
+not implemented (2026-09-16).
 Question answered: **can Gajae Code App render what the ego lite browser is
 doing while a session drives it, and what would it cost?**
 
@@ -30,6 +31,22 @@ All numbers are live probes on this machine, 2026-09-16, ego-browser
 | 3 observer rounds while another script held the space in `waitForTimeout(9000)` | every round returned state + screenshot, no error, no ownership change | 0.171-0.173 s each |
 | The held script afterwards | completed its remaining `goto` and `finish({keep: []})`; the space then disappeared from `listTaskSpaces()` | — |
 | Script stdout during a long round (`console.log` at t≈0, read at t=3 s) | **empty**; all lines appeared only when the CLI process exited | — |
+
+Implementation added two more, both found by running the real CLI from the
+server instead of a shell, and both now covered by tests:
+
+| Probe | Result |
+| --- | --- |
+| `nodejs -e <script>` through `child_process.execFile` | **hangs** until the timeout kills it: the CLI waits for EOF on stdin before running the program, and an inherited pipe never closes |
+| the same call with the child's stdin closed | answers in ~0.1 s |
+| where a piped CLI writes | **stderr** — both the program's `console.log` and the `--version` banner; stdout stays empty |
+
+The second row also explains a shipped bug: `testEgoBrowserConnection` (Settings
+> Test connection) used `promisify(execFile)` and required the version on
+stdout with an empty stderr, so against ego-browser 0.5.0.32 it reported
+`ego_connection_failed` for a perfectly healthy install. Both callers now share
+one runner that closes stdin and judges content rather than the stream it
+arrived on.
 
 Two of those rows decide the design:
 
@@ -121,30 +138,29 @@ shell syntax. Consequences, stated honestly:
 
 ```text
 Settings > Automation > Browser backend = ego lite  (existing)
-        + Settings > Automation > Show browser activity  (new, opt-in)
+        + Settings > Automation > Show browser activity  (new, opt-in, off)
    ↓
-run starts (backend resolved server-side, block carries the run token)
+run starts (backend resolved server-side, block carries the session token)
    ↓
-EgoActivityObserver (server, one per attributed session)
-   ├─ starts when: backend=ego AND the run is active AND a bash call is in flight
-   ├─ poll ~1 Hz: execFile(<probe-resolved path>, ['nodejs','-e', <fixed app script>])
-   │     allowlist: listTaskSpaces() → taskSpace(id) → tabs() → page.info()
-   │     (screenshot only when the picture surface is enabled)
-   ├─ single in-flight poll, 2 s timeout, exponential backoff on error, hard stop when idle
-   └─ snapshot in memory only: no SQLite row, no transcript write, no log line, TTL on run end
+client (agent sidebar) polls only while this session is running
    ↓
-GET /api/automation/ego-activity?sessionId=…      (TanStack Query, 1-2 s)
-GET /api/automation/ego-activity/:spaceId/frame   (PNG, memory-cached, opt-in surface)
+GET /api/automation/ego-activity?sessionId=…
+   ├─ nothing executes unless: opted in AND platform supports ego AND backend=ego
+   ├─ execFile(<probe-resolved path>, ['nodejs','-e', EGO_ACTIVITY_SCRIPT]), shell:false, minimal env
+   │     allowlist: listTaskSpaces() → taskSpace(id) → tabs()
+   ├─ one execution shared by every reader inside a 1 s window (single-flight + TTL)
+   ├─ attribution: space name starts with egoActivityToken(appSessionId)
+   └─ in memory only: no SQLite row, no transcript write, no log line; no-store on the wire
    ↓
-WORK rail row  →  sidebar panel  →  live frame
+WORK rail row  →  space detail  →  live frame (PR 3, not implemented)
 ```
 
-Gating detail: "a bash call is in flight" is the class-D derivation the app
-already makes from `tool_use` / final `tool_result` pairs; the run's
-exactly-once terminal (`GJC-LIVE-SPEC.md` §Process and terminal lifecycle)
-guarantees the observer always stops, exactly like the WORK rows in the Aside
-design (§10 of that document). Auto-backgrounded bash (60 s threshold) changes
-nothing: the observer follows ego, not the job.
+Gating detail: "while the session is running" is the same authoritative run
+state WORK already renders, and the run's exactly-once terminal
+(`GJC-LIVE-SPEC.md` §Process and terminal lifecycle) guarantees the polling
+always stops. A per-Bash-call gate was considered and dropped: ego's own space
+lifecycle already says when browser work exists, so deriving a second, weaker
+answer from tool frames would only add a way to disagree with it.
 
 Why not the existing WS projection (`gjc-job-projection.service.ts`)? That one
 exists because GJC jobs have a durable authority with replay. Ego activity is
@@ -238,16 +254,26 @@ Cost note: 10 locales (`src/i18n/locales/*`) and DOM tests
 
 ## 11. Suggested PR sequence
 
-- **PR 1 — observer + WORK row** (foundation). Run token in the routing block,
-  `EgoActivityObserver` with the §6 bounds, run/bash gating, opt-in setting,
-  `GET /api/automation/ego-activity`, WORK row, doctrine updates (AGENTS.md,
-  `docs/BROWSER-EGO-POC.md`, this file), tests with an injected `execFile` (no
-  real CLI needed) plus a DOM test for the row. Estimate ~700-900 lines with
-  tests.
-- **PR 2 — sidebar panel.** Pages list, active tab, focus-ego action, i18n ×10,
-  DOM tests. ~300 lines.
+- **PR 1 — observer + WORK row** (foundation). **Shipped.** Run token in the
+  routing block (`buildGjcEgoBrowserInstructions(cliPath, token)`,
+  `egoActivityToken`), the reader with the §6 bounds
+  (`server/gjc-ego-activity.ts`), gating and single-flight caching
+  (`server/modules/automation/ego-activity.ts`), opt-in setting
+  (`automation.egoActivity.v1`), `GET`/`PUT /api/automation/ego-activity`, the
+  WORK row, and doctrine updates in AGENTS.md, `server/GJC-LIVE-SPEC.md` and
+  `docs/BROWSER-EGO-POC.md`.
+
+  Two design points moved during implementation, both toward less machinery:
+  the client polls only while the session is running and stops as soon as the
+  server reports the surface off, which makes a background observer loop and
+  its run-registry wiring unnecessary; and the per-call "bash in flight" gate
+  was dropped, because ego's own space lifecycle already answers when browser
+  work exists and a Bash-derived gate would add a second, weaker source.
+- **PR 2 — space detail.** Every page of the live space with its title, address
+  and which one is active, as a disclosure on the WORK row rather than a second
+  section repeating it. i18n ×10, DOM tests.
 - **PR 3 — live frame.** Screenshot poll, PNG endpoint with TTL cache, second
-  opt-in switch, privacy gates, tests. ~400 lines.
+  opt-in switch, privacy gates, tests. ~400 lines. Not implemented.
 
 PR 1 is the only one that carries new authority; 2 and 3 are additive UI over
 the snapshot it already produces. Each is independently shippable, and each

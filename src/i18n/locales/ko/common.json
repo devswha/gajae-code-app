@@ -92,7 +92,11 @@
       "title": "작업",
       "working": "작업 중",
       "agents": "에이전트",
-      "agentRunning": "실행 중"
+      "agentRunning": "실행 중",
+      "browser": "브라우저",
+      "browserRunning": "브라우저 작업 중",
+      "browserSpace": "브라우저 공간 {{id}}",
+      "browserMore": "+{{count}}개 더"
     },
     "actionRequired": {
       "title": "응답 필요",

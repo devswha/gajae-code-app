@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -31,7 +32,13 @@ function render(overrides: Partial<AgentSidebarProps> = {}): string {
     ...overrides,
   };
 
-  return renderToStaticMarkup(createElement(AgentSidebar, props));
+  // The WORK lane reads the ego browser surface through TanStack Query, the way
+  // the app provides it; a static render runs no effect, so nothing is fetched.
+  return renderToStaticMarkup(createElement(
+    QueryClientProvider,
+    { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+    createElement(AgentSidebar, props),
+  ));
 }
 
 test('the desktop surface is a labelled lane holding the environment in one compact card', () => {

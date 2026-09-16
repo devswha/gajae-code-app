@@ -18,6 +18,7 @@ import {
   GjcAsideUnavailableError,
   GjcEgoUnavailableError,
   buildGjcEgoBrowserInstructions,
+  execEgoFile,
   egoBrowserCliCandidates,
   isGjcAsideUnavailableError,
   isGjcBrowserBackend,
@@ -26,6 +27,7 @@ import {
   probeEgoReadiness,
   testEgoBrowserConnection,
 } from './gjc-browser-backend.js';
+import { egoActivityToken } from './gjc-ego-activity.js';
 
 test('Built-in is the default backend and public choices do not expose the runtime setting name', () => {
   assert.equal(DEFAULT_GJC_BROWSER_BACKEND, 'builtin');
@@ -104,6 +106,22 @@ test('the Ego routing block pins and POSIX-quotes the probe-resolved executable'
   assert.match(block, /computer.*CUA.*browser/iu);
 });
 
+test('the space naming rule carries only an app-minted token, and an unrecognized one is dropped', () => {
+  const token = egoActivityToken('app-session-1');
+  const block = buildGjcEgoBrowserInstructions('/fixture/home/.local/bin/ego-browser', token);
+  assert.ok(block.includes(`\`"${token} <short goal>"\``));
+  assert.match(block, /token is a label only, never something to type into a page/u);
+
+  // Attribution is a display concern; a malformed or injected token never
+  // reaches the prompt, and the block stays valid without one.
+  for (const rejected of ['gjc-ZZZZZZZZ', 'gjc-123', '"; rm -rf /', 'gjc-12345678 extra', '', undefined]) {
+    const plain = buildGjcEgoBrowserInstructions('/fixture/home/.local/bin/ego-browser', rejected);
+    assert.equal(plain.includes('Name that space'), false, JSON.stringify(rejected));
+    assert.match(plain, /^<browser-backend>\n/u);
+    assert.match(plain, /taskSpace\(name\)/u);
+  }
+});
+
 test('the unavailable Ego policy preserves ordinary chat and forbids browser substitution', () => {
   assert.match(GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS, /ordinary chat.*continue/iu);
   assert.match(GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS, /built-in browser.*Aside.*OS browser.*Playwright.*Puppeteer.*MCP.*computer/iu);
@@ -134,6 +152,38 @@ test('the explicit Ego connection test uses only the absolute CLI and the docume
       HOME: '/fixture/home', PATH: '/fixture/home/.local/bin:/usr/bin:/bin', LANG: 'C', LC_ALL: 'C',
     });
   }
+});
+
+test('the CLI runner closes stdin, so a CLI that reads its program from stdin cannot hang the app', async (t) => {
+  // ego-browser 0.5 waits for EOF on stdin before running a `nodejs` program:
+  // with an open stdin pipe every call died on its timeout instead of
+  // answering. `cat` stands in for that behaviour without needing ego lite.
+  if (process.platform === 'win32') return t.skip('POSIX cat stands in for the CLI');
+  const result = await execEgoFile('/bin/cat', [], { timeout: 4_000, maxBuffer: 1024, shell: false });
+  assert.equal(String(result.stdout), '');
+});
+
+test('a piped ego CLI answers on stderr, and the checks read content rather than the stream', async () => {
+  const banner = 'ego-browser 0.5.0.32\n  chromium 152.0.7977.54\n  node v24.18.1\n';
+  const connected = await testEgoBrowserConnection({
+    platform: 'darwin', home: '/fixture/home',
+    probe: () => ({ ok: true, path: '/fixture/home/.local/bin/ego-browser' }),
+    // Exactly what ego-browser 0.5.0.32 does when its output is piped.
+    execFile: async (_file, args) => (args[0] === '--version'
+      ? { stdout: '', stderr: banner }
+      : { stdout: '', stderr: 'ok\n' }),
+  });
+  assert.deepEqual(connected, { ok: true, status: 'connected', cliVersion: '0.5.0.32' });
+
+  // Strictness is kept where it matters: an unindented extra line is something
+  // else talking, and is refused instead of being parsed around.
+  const noisy = await testEgoBrowserConnection({
+    platform: 'darwin', home: '/fixture/home',
+    probe: () => ({ ok: true, path: '/fixture/home/.local/bin/ego-browser' }),
+    execFile: async () => ({ stdout: '', stderr: `${banner}update required\n` }),
+  });
+  assert.equal(noisy.ok, false);
+  assert.equal(noisy.errorCode, 'ego_connection_failed');
 });
 
 test('the explicit connection test rejects an unsupported known CLI version before nodejs', async () => {

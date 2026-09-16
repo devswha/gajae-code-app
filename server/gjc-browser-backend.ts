@@ -36,7 +36,6 @@ import {
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:path';
-import { promisify } from 'node:util';
 
 /** Application choices do not expose the runtime's `native` setting value. */
 export const GJC_BROWSER_BACKENDS = ['builtin', 'aside', 'ego'] as const;
@@ -490,7 +489,32 @@ export function probeEgoBrowserCli(
   return { ok: false, searched };
 }
 
-const execEgoFile = promisify(execFileCallback);
+/**
+ * Run the ego CLI once and return both streams.
+ *
+ * Two properties of `ego-browser` 0.5 make the obvious `promisify(execFile)`
+ * wrong, and both were observed live:
+ *
+ * - it waits for EOF on stdin before running a `nodejs` program, so a child
+ *   whose stdin stays an open pipe hangs until the timeout kills it. The
+ *   parent therefore closes stdin immediately;
+ * - when its output is piped it writes the program's own `console.log`, and
+ *   its `--version` banner, to **stderr**. Callers must read both streams and
+ *   decide on the content, never on which stream carried it.
+ */
+export const execEgoFile: EgoExecFile = (file, args, options) => new Promise((resolve, reject) => {
+  const child = execFileCallback(file, [...args], options, (error, stdout, stderr) => {
+    if (error) reject(error);
+    else resolve({ stdout, stderr });
+  });
+  child.stdin?.end();
+});
+
+/** Everything the CLI wrote, in the order the streams are read. */
+export function egoCliOutput(stdout: string | Buffer, stderr: string | Buffer): string {
+  return `${String(stdout)}\n${String(stderr)}`;
+}
+
 const EGO_CONNECTION_TIMEOUT_MS = 2_000;
 const EGO_CONNECTION_MAX_BUFFER = 16 * 1024;
 const EGO_VERSION_OUTPUT = /^(?:ego-browser\s+)?v?(\d+(?:\.\d+){2,}(?:[-+][0-9A-Za-z.-]+)?)$/u;
@@ -526,16 +550,21 @@ function connectionFailure(
   return { ok: false, status, errorCode, message, ...(cliVersion ? { cliVersion } : {}) };
 }
 
+/**
+ * The version banner: one version line, then only the CLI's own indented
+ * component detail (`  chromium ...`, `  node ...`). Any other unindented line
+ * is something else talking, and is rejected rather than parsed around.
+ */
 function strictVersionOutput(stdout: string | Buffer, stderr: string | Buffer): string | undefined {
-  const out = String(stdout);
-  const err = String(stderr);
-  if (err.trim() || out.split(/\r?\n/u).filter((line) => line.length > 0).length !== 1) return undefined;
-  const match = EGO_VERSION_OUTPUT.exec(out.trim());
+  const lines = egoCliOutput(stdout, stderr).split(/\r?\n/u).filter((line) => line.trim().length > 0);
+  const [first, ...rest] = lines;
+  if (!first || rest.some((line) => !/^\s/u.test(line))) return undefined;
+  const match = EGO_VERSION_OUTPUT.exec(first.trim());
   return match?.[1];
 }
 
 function strictOkOutput(stdout: string | Buffer, stderr: string | Buffer): boolean {
-  return String(stderr).trim() === '' && /^ok\r?\n?$/u.test(String(stdout));
+  return egoCliOutput(stdout, stderr).trim() === 'ok';
 }
 
 /**
@@ -617,14 +646,26 @@ export function quotePosixShellPath(filePath: string): string {
   return `'${filePath.replaceAll("'", "'\\''")}'`;
 }
 
+/** Only an app-minted token may be interpolated into the naming rule. */
+const EGO_ACTIVITY_TOKEN_SHAPE = /^gjc-[0-9a-f]{8}$/u;
+
 /**
  * App-owned routing block for the ego backend, appended to the system prompt
  * the way the runtime appends its own Aside block. The executable path comes
  * from the probe and is quoted before interpolation, so the shell runs the
  * exact file that was checked rather than resolving a bare name again.
+ *
+ * `activityToken` is the app-minted session label (`egoActivityToken`) the
+ * space name must carry, so the app can attribute a live ego space to this
+ * session without parsing Bash commands. An unrecognized token is dropped
+ * rather than written into the prompt.
  */
-export function buildGjcEgoBrowserInstructions(cliPath: string): string {
+export function buildGjcEgoBrowserInstructions(cliPath: string, activityToken?: string): string {
   const command = quotePosixShellPath(cliPath);
+  const token = activityToken && EGO_ACTIVITY_TOKEN_SHAPE.test(activityToken) ? activityToken : undefined;
+  const naming = token
+    ? `\n- Name that space \`"${token} <short goal>"\` - exactly this session's token, then a few plain words. The app matches the prefix to show what the browser is doing; a space without it is shown to nobody, and the token is a label only, never something to type into a page.`
+    : '';
   return `<browser-backend>
 Browser backend: ego lite (ego-browser CLI). The built-in browser tool is disabled by configuration. NEVER use or register an MCP browser server, and never launch Playwright, Puppeteer or another browser.
 
@@ -634,7 +675,7 @@ Routing:
 
 Procedure:
 - Load the installed \`ego-browser\` skill before the first browser action; it is the complete API reference (TaskSpace, Page, FileChooser, mouse, keyboard). Use only the API it lists, never inferred Playwright methods.
-- Use exactly one TaskSpace per user goal: create it once with \`taskSpace(name)\`, print its \`spaceId\`, and resume that same space in later invocations with \`taskSpace(id)\`. Every invocation is a fresh Node.js process; spaces, tabs and Page labels persist, JavaScript variables do not.
+- Use exactly one TaskSpace per user goal: create it once with \`taskSpace(name)\`, print its \`spaceId\`, and resume that same space in later invocations with \`taskSpace(id)\`. Every invocation is a fresh Node.js process; spaces, tabs and Page labels persist, JavaScript variables do not.${naming}
 - Print results with \`console.log\`; returned values are not emitted. Take a \`page.snapshot()\` before acting, prefer refs from that snapshot, and verify every meaningful action with a fresh URL/title, snapshot or screenshot.
 - When the task succeeds, call \`await task.finish({ keep: [] })\` exactly once. Do not call \`finish()\` after a hand-off to the user or an error.
 

@@ -92,7 +92,11 @@
       "title": "Arbeit",
       "working": "Läuft",
       "agents": "Agenten",
-      "agentRunning": "Wird ausgeführt"
+      "agentRunning": "Wird ausgeführt",
+      "browser": "Browser",
+      "browserRunning": "Im Browser aktiv",
+      "browserSpace": "Browser-Space {{id}}",
+      "browserMore": "+{{count}} weitere"
     },
     "actionRequired": {
       "title": "Antwort erforderlich",

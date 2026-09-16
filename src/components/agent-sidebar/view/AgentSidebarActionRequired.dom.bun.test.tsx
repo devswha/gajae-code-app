@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { useState, type ReactNode } from 'react';
@@ -48,6 +49,7 @@ const question = {
 async function setup(lng = 'en') {
   const i18n = createInstance();
   await i18n.init({ lng, fallbackLng: 'en', resources: { en: { common: enCommon, chat: enChat }, ko: { common: koCommon } }, defaultNS: 'common', interpolation: { escapeValue: false } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const listeners = new Set<(event: ServerEvent) => void>();
   const subscribe = (listener: (event: ServerEvent) => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
   const processingSessions: SessionActivityMap = new Map();
@@ -59,12 +61,14 @@ async function setup(lng = 'en') {
   }
   function Harness({ sessionId = 'one', requests = [], mobile = false }: { sessionId?: string; requests?: PendingPermissionRequest[]; mobile?: boolean }) {
     const [open, setOpen] = useState(true);
-    return <I18nextProvider i18n={i18n}><Sync>
+    // The mobile drawer mounts the whole sidebar, whose WORK lane reads the ego
+    // browser surface through TanStack Query the way the app provides it.
+    return <QueryClientProvider client={client}><I18nextProvider i18n={i18n}><Sync>
       {mobile
         ? open && <AgentSidebar isMobile sessionId={sessionId} sessionStore={sessionStore} onClose={() => setOpen(false)} />
         : <AgentSidebarActionRequired sessionId={sessionId} onRequestShown={() => { shown += 1; }} />}
       <PermissionRequestsBanner pendingPermissionRequests={requests} handlePermissionDecision={(ids, decision) => { decisions.push([ids, decision]); }} />
-    </Sync></I18nextProvider>;
+    </Sync></I18nextProvider></QueryClientProvider>;
   }
   return {
     Harness, decisions, shown: () => shown,

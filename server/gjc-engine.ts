@@ -112,6 +112,27 @@ export {
   quotePosixShellPath,
   testEgoBrowserConnection,
 } from './gjc-browser-backend.js';
+// What the agent's ego lite browser is doing, read from ego itself. The ego
+// backend routes browser work through an external CLI, so the runtime sees
+// only an opaque Bash call; ego answers its own space and tab state to any
+// process, which is what the app renders. Read-only by construction.
+export {
+  EGO_ACTIVITY_SCRIPT,
+  EGO_ACTIVITY_TOKEN_PREFIX,
+  EMPTY_EGO_ACTIVITY,
+  egoActivityToken,
+  matchesEgoActivityToken,
+  parseEgoActivityOutput,
+  readEgoActivity,
+  selectEgoActivitySpaces,
+} from './gjc-ego-activity.js';
+export type {
+  EgoActivityExecFile,
+  EgoActivityPage,
+  EgoActivitySnapshot,
+  EgoActivitySpace,
+} from './gjc-ego-activity.js';
+
 export type {
   EgoBrowserCliProbe,
   EgoConnectionTestResult,

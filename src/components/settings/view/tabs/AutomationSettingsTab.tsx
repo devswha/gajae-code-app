@@ -8,6 +8,7 @@ import { BROWSER_BACKENDS, isBrowserBackend, type BrowserBackend } from '../../b
 import SettingsCard from '../SettingsCard';
 import SettingsRow from '../SettingsRow';
 import SettingsSection from '../SettingsSection';
+import SettingsToggle from '../SettingsToggle';
 
 type Status = {
   supported: boolean;
@@ -49,6 +50,7 @@ export default function AutomationSettingsTab() {
   const [browserBackendError, setBrowserBackendError] = useState<string | null>(null);
   const [egoReadiness, setEgoReadiness] = useState<EgoReadiness | null>(null);
   const [egoConnection, setEgoConnection] = useState<EgoConnection | null>(null);
+  const [egoActivity, setEgoActivity] = useState(false);
   const [testingEgoConnection, setTestingEgoConnection] = useState(false);
   const [builtinBrowserStatus, setBuiltinBrowserStatus] = useState<string | null>(null);
   const selectedProjectId = useAppShellStore((state) => state.selectedProject?.projectId);
@@ -58,11 +60,14 @@ export default function AutomationSettingsTab() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [statusResponse, grantsResponse, backendResponse, egoReadinessResponse] = await Promise.all([
+      const [statusResponse, grantsResponse, backendResponse, egoReadinessResponse, egoActivityResponse] = await Promise.all([
         fetch('/api/automation/status'),
         fetch('/api/automation/grants'),
         fetch('/api/automation/browser-backend'),
         fetch('/api/automation/ego-readiness'),
+        // Without a session id this reads the stored opt-in only; it never
+        // observes a browser.
+        fetch('/api/automation/ego-activity'),
       ]);
       if (statusResponse.ok) setStatus(await statusResponse.json() as Status);
       if (grantsResponse.ok) setGrants(await grantsResponse.json() as Grants);
@@ -75,6 +80,7 @@ export default function AutomationSettingsTab() {
         }
       }
       if (egoReadinessResponse.ok) setEgoReadiness(await egoReadinessResponse.json() as EgoReadiness);
+      if (egoActivityResponse.ok) setEgoActivity((await egoActivityResponse.json() as { configured?: boolean }).configured === true);
     } finally {
       setLoading(false);
     }
@@ -93,6 +99,20 @@ export default function AutomationSettingsTab() {
     }
     const saved = await response.json() as { backend: unknown };
     if (isBrowserBackend(saved.backend)) setBrowserBackend(saved.backend);
+  };
+
+  const changeEgoActivity = async (enabled: boolean) => {
+    setEgoActivity(enabled);
+    const response = await fetch('/api/automation/ego-activity', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    if (!response.ok) {
+      setEgoActivity(!enabled);
+      return;
+    }
+    setEgoActivity((await response.json() as { enabled?: boolean }).enabled === true);
   };
 
   const testEgoConnection = async () => {
@@ -152,6 +172,15 @@ export default function AutomationSettingsTab() {
           </SettingsRow>
           {browserBackend === 'aside' ? (
             <p className="px-4 pb-4 text-xs text-muted-foreground">{t('automation.browserBackend.asideNote')}</p>
+          ) : null}
+          {browserBackend === 'ego' ? (
+            <SettingsRow label={t('automation.browserBackend.activity')} description={t('automation.browserBackend.activityDescription')}>
+              <SettingsToggle
+                checked={egoActivity}
+                onChange={(value) => void changeEgoActivity(value)}
+                ariaLabel={t('automation.browserBackend.activity')}
+              />
+            </SettingsRow>
           ) : null}
           {browserBackend === 'ego' ? (
             <div className="space-y-2 px-4 pb-4 text-xs text-muted-foreground">

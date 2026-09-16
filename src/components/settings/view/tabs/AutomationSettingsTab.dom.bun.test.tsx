@@ -15,6 +15,7 @@ import AutomationSettingsTab from './AutomationSettingsTab';
 type Call = { path: string; method: string; body?: unknown };
 type ApiOptions = {
   backend?: 'builtin' | 'aside' | 'ego';
+  egoActivity?: boolean;
   rejectBackendSave?: boolean;
   browserOpen?: Response | Error;
   browserReady?: boolean;
@@ -36,6 +37,7 @@ afterEach(() => {
 function fakeApi(options: ApiOptions = {}) {
   const calls: Call[] = [];
   let backend = options.backend ?? 'builtin';
+  let egoActivity = options.egoActivity ?? false;
   let grants = options.grants ?? { always: { origins: [], applications: [] } };
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
@@ -68,6 +70,11 @@ function fakeApi(options: ApiOptions = {}) {
         backend = (body as { backend: 'builtin' | 'aside' | 'ego' }).backend;
       }
       return new Response(JSON.stringify({ backend, backends: ['builtin', 'aside', 'ego'] }));
+    }
+    if (path === '/api/automation/ego-activity') {
+      if (method === 'PUT') egoActivity = (body as { enabled: boolean }).enabled;
+      // Without a session id the route reports the stored opt-in and observes nothing.
+      return new Response(JSON.stringify({ configured: egoActivity, enabled: egoActivity, supported: true, backend, spaces: [] }));
     }
     if (path.startsWith('/api/browser/') && method === 'POST') {
       if (options.browserOpen instanceof Error) throw options.browserOpen;
@@ -129,6 +136,30 @@ test('Built-in is the default and every backend choice persists through the API'
     { backend: 'ego' },
     { backend: 'builtin' },
   ]);
+});
+
+test('the browser activity opt-in belongs to ego, is off by default and persists through the API', async () => {
+  const calls = fakeApi({ backend: 'builtin' });
+  await mount();
+  await waitFor(() => assert.equal(backendSelect().disabled, false));
+
+  const activityLabel = english.automation.browserBackend.activity;
+  assert.equal(screen.queryByRole('switch', { name: activityLabel }), null, 'the surface exists only for the ego backend');
+
+  fireEvent.change(backendSelect(), { target: { value: 'ego' } });
+  const toggle = await screen.findByRole('switch', { name: activityLabel });
+  assert.equal(toggle.getAttribute('aria-checked'), 'false', 'rendering a logged-in browser is never on by default');
+  assert.ok(screen.getByText(english.automation.browserBackend.activityDescription));
+
+  fireEvent.click(toggle);
+  await waitFor(() => assert.equal(screen.getByRole('switch', { name: activityLabel }).getAttribute('aria-checked'), 'true'));
+  assert.deepEqual(calls.filter((call) => call.path === '/api/automation/ego-activity' && call.method === 'PUT').map((call) => call.body), [{ enabled: true }]);
+
+  // Reading the opt-in never asks for a session, so Settings observes no browser.
+  assert.equal(calls.some((call) => call.path.startsWith('/api/automation/ego-activity?')), false);
+
+  fireEvent.change(backendSelect(), { target: { value: 'builtin' } });
+  await waitFor(() => assert.equal(screen.queryByRole('switch', { name: activityLabel }), null));
 });
 
 test('a rejected backend save keeps the persisted choice and reports the failure', async () => {

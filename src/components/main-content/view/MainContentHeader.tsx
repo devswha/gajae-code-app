@@ -41,7 +41,9 @@ export default function MainContentHeader({
     return () => observer.disconnect();
   }, [updateScrollState]);
   return (
-    <div className="pwa-header-safe shrink-0 border-b border-border/60 bg-background px-3 py-1.5 sm:px-4 sm:py-2">
+    // The bar spans the full row, but its title lines up with the conversation
+    // below it, which the chat lane insets by `pl-2` to clear the sidebar rail.
+    <div className="pwa-header-safe shrink-0 border-b border-border/60 bg-background px-3 py-1.5 sm:px-4 sm:py-2 md:pl-6">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           {isMobile && <MobileMenuButton onMenuClick={onMenuClick} />}

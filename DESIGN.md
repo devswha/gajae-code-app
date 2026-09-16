@@ -111,6 +111,7 @@ The system uses Tailwind's 4px spacing scale. Existing values like `p-2`, `gap-2
 - Document scroll is disabled; scroll belongs to explicit panes (`ScrollArea`, chat message pane, file/editor panes).
 - Desktop sidebar: border-right rail, `md:w-72`, `md:px-1.5 md:py-2`, no document scroll.
 - Mobile sidebar: overlay `fixed inset-0`, drawer `w-[85vw] max-w-sm sm:w-80`, backdrop `bg-background/60 backdrop-blur-sm`.
+- Lane insets (`md` and up): the chat lane takes `pl-2` off the sidebar rail and the agent lane takes `pl-2` off the chat lane, so the conversation clears the rail's border by the same 8px it keeps from the context card. The header is full width and pads its title to match (`md:pl-6` = lane inset + the 16px content gutter).
 - Chat content width: `max-w-[54.25rem]` for messages and composer.
 - New-session landing width: `max-w-[46rem]` with `pb-[10vh]` visual centering.
 - Files side panel: `w-80 max-w-[85vw] md:w-72`.

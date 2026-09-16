@@ -2,6 +2,31 @@ import type { DropEvent } from 'react-dropzone';
 
 import { beginComposerOperation } from '../../../shared/composerFreeze';
 
+export const MAX_COMPOSER_IMAGES = 5;
+export const MAX_COMPOSER_IMAGE_BYTES = 5 * 1024 * 1024;
+
+export type ComposerAttachmentRejection = { name: string; reason: 'not-image' | 'empty' | 'too-large' | 'too-many' };
+
+/** The composer attaches images only. The desktop shell's open panel ignores the
+ * `accept` filter, and a drop or paste carries whatever the user had, so the
+ * composer is routinely handed files it cannot take. Name every rejection here
+ * so the caller can say so instead of discarding the file in silence. */
+export function partitionComposerAttachments(files: readonly unknown[], room: number): { accepted: File[]; rejected: ComposerAttachmentRejection[] } {
+  const accepted: File[] = [];
+  const rejected: ComposerAttachmentRejection[] = [];
+  const free = Math.max(0, room);
+  for (const candidate of files) {
+    if (!(candidate instanceof File)) continue;
+    const name = candidate.name || 'file';
+    if (!candidate.type?.startsWith('image/')) rejected.push({ name, reason: 'not-image' });
+    else if (!candidate.size) rejected.push({ name, reason: 'empty' });
+    else if (candidate.size > MAX_COMPOSER_IMAGE_BYTES) rejected.push({ name, reason: 'too-large' });
+    else if (accepted.length >= free) rejected.push({ name, reason: 'too-many' });
+    else accepted.push(candidate);
+  }
+  return { accepted, rejected };
+}
+
 /** Keep the native input itself alive until its actual change/cancel event,
  * even when React unmounts the composer. No focus timer guesses cancellation. */
 export function chooseComposerAttachments(onFiles: (files: File[]) => void | Promise<void>, onError: (error: Error) => void) {

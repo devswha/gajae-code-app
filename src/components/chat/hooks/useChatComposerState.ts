@@ -19,7 +19,8 @@ import { permissionResponseMessage } from '../utils/chatPermissions';
 import { draftKeysToClear, readQueuedMessages, reorderQueue, safeLocalStorage, type QueuedSendOptions } from '../utils/chatStorage';
 import type { ComposerDraftRepository, ComposerRoute, DurableQueuedDraft } from '../utils/composerDraftStorage';
 import { decideQueueFlush } from '../utils/queueFlush';
-import { chooseComposerAttachments, composerFilesFromEvent } from '../utils/composerAttachmentIntake';
+import type { ComposerAttachmentRejection } from '../utils/composerAttachmentIntake';
+import { MAX_COMPOSER_IMAGES, MAX_COMPOSER_IMAGE_BYTES, chooseComposerAttachments, composerFilesFromEvent, partitionComposerAttachments } from '../utils/composerAttachmentIntake';
 
 import { useFileMentions } from './useFileMentions';
 import { useSlashCommands } from './useSlashCommands';
@@ -42,7 +43,7 @@ const syntheticSubmit = () => ({ preventDefault() {} }) as unknown as FormEvent<
 const steerKey = (sessionId: string, content: string) => JSON.stringify([sessionId, content]);
 const shorten = (text: string) => { const compact = text.replace(/\s+/g, ' ').trim(); return compact ? (compact.length > 80 ? `${compact.slice(0, 77)}...` : compact) : null; };
 const sessionLabel = (session: ProjectSession | null, input: string) => shorten(String(session?.summary || session?.name || session?.title || '')) || shorten(input);
-const resetBox = (setInput: (value: string) => void, value: MutableRefObject<string>, setImages: (files: File[]) => void, setUploads: (items: Map<string, number>) => void, setErrors: (items: Map<string, string>) => void, resetCommands: () => void, setExpanded: (open: boolean) => void, area: RefObject<HTMLTextAreaElement | null>) => { if (isComposerSealed()) return; setInput(''); value.current = ''; setImages([]); setUploads(new Map()); setErrors(new Map()); resetCommands(); setExpanded(false); if (area.current) area.current.style.height = 'auto'; };
+const resetBox = (setInput: (value: string) => void, value: MutableRefObject<string>, setImages: (files: File[]) => void, resetCommands: () => void, setExpanded: (open: boolean) => void, area: RefObject<HTMLTextAreaElement | null>) => { if (isComposerSealed()) return; setInput(''); value.current = ''; setImages([]); resetCommands(); setExpanded(false); if (area.current) area.current.style.height = 'auto'; };
 
 export function useChatComposerState(args: UseChatComposerStateArgs) {
   const { t } = useTranslation('chat');
@@ -52,8 +53,7 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   const drafts = useDurableComposerDraft(projectId, conversation, args.draftRepository);
   const composerFrozen = useSyncExternalStore(subscribeComposerFreeze, isComposerFrozen, () => false);
   const { input, setInput, images: attachedImages, setImages: setAttachedImages, queue: queuedDrafts, setQueue: setQueuedDrafts, getQueue: restoreQueue, updateQueue, persistence: draftPersistence, ready: draftReady, retryPersistence: retryDraftPersistence } = drafts;
-  const [uploadingImages, setUploadingImages] = useState<Map<string, number>>(new Map());
-  const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
+  const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
   const [isTextareaExpanded, setExpanded] = useState(false);
   const [isInputFocused, setFocused] = useState(false);
   const [commandModalPayload, setModal] = useState<CommandModalPayload | null>(null);
@@ -119,22 +119,21 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
     if (gateRef.current && input.trimEnd() !== gateRef.current.text) announceGate(null);
   }, [announceGate, input]);
   useEffect(() => {
-    setUploadingImages(new Map());
-    setImageErrors(new Map());
+    setAttachmentNotice(null);
     setModal(null);
     gateRef.current = null;
     setGateState(null);
     gateChangeRef.current?.(null);
     bypassGate.current = false;
   }, [conversation, projectId]);
-  const login = useCallback((provider?: string) => { if (isComposerSealed()) return; resetBox(setInput, inputRef, setAttachedImages, setUploadingImages, setImageErrors, () => undefined, setExpanded, textareaRef); eraseDraft(); onLogin?.(provider); }, [eraseDraft, onLogin, setAttachedImages, setInput]);
+  const login = useCallback((provider?: string) => { if (isComposerSealed()) return; resetBox(setInput, inputRef, setAttachedImages, () => undefined, setExpanded, textareaRef); eraseDraft(); onLogin?.(provider); }, [eraseDraft, onLogin, setAttachedImages, setInput]);
   const palette = usePaletteOps();
   const showCostModal = useCallback(() => { const parts = tokenBudget?.breakdown && typeof tokenBudget.breakdown === 'object' ? tokenBudget.breakdown as Record<string, unknown> : {}; const inTokens = Number(tokenBudget?.inputTokens ?? parts.input); const outTokens = Number(tokenBudget?.outputTokens ?? parts.output); const used = Number(tokenBudget?.used); const total = Number(tokenBudget?.total); setModal({ kind: 'cost', data: { tokenUsage: { used: Number.isFinite(used) ? used : (Number.isFinite(inTokens) ? inTokens : 0) + (Number.isFinite(outTokens) ? outTokens : 0), total: Number.isFinite(total) ? total : 0 }, ...(Number.isFinite(inTokens) || Number.isFinite(outTokens) ? { tokenBreakdown: { input: Number.isFinite(inTokens) ? inTokens : 0, output: Number.isFinite(outTokens) ? outTokens : 0 } } : {}), provider: typeof tokenBudget?.provider === 'string' ? tokenBudget.provider : 'gjc', model: typeof tokenBudget?.model === 'string' ? tokenBudget.model : gjcModel } }); }, [gjcModel, tokenBudget]);
   const applyAppCommand = useCallback((command: AppUiCommand) => { if (isComposerSealed()) return; return runAppUiCommand(command, { openSessionPicker: palette.openSessionPicker, startNewChat: palette.startNewChat, openSettings: () => onShowSettings ? onShowSettings() : palette.openSettings(), openModelPicker: () => setModelPickerTrigger((n) => n + 1), openCostModal: showCostModal }); }, [onShowSettings, palette, showCostModal]);
 
   const { slashCommands, slashCommandsCount, filteredCommands, frequentCommands, commandQuery, showCommandMenu, selectedCommandIndex, resetCommandMenuState, handleCommandSelect, handleToggleCommandMenu, handleCommandInputChange, handleCommandMenuKeyDown } = useSlashCommands({ selectedProject, executionCwd, provider: 'gjc', sessionId: conversation, input, setInput, textareaRef, onLoginCommand: login, onAppCommand: (command) => { const app = findAppUiCommand(command.name); if (app) applyAppCommand(app); } });
   const { showFileDropdown, filteredFiles, selectedFileIndex, renderInputWithMentions, selectFile, setCursorPosition, handleFileMentionsKeyDown } = useFileMentions({ selectedProject, executionCwd, sessionId: conversation, input, setInput, textareaRef });
-  const clearComposer = useCallback(() => resetBox(setInput, inputRef, setAttachedImages, setUploadingImages, setImageErrors, resetCommandMenuState, setExpanded, textareaRef), [resetCommandMenuState, setAttachedImages, setInput]);
+  const clearComposer = useCallback(() => { setAttachmentNotice(null); resetBox(setInput, inputRef, setAttachedImages, resetCommandMenuState, setExpanded, textareaRef); }, [resetCommandMenuState, setAttachedImages, setInput]);
 
   // Permissions are deliberately absent here: the policy is the project's, read
   // by the server when the run starts, so nothing the browser sends can widen it.
@@ -318,15 +317,26 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
 
   const resize = useCallback((target: HTMLTextAreaElement) => { target.style.height = 'auto'; const height = Math.max(22, target.scrollHeight); target.style.height = `${height}px`; if (!lineHeight.current) { const parsed = parseInt(window.getComputedStyle(target).lineHeight); lineHeight.current = Number.isFinite(parsed) ? parsed : 24; } setExpanded(height > lineHeight.current * 2); resized.current = target.value; }, []);
   useEffect(() => { if (textareaRef.current && resized.current !== input) resize(textareaRef.current); }, [input, resize]);
-  const handleImageFiles = useCallback((files: File[]) => { if (isComposerSealed()) return; const accepted = files.filter((file) => { try { if (!file || typeof file !== 'object') { console.warn('Invalid file object:', file); return false; } if (!file.type?.startsWith('image/')) return false; if (!file.size || file.size > 5 * 1024 * 1024) { setImageErrors((old) => new Map(old).set(file.name || 'Unknown file', 'File too large (max 5MB)')); return false; } return true; } catch (error) { console.error('Error validating file:', error, file); return false; } }); if (accepted.length) setAttachedImages((old) => [...old, ...accepted].slice(0, 5)); }, [setAttachedImages]);
-  const attachmentError = (error: Error) => {
-    if (queueOwner.current === composerOwner && submissionOwner.current) setImageErrors((old) => new Map(old).set('attachment', error.message));
-  };
-  const acceptSelectedImages = (files: File[]) => {
-    const accepted = files.filter((file) => file.type.startsWith('image/') && file.size > 0 && file.size <= 5 * 1024 * 1024);
-    if (accepted.length > 5) { attachmentError(new Error('At most 5 images can be attached at once.')); return; }
-    handleImageFiles(accepted);
-  };
+  const describeRejections = useCallback((rejected: ComposerAttachmentRejection[]) => {
+    const named = (reason: ComposerAttachmentRejection['reason']) => rejected.filter((item) => item.reason === reason).map((item) => item.name);
+    const parts: string[] = [];
+    const notImage = named('not-image');
+    if (notImage.length) parts.push(t('input.attachment.onlyImages', { names: notImage.join(', '), defaultValue: 'Only images can be attached, so {{names}} was not added. Reference a text file with @ instead, or paste its contents.' }));
+    const tooLarge = named('too-large');
+    if (tooLarge.length) parts.push(t('input.attachment.tooLarge', { names: tooLarge.join(', '), defaultValue: '{{names}} is larger than 5 MB.' }));
+    const empty = named('empty');
+    if (empty.length) parts.push(t('input.attachment.empty', { names: empty.join(', '), defaultValue: '{{names}} is empty.' }));
+    const tooMany = named('too-many');
+    if (tooMany.length) parts.push(t('input.attachment.tooMany', { count: MAX_COMPOSER_IMAGES, names: tooMany.join(', '), defaultValue: 'At most {{count}} images can be attached, so {{names}} was not added.' }));
+    return parts.join(' ') || null;
+  }, [t]);
+  const handleImageFiles = useCallback((files: readonly unknown[]) => {
+    if (isComposerSealed()) return;
+    const { accepted, rejected } = partitionComposerAttachments(files, MAX_COMPOSER_IMAGES - liveImages.current.length);
+    if (accepted.length) setAttachedImages((old) => [...old, ...accepted].slice(0, MAX_COMPOSER_IMAGES));
+    setAttachmentNotice(describeRejections(rejected));
+  }, [describeRejections, setAttachedImages]);
+  const attachmentError = (error: Error) => { setAttachmentNotice(error.message); };
   const getFilesFromEvent = async (event: DropEvent) => {
     if (isComposerSealed()) return [];
     if (!Array.isArray(event) && event.type !== 'drop' && event.type !== 'change') return composerFilesFromEvent(event);
@@ -336,14 +346,23 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
     if (!finish) return [];
     try {
       const files = (await composerFilesFromEvent(event)).filter((file): file is File => file instanceof File);
-      acceptSelectedImages(files);
+      handleImageFiles(files);
       return files;
     } finally { finish(); }
   };
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'] }, maxSize: 5 * 1024 * 1024, maxFiles: 5, getFilesFromEvent, onError: attachmentError, noClick: true, noKeyboard: true });
-  const open = () => chooseComposerAttachments(acceptSelectedImages, attachmentError);
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'] }, maxSize: MAX_COMPOSER_IMAGE_BYTES, maxFiles: MAX_COMPOSER_IMAGES, getFilesFromEvent, onError: attachmentError, noClick: true, noKeyboard: true });
+  const open = () => chooseComposerAttachments(handleImageFiles, attachmentError);
   const handleInputChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => { if (isComposerSealed()) { event.preventDefault?.(); event.target.value = inputRef.current; return; } const value = event.target.value; const position = event.target.selectionStart; setInput(value); inputRef.current = value; setCursorPosition(position); if (!value.trim()) { event.target.style.height = 'auto'; setExpanded(false); resetCommandMenuState(); } else handleCommandInputChange(value, position); }, [handleCommandInputChange, resetCommandMenuState, setCursorPosition, setInput]);
-  const handlePaste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>) => { if (isComposerSealed()) { event.preventDefault?.(); return; } const items = Array.from(event.clipboardData.items); items.forEach((item) => { if (item.type.startsWith('image/')) { const file = item.getAsFile(); if (file) handleImageFiles([file]); } }); if (!items.length && event.clipboardData.files.length) handleImageFiles(Array.from(event.clipboardData.files).filter((file) => file.type.startsWith('image/'))); }, [handleImageFiles]);
+  // Only clipboard entries that really are files reach the attachment path: a
+  // text entry yields null here, so pasted text is never reported as a refused
+  // attachment. A pasted non-image file is refused out loud like any other.
+  const handlePaste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (isComposerSealed()) { event.preventDefault?.(); return; }
+    const items = Array.from(event.clipboardData.items);
+    const pasted = items.map((item) => item.getAsFile?.()).filter((file): file is File => file instanceof File);
+    const files = items.length ? pasted : Array.from(event.clipboardData.files);
+    if (files.length) handleImageFiles(files);
+  }, [handleImageFiles]);
   const syncInputOverlayScroll = useCallback((target: HTMLTextAreaElement) => { if (inputHighlightRef.current) { inputHighlightRef.current.scrollTop = target.scrollTop; inputHighlightRef.current.scrollLeft = target.scrollLeft; } }, []);
   const handleTextareaInput = useCallback((event: FormEvent<HTMLTextAreaElement>) => { if (isComposerSealed()) { event.preventDefault?.(); event.currentTarget.value = inputRef.current; return; } resize(event.currentTarget); setCursorPosition(event.currentTarget.selectionStart); syncInputOverlayScroll(event.currentTarget); }, [resize, setCursorPosition, syncInputOverlayScroll]);
   const handleKeyDown = useCallback((event: KeyboardEvent<HTMLTextAreaElement>) => { if (isComposerSealed()) { event.preventDefault(); return; } if (handleCommandMenuKeyDown(event) || handleFileMentionsKeyDown(event) || event.key !== 'Enter' || event.nativeEvent.isComposing) return; if ((event.ctrlKey || event.metaKey) && !event.shiftKey || (!event.shiftKey && !event.ctrlKey && !event.metaKey && !sendByCtrlEnter)) { event.preventDefault(); void handleSubmit(event); } }, [handleCommandMenuKeyDown, handleFileMentionsKeyDown, handleSubmit, sendByCtrlEnter]);
@@ -390,5 +409,5 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
     } finally { finishOperation(); }
   }, [sendMessage, setPendingPermissionRequests]);
   const handleInputFocusChange = useCallback((focused: boolean) => { setFocused(focused); onInputFocusChange?.(focused); }, [onInputFocusChange]);
-  return { composerFrozen, draftPersistence, draftReady, retryDraftPersistence, input, setInput, textareaRef, inputHighlightRef, isTextareaExpanded, slashCommandsCount, skillCommands: slashCommands.filter((command) => command.type === 'skill'), filteredCommands, frequentCommands, commandQuery, showCommandMenu, selectedCommandIndex, resetCommandMenuState, handleCommandSelect, handleToggleCommandMenu, showFileDropdown, filteredFiles: filteredFiles as MentionableFile[], selectedFileIndex, renderInputWithMentions, selectFile, attachedImages, setAttachedImages, uploadingImages, imageErrors, getRootProps, getInputProps, isDragActive, openImagePicker: open, handleSubmit, handleSteer, modelPickerTrigger, queuedDrafts, editQueuedDraft, deleteQueuedDraft, moveQueuedDraft, resolveSteerResult, pendingCommandGate, confirmCommandGate, cancelCommandGate, handleVoiceTranscript, insertAtEnd, handleInputChange, handleKeyDown, handlePaste, handleTextareaClick: (event: MouseEvent<HTMLTextAreaElement>) => setCursorPosition(event.currentTarget.selectionStart), handleTextareaInput, syncInputOverlayScroll, handleClearInput, handleAbortSession, handlePermissionDecision, handleInputFocusChange, isInputFocused, commandModalPayload, closeCommandModal: () => setModal(null), showCostModal, isWorkspace: workspaceTarget.isWorkspace, workspaceCandidates: workspaceTarget.candidates, workspaceTargetValue: workspaceTarget.target, pickWorkspaceTarget: workspaceTarget.pickTarget };
+  return { composerFrozen, draftPersistence, draftReady, retryDraftPersistence, input, setInput, textareaRef, inputHighlightRef, isTextareaExpanded, slashCommandsCount, skillCommands: slashCommands.filter((command) => command.type === 'skill'), filteredCommands, frequentCommands, commandQuery, showCommandMenu, selectedCommandIndex, resetCommandMenuState, handleCommandSelect, handleToggleCommandMenu, showFileDropdown, filteredFiles: filteredFiles as MentionableFile[], selectedFileIndex, renderInputWithMentions, selectFile, attachedImages, setAttachedImages, attachmentNotice, dismissAttachmentNotice: () => setAttachmentNotice(null), getRootProps, getInputProps, isDragActive, openImagePicker: open, handleSubmit, handleSteer, modelPickerTrigger, queuedDrafts, editQueuedDraft, deleteQueuedDraft, moveQueuedDraft, resolveSteerResult, pendingCommandGate, confirmCommandGate, cancelCommandGate, handleVoiceTranscript, insertAtEnd, handleInputChange, handleKeyDown, handlePaste, handleTextareaClick: (event: MouseEvent<HTMLTextAreaElement>) => setCursorPosition(event.currentTarget.selectionStart), handleTextareaInput, syncInputOverlayScroll, handleClearInput, handleAbortSession, handlePermissionDecision, handleInputFocusChange, isInputFocused, commandModalPayload, closeCommandModal: () => setModal(null), showCostModal, isWorkspace: workspaceTarget.isWorkspace, workspaceCandidates: workspaceTarget.candidates, workspaceTargetValue: workspaceTarget.target, pickWorkspaceTarget: workspaceTarget.pickTarget };
 }

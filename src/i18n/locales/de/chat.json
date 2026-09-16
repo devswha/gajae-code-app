@@ -86,6 +86,14 @@
       "signInRequired": "Melden Sie sich in den Einstellungen bei {{provider}} an, um diese Voreinstellung zu verwenden"
     },
     "attachImages": "Bilder hinzufügen",
+    "attachment": {
+      "onlyImages": "Es können nur Bilder hinzugefügt werden, daher wurde {{names}} nicht übernommen. Verweise stattdessen mit @ auf eine Textdatei oder füge ihren Inhalt ein.",
+      "tooLarge": "{{names}} ist größer als 5 MB.",
+      "empty": "{{names}} ist leer.",
+      "tooMany": "Es können höchstens {{count}} Bilder hinzugefügt werden, daher wurde {{names}} nicht übernommen.",
+      "dropHere": "Bilder hier ablegen",
+      "dismiss": "Hinweis schließen"
+    },
     "send": "Senden",
     "stop": "Stopp",
     "hintText": {

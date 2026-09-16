@@ -271,6 +271,50 @@ export function applyGjcToolSettingsPolicy(settings: Settings): void {
   settings.override('mcp.enableProjectConfig', false);
 }
 
+/**
+ * Turns on the runtime's adaptive compaction for app sessions unless the user
+ * configured compaction themselves.
+ *
+ * With adaptive compaction off - the runtime's shipped default, kept for
+ * backward compatibility - the only trigger is the legacy reserve threshold,
+ * roughly `contextWindow - reserve` and commonly near 85% of the window. On a
+ * 1M-token model that is ~850K, so an app session grows its prefix for hundreds
+ * of turns and resends all of it every turn. A measured 681-turn run peaked at
+ * 644K context (64% of the window), never reached the trigger, and spent $125
+ * of its $141 on cache reads alone - 89% of the bill to re-read its own
+ * history. The runtime's own guidance names this case: adaptive compaction
+ * "targets long sessions where a 150K-230K context can otherwise be resent many
+ * times before hitting the static threshold", and the values below are the
+ * starting point it recommends for long, tool-heavy sessions.
+ *
+ * App sessions are exactly that case, and they cannot opt in for themselves:
+ * the app tells them to use Settings instead of editing `~/.gjc`, and Settings
+ * has no compaction control. So the app picks the default.
+ *
+ * `has()` is the whole point of the guard - it is true only when the value came
+ * from loaded settings or an override, not from a schema default. A user who
+ * did configure compaction keeps every value they set. This is a default the
+ * app chooses, not a boundary it enforces, so unlike the policy above it never
+ * overwrites an explicit choice.
+ */
+export function applyGjcCompactionPolicy(settings: Settings): void {
+  if (!settings.has('compaction.adaptive.enabled')) {
+    settings.override('compaction.adaptive.enabled', true);
+  }
+  if (!settings.has('compaction.adaptive.baseThresholdPercent')) {
+    settings.override('compaction.adaptive.baseThresholdPercent', 75);
+  }
+  if (!settings.has('compaction.adaptive.aggression')) {
+    settings.override('compaction.adaptive.aggression', 0.2);
+  }
+  if (!settings.has('compaction.adaptive.minThresholdPercent')) {
+    settings.override('compaction.adaptive.minThresholdPercent', 50);
+  }
+  if (!settings.has('compaction.adaptive.turnWindow')) {
+    settings.override('compaction.adaptive.turnWindow', 15);
+  }
+}
+
 /** What a run resolved its browser backend to: the runtime's own descriptor, or the app-owned ego descriptor. */
 export type GjcResolvedBrowserBackend = Readonly<{
   id: ReturnType<typeof resolveBrowserBackend>['id'] | 'ego';
@@ -1158,6 +1202,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       // sessions, and the clone keeps their project settings and overrides isolated.
       const settings = await globalSettings.cloneForCwd(config.cwd);
       applyGjcToolSettingsPolicy(settings);
+      applyGjcCompactionPolicy(settings);
       const builtinBrowserAvailable = config.builtinBrowserAvailable === true
         && Boolean(config.appSessionId);
       const browserBackend = applyGjcBrowserBackend(

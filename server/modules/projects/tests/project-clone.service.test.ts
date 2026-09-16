@@ -6,7 +6,7 @@ import { basename as directoryName, dirname, join } from 'node:path';
 import { PassThrough as CloneOutputStream } from 'node:stream';
 import { test } from 'node:test';
 
-import { createCloneWorkspace, startCloneProject as beginProjectClone } from '@/modules/projects/services/project-clone.service.js';
+import { CLONE_TOKEN_ENVIRONMENT_NAME, createCloneWorkspace, gitCloneArguments, startCloneProject as beginProjectClone } from '@/modules/projects/services/project-clone.service.js';
 import { AppError as ProjectCloneError } from '@/shared/utils.js';
 import { configureInternalDesktopAdmission, getInternalActivityGeneration, snapshotInternalActivity } from '@/shared/desktop-internal-activity.js';
 
@@ -383,4 +383,35 @@ test('clone cleanup failure preserves the logged result contract but leaves boun
   assert.equal(snapshotInternalActivity().running, 0); assert.equal(ingress, 0);
   assert.equal(snapshotInternalActivity().complete, false);
   assert.deepEqual(snapshotInternalActivity().unknown, ['clone:cleanup_failed']);
+});
+
+test('a clone token never reaches the git command line', async () => {
+  // The token used to be the URL's username, so it appeared on the `git clone`
+  // argv - readable in `ps` by every account on the machine, and recorded by
+  // any proxy or access log that saw the URL.
+  const child = createCloneProcess();
+  let observed: { url: string; token: string | null } | undefined;
+  const clone = await beginProjectClone(
+    cloneInput({ newGithubToken: 'ghp_secret_token' }),
+    createCloneEvents().handlers,
+    cloneDependencies({
+      spawnGitClone: (url, _destination, token) => { observed = { url, token }; return child; },
+    }),
+  );
+  child.emit('close', 0);
+  await clone.waitForCompletion;
+
+  assert.equal(observed?.url, 'https://github.com/gajae-app/example-project', 'the URL is unchanged');
+  assert.equal(observed?.token, 'ghp_secret_token', 'the token travels beside the URL, not inside it');
+
+  const args = gitCloneArguments(observed!.url, '/staging/example-project.partial', observed!.token);
+  assert.equal(args.join(' ').includes('ghp_secret_token'), false, 'no argument carries the token');
+  assert.deepEqual(args.slice(-5), ['clone', '--progress', '--', observed!.url, '/staging/example-project.partial']);
+  assert.ok(args.includes('credential.helper='), 'the user\u2019s own helpers are cleared first');
+  assert.ok(args.some((argument) => argument.includes(CLONE_TOKEN_ENVIRONMENT_NAME)), 'the helper reads the token from the environment');
+});
+
+test('a clone without a token installs no credential helper at all', () => {
+  const args = gitCloneArguments('https://github.com/gajae-app/example-project', '/staging/example.partial', null);
+  assert.deepEqual(args, ['clone', '--progress', '--', 'https://github.com/gajae-app/example-project', '/staging/example.partial']);
 });

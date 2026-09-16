@@ -37,6 +37,7 @@ const transcript: ChatMessage[] = [
 
 const paneProps = (density: ToolOutputDensity, messages = transcript) => ({
   scrollContainerRef: { current: null },
+  attachScrollContainer: () => {},
   onWheel: () => {},
   onTouchMove: () => {},
   isLoadingSessionMessages: false,

@@ -140,7 +140,14 @@ function MainContent({
 
       <SessionStatusProvider>
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div style={{ minWidth: MIN_AGENT_SIDEBAR_CHAT_WIDTH }} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {/*
+          `md:pl-2` is the mirror of the agent lane's own `pl-2`: on desktop the
+          conversation sits between the sidebar's border and that lane, and
+          without this inset its 16px gutter put the transcript and composer
+          hard against the rail while the right-hand side kept a visible gap.
+          Below `md` the rail is a drawer and there is no border to clear.
+        */}
+        <div style={{ minWidth: MIN_AGENT_SIDEBAR_CHAT_WIDTH }} className="flex min-h-0 flex-1 flex-col overflow-hidden md:pl-2">
           <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
             <ErrorBoundary showDetails>
               <Suspense fallback={null}>

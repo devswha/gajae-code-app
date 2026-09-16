@@ -64,23 +64,16 @@ export function isGjcAsideUnavailableError(error: unknown): boolean {
   return error instanceof Error && (error as { code?: unknown }).code === GJC_ASIDE_UNAVAILABLE_CODE;
 }
 
-/** Application error code a worker answers a run with when ego is selected but no `ego-browser` CLI is installed. */
-export const GJC_EGO_UNAVAILABLE_CODE = 'ego_unavailable';
-/** Fixed text for that failure; safe to relay to a browser because it carries no frame content. */
-export const GJC_EGO_UNAVAILABLE_MESSAGE = 'The ego-browser CLI was not found, so this session cannot start with the ego browser backend. Install ego lite and finish its onboarding, or choose Built-in in Settings > Automation where it is available.';
-
-export class GjcEgoUnavailableError extends Error {
-  readonly code = GJC_EGO_UNAVAILABLE_CODE;
-
-  constructor(readonly searched: readonly string[] = []) {
-    super(GJC_EGO_UNAVAILABLE_MESSAGE);
-    this.name = 'GjcEgoUnavailableError';
-  }
-}
-
-export function isGjcEgoUnavailableError(error: unknown): boolean {
-  return error instanceof Error && (error as { code?: unknown }).code === GJC_EGO_UNAVAILABLE_CODE;
-}
+/*
+ * There is deliberately no ego-unavailable failure here.
+ *
+ * An ego run whose CLI is missing keeps ordinary chat and coding available and
+ * only loses browser work: `applyGjcBrowserBackend` returns the unavailable
+ * routing block, disables the runtime's browser tool and the app withholds its
+ * own transport. Failing the session instead - and telling the user to pick
+ * Built-in - was the opposite contract, and Built-in is not a fallback ego is
+ * allowed to be replaced by.
+ */
 
 export type EgoBrowserCliProbe =
   | { ok: true; path: string }

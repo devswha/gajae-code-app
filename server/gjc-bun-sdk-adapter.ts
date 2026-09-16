@@ -119,6 +119,8 @@ export type GjcSessionTitleGenerator = (firstMessage: string, registry: ModelReg
 export type GjcBunSdkAdapterOptions = {
   /** Source-integrity receipt from bootstrap, never a complete ownership proof. */
   sdkPatch?: VerifiedSdkPatch;
+  /** The worker's own agent directory; the session factory defaults to ~/.gjc/agent without it. */
+  agentDir?: string;
   createSessionFactory?: GjcAgentSessionFactory;
   generateSessionTitle?: GjcSessionTitleGenerator;
   /** Shorter UI grace for embedders/tests; never extends the ten-second cap. */
@@ -300,7 +302,10 @@ export function applyGjcBrowserBackend(
   probeEgo: () => EgoBrowserCliProbe = probeEgoBrowserCli,
   options: { builtinBrowserAvailable?: boolean; platform?: NodeJS.Platform; appSessionId?: string } = {},
 ): GjcResolvedBrowserBackend {
-  if (requested === 'builtin') {
+  // An omitted backend is the app's default, not the user's runtime setting:
+  // a `browser.backend` in ~/.gjc would otherwise decide how an app session
+  // browses, behind the back of Settings > Automation.
+  if (requested === undefined || requested === 'builtin') {
     settings.override('browser.backend', 'native');
     if (options.builtinBrowserAvailable === false) settings.override('browser.enabled', false);
   } else if (requested === 'aside') {
@@ -1196,6 +1201,10 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
             ...(browserBackend.appInstructions ? [browserBackend.appInstructions] : []),
           ],
           cwd: config.cwd,
+          // The worker is started with its own agent directory, and the session
+          // factory otherwise defaults to ~/.gjc/agent - so skills, prompts and
+          // credentials would be discovered somewhere the worker never wrote.
+          ...(this.options.agentDir ? { agentDir: this.options.agentDir } : {}),
           sessionManager,
           // The SDK defaults provider/cache identity to this manager's logical
           // ID, including on exact-ID resume. Supplying the same ID explicitly
@@ -1358,7 +1367,8 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           this.#revision += 1;
           return;
         }
-        if (!resumedId) writer.setSessionId?.(sessionManager.getSessionId());
+        const startingSessionId = sessionManager.getSessionId();
+        if (!resumedId) writer.setSessionId?.(startingSessionId);
         const initialSnapshot = readSessionSnapshot(result.session, sessionManager);
         if (goals) writer.send({ kind: 'status', text: 'session_state', sessionState: { ...initialSnapshot, goal: goals.snapshot() } });
         let promptMessage: string | null = message;
@@ -1444,6 +1454,14 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         } catch (error) {
           promptError = error;
         }
+        // `/handoff` rekeys this manager onto a successor session: the same
+        // conversation continues under a new id. The app has to follow it, and
+        // the only precise way to know which session that is, is to say so -
+        // otherwise the client guesses from whichever session appears next.
+        const successorSessionId = sessionManager.getSessionId();
+        if (successorSessionId && successorSessionId !== startingSessionId) {
+          writer.send({ kind: 'status', text: 'session_handoff', handoffSessionId: successorSessionId });
+        }
         if (titleTask) {
           let grace: ReturnType<typeof setTimeout> | undefined;
           const requestedGrace = this.options.sessionTitleGraceMs;
@@ -1496,6 +1514,7 @@ export async function createGjcBunSdkAdapter(agentDir: string = process.env.GJC_
   return new GjcBunSdkAdapter(authStorage, modelRegistry, {
     sdkPatch,
     settings,
+    agentDir,
     ...(automationBridge ? { automationBridge } : {}),
   });
 }

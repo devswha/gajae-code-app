@@ -8,6 +8,7 @@ import type { MarkSessionIdle, MarkSessionProcessing } from '../../../hooks/useS
 import type { PendingPermissionRequest } from '../types/types';
 import type { ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
+import { useAppShellStore } from '../../../stores/useAppShellStore';
 
 const requiresDecision = (request: { toolName?: unknown } | null | undefined) => request?.toolName !== 'ExitPlanMode' && request?.toolName !== 'exit_plan_mode';
 const hasDecision = (requests: Array<{ toolName?: unknown }> | null | undefined) => Array.isArray(requests) && requests.some(requiresDecision);
@@ -228,6 +229,14 @@ export function useChatRealtimeHandlers({
         return;
       }
       if (event.kind === 'status') {
+        // `/handoff` moved the runtime onto a successor session. Record which
+        // one, so the view follows that session rather than whichever session
+        // in this project happens to be upserted next.
+        if (event.text === 'session_handoff' && typeof event.handoffSessionId === 'string' && event.handoffSessionId) {
+          const pending = useAppShellStore.getState().pendingHandoff;
+          if (pending) useAppShellStore.getState().setPendingHandoff({ ...pending, providerSessionId: event.handoffSessionId });
+          return;
+        }
         if (event.text === 'token_budget' && event.tokenBudget) {
           if (sessionId === visible) setTokenBudget(event.tokenBudget as Record<string, unknown>);
         } else if (event.text === 'session_state' && event.sessionState) {

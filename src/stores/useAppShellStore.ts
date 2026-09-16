@@ -14,8 +14,13 @@ export type AppShellState = {
   loadingProgress: LoadingProgress | null;
   /** The add-project dialog; opened from the sidebar and from the empty main pane alike. */
   newProjectOpen: boolean;
-  /** Set when a /handoff gate is confirmed; the next session_upserted for a new session in that project navigates there. */
-  pendingHandoff: { fromSessionId: string | null; projectId: string | undefined; at: number } | null;
+  /**
+   * Set when a `/handoff` gate is confirmed. The runtime reports the successor
+   * session it moved to, and only the upsert carrying that provider session id
+   * is followed: "the next session in this project" used to steal the window
+   * for any third session that happened to appear first.
+   */
+  pendingHandoff: { fromSessionId: string | null; projectId: string | undefined; at: number; providerSessionId?: string } | null;
   setSelectedProject: (next: Updater<Project | null>) => void;
   setSelectedSession: (next: Updater<ProjectSession | null>) => void;
   setActiveTab: (next: Updater<AppTab>) => void;

@@ -118,14 +118,6 @@ function promoteProjectOriginById(projectId: string): ProjectRepositoryRow | nul
   return row ?? null;
 }
 
-function deleteProjectPath(projectPath: string): void {
-  getConnection().prepare('DELETE FROM projects WHERE project_path = ?').run(canonicalPath(projectPath));
-}
-
-function deleteProjectById(projectId: string): void {
-  getConnection().prepare('DELETE FROM projects WHERE project_id = ?').run(projectId);
-}
-
 export const projectsDb = {
   createProjectPath,
   ensureProjectPathForSession,
@@ -142,6 +134,4 @@ export const projectsDb = {
   updateProjectIsStarredById: (projectId: string, isStarred: boolean) => changeFlagById('isStarred', projectId, isStarred),
   updateProjectIsArchived: (projectPath: string, isArchived: boolean) => changeFlag('isArchived', projectPath, isArchived),
   updateProjectIsArchivedById: (projectId: string, isArchived: boolean) => changeFlagById('isArchived', projectId, isArchived),
-  deleteProjectPath,
-  deleteProjectById,
 };

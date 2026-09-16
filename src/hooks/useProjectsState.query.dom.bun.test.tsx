@@ -466,7 +466,7 @@ test('sidebar shared props contain only navigation dependencies while the hook r
       'onNewSession',
       'onSessionDelete',
       'onLoadMoreSessions',
-      'onProjectDelete',
+      'onProjectArchive',
       'onRefresh',
       'isMobile',
     ]);

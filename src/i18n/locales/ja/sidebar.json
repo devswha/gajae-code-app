@@ -2,7 +2,6 @@
   "projects": {
     "title": "ワークスペース",
     "newProject": "プロジェクトを追加",
-    "deleteProject": "ワークスペースを削除",
     "renameProject": "ワークスペースの名前を変更",
     "noProjects": "ワークスペースはまだありません",
     "addFirst": "追加",
@@ -37,7 +36,7 @@
     "createSession": "会話を開始",
     "refresh": "プロジェクトと会話を再読み込み (Ctrl+R)",
     "renameProject": "プロジェクト名を変更 (F2)",
-    "deleteProject": "サイドバーからプロジェクトを除去 (Delete)",
+    "archiveProject": "このプロジェクトをアーカイブへ移動 (削除はされません)",
     "addToFavorites": "お気に入りに追加",
     "removeFromFavorites": "お気に入りから削除",
     "editSessionName": "会話名を編集",
@@ -85,8 +84,8 @@
     "renameSessionError": "セッション名の変更でエラーが発生しました。もう一度お試しください。",
     "regenerateTitleFailed": "タイトルを再生成できませんでした。もう一度お試しください。",
     "exportSessionError": "セッションのエクスポートに失敗しました。もう一度お試しください。",
-    "deleteProjectFailed": "プロジェクトの除去に失敗しました。もう一度お試しください。",
-    "deleteProjectError": "プロジェクトの除去でエラーが発生しました。もう一度お試しください。",
+    "archiveProjectFailed": "プロジェクトのアーカイブに失敗しました。もう一度お試しください。",
+    "archiveProjectError": "プロジェクトのアーカイブでエラーが発生しました。もう一度お試しください。",
     "updateProjectError": "プロジェクトの更新でエラーが発生しました。もう一度お試しください。",
     "refreshError": "更新に失敗しました。もう一度お試しください。",
     "restoreProjectFailed": "プロジェクトの復元に失敗しました。もう一度お試しください。",
@@ -114,11 +113,7 @@
     "updateAvailable": "アップデートあり"
   },
   "deleteConfirmation": {
-    "deleteProject": "ワークスペースを削除",
     "deleteSession": "会話を削除",
-    "confirmDelete": "このプロジェクトをどうしますか：",
-    "sessionCount_one": "このプロジェクトには会話が {{count}} 件あります。",
-    "sessionCount_other": "このプロジェクトには会話が {{count}} 件あります。",
-    "deleteAllData": "すべてのデータを完全に削除"
+    "confirmDelete": "このプロジェクトをどうしますか："
   }
 }

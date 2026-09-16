@@ -199,10 +199,6 @@ export const sessionsDb = {
     return Number(row?.count ?? 0);
   },
 
-  deleteSessionsByProjectPath(projectPath: string): void {
-    getConnection().prepare('DELETE FROM sessions WHERE project_path = ?').run(normalizeProjectPath(projectPath));
-  },
-
   getSessionName(sessionId: string, provider: string): string | null {
     const row = getConnection().prepare('SELECT custom_name FROM sessions WHERE session_id = ? AND provider = ?').get(sessionId, provider) as { custom_name: string | null } | undefined;
     return row?.custom_name ?? null;

@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import spawn from 'cross-spawn';
 
+import { childEnvironment } from '@/shared/child-environment.js';
 import { githubTokensDb } from '@/modules/database/index.js';
 import { createProject } from '@/modules/projects/services/project-management.service.js';
 import type { WorkspacePathValidationResult } from '@/shared/types.js';
@@ -139,7 +140,7 @@ const cloneDependencies: CloneProjectDependencies = {
   pathExists: async (target) => !(await pathIsAvailable(target)),
   createCloneWorkspace,
   getGithubTokenById: async (tokenId, userId) => githubTokensDb.getGithubTokenById(userId, tokenId) as { github_token: string } | null,
-  spawnGitClone: (url, destination) => spawn('git', ['clone', '--progress', '--', url, destination], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }) as unknown as GitCloneProcess,
+  spawnGitClone: (url, destination) => spawn('git', ['clone', '--progress', '--', url, destination], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...childEnvironment(), GIT_TERMINAL_PROMPT: '0' } }) as unknown as GitCloneProcess,
   registerProject: (projectPath, customName) => createProject({ projectPath, customName }) as Promise<{ project: Record<string, unknown> }>,
   logError: (message, error) => console.error(message, error),
 };

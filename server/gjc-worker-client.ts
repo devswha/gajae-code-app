@@ -39,6 +39,7 @@ import {
   type JsonObject,
 } from './gjc-engine.js';
 import { notifyRunFailed, notifyRunStopped } from './modules/notifications/index.js';
+import { childEnvironment } from './shared/child-environment.js';
 import {
   createCompleteMessage,
   createNormalizedMessage,
@@ -1004,8 +1005,10 @@ export class GjcWorkerSupervisor {
       import.meta.url,
     ));
     const coreArgs = ['--', bunPath, workerPath];
+    // The worker runs the agent's own `bash`, so it must not carry the keys
+    // that authenticate a caller to this server (see child-environment.ts).
     const workerEnv = {
-      ...this.runtime.environment,
+      ...childEnvironment(this.runtime.environment),
       GJC_WORKER_AGENT_DIR: this.runtime.environment.GJC_WORKER_AGENT_DIR ?? join(homedir(), '.gjc', 'agent'),
     };
     const launch = this.runtime.platform === 'win32'

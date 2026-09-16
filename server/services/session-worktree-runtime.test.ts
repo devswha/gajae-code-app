@@ -48,8 +48,12 @@ async function until(predicate: () => boolean) {
 async function fixture(t: test.TestContext, options: { delayPreparation?: boolean; delayStartup?: boolean; failStartupOnce?: boolean } = {}) {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'session-worktree-runtime-')));
   const previous = process.env.DATABASE_PATH;
+  const previousRoot = process.env.WORKSPACES_ROOT;
   closeConnection();
   process.env.DATABASE_PATH = path.join(root, 'app.db');
+  // Session project paths pass the workspace gate, so this fixture tree is the
+  // workspace root while the test runs.
+  process.env.WORKSPACES_ROOT = root;
   await initializeDatabase();
   const repository = path.join(root, 'repository');
   await mkdir(repository);
@@ -124,6 +128,8 @@ async function fixture(t: test.TestContext, options: { delayPreparation?: boolea
     jobs.close(); git.close(); closeConnection();
     if (previous === undefined) delete process.env.DATABASE_PATH;
     else process.env.DATABASE_PATH = previous;
+    if (previousRoot === undefined) delete process.env.WORKSPACES_ROOT;
+    else process.env.WORKSPACES_ROOT = previousRoot;
     await rm(root, { recursive: true, force: true, maxRetries: 3 });
   });
   return { root, repository, project, created, jobs, git, supervisor, orchestrator, messages, writer, workers, makeTicket, preparation, isPreparing: () => preparing };

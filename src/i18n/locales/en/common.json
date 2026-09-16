@@ -84,6 +84,7 @@
       "changes": "Changes",
       "branch": "Branch",
       "directory": "Directory",
+      "serviceTier": "Service tier",
       "refresh": "Reload Git status",
       "notARepository": "This folder is not a Git repository",
       "gitUnavailable": "Could not read Git status"

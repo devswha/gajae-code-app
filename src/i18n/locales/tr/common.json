@@ -84,6 +84,7 @@
       "changes": "Değişiklikler",
       "branch": "Dal",
       "directory": "Dizin",
+      "serviceTier": "Hizmet katmanı",
       "refresh": "Git durumunu yeniden yükle",
       "notARepository": "Bu klasör bir Git deposu değil",
       "gitUnavailable": "Git durumu okunamadı"

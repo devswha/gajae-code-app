@@ -84,6 +84,7 @@
       "changes": "變更",
       "branch": "分支",
       "directory": "目錄",
+      "serviceTier": "服務層級",
       "refresh": "重新載入 Git 狀態",
       "notARepository": "此資料夾不是 Git 儲存庫",
       "gitUnavailable": "無法讀取 Git 狀態"

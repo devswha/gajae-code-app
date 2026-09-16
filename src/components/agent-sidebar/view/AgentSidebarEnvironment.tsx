@@ -1,4 +1,4 @@
-import { FileDiff, Folder, GitBranch, RefreshCw, type LucideIcon } from 'lucide-react';
+import { FileDiff, Folder, GitBranch, Gauge, RefreshCw, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -17,8 +17,14 @@ export type AgentSidebarEnvironmentProps = {
  * working-tree change count, the directory the agent runs in, and the branch.
  *
  * Every value is read from a source the app already trusts: git through the
- * same summary hook the Workspace Status tab uses, the directory from the
- * runtime's status snapshot (falling back to the caller's execution path).
+ * same summary hook the Workspace Status tab uses, the directory and the
+ * resolved service tier from the runtime's status snapshot (the directory
+ * falling back to the caller's execution path).
+ *
+ * The tier belongs here because it is the one run fact that changes what a
+ * turn costs - on Anthropic `priority` is realized as `speed: "fast"` on
+ * supported Opus models - and the app had no way to report it at all. It is
+ * omitted, not defaulted, when the runtime omits the parameter.
  * Nothing is stored here and nothing is derived by guessing: a directory that
  * is not a repository says so, and a row whose fact is unknown is omitted
  * rather than filled with a zero or a default branch name.
@@ -64,6 +70,12 @@ export default function AgentSidebarEnvironment({ projectId, projectPath, sessio
         <Row icon={Folder} title={directory}>
           <span className="sr-only">{t('agentSidebar.environment.directory')}: </span>
           {leafName(directory)}
+        </Row>
+      )}
+      {status.serviceTier && (
+        <Row icon={Gauge} title={status.serviceTier}>
+          <span className="sr-only">{t('agentSidebar.environment.serviceTier')}: </span>
+          {status.serviceTier}
         </Row>
       )}
       {git.kind === 'ready' && git.summary.branch && (

@@ -84,6 +84,7 @@
       "changes": "Modifiche",
       "branch": "Branch",
       "directory": "Directory",
+      "serviceTier": "Livello di servizio",
       "refresh": "Ricarica lo stato Git",
       "notARepository": "Questa cartella non è un repository Git",
       "gitUnavailable": "Impossibile leggere lo stato Git"

@@ -84,6 +84,7 @@
       "changes": "Изменения",
       "branch": "Ветка",
       "directory": "Каталог",
+      "serviceTier": "Уровень обслуживания",
       "refresh": "Обновить статус Git",
       "notARepository": "Эта папка не является репозиторием Git",
       "gitUnavailable": "Не удалось прочитать статус Git"

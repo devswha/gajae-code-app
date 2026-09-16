@@ -15,6 +15,7 @@ test('session facts are read only when the runtime actually reported them', () =
   const facts = readSessionFacts({
     modelId: 'anthropic/claude',
     thinkingLevel: 'high',
+    serviceTier: 'priority',
     cwd: '/work/alpha',
     contextTokens: 12_000,
     contextWindow: 200_000,
@@ -25,6 +26,7 @@ test('session facts are read only when the runtime actually reported them', () =
   assert.deepEqual(facts, {
     modelId: 'anthropic/claude',
     thinkingLevel: 'high',
+    serviceTier: 'priority',
     cwd: '/work/alpha',
     contextTokens: 12_000,
     contextWindow: 200_000,
@@ -37,6 +39,7 @@ test('blank, negative and wrongly typed fields read as unknown rather than zero'
   const facts = readSessionFacts({
     modelId: '   ',
     thinkingLevel: 42,
+    serviceTier: 7,
     cwd: '',
     contextTokens: -1,
     contextWindow: 0,
@@ -46,6 +49,7 @@ test('blank, negative and wrongly typed fields read as unknown rather than zero'
   assert.deepEqual(facts, {
     modelId: undefined,
     thinkingLevel: undefined,
+    serviceTier: undefined,
     cwd: undefined,
     contextTokens: undefined,
     contextWindow: undefined,
@@ -120,6 +124,7 @@ test('every rendered field is part of the comparison', () => {
     { ...base, sessionId: 'session-2' },
     { ...base, modelId: 'other' },
     { ...base, thinkingLevel: 'low' },
+    { ...base, serviceTier: 'priority' },
     { ...base, cwd: '/elsewhere' },
     { ...base, contextTokens: 1 },
     { ...base, contextWindow: 1 },

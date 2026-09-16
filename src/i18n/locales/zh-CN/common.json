@@ -84,6 +84,7 @@
       "changes": "更改",
       "branch": "分支",
       "directory": "目录",
+      "serviceTier": "服务层级",
       "refresh": "刷新 Git 状态",
       "notARepository": "此文件夹不是 Git 仓库",
       "gitUnavailable": "无法读取 Git 状态"

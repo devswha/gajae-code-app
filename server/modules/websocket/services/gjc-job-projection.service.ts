@@ -2,7 +2,7 @@ import type { WebSocket } from 'ws';
 
 import { WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 
-import { isJobProjectionEvent, isJobProjectionInboundFrame, isJobProjectionOutboundFrame, type JobProjectionErrorCode, type JobProjectionOutboundFrame, type JobProjectionEvent } from '../../../../shared/gjc-job-projection-protocol.js';
+import { isJobProjectionEvent, isJobProjectionInboundFrame, isJobProjectionOutboundFrame, toPublicJobSnapshot, type JobProjectionErrorCode, type JobProjectionOutboundFrame, type JobProjectionEvent } from '../../../../shared/gjc-job-projection-protocol.js';
 
 type Authority = { get(params: { jobId: string }): Promise<unknown>; replayEvents(params: { jobId: string; after: number; byteBudget: number }): Promise<unknown> };
 type Subscription = { id: string; jobId: string; watermark: number; lastSent: number; lastEventId?: string; buffer: JobProjectionEvent[]; bufferBytes: number; timer?: NodeJS.Timeout; state: 'REPLAY_WAIT' | 'REPLAY_IO' | 'FLUSHING' | 'LIVE' };
@@ -29,11 +29,14 @@ export class GjcJobProjectionService {
   async handle(ws: WebSocket, data: Record<string, unknown>): Promise<boolean> {
     if (!recognized(data)) return false;
     const inbound = data;
-    if (!isJobProjectionInboundFrame(inbound)) { this.error(ws, 'invalid_request'); return true; }
+    // The client matches a failure to its subscription by job id, so a rejected
+    // frame that still names a job carries it; otherwise the browser drops the
+    // error and the user is left watching a spinner.
+    if (!isJobProjectionInboundFrame(inbound)) { this.error(ws, 'invalid_request', false, { jobId: typeof inbound.jobId === 'string' ? inbound.jobId : undefined }); return true; }
     const subscriptions = this.bySocket.get(ws) ?? (this.attach(ws), this.bySocket.get(ws)!);
     if (inbound.type === 'gjc.job.unsubscribe') {
       const sub = subscriptions.get(inbound.subscriptionId);
-      if (!sub || sub.jobId !== inbound.jobId) { this.error(ws, 'invalid_request'); return true; }
+      if (!sub || sub.jobId !== inbound.jobId) { this.error(ws, 'invalid_request', false, { jobId: inbound.jobId, id: inbound.subscriptionId }); return true; }
       this.close(ws, sub); this.send(ws, { protocolVersion: 1, kind: 'gjc_job_unsubscribed', subscriptionId: sub.id, jobId: sub.jobId }); return true;
     }
     if (inbound.type === 'gjc.job.subscribe') {
@@ -46,12 +49,14 @@ export class GjcJobProjectionService {
         const watermark = value && typeof value === 'object' && Number.isSafeInteger((value as { lastSequence?: unknown }).lastSequence) ? Number((value as { lastSequence: number }).lastSequence) : 0;
         sub.watermark = watermark;
         if (cursor > watermark) { this.close(ws, sub, 'cursor_ahead'); return true; }
-        this.send(ws, { protocolVersion: 1, kind: 'gjc_job_subscribed', subscriptionId: sub.id, jobId: sub.jobId, cursor, watermark, snapshot: value as any });
+        const snapshot = toPublicJobSnapshot(value);
+        if (!snapshot) { this.close(ws, sub, 'storage_failure'); return true; }
+        this.send(ws, { protocolVersion: 1, kind: 'gjc_job_subscribed', subscriptionId: sub.id, jobId: sub.jobId, cursor, watermark, snapshot });
       } catch (error) { if (this.current(ws, sub)) { const code = errorCode(error); this.close(ws, sub, code, code === 'authority_unavailable'); } }
       return true;
     }
     const sub = subscriptions.get(inbound.subscriptionId);
-    if (!sub || sub.jobId !== inbound.jobId) { this.error(ws, 'invalid_request'); return true; }
+    if (!sub || sub.jobId !== inbound.jobId) { this.error(ws, 'invalid_request', false, { jobId: inbound.jobId, id: inbound.subscriptionId }); return true; }
     if (sub.state === 'LIVE') { this.close(ws, sub, 'protocol_violation'); return true; }
     if (sub.state !== 'REPLAY_WAIT' || inbound.after !== sub.lastSent) { this.close(ws, sub, sub.state === 'REPLAY_IO' ? 'protocol_violation' : 'cursor_mismatch'); return true; }
     await this.replay(ws, sub, inbound.after, clampByteBudget(inbound.byteBudget)); return true;

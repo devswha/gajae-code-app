@@ -16,7 +16,7 @@ class TestSocket {
   readyState = 0;
   onopen: (() => void) | null = null;
   onclose: ((event: { code: number; reason: string }) => void) | null = null;
-  onmessage = null;
+  onmessage: ((event: { data: string }) => void) | null = null;
   onerror = null;
   sent: string[] = [];
   failing = false;
@@ -48,4 +48,38 @@ test('send reports whether the current socket accepted the frame', async () => {
   assert.deepEqual(sockets[0].sent.map((value) => JSON.parse(value)), [frame]);
   sockets[0].failing = true;
   assert.equal(view.result.current.sendMessage(frame), false);
+});
+
+test('a job failure reaches its subscriber even before the subscription is confirmed', async () => {
+  // A rejected subscribe has no subscription id to match on. Dropping it left
+  // the job panel spinning with nothing to explain why.
+  globalThis.WebSocket = TestSocket as unknown as typeof WebSocket;
+  globalThis.fetch = async () => new Response(JSON.stringify({ user: { id: 'owner', username: 'owner' } }));
+  const view = renderHook(useWebSocket, {
+    wrapper: ({ children }: { children: ReactNode }) => createElement(AuthProvider, null, createElement(WebSocketProvider, null, children)),
+  });
+  await waitFor(() => assert.equal(sockets.length, 1));
+  act(() => { sockets[0].readyState = 1; sockets[0].onopen?.(); });
+
+  const errors: string[] = [];
+  act(() => {
+    view.result.current.registerJobSubscription({
+      jobId: 'job-a',
+      getCursor: () => 0,
+      onSubscribed: () => {},
+      applyReplayChunk: () => true,
+      applyLiveEvent: () => true,
+      onError: (code) => { errors.push(code); },
+    });
+  });
+
+  act(() => {
+    sockets[0].onmessage?.({ data: JSON.stringify({ protocolVersion: 1, kind: 'gjc_job_error', code: 'authority_unavailable', retryable: true, message: 'authority_unavailable', jobId: 'job-a' }) });
+  });
+  assert.deepEqual(errors, ['authority_unavailable']);
+
+  act(() => {
+    sockets[0].onmessage?.({ data: JSON.stringify({ protocolVersion: 1, kind: 'gjc_job_error', code: 'not_found', retryable: false, message: 'not_found', jobId: 'other-job' }) });
+  });
+  assert.deepEqual(errors, ['authority_unavailable'], 'another job\u2019s failure is not this subscriber\u2019s');
 });

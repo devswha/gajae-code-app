@@ -46,6 +46,14 @@ enum ArchiveFilter {
 }
 
 impl JobState {
+    /// Edges a lease holder may drive directly.
+    ///
+    /// `Ready -> Queued` is deliberately absent. That edge is admission: it
+    /// consumes a concurrency slot and it belongs to the session the job is
+    /// bound to, both of which `turn_admit` proves inside one transaction.
+    /// Allowing it here would let any caller that can take a lease run a job
+    /// past the configured cap, or queue a job bound to another session under
+    /// its own lease, with none of those checks.
     fn can_transition_to(self, next: Self) -> bool {
         matches!(
             (self, next),
@@ -63,7 +71,6 @@ impl JobState {
                 | (Self::Aborting, Self::Interrupted)
                 | (Self::Reserved, Self::Failed)
                 | (Self::Queued, Self::Failed)
-                | (Self::Ready, Self::Queued)
         )
     }
     fn is_terminal(self) -> bool {
@@ -321,6 +328,7 @@ impl PersistentAuthority {
         if next.is_terminal() {
             return Err(AuthorityError::InvalidTransition);
         }
+
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -3363,6 +3371,40 @@ mod tests {
             JobState::Ready
         );
         drop(a);
+        std::fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn a_ready_job_can_only_be_queued_through_turn_admit() {
+        // turn_admit is where the concurrency cap and the session binding are
+        // proved. A caller that can take a lease must not be able to reach the
+        // same edge with a plain transition and skip both.
+        let (d, p) = db();
+        let mut a = PersistentAuthority::open(&p).unwrap();
+        let lease = admit_test_run(&mut a);
+        a.finalize_run(
+            "j",
+            &lease,
+            "r1",
+            JobState::Succeeded,
+            "r1-final",
+            json!(null),
+        )
+        .unwrap();
+        assert_eq!(a.snapshot("j").unwrap().state, JobState::Ready);
+
+        let stolen = a.acquire("j", "another-owner").unwrap();
+        assert_eq!(
+            a.transition("j", &stolen, JobState::Queued),
+            Err(AuthorityError::InvalidTransition)
+        );
+        assert_eq!(a.snapshot("j").unwrap().state, JobState::Ready);
+        assert_eq!(
+            a.turn_admit("j", "another-session", "another-owner", "r2", 4),
+            Err(AuthorityError::InvalidTransition),
+            "a job bound to one session is not admitted for another"
+        );
+        assert_eq!(a.snapshot("j").unwrap().state, JobState::Ready);
         std::fs::remove_dir_all(d).unwrap();
     }
 

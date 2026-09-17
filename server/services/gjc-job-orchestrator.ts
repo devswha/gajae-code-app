@@ -23,8 +23,9 @@ export type JobAuthority = {
   transition(params: Record<string, unknown>): Promise<unknown>; markDispatching(params: Record<string, unknown>): Promise<unknown>; runFinalize(params: Record<string, unknown>): Promise<unknown>; cancelAdmission(params: Record<string, unknown>): Promise<unknown>; appendEvent(params: Record<string, unknown>): Promise<unknown>; appendAdminEvent(params: Record<string, unknown>): Promise<unknown>; get(params: Record<string, unknown>): Promise<unknown>;
   list?(params?: Record<string, unknown>): Promise<unknown>; replayEvents(params: Record<string, unknown>): Promise<unknown>;
   bindingResolve(params: Record<string, unknown>): Promise<unknown>; bindingRelease(params: Record<string, unknown>): Promise<unknown>; interruptForShutdown(): Promise<unknown>; reconcile(params?: Record<string, unknown>): Promise<unknown>; bindProviderSession(params: Record<string, unknown>): Promise<unknown>;
+  archive?(params: { jobId: string }): Promise<unknown>; unarchive?(params: { jobId: string }): Promise<unknown>;
 };
-export type GitWorktrees = { create(params: Record<string, unknown>): Promise<unknown>; list(params?: Record<string, unknown>): Promise<unknown>; status(params?: Record<string, unknown>): Promise<unknown> };
+export type GitWorktrees = { create(params: Record<string, unknown>): Promise<unknown>; list(params?: Record<string, unknown>): Promise<unknown>; status(params?: Record<string, unknown>): Promise<unknown>; reap?(): Promise<unknown> };
 export type JobSupervisor = { spawnRun(input: GjcWorkerSpawnRun): GjcWorkerRun; abort(alias: string): Promise<GjcWorkerAbortOutcome>; terminate?(alias: string): Promise<GjcWorkerReapOutcome> };
 export type JobOrchestratorOptions = GjcWorkerOptions & {
   writer: GjcWorkerWriter; jobId?: string; cap?: number; dispatched?: boolean;
@@ -161,7 +162,25 @@ export class JobOrchestrator {
     if (active?.runId === runId && !active.uncertain) { active.uncertain = true; this.activityChanged(); }
   }
   private clearRuns(): void { if (this.activeRuns.size) { this.activeRuns.clear(); this.activityChanged(); } }
-  private git(root: string): GitWorktrees { const client = this.deps.gitForProject?.(root) ?? this.deps.git; if (!client) throw new Error('GJC Git worktree client is unavailable.'); return client; }
+  private readonly reapedRoots = new Set<string>();
+  private git(root: string): GitWorktrees {
+    const client = this.deps.gitForProject?.(root) ?? this.deps.git;
+    if (!client) throw new Error('GJC Git worktree client is unavailable.');
+    // A job ref that outlived its record - a reset job store, a
+    // hand-removed .gjc-worktrees/ - has no teardown left to reap it (#157).
+    // The first job in a repository per process sweeps those: only refs with
+    // no registered worktree and no commit of their own are deleted, so it
+    // cannot lose work, and the native process serves it before the create
+    // that follows. Failure is logged and never blocks a run.
+    if (client.reap && !this.reapedRoots.has(root)) {
+      this.reapedRoots.add(root);
+      void client.reap().then((result) => {
+        const reaped = safe(result) && Array.isArray(result.reaped) ? result.reaped : [];
+        if (reaped.length > 0) console.info(`[GJC jobs] reaped ${reaped.length} orphaned job ref(s) in ${root}`);
+      }).catch((error: unknown) => console.warn('[GJC jobs] orphaned job ref sweep failed', { root, error: error instanceof Error ? error.message : String(error) }));
+    }
+    return client;
+  }
   private serial<T>(jobId: string, action: () => Promise<T>): Promise<T> {
     const prior = this.queues.get(jobId) ?? Promise.resolve();
     const result = prior.catch(() => undefined).then(() => {

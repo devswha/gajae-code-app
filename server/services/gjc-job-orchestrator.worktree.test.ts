@@ -102,3 +102,76 @@ test('bound continuation refuses a replaced Git pointer before worker dispatch',
   await assert.rejects(f.orchestrator.turnStart('gjc', 'app-session', 'continue', { writer }));
   assert.equal(f.inputs.length, 1);
 });
+
+/*
+ * A job ref that outlived its record has no teardown left to reap it: the
+ * job store can be reset and .gjc-worktrees/ removed by hand while
+ * refs/heads/job/* keeps every branch ever created (#157). The first job in a
+ * repository per process sweeps those, and only those - a registered
+ * worktree's branch and a branch with commits found nowhere else both stay.
+ */
+test('the first job in a repository reaps orphaned job refs once, before its own worktree is created', async (t) => {
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'gjc-job-reap-')));
+  const repository = path.join(root, 'repository');
+  await mkdir(repository);
+  const environment = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))),
+    GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+  };
+  const git = async (...args: string[]) => (await execFile('git', [
+    '-c', 'commit.gpgsign=false', '-c', 'user.name=Reap Test', '-c', 'user.email=reap@example.test', ...args,
+  ], { cwd: repository, env: environment })).stdout.trim();
+  await git('init');
+  await writeFile(path.join(repository, 'README.md'), 'fixture\n');
+  await git('add', 'README.md');
+  await git('commit', '-m', 'fixture');
+  const initial = await git('branch', '--show-current');
+  // Three orphans from an earlier life: one empty, one whose work landed on
+  // main, one whose work exists nowhere else.
+  await git('branch', 'job/job-empty');
+  await git('checkout', '-q', '-b', 'job/job-landed');
+  await writeFile(path.join(repository, 'landed.md'), 'landed\n');
+  await git('add', 'landed.md');
+  await git('commit', '-m', 'landed');
+  await git('checkout', '-q', '-b', 'job/job-unlanded');
+  await writeFile(path.join(repository, 'orphan.md'), 'orphan\n');
+  await git('add', 'orphan.md');
+  await git('commit', '-m', 'orphan');
+  await git('checkout', '-q', initial);
+  await git('merge', '-q', '--no-edit', 'job/job-landed');
+  await git('branch', 'feature/not-a-job');
+
+  const corePath = path.join(process.cwd(), 'dist-native', process.platform === 'win32' ? 'gajae-core.exe' : 'gajae-core');
+  const jobs = new GjcJobsClient({ database: path.join(root, 'jobs.sqlite3'), corePath });
+  const client = new GjcGitClient({ workdir: repository, corePath });
+  let reaps = 0;
+  const gitForProject = () => ({
+    create: (params: Record<string, unknown>) => client.create(params),
+    list: (params?: Record<string, unknown>) => client.list(params),
+    status: (params?: Record<string, unknown>) => client.status(params),
+    reap: () => { reaps += 1; return client.reap(); },
+  });
+  t.after(async () => { jobs.close(); client.close(); await rm(root, { recursive: true, force: true, maxRetries: 3 }); });
+  const finish: Array<() => void> = [];
+  const supervisor: JobSupervisor = {
+    spawnRun: () => ({ started: Promise.resolve(), completion: new Promise<void>((resolve) => finish.push(resolve)), abortHandle: 'reap-run' }),
+    async abort() { return 'aborted'; },
+  };
+  let sequence = 0;
+  const orchestrator = new JobOrchestrator({ jobs, gitForProject, supervisor, owner: 'reap-test', createId: () => `reap-${++sequence}` });
+
+  const run = await orchestrator.start('gjc', 'app-session', repository, 'first job here', { writer });
+  finish[0]();
+  await run.completion;
+  const branches = (await git('for-each-ref', '--format=%(refname:short)', 'refs/heads/')).split('\n').sort();
+  assert.deepEqual(branches.filter((name) => name.startsWith('job/')).filter((name) => !name.startsWith('job/job-reap')), ['job/job-unlanded'], 'empty and landed orphans go; unlanded work stays');
+  assert.ok(branches.some((name) => name.startsWith('job/job-reap')), 'the new job has its own branch');
+  assert.ok(branches.includes('feature/not-a-job'));
+  assert.equal(reaps, 1);
+
+  const second = await orchestrator.turnStart('gjc', 'app-session', 'again', { writer });
+  finish[1]();
+  await second.completion;
+  assert.equal(reaps, 1, 'one sweep per repository per process');
+});

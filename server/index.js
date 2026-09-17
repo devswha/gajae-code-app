@@ -62,7 +62,7 @@ import {
     getProductionJobOrchestrator,
     getProductionNativeJobsDesktopRestartReader,
 } from './services/gjc-job-orchestrator.js';
-import { readSessionLocation, resolveSessionWorkspacePath, validateSessionRepository } from './services/session-worktree-paths.js';
+import { readSessionLocation, releaseSessionWorktree, resolveSessionWorkspacePath, validateSessionRepository } from './services/session-worktree-paths.js';
 import {
     abortSessionWorktreeRun,
     configureSessionWorktreeDesktopAdmission,
@@ -151,7 +151,7 @@ function getPendingProviderApprovalsForSession(sessionId) {
 const gjcJobAuthority = getProductionJobAuthority();
 const desktopNativeInit = new DesktopNativeInit();
 automationService.configureNativeInitialization(desktopNativeInit);
-configureSessionWorktrees({ validateRepository: validateSessionRepository, readLocation: readSessionLocation, resolveWorkspace: resolveSessionWorkspacePath });
+configureSessionWorktrees({ validateRepository: validateSessionRepository, readLocation: readSessionLocation, resolveWorkspace: resolveSessionWorkspacePath, release: releaseSessionWorktree });
 const gjcJobOrchestrator = getProductionJobOrchestrator();
 const gjcJobProjection = new GjcJobProjectionService({
     get: (params) => gjcJobAuthority.get(params),

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { resolveSessionProjectPath } from '@/modules/providers/services/session-project-path.service.js';
-import { sessionTranscriptWorkspace } from '@/modules/providers/services/session-worktrees.service.js';
+import { releaseWorktreeSession, sessionTranscriptWorkspace } from '@/modules/providers/services/session-worktrees.service.js';
 import { chatRunRegistry } from '@/modules/websocket/index.js';
 import type { FetchHistoryOptions, FetchHistoryResult, LLMProvider, NormalizedMessage } from '@/shared/types.js';
 import { boundToolResultDetails, prepareMessagesForTransport } from '@/shared/tool-output-transport.js';
@@ -187,6 +187,9 @@ export const sessionsService = {
       sessionsDb.updateSessionIsArchived(sessionId, true);
       return { sessionId, action: 'archived', deletedFromDisk: false };
     }
+    // A worktree session's checkout and job ref go with the session; a refusal
+    // (running, uncommitted changes) leaves the session in place and says why.
+    await releaseWorktreeSession(sessionId);
     const deletedFromDisk = options.deletedFromDisk && row.jsonl_path ? await unlinkWhenPresent(row.jsonl_path) : false;
     if (!sessionsDb.deleteSessionById(sessionId)) throw sessionNotFound(sessionId);
     return { sessionId, action: 'deleted', deletedFromDisk };

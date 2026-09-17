@@ -260,12 +260,25 @@ export function applyGjcToolSettingsPolicy(settings: Settings): void {
   // would advertise edits the browser session can never commit.
   settings.override('astEdit.enabled', false);
 
+  // MCP servers load by scope, and the scope is the trust boundary (owner
+  // decision 2026-09-18, #161):
+  //
+  // - User scope - the servers the user registered themselves with
+  //   `gjc mcp add`, in `<agentDir>/mcp.json` - loads exactly as in the CLI.
+  //   The runtime's conventional autoload connects them before the session
+  //   exists and surfaces their tools as always-on, independent of `toolNames`
+  //   and of discovery mode. The adapter never passes `enableMcpAutoload:
+  //   false` for a top-level session (delegated children do opt out).
+  // - Project scope - a repository's own `.gjc/mcp.json` - does not load. The
+  //   runtime treats an *unset* `mcp.enableProjectConfig` as true, so this
+  //   override is what stops opening a repository from starting its programs
+  //   inside a session. A `.mcp.json` (Claude Code format) is an import source
+  //   for the runtime, never loaded at run time in either product.
+  //
   // Tool discovery is the other door into the session's tool set, and it does
-  // not consult `toolNames`: a server listed in the user's own settings, or an
-  // `.mcp.json` in whatever project they open, would put tools this app never
-  // decided on in front of a browser session. These settings default closed,
-  // so this pins the default rather than changing behaviour - but a boundary
-  // that only holds while a user leaves their config alone is not a boundary.
+  // not consult `toolNames`. It stays off: with user-scope MCP tools already
+  // always-on, the search tool would only add a way to activate built-ins the
+  // app withheld. `server/gjc-mcp-autoload.bun.test.ts` pins both scopes.
   settings.override('tools.discoveryMode', 'off');
   settings.override('mcp.discoveryMode', false);
   settings.override('mcp.enableProjectConfig', false);

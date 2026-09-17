@@ -243,6 +243,36 @@ not auto-answer `ask` questions or override native readiness, OS permissions,
 or CUA driver restrictions. The mode is captured for the run; no
 implicit grant survives into a later Ask run.
 
+## MCP servers
+
+Which MCP servers reach a session is decided by scope, not by discovery
+(owner decision 2026-09-18, #161; `applyGjcToolSettingsPolicy` in
+`server/gjc-bun-sdk-adapter.ts`, pinned by `server/gjc-mcp-autoload.bun.test.ts`):
+
+- **User scope loads as in the CLI.** The servers the user registered with
+  `gjc mcp add` live in `<agentDir>/mcp.json` (the worker's agent directory is
+  `~/.gjc/agent` unless `GJC_WORKER_AGENT_DIR` names another). The runtime's
+  conventional autoload connects them before the session exists and their
+  tools are always-on for the model - independent of the app's explicit
+  `toolNames` and of discovery mode. The adapter never passes
+  `enableMcpAutoload: false` for a top-level session; app-owned delegated
+  children do opt out.
+- **Project scope does not load.** A repository's own `.gjc/mcp.json` is
+  refused by overriding `mcp.enableProjectConfig` to `false` for every run.
+  The runtime reads an *unset* value as `true`, so the override is
+  load-bearing: it is what stops opening a repository from starting its
+  programs inside a session. A `.mcp.json` in Claude Code format is an
+  import source for the runtime and is not loaded at run time by either
+  product.
+- **Discovery stays off.** `tools.discoveryMode` is `off` and
+  `mcp.discoveryMode` is `false`; with user-scope tools already always-on,
+  `search_tool_bm25` would only add a way to activate built-ins the app
+  withheld.
+
+Settings > Automation > Withheld runtime features reports the project-scope
+refusal in these words; it offers no control because a session cannot change
+it either.
+
 ## Browser backend
 
 The runtime owns the browser backend contract: its `browser.backend` setting

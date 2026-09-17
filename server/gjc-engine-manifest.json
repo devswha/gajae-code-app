@@ -62,6 +62,7 @@
     "server/gjc-goal-session.bun.test.ts",
     "server/gjc-goal-session.test.ts",
     "server/gjc-goal-protocol.test.ts",
+    "server/gjc-mcp-autoload.bun.test.ts",
     "server/gjc-permission-policy.test.ts",
     "server/gjc-provider-quota.test.ts",
     "server/gjc-runtime-manifest.test.ts",

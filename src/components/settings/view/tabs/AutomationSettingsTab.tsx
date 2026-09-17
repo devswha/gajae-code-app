@@ -311,9 +311,11 @@ export default function AutomationSettingsTab() {
         * The app overrides four runtime settings for every session:
         * `mcp.discoveryMode`, `mcp.enableProjectConfig`, `tools.discoveryMode`
         * and `astEdit.enabled`. Those overrides are a deliberate boundary and
-        * they stay - but until now nothing said so. A user whose MCP servers
-        * work in the GJC CLI found them simply absent here, with no error and
-        * no explanation, which is an unanswerable support question.
+        * they stay - but until now nothing said so, and the first wording of
+        * this block overstated it: user-scope MCP servers (`gjc mcp add`) do
+        * load, exactly as in the CLI; it is a project's own `.gjc/mcp.json`
+        * that never does (`server/GJC-LIVE-SPEC.md`, "MCP servers"). The row
+        * says that, so "works in the CLI, missing here" has an answer.
         *
         * Reports, not controls: there is nothing to toggle, because the point
         * is that a session cannot toggle them either.

@@ -3,11 +3,18 @@
 <plist version="1.0">
 <dict>
   <!--
-    The Node.js sidecar (externalBin gajae-app-server) is signed with the
-    hardened runtime by the Tauri bundler. V8 requires JIT and RWX memory,
-    and packaged native addons (node-pty, better-sqlite3) are ad-hoc signed,
-    so library validation must stay off. Without allow-jit the sidecar
-    crashes with SIGTRAP ~20ms after spawn.
+    Sidecar and native-host entitlements: the server sidecar (externalBin
+    gajae-app-server) and the bundled Bun runtime. Their JavaScript engines
+    require JIT and RWX memory, and packaged native addons (node-pty,
+    better-sqlite3, the GJC core addon) are signed separately from the process
+    that maps them, so library validation must stay off. Without allow-jit the
+    sidecar crashes with SIGTRAP ~20ms after spawn.
+
+    The Tauri bundler applies one file to every binary it signs, so a plain
+    `tauri build` leaves the desktop shell with these exceptions too - an
+    intermediate that keeps the sidecar runnable. The shipped bundle is sealed
+    by scripts/release/finalize-macos-app.mjs, which re-signs the shell with
+    entitlements-app.plist (none of these) and refuses to finish otherwise.
   -->
   <key>com.apple.security.cs.allow-jit</key>
   <true/>

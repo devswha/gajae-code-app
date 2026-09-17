@@ -2330,7 +2330,11 @@ test('computer use is withheld by default: no app transport and no SDK builtin n
 });
 
 test('computer use turned on offers the app transport on every backend, and a non-boolean is refused', async () => {
-  const f = await fixture();
+  // A fake Aside probe: the real one walks PATH, which on a slow CI runner
+  // outlasts the session wait below.
+  const f = await fixture(undefined, undefined, undefined, undefined, undefined, undefined, {
+    probeAsideCli: () => ({ ok: true, path: '/fake/.local/bin/aside' }),
+  });
   try {
     for (const backend of ['builtin', 'aside'] as const) {
       const index = f.sessions.length;

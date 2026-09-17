@@ -348,7 +348,7 @@ test('entrypoint fails closed on malformed input and emits protocol-only stdout'
   try {
     const input = new PassThrough(); const output = new PassThrough(); const errors = new PassThrough(); let stdout = ''; let stderr = '';
     output.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8'); }); errors.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
-    runGjcWorkerEntrypoint(input, output, errors);
+    runGjcWorkerEntrypoint(input, output, errors, { runtime: async () => fakeRuntime().runtime });
     input.end('{not json}\n'); await new Promise((resolve) => setImmediate(resolve));
     assert.equal(stdout, ''); assert.equal(stderr.includes('GJC worker protocol failure.'), true);
     assert.doesNotThrow(() => stdout.split('\n').filter(Boolean).forEach((line) => parseGjcWorkerFrame(line)));
@@ -373,49 +373,59 @@ test('protocol stdout claim keeps non-protocol writes out of the frame stream', 
   assert.doesNotThrow(() => emitted.split('\n').filter(Boolean).forEach((line) => parseGjcWorkerFrame(line)));
 });
 
-test('production worker executable performs a protocol-only handshake and shutdown', async (t) => {
-  const workerPath = fileURLToPath(new URL('./gjc-worker.ts', import.meta.url));
-  const tsconfigPath = fileURLToPath(new URL('./tsconfig.json', import.meta.url));
-  const child = spawn(process.execPath, ['--import', 'tsx', workerPath], {
-    env: {
-      ...process.env,
-      TSX_TSCONFIG_PATH: tsconfigPath,
-    },
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
-  t.after(() => {
-    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
-  });
-
+test('the entrypoint performs a protocol-only handshake and shutdown over the streams it is given', async () => {
+  const input = new PassThrough(); const output = new PassThrough(); const errors = new PassThrough();
   const decoder = new GjcWorkerNdjsonDecoder();
   const frames: ReturnType<typeof parseGjcWorkerFrame>[] = [];
   let stderr = '';
-  child.stdout.on('data', (chunk: Buffer) => {
-    frames.push(...decoder.push(chunk));
-  });
-  child.stderr.on('data', (chunk: Buffer) => {
-    stderr += chunk.toString('utf8');
-  });
+  output.on('data', (chunk: Buffer) => { frames.push(...decoder.push(chunk)); });
+  errors.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
+  let loads = 0;
+  runGjcWorkerEntrypoint(input, output, errors, { runtime: async () => { loads += 1; return fakeRuntime().runtime; } });
 
-  const initialize = request('worker.initialize', 'process-init');
-  child.stdin.write(serializeGjcWorkerFrame(initialize));
-  for (let attempt = 0; attempt < 500 && frames.length < 1; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
+  input.write(serializeGjcWorkerFrame(request('worker.initialize', 'process-init')));
+  for (let attempt = 0; attempt < 500 && frames.length < 1; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 10));
   assert.equal(frames[0]?.kind, 'response');
   assert.equal((frames[0] as { payload?: { ok?: boolean } }).payload?.ok, true);
+  assert.equal(loads, 1, 'initialize loads exactly the runtime the caller named');
 
-  const shutdown = request('worker.shutdown', 'process-shutdown');
-  child.stdin.write(serializeGjcWorkerFrame(shutdown));
-  for (let attempt = 0; attempt < 500 && frames.length < 2; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
+  input.write(serializeGjcWorkerFrame(request('worker.shutdown', 'process-shutdown')));
+  for (let attempt = 0; attempt < 500 && frames.length < 2; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 10));
   assert.equal((frames[1] as { payload?: { ok?: boolean } }).payload?.ok, true);
-  child.stdin.end();
+  input.end();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(stderr, '');
+});
 
-  for (let attempt = 0; attempt < 500 && child.exitCode === null; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  assert.equal(child.exitCode, 0);
+/*
+ * The host once defaulted to a Node CLI spawner, reachable by executing this
+ * module directly - a path that skipped the bundled-runtime manifest check
+ * (#130). There is no default now: the executable is gjc-bun-worker.ts, and
+ * it names its runtime after verifying the manifest.
+ */
+
+test('the host refuses to exist without a runtime loader', () => {
+  assert.throws(
+    () => new GjcWorkerHost({ emit: () => {} } as unknown as ConstructorParameters<typeof GjcWorkerHost>[0]),
+    /requires an explicit runtime loader/u,
+  );
+});
+
+test('executing the host module directly runs nothing', async (t) => {
+  const workerPath = fileURLToPath(new URL('./gjc-worker.ts', import.meta.url));
+  const tsconfigPath = fileURLToPath(new URL('./tsconfig.json', import.meta.url));
+  const child = spawn(process.execPath, ['--import', 'tsx', workerPath], {
+    env: { ...process.env, TSX_TSCONFIG_PATH: tsconfigPath },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
+  let stdout = ''; let stderr = '';
+  child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8'); });
+  child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
+  // A worker would answer this; a library exits without reading it.
+  child.stdin.write(serializeGjcWorkerFrame(request('worker.initialize', 'library-init')));
+  const exitCode = await new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)));
+  assert.equal(exitCode, 0);
+  assert.equal(stdout, '');
   assert.equal(stderr, '');
 });

@@ -267,13 +267,24 @@ test('native core fails safely when its child executable is unavailable', async 
 });
 
 test('native core carries the real worker initialize and shutdown protocol', async () => {
-  const workerPath = fileURLToPath(new URL('./gjc-worker.ts', import.meta.url));
+  // The host module is a library with no default runtime (#130); the test
+  // executable names a stub one, exactly as gjc-bun-worker.ts names the SDK.
+  const workerModule = new URL('./gjc-worker.ts', import.meta.url).href;
+  const workerScript = [
+    `import { runGjcWorkerEntrypoint } from ${JSON.stringify(workerModule)};`,
+    'const unreachable = () => { throw new Error("stub runtime"); };',
+    'runGjcWorkerEntrypoint(process.stdin, process.stdout, process.stderr, { runtime: async () => ({',
+    '  spawnGjc: unreachable, abortGjcSession: async () => false, resolveGjcToolApproval: () => false,',
+    '}) });',
+  ].join('\n');
   const child = spawn(corePath, [
     '--',
     process.execPath,
     '--import',
     'tsx',
-    workerPath,
+    '--input-type=module',
+    '-e',
+    workerScript,
   ], {
     env: {
       ...process.env,

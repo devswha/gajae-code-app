@@ -127,13 +127,12 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
   web_search: { input: { type: 'one-line', label: 'Web Search', getValue: (input) => input.query || '', getSecondary: (input) => input.recency ? `past ${input.recency}` : undefined, action: 'none', colorScheme: neutralColors } },
   computer: callOnly('Computer', computerSummary),
   browser: callOnly('Browser', (input) => [input.action, input.url || input.name || input.app].filter(Boolean).join(' ')),
-  AskUserQuestion: questions,
+  ask: questions,
   exit_plan_mode: { input: planInput, result: { hidden: true } },
   ExitPlanMode: { input: planInput, result: { hidden: true } },
   Default: { input: { type: 'collapsible', title: 'Parameters', defaultOpen: false, contentType: 'text', getContentProps: (input) => ({ content: typeof input === 'string' ? input : JSON.stringify(input, null, 2), format: 'code' }) }, result: { type: 'collapsible', contentType: 'text', getContentProps: outputAsText } },
 };
 
-TOOL_CONFIGS.ask = TOOL_CONFIGS.AskUserQuestion as ToolDisplayConfig;
 export function getToolConfig(toolName: string): ToolDisplayConfig { return TOOL_CONFIGS[toolName] || TOOL_CONFIGS.Default; }
 export function getToolResultConfig(toolName: string): ToolDisplayConfig['result'] { return getToolConfig(toolName).result ?? TOOL_CONFIGS.Default.result; }
 export function shouldHideToolResult(toolName: string, toolResult: any): boolean {

@@ -22,7 +22,10 @@ the native core. The worker creates `@gajae-code/coding-agent` sessions through
   diagnostic only and is not forwarded to browser clients as raw provider
   output.
 - Controlled questions, approvals, steering, usage, OAuth, and abort are owned
-  by the SDK adapter. Production has no CLI or loopback-side-channel fallback.
+  by the SDK adapter. There is no CLI or loopback-side-channel path at all:
+  `GjcWorkerHost` requires its runtime loader and `server/gjc-worker.ts` is a
+  library that runs nothing when executed. The only executable is
+  `gjc-bun-worker.ts`, which names the SDK adapter after the manifest check.
 
 ## Production boundary
 
@@ -404,9 +407,6 @@ and `server/gjc-worker-client.test.ts`; see `docs/BROWSER-EGO-POC.md`.
 
 Focused coverage is in:
 
-- `server/gjc-cli.test.ts`
-- `server/gjc-sdk-client.test.ts`
-- `server/gjc-sdk-bridge.test.ts`
 - `server/gjc-core-host.test.ts`
 - `server/modules/providers/tests/gjc-session-watcher.test.ts`
 - `native/gajae-core/src/lib.rs`

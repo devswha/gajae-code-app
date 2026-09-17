@@ -90,7 +90,7 @@ test('idle, running text, completed and failed outcomes never invent a request',
   }
 });
 
-for (const request of [approval, question, { ...question, toolName: 'AskUserQuestion' }, { ...approval, toolName: 'task' }]) {
+for (const request of [approval, question, { ...approval, toolName: 'task' }]) {
   test(`${request.toolName} request links to its existing card without deciding or focusing an input`, async () => {
     const { Harness, emit, decisions, shown } = await setup();
     render(<Harness requests={[request]} />);

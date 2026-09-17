@@ -269,10 +269,8 @@ export default function ChatComposer({
   const isRecording = voiceState === 'recording';
   const isVoiceBusy = voiceState !== 'idle' && !isRecording;
 
-  // Detect if the AskUserQuestion interactive panel is active
-  const hasQuestionPanel = pendingPermissionRequests.some(
-    (r) => r.toolName === 'AskUserQuestion' || r.toolName === 'ask'
-  );
+  // Detect if the question panel is active
+  const hasQuestionPanel = pendingPermissionRequests.some((r) => r.toolName === 'ask');
 
   const handleFormSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
     onSubmit(event);

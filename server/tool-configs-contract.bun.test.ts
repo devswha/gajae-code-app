@@ -30,7 +30,6 @@ import { GJC_AGENT_TOOL_NAMES } from './gjc-engine.js';
 /** Keys that are not runtime tool names, each for a stated reason. */
 const NON_RUNTIME_KEYS: Readonly<Record<string, string>> = {
   Default: 'The fallback config for anything unregistered.',
-  AskUserQuestion: 'The label gjc-sdk-bridge.ts gives a question; the worker sends `ask`.',
   exit_plan_mode: 'Plan-mode payload rendered inline by PlanDisplay, not a builtin tool.',
   ExitPlanMode: 'Legacy casing of the same plan-mode payload.',
   apply_patch: 'The wire name the edit tool takes in apply_patch mode (its customWireName); the same config as edit.',
@@ -68,8 +67,10 @@ test('the tools most calls go through have a config rather than the JSON fallbac
   }
 });
 
-test('the question config is shared, not duplicated', () => {
-  assert.equal(TOOL_CONFIGS.ask, TOOL_CONFIGS.AskUserQuestion);
+test('the question config answers to the runtime name only', () => {
+  assert.ok(TOOL_CONFIGS.ask);
+  // The Node bridge's `AskUserQuestion` label went with the bridge.
+  assert.equal('AskUserQuestion' in TOOL_CONFIGS, false);
 });
 
 /*

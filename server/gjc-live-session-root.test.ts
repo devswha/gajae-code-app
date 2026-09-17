@@ -49,11 +49,10 @@ test('an explicit override still wins so tests and isolated runs can redirect it
 });
 
 test('every reader resolves the root through the shared helper', async () => {
-  // The path was duplicated across the worker, the CLI, the synchronizer and
-  // the watcher; a single stale copy would silently split writes from reads.
+  // The path was duplicated across the worker, the synchronizer and the
+  // watcher; a single stale copy would silently split writes from reads.
   const { readFile } = await import('node:fs/promises');
   const sources = [
-    'server/gjc-cli.js',
     'server/gjc-worker-client.ts',
     'server/modules/providers/list/gjc/gjc-session-synchronizer.provider.ts',
     'server/modules/providers/services/sessions-watcher.service.ts',

@@ -1,6 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { Readable, Writable } from 'node:stream';
-import { pathToFileURL } from 'node:url';
 
 import { parseGjcGoalCommand, type GjcGoalCommand, type GjcGoalSnapshot } from '../shared/gjc-goal.js';
 
@@ -72,7 +71,14 @@ export type GjcWorkerRuntime = {
   oauth?: GjcWorkerOAuthRuntime;
 };
 export type GjcWorkerHostOptions = {
-  runtime?: () => Promise<GjcWorkerRuntime>;
+  /**
+   * The runtime this host serves. Required: the host has no default, so the
+   * only production runtime is the one `gjc-bun-worker.ts` names after
+   * verifying the bundled manifest. A default here was once the Node CLI
+   * spawner, reachable by executing this module directly and bypassing that
+   * check (#130).
+   */
+  runtime: () => Promise<GjcWorkerRuntime>;
   emit: (frame: GjcWorkerResponseFrame | GjcWorkerEventFrame) => void;
   closeDrainMs?: number;
   /** Private stderr-side sink for failures that protocol responses must not expose. */
@@ -194,9 +200,10 @@ export class GjcWorkerHost {
   readonly #closeDrainMs: number;
 
   constructor(options: GjcWorkerHostOptions) {
+    if (typeof options.runtime !== 'function') throw new TypeError('GJC worker host requires an explicit runtime loader.');
     this.#emit = options.emit;
     this.#diagnostic = options.diagnostic ?? (() => {});
-    this.#loadRuntime = options.runtime ?? loadProductionRuntime;
+    this.#loadRuntime = options.runtime;
     this.#closeDrainMs = options.closeDrainMs ?? CLOSE_DRAIN_MS;
   }
 
@@ -710,14 +717,6 @@ export class GjcWorkerHost {
 
 export function createGjcWorkerHost(options: GjcWorkerHostOptions): GjcWorkerHost { return new GjcWorkerHost(options); }
 
-async function loadProductionRuntime(): Promise<GjcWorkerRuntime> {
-  // A non-literal dynamic import keeps the Node CLI/loopback implementation out of
-  // the Bun worker bundle while preserving the existing Node worker behavior.
-  const nodeRuntimeModule = './gjc-worker-node-runtime.js';
-  const nodeRuntime = await import(nodeRuntimeModule);
-  return nodeRuntime.loadNodeProductionRuntime();
-}
-
 /**
  * Claims stdout for Protocol v1 frames and returns the writer for them.
  *
@@ -739,12 +738,17 @@ export function claimProtocolStdout(output: Writable, diagnostics: Writable, std
   return (frame) => { protocolWrite(frame); };
 }
 
-/** Runs the private NDJSON executable using only stdin/stdout/stderr. */
+/**
+ * Runs the private NDJSON executable using only stdin/stdout/stderr.
+ *
+ * This module is a library: it never runs itself. The executable is
+ * `gjc-bun-worker.ts`, which names the runtime after the manifest check.
+ */
 export function runGjcWorkerEntrypoint(
-  input: Readable = process.stdin,
-  output: Writable = process.stdout,
-  diagnostics: Writable = process.stderr,
-  options: { runtime?: () => Promise<GjcWorkerRuntime> } = {},
+  input: Readable,
+  output: Writable,
+  diagnostics: Writable,
+  options: { runtime: () => Promise<GjcWorkerRuntime> },
 ): void {
   const emitFrame = claimProtocolStdout(output, diagnostics);
   const decoder = new GjcWorkerNdjsonDecoder();
@@ -788,5 +792,3 @@ export function runGjcWorkerEntrypoint(
     process.once('SIGTERM', failClosed);
   }
 }
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) runGjcWorkerEntrypoint();

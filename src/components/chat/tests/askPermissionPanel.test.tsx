@@ -11,12 +11,11 @@ import PermissionRequestsBanner from '../view/PermissionRequestsBanner';
 /*
  * Asking the user a question.
  *
- * Two server paths raise one, under different labels: gjc-sdk-bridge.ts sends
- * `AskUserQuestion`, and the Protocol v1 worker in gjc-bun-ask-controller.ts
- * sends `ask`. Only the first was registered, so a question from the worker
- * rendered as a generic "Permission required" with the question buried in a
- * collapsed JSON blob — and its bare Allow carries no answer, which the
- * controller rejects by design, leaving the question open and the turn stuck.
+ * The Protocol v1 worker in gjc-bun-ask-controller.ts raises one under the
+ * runtime's tool name, `ask`. Unregistered, it rendered as a generic
+ * "Permission required" with the question buried in a collapsed JSON blob —
+ * and its bare Allow carries no answer, which the controller rejects by
+ * design, leaving the question open and the turn stuck.
  */
 
 /** The exact payload gjc-bun-ask-controller.ts sends for `uiContext.select`. */
@@ -43,18 +42,14 @@ const renderBanner = (
   }),
 );
 
-test('both ask producers resolve to the question panel', () => {
+test('the worker\'s ask resolves to the question panel', () => {
   // Importing the banner is what performs the registration.
   renderBanner([]);
 
-  for (const toolName of ['ask', 'AskUserQuestion']) {
-    assert.notEqual(getPermissionPanel(toolName), null, `${toolName} has no panel`);
-  }
-  assert.equal(
-    getPermissionPanel('ask'),
-    getPermissionPanel('AskUserQuestion'),
-    'both labels must render the same panel',
-  );
+  assert.notEqual(getPermissionPanel('ask'), null, 'ask has no panel');
+  // The Node bridge's `AskUserQuestion` label went with the bridge; nothing
+  // sends it, so nothing answers to it.
+  assert.equal(getPermissionPanel('AskUserQuestion'), null);
 });
 
 test('a worker question renders its text and options, not a permission prompt', () => {

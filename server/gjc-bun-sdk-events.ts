@@ -84,8 +84,8 @@ function contentText(message: unknown): string {
  * The SDK names its buckets `input`/`output`/`cacheRead`/`cacheWrite`, while the
  * app's `TokenUsageSummary` reads `used`/`inputTokens`/`outputTokens`. Forwarding
  * the raw object therefore renders no pill at all, so the shape is translated
- * here to match `extractGjcTokenBudget` in `gjc-sdk-bridge.ts`. `total` (the
- * context window) is not part of a message's usage and stays absent.
+ * here. `total` (the context window) is not part of a message's usage and
+ * stays absent.
  */
 function tokenBudget(message: unknown): RecordValue | undefined {
   if (!object(message) || !object(message.usage)) return undefined;
@@ -352,9 +352,8 @@ export function forwardSdkEvent(
  * ImageContent)[]; details?; isError? }` — for every tool, including failures.
  * Serializing that envelope would show a JSON wrapper instead of the tool's
  * output and, for image-returning tools such as `read` on a PNG, would inline a
- * whole base64 payload into the transcript. This mirrors `stringifyGjcToolOutput`
- * in `gjc-cli.js`: take the text parts, and represent anything else by a short
- * placeholder rather than its bytes.
+ * whole base64 payload into the transcript. So: take the text parts, and
+ * represent anything else by a short placeholder rather than its bytes.
  */
 /**
  * Pulls the runtime's structured `details` off a tool result.

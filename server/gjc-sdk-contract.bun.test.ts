@@ -1568,6 +1568,15 @@ async function identityFixture(behavior: {
     settings,
     generateSessionTitle: async () => null,
     createSessionFactory: async (input) => {
+      // User-scope MCP servers (`gjc mcp add`) load in app sessions as in the
+      // CLI; only delegated children (`agentId` set) opt out. The fixture below
+      // disables the autoload for offline isolation, so check the adapter's own
+      // request first.
+      if (input!.agentId === undefined) {
+        assert.equal(input!.enableMcpAutoload, undefined, 'a top-level app session must keep the runtime MCP autoload');
+      } else {
+        assert.equal(input!.enableMcpAutoload, false, 'a delegated child must not autoload MCP servers');
+      }
       const sdkOptions = {
         ...input,
         agentDir,

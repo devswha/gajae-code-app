@@ -2850,6 +2850,75 @@ test('a permissions block switches the SDK gate to prompt and answers it from th
   } finally { await f.close(); }
 });
 
+/*
+ * A run that chose the project location shares its working tree with every
+ * other session of that project, so a git state change there moves `HEAD` and
+ * the index underneath a live reader. The run's own cwd is the answer: a
+ * managed worktree is dispatched with the checkout as `cwd` while
+ * `projectPath` stays the repository root, and a project-location run gets the
+ * same path for both.
+ */
+
+test('a shared checkout asks before a git state change even when the policy would approve it', async () => {
+  const f = await fixture();
+  try {
+    // cwd and projectPath are the same directory: nothing was isolated.
+    const options = { ...f.options, projectPath: f.options.cwd, permissions: { mode: 'bypass', allowAlways: [] } };
+    const run = f.host.handle(request('session.start', 'shared-checkout', { message: 'hello', options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+
+    const runtimeOptions = [
+      { optionId: 'allow_once', name: 'Allow once', kind: 'allow_once' },
+      { optionId: 'reject_once', name: 'Reject', kind: 'reject_once' },
+    ];
+    // Bypass still approves everything that does not rewrite shared git state.
+    assert.deepEqual(
+      await session.sdkPermissionProvider!({ toolCallId: 'c1', toolName: 'bash', title: 'npm test', rawInput: { command: 'npm test' } }, runtimeOptions),
+      { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' },
+    );
+
+    const pending = session.sdkPermissionProvider!({ toolCallId: 'c2', toolName: 'bash', title: 'commit', rawInput: { command: 'git commit -am wip' } }, runtimeOptions);
+    await Promise.resolve();
+    const card = f.frames.at(-1)!;
+    assert.equal(card.method, 'ask.presented');
+    const message = (card.payload as Record<string, unknown>).message as Record<string, unknown>;
+    assert.equal(message.kind, 'permission_request');
+    assert.equal(message.toolName, 'bash');
+
+    await f.host.handle(request('ask.reply', 'shared-reply', { runId: 'shared-checkout', requestId: message.requestId, decision: { allow: true } }));
+    assert.deepEqual(await pending, { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' });
+
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
+
+test('a managed worktree owns its git state and is not asked', async () => {
+  const f = await fixture();
+  try {
+    // The checkout the run was dispatched into is not the repository root, so
+    // its git state belongs to this session alone.
+    const checkout = join(f.root, 'checkout');
+    await mkdir(checkout, { recursive: true });
+    const options = { ...f.options, cwd: checkout, projectPath: f.options.cwd, permissions: { mode: 'bypass', allowAlways: [] } };
+    const run = f.host.handle(request('session.start', 'isolated-checkout', { message: 'hello', options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+
+    const runtimeOptions = [{ optionId: 'allow_once', name: 'Allow once', kind: 'allow_once' }];
+    const before = f.frames.length;
+    assert.deepEqual(
+      await session.sdkPermissionProvider!({ toolCallId: 'c1', toolName: 'bash', title: 'commit', rawInput: { command: 'git commit -am wip' } }, runtimeOptions),
+      { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' },
+    );
+    assert.equal(f.frames.slice(before).some((frame) => frame.method === 'ask.presented'), false);
+
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
+
 test('a malformed permissions block fails the run before the factory is invoked', async () => {
   const f = await fixture();
   try {

@@ -156,6 +156,10 @@
     "builtinBrowser": { "title": "Yerleşik tarayıcı", "description": "Seçilen GJC arka ucundan bağımsız olarak yerleşik tarayıcıyı genişliği ayarlanabilir sağ panelde açın.", "label": "Yerleşik tarayıcı", "note": "Yalnızca macOS masaüstü uygulamasında kullanılabilir. Kapatılana kadar tarayıcının sahibi bir oturumdur. HTTP(S) sohbet bağlantıları her zaman harici tarayıcıda açılır.", "open": "Tarayıcıyı aç", "opened": "Yerleşik tarayıcı açıldı.", "failed": "Tarayıcı açılamadı.", "errors": { "busy": "Yerleşik tarayıcı zaten kullanımda. Bu oturum için açmadan önce kapatın.", "unavailable": "Yerleşik tarayıcı kullanılamıyor. Uygulama sunucusunun yeniden bağlanmasını bekleyip tekrar deneyin.", "invalidUrl": "Bu adres açılamıyor. Bir HTTP veya HTTPS adresi kullanın.", "stale": "İstek tamamlanmadan tarayıcı sayfası değişti. Tekrar deneyin.", "failed": "Yerleşik tarayıcı açılamadı. Tekrar deneyin." } },
     "title": "Tarayıcı ve yerel uygulamalar",
     "description": "Ayrı olarak yüklenen CUA Sürücüsünü inceleyin.",
+    "computerUse": {
+      "label": "Bilgisayar kullanımı",
+      "description": "Aracının bu Mac’teki yerel uygulamaları CUA Driver üzerinden yönetmesine izin verir. Varsayılan olarak kapalıdır: siz açana kadar hiçbir oturuma bilgisayar aracı sunulmaz ve her bilgisayar çağrısı reddedilir. Yeniden kapattığınızda araç yeni oturumlara sunulmaz."
+    },
     "notInstalled": "Kullanılamıyor",
     "installGuide": "Kurulum talimatları",
     "accessibility": "Erişilebilirlik",

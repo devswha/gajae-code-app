@@ -19,6 +19,16 @@ import {
   createBrowserDesktopRestartReader, createComputerDesktopRestartReader,
 } from './automation.service.js';
 import { CuaDriverClient } from './cua-client.js';
+import { ComputerUseStore } from './computer-use.js';
+
+/** Computer use is off by default (#131); these tests exercise live computer work, so it is on. */
+function withComputerUse(service: AutomationService): AutomationService {
+  const values = new Map<string, string>();
+  const store = new ComputerUseStore({ get: (key) => values.get(key) ?? null, set: (key, value) => { values.set(key, value); } });
+  store.set(true);
+  Object.defineProperty(service, 'computerUse', { value: store });
+  return service;
+}
 
 class Admission implements DesktopWorkAdmission {
   fenced = false;
@@ -148,7 +158,7 @@ test('CUA client rejects unsupported or unknown schemas before tool dispatch', a
 test('all three readers are pure, complete for healthy unused owners, and independent snapshots', async (t) => {
   const fixture = children(t);
   const admission = new Admission();
-  const service = new AutomationService();
+  const service = withComputerUse(new AutomationService());
   configureDesktopRestartAdmission(admission, service);
   const readers = [createAutomationDesktopRestartReader(service), createBrowserDesktopRestartReader(service.browser), createComputerDesktopRestartReader(service)];
   for (const reader of readers) {
@@ -168,7 +178,7 @@ test('fenced direct service and client producers reject before startup, label cr
   environment(t, { GAJAE_AUTOMATION: '1', CUA_DRIVER_PATH: process.execPath });
   const fixture = children(t);
   const admission = new Admission();
-  const service = new AutomationService(admission);
+  const service = withComputerUse(new AutomationService(admission));
   admission.fenced = true;
   const generation = service.getGeneration();
   const operations = [
@@ -196,7 +206,7 @@ test('CUA named session ownership survives cancellation and is released by late 
   environment(t, { GAJAE_AUTOMATION: '1', CUA_DRIVER_PATH: process.execPath });
   const fixture = children(t);
   const admission = new Admission();
-  const service = new AutomationService(admission);
+  const service = withComputerUse(new AutomationService(admission));
   const start = service.callComputer('session', 'start_session', {});
   assert.equal(service.snapshotActivity().retained, 1, 'session label is owned before executable lookup');
   assert.ok(service.cua.snapshotActivity().starting > 0);
@@ -257,7 +267,7 @@ test('CUA timed-out requests survive transport exit and replacement at the same 
 
 test('failed computer cleanup retains its label and a retry can prove healthy idle', async (t) => {
   environment(t, { GAJAE_AUTOMATION: '1' });
-  const service = new AutomationService();
+  const service = withComputerUse(new AutomationService());
   let failEnd = true;
   service.cua.call = async (tool) => tool === 'end_session' && failEnd
     ? { isError: true, content: [{ text: 'cleanup failed' }] } : { ok: true };
@@ -273,7 +283,7 @@ test('failed computer cleanup retains its label and a retry can prove healthy id
 test('computer close waits for an already-owned session start instead of forgetting its label', async (t) => {
   environment(t, { GAJAE_AUTOMATION: '1', CUA_DRIVER_PATH: process.execPath });
   const fixture = children(t);
-  const service = new AutomationService();
+  const service = withComputerUse(new AutomationService());
   const start = service.callComputer('session', 'start_session', {});
   const end = service.callComputer('session', 'end_session', {});
   const child = await initializeCua(fixture);
@@ -320,7 +330,7 @@ async function bridge(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), 'automation-admission-'));
   environment(t, { GAJAE_AUTOMATION: '1', GAJAE_AUTOMATION_SOCKET: join(directory, 'bridge.sock') });
   const admission = new Admission();
-  const service = new AutomationService(admission);
+  const service = withComputerUse(new AutomationService(admission));
   await service.startBridge();
   const socket = net.createConnection(process.env.GJC_AUTOMATION_SOCKET!);
   await once(socket, 'connect');

@@ -8,6 +8,7 @@ export {
   createAutomationDesktopRestartReader, createBrowserDesktopRestartReader, createComputerDesktopRestartReader,
 } from './automation.service.js';
 export { BrowserBackendStore, browserBackendStore, resolveGjcBrowserBackend } from './browser-backend.js';
+export { ComputerUseStore, computerUseStore, resolveGjcComputerUse } from './computer-use.js';
 export {
   EgoActivityReader, EgoActivityStore, egoActivityReader, egoActivityStore,
   type EgoActivityResponse,

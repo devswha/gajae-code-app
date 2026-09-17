@@ -236,7 +236,12 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   selectable only on macOS; Built-in remains macOS desktop-only; see
   `docs/BUILTIN-BROWSER.md`. See `docs/BROWSER-ASIDE-POC.md`,
   `docs/BROWSER-EGO-POC.md` and the "Browser backend" section of
-  `server/GJC-LIVE-SPEC.md`.
+  `server/GJC-LIVE-SPEC.md`. **Computer use (CUA Driver) is off by default**
+  (owner decision 2026-09-18, #131): `Settings > Automation > Computer use`
+  is a server-owned opt-in (`automation.computerUse.v1`); while it is off the
+  worker never offers the `computer` tool and the automation service refuses
+  every computer call. Do not add a path that offers or calls `computer`
+  without going through that setting.
 - **Chat tool cards follow the runtime, not Claude**: `src/components/chat/tools/configs/toolConfigs.ts`
   is keyed by the tool's own lowercase name (`bash`, `read`, `edit`, `todo_write`), and
   its accessors read the runtime's parameter schema. `server/gjc-tool-configs.bun.test.ts`

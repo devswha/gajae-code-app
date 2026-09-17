@@ -8,6 +8,7 @@ import test from 'node:test';
 
 import { AutomationGrantStore } from './automation-grants.js';
 import { AutomationService, automationSupport } from './automation.service.js';
+import { ComputerUseStore } from './computer-use.js';
 
 function memoryStorage() {
   const values = new Map<string, string>();
@@ -15,6 +16,18 @@ function memoryStorage() {
     get: (key: string) => values.get(key) ?? null,
     set: (key: string, value: string) => { values.set(key, value); },
   };
+}
+
+/**
+ * Computer use is an opt-in that is off by default (#131). These tests are
+ * about what a session may do once the user turned it on, so they turn it on;
+ * the default and its refusal have their own test below.
+ */
+function withComputerUse(service: AutomationService, enabled = true): AutomationService {
+  const store = new ComputerUseStore(memoryStorage());
+  store.set(enabled);
+  Object.defineProperty(service, 'computerUse', { value: store });
+  return service;
 }
 
 test('only macOS desktop is a native browser candidate and CUA retains its own platform policy', () => {
@@ -55,7 +68,7 @@ test('starting on an occupied Unix socket fails without disconnecting its existi
   const previous = { GAJAE_AUTOMATION: process.env.GAJAE_AUTOMATION, GAJAE_AUTOMATION_SOCKET: process.env.GAJAE_AUTOMATION_SOCKET };
   Object.assign(process.env, { GAJAE_AUTOMATION: '1', GAJAE_AUTOMATION_SOCKET: socket });
   try {
-    const service = new AutomationService();
+    const service = withComputerUse(new AutomationService());
     await assert.rejects(service.startBridge(), { code: 'EADDRINUSE' });
     await service.shutdown();
     const client = net.createConnection(socket);
@@ -76,7 +89,7 @@ test('shutdown closes idle automation clients instead of waiting forever for the
   const socket = join(directory, 'automation.sock');
   const previous = { GAJAE_AUTOMATION: process.env.GAJAE_AUTOMATION, GAJAE_AUTOMATION_SOCKET: process.env.GAJAE_AUTOMATION_SOCKET };
   Object.assign(process.env, { GAJAE_AUTOMATION: '1', GAJAE_AUTOMATION_SOCKET: socket });
-  const service = new AutomationService();
+  const service = withComputerUse(new AutomationService());
   let client: net.Socket | undefined;
   try {
     await service.startBridge();
@@ -100,7 +113,7 @@ test('browser authorization is origin-scoped and can persist for one session', a
   const previous = process.env.GAJAE_AUTOMATION;
   process.env.GAJAE_AUTOMATION = '1';
   try {
-    const service = new AutomationService();
+    const service = withComputerUse(new AutomationService());
     service.browser.status = async () => ({ state: 'ready', ready: true, engine: 'webview' });
     service.browser.state = async () => ({sessionId: 'session-a', activeTabId: null, tabs: [], binding: null, profileMode: 'persistent'});
     Object.defineProperty(service, 'grants', { value: new AutomationGrantStore(memoryStorage()) });
@@ -127,7 +140,7 @@ test('browser authorization resolves the active tab when a tool action has no UR
   const previous = process.env.GAJAE_AUTOMATION;
   process.env.GAJAE_AUTOMATION = '1';
   try {
-    const service = new AutomationService();
+    const service = withComputerUse(new AutomationService());
     service.browser.status = async () => ({ state: 'ready', ready: true, engine: 'webview' });
     const binding = { windowEpoch: 'native-window', documentEpoch: 1, origin: 'https://docs.example.test' };
     service.browser.state = async () => ({sessionId: 'session-a', activeTabId: null, tabs: [], binding: null, profileMode: 'persistent'});
@@ -153,7 +166,7 @@ test('computer authorization resolves a pid to a bundle identity and scopes the 
   const previous = process.env.GAJAE_AUTOMATION;
   process.env.GAJAE_AUTOMATION = '1';
   try {
-    const service = new AutomationService();
+    const service = withComputerUse(new AutomationService());
     Object.defineProperty(service, 'grants', { value: new AutomationGrantStore(memoryStorage()) });
     service.cua.call = async (tool) => {
       assert.equal(tool, 'list_apps');
@@ -186,7 +199,7 @@ test('computer authorization resolves a window id to its owning application', as
   const previous = process.env.GAJAE_AUTOMATION;
   process.env.GAJAE_AUTOMATION = '1';
   try {
-    const service = new AutomationService();
+    const service = withComputerUse(new AutomationService());
     Object.defineProperty(service, 'grants', { value: new AutomationGrantStore(memoryStorage()) });
     service.cua.call = async (tool) => {
       assert.equal(tool, 'list_apps');
@@ -215,7 +228,7 @@ test('computer discovery does not require an application grant', async () => {
   const previous = process.env.GAJAE_AUTOMATION;
   process.env.GAJAE_AUTOMATION = '1';
   try {
-    const service = new AutomationService();
+    const service = withComputerUse(new AutomationService());
     Object.defineProperty(service, 'grants', { value: new AutomationGrantStore(memoryStorage()) });
     assert.deepEqual(
       await service.authorizeComputer('session-a', { tool: 'list_apps', arguments: {} }),
@@ -231,7 +244,7 @@ test('stopping a session closes browser and CUA work and revokes only session gr
   const previous = process.env.GAJAE_AUTOMATION;
   process.env.GAJAE_AUTOMATION = '1';
   try {
-    const service = new AutomationService();
+    const service = withComputerUse(new AutomationService());
     const grants = new AutomationGrantStore(memoryStorage());
     Object.defineProperty(service, 'grants', { value: grants });
     grants.grant({ kind: 'origin', value: 'https://session.example', scope: 'session', sessionId: 'session-a' });
@@ -279,7 +292,7 @@ test('disconnecting an automation bridge client cancels its in-flight CUA reques
   const previousSocket = process.env.GJC_AUTOMATION_SOCKET;
   const previousToken = process.env.GJC_AUTOMATION_TOKEN;
   process.env.GAJAE_AUTOMATION = '1';
-  const service = new AutomationService();
+  const service = withComputerUse(new AutomationService());
   try {
     let markStarted!: () => void;
     let markAborted!: () => void;
@@ -334,5 +347,30 @@ test('disconnecting an automation bridge client cancels its in-flight CUA reques
     else process.env.GJC_AUTOMATION_SOCKET = previousSocket;
     if (previousToken === undefined) delete process.env.GJC_AUTOMATION_TOKEN;
     else process.env.GJC_AUTOMATION_TOKEN = previousToken;
+  }
+});
+
+test('computer use is off by default and every computer path refuses until the user turns it on', async () => {
+  const previous = process.env.GAJAE_AUTOMATION;
+  process.env.GAJAE_AUTOMATION = '1';
+  try {
+    const service = withComputerUse(new AutomationService(), false);
+    Object.defineProperty(service, 'grants', { value: new AutomationGrantStore(memoryStorage()) });
+    let driverCalls = 0;
+    service.cua.call = async () => { driverCalls += 1; return { ok: true }; };
+
+    // The platform capability is present; the opt-in alone gates the call.
+    const refused = /Computer use is off/u;
+    await assert.rejects(service.authorizeComputer('session-a', { tool: 'click', arguments: { pid: 42 } }), refused);
+    await assert.rejects(service.callComputer('session-a', 'list_apps', {}), refused);
+    await assert.rejects(service.callComputer('session-a', 'click', { pid: 42, window_id: 7 }), refused);
+    assert.equal(driverCalls, 0, 'a refused call never reaches the driver');
+
+    service.computerUse.set(true);
+    await assert.doesNotReject(service.callComputer('session-a', 'list_apps', {}));
+    assert.ok(driverCalls > 0);
+  } finally {
+    if (previous === undefined) delete process.env.GAJAE_AUTOMATION;
+    else process.env.GAJAE_AUTOMATION = previous;
   }
 });

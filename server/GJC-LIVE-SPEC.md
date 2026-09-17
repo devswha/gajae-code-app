@@ -238,6 +238,18 @@ method or frame changes; the policy travels inside existing payloads:
   persists it to the project's allow-list before forwarding the reply.
 - `ask` questions keep their `sdk-ask:` prefix and answer semantics.
 
+The `computer` tool (native application control through CUA Driver) is
+withheld unless the user turned **Settings > Automation > Computer use** on
+(owner decision 2026-09-18, #131). Off is the default on every browser
+backend. The setting is server-owned: `enrichGjcSdkRunOptions` writes
+`computerUse` from the store and overwrites anything the request carried, the
+adapter drops both the app transport and the SDK builtin name while it is
+false, and `AutomationService.requireComputerSupported` refuses every computer
+call - bridge, HTTP route or future caller - while it is off, so a session
+that somehow held the tool still could not reach the driver. Turning it off
+again withholds the tool from every new session; a running session keeps its
+tool but its calls fail from that moment.
+
 The app-owned browser and computer tool wrappers receive the same validated
 run permission mode as the SDK gate. In `bypass`, target/origin resolution still
 runs, but the extra access question is omitted without adding grants to either

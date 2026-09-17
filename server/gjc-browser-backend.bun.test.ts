@@ -103,6 +103,9 @@ async function appRun(
         createGjcAutomationTools('app-session', { select: async () => undefined }, undefined, 'ask'),
         backend,
         true,
+        // Computer use is off by default (#131); on here so the CUA transport
+        // stays a visible control for the browser-routing assertions below.
+        true,
       );
       const { session } = await createAgentSession({
         // The adapter appends the app-owned block (ego only) after the runtime defaults.

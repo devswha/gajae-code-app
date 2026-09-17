@@ -156,6 +156,10 @@
     "builtinBrowser": { "title": "内置浏览器", "description": "在可调整宽度的右侧面板中打开内置浏览器，不受所选 GJC 后端影响。", "label": "内置浏览器", "note": "仅在 macOS 桌面应用中可用。关闭前会一直保留浏览器所有权。HTTP(S) 聊天链接始终在外部浏览器中打开。", "open": "打开浏览器", "opened": "已打开内置浏览器。", "failed": "无法打开浏览器。", "errors": { "busy": "内置浏览器正在使用中。请先关闭，再为此会话打开。", "unavailable": "内置浏览器暂不可用。请等待应用服务器重新连接后再试。", "invalidUrl": "无法打开此地址。请使用 HTTP 或 HTTPS 地址。", "stale": "请求完成前浏览器页面已发生变化。请重试。", "failed": "无法打开内置浏览器。请重试。" } },
     "title": "浏览器和原生应用",
     "description": "查看单独安装的 CUA 驱动程序。",
+    "computerUse": {
+      "label": "计算机操作",
+      "description": "允许代理通过 CUA Driver 操作这台 Mac 上的原生应用。默认关闭：在你打开之前，任何会话都不会获得 computer 工具，所有计算机调用都会被拒绝。再次关闭后，新的会话将不再获得该工具。"
+    },
     "notInstalled": "不可用",
     "installGuide": "设置说明",
     "accessibility": "无障碍",

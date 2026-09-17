@@ -171,6 +171,10 @@
     },
     "title": "Browser and native applications",
     "description": "Review the separately installed CUA Driver.",
+    "computerUse": {
+      "label": "Computer use",
+      "description": "Let the agent drive native applications on this Mac through CUA Driver. Off by default: until you turn this on, no session is offered the computer tool and every computer call is refused. Turning it off again withholds the tool from every new session."
+    },
     "notInstalled": "Unavailable",
     "installGuide": "Setup instructions",
     "accessibility": "Accessibility",

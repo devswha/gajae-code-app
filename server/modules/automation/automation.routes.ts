@@ -108,6 +108,21 @@ export function createAutomationRouter(service: AutomationService = automationSe
 
   // Filesystem-only and safe to poll from Settings. It never starts the GJC
   // worker or executes ego-browser.
+  // The opt-in for driving native applications. Off by default and never
+  // turned on by a run: the worker withholds the `computer` tool while it is
+  // off, and the service refuses computer calls regardless of the worker.
+  router.get('/computer-use', asyncHandler((_request, response) => {
+    response.json({ enabled: service.computerUse.get() });
+  }));
+
+  router.put('/computer-use', asyncHandler((request, response) => {
+    try {
+      response.json({ enabled: service.computerUse.set(request.body?.enabled) });
+    } catch (error) {
+      response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid computer use setting.' });
+    }
+  }));
+
   router.get('/ego-readiness', asyncHandler((_request, response) => {
     try {
       response.json(service.egoReadiness());

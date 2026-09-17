@@ -156,6 +156,10 @@
     "builtinBrowser": { "title": "Browser integrato", "description": "Apri il browser integrato in un pannello destro ridimensionabile, indipendentemente dal backend GJC selezionato.", "label": "Browser integrato", "note": "Disponibile solo nell’app macOS. Una sessione mantiene la proprietà del browser fino alla chiusura. I link HTTP(S) della chat si aprono sempre nel browser esterno.", "open": "Apri browser", "opened": "Browser integrato aperto.", "failed": "Impossibile aprire il browser.", "errors": { "busy": "Il browser integrato è già in uso. Chiudilo prima di aprirlo per questa sessione.", "unavailable": "Il browser integrato non è disponibile. Attendi che il server dell’app si riconnetta e riprova.", "invalidUrl": "Questo indirizzo non può essere aperto. Usa un indirizzo HTTP o HTTPS.", "stale": "La pagina del browser è cambiata prima del completamento della richiesta. Riprova.", "failed": "Impossibile aprire il browser integrato. Riprova." } },
     "title": "Browser e applicazioni native",
     "description": "Controlla il CUA Driver installato separatamente.",
+    "computerUse": {
+      "label": "Controllo del computer",
+      "description": "Consente all’agente di controllare le applicazioni native di questo Mac tramite CUA Driver. Disattivato per impostazione predefinita: finché non lo attivi, nessuna sessione riceve lo strumento computer e ogni chiamata viene rifiutata. Disattivandolo, lo strumento non viene più offerto alle nuove sessioni."
+    },
     "notInstalled": "Non disponibile",
     "installGuide": "Istruzioni per l'installazione",
     "accessibility": "Accessibilità",

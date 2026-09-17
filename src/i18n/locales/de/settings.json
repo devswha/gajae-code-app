@@ -156,6 +156,10 @@
     "builtinBrowser": { "title": "Integrierter Browser", "description": "Öffnet den integrierten Browser in einem rechten Bereich mit veränderbarer Breite, unabhängig vom gewählten GJC-Backend.", "label": "Integrierter Browser", "note": "Nur in der macOS-Desktop-App verfügbar. Der Browser bleibt bis zum Schließen im Besitz einer Sitzung. HTTP(S)-Chat-Links werden immer im externen Browser geöffnet.", "open": "Browser öffnen", "opened": "Integrierter Browser geöffnet.", "failed": "Browser konnte nicht geöffnet werden.", "errors": { "busy": "Der integrierte Browser wird bereits verwendet. Schließen Sie ihn, bevor Sie ihn für diese Sitzung öffnen.", "unavailable": "Der integrierte Browser ist nicht verfügbar. Warten Sie, bis der App-Server wieder verbunden ist, und versuchen Sie es erneut.", "invalidUrl": "Diese Adresse kann nicht geöffnet werden. Verwenden Sie eine HTTP- oder HTTPS-Adresse.", "stale": "Die Browserseite hat sich vor Abschluss der Anfrage geändert. Versuchen Sie es erneut.", "failed": "Der integrierte Browser konnte nicht geöffnet werden. Versuchen Sie es erneut." } },
     "title": "Browser und native Anwendungen",
     "description": "Überprüfen Sie den separat installierten CUA Driver.",
+    "computerUse": {
+      "label": "Computersteuerung",
+      "description": "Erlaubt dem Agenten, native Anwendungen auf diesem Mac über den CUA Driver zu steuern. Standardmäßig aus: Bis Sie es einschalten, erhält keine Sitzung das Computer-Werkzeug und jeder Computeraufruf wird abgelehnt. Nach dem Ausschalten erhält keine neue Sitzung das Werkzeug mehr."
+    },
     "notInstalled": "Nicht verfügbar",
     "installGuide": "Einrichtungsanweisungen",
     "accessibility": "Barrierefreiheit",

@@ -146,3 +146,33 @@ test('the runtime-reported directory wins over the execution path once the sessi
   assert.match(directory.textContent ?? '', /: job-one$/);
   assert.equal(screen.queryByTitle('/work/alpha'), null);
 });
+
+/*
+ * The tier is the one run fact that changes what a turn costs, and until it
+ * reached this section the app could not report it at all. Absent has to keep
+ * meaning absent: the runtime omitting `service_tier` is its own default, and a
+ * row invented for it would claim a tier the request never carried.
+ */
+
+test('the resolved service tier is reported once the session reports one', async () => {
+  answer(status());
+  const snapshot: SessionStatusSnapshot = { ...EMPTY_SESSION_STATUS, sessionId: 'session-1', serviceTier: 'priority' };
+  render(createElement(SessionStatusProvider, null,
+    createElement(Publisher, { snapshot }, environment())));
+
+  await screen.findByText('main');
+
+  const tier = screen.getByTitle('priority');
+  assert.match(tier.textContent ?? '', /agentSidebar\.environment\.serviceTier: priority$/);
+});
+
+test('a session that reports no tier renders no tier row', async () => {
+  answer(status());
+  const snapshot: SessionStatusSnapshot = { ...EMPTY_SESSION_STATUS, sessionId: 'session-1' };
+  render(createElement(SessionStatusProvider, null,
+    createElement(Publisher, { snapshot }, environment())));
+
+  await screen.findByText('main');
+
+  assert.equal(screen.queryByText(/agentSidebar\.environment\.serviceTier/), null);
+});

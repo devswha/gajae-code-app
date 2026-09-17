@@ -9,6 +9,7 @@ import { cn } from '../../../utils/cn';
 import type { ProviderModelOption } from '../../../types/app';
 
 import {
+  isReasoningEffort,
   REASONING_EFFORT_LABELS,
   REASONING_EFFORT_OPTIONS,
   type ReasoningEffort,
@@ -185,7 +186,7 @@ export function reasoningOptionsForModel(
   const supported = model?.effort?.values
     .map((option) => option.value)
     .filter((value): value is ReasoningEffort =>
-      value !== 'default' && value !== 'off' && value in REASONING_EFFORT_LABELS,
+      value !== 'default' && value !== 'off' && isReasoningEffort(value),
     ) ?? [];
   return supported.length > 0 ? ['default', 'off', ...new Set(supported)] : [];
 }
@@ -197,8 +198,8 @@ export function displayedReasoningEffort(
 ): ReasoningEffort {
   if (selected !== 'default') return selected;
   const runtimeDefault = modelOptions.find((option) => option.value === modelId)?.effort?.default;
-  return runtimeDefault && runtimeDefault in REASONING_EFFORT_LABELS
-    ? runtimeDefault as ReasoningEffort
+  return runtimeDefault && isReasoningEffort(runtimeDefault)
+    ? runtimeDefault
     : selected;
 }
 

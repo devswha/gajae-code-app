@@ -59,6 +59,43 @@ export function isJobProjectionInboundFrame(value: unknown): value is JobProject
   if (value.type === 'gjc.job.replay') return isJobIdentifier(value.subscriptionId) && isJobSequence(value.after) && (value.byteBudget === undefined || isJobSequence(value.byteBudget));
   return value.type === 'gjc.job.unsubscribe' && isJobIdentifier(value.subscriptionId);
 }
+/**
+ * The public shape of a job snapshot.
+ *
+ * The authority's own record carries execution internals - the lease owner and
+ * generation, the dispatch checkpoint - that exist to fence one dispatcher
+ * against another. A browser has no use for them and a leaked lease is
+ * material for a caller trying to drive the authority directly, so the wire
+ * snapshot is built field by field instead of forwarding the record.
+ */
+export function toPublicJobSnapshot(value: unknown): JobSnapshot | null {
+  if (!object(value) || !isJobIdentifier(value.jobId) || typeof value.state !== 'string') return null;
+  const run = object(value.currentRun) ? value.currentRun : null;
+  const text = (field: unknown): string | undefined => (typeof field === 'string' ? field : undefined);
+  const optional = <T>(key: string, field: T | undefined): Record<string, T> => (field === undefined ? {} : { [key]: field } as Record<string, T>);
+  return {
+    jobId: value.jobId,
+    provider: 'gjc',
+    state: value.state as JobState,
+    lastSequence: isJobSequence(value.lastSequence) ? value.lastSequence : 0,
+    ...optional('createdAt', text(value.createdAt)),
+    ...(value.prompt === null || typeof value.prompt === 'string' ? { prompt: value.prompt } : {}),
+    ...optional('worktreeId', text(value.worktreeId)),
+    ...optional('branch', text(value.branch)),
+    ...optional('repositoryRoot', text(value.repositoryRoot)),
+    ...optional('baseCommit', text(value.baseCommit)),
+    ...(run && isJobIdentifier(run.runId)
+      ? {
+        currentRun: {
+          runId: run.runId,
+          ...optional('appSessionId', text(run.appSessionId)),
+          ...optional('providerSessionId', text(run.providerSessionId)),
+        },
+      }
+      : {}),
+  };
+}
+
 export function isJobProjectionOutboundFrame(value: unknown): value is JobProjectionOutboundFrame {
   if (!object(value) || value.protocolVersion !== GJC_JOB_PROJECTION_PROTOCOL_VERSION) return false;
   if (value.kind === 'gjc_job_error') return typeof value.code === 'string' && ERROR_CODES.has(value.code as JobProjectionErrorCode) && typeof value.retryable === 'boolean' && typeof value.message === 'string';

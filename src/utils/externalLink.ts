@@ -77,6 +77,13 @@ async function openValidatedUrl(url: string | null, endpoint: string): Promise<b
  * Inside the desktop shell, every `<a target="_blank">` to an https page
  * routes through {@link openExternalUrl}; outside it the browser handles the
  * anchor itself. Returns the listener's disposer.
+ *
+ * The listener runs in the CAPTURE phase and stops propagation once it takes
+ * a link: the shell injects its own bubble-phase click handler that prevent
+ * Defaults external anchors and replays them through plugin IPC, which this
+ * shell denies for the remote loopback page — an earlier handler left ours
+ * nothing to do and every link died silently. Handling first, at capture,
+ * keeps the sidecar route alive without granting that page IPC.
  */
 export function routeExternalAnchors(root: Document): () => void {
   const onClick = (event: MouseEvent) => {
@@ -87,8 +94,9 @@ export function routeExternalAnchors(root: Document): () => void {
     const url = safeExternalUrl(anchor.href);
     if (!url) return;
     event.preventDefault();
+    event.stopImmediatePropagation();
     void openExternalUrl(url);
   };
-  root.addEventListener('click', onClick);
-  return () => root.removeEventListener('click', onClick);
+  root.addEventListener('click', onClick, true);
+  return () => root.removeEventListener('click', onClick, true);
 }

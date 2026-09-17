@@ -11,7 +11,7 @@ import type {
   TouchEvent,
 } from 'react';
 import type { DropzoneInputProps, DropzoneRootProps } from 'react-dropzone';
-import { PlusIcon, Loader2, ArrowUpIcon, ForwardIcon } from 'lucide-react';
+import { PlusIcon, Loader2, ArrowUpIcon, ForwardIcon, AlertTriangleIcon, XIcon } from 'lucide-react';
 
 import { classifyCommandInput, isAutoSendable } from '../commandDispatchPolicy';
 import { isComposerSealed, registerComposerInputValue, subscribeComposerFreeze } from '../../../shared/composerFreeze';
@@ -45,7 +45,7 @@ import CommandGateCard from './CommandGateCard';
 import AgentConfigurationPicker from './AgentConfigurationPicker';
 import ModelAndReasoningPicker from './ModelAndReasoningPicker';
 import PermissionModePicker from './PermissionModePicker';
-import ContextUsageBadge from './ContextUsageBadge';
+import ContextUsageRing from './ContextUsageRing';
 import type { ReasoningEffort } from './reasoningEffort';
 import SkillPicker from './SkillPicker';
 import WorkspaceTargetChip from './WorkspaceTargetChip';
@@ -88,6 +88,8 @@ interface ChatComposerProps {
   isDragActive: boolean;
   /** Model pinned to this session, if any; outranks the last-run model. */
   sessionPinnedModel?: string | null;
+  /** The run-location control, rendered first among the composer tools. */
+  sessionLocationControl?: ReactNode;
   queuedDrafts: QueuedDraft[];
   onEditQueuedDraft: (index: number) => void;
   onDeleteQueuedDraft: (index: number) => void;
@@ -97,8 +99,8 @@ interface ChatComposerProps {
   onCancelCommandGate: () => void;
   attachedImages: File[];
   onRemoveImage: (index: number) => void;
-  uploadingImages: Map<string, number>;
-  imageErrors: Map<string, string>;
+  attachmentNotice: string | null;
+  onDismissAttachmentNotice: () => void;
   showFileDropdown: boolean;
   filteredFiles: MentionableFile[];
   selectedFileIndex: number;
@@ -166,6 +168,7 @@ export default function ChatComposer({
   onSteer,
   isDragActive,
   sessionPinnedModel,
+  sessionLocationControl,
   queuedDrafts,
   onEditQueuedDraft,
   onDeleteQueuedDraft,
@@ -175,8 +178,8 @@ export default function ChatComposer({
   onCancelCommandGate,
   attachedImages,
   onRemoveImage,
-  uploadingImages,
-  imageErrors,
+  attachmentNotice,
+  onDismissAttachmentNotice,
   showFileDropdown,
   filteredFiles,
   selectedFileIndex,
@@ -412,22 +415,35 @@ export default function ChatComposer({
                     d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                   />
                 </svg>
-                <p className="text-sm font-medium">Drop images here</p>
+                <p className="text-sm font-medium">{t('input.attachment.dropHere')}</p>
               </div>
             </div>
+          )}
+          {attachmentNotice && (
+            <PromptInputHeader>
+              {/* A refused attachment is reported here. The desktop open panel
+                  ignores `accept`, so the composer is handed files it cannot
+                  take, and discarding them silently reads as a broken button. */}
+              <div role="status" className="flex w-full items-start gap-2 rounded-xl border border-border bg-muted px-3 py-2 text-xs text-foreground">
+                <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
+                <span className="flex-1">{attachmentNotice}</span>
+                <button
+                  type="button"
+                  onClick={onDismissAttachmentNotice}
+                  aria-label={t('input.attachment.dismiss')}
+                  className="shrink-0 rounded-md p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <XIcon className="size-3.5" aria-hidden="true" />
+                </button>
+              </div>
+            </PromptInputHeader>
           )}
           {attachedImages.length > 0 && (
             <PromptInputHeader>
               <div className="rounded-xl bg-muted/40 p-2">
                 <div className="flex flex-wrap gap-2">
                   {attachedImages.map((file, index) => (
-                    <ImageAttachment
-                      key={index}
-                      file={file}
-                      onRemove={() => onRemoveImage(index)}
-                      uploadProgress={uploadingImages.get(file.name)}
-                      error={imageErrors.get(file.name)}
-                    />
+                    <ImageAttachment key={index} file={file} onRemove={() => onRemoveImage(index)} />
                   ))}
                 </div>
               </div>
@@ -463,7 +479,7 @@ export default function ChatComposer({
         <PromptInputFooter className="flex-wrap items-end gap-y-1">
           {/*
             Wraps rather than clips. This row carries attach, voice, two model
-            controls, skills and context usage; `overflow-hidden` meant a narrow
+            controls and skills; `overflow-hidden` meant a narrow
             viewport silently cut the trailing ones off with nothing to show
             that they existed. Wrapping costs a second line on narrow screens
             and keeps every control reachable. Keep metadata-dependent slots
@@ -471,6 +487,8 @@ export default function ChatComposer({
             can wrap separately when a split pane leaves too little room.
           */}
           <PromptInputTools className="min-w-32 flex-1 basis-0 flex-wrap gap-y-1">
+            {sessionLocationControl}
+
             <PromptInputButton
               tooltip={{ content: t('input.attachImages') }}
               onClick={openImagePicker}
@@ -522,11 +540,10 @@ export default function ChatComposer({
               onSelect={(skill, index) => onCommandSelect(skill, index, false)}
             />
 
-            <ContextUsageBadge sessionState={sessionState} onClick={onShowTokenUsage} />
-
           </PromptInputTools>
 
-          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
+          <div data-slot="prompt-input-actions" className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
+            <ContextUsageRing sessionState={sessionState} onClick={onShowTokenUsage} />
             {canSteer && (
               <PromptInputButton
                 onClick={onSteer}
@@ -566,7 +583,7 @@ export default function ChatComposer({
                   aria-label={stopLabel}
                   title={stopLabel}
                   data-run-control="stop"
-                  className="h-10 w-10 bg-foreground text-background shadow-sm hover:bg-foreground/90 active:bg-foreground/80 sm:h-10 sm:w-10"
+                  className="bg-foreground text-background shadow-sm hover:bg-foreground/90 active:bg-foreground/80"
                 />
               </Tooltip>
             ) : (
@@ -584,7 +601,6 @@ export default function ChatComposer({
                 aria-label={t('input.send')}
                 title={t('input.send')}
                 data-run-control="send"
-                className="h-10 w-10 sm:h-10 sm:w-10"
               >
                 {isVoiceBusy ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

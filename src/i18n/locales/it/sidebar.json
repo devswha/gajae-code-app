@@ -2,7 +2,6 @@
   "projects": {
     "title": "Spazi di lavoro",
     "newProject": "Aggiungi progetto",
-    "deleteProject": "Rimuovere l'area di lavoro",
     "renameProject": "Rinominare l'area di lavoro",
     "noProjects": "Ancora nessuno spazio di lavoro",
     "addFirst": "Aggiungine uno",
@@ -18,6 +17,7 @@
     "newTask": "Nuovo oggetto di lavoro",
     "newSession": "Inizia la conversazione",
     "deleteSession": "Elimina conversazione",
+    "archiveSession": "Archivia conversazione",
     "renameSession": "Rinomina conversazione",
     "regenerateTitle": "Rigenera titolo",
     "exportSession": "Esporta Markdown",
@@ -36,7 +36,7 @@
     "createSession": "Inizia una conversazione",
     "refresh": "Ricarica progetti e conversazioni (Ctrl+R)",
     "renameProject": "Rinomina area di lavoro (F2)",
-    "deleteProject": "Rimuovi questo progetto dalla barra laterale (Elimina)",
+    "archiveProject": "Sposta questo progetto nell'archivio (non viene eliminato nulla)",
     "addToFavorites": "Segna come preferito",
     "removeFromFavorites": "Rimuovi il contrassegno preferito",
     "editSessionName": "Modifica il nome della conversazione",
@@ -84,14 +84,16 @@
     "renameSessionError": "Si è verificato un errore di ridenominazione della conversazione. Riprova.",
     "regenerateTitleFailed": "Impossibile rigenerare il titolo. Riprova.",
     "exportSessionError": "Impossibile esportare la conversazione. Riprova.",
-    "deleteProjectFailed": "Impossibile rimuovere il progetto. Riprova.",
-    "deleteProjectError": "Si è verificato un errore di rimozione del progetto. Riprova.",
+    "archiveProjectFailed": "Impossibile archiviare il progetto. Riprova.",
+    "archiveProjectError": "Si è verificato un errore di archiviazione del progetto. Riprova.",
     "updateProjectError": "Si è verificato un errore di aggiornamento del progetto. Riprova.",
     "refreshError": "Impossibile aggiornare. Riprova.",
     "restoreProjectFailed": "Impossibile ripristinare il progetto. Riprova.",
     "restoreProjectError": "Si è verificato un errore di ripristino del progetto. Riprova.",
     "restoreSessionFailed": "Impossibile ripristinare la conversazione. Riprova.",
     "restoreSessionError": "Si è verificato un errore di ripristino della conversazione. Riprova.",
+    "archiveSessionFailed": "Impossibile archiviare la conversazione. Riprova.",
+    "archiveSessionError": "Si è verificato un errore di archiviazione della conversazione. Riprova.",
     "debugInfoError": "Impossibile copiare le informazioni di debug."
   },
   "providerQuota": {
@@ -111,11 +113,7 @@
     "updateAvailable": "Nuovo aggiornamento disponibile"
   },
   "deleteConfirmation": {
-    "deleteProject": "Rimuovere l'area di lavoro",
     "deleteSession": "Elimina conversazione",
-    "confirmDelete": "Scegli cosa fare con",
-    "sessionCount_one": "C'è una conversazione {{count}} in questo progetto.",
-    "sessionCount_other": "Ci sono conversazioni {{count}} in questo progetto.",
-    "deleteAllData": "Cancella definitivamente tutti i dati"
+    "confirmDelete": "Scegli cosa fare con"
   }
 }

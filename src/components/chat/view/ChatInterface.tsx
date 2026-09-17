@@ -11,6 +11,7 @@ import { useLegacySkipPermissionsMigration, useProjectPermissions } from '../../
 import type { ProjectSession } from '../../../types/app';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useSessionLocation } from '../hooks/useSessionLocation';
+import { useProjectGitSummary } from '../../workspace/hooks/useProjectGitSummary';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatSessionState } from '../hooks/useChatSessionState';
@@ -21,16 +22,12 @@ import { deriveLiveActivity } from '../utils/toolActivity';
 import OAuthLoginDialog from '../OAuthLoginDialog';
 import { useGoalControls } from '../hooks/useGoalControls';
 
+import SessionWorktreePicker from './SessionWorktreePicker';
 import GoalControls from './GoalControls';
 import ChatComposer from './ChatComposer';
 import ChatMessagesPane from './ChatMessagesPane';
-import ChatTasksPanel from './ChatTasksPanel';
 import CommandResultModal from './CommandResultModal';
-import type { ReasoningEffort } from './reasoningEffort';
-
-const REASONING_EFFORTS = new Set<ReasoningEffort>([
-  'default', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max',
-]);
+import { isReasoningEffort, readReasoningEffort, rememberReasoningEffort, type ReasoningEffort } from './reasoningEffort';
 
 function ComposerSurface(props: ComponentProps<typeof ChatComposer>) {
   return <ChatComposer {...props} />;
@@ -78,7 +75,7 @@ function ChatInterface({
   const oauthLogin = useOAuthLogin();
   const projectPermissions = useProjectPermissions(selectedProject?.projectId);
   useLegacySkipPermissionsMigration(selectedProject?.projectId, projectPermissions.setMode);
-  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>('default');
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(readReasoningEffort);
   const reasoningSessionRef = useRef<string | null>(selectedSession?.id ?? null);
 
   useEffect(() => {
@@ -92,7 +89,15 @@ function ChatInterface({
   });
 
   const { setCurrentSessionId } = session;
-  const sessionLocation = useSessionLocation(selectedSession?.id ?? session.currentSessionId);
+  const locationSessionId = selectedSession?.id ?? session.currentSessionId;
+  const sessionLocation = useSessionLocation(locationSessionId);
+  // A managed worktree is a git worktree, so it exists only for a repository.
+  // The summary is the same query the Environment rail already runs, and it is
+  // the only thing here that knows the answer: until it does, or when it says
+  // no, the picker stays on the project so the worktree route is never called
+  // where it would simply fail.
+  const projectGit = useProjectGitSummary(selectedProject?.projectId, Boolean(selectedProject?.projectId), locationSessionId ?? undefined, selectedProject?.fullPath);
+  const projectIsRepository = projectGit.state.kind === 'ready';
   const establishSession = useCallback<NonNullable<ChatInterfaceProps['onSessionEstablished']>>((id, context) => {
     setCurrentSessionId(id);
     onSessionEstablished?.(id, context);
@@ -101,6 +106,10 @@ function ChatInterface({
 
   const composer = useChatComposerState({
     executionCwd: sessionLocation.data?.cwd,
+    // An unattended run commits, pushes and switches branches on whatever
+    // checkout it was given, so a repository session starts isolated and the
+    // user opts back into the shared checkout rather than out of it.
+    defaultUseWorktree: projectIsRepository,
     selectedProject,
     selectedSession,
     currentSessionId: session.currentSessionId,
@@ -137,15 +146,21 @@ function ChatInterface({
   useEffect(() => {
     const prior = reasoningSessionRef.current;
     const selected = selectedSession?.id ?? null;
-    if (prior && prior !== selected) setReasoningEffort('default');
+    // Leaving a session drops the level its run reported, not the user's own
+    // choice: the composer sends its effort with every message, so what it
+    // shows for the next session is the standing choice, not "Default".
+    if (prior && prior !== selected) setReasoningEffort(readReasoningEffort());
     reasoningSessionRef.current = selected;
   }, [selectedSession?.id]);
 
+  const chooseReasoningEffort = useCallback((value: ReasoningEffort) => {
+    rememberReasoningEffort(value);
+    setReasoningEffort(value);
+  }, []);
+
   useEffect(() => {
     const serverValue = session.sessionState?.thinkingLevel;
-    if (typeof serverValue === 'string' && REASONING_EFFORTS.has(serverValue as ReasoningEffort)) {
-      setReasoningEffort(serverValue as ReasoningEffort);
-    }
+    if (typeof serverValue === 'string' && isReasoningEffort(serverValue)) setReasoningEffort(serverValue);
   }, [session.sessionState?.thinkingLevel]);
 
   const reconnectChat = useCallback(async () => {
@@ -246,6 +261,9 @@ function ChatInterface({
       onSteer={composer.handleSteer}
       isDragActive={composer.isDragActive}
       sessionPinnedModel={sessionPinnedModel}
+      sessionLocationControl={projectIsRepository || locationSessionId
+        ? <SessionWorktreePicker value={composer.useWorktree} onChange={composer.setUseWorktree} sessionId={locationSessionId} location={sessionLocation.data} disabled={session.isProcessing} />
+        : null}
       queuedDrafts={composer.queuedDrafts}
       onEditQueuedDraft={composer.editQueuedDraft}
       onDeleteQueuedDraft={composer.deleteQueuedDraft}
@@ -255,8 +273,8 @@ function ChatInterface({
       onCancelCommandGate={composer.cancelCommandGate}
       attachedImages={composer.attachedImages}
       onRemoveImage={(index) => composer.setAttachedImages((images) => images.filter((_, imageIndex) => imageIndex !== index))}
-      uploadingImages={composer.uploadingImages}
-      imageErrors={composer.imageErrors}
+      attachmentNotice={composer.attachmentNotice}
+      onDismissAttachmentNotice={composer.dismissAttachmentNotice}
       showFileDropdown={composer.showFileDropdown}
       filteredFiles={composer.filteredFiles}
       selectedFileIndex={composer.selectedFileIndex}
@@ -294,7 +312,7 @@ function ChatInterface({
       modelPickerOpenTrigger={composer.modelPickerTrigger}
       onSelectModelPreset={(model) => selectProviderModel('gjc', model, session.currentSessionId || selectedSession?.id || null)}
       reasoningEffort={reasoningEffort}
-      onSelectReasoningEffort={setReasoningEffort}
+      onSelectReasoningEffort={chooseReasoningEffort}
       permissions={projectPermissions.permissions}
       onSelectPermissionMode={projectPermissions.setMode}
       permissionsBusy={projectPermissions.isSettingMode}
@@ -310,7 +328,6 @@ function ChatInterface({
     <PermissionContext.Provider value={permissionContextValue}>
       <div className="flex h-full min-h-0 flex-col">
         {!historicalSession && (session.currentSessionId || selectedSession?.id) && <GoalControls key={`${selectedProject.projectId}:${session.currentSessionId ?? selectedSession?.id}`} {...goalControls} />}
-        <ChatTasksPanel sessionId={selectedSession?.id ?? session.currentSessionId ?? undefined} sessionStore={sessionStore} />
         {showLanding ? (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-[10vh] sm:px-6">
             <div className="w-full max-w-184">
@@ -327,6 +344,7 @@ function ChatInterface({
           <>
             <ChatMessagesPane
               scrollContainerRef={session.scrollContainerRef}
+              attachScrollContainer={session.attachScrollContainer}
               preserveScrollPosition={session.isUserScrolledUp && !session.isLoadingSessionMessages}
               onWheel={session.handleScroll}
               onTouchMove={session.handleScroll}

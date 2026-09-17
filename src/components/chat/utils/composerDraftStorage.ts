@@ -35,10 +35,18 @@ export const COMPOSER_STORAGE_LIMITS = {
   fileBytes: 5 * 1024 * 1024,
   optionsLength: 16 * 1024,
   timeoutMs: 2000,
+  settleGraceMs: 500,
+  attempts: 3,
 } as const;
 
 export class ComposerStorageError extends Error {
-  constructor(public readonly reason: 'unavailable' | 'quota' | 'limit' | 'invalid' | 'conflict' | 'timeout' | 'storage', public readonly cause?: unknown) {
+  constructor(
+    public readonly reason: 'unavailable' | 'quota' | 'limit' | 'invalid' | 'conflict' | 'timeout' | 'storage',
+    public readonly cause?: unknown,
+    /** Set only where the backend provably committed nothing, so replaying the
+     * attempt can neither duplicate a write nor overwrite a newer revision. */
+    public readonly retryable = false,
+  ) {
     super(`Composer draft storage: ${reason}`);
     this.name = 'ComposerStorageError';
   }
@@ -196,7 +204,8 @@ async function openDatabase(): Promise<IDBDatabase> {
     let finished = false;
     const request = indexedDB.open(DATABASE, 1);
     const fail = (error: unknown) => { finished = true; clearTimeout(timer); reject(error); };
-    const timer = setTimeout(() => fail(new ComposerStorageError('timeout')), COMPOSER_STORAGE_LIMITS.timeoutMs);
+    // An open request that never answered owns no connection and wrote nothing.
+    const timer = setTimeout(() => fail(new ComposerStorageError('timeout', undefined, true)), COMPOSER_STORAGE_LIMITS.timeoutMs);
     request.onblocked = () => fail(new ComposerStorageError('unavailable'));
     request.onerror = () => fail(request.error);
     request.onupgradeneeded = () => {
@@ -219,26 +228,59 @@ function transactionResult<T>(db: IDBDatabase, transaction: IDBTransaction, work
   return new Promise((resolve, reject) => {
     let value: T;
     let failure: unknown;
-    const timer = setTimeout(() => {
-      failure = new ComposerStorageError('timeout');
-      try { transaction.abort(); } catch { /* Already completed; never acknowledge from this timer. */ }
+    let timer: ReturnType<typeof setTimeout>;
+    const finish = () => { clearTimeout(timer); db.close(); };
+    // A stall is a storage failure only while the transaction can still be
+    // aborted: the abort proves nothing was committed, so the attempt is safe to
+    // replay. A transaction that refuses to abort is already committing or
+    // finished, and a blocked main thread merely delayed the event that says so,
+    // so wait for that event instead of inventing a durability failure. Waiting
+    // is still bounded, and it never acknowledges without an actual completion.
+    const expire = () => {
+      try { transaction.abort(); } catch {
+        timer = setTimeout(() => { failure = new ComposerStorageError('timeout'); db.close(); reject(failure); }, COMPOSER_STORAGE_LIMITS.settleGraceMs);
+        return;
+      }
+      failure = new ComposerStorageError('timeout', undefined, true);
       db.close();
       reject(failure);
-    }, COMPOSER_STORAGE_LIMITS.timeoutMs);
-    const finish = () => { clearTimeout(timer); db.close(); };
+    };
+    timer = setTimeout(expire, COMPOSER_STORAGE_LIMITS.timeoutMs);
     transaction.oncomplete = () => { finish(); if (failure) reject(failure); else resolve(value); };
     transaction.onabort = () => { finish(); reject(failure ?? transaction.error ?? new ComposerStorageError('storage')); };
-    const fail = (error: unknown) => { failure = error; transaction.abort(); };
+    const fail = (error: unknown) => { failure = error; try { transaction.abort(); } catch { /* Already settled; its own event reports `failure`. */ } };
     try { work((next) => { value = next; }, fail); } catch (error) { fail(error); }
+  });
+}
+
+/** WebKit can leave an open request or a transaction pending while its storage
+ * process wakes up, and a busy main thread delays every IndexedDB event past a
+ * wall-clock budget. A stall that provably committed nothing is replayed rather
+ * than reported as an unsaved draft. File copying is deliberately excluded: a
+ * Blob that cannot be read once is revoked, not busy. */
+async function withStallRetries<T>(work: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try { return await work(); } catch (error) {
+      if (attempt >= COMPOSER_STORAGE_LIMITS.attempts || !(error instanceof ComposerStorageError) || !error.retryable) throw error;
+    }
+  }
+}
+
+/** One connection per attempt: a replayed stall never reuses a wedged handle. */
+function runTransaction<T>(mode: IDBTransactionMode, options: IDBTransactionOptions | undefined, work: (transaction: IDBTransaction, set: (value: T) => void, fail: (error: unknown) => void) => void): Promise<T> {
+  return withStallRetries(async () => {
+    const db = await openDatabase();
+    let transaction: IDBTransaction;
+    // Unsupported strict durability is an honest persistence failure, not a
+    // silently downgraded restart acknowledgement.
+    try { transaction = options ? db.transaction([DRAFTS, SIZES], mode, options) : db.transaction([DRAFTS, SIZES], mode); } catch (error) { db.close(); throw error; }
+    return transactionResult<T>(db, transaction, (set, fail) => work(transaction, set, fail));
   });
 }
 
 const repository: ComposerDraftRepository = {
   async load(route) {
-    const db = await openDatabase();
-    let transaction: IDBTransaction;
-    try { transaction = db.transaction([DRAFTS, SIZES], 'readonly'); } catch (error) { db.close(); throw error; }
-    const result = await transactionResult<{ record: unknown } | { empty: StoredComposerDraft }>(db, transaction, (set, fail) => {
+    const result = await runTransaction<{ record: unknown } | { empty: StoredComposerDraft }>('readonly', undefined, (transaction, set, fail) => {
       const key = composerRouteKey(route);
       const request = transaction.objectStore(DRAFTS).get(key);
       request.onsuccess = () => {
@@ -271,14 +313,7 @@ const repository: ComposerDraftRepository = {
     // If ANY active/queued attachment cannot be copied, do not open a write at all.
     const { draft, bytes } = await encodeDraft(value);
     const key = composerRouteKey(draft);
-    const db = await openDatabase();
-    let transaction: IDBTransaction;
-    try {
-      // Unsupported strict durability is an honest persistence failure, not a
-      // silently downgraded restart acknowledgement.
-      transaction = db.transaction([DRAFTS, SIZES], 'readwrite', { durability: 'strict' });
-    } catch (error) { db.close(); throw error; }
-    return transactionResult(db, transaction, (set, fail) => {
+    return runTransaction<number>('readwrite', { durability: 'strict' }, (transaction, set, fail) => {
       const sizes = transaction.objectStore(SIZES);
       let total = 0;
       let count = 0;

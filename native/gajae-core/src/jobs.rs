@@ -46,6 +46,14 @@ enum ArchiveFilter {
 }
 
 impl JobState {
+    /// Edges a lease holder may drive directly.
+    ///
+    /// `Ready -> Queued` is deliberately absent. That edge is admission: it
+    /// consumes a concurrency slot and it belongs to the session the job is
+    /// bound to, both of which `turn_admit` proves inside one transaction.
+    /// Allowing it here would let any caller that can take a lease run a job
+    /// past the configured cap, or queue a job bound to another session under
+    /// its own lease, with none of those checks.
     fn can_transition_to(self, next: Self) -> bool {
         matches!(
             (self, next),
@@ -63,7 +71,6 @@ impl JobState {
                 | (Self::Aborting, Self::Interrupted)
                 | (Self::Reserved, Self::Failed)
                 | (Self::Queued, Self::Failed)
-                | (Self::Ready, Self::Queued)
         )
     }
     fn is_terminal(self) -> bool {
@@ -261,7 +268,8 @@ impl PersistentAuthority {
     fn open(path: &Path) -> Result<Self, AuthorityError> {
         let path = validate_database_path(path)?;
         let lock = AuthorityLock::acquire(&path)?;
-        let mut connection = Connection::open(path).map_err(|_| AuthorityError::Storage)?;
+        let mut connection = Connection::open(&path).map_err(|_| AuthorityError::Storage)?;
+        restrict_to_owner(&path);
         connection
             .pragma_update(None, "journal_mode", "WAL")
             .map_err(|_| AuthorityError::Storage)?;
@@ -272,6 +280,9 @@ impl PersistentAuthority {
             .pragma_update(None, "busy_timeout", 5_000_i64)
             .map_err(|_| AuthorityError::Storage)?;
         migrate(&mut connection)?;
+        // WAL and shm appear once the journal mode is set, and they carry the
+        // same job prompts as the main database file.
+        restrict_to_owner(&path);
         let mut authority = Self {
             _lock: lock,
             connection,
@@ -321,6 +332,7 @@ impl PersistentAuthority {
         if next.is_terminal() {
             return Err(AuthorityError::InvalidTransition);
         }
+
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -1350,6 +1362,26 @@ fn snapshot_from_row(row: &rusqlite::Row<'_>) -> Result<JobSnapshot, rusqlite::E
     })
 }
 
+/// Jobs carry the prompts the owner typed, so the database must not be readable
+/// by other accounts on the machine. SQLite creates it with the process umask,
+/// which is typically `0644`. Best-effort: a mode this cannot set is not a
+/// reason to refuse to run the authority, and Windows has no POSIX mode.
+#[cfg(unix)]
+fn restrict_to_owner(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    for suffix in ["", "-wal", "-shm"] {
+        let mut target = path.as_os_str().to_owned();
+        target.push(suffix);
+        let target = PathBuf::from(target);
+        if target.exists() {
+            let _ = std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600));
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn restrict_to_owner(_path: &Path) {}
+
 fn validate_database_path(path: &Path) -> Result<PathBuf, AuthorityError> {
     if !path.is_absolute() {
         return Err(AuthorityError::Storage);
@@ -1972,6 +2004,29 @@ fn error_code(error: AuthorityError) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn the_jobs_database_is_readable_only_by_its_owner() {
+        // Jobs persist the prompts the owner typed: on a shared machine, in a
+        // backup or in a copied home directory the file mode is the only thing
+        // between those prompts and another account.
+        use std::os::unix::fs::PermissionsExt;
+        let (directory, database) = db();
+        let authority = PersistentAuthority::open(&database).unwrap();
+        for suffix in ["", "-wal", "-shm"] {
+            let mut name = database.clone().into_os_string();
+            name.push(suffix);
+            let target = std::path::PathBuf::from(name);
+            if !target.exists() {
+                continue;
+            }
+            let mode = std::fs::metadata(&target).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "{} is {mode:o}", target.display());
+        }
+        drop(authority);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn activity_is_complete_read_only_and_includes_archived_jobs_and_nonterminal_runs() {
@@ -3363,6 +3418,40 @@ mod tests {
             JobState::Ready
         );
         drop(a);
+        std::fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn a_ready_job_can_only_be_queued_through_turn_admit() {
+        // turn_admit is where the concurrency cap and the session binding are
+        // proved. A caller that can take a lease must not be able to reach the
+        // same edge with a plain transition and skip both.
+        let (d, p) = db();
+        let mut a = PersistentAuthority::open(&p).unwrap();
+        let lease = admit_test_run(&mut a);
+        a.finalize_run(
+            "j",
+            &lease,
+            "r1",
+            JobState::Succeeded,
+            "r1-final",
+            json!(null),
+        )
+        .unwrap();
+        assert_eq!(a.snapshot("j").unwrap().state, JobState::Ready);
+
+        let stolen = a.acquire("j", "another-owner").unwrap();
+        assert_eq!(
+            a.transition("j", &stolen, JobState::Queued),
+            Err(AuthorityError::InvalidTransition)
+        );
+        assert_eq!(a.snapshot("j").unwrap().state, JobState::Ready);
+        assert_eq!(
+            a.turn_admit("j", "another-session", "another-owner", "r2", 4),
+            Err(AuthorityError::InvalidTransition),
+            "a job bound to one session is not admitted for another"
+        );
+        assert_eq!(a.snapshot("j").unwrap().state, JobState::Ready);
         std::fs::remove_dir_all(d).unwrap();
     }
 

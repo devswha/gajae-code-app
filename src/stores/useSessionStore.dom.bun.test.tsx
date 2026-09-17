@@ -859,3 +859,23 @@ test('thinking reconciliation preserves repeated reasoning in a new turn and nev
     'prior-thought', 'prior-thought-2', 'prior-text', 'thinking-prose', 'local_next', 'next-thought',
   ]);
 });
+
+test('the realtime cap never evicts the message the user just sent', () => {
+  // A `local_` row exists only here until the transcript on disk catches up.
+  // A long turn pushes more than the cap through this buffer, and dropping
+  // that row makes the user's own message vanish from the open conversation.
+  const store = createStore();
+  act(() => {
+    store.appendRealtime('capped', {
+      id: 'local_user_turn', sessionId: 'capped', provider: 'gjc', kind: 'text', role: 'user',
+      content: 'the question', timestamp: '2026-01-01T00:00:00Z',
+    } as NormalizedMessage);
+    store.appendRealtimeBatch('capped', Array.from({ length: 600 }, (_, index) => ({
+      id: `assistant_${index}`, sessionId: 'capped', provider: 'gjc', kind: 'text', role: 'assistant',
+      content: `chunk ${index}`, timestamp: `2026-01-01T00:01:${String(index % 60).padStart(2, '0')}Z`,
+    } as NormalizedMessage)));
+  });
+  const realtime = store.getSessionSlot('capped')!.realtimeMessages;
+  assert.equal(realtime.length, 500, 'the cap still holds');
+  assert.ok(realtime.some((row) => row.id === 'local_user_turn'), 'the user\u2019s own message survives');
+});

@@ -86,6 +86,14 @@
       "signInRequired": "Connectez-vous à {{provider}} dans les réglages pour utiliser ce préréglage"
     },
     "attachImages": "Ajouter des images",
+    "attachment": {
+      "onlyImages": "Seules les images peuvent être jointes, {{names}} n’a donc pas été ajouté. Référencez plutôt un fichier texte avec @ ou collez son contenu.",
+      "tooLarge": "{{names}} dépasse 5 Mo.",
+      "empty": "{{names}} est vide.",
+      "tooMany": "Au plus {{count}} images peuvent être jointes, {{names}} n’a donc pas été ajouté.",
+      "dropHere": "Déposez les images ici",
+      "dismiss": "Fermer cet avis"
+    },
     "send": "Envoyer",
     "stop": "Arrêter",
     "hintText": {
@@ -266,5 +274,12 @@
       "partial": "Correspondance partielle",
       "recent": "Récemment actif"
     }
+  },
+  "sessionWorktree": {
+    "label": "Dossier d’exécution",
+    "project": "Projet",
+    "newWorktree": "Nouveau worktree",
+    "worktree": "Worktree",
+    "preparing": "Préparation du worktree"
   }
 }

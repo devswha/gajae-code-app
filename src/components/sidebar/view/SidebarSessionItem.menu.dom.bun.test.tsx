@@ -10,8 +10,9 @@ import SidebarSessionItem from './SidebarSessionItem';
 import { sidebarProjectsFixture } from './SidebarContent.testFixture';
 
 /*
- * The session row as a browser sees it: the overflow menu opening on a real
- * click, and the status marker that an accessibility snapshot cannot show.
+ * The session row as a browser sees it: the quick actions and the overflow
+ * menu reacting to real clicks, and the status marker that an accessibility
+ * snapshot cannot show.
  *
  * Both exist because a smoke test driven through an accessibility tree
  * reported them missing. That tree exposes neither `data-*` attributes nor
@@ -30,7 +31,7 @@ async function makeT(): Promise<TFunction> {
     resources: {
       en: {
         sidebar: {
-          sessions: { pin: 'Pin', unpin: 'Unpin', renameSession: 'Rename conversation', regenerateTitle: 'Regenerate title', exportSession: 'Export Markdown', deleteSession: 'Delete conversation' },
+          sessions: { pin: 'Pin', unpin: 'Unpin', archiveSession: 'Archive conversation', renameSession: 'Rename conversation', regenerateTitle: 'Regenerate title', exportSession: 'Export Markdown', deleteSession: 'Delete conversation' },
           status: { running: 'Running', needsInput: 'Waiting for your input', ready: 'Finished, not viewed yet', blocked: 'Run failed, not viewed yet' },
           tooltips: { sessionActions: 'Conversation actions', save: 'Save', cancel: 'Cancel' },
         },
@@ -42,18 +43,18 @@ async function makeT(): Promise<TFunction> {
 
 async function mountRow(
   status: SessionStatus,
-  handlers: { onRegenerateTitle?: (id: string) => void } = {},
-  { isMobile = false }: { isMobile?: boolean } = {},
+  handlers: { onRegenerateTitle?: (id: string) => void; onToggleSessionStar?: (id: string) => void; onArchiveSession?: (id: string) => void } = {},
+  { isMobile = false, isStarred = false, isProcessing = false }: { isMobile?: boolean; isStarred?: boolean; isProcessing?: boolean } = {},
 ) {
   const t = await makeT();
   const project = sidebarProjectsFixture[0];
-  const session = { ...project.sessions![0], __provider: 'gjc' as const };
+  const session = { ...project.sessions![0], __provider: 'gjc' as const, isStarred };
   const { container } = render(
     <SidebarSessionItem
       project={project}
       session={session}
       selectedSession={null}
-      isProcessing={false}
+      isProcessing={isProcessing}
       status={status}
       isMobile={isMobile}
       currentTime={new Date('2026-07-21T10:20:00.000Z')}
@@ -64,6 +65,7 @@ async function mountRow(
       onCancelEditingSession={() => {}}
       onSaveEditingSession={() => {}}
       onToggleSessionStar={() => {}}
+      onArchiveSession={() => {}}
       onExportSession={() => {}}
       onProjectSelect={() => {}}
       onSessionSelect={() => {}}
@@ -89,19 +91,49 @@ test('each row has exactly one actions button, whichever device it is on', async
   }
 });
 
-test('the desktop row is a link with a hover-revealed menu; the touch row is a tap target with the menu inline', async () => {
+test('the desktop row is a link with hover-revealed actions; the touch row is a tap target that keeps them out', async () => {
   const desktop = await mountRow('idle');
   const link = desktop.container.querySelector('a[href="/session/session-running"]');
   assert.ok(link, 'desktop rows open in a new tab through their href');
-  const desktopMenuWrapper = within(desktop.container).getByRole('button', { name: 'Conversation actions' }).closest('.absolute');
-  assert.ok(desktopMenuWrapper?.className.includes('group-hover:opacity-100'), 'the desktop menu waits for hover or focus');
+  assert.equal(link.getAttribute('aria-label'), 'Implement navigation cleanup', 'the stretched link is named by the conversation');
+  for (const name of ['Pin', 'Archive conversation', 'Conversation actions']) {
+    const action = within(desktop.container).getByRole('button', { name });
+    // The menu trigger is wrapped by its own positioning element; the plain
+    // quick actions carry the reveal themselves.
+    const revealed = [action, action.parentElement].some((node) => typeof node?.className === 'string' && node.className.includes('group-hover:opacity-100'));
+    assert.ok(revealed, `${name} waits for hover or focus`);
+  }
   cleanup();
 
   const mobile = await mountRow('idle', {}, { isMobile: true });
   assert.equal(mobile.container.querySelector('a'), null, 'the touch row is not a link');
   const mobileMenu = within(mobile.container).getByRole('button', { name: 'Conversation actions' });
-  assert.equal(mobileMenu.closest('.absolute'), null, 'the touch menu sits inline, always visible');
+  assert.equal(mobileMenu.className.includes('opacity-0'), false, 'the touch menu is always visible');
   assert.equal(mobile.container.querySelector('.hidden, .md\\:hidden'), null, 'nothing is left for CSS to hide');
+});
+
+test('pin and archive are one click on the row, and archive stays away from a live run', async () => {
+  const pinned: string[] = [];
+  const archived: string[] = [];
+  const { container, sessionId } = await mountRow('idle', {
+    onToggleSessionStar: (id) => pinned.push(id),
+    onArchiveSession: (id) => archived.push(id),
+  });
+
+  fireEvent.click(within(container).getByRole('button', { name: 'Pin' }));
+  fireEvent.click(within(container).getByRole('button', { name: 'Archive conversation' }));
+  assert.deepEqual([pinned, archived], [[sessionId], [sessionId]]);
+  // Pin and archive left the menu when they moved onto the row.
+  assert.equal(within(container).queryByRole('menuitem', { name: 'Pin' }), null);
+  cleanup();
+
+  const starred = await mountRow('idle', {}, { isStarred: true });
+  const unpin = within(starred.container).getByRole('button', { name: 'Unpin' });
+  assert.equal(unpin.className.includes('opacity-0'), false, 'a pinned row says so without being hovered');
+  cleanup();
+
+  const running = await mountRow('running', {}, { isProcessing: true });
+  assert.equal(within(running.container).queryByRole('button', { name: 'Archive conversation' }), null, 'archiving a live run would drop it mid-turn');
 });
 
 test('the row carries its status as data even when idle, and an accessible indicator only when it has something to say', async () => {
@@ -131,7 +163,7 @@ test('a click on the row menu opens it with Regenerate title in place, and the i
   assert.equal(trigger.getAttribute('aria-expanded'), 'true');
 
   const names = screen.getAllByRole('menuitem').map((item) => item.textContent);
-  assert.deepEqual(names, ['Pin', 'Rename conversation', 'Regenerate title', 'Export Markdown', 'Delete conversation']);
+  assert.deepEqual(names, ['Rename conversation', 'Regenerate title', 'Export Markdown', 'Delete conversation']);
 
   fireEvent.click(screen.getByRole('menuitem', { name: 'Regenerate title' }));
   assert.deepEqual(regenerated, [sessionId]);

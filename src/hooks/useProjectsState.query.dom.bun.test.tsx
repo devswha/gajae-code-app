@@ -386,7 +386,7 @@ test('a confirmed handoff follows the new session when it is indexed; other upse
     await waitFor(() => assert.deepEqual(harness.getState().projects[0]?.sessions?.length, 1));
 
     // An upsert for the old session while pending: not the handoff's.
-    useAppShellStore.getState().setPendingHandoff({ fromSessionId: 'session-old', projectId: 'project-1', at: Date.now() });
+    useAppShellStore.getState().setPendingHandoff({ fromSessionId: 'session-old', projectId: 'project-1', at: Date.now(), providerSessionId: 'provider-new' });
     act(() => harness.emit({
       kind: 'session_upserted', sessionId: 'session-old', provider: 'gjc',
       session: { summary: 'Before the handoff', updatedAt: '2026-01-01T00:01:00Z' },
@@ -394,9 +394,18 @@ test('a confirmed handoff follows the new session when it is indexed; other upse
     } as never));
     assert.deepEqual(navigations, []);
 
-    // The handoff's new session arrives: follow it, once.
+    // A third session created in the same project and window is not the
+    // handoff's, and must not steal the view from it.
     act(() => harness.emit({
-      kind: 'session_upserted', sessionId: 'session-new', provider: 'gjc',
+      kind: 'session_upserted', sessionId: 'session-other', provider: 'gjc', providerSessionId: 'provider-other',
+      session: { summary: 'Somebody else\u2019s new session', updatedAt: '2026-01-01T00:01:30Z' },
+      project: { projectId: 'project-1' },
+    } as never));
+    assert.deepEqual(navigations, []);
+
+    // The handoff's own successor arrives: follow it, once.
+    act(() => harness.emit({
+      kind: 'session_upserted', sessionId: 'session-new', provider: 'gjc', providerSessionId: 'provider-new',
       session: { summary: 'Untitled gjc Session', updatedAt: '2026-01-01T00:02:00Z' },
       project: { projectId: 'project-1' },
     } as never));
@@ -466,7 +475,7 @@ test('sidebar shared props contain only navigation dependencies while the hook r
       'onNewSession',
       'onSessionDelete',
       'onLoadMoreSessions',
-      'onProjectDelete',
+      'onProjectArchive',
       'onRefresh',
       'isMobile',
     ]);

@@ -55,8 +55,8 @@ const baseComposerProps = {
   onCancelCommandGate: () => undefined,
   attachedImages: [],
   onRemoveImage: () => undefined,
-  uploadingImages: new Map<string, number>(),
-  imageErrors: new Map<string, string>(),
+  attachmentNotice: null,
+  onDismissAttachmentNotice: () => undefined,
   showFileDropdown: false,
   filteredFiles: [],
   selectedFileIndex: 0,
@@ -282,7 +282,7 @@ test('commands cannot bypass their normal pipeline through the steering action',
   assert.doesNotMatch(html, /aria-label="input\.queue\.steerNow"/);
 });
 
-test('the composer shows context fullness as the single token-related control', () => {
+test('the composer shows context fullness as a ring left of the send button', () => {
   const html = renderToStaticMarkup(createElement(ChatComposer, {
     ...baseComposerProps,
     sessionState: {
@@ -293,14 +293,37 @@ test('the composer shows context fullness as the single token-related control', 
   }));
 
   assert.match(html, /aria-label="workspace\.statusTab\.context 42%"/);
-  assert.match(html, />42%<\/span>/);
+  assert.match(html, /data-context-percent="42"/);
+  // The ring is the whole readout: no percent text, no label, no token counts.
+  assert.doesNotMatch(html, />42%</);
   assert.doesNotMatch(html, /Show token usage/);
   assert.doesNotMatch(html, />tokens<\/span>/);
+
+  const ringAt = html.indexOf('data-slot="context-usage-ring"');
+  const sendAt = html.indexOf('data-run-control="send"');
+  const actionsAt = html.indexOf('data-slot="prompt-input-actions"');
+  assert.ok(ringAt >= 0 && sendAt > ringAt, 'the ring must render before the send button');
+  assert.ok(actionsAt >= 0 && ringAt > actionsAt, 'the ring belongs to the action group, not the tools row');
+});
+
+test('the send and stop buttons match the other composer controls in size', () => {
+  // The action button used to be h-10 while every toolbar control is h-8, so it
+  // towered over the row it sits in. Static markup cannot be measured; the
+  // guard is that no explicit oversize class comes back.
+  const idle = renderToStaticMarkup(createElement(ChatComposer, { ...baseComposerProps, input: 'hi' }));
+  const running = renderToStaticMarkup(createElement(ChatComposer, { ...baseComposerProps, isLoading: true }));
+
+  for (const [html, control] of [[idle, 'send'], [running, 'stop']] as const) {
+    const button = new RegExp(`<button[^>]*data-run-control="${control}"[^>]*>`).exec(html)?.[0];
+    assert.ok(button, `the composer no longer renders a ${control} button`);
+    assert.match(button, /h-8 w-8/);
+    assert.doesNotMatch(button, /h-10|w-10/);
+  }
 });
 
 test('the composer tools row wraps instead of clipping its trailing controls', () => {
-  // This row holds attach, voice, two model controls, skills and context
-  // usage. It used to carry `overflow-hidden`, so a narrow viewport cut the
+  // This row holds attach, voice, two model controls and skills. It used to
+  // carry `overflow-hidden`, so a narrow viewport cut the
   // trailing controls off with nothing indicating they were there. Layout
   // cannot be measured in a static render, so the guard is on the two classes
   // that decide it: clipping must stay gone and wrapping must stay on.

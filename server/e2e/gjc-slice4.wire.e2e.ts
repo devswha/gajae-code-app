@@ -105,6 +105,10 @@ test('wire e2e: HTTP jobs endpoints and full websocket projection matrix', { tim
   const gitService = new GjcJobGitService(jobs, () => client, async (jobId, eventId, payload) => orchestrator.appendAdminEvent(jobId, eventId, payload));
   const originalApiKey = process.env.API_KEY;
   process.env.API_KEY = 'wire-e2e-api-key';
+  // A job's project path passes the workspace gate, so this fixture's git tree
+  // is the workspace root while the test runs.
+  const originalWorkspacesRoot = process.env.WORKSPACES_ROOT;
+  process.env.WORKSPACES_ROOT = root;
   const createRuntime = () => createGjcAppFactory({
     authority,
     orchestrator,
@@ -126,7 +130,7 @@ test('wire e2e: HTTP jobs endpoints and full websocket projection matrix', { tim
   let { server, wss } = createRuntime();
   const listen = async () => { server.listen(0, '127.0.0.1'); await once(server, 'listening'); return (server.address() as any).port as number; };
   let port = await listen();
-  t.after(async () => { for (const ws of wss.clients) ws.terminate(); await new Promise<void>(resolve => wss.close(() => resolve())); await new Promise<void>(resolve => server.close(() => resolve())); jobs.close(); client.close(); await waitFor(async () => jobs.activity().settling === 0 && client.activity().settling === 0, 'native client close'); await rm(database, { force: true }); await rm(root, { recursive: true, force: true }); if (originalApiKey === undefined) delete process.env.API_KEY; else process.env.API_KEY = originalApiKey; });
+  t.after(async () => { for (const ws of wss.clients) ws.terminate(); await new Promise<void>(resolve => wss.close(() => resolve())); await new Promise<void>(resolve => server.close(() => resolve())); jobs.close(); client.close(); await waitFor(async () => jobs.activity().settling === 0 && client.activity().settling === 0, 'native client close'); await rm(database, { force: true }); await rm(root, { recursive: true, force: true }); if (originalApiKey === undefined) delete process.env.API_KEY; else process.env.API_KEY = originalApiKey; if (originalWorkspacesRoot === undefined) delete process.env.WORKSPACES_ROOT; else process.env.WORKSPACES_ROOT = originalWorkspacesRoot; });
   const request = (path: string, method = 'GET', body?: unknown, apiKey: string | null = 'wire-e2e-api-key') => fetch(`http://127.0.0.1:${port}${path}`, { method, headers: { 'content-type': 'application/json', ...(apiKey === null ? {} : { 'x-api-key': apiKey }) }, body: body === undefined ? undefined : JSON.stringify(body) });
   const connect = (apiKey: string | null = 'wire-e2e-api-key', origin?: string) => new WebSocket(`ws://127.0.0.1:${port}/ws`, {
     headers: { ...(apiKey === null ? {} : { 'x-api-key': apiKey }), ...(origin ? { origin } : {}) },

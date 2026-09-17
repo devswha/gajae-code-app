@@ -15,6 +15,8 @@ import AutomationSettingsTab from './AutomationSettingsTab';
 type Call = { path: string; method: string; body?: unknown };
 type ApiOptions = {
   backend?: 'builtin' | 'aside' | 'ego';
+  egoActivity?: boolean;
+  egoFrames?: boolean;
   rejectBackendSave?: boolean;
   browserOpen?: Response | Error;
   browserReady?: boolean;
@@ -36,6 +38,8 @@ afterEach(() => {
 function fakeApi(options: ApiOptions = {}) {
   const calls: Call[] = [];
   let backend = options.backend ?? 'builtin';
+  let egoActivity = options.egoActivity ?? false;
+  let egoFrames = options.egoFrames ?? false;
   let grants = options.grants ?? { always: { origins: [], applications: [] } };
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
@@ -68,6 +72,20 @@ function fakeApi(options: ApiOptions = {}) {
         backend = (body as { backend: 'builtin' | 'aside' | 'ego' }).backend;
       }
       return new Response(JSON.stringify({ backend, backends: ['builtin', 'aside', 'ego'] }));
+    }
+    if (path === '/api/automation/ego-activity') {
+      if (method === 'PUT') {
+        const update = body as { enabled?: boolean; frames?: boolean };
+        if ('enabled' in update) egoActivity = update.enabled === true;
+        if ('frames' in update) egoFrames = update.frames === true;
+        return new Response(JSON.stringify({ ...('enabled' in update ? { enabled: egoActivity } : {}), ...('frames' in update ? { frames: egoFrames } : {}) }));
+      }
+      // Without a session id the route reports the stored opt-ins and observes nothing.
+      return new Response(JSON.stringify({
+        configured: egoActivity, enabled: egoActivity,
+        framesConfigured: egoFrames, frames: egoActivity && egoFrames,
+        supported: true, backend, spaces: [],
+      }));
     }
     if (path.startsWith('/api/browser/') && method === 'POST') {
       if (options.browserOpen instanceof Error) throw options.browserOpen;
@@ -128,6 +146,54 @@ test('Built-in is the default and every backend choice persists through the API'
     { backend: 'aside' },
     { backend: 'ego' },
     { backend: 'builtin' },
+  ]);
+});
+
+test('the browser activity opt-in belongs to ego, is off by default and persists through the API', async () => {
+  const calls = fakeApi({ backend: 'builtin' });
+  await mount();
+  await waitFor(() => assert.equal(backendSelect().disabled, false));
+
+  const activityLabel = english.automation.browserBackend.activity;
+  assert.equal(screen.queryByRole('switch', { name: activityLabel }), null, 'the surface exists only for the ego backend');
+
+  fireEvent.change(backendSelect(), { target: { value: 'ego' } });
+  const toggle = await screen.findByRole('switch', { name: activityLabel });
+  assert.equal(toggle.getAttribute('aria-checked'), 'false', 'rendering a logged-in browser is never on by default');
+  assert.ok(screen.getByText(english.automation.browserBackend.activityDescription));
+
+  fireEvent.click(toggle);
+  await waitFor(() => assert.equal(screen.getByRole('switch', { name: activityLabel }).getAttribute('aria-checked'), 'true'));
+  assert.deepEqual(calls.filter((call) => call.path === '/api/automation/ego-activity' && call.method === 'PUT').map((call) => call.body), [{ enabled: true }]);
+
+  // Reading the opt-in never asks for a session, so Settings observes no browser.
+  assert.equal(calls.some((call) => call.path.startsWith('/api/automation/ego-activity?')), false);
+
+  fireEvent.change(backendSelect(), { target: { value: 'builtin' } });
+  await waitFor(() => assert.equal(screen.queryByRole('switch', { name: activityLabel }), null));
+});
+
+test('the picture is a second switch: off by default and unavailable until activity is on', async () => {
+  const calls = fakeApi({ backend: 'ego' });
+  await mount();
+  const activity = english.automation.browserBackend.activity;
+  const frame = english.automation.browserBackend.activityFrame;
+
+  const frameToggle = await screen.findByRole('switch', { name: frame });
+  assert.equal(frameToggle.getAttribute('aria-checked'), 'false');
+  // Seeing an address is not agreeing to see the page, so the picture cannot be
+  // switched on before the surface it lives in.
+  assert.equal((frameToggle as HTMLButtonElement).disabled, true);
+  assert.ok(screen.getByText(english.automation.browserBackend.activityFrameDescription));
+
+  fireEvent.click(screen.getByRole('switch', { name: activity }));
+  await waitFor(() => assert.equal((screen.getByRole('switch', { name: frame }) as HTMLButtonElement).disabled, false));
+
+  fireEvent.click(screen.getByRole('switch', { name: frame }));
+  await waitFor(() => assert.equal(screen.getByRole('switch', { name: frame }).getAttribute('aria-checked'), 'true'));
+  assert.deepEqual(calls.filter((call) => call.method === 'PUT' && call.path === '/api/automation/ego-activity').map((call) => call.body), [
+    { enabled: true },
+    { frames: true },
   ]);
 });
 
@@ -250,5 +316,60 @@ test('browser routing wording keys have parity across all ten settings locales',
     });
     assert.deepEqual(Object.keys(actual).sort(), Object.keys(expected).sort(), locale);
     for (const [key, text] of Object.entries(actual)) assert.ok(text.trim().length > 0, `${locale}${key}`);
+  }
+});
+
+/*
+ * The app overrides `mcp.discoveryMode`, `mcp.enableProjectConfig`,
+ * `tools.discoveryMode` and `astEdit.enabled` for every session. The overrides
+ * are the right call; saying nothing about them was not. "Works in the CLI,
+ * missing in the app, no error message" is an unanswerable support question.
+ */
+
+test('the withheld runtime features are reported with a reason for each', async () => {
+  fakeApi();
+  await mount();
+  await waitFor(() => assert.equal(backendSelect().disabled, false));
+
+  assert.ok(screen.getByText(english.automation.withheld));
+  assert.ok(screen.getByText(english.automation.withheldDescription));
+
+  for (const [label, reason] of [
+    [english.automation.withheldMcp, english.automation.withheldMcpReason],
+    [english.automation.withheldToolDiscovery, english.automation.withheldToolDiscoveryReason],
+    [english.automation.withheldAstEdit, english.automation.withheldAstEditReason],
+  ]) {
+    assert.ok(screen.getByText(label), label);
+    assert.ok(screen.getByText(reason), reason);
+  }
+});
+
+test('the withheld block offers nothing to switch on', async () => {
+  fakeApi();
+  await mount();
+  await waitFor(() => assert.equal(backendSelect().disabled, false));
+
+  // A session cannot turn these on either, so a control here would be a lie.
+  const row = screen.getByText(english.automation.withheldMcp).closest('div')?.parentElement;
+  assert.ok(row);
+  assert.equal(row.querySelector('button, input, select'), null);
+});
+
+test('withheld-feature wording keys have parity across all ten settings locales', () => {
+  const keys = [
+    'withheld', 'withheldDescription',
+    'withheldMcp', 'withheldMcpReason',
+    'withheldToolDiscovery', 'withheldToolDiscoveryReason',
+    'withheldAstEdit', 'withheldAstEditReason',
+  ] as const;
+
+  for (const locale of ['en', 'ko', 'de', 'fr', 'it', 'ja', 'ru', 'tr', 'zh-CN', 'zh-TW']) {
+    const file = new URL(`../../../../i18n/locales/${locale}/settings.json`, import.meta.url);
+    const translated = JSON.parse(readFileSync(file, 'utf8')) as { automation?: Record<string, unknown> };
+    for (const key of keys) {
+      const text = translated.automation?.[key];
+      assert.equal(typeof text, 'string', `${locale}.automation.${key}`);
+      assert.ok(String(text).trim().length > 0, `${locale}.automation.${key}`);
+    }
   }
 });

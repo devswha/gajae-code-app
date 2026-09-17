@@ -86,6 +86,14 @@
       "signInRequired": "要使用此預設，請在設定中登入 {{provider}}"
     },
     "attachImages": "添加圖片",
+    "attachment": {
+      "onlyImages": "只能添加圖片，因此未添加 {{names}}。文字檔請用 @ 引用，或直接貼上內容。",
+      "tooLarge": "{{names}} 超過 5MB。",
+      "empty": "{{names}} 是空檔案。",
+      "tooMany": "最多只能添加 {{count}} 張圖片，因此未添加 {{names}}。",
+      "dropHere": "將圖片拖放到此處",
+      "dismiss": "關閉此提示"
+    },
     "send": "發送",
     "stop": "停止",
     "hintText": {
@@ -266,5 +274,12 @@
       "partial": "部分符合",
       "recent": "最近活躍"
     }
+  },
+  "sessionWorktree": {
+    "label": "執行位置",
+    "project": "專案",
+    "newWorktree": "新增工作樹",
+    "worktree": "工作樹",
+    "preparing": "正在準備工作樹"
   }
 }

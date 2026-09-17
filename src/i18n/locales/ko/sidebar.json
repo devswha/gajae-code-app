@@ -2,7 +2,6 @@
   "projects": {
     "title": "워크스페이스",
     "newProject": "프로젝트 추가",
-    "deleteProject": "워크스페이스 제거",
     "renameProject": "워크스페이스 이름 변경",
     "noProjects": "아직 워크스페이스가 없습니다",
     "addFirst": "추가하기",
@@ -18,6 +17,7 @@
     "newTask": "새 작업 항목",
     "newSession": "대화 시작",
     "deleteSession": "대화 삭제",
+    "archiveSession": "대화 보관",
     "renameSession": "대화 이름 변경",
     "regenerateTitle": "제목 다시 생성",
     "exportSession": "Markdown로 내보내기",
@@ -36,7 +36,7 @@
     "createSession": "대화 시작",
     "refresh": "프로젝트와 대화 새로고침 (Ctrl+R)",
     "renameProject": "워크스페이스 이름 변경 (F2)",
-    "deleteProject": "사이드바에서 이 프로젝트 제거 (Delete)",
+    "archiveProject": "이 프로젝트를 보관함으로 이동 (삭제되지 않음)",
     "addToFavorites": "즐겨찾기 등록",
     "removeFromFavorites": "즐겨찾기 해제",
     "editSessionName": "대화 이름 수정",
@@ -84,14 +84,16 @@
     "renameSessionError": "대화 이름 변경 오류가 발생했습니다. 다시 시도해주세요.",
     "regenerateTitleFailed": "제목을 다시 생성하지 못했습니다. 다시 시도해주세요.",
     "exportSessionError": "대화를 내보내는데 실패했습니다. 다시 시도해주세요.",
-    "deleteProjectFailed": "프로젝트 제거에 실패했습니다. 다시 시도해주세요.",
-    "deleteProjectError": "프로젝트 제거 오류가 발생했습니다. 다시 시도해주세요.",
+    "archiveProjectFailed": "프로젝트 보관에 실패했습니다. 다시 시도해주세요.",
+    "archiveProjectError": "프로젝트 보관 오류가 발생했습니다. 다시 시도해주세요.",
     "updateProjectError": "프로젝트 업데이트 오류가 발생했습니다. 다시 시도해주세요.",
     "refreshError": "새로 고침에 실패했습니다. 다시 시도해주세요.",
     "restoreProjectFailed": "프로젝트 복원에 실패했습니다. 다시 시도해주세요.",
     "restoreProjectError": "프로젝트 복원 오류가 발생했습니다. 다시 시도해주세요.",
     "restoreSessionFailed": "대화 복원에 실패했습니다. 다시 시도해주세요.",
     "restoreSessionError": "대화 복원 오류가 발생했습니다. 다시 시도해주세요.",
+    "archiveSessionFailed": "대화 보관에 실패했습니다. 다시 시도해주세요.",
+    "archiveSessionError": "대화 보관 오류가 발생했습니다. 다시 시도해주세요.",
     "debugInfoError": "디버그 정보를 복사하지 못했습니다."
   },
   "providerQuota": {
@@ -111,11 +113,7 @@
     "updateAvailable": "새로운 업데이트가 있습니다"
   },
   "deleteConfirmation": {
-    "deleteProject": "워크스페이스 제거",
     "deleteSession": "대화 삭제",
-    "confirmDelete": " 대화를 어떻게 처리할지 선택하세요",
-    "sessionCount_one": "이 프로젝트에는 {{count}}개의 대화가 있습니다.",
-    "sessionCount_other": "이 프로젝트에는 {{count}}개의 대화가 있습니다.",
-    "deleteAllData": "모든 데이터를 영구히 삭제"
+    "confirmDelete": " 대화를 어떻게 처리할지 선택하세요"
   }
 }

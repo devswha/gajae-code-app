@@ -116,6 +116,67 @@ export function createAutomationRouter(service: AutomationService = automationSe
     }
   }));
 
+  // What the agent's ego browser is doing, for one app session. This is the
+  // only polled route that may execute the ego CLI, and only while the surface
+  // is enabled and the run's backend is ego; the service bounds the rest.
+  router.get('/ego-activity', asyncHandler(async (request, response) => {
+    const requested = request.query.sessionId;
+    if (requested !== undefined && (typeof requested !== 'string' || !safeSessionId(requested))) {
+      response.status(400).json({ error: 'Invalid automation session id.' });
+      return;
+    }
+    try {
+      // Personal browser state is never cached by a proxy or the client.
+      response.set('Cache-Control', 'no-store');
+      response.json(await service.egoActivitySnapshot(requested));
+    } catch (error) {
+      errorResponse(response, error);
+    }
+  }));
+
+  // One frame of a page this session's own Space is showing. It is served as
+  // bytes, never stored, and answers 404 whenever the surface, the opt-in or
+  // the attribution does not hold.
+  router.get('/ego-activity/frame', asyncHandler(async (request, response) => {
+    const requested = request.query.sessionId;
+    const spaceId = Number(request.query.space);
+    const label = typeof request.query.page === 'string' ? request.query.page : '';
+    if (typeof requested !== 'string' || !safeSessionId(requested) || !Number.isSafeInteger(spaceId) || spaceId <= 0 || !label) {
+      response.status(400).json({ error: 'Invalid ego frame request.' });
+      return;
+    }
+    try {
+      const frame = await service.egoActivityFrame(requested, spaceId, label);
+      if (!frame) {
+        response.status(404).json({ error: 'No ego frame is available.' });
+        return;
+      }
+      response.set('Cache-Control', 'no-store');
+      response.type('image/jpeg').send(frame.jpeg);
+    } catch (error) {
+      errorResponse(response, error);
+    }
+  }));
+
+  // The opt-ins themselves: rendering a logged-in personal browser is never on
+  // by default and is never turned on by a run. The picture is its own switch,
+  // because agreeing to see an address is not agreeing to see the page.
+  router.put('/ego-activity', asyncHandler((request, response) => {
+    try {
+      const body = request.body ?? {};
+      const result: Record<string, boolean> = {};
+      if ('enabled' in body) result.enabled = service.egoActivity.set(body.enabled);
+      if ('frames' in body) result.frames = service.egoActivity.setFrames(body.frames);
+      if (Object.keys(result).length === 0) {
+        response.status(400).json({ error: 'Nothing to update.' });
+        return;
+      }
+      response.json(result);
+    } catch (error) {
+      response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid ego activity setting.' });
+    }
+  }));
+
   // Deliberately POST: only an explicit user action may execute the two
   // documented, bounded ego-browser checks.
   router.post('/ego-readiness/test', asyncHandler(async (_request, response) => {

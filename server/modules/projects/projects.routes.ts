@@ -1,7 +1,8 @@
 import express from 'express';
 
-import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
-import { startCloneProject, type CloneProjectOperation } from '@/modules/projects/services/project-clone.service.js';
+import { archiveProject, restoreArchivedProject } from '@/modules/projects/services/project-archive.service.js';
+import { createCloneProgressStream, readCloneProgress, type CloneProgressEvent } from '@/modules/projects/services/clone-progress-registry.service.js';
+import { startCloneProject } from '@/modules/projects/services/project-clone.service.js';
 import { createProject, promoteProjectOrigin, updateProjectDisplayName } from '@/modules/projects/services/project-management.service.js';
 import { startScratchWorkspace } from '@/modules/projects/services/scratch-workspace.service.js';
 import { descendIntoChild, resolveWorkspaceTarget } from '@/modules/projects/services/workspace-target.service.js';
@@ -48,6 +49,18 @@ function routeProjectId(value: unknown, trim = false): string {
 function cloneErrorMessage(error: unknown): string {
   if (error instanceof AppError) return error.message;
   return error instanceof Error && error.message ? error.message : 'Failed to clone repository';
+}
+
+function bodyText(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function isHttpsCloneUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 router.get('/', asyncHandler(async (request, response) => {
@@ -129,7 +142,7 @@ router.post('/create-project', asyncHandler(async (request, response) => {
     throw new AppError('Repository cloning is not supported on create-project', {
       code: 'CLONE_NOT_SUPPORTED_ON_CREATE_PROJECT',
       statusCode: 400,
-      details: 'Use /api/projects/clone-progress for cloning workflows',
+      details: 'Use POST /api/projects/clone for cloning workflows',
     });
   }
 
@@ -156,44 +169,72 @@ router.post('/migrate-legacy-stars', asyncHandler(async (request, response) => {
   response.json({ success: true, updated: applyLegacyStarredProjectIds(projectIds).updated });
 }));
 
+/**
+ * Cloning is a state change, so it is a POST and nothing else.
+ *
+ * It used to be the GET that streamed progress. Desktop auth cookies are
+ * SameSite=Lax, so a cross-site top-level navigation to that URL carried them
+ * and started a clone of an attacker-chosen repository into an
+ * attacker-chosen directory, with any supplied token on the process list.
+ */
+router.post('/clone', asyncHandler(async (request, response) => {
+  const body: { path?: unknown; githubUrl?: unknown; githubTokenId?: unknown; newGithubToken?: unknown } = request.body ?? {};
+  // Authentication middleware adds this field before the clone route runs.
+  const userId = (request as AuthenticatedRequest).user?.id;
+  if (userId === undefined || userId === null) {
+    throw new AppError('Authenticated user is required', { code: 'AUTHENTICATION_REQUIRED', statusCode: 401 });
+  }
+  const githubUrl = bodyText(body.githubUrl).trim();
+  // Clone URLs reach `git`, which speaks file:, ssh:, ext: and more. Only the
+  // transport this feature is for is accepted; `file:` in particular would make
+  // any local directory a project the agent then works in.
+  if (!isHttpsCloneUrl(githubUrl)) {
+    throw new AppError('githubUrl must be an https URL', { code: 'INVALID_GITHUB_URL', statusCode: 400 });
+  }
+  const stream = createCloneProgressStream();
+  const operation = await startCloneProject({
+    workspacePath: bodyText(body.path),
+    githubUrl,
+    githubTokenId: typeof body.githubTokenId === 'number' ? body.githubTokenId : queryNumber(body.githubTokenId),
+    newGithubToken: bodyText(body.newGithubToken) || null,
+    userId,
+  }, {
+    onProgress: (message) => stream.publish({ type: 'progress', message }),
+    onComplete: ({ project, message }) => stream.publish({ type: 'complete', project, message }),
+  });
+  // The clone owns its own lifetime from here; the reader only observes it.
+  void operation.waitForCompletion
+    .catch((error: unknown) => { stream.publish({ type: 'error', message: cloneErrorMessage(error) }); })
+    .finally(() => stream.finish());
+  response.status(202).json(createApiSuccessResponse({ cloneId: stream.cloneId }));
+}));
+
+/** Read-only: follows a clone that `POST /clone` already started. */
 router.get('/clone-progress', asyncHandler(async (request, response) => {
+  const cloneId = queryText(request.query.cloneId).trim();
   response.setHeader('Content-Type', 'text/event-stream');
   response.setHeader('Cache-Control', 'no-cache');
   response.setHeader('Connection', 'keep-alive');
   response.flushHeaders();
 
-  const emit = (type: string, data: Record<string, unknown>): void => {
-    if (!response.writableEnded) response.write(`data: ${JSON.stringify({ type, ...data })}\n\n`);
+  const emit = (event: CloneProgressEvent): void => {
+    if (!response.writableEnded) response.write(`data: ${JSON.stringify(event)}\n\n`);
   };
-  let cloneOperation: CloneProjectOperation | null = null;
-  const cancelClone = (): void => cloneOperation?.cancel();
-  request.on('close', cancelClone);
-
-  try {
-    const query = request.query;
-    // Authentication middleware adds this field before the clone route runs.
-    const authenticatedRequest = request as AuthenticatedRequest;
-    const userId = authenticatedRequest.user?.id;
-    if (userId === undefined || userId === null) {
-      throw new AppError('Authenticated user is required', { code: 'AUTHENTICATION_REQUIRED', statusCode: 401 });
-    }
-    cloneOperation = await startCloneProject({
-      workspacePath: queryText(query.path),
-      githubUrl: queryText(query.githubUrl),
-      githubTokenId: queryNumber(query.githubTokenId),
-      newGithubToken: queryText(query.newGithubToken) || null,
-      userId,
-    }, {
-      onProgress: (message) => emit('progress', { message }),
-      onComplete: ({ project, message }) => emit('complete', { project, message }),
-    });
-    await cloneOperation.waitForCompletion;
-  } catch (error) {
-    emit('error', { message: cloneErrorMessage(error) });
-  } finally {
-    request.off('close', cancelClone);
-    if (!response.writableEnded) response.end();
+  let stopWaiting = (): void => {};
+  const streamEnded = new Promise<void>((resolve) => { stopWaiting = resolve; });
+  const reader = cloneId ? readCloneProgress(cloneId, { onEvent: emit, onFinished: () => stopWaiting() }) : null;
+  if (!reader) {
+    emit({ type: 'error', message: 'No clone is running for that id.' });
+    response.end();
+    return;
   }
+  // A finished clone replayed everything it had; nothing more will arrive.
+  if (!reader.finished) {
+    request.on('close', () => stopWaiting());
+    await streamEnded;
+  }
+  reader.unsubscribe();
+  if (!response.writableEnded) response.end();
 }));
 
 router.put('/:projectId/rename', asyncHandler((request, response) => {
@@ -215,9 +256,10 @@ router.post('/:projectId/restore', asyncHandler(async (request, response) => {
   response.json(createApiSuccessResponse({ projectId, isArchived: false }));
 }));
 
-router.delete('/:projectId', asyncHandler(async (request, response) => {
-  await deleteOrArchiveProject(routeProjectId(request.params.projectId), request.query.force === 'true');
-  response.json({ success: true });
+router.post('/:projectId/archive', asyncHandler(async (request, response) => {
+  const projectId = routeProjectId(request.params.projectId);
+  archiveProject(projectId);
+  response.json(createApiSuccessResponse({ projectId, isArchived: true }));
 }));
 
 export default router;

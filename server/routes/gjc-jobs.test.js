@@ -119,6 +119,33 @@ test('GJC job creation rejects managed worktree project paths before orchestrato
     await server.close();
   }
 });
+test('GJC job creation rejects project paths outside the workspace root', async () => {
+  // A job's project path becomes the agent's working root exactly like a
+  // session's, so a path the owner never opened must not reach the
+  // orchestrator at all.
+  let starts = 0;
+  const orchestrator = { start: async () => { starts++; throw new Error('must not be called'); } };
+  const app = express();
+  app.use(express.json());
+  app.use(createGjcJobsRouter({ orchestrator, gitService: {} }));
+  const server = await serve(app);
+  const outside = await mkdtemp(path.join(os.tmpdir(), 'gjc-jobs-outside-root-'));
+  try {
+    for (const projectPath of [outside, path.parse(os.homedir()).root]) {
+      const response = await server.request('/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: 'do it', projectPath }),
+      });
+      assert.equal(response.status, 400);
+      assert.equal((await response.json()).code, 'invalid_project_path');
+    }
+    assert.equal(starts, 0);
+  } finally {
+    await server.close();
+    await rm(outside, { recursive: true, force: true });
+  }
+});
 test('GJC git summaries use one batch service call for multiple jobs', async () => {
   const calls = [];
   const gitService = {

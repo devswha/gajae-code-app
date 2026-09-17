@@ -174,15 +174,11 @@ export const api = {
   // a plain link cannot carry the auth header.
   exportSession: (sessionId: string) =>
     authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(sessionId)}/export`),
-  // `hardDelete` => server `?force=true` (remove DB row + Claude *.jsonl + sessions rows for path).
-  deleteProject: (projectId: string, hardDelete: boolean = false) => {
-    const params = new URLSearchParams();
-    if (hardDelete) params.set('force', 'true');
-    const qs = params.toString();
-    return authenticatedFetch(`/api/projects/${projectId}${qs ? `?${qs}` : ''}`, {
-      method: 'DELETE',
-    });
-  },
+  // Hides the workspace behind the archive screen. Sessions, transcripts and the
+  // project row all survive, and `restoreProject` is the exact inverse - the app
+  // has no way to delete a project or anything on disk under it.
+  archiveProject: (projectId: string) =>
+    authenticatedFetch(`/api/projects/${projectId}/archive`, { method: 'POST' }),
   searchConversationsUrl: (query: string, limit: number = 50, projectId?: string) => {
     const params = new URLSearchParams({ q: query, limit: String(limit) });
     if (projectId !== undefined) params.set('projectId', projectId);

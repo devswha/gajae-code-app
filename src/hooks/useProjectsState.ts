@@ -142,8 +142,21 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewed = useRef(selectedSession);
   const active = useRef(activeSessions);
+  const route = useRef(sessionId ?? null);
+  // A click that moves the shell off /session/:id (a fresh chat, another
+  // project, a delete) owns the selection until the router lands on '/'.
+  // Router navigation is a transition, so the stale :id renders at least once
+  // more - and again on every projects-cache update a still-running session
+  // pushes in - which is how the URL-restore effect below used to undo the
+  // click and make a second one necessary.
+  const leavingRoute = useRef<{ fromSessionId: string | null; at: number } | null>(null);
   viewed.current = selectedSession;
   active.current = activeSessions;
+
+  const leaveSessionRoute = useCallback(() => {
+    leavingRoute.current = { fromSessionId: route.current, at: Date.now() };
+    navigate('/');
+  }, [navigate]);
 
   const { refetch: queryRefetch } = query;
   const refetch = useCallback(async (_options: FetchProjectsOptions = {}) => { await queryRefetch(); }, [queryRefetch]);
@@ -218,13 +231,17 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
         return next;
       });
       if (alias && sessionId === alias) navigate(`/session/${update.sessionId}`);
-      // A confirmed /handoff moved the runtime to a fresh session: the first
-      // upsert for a different session in that project is it — follow, or the
-      // app stays on the old session while the backend moved on (issue #6).
+      // A confirmed /handoff moved the runtime to a fresh session: follow the
+      // session the runtime reported, or the app stays on the old one while the
+      // backend moved on (issue #6). Only that session - "the next session in
+      // this project" let a third session created in the same window steal the
+      // window from the handoff the user just made.
       const pending = useAppShellStore.getState().pendingHandoff;
       if (pending
         && Date.now() - pending.at < 120_000
         && update.sessionId !== pending.fromSessionId
+        && Boolean(pending.providerSessionId)
+        && update.providerSessionId === pending.providerSessionId
         && (!pending.projectId || update.project?.projectId === pending.projectId)
         // unless the viewer deliberately moved on to a different session meanwhile.
         && (!pending.fromSessionId || !sessionId || sessionId === pending.fromSessionId)) {
@@ -239,7 +256,9 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
 
   const restoredFromUrlRef = useRef<string | null>(null);
   useEffect(() => {
+    const leaving = leavingRoute.current;
     if (!sessionId) {
+      leavingRoute.current = null;
       // Only a session this effect restored from the URL is stale once the
       // route settles at '/'; an optimistically registered new-chat session
       // must survive there until its own /session/:id navigation lands.
@@ -247,6 +266,12 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
       restoredFromUrlRef.current = null;
       return;
     }
+    // Still the id the click walked away from: the selection it made stands,
+    // and the route is expected to reach '/' within a frame. The deadline only
+    // exists so a navigation that never lands cannot freeze the URL out of the
+    // selection for the rest of the page's life.
+    if (leaving && leaving.fromSessionId === sessionId && Date.now() - leaving.at < 5_000) return;
+    leavingRoute.current = null;
     if (!projects.length) return;
     for (const project of projects) {
       const session = rowsOf(project).find((candidate) => candidate.id === sessionId);
@@ -263,15 +288,23 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
     }
   }, [projects, selectedProject, selectedSession, sessionId, setSelectedProject, setSelectedSession]);
 
+  // The route id click handlers see is the committed one: a route render that
+  // is thrown away (navigation is a transition) must not teach a click a route
+  // the user never reached.
+  useEffect(() => { route.current = sessionId ?? null; }, [sessionId]);
+
   const handleProjectSelect = useCallback((project: Project) => {
     setSelectedProject(project);
     setSelectedSession(null);
-    navigate('/');
+    leaveSessionRoute();
     if (isMobile) setSidebarOpen(false);
-  }, [isMobile, navigate, setSelectedProject, setSelectedSession, setSidebarOpen]);
+  }, [isMobile, leaveSessionRoute, setSelectedProject, setSelectedSession, setSidebarOpen]);
 
   const handleSessionSelect = useCallback((session: ProjectSession) => {
     useSessionAttentionStore.getState().markSessionViewed(session.id);
+    // Opening a session is the opposite intent: whatever move to '/' has not
+    // landed yet is cancelled, and the URL owns the context again.
+    leavingRoute.current = null;
     setSelectedSession(session);
     if (activeTab === 'tasks' || activeTab === 'browser') setActiveTab('chat');
     if (isMobile && session.__projectId !== selectedProject?.projectId) setSidebarOpen(false);
@@ -283,18 +316,18 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
     setSelectedSession(null);
     setActiveTab('chat');
     setNewSessionTrigger((trigger) => trigger + 1);
-    navigate('/');
+    leaveSessionRoute();
     if (isMobile) setSidebarOpen(false);
-  }, [isMobile, navigate, setActiveTab, setSelectedProject, setSelectedSession, setSidebarOpen]);
+  }, [isMobile, leaveSessionRoute, setActiveTab, setSelectedProject, setSelectedSession, setSidebarOpen]);
 
   const handleSessionDelete = useCallback((id: string) => {
     useSessionAttentionStore.getState().forgetSession(id);
     if (selectedSession?.id === id) {
       setSelectedSession(null);
-      navigate('/');
+      leaveSessionRoute();
     }
     client.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (cached) => (cached ?? []).map((project) => withoutSession(project, id)));
-  }, [client, navigate, selectedSession?.id, setSelectedSession]);
+  }, [client, leaveSessionRoute, selectedSession?.id, setSelectedSession]);
 
   const handleSidebarRefresh = useCallback(async () => {
     try {
@@ -335,16 +368,18 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
     if (selected) setSelectedProject((current) => current?.projectId === projectId ? selected : current);
   }, [client, projects, setSelectedProject]);
 
-  const handleProjectDelete = useCallback((projectId: string) => {
+  // An archived project leaves the active list; it still exists, and the archive
+  // screen puts it back, so this only drops it from the cached list and view.
+  const handleProjectArchive = useCallback((projectId: string) => {
     if (selectedProject?.projectId === projectId) {
       setSelectedProject(null);
       setSelectedSession(null);
-      navigate('/');
+      leaveSessionRoute();
     }
     client.setQueryData<Project[]>(PROJECTS_QUERY_KEY, (cached) => (cached ?? []).filter((project) => project.projectId !== projectId));
-  }, [client, navigate, selectedProject?.projectId, setSelectedProject, setSelectedSession]);
+  }, [client, leaveSessionRoute, selectedProject?.projectId, setSelectedProject, setSelectedSession]);
 
-  const sidebarSharedProps = useMemo(() => ({ activeSessions, onProjectSelect: handleProjectSelect, onSessionSelect: handleSessionSelect, onNewSession: handleNewSession, onSessionDelete: handleSessionDelete, onLoadMoreSessions: loadMoreProjectSessions, onProjectDelete: handleProjectDelete, onRefresh: handleSidebarRefresh, isMobile }), [activeSessions, handleNewSession, handleProjectDelete, handleProjectSelect, handleSessionDelete, handleSessionSelect, handleSidebarRefresh, isMobile, loadMoreProjectSessions]);
+  const sidebarSharedProps = useMemo(() => ({ activeSessions, onProjectSelect: handleProjectSelect, onSessionSelect: handleSessionSelect, onNewSession: handleNewSession, onSessionDelete: handleSessionDelete, onLoadMoreSessions: loadMoreProjectSessions, onProjectArchive: handleProjectArchive, onRefresh: handleSidebarRefresh, isMobile }), [activeSessions, handleNewSession, handleProjectArchive, handleProjectSelect, handleSessionDelete, handleSessionSelect, handleSidebarRefresh, isMobile, loadMoreProjectSessions]);
 
-  return { projects, selectedProject, selectedSession, activeTab, sidebarOpen, isLoadingProjects: query.isLoading, loadingProgress, isInputFocused, showSettings, settingsInitialTab, newSessionTrigger, setActiveTab, setSidebarOpen, setIsInputFocused, setShowSettings, openSettings, fetchProjects: refetch, refreshProjectsSilently: refetch, registerOptimisticSession, sidebarSharedProps, handleProjectSelect, handleSessionSelect, handleNewSession, handleSessionDelete, loadMoreProjectSessions, handleProjectDelete, handleSidebarRefresh };
+  return { projects, selectedProject, selectedSession, activeTab, sidebarOpen, isLoadingProjects: query.isLoading, loadingProgress, isInputFocused, showSettings, settingsInitialTab, newSessionTrigger, setActiveTab, setSidebarOpen, setIsInputFocused, setShowSettings, openSettings, fetchProjects: refetch, refreshProjectsSilently: refetch, registerOptimisticSession, sidebarSharedProps, handleProjectSelect, handleSessionSelect, handleNewSession, handleSessionDelete, loadMoreProjectSessions, handleProjectArchive, handleSidebarRefresh };
 }

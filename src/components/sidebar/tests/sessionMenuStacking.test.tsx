@@ -10,15 +10,13 @@ import type { SessionWithProvider } from '../types/types';
 import type { Project } from '../../../types/app';
 
 /*
- * The session action menu renders inside an absolutely positioned wrapper that
- * carries a translate transform, which makes the wrapper a stacking context.
- * Without an explicit z-index while the menu is open, the FOLLOWING session
- * rows paint over the open menu and steal its clicks (reproduced in a real
- * browser: every menu-item click landed on the next row's link). The fix keeps
- * the wrapper lifted and visible for exactly as long as the trigger reports
- * aria-expanded=true - which also survives browsers that do not focus buttons
- * on click, where group-focus-within never engages and the open menu used to
- * fade out mid-reach.
+ * The session action menu hides itself until the row is hovered, and the rows
+ * that follow it paint over anything it opens (reproduced in a real browser:
+ * every menu-item click landed on the next row's link). The fix keeps the
+ * trigger's wrapper lifted and visible for exactly as long as the trigger
+ * reports aria-expanded=true - which also survives browsers that do not focus
+ * buttons on click, where group-focus-within never engages and the open menu
+ * used to disappear mid-reach.
  */
 
 const t = ((key: string) => key) as unknown as TFunction;
@@ -67,11 +65,16 @@ test('the menu wrapper lifts itself while the menu is open', () => {
   assert.match(
     markup,
     /has-aria-expanded:z-50/,
-    'the open menu must escape the transform stacking context above later rows',
+    'the open menu must paint above the rows that follow it',
   );
   assert.match(
     markup,
     /has-aria-expanded:opacity-100/,
     'the wrapper must stay visible while the menu is open, independent of hover and focus',
+  );
+  assert.match(
+    markup,
+    /has-aria-expanded:pointer-events-auto/,
+    'a collapsed wrapper takes no clicks, so the open menu has to take them back',
   );
 });

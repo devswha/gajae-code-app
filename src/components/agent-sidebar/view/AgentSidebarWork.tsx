@@ -6,6 +6,9 @@ import { cn } from '../../../utils/cn';
 import { useSessionDelegations } from '../../chat/hooks/useSessionDelegations';
 import { useSessionTodos } from '../../chat/hooks/useSessionTodos';
 import { TODO_STATUS_ICON } from '../../chat/view/todoStatusIcon';
+import { useEgoActivity } from '../hooks/useEgoActivity';
+
+import AgentSidebarBrowser from './AgentSidebarBrowser';
 
 const { Icon: WorkingIcon, className: workingIconClassName } = TODO_STATUS_ICON.in_progress;
 
@@ -37,6 +40,12 @@ export type AgentSidebarWorkProps = {
  * WORK answers "what is happening" and not "what happened". A session with
  * running agents never also shows the generic "Working" row - the agents are
  * the better answer to the same question.
+ *
+ * Browser rows hold to the same contract from a different source: with the ego
+ * backend the runtime sees only an opaque Bash call, so the state comes from
+ * ego lite itself (space, page, current URL), never from tool traffic or
+ * command strings. The rows exist only while the session runs and only for
+ * spaces this session minted; nothing is inferred and no action is narrated.
  */
 export default function AgentSidebarWork({ sessionId, sessionStore }: AgentSidebarWorkProps) {
   const { t } = useTranslation();
@@ -48,6 +57,8 @@ export default function AgentSidebarWork({ sessionId, sessionStore }: AgentSideb
   // Only the published activity of this very session counts; a snapshot left
   // over from another conversation must never read as this one running.
   const running = Boolean(sessionId) && status.sessionId === sessionId && status.activity.running;
+  const browser = useEgoActivity(sessionId, running);
+  const browserSpaces = browser.spaces;
 
   if (!hasTasks && !running && agents.length === 0) {
     return null;
@@ -82,7 +93,7 @@ export default function AgentSidebarWork({ sessionId, sessionStore }: AgentSideb
             </ul>
           </div>
         ))
-      ) : agents.length === 0 ? (
+      ) : agents.length === 0 && browserSpaces.length === 0 ? (
         // The list is the projection of record; a run without one still owes
         // the lane one line, and never a guess at what it is doing.
         <div className="flex items-center gap-2 px-2 py-1.5">
@@ -90,6 +101,7 @@ export default function AgentSidebarWork({ sessionId, sessionStore }: AgentSideb
           <span className="min-w-0 flex-1 truncate text-foreground">{t('agentSidebar.work.working')}</span>
         </div>
       ) : null}
+      <AgentSidebarBrowser spaces={browserSpaces} sessionId={sessionId} frames={browser.frames} />
       {agents.length > 0 && (
         <div>
           <p className="px-2 pt-1 pb-0.5 text-[10px] font-medium tracking-wide text-muted-foreground/70">{t('agentSidebar.work.agents')}</p>

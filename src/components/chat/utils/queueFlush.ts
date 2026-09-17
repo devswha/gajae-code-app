@@ -15,7 +15,7 @@ export const QUEUE_FLUSH_DELAY_ON_RESTORE_MS = 750;
 
 export type QueueFlushDecision =
   | { action: 'flush'; delayMs: number }
-  | { action: 'skip'; reason: 'session-switched' | 'run-in-flight' | 'empty' | 'awaiting-dispatch' | 'composer-has-input' | 'head-awaiting-steer' };
+  | { action: 'skip'; reason: 'session-switched' | 'run-in-flight' | 'empty' | 'awaiting-dispatch' | 'composer-has-input' | 'head-awaiting-steer' | 'turn-aborted' };
 
 export type QueueFlushInput = {
   /** The effect is running across a session change, so `isLoading` describes another session. */
@@ -30,6 +30,8 @@ export type QueueFlushInput = {
   composerHasInput: boolean;
   /** The head was handed to the running turn and its answer is outstanding. */
   headAwaitingSteer: boolean;
+  /** The user stopped this session's turn; the end of that turn is not a turn boundary to send into. */
+  turnAborted: boolean;
 };
 
 export function decideQueueFlush({
@@ -40,9 +42,17 @@ export function decideQueueFlush({
   awaitingDispatchedTurn,
   composerHasInput,
   headAwaitingSteer,
+  turnAborted,
 }: QueueFlushInput): QueueFlushDecision {
   if (sessionSwitched) {
     return { action: 'skip', reason: 'session-switched' };
+  }
+
+  // Stop clears `isLoading` the same way a finished turn does, so without this
+  // the next queued draft leaves immediately and Stop reads as "pause, then
+  // resume". The queue is kept; sending it is the user's call now.
+  if (turnAborted) {
+    return { action: 'skip', reason: 'turn-aborted' };
   }
 
   if (isLoading) {

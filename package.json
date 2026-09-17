@@ -78,7 +78,7 @@
     "poc:opencodex:cua": "node scripts/check-opencodex-cua-poc.mjs",
     "lint": "eslint src/ server/ shared/ scripts/ vite.config.js",
     "lint:fix": "eslint src/ server/ shared/ scripts/ vite.config.js --fix",
-    "verify": "npm run check:sdk-patch && npm run check:extract-zip-patch && npm run audit && npm run check:licenses && npm run check:notices && npm run typecheck && npm run check:core && npm test && npm run lint && npm run check:identity && npm run build",
+    "verify": "npm run check:sdk-patch && npm run check:extract-zip-patch && npm run audit && npm run check:licenses && npm run check:notices && npm run typecheck && npm run check:core && npm test && npm run test:e2e:gjc && npm run lint && npm run check:identity && npm run build",
     "start": "npm run build && npm run server",
     "postinstall": "node scripts/fix-node-pty.js && node scripts/apply-sdk-lifecycle-patch.mjs && node scripts/apply-extract-zip-patch.mjs",
     "prepare": "husky",

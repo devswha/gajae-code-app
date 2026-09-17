@@ -61,11 +61,7 @@
     }
   },
   "workspace": {
-    "tabs": {
-      "tasks": "任务"
-    },
     "tasks": {
-      "progress": "已完成 {{done}} / {{total}}",
       "status": {
         "pending": "待处理",
         "in_progress": "进行中",
@@ -88,6 +84,7 @@
       "changes": "更改",
       "branch": "分支",
       "directory": "目录",
+      "serviceTier": "服务层级",
       "refresh": "刷新 Git 状态",
       "notARepository": "此文件夹不是 Git 仓库",
       "gitUnavailable": "无法读取 Git 状态"
@@ -96,7 +93,13 @@
       "title": "工作",
       "working": "正在执行",
       "agents": "代理",
-      "agentRunning": "运行中"
+      "agentRunning": "运行中",
+      "browser": "浏览器",
+      "browserRunning": "浏览中",
+      "browserSpace": "浏览器空间 {{id}}",
+      "browserMore": "还有 {{count}} 个",
+      "browserActivePage": "当前页面",
+      "browserFrame": "浏览器画面"
     },
     "actionRequired": {
       "title": "需要回复",

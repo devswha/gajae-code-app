@@ -2,7 +2,6 @@
   "projects": {
     "title": "Arbeitsbereiche",
     "newProject": "Projekt hinzufügen",
-    "deleteProject": "Arbeitsbereich entfernen",
     "renameProject": "Arbeitsbereich umbenennen",
     "noProjects": "Noch keine Arbeitsbereiche",
     "addFirst": "Hinzufügen",
@@ -18,6 +17,7 @@
     "newTask": "Neues Arbeitselement",
     "newSession": "Gespräch beginnen",
     "deleteSession": "Konversation löschen",
+    "archiveSession": "Konversation archivieren",
     "renameSession": "Konversation umbenennen",
     "regenerateTitle": "Titel neu erzeugen",
     "exportSession": "Exportieren Sie Markdown",
@@ -36,7 +36,7 @@
     "createSession": "Beginnen Sie ein Gespräch",
     "refresh": "Projekte und Konversationen neu laden (Ctrl+R)",
     "renameProject": "Arbeitsbereich umbenennen (F2)",
-    "deleteProject": "Dieses Projekt aus der Seitenleiste entfernen (Löschen)",
+    "archiveProject": "Dieses Projekt ins Archiv verschieben (nichts wird gelöscht)",
     "addToFavorites": "Als Favorit markieren",
     "removeFromFavorites": "Favoritenmarkierung entfernen",
     "editSessionName": "Bearbeiten Sie den Konversationsnamen",
@@ -84,14 +84,16 @@
     "renameSessionError": "Es ist ein Fehler beim Umbenennen der Konversation aufgetreten. Versuchen Sie es erneut.",
     "regenerateTitleFailed": "Der Titel konnte nicht neu erzeugt werden. Bitte erneut versuchen.",
     "exportSessionError": "Konversation konnte nicht exportiert werden. Versuchen Sie es erneut.",
-    "deleteProjectFailed": "Das Projekt konnte nicht entfernt werden. Versuchen Sie es erneut.",
-    "deleteProjectError": "Beim Entfernen des Projekts ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
+    "archiveProjectFailed": "Das Projekt konnte nicht archiviert werden. Versuchen Sie es erneut.",
+    "archiveProjectError": "Beim Archivieren des Projekts ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
     "updateProjectError": "Es ist ein Projektaktualisierungsfehler aufgetreten. Versuchen Sie es erneut.",
     "refreshError": "Konnte nicht aktualisiert werden. Versuchen Sie es erneut.",
     "restoreProjectFailed": "Das Projekt konnte nicht wiederhergestellt werden. Versuchen Sie es erneut.",
     "restoreProjectError": "Bei der Projektwiederherstellung ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
     "restoreSessionFailed": "Konversation konnte nicht wiederhergestellt werden. Versuchen Sie es erneut.",
     "restoreSessionError": "Beim Wiederherstellen der Konversation ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
+    "archiveSessionFailed": "Konversation konnte nicht archiviert werden. Versuchen Sie es erneut.",
+    "archiveSessionError": "Beim Archivieren der Konversation ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
     "debugInfoError": "Die Debug-Infos konnten nicht kopiert werden."
   },
   "providerQuota": {
@@ -111,11 +113,7 @@
     "updateAvailable": "Neues Update verfügbar"
   },
   "deleteConfirmation": {
-    "deleteProject": "Arbeitsbereich entfernen",
     "deleteSession": "Konversation löschen",
-    "confirmDelete": "Wählen Sie, was Sie tun möchten",
-    "sessionCount_one": "In diesem Projekt gibt es eine {{count}}-Konversation.",
-    "sessionCount_other": "In diesem Projekt gibt es {{count}}-Gespräche.",
-    "deleteAllData": "Alle Daten dauerhaft löschen"
+    "confirmDelete": "Wählen Sie, was Sie tun möchten"
   }
 }

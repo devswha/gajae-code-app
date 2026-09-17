@@ -113,7 +113,18 @@ export class AppError extends Error {
   }
 }
 
-export const WORKSPACES_ROOT = process.env.WORKSPACES_ROOT || os.homedir();
+/**
+ * The tree a workspace, a session root, a job root or a terminal may live in.
+ *
+ * Read per call rather than captured once: this is the gate several routes now
+ * share, and a process that starts before its environment is complete (or a
+ * test that points the app at a fixture tree) must not be stuck with the value
+ * that happened to exist at import time.
+ */
+export function workspacesRoot(): string {
+  return process.env.WORKSPACES_ROOT || os.homedir();
+}
+export const WORKSPACES_ROOT = workspacesRoot();
 const FORBIDDEN_WORKSPACE_PATHS = [
   '/', '/etc', '/bin', '/sbin', '/usr', '/dev', '/proc', '/sys', '/var', '/boot', '/root', '/lib', '/lib64', '/opt', '/tmp', '/run',
   'C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)', 'C:\\ProgramData', 'C:\\System Volume Information', 'C:\\$Recycle.Bin',
@@ -149,6 +160,13 @@ function protectedWorkspacePath(candidate: string): string | undefined {
   if (FORBIDDEN_WORKSPACE_PATHS.includes(candidate) || candidate === '/') {
     return 'Cannot use system-critical directories as workspace locations';
   }
+  // A deployment that names its own workspace root has already chosen that
+  // tree; the list below exists to stop a default-rooted install from adopting
+  // /etc or /tmp, not to overrule an operator who pointed WORKSPACES_ROOT at a
+  // directory underneath one of them (a packaged smoke run, a QA home, a test
+  // fixture). The exact protected paths above stay refused either way.
+  const configuredRoot = normalizeProjectPath(process.env.WORKSPACES_ROOT ?? '');
+  if (configuredRoot && !outsideRoot(candidate, configuredRoot)) return undefined;
   for (const protectedPath of FORBIDDEN_WORKSPACE_PATHS) {
     const canonicalProtectedPath = normalizeProjectPath(protectedPath);
     if (candidate !== canonicalProtectedPath && !candidate.startsWith(`${canonicalProtectedPath}${path.sep}`)) continue;
@@ -198,9 +216,9 @@ async function evaluateWorkspacePath(requestedPath: string): Promise<WorkspacePa
   const protectedError = protectedWorkspacePath(normalizeProjectPath(absolute));
   if (protectedError) return { valid: false, error: protectedError };
   const resolvedPath = await resolveCandidatePath(absolute);
-  const root = normalizeProjectPath(await realpath(WORKSPACES_ROOT));
+  const root = normalizeProjectPath(await realpath(workspacesRoot()));
   if (outsideRoot(resolvedPath, root)) {
-    return { valid: false, error: `Workspace path must be within the allowed workspace root: ${WORKSPACES_ROOT}` };
+    return { valid: false, error: `Workspace path must be within the allowed workspace root: ${workspacesRoot()}` };
   }
   if (await symlinkLeavesWorkspace(absolute, root)) {
     return { valid: false, error: 'Symlink target is outside the allowed workspace root' };
@@ -214,6 +232,32 @@ export async function validateWorkspacePath(requestedPath: string): Promise<Work
   return evaluateWorkspacePath(requestedPath).catch((error: unknown) => (
     { valid: false, error: `Path validation failed: ${(error as Error).message}` }
   ));
+}
+
+/**
+ * The same gate for callers that cannot await.
+ *
+ * The shell WebSocket decides a PTY's working directory inside a synchronous
+ * message handler that holds the desktop restart admission lease for exactly
+ * that handler, so it cannot become async without releasing the lease before
+ * the process it is admitting exists.
+ */
+export function validateWorkspacePathSync(requestedPath: string): WorkspacePathValidationResult {
+  try {
+    const requested = normalizeProjectPath(requestedPath);
+    if (!requested) return { valid: false, error: 'Workspace path is required' };
+    const absolute = path.resolve(requested);
+    const protectedError = protectedWorkspacePath(normalizeProjectPath(absolute));
+    if (protectedError) return { valid: false, error: protectedError };
+    const resolvedPath = normalizeProjectPath(fs.realpathSync(absolute));
+    const root = normalizeProjectPath(fs.realpathSync(workspacesRoot()));
+    if (outsideRoot(resolvedPath, root)) {
+      return { valid: false, error: `Workspace path must be within the allowed workspace root: ${workspacesRoot()}` };
+    }
+    return { valid: true, resolvedPath };
+  } catch (error) {
+    return { valid: false, error: `Path validation failed: ${(error as Error).message}` };
+  }
 }
 
 export function generateMessageId(prefix = 'msg'): string {

@@ -1,16 +1,20 @@
 import { execFile } from 'node:child_process';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, resolve, sep } from 'node:path';
 
 import express from 'express';
 
+import { projectsDb } from '../modules/database/repositories/projects.db.js';
 import { sessionsDb } from '../modules/database/repositories/sessions.db.js';
 import { asyncHandler } from '../shared/utils.js';
 
 const PLATFORM_OPENERS = {
   darwin: { command: 'open', args: (target) => [target] },
-  win32: { command: 'cmd', args: (target) => ['/c', 'start', '', target] },
+  // Not `cmd /c start`: cmd re-parses its command line, so a file or URL that
+  // contains `&` or `|` becomes a command. rundll32 hands the string straight
+  // to the shell's file/protocol handler with no interpreter in between.
+  win32: { command: 'rundll32.exe', args: (target) => ['url.dll,FileProtocolHandler', target] },
   linux: { command: 'xdg-open', args: (target) => [target] },
 };
 
@@ -24,7 +28,36 @@ function defaultOpener(target) {
   });
 }
 
-export function createSystemRouter({ opener = defaultOpener } = {}) {
+/** Registered project roots, archived ones included: those are still the owner's own trees. */
+function registeredProjectRoots() {
+  try {
+    return [...projectsDb.getProjectPaths(), ...projectsDb.getArchivedProjectPaths()]
+      .map((row) => row.project_path)
+      .filter((projectPath) => typeof projectPath === 'string' && projectPath.length > 0);
+  } catch {
+    // A fresh install has no projects table yet; nothing is inside a project.
+    return [];
+  }
+}
+
+async function canonical(target) {
+  try {
+    return await realpath(target);
+  } catch {
+    return resolve(target);
+  }
+}
+
+export async function isInsideProjectRoots(target, roots) {
+  const file = await canonical(target);
+  for (const root of roots) {
+    const canonicalRoot = await canonical(root);
+    if (file === canonicalRoot || file.startsWith(canonicalRoot.endsWith(sep) ? canonicalRoot : `${canonicalRoot}${sep}`)) return true;
+  }
+  return false;
+}
+
+export function createSystemRouter({ opener = defaultOpener, projectRoots = registeredProjectRoots } = {}) {
   const router = express.Router();
 
   router.post('/open-file', asyncHandler(async (req, res) => {
@@ -37,6 +70,15 @@ export function createSystemRouter({ opener = defaultOpener } = {}) {
       await stat(target);
     } catch {
       return res.status(404).json({ error: 'File not found' });
+    }
+
+    // This hands a path to the OS opener, which is "run whatever that file's
+    // handler is". A chat message, a markdown link or any caller that reaches
+    // this route could otherwise name a file anywhere on the machine, so the
+    // target has to belong to a project the owner actually opened. Managed
+    // worktrees live under their repository root and are covered by it.
+    if (!(await isInsideProjectRoots(target, projectRoots()))) {
+      return res.status(403).json({ error: 'The file is not inside an open project.' });
     }
 
     try {

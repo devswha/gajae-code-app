@@ -147,6 +147,10 @@
       "testingConnection": "Bağlantı test ediliyor…",
       "connectionPassed": "ego-browser bağlandı",
       "connectionFailed": "ego-browser bağlantı testi başarısız oldu.",
+      "activity": "Tarayıcı etkinliğini göster",
+      "activityDescription": "Çalışma sürerken ego lite Space'ini, sayfalarını ve geçerli adreslerini okur ve ajan kenar çubuğunda gösterir. Hiçbir şey saklanmaz, yalnızca bu oturumun oluşturduğu ajana ait Space'ler okunur ve sorgu dizeleri kaldırılır.",
+      "activityFrame": "Tarayıcı ekranını göster",
+      "activityFrameDescription": "Ajanın bulunduğu sayfanın küçük bir görüntüsünü, satır açıkken saniyede bir kadar yenileyerek gösterir. Oturumu açık tarayıcının küçültülmüş bir görüntüsüdür, yalnızca satır genişletilmişken alınır ve saklanmaz.",
       "saveFailed": "Tarayıcı arka ucu kaydedilemedi."
     },
     "builtinBrowser": { "title": "Yerleşik tarayıcı", "description": "Seçilen GJC arka ucundan bağımsız olarak yerleşik tarayıcıyı genişliği ayarlanabilir sağ panelde açın.", "label": "Yerleşik tarayıcı", "note": "Yalnızca macOS masaüstü uygulamasında kullanılabilir. Kapatılana kadar tarayıcının sahibi bir oturumdur. HTTP(S) sohbet bağlantıları her zaman harici tarayıcıda açılır.", "open": "Tarayıcıyı aç", "opened": "Yerleşik tarayıcı açıldı.", "failed": "Tarayıcı açılamadı.", "errors": { "busy": "Yerleşik tarayıcı zaten kullanımda. Bu oturum için açmadan önce kapatın.", "unavailable": "Yerleşik tarayıcı kullanılamıyor. Uygulama sunucusunun yeniden bağlanmasını bekleyip tekrar deneyin.", "invalidUrl": "Bu adres açılamıyor. Bir HTTP veya HTTPS adresi kullanın.", "stale": "İstek tamamlanmadan tarayıcı sayfası değişti. Tekrar deneyin.", "failed": "Yerleşik tarayıcı açılamadı. Tekrar deneyin." } },
@@ -165,7 +169,15 @@
     "noGrants": "Kaydedilmiş otomasyon onayı yok.",
     "origin": "Sitenin kökeni",
     "application": "Masaüstü uygulaması",
-    "revoke": "Onayı kaldır"
+    "revoke": "Onayı kaldır",
+    "withheld": "Uygulamada devre dışı çalışma zamanı özellikleri",
+    "withheldDescription": "Araç kümesine uygulama karar verir. GJC yapılandırmanız ne olursa olsun bu çalışma zamanı özellikleri her oturumda kapalıdır.",
+    "withheldMcp": "MCP sunucuları",
+    "withheldMcpReason": "GJC ayarlarınızdaki sunucular ve projedeki .mcp.json yüklenmez; böylece uygulamanın seçmediği araçlar bir oturuma ulaşamaz.",
+    "withheldToolDiscovery": "Araç keşfi",
+    "withheldToolDiscoveryReason": "Oturumlar çalışırken ek araç etkinleştiremez; uygulamanın seçtiği küme kümenin tamamıdır.",
+    "withheldAstEdit": "AST düzenleme",
+    "withheldAstEditReason": "Yalnızca yeniden yazımları önizler ve bunları uygulamanın sunmadığı bir araçla uygular; yani oturumun asla işleyemeyeceği düzenlemeleri duyurur."
   },
   "notifications": {
     "title": "Uygulama bildirimleri",

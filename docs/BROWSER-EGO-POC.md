@@ -69,6 +69,12 @@ taken from a client request.
   timeout, first parsing `--version` and then running the documented
   `nodejs -e "console.log('ok')"` round trip. It never runs `import`, `upgrade`
   or `onboarding`.
+- Both CLI callers share one runner (`execEgoFile`) because ego-browser 0.5
+  behaves two ways a plain `promisify(execFile)` gets wrong: it waits for EOF
+  on stdin before running a `nodejs` program, so the parent must close the
+  child's stdin or every call dies on its timeout; and when its output is piped
+  it writes both the program's `console.log` and the `--version` banner to
+  **stderr**. Checks read the combined content, never the stream it arrived on.
 - A missing or not-ready Ego CLI keeps the session alive for ordinary chat and
   coding while browser work is unavailable. There is no fallback or
   substitution to Built-in, Aside, an OS browser, Playwright, Puppeteer, MCP
@@ -76,6 +82,42 @@ taken from a client request.
   non-browser app automation.
 - With ego selected the Browser panel's WebView is not what the agent drives;
   the panel is unchanged and still works for the user directly.
+
+## Browser activity in the app
+
+`Settings > Automation > Show browser activity` (opt-in, off by default,
+`automation.egoActivity.v1`) renders what the agent's browser is doing in the
+agent sidebar's WORK lane: the live Space, its goal and the page it is on.
+
+The state comes from ego lite, not from the session: `GET
+/api/automation/ego-activity?sessionId=…` runs a fixed app-authored script
+(`EGO_ACTIVITY_SCRIPT`) that calls only `listTaskSpaces()`, `taskSpace(id)` and
+`tabs()`. Measured on ego-browser 0.5.0.32, that read takes 0.12-0.17 s and does
+not disturb a script already working in the same space. Attribution uses a token
+the app mints from the app session id (`egoActivityToken`) and requires in the
+routing block's space-naming rule, so no Bash command is ever parsed.
+
+`Settings > Automation > Show the browser screen` is a second, separate opt-in
+(`automation.egoActivityFrame.v1`, off by default, and unavailable until the
+activity surface is on). With it enabled, expanding a Space row adds a small
+JPEG of the page the agent is on, refreshed about once a second while the row
+stays open. `GET /api/automation/ego-activity/frame?sessionId=&space=&page=`
+serves it: the space and page must be in that session's attributed snapshot,
+the program interpolates only a validated space id and `pN` label, it calls
+exactly one CDP method (`Page.captureScreenshot`, quality 35, scaled to ≤640px)
+and returns bytes, so nothing is written to disk. Measured on ego-browser
+0.5.0.32 with the ego window behind the app: 10/10 captures, median 50 ms,
+27 KB scaled. A **minimized** ego window produces no compositor frames at all -
+that capture times out and the surface simply shows no picture.
+
+Bounds: nothing executes while the surface is off, the backend is not ego, the
+platform is unsupported or no session id is supplied; only agent-created,
+agent-owned spaces carrying this session's token and their agent-opened pages
+are read; URLs are reduced to origin and path; one execution serves every reader
+inside a one-second window; nothing is persisted; and any failure hides the
+surface instead of failing the run. `page.events()` is never called - its read
+clears the buffer the agent's own script depends on. Full design record and
+evidence: `docs/plans/ego-activity-contract.md`.
 
 ## Design decisions
 
@@ -150,9 +192,9 @@ session over `chat.send`, Bash approved through the app's permission card):
 
 ## Follow-ups (not implemented)
 
-- Surfacing the running Space in the WORK sidebar; see the authority analysis
-  in `docs/plans/aside-activity-contract.md` — the same "prompt-routed Bash"
-  limits apply to ego.
+- A live frame (≈1 fps `screenshot()` of the active agent tab) behind its own
+  opt-in; see `docs/plans/ego-activity-contract.md` §8. The state surface above
+  ships; the picture does not.
 - Runtime-native `browser.backend=ego` in `@gajae-code/coding-agent`, at which
   point the app's probe and block move there and this PoC collapses to the
   Aside shape.

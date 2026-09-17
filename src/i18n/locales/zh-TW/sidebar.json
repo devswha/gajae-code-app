@@ -2,7 +2,6 @@
   "projects": {
     "title": "工作空間",
     "newProject": "新增專案",
-    "deleteProject": "移除工作空間",
     "renameProject": "重新命名工作空間",
     "noProjects": "尚未有任何工作空間",
     "addFirst": "新增",
@@ -18,6 +17,7 @@
     "newTask": "新的工作項目",
     "newSession": "開始對話",
     "deleteSession": "刪除對話",
+    "archiveSession": "封存對話",
     "renameSession": "重新命名對話",
     "regenerateTitle": "重新產生標題",
     "exportSession": "匯出Markdown",
@@ -36,7 +36,7 @@
     "createSession": "開始對話",
     "refresh": "重新載入專案和對話 (Ctrl+R)",
     "renameProject": "重命名工作區 (F2)",
-    "deleteProject": "從側欄移除此專案 (Delete)",
+    "archiveProject": "將此專案移至封存（不會刪除任何內容）",
     "addToFavorites": "標記為最愛",
     "removeFromFavorites": "移除最愛標記",
     "editSessionName": "編輯對話名稱",
@@ -84,14 +84,16 @@
     "renameSessionError": "發生對話重命名錯誤。再試一次。",
     "regenerateTitleFailed": "無法重新產生標題。請再試一次。",
     "exportSessionError": "無法匯出對話。再試一次。",
-    "deleteProjectFailed": "無法移除專案。再試一次。",
-    "deleteProjectError": "發生專案移除錯誤。請再試一次。",
+    "archiveProjectFailed": "無法封存專案。請再試一次。",
+    "archiveProjectError": "封存專案時發生錯誤。請再試一次。",
     "updateProjectError": "發生專案更新錯誤。請再試一次。",
     "refreshError": "無法重新整理。請再試一次。",
     "restoreProjectFailed": "無法復原專案。請再試一次。",
     "restoreProjectError": "發生專案復原錯誤。請再試一次。",
     "restoreSessionFailed": "無法復原對話。請再試一次.",
     "restoreSessionError": "發生對話恢復錯誤。請再試一次。",
+    "archiveSessionFailed": "無法封存對話。請再試一次。",
+    "archiveSessionError": "發生對話封存錯誤。請再試一次。",
     "debugInfoError": "無法複製除錯資訊。"
   },
   "providerQuota": {
@@ -111,11 +113,7 @@
     "updateAvailable": "有新版本可用"
   },
   "deleteConfirmation": {
-    "deleteProject": "移除工作區",
     "deleteSession": "刪除對話",
-    "confirmDelete": "選擇要執行的動作",
-    "sessionCount_one": "此專案中有 {{count}} 個對話。",
-    "sessionCount_other": "此專案中共有 {{count}} 個對話。",
-    "deleteAllData": "永久刪除所有資料"
+    "confirmDelete": "選擇要執行的動作"
   }
 }

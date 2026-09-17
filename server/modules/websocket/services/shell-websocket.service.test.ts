@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import pty, { type IPty } from 'node-pty';
@@ -79,6 +80,8 @@ function fixture(t: test.TestContext) {
       normalizeDetectedUrl: () => null,
       extractUrlsFromText: () => [],
       shouldAutoOpenUrlFromOutput: () => false,
+      // The real gate is the workspace root; this fixture starts in the temp dir.
+      validateProjectPath: () => ({ valid: true }),
     });
     return socket;
   };
@@ -526,6 +529,23 @@ test('synchronous exit during a requested restart does not leak or delete the re
   assert.equal(snapshotShellActivity().settling, 0);
   owner.receive({ type: 'input', data: 'replacement\n' });
   assert.deepEqual(f.terminals[1]!.writes, ['replacement\n']);
+});
+
+test('a terminal cannot start outside the workspace root', t => {
+  // The client names the PTY's working directory. Without the same gate a
+  // project passes, `/` or any other tree on the machine becomes a terminal.
+  const f = fixture(t);
+  const socket = new FakeSocket();
+  handleShellConnection(socket as unknown as WebSocket, {
+    resolveProviderSessionId: () => undefined,
+    stripAnsiSequences: value => value,
+    normalizeDetectedUrl: () => null,
+    extractUrlsFromText: () => [],
+    shouldAutoOpenUrlFromOutput: () => false,
+  });
+  socket.receive({ ...f.init, projectPath: path.parse(os.homedir()).root });
+  assert.equal(f.terminals.length, 0, 'no PTY is spawned');
+  assert.deepEqual(socket.frames, [{ type: 'error', message: 'Invalid project path' }]);
 });
 
 test('a failed user-requested kill retains original ownership and retiring uncertainty until exit', t => {

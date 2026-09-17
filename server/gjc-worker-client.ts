@@ -15,8 +15,6 @@ import {
   GJC_ASIDE_UNAVAILABLE_MESSAGE,
   GJC_CLEANUP_UNCONFIRMED_CODE,
   GJC_AGENT_TOOL_NAMES,
-  GJC_EGO_UNAVAILABLE_CODE,
-  GJC_EGO_UNAVAILABLE_MESSAGE,
   GJC_INVALID_PERMISSIONS_CODE,
   GJC_INVALID_PERMISSIONS_MESSAGE,
   GJC_MODEL_UNRESOLVED_CODE,
@@ -39,6 +37,7 @@ import {
   type JsonObject,
 } from './gjc-engine.js';
 import { notifyRunFailed, notifyRunStopped } from './modules/notifications/index.js';
+import { childEnvironment } from './shared/child-environment.js';
 import {
   createCompleteMessage,
   createNormalizedMessage,
@@ -216,7 +215,6 @@ function runFailureMessage(response: GjcWorkerResponsePayload): string {
   if (!response.ok && response.error.code === GJC_INVALID_PERMISSIONS_CODE) return GJC_INVALID_PERMISSIONS_MESSAGE;
   if (!response.ok && response.error.code === GJC_MODEL_UNRESOLVED_CODE) return GJC_MODEL_UNRESOLVED_MESSAGE;
   if (!response.ok && response.error.code === GJC_ASIDE_UNAVAILABLE_CODE) return GJC_ASIDE_UNAVAILABLE_MESSAGE;
-  if (!response.ok && response.error.code === GJC_EGO_UNAVAILABLE_CODE) return GJC_EGO_UNAVAILABLE_MESSAGE;
   return SAFE_FAILURE;
 }
 
@@ -1004,8 +1002,10 @@ export class GjcWorkerSupervisor {
       import.meta.url,
     ));
     const coreArgs = ['--', bunPath, workerPath];
+    // The worker runs the agent's own `bash`, so it must not carry the keys
+    // that authenticate a caller to this server (see child-environment.ts).
     const workerEnv = {
-      ...this.runtime.environment,
+      ...childEnvironment(this.runtime.environment),
       GJC_WORKER_AGENT_DIR: this.runtime.environment.GJC_WORKER_AGENT_DIR ?? join(homedir(), '.gjc', 'agent'),
     };
     const launch = this.runtime.platform === 'win32'

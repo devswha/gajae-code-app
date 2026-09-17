@@ -2,7 +2,6 @@
   "projects": {
     "title": "Workspaces",
     "newProject": "Add project",
-    "deleteProject": "Remove workspace",
     "renameProject": "Rename workspace",
     "noProjects": "No workspaces yet",
     "addFirst": "Add one",
@@ -18,6 +17,7 @@
     "newTask": "New work item",
     "newSession": "Start conversation",
     "deleteSession": "Delete conversation",
+    "archiveSession": "Archive conversation",
     "renameSession": "Rename conversation",
     "regenerateTitle": "Regenerate title",
     "exportSession": "Export Markdown",
@@ -36,7 +36,7 @@
     "createSession": "Start a conversation",
     "refresh": "Reload projects and conversations (Ctrl+R)",
     "renameProject": "Rename workspace (F2)",
-    "deleteProject": "Remove this project from the sidebar (Delete)",
+    "archiveProject": "Move this project to the archive (nothing is deleted)",
     "addToFavorites": "Mark as favourite",
     "removeFromFavorites": "Remove favourite mark",
     "editSessionName": "Edit the conversation name",
@@ -84,14 +84,16 @@
     "renameSessionError": "A conversation rename error occurred. Try again.",
     "regenerateTitleFailed": "Could not regenerate the title. Try again.",
     "exportSessionError": "Could not export the conversation. Try again.",
-    "deleteProjectFailed": "Could not remove the project. Try again.",
-    "deleteProjectError": "A project removal error occurred. Try again.",
+    "archiveProjectFailed": "Could not archive the project. Try again.",
+    "archiveProjectError": "A project archive error occurred. Try again.",
     "updateProjectError": "A project update error occurred. Try again.",
     "refreshError": "Could not refresh. Try again.",
     "restoreProjectFailed": "Could not restore the project. Try again.",
     "restoreProjectError": "A project restore error occurred. Try again.",
     "restoreSessionFailed": "Could not restore the conversation. Try again.",
     "restoreSessionError": "A conversation restore error occurred. Try again.",
+    "archiveSessionFailed": "Could not archive the conversation. Try again.",
+    "archiveSessionError": "A conversation archive error occurred. Try again.",
     "debugInfoError": "The debug info could not be copied."
   },
   "providerQuota": {
@@ -111,11 +113,7 @@
     "updateAvailable": "New update available"
   },
   "deleteConfirmation": {
-    "deleteProject": "Remove workspace",
     "deleteSession": "Delete conversation",
-    "confirmDelete": "Choose what to do with",
-    "sessionCount_one": "There is {{count}} conversation in this project.",
-    "sessionCount_other": "There are {{count}} conversations in this project.",
-    "deleteAllData": "Permanently erase all data"
+    "confirmDelete": "Choose what to do with"
   }
 }

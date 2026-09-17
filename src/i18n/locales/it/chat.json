@@ -86,6 +86,14 @@
       "signInRequired": "Accedi a {{provider}} nelle impostazioni per usare questa preimpostazione"
     },
     "attachImages": "Aggiungi immagini",
+    "attachment": {
+      "onlyImages": "Si possono allegare solo immagini, quindi {{names}} non è stato aggiunto. Richiama un file di testo con @ oppure incollane il contenuto.",
+      "tooLarge": "{{names}} supera 5 MB.",
+      "empty": "{{names}} è vuoto.",
+      "tooMany": "Si possono allegare al massimo {{count}} immagini, quindi {{names}} non è stato aggiunto.",
+      "dropHere": "Trascina qui le immagini",
+      "dismiss": "Chiudi questo avviso"
+    },
     "send": "Spedisci",
     "stop": "Fermati",
     "hintText": {
@@ -266,5 +274,12 @@
       "partial": "Corrispondenza parziale",
       "recent": "Attivo di recente"
     }
+  },
+  "sessionWorktree": {
+    "label": "Directory di esecuzione",
+    "project": "Progetto",
+    "newWorktree": "Nuovo worktree",
+    "worktree": "Worktree",
+    "preparing": "Preparazione del worktree"
   }
 }

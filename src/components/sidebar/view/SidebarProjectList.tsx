@@ -24,7 +24,7 @@ export type SidebarProjectListProps = {
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
-  deletingProjects: Set<string>;
+  archivingProjects: Set<string>;
   getProjectSessions: (project: Project) => SessionWithProvider[];
   onLoadMoreSessions: (projectId: string) => void;
   loadingMoreProjects: Set<string>;
@@ -40,7 +40,7 @@ export type SidebarProjectListProps = {
   onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectName: string) => void;
-  onDeleteProject: (project: Project) => void;
+  onArchiveProject: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
   onDeleteSession: (
     projectName: string,
@@ -56,6 +56,7 @@ export type SidebarProjectListProps = {
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onToggleSessionStar?: (sessionId: string) => void;
+  onArchiveSession?: (sessionId: string) => void;
   onRegenerateTitle?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
   onCopyDebugInfo?: (sessionId: string) => void;
@@ -77,7 +78,7 @@ export default function SidebarProjectList({
   currentTime,
   editingSession,
   editingSessionName,
-  deletingProjects,
+  archivingProjects,
   getProjectSessions,
   onLoadMoreSessions,
   loadingMoreProjects,
@@ -93,7 +94,7 @@ export default function SidebarProjectList({
   onStartEditingProject,
   onCancelEditingProject,
   onSaveProjectName,
-  onDeleteProject,
+  onArchiveProject,
   onSessionSelect,
   onDeleteSession,
   onNewSession,
@@ -103,6 +104,7 @@ export default function SidebarProjectList({
   onCancelEditingSession,
   onSaveEditingSession,
   onToggleSessionStar,
+  onArchiveSession,
   onRegenerateTitle,
   onExportSession,
   onCopyDebugInfo,
@@ -145,7 +147,7 @@ export default function SidebarProjectList({
               isExpanded={forceExpanded || expandedProjects.has(project.projectId)}
               isMobile={isMobile}
               showSessions={showSessions}
-              isDeleting={deletingProjects.has(project.projectId)}
+              isArchiving={archivingProjects.has(project.projectId)}
               isStarred={isProjectStarred(project.projectId)}
               editingProject={editingProject}
               editingName={editingName}
@@ -162,7 +164,7 @@ export default function SidebarProjectList({
               onStartEditingProject={onStartEditingProject}
               onCancelEditingProject={onCancelEditingProject}
               onSaveProjectName={onSaveProjectName}
-              onDeleteProject={onDeleteProject}
+              onArchiveProject={onArchiveProject}
               onSessionSelect={onSessionSelect}
               onDeleteSession={onDeleteSession}
               onLoadMoreSessions={onLoadMoreSessions}
@@ -174,6 +176,7 @@ export default function SidebarProjectList({
               onCancelEditingSession={onCancelEditingSession}
               onSaveEditingSession={onSaveEditingSession}
               onToggleSessionStar={onToggleSessionStar}
+              onArchiveSession={onArchiveSession}
               onRegenerateTitle={onRegenerateTitle}
               onExportSession={onExportSession}
               onCopyDebugInfo={onCopyDebugInfo}

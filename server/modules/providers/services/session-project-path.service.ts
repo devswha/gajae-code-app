@@ -1,7 +1,7 @@
 import { realpath, stat } from 'node:fs/promises';
 
 import { isManagedWorktreePath } from '@/modules/database/index.js';
-import { AppError, normalizeProjectPath } from '@/shared/utils.js';
+import { AppError, normalizeProjectPath, validateWorkspacePath } from '@/shared/utils.js';
 
 /** Resolve aliases before binding a session to its project's grouping/policy. */
 export async function resolveSessionProjectPath(input: string): Promise<string> {
@@ -18,6 +18,13 @@ export async function resolveSessionProjectPath(input: string): Promise<string> 
   }
   if (isManagedWorktreePath(requested) || isManagedWorktreePath(canonical)) {
     throw new AppError('Managed worktrees require a bound session.', { code: 'PROJECT_PATH_IS_MANAGED_WORKTREE', statusCode: 400 });
+  }
+  // A session's project path is the agent's working root, so it passes the
+  // same gate project registration does. Without it, `/` (or any tree outside
+  // the workspace root) becomes a machine-wide root for the agent's tools.
+  const jailed = await validateWorkspacePath(canonical);
+  if (!jailed.valid) {
+    throw new AppError(jailed.error || 'Invalid project path.', { code: 'INVALID_PROJECT_PATH', statusCode: 400 });
   }
   return canonical;
 }

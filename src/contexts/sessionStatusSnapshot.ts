@@ -29,6 +29,8 @@ export type SessionStatusSnapshot = {
   sessionId: string | null;
   modelId?: string;
   thinkingLevel?: string;
+  /** Billing tier the run resolved to. Absent when the runtime omits it. */
+  serviceTier?: string;
   cwd?: string;
   contextTokens?: number;
   contextWindow?: number;
@@ -71,6 +73,7 @@ export function readSessionFacts(sessionState: Record<string, unknown> | null | 
   return {
     modelId: text(sessionState.modelId),
     thinkingLevel: text(sessionState.thinkingLevel),
+    serviceTier: text(sessionState.serviceTier),
     cwd: text(sessionState.cwd),
     contextTokens: nonNegative(sessionState.contextTokens),
     contextWindow: positive(sessionState.contextWindow),
@@ -142,6 +145,7 @@ export function sameSessionStatus(left: SessionStatusSnapshot, right: SessionSta
   return left.sessionId === right.sessionId
     && left.modelId === right.modelId
     && left.thinkingLevel === right.thinkingLevel
+    && left.serviceTier === right.serviceTier
     && left.cwd === right.cwd
     && left.contextTokens === right.contextTokens
     && left.contextWindow === right.contextWindow

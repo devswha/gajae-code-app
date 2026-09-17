@@ -147,6 +147,10 @@
       "testingConnection": "正在测试连接…",
       "connectionPassed": "ego-browser 已连接",
       "connectionFailed": "ego-browser 连接测试失败。",
+      "activity": "显示浏览器活动",
+      "activityDescription": "运行期间读取 ego lite 的 Space、页面及其当前地址，并显示在智能体侧边栏中。不做任何存储，仅读取本会话创建的智能体自有 Space，并去除查询字符串。",
+      "activityFrame": "显示浏览器画面",
+      "activityFrameDescription": "在展开该行期间，每秒左右刷新一次智能体所在页面的小图。这是对你已登录浏览器的缩小截图，仅在展开时拍摄，且不做存储。",
       "saveFailed": "无法保存浏览器后端。"
     },
     "builtinBrowser": { "title": "内置浏览器", "description": "在可调整宽度的右侧面板中打开内置浏览器，不受所选 GJC 后端影响。", "label": "内置浏览器", "note": "仅在 macOS 桌面应用中可用。关闭前会一直保留浏览器所有权。HTTP(S) 聊天链接始终在外部浏览器中打开。", "open": "打开浏览器", "opened": "已打开内置浏览器。", "failed": "无法打开浏览器。", "errors": { "busy": "内置浏览器正在使用中。请先关闭，再为此会话打开。", "unavailable": "内置浏览器暂不可用。请等待应用服务器重新连接后再试。", "invalidUrl": "无法打开此地址。请使用 HTTP 或 HTTPS 地址。", "stale": "请求完成前浏览器页面已发生变化。请重试。", "failed": "无法打开内置浏览器。请重试。" } },
@@ -165,7 +169,15 @@
     "noGrants": "没有保存的自动化批准。",
     "origin": "站点来源",
     "application": "桌面应用",
-    "revoke": "移除批准"
+    "revoke": "移除批准",
+    "withheld": "应用中停用的运行时功能",
+    "withheldDescription": "工具集由应用决定。无论你的 GJC 配置如何，以下运行时功能在所有会话中都保持关闭。",
+    "withheldMcp": "MCP 服务器",
+    "withheldMcpReason": "不会加载你 GJC 设置中的服务器和项目里的 .mcp.json，以免应用从未选择的工具进入会话。",
+    "withheldToolDiscovery": "工具发现",
+    "withheldToolDiscoveryReason": "会话无法在运行时激活额外工具；应用选定的集合就是全部集合。",
+    "withheldAstEdit": "AST 编辑",
+    "withheldAstEditReason": "它只预览改写，并通过应用未开放的工具来应用，因此会展示会话永远无法提交的编辑。"
   },
   "notifications": {
     "title": "通知",

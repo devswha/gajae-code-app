@@ -89,24 +89,33 @@ test('external browser HTTP and HTTPS pages use the desktop opener without widen
 test('a target=_blank anchor is routed through the sidecar in the desktop shell and left alone in a browser', () => {
   const fetch = installFetch();
   const dispose = routeExternalAnchors(document);
+  // A later document-bubble observer stands in for the shell's own injected
+  // link handler: when our capture listener takes a link it must never run.
+  const downstream: Array<{ dp: boolean }> = [];
+  const observer = (event: Event): void => {
+    downstream.push({ dp: event.defaultPrevented });
+    event.preventDefault();
+  };
+  document.addEventListener('click', observer);
   document.body.innerHTML = '<a id="docs" href="https://example.com/docs" target="_blank">docs</a><a id="same" href="https://example.com/same">same tab</a>';
-  const click = (id: string) => {
-    const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
-    let routed = false;
-    // Inspect the router's decision, then stop Happy DOM's real navigation.
-    document.addEventListener('click', next => { routed = next.defaultPrevented; next.preventDefault(); }, { once: true });
-    document.getElementById(id)?.dispatchEvent(event);
-    return routed;
+  const click = (id: string): void => {
+    document.getElementById(id)?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
   };
   try {
-    assert.equal(click('docs'), false, 'a browser keeps the anchor');
+    click('docs');
+    assert.equal(fetch.calls.length, 0, 'a browser keeps the anchor');
+    assert.equal(downstream.length, 1, 'a browser click reaches later listeners');
     markDesktopShell(true);
-    assert.equal(click('docs'), true, 'the shell takes the anchor');
+    click('docs');
+    assert.equal(fetch.calls.length, 1, 'the shell takes the anchor');
     assert.equal(fetch.calls[0]?.body && (fetch.calls[0].body as { url: string }).url, 'https://example.com/docs');
-    assert.equal(click('same'), false, 'same-tab navigation is not an external link');
-    assert.equal(fetch.calls.length, 1);
+    assert.equal(downstream.length, 1, 'a handled link stops later click listeners');
+    click('same');
+    assert.equal(fetch.calls.length, 1, 'same-tab navigation is not an external link');
+    assert.equal(downstream.length, 2, 'same-tab anchors pass through untouched');
   } finally {
     dispose();
+    document.removeEventListener('click', observer);
     fetch.restore();
   }
 });

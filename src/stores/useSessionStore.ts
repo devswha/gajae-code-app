@@ -187,6 +187,27 @@ function collapseStreamTransition(rows: NormalizedMessage[]) {
   return result;
 }
 
+/**
+ * Drops the oldest realtime rows, except the user's own not-yet-persisted ones.
+ *
+ * A `local_` row is the message the user just sent: it exists only here until
+ * the transcript on disk catches up. A long turn can push more than the cap
+ * through this buffer, and evicting that row makes the user's own message
+ * disappear from the conversation they are watching.
+ */
+function trimRealtime(messages: NormalizedMessage[]): NormalizedMessage[] {
+  const excess = messages.length - MAX_REALTIME_MESSAGES;
+  if (excess <= 0) return messages;
+  let dropped = 0;
+  const kept = messages.filter((row) => {
+    if (dropped >= excess) return true;
+    if (row.id?.startsWith('local_')) return true;
+    dropped += 1;
+    return false;
+  });
+  return kept;
+}
+
 function retainUnpersisted(server: NormalizedMessage[], realtime: NormalizedMessage[]) {
   if (!realtime.length) return realtime;
   const diskIds = new Set(server.map((row) => row.id).filter(Boolean));
@@ -409,7 +430,7 @@ export function useSessionStore() {
       if (position === undefined) { if (key) index.set(key, next.length); next.push(normalized); }
       else next[position] = normalized;
     });
-    slot.realtimeMessages = next.length > MAX_REALTIME_MESSAGES ? next.slice(-MAX_REALTIME_MESSAGES) : next;
+    slot.realtimeMessages = next.length > MAX_REALTIME_MESSAGES ? trimRealtime(next) : next;
     refreshMerged(slot);
     emitSession(id);
   }, [emitSession, getSlot]);

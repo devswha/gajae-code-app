@@ -218,6 +218,14 @@ method or frame changes; the policy travels inside existing payloads:
   records and permission handling are unchanged. Other info notices, warnings,
   errors, and actual approval requests remain visible.
   No permission request crosses to the host, so the run is never reported as awaiting input.
+- The runtime's `priority` notice for a rejected fast mode ("Priority/fast mode
+  rejected for this model; retried without it. Fast mode is off for this model
+  until you re-enable it with /fast on.") is omitted from chat rows the same
+  way, at any level and with or without the `priority: ` source prefix. The
+  turn already ran without priority, the app exposes no fast-mode control, and
+  the runtime re-warns once per model in every session. The notice is still
+  recorded, exported and forwarded; only the chat row is dropped. Any other
+  wording, including a different source prefix or extra text, stays visible.
 - Any other gated call is an `ask.presented` event whose message is a
   `permission_request` with `requestId` prefixed `sdk-permission:`, the
   runtime's `toolName`, its `rawInput` as `input`, and a `context` naming the
@@ -308,6 +316,38 @@ Settings action; it uses `execFile` with the pinned absolute path, `shell:false`
 a minimal environment and a two-second bound for `--version` followed by the
 documented `nodejs -e "console.log('ok')"` round trip. It never invokes
 `import`, `upgrade` or `onboarding`.
+
+`GET /api/automation/ego-activity?sessionId=…` is the second and last place the
+app may execute the ego CLI. It answers what the agent's browser is doing, from
+ego itself: the ego backend routes browser work through Bash, so the runtime
+sees only an opaque command, and the CLI buffers the model's own output until
+the round ends. The surface is opt-in (`automation.egoActivity.v1`, off by
+default) and executes nothing unless the stored backend is `ego`, the platform
+supports it and a session id is supplied; Settings reads the opt-in without one.
+The observation program (`EGO_ACTIVITY_SCRIPT`) is a fixed constant with no
+interpolation, calls only `listTaskSpaces()`, `taskSpace(id)` and `tabs()`, and
+yields only agent-created, agent-owned spaces whose name starts with the
+app-minted session token (`egoActivityToken`, derived from the app session id
+and written into the routing block's naming rule) and, inside them, only
+agent-opened managed pages. One execution is shared by every reader inside a
+one-second window, URLs are reduced to origin and path, nothing is persisted,
+and any failure reports `unavailable` instead of surfacing an error into the
+run. The design record is `docs/plans/ego-activity-contract.md`.
+
+`GET /api/automation/ego-activity/frame?sessionId=&space=&page=` answers one
+JPEG of a page that session's own Space is showing. It requires a second opt-in
+(`automation.egoActivityFrame.v1`, off by default) on top of the activity
+surface, and the requested space and page must appear in that session's
+attributed snapshot, so a page the session never opened cannot be captured. The
+frame program is built by `buildEgoFrameScript`, which interpolates only a
+validated positive integer space id and an ego page label (`/^p[0-9]{1,4}$/`)
+and refuses anything else; it calls exactly one CDP method,
+`Page.captureScreenshot`, at JPEG quality 35 scaled to at most 640px wide, and
+returns base64 bytes so no picture of a signed-in browser is ever written to
+disk. Non-JPEG payloads and frames above 1 MB are dropped. One capture serves a
+page for 900 ms, responses are `no-store`, and a capture that fails (a
+minimized ego window produces no compositor frames) answers 404 rather than
+retrying.
 
 The Built-in tool exposes only `open`, `close`, and `act`. Its act verbs are
 `navigate`, `back`, `forward`, `reload`, `observe`, `extract`, `click`, and

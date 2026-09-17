@@ -61,11 +61,7 @@
     }
   },
   "workspace": {
-    "tabs": {
-      "tasks": "할 일"
-    },
     "tasks": {
-      "progress": "{{total}}개 중 {{done}}개 완료",
       "status": {
         "pending": "대기",
         "in_progress": "진행 중",
@@ -88,6 +84,7 @@
       "changes": "변경 사항",
       "branch": "브랜치",
       "directory": "디렉토리",
+      "serviceTier": "서비스 등급",
       "refresh": "Git 상태 다시 로드",
       "notARepository": "이 폴더는 Git 저장소가 아닙니다",
       "gitUnavailable": "Git 상태를 읽을 수 없습니다"
@@ -96,7 +93,13 @@
       "title": "작업",
       "working": "작업 중",
       "agents": "에이전트",
-      "agentRunning": "실행 중"
+      "agentRunning": "실행 중",
+      "browser": "브라우저",
+      "browserRunning": "브라우저 작업 중",
+      "browserSpace": "브라우저 공간 {{id}}",
+      "browserMore": "+{{count}}개 더",
+      "browserActivePage": "현재 페이지",
+      "browserFrame": "브라우저 화면"
     },
     "actionRequired": {
       "title": "응답 필요",

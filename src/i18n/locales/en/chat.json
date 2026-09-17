@@ -86,6 +86,14 @@
       "signInRequired": "Sign in to {{provider}} in Settings to use this preset"
     },
     "attachImages": "Add images",
+    "attachment": {
+      "onlyImages": "Only images can be attached, so {{names}} was not added. Reference a text file with @ instead, or paste its contents.",
+      "tooLarge": "{{names}} is larger than 5 MB.",
+      "empty": "{{names}} is empty.",
+      "tooMany": "At most {{count}} images can be attached, so {{names}} was not added.",
+      "dropHere": "Drop images here",
+      "dismiss": "Dismiss this notice"
+    },
     "send": "Send",
     "stop": "Stop",
     "hintText": {
@@ -266,5 +274,12 @@
       "partial": "Partial match",
       "recent": "Recently active"
     }
+  },
+  "sessionWorktree": {
+    "label": "Run location",
+    "project": "Project",
+    "newWorktree": "New worktree",
+    "worktree": "Worktree",
+    "preparing": "Preparing worktree"
   }
 }

@@ -61,11 +61,7 @@
     }
   },
   "workspace": {
-    "tabs": {
-      "tasks": "タスク"
-    },
     "tasks": {
-      "progress": "{{total}} 件中 {{done}} 件完了",
       "status": {
         "pending": "未着手",
         "in_progress": "進行中",
@@ -88,6 +84,7 @@
       "changes": "変更",
       "branch": "ブランチ",
       "directory": "ディレクトリ",
+      "serviceTier": "サービスティア",
       "refresh": "Git ステータスを再読み込み",
       "notARepository": "このフォルダーは Git リポジトリではありません",
       "gitUnavailable": "Git ステータスを読み取れません"
@@ -96,7 +93,13 @@
       "title": "作業",
       "working": "実行中",
       "agents": "エージェント",
-      "agentRunning": "実行中"
+      "agentRunning": "実行中",
+      "browser": "ブラウザ",
+      "browserRunning": "ブラウザ操作中",
+      "browserSpace": "ブラウザースペース {{id}}",
+      "browserMore": "他 {{count}} 件",
+      "browserActivePage": "現在のページ",
+      "browserFrame": "ブラウザ画面"
     },
     "actionRequired": {
       "title": "応答が必要",

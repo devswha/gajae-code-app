@@ -59,13 +59,13 @@ job projection protocol). `scripts/` holds build/release/verify tooling.
 ## Commands
 
 ```bash
-npm run dev              # server (tsx, :3001) + vite client (:5173); prebuilds rust core
+npm run dev              # server (tsx, :3001) + vite client (:5173, loopback unless HOST is set); prebuilds rust core
 npm test                 # all tests via scripts/run-tests.mjs (node:test + bun test)
 npm run typecheck        # tsc on both tsconfig.json and server/tsconfig.json
 npm run lint             # eslint src/ server/ shared/ scripts/ + configs
 npm run check:core       # cargo fmt --check + clippy -D warnings + cargo test
-npm run verify           # FULL GATE: audit + typecheck + check:core + test + lint + check:identity + build
-npm run test:e2e:gjc     # 7 GJC wire/browser e2e tests (separate from npm test)
+npm run verify           # FULL GATE: audit + typecheck + check:core + test + test:e2e:gjc + lint + check:identity + build
+npm run test:e2e:gjc     # 8 GJC wire/browser e2e tests (also part of verify; not part of npm test)
 npm run desktop:dev      # Tauri dev shell
 npm run server:payload:macos # embedded macOS server payload + sidecar (prerequisite for src-tauri cargo test)
 GJC_UPDATE_MODE=disabled env -u CI npm run tauri -- build --bundles app # ad-hoc macOS app bundle (unsigned, no updater)
@@ -216,9 +216,22 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   runtime on `native` with `browser.enabled=false`, and pins the probe-resolved
   absolute CLI path. If Ego is not ready, the run keeps ordinary chat/coding
   available while browser work is disabled; it never substitutes Built-in,
-  Aside, an OS browser, Playwright/Puppeteer/MCP or computer/CUA. Only the
-  explicit Settings Test connection action may execute `--version` and the
-  documented non-mutating `nodejs` check. The API reference is the
+  Aside, an OS browser, Playwright/Puppeteer/MCP or computer/CUA. The app may
+  execute the ego CLI from exactly two places: the explicit Settings Test
+  connection action (`--version` plus the documented non-mutating `nodejs`
+  check) and the opt-in browser activity reader (`server/gjc-ego-activity.ts`,
+  off by default, only while an ego-backed session is running). The reader's
+  script is a fixed constant limited to `listTaskSpaces`/`taskSpace`/`tabs`; it
+  never navigates, evaluates, adopts, claims, finishes or calls `page.events()`
+  (a destructive read), only sees agent-owned spaces carrying this session's
+  app-minted token, and fails soft. Page frames are a second, separate opt-in
+  (`automation.egoActivityFrame.v1`, also off by default) and the only place the
+  app uses `page.cdp()`: exactly one read-only method,
+  `Page.captureScreenshot`, scaled down inside ego, captured only for a page in
+  this session's attributed snapshot and only while its row is expanded, held in
+  memory and never written to disk. Do not widen either script, and never
+  substitute `page.screenshot({ path })`, which would leave pictures of a
+  signed-in browser on disk. The API reference is the
   user-installed `ego-browser` skill, never a copy in the app. Ego is currently
   selectable only on macOS; Built-in remains macOS desktop-only; see
   `docs/BUILTIN-BROWSER.md`. See `docs/BROWSER-ASIDE-POC.md`,

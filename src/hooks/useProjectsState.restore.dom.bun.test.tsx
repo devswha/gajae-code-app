@@ -119,7 +119,7 @@ test('a remembered project that no longer exists is ignored', async () => {
   }
 });
 
-test('deleting the selected project forgets it, so a reload does not bring it back', async () => {
+test('archiving the selected project forgets it, so a reload does not bring it back', async () => {
   // Three, so that two remain and neither selects itself as a lone project.
   const restore = serveProjects([...twoProjects, project('project-3', 'Project three')]);
   try {
@@ -128,7 +128,7 @@ test('deleting the selected project forgets it, so a reload does not bring it ba
     act(() => { app.getState().handleProjectSelect(twoProjects[0]); });
     assert.equal(localStorage.getItem('selectedProjectId'), 'project-1');
 
-    act(() => { app.getState().handleProjectDelete('project-1'); });
+    act(() => { app.getState().handleProjectArchive('project-1'); });
     await act(async () => { await Promise.resolve(); });
     assert.equal(localStorage.getItem('selectedProjectId'), null);
     assert.equal(app.getState().selectedProject, null);
@@ -150,7 +150,7 @@ test('a session route restores from the URL and leaves the remembered project al
   }
 });
 
-test('returning to the root route clears a session rehydrated before navigation settled', async () => {
+test('returning to the root route clears a session rehydrated from the URL', async () => {
   const session = { id: 'session-1', summary: 'Existing work' };
   const projectWithSession = {
     ...project('project-1', 'Project one'),
@@ -162,11 +162,92 @@ test('returning to the root route clears a session rehydrated before navigation 
     const app = mountApp({ sessionId: session.id });
     await waitFor(() => assert.equal(app.getState().selectedSession?.id, session.id));
 
-    act(() => { app.getState().handleNewSession(projectWithSession); });
-    await waitFor(() => assert.equal(app.getState().selectedSession?.id, session.id));
-
     act(() => { app.setRouteSessionId(null); });
     await waitFor(() => assert.equal(app.getState().selectedSession, null));
+  } finally {
+    restore();
+  }
+});
+
+/*
+ * Leaving a session route takes one click.
+ *
+ * Router navigation is a transition, so `/session/:id` still renders for at
+ * least one commit after `navigate('/')`. The URL-restore effect used to take
+ * that stale id at face value and pull the session - and its project - back
+ * over the selection the click had just made, so the first "+" (or project
+ * row) click appeared to do nothing and only a second one stuck.
+ */
+
+const projectWithSession = (session: { id: string; summary: string }) => ({
+  ...project('project-1', 'Project one'),
+  sessions: [session],
+  sessionMeta: { hasMore: false, total: 1 },
+});
+
+test('starting a session in another project from a session route takes one click', async () => {
+  const session = { id: 'session-1', summary: 'Existing work' };
+  const other = twoProjects[1];
+  const restore = serveProjects([projectWithSession(session), other]);
+  try {
+    const app = mountApp({ sessionId: session.id });
+    await waitFor(() => assert.equal(app.getState().selectedSession?.id, session.id));
+
+    act(() => { app.getState().handleNewSession(other); });
+    // The stale :id is still in the route here: the click owns the selection.
+    await act(async () => { await Promise.resolve(); });
+    assert.equal(app.getState().selectedProject?.projectId, other.projectId);
+    assert.equal(app.getState().selectedSession, null);
+    assert.equal(app.getState().newSessionTrigger, 1);
+
+    act(() => { app.setRouteSessionId(null); });
+    await act(async () => { await Promise.resolve(); });
+    assert.equal(app.getState().selectedProject?.projectId, other.projectId, 'the fresh chat stays in the clicked project');
+    assert.equal(app.getState().selectedSession, null);
+  } finally {
+    restore();
+  }
+});
+
+test('selecting another project from a session route takes one click', async () => {
+  const session = { id: 'session-1', summary: 'Existing work' };
+  const other = twoProjects[1];
+  const restore = serveProjects([projectWithSession(session), other]);
+  try {
+    const app = mountApp({ sessionId: session.id });
+    await waitFor(() => assert.equal(app.getState().selectedSession?.id, session.id));
+
+    act(() => { app.getState().handleProjectSelect(other); });
+    await act(async () => { await Promise.resolve(); });
+    assert.equal(app.getState().selectedProject?.projectId, other.projectId);
+    assert.equal(app.getState().selectedSession, null);
+
+    act(() => { app.setRouteSessionId(null); });
+    await act(async () => { await Promise.resolve(); });
+    assert.equal(app.getState().selectedProject?.projectId, other.projectId);
+    assert.equal(app.getState().selectedSession, null);
+  } finally {
+    restore();
+  }
+});
+
+test('opening a session cancels a fresh chat that has not landed yet', async () => {
+  const session = { id: 'session-1', summary: 'Existing work' };
+  const other = twoProjects[1];
+  const restore = serveProjects([projectWithSession(session), other]);
+  try {
+    const app = mountApp({ sessionId: session.id });
+    await waitFor(() => assert.equal(app.getState().selectedSession?.id, session.id));
+
+    act(() => { app.getState().handleNewSession(other); });
+    await act(async () => { await Promise.resolve(); });
+    assert.equal(app.getState().selectedSession, null);
+
+    // The viewer changes their mind and opens the session again: the URL owns
+    // the context from here, fresh chat or not.
+    act(() => { app.getState().handleSessionSelect(session); });
+    await waitFor(() => assert.equal(app.getState().selectedSession?.id, session.id));
+    assert.equal(app.getState().selectedProject?.projectId, 'project-1');
   } finally {
     restore();
   }

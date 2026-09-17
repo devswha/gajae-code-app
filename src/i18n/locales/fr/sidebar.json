@@ -2,7 +2,6 @@
   "projects": {
     "title": "Espaces de travail",
     "newProject": "Ajouter un projet",
-    "deleteProject": "Supprimer l'espace de travail",
     "renameProject": "Renommer l'espace de travail",
     "noProjects": "Aucun espace de travail pour l'instant",
     "addFirst": "En ajouter un",
@@ -18,6 +17,7 @@
     "newTask": "Nouvel élément de travail",
     "newSession": "Démarrer une conversation",
     "deleteSession": "Supprimer la conversation",
+    "archiveSession": "Archiver la conversation",
     "renameSession": "Renommer la conversation",
     "regenerateTitle": "Régénérer le titre",
     "exportSession": "Exporter Markdown",
@@ -36,7 +36,7 @@
     "createSession": "Démarrer une conversation",
     "refresh": "Recharger les projets et les conversations (Ctrl+R)",
     "renameProject": "Renommer l'espace de travail (F2)",
-    "deleteProject": "Supprimer ce projet de la barre latérale (Supprimer)",
+    "archiveProject": "Déplacer ce projet vers les archives (rien n'est supprimé)",
     "addToFavorites": "Marquer comme favori",
     "removeFromFavorites": "Supprimer la marque favorite",
     "editSessionName": "Modifier le nom de la conversation",
@@ -84,14 +84,16 @@
     "renameSessionError": "Une erreur de renommage de la conversation s'est produite. Essayer à nouveau.",
     "regenerateTitleFailed": "Impossible de régénérer le titre. Réessayez.",
     "exportSessionError": "Impossible d'exporter la conversation. Essayer à nouveau.",
-    "deleteProjectFailed": "Impossible de supprimer le projet. Essayer à nouveau.",
-    "deleteProjectError": "Une erreur de suppression du projet s'est produite. Essayer à nouveau.",
+    "archiveProjectFailed": "Impossible d'archiver le projet. Essayer à nouveau.",
+    "archiveProjectError": "Une erreur d'archivage du projet s'est produite. Essayer à nouveau.",
     "updateProjectError": "Une erreur de mise à jour du projet s'est produite. Essayer à nouveau.",
     "refreshError": "Impossible d'actualiser. Essayer à nouveau.",
     "restoreProjectFailed": "Impossible de restaurer le projet. Essayer à nouveau.",
     "restoreProjectError": "Une erreur de restauration du projet s'est produite. Essayer à nouveau.",
     "restoreSessionFailed": "Impossible de restaurer la conversation. Essayer à nouveau.",
     "restoreSessionError": "Une erreur de restauration de conversation s'est produite. Essayer à nouveau.",
+    "archiveSessionFailed": "Impossible d'archiver la conversation. Essayer à nouveau.",
+    "archiveSessionError": "Une erreur d'archivage de conversation s'est produite. Essayer à nouveau.",
     "debugInfoError": "Les infos de débogage n’ont pas pu être copiées."
   },
   "providerQuota": {
@@ -111,11 +113,7 @@
     "updateAvailable": "Nouvelle mise à jour disponible"
   },
   "deleteConfirmation": {
-    "deleteProject": "Supprimer l'espace de travail",
     "deleteSession": "Supprimer la conversation",
-    "confirmDelete": "Choisissez quoi faire avec",
-    "sessionCount_one": "Il y a une conversation {{count}} dans ce projet.",
-    "sessionCount_other": "Il y a des conversations {{count}} dans ce projet.",
-    "deleteAllData": "Effacer définitivement toutes les données"
+    "confirmDelete": "Choisissez quoi faire avec"
   }
 }

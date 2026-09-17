@@ -19,11 +19,11 @@ impl LoopbackOrigin {
 
     pub(crate) fn permits(&self, url: &tauri::Url) -> bool {
         if url.scheme() == "tauri" {
-            return true;
+            return bundled_page(url);
         }
         #[cfg(target_os = "windows")]
         if url.scheme() == "http" && url.host_str() == Some("tauri.localhost") {
-            return true;
+            return bundled_page(url);
         }
         let origin = self.0.lock().expect("loopback origin lock poisoned");
         let Some(origin) = origin.as_deref() else {
@@ -55,6 +55,17 @@ impl LoopbackOrigin {
 
 fn loopback_host(host: Option<&str>) -> bool {
     matches!(host, Some("localhost" | "127.0.0.1" | "[::1]" | "::1"))
+}
+
+/// The shell's own bundled documents, and nothing else.
+///
+/// `tauri://` is where the desktop IPC lives, and the app's webview normally
+/// sits on a loopback HTTP origin that has none. Permitting the scheme as a
+/// whole let any page that reached the webview navigate back onto the shell's
+/// origin; only the two documents this app actually ships are reachable now.
+fn bundled_page(url: &tauri::Url) -> bool {
+    matches!(url.host_str(), Some("localhost" | "tauri.localhost"))
+        && matches!(url.path(), "/" | "/index.html" | "/builtin-browser.html")
 }
 
 pub fn plugin() -> TauriPlugin<tauri::Wry> {
@@ -109,6 +120,30 @@ mod navigation_policy_tests {
         origin.clear();
         assert!(!origin.permits(&"http://127.0.0.1:43123/".parse().unwrap()));
         assert!(origin.permits(&"tauri://localhost/".parse().unwrap()));
+    }
+
+    #[test]
+    fn only_the_bundled_documents_are_reachable_on_the_shell_origin() {
+        // tauri:// is where the desktop IPC lives; the webview sits on loopback
+        // HTTP, which has none. Permitting the scheme as a whole let any page
+        // that reached the webview navigate back onto the shell's own origin.
+        let origin = LoopbackOrigin::default();
+        origin.set("http://127.0.0.1:43123".to_owned());
+        for allowed in [
+            "tauri://localhost/",
+            "tauri://localhost/index.html",
+            "tauri://localhost/builtin-browser.html",
+        ] {
+            assert!(origin.permits(&allowed.parse().unwrap()), "{allowed}");
+        }
+        for refused in [
+            "tauri://localhost/../secrets",
+            "tauri://localhost/anything-else.html",
+            "tauri://evil.example/index.html",
+            "tauri://localhost/index.html/../../etc/passwd",
+        ] {
+            assert!(!origin.permits(&refused.parse().unwrap()), "{refused}");
+        }
     }
 
     #[test]

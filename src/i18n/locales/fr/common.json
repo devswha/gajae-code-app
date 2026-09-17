@@ -61,11 +61,7 @@
     }
   },
   "workspace": {
-    "tabs": {
-      "tasks": "Tâches"
-    },
     "tasks": {
-      "progress": "{{done}} sur {{total}} terminées",
       "status": {
         "pending": "En attente",
         "in_progress": "En cours",
@@ -88,6 +84,7 @@
       "changes": "Modifications",
       "branch": "Branche",
       "directory": "Répertoire",
+      "serviceTier": "Niveau de service",
       "refresh": "Recharger l'état Git",
       "notARepository": "Ce dossier n'est pas un dépôt Git",
       "gitUnavailable": "Impossible de lire l'état Git"
@@ -96,7 +93,13 @@
       "title": "Travail",
       "working": "En cours",
       "agents": "Agents",
-      "agentRunning": "En cours"
+      "agentRunning": "En cours",
+      "browser": "Navigateur",
+      "browserRunning": "Navigation en cours",
+      "browserSpace": "Espace navigateur {{id}}",
+      "browserMore": "+{{count}} autres",
+      "browserActivePage": "Page active",
+      "browserFrame": "Écran du navigateur"
     },
     "actionRequired": {
       "title": "Réponse requise",

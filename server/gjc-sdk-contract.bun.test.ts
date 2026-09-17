@@ -45,6 +45,7 @@ import {
   GJC_EGO_BROWSER_INSTRUCTIONS,
   GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
 } from './gjc-browser-backend.js';
+import { egoActivityToken } from './gjc-ego-activity.js';
 import { GJC_CLEANUP_UNCONFIRMED_CODE } from './gjc-cleanup-error.js';
 import { isVerifiedSdkPatch, verifyRuntimeManifest } from './gjc-runtime-manifest.js';
 
@@ -347,11 +348,17 @@ async function fixture(
   // fake has to carry `override` like the real Settings does. Without it every
   // session creation threw and the whole file failed on "Fake session was not
   // created", which named the symptom and hid the cause.
+  //
+  // `has` is the same hazard: the compaction policy asks it before choosing a
+  // default, and a clone missing it throws during session creation. Real
+  // Settings answers for loaded settings and overrides but not schema
+  // defaults, and this store holds exactly those.
   const overrides = new Map<string, unknown>();
   const settingsClone = () => ({
     getModelRole: () => defaultModel || undefined,
     override: (key: string, value: unknown) => { overrides.set(key, value); },
     get: (key: string) => overrides.get(key),
+    has: (key: string) => overrides.has(key),
   });
   const settings = {
     getAppLifecycleActivity: () => idleLeaf('settings'),
@@ -2041,6 +2048,10 @@ test('settings loader resolves the current default model role for each run', asy
       getModelRole: () => `contract-provider/${modelId}`,
       override: () => undefined,
       get: () => undefined,
+      // This clone discards writes, so nothing is ever "present": the
+      // compaction policy sees an unconfigured session, which is what this
+      // test wants it to see.
+      has: () => false,
     }),
   });
   const f = await fixture(
@@ -2404,6 +2415,10 @@ test('selecting ego keeps the runtime on native, disables its browser tool, with
     assert.equal(appended[0], 'runtime-default');
     assert.match(appended.at(-1) ?? '', /'\/fake\/\.local\/bin\/ego-browser' nodejs/);
     assert.ok((appended.at(-1) ?? '').includes('ego-browser onboarding'));
+    // The space naming rule is how the app attributes a live ego space to this
+    // session without parsing Bash; the token is derived from the app session id.
+    assert.ok((appended.at(-1) ?? '').includes(`"${egoActivityToken('app-session-ego')} <short goal>"`));
+    assert.equal(JSON.stringify(f.frames).includes(egoActivityToken('app-session-ego')), false, 'the token is prompt plumbing, not wire state');
     assert.equal(appended.join('\n').toLowerCase().includes('aside repl'), false);
     assert.equal(egoProbes, 1);
     assert.equal(asideProbes, 0);
@@ -2829,6 +2844,75 @@ test('a permissions block switches the SDK gate to prompt and answers it from th
     await f.host.handle(request('ask.reply', 'always-reply', { runId: 'policy', requestId: message.requestId, decision: { allow: true, always: true } }));
     assert.deepEqual((response(f.frames, 'always-reply').payload as Record<string, unknown>).result, { runId: 'policy', accepted: true });
     assert.deepEqual(await pending, { outcome: 'selected', optionId: 'allow_always', kind: 'allow_always' });
+
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
+
+/*
+ * A run that chose the project location shares its working tree with every
+ * other session of that project, so a git state change there moves `HEAD` and
+ * the index underneath a live reader. The run's own cwd is the answer: a
+ * managed worktree is dispatched with the checkout as `cwd` while
+ * `projectPath` stays the repository root, and a project-location run gets the
+ * same path for both.
+ */
+
+test('a shared checkout asks before a git state change even when the policy would approve it', async () => {
+  const f = await fixture();
+  try {
+    // cwd and projectPath are the same directory: nothing was isolated.
+    const options = { ...f.options, projectPath: f.options.cwd, permissions: { mode: 'bypass', allowAlways: [] } };
+    const run = f.host.handle(request('session.start', 'shared-checkout', { message: 'hello', options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+
+    const runtimeOptions = [
+      { optionId: 'allow_once', name: 'Allow once', kind: 'allow_once' },
+      { optionId: 'reject_once', name: 'Reject', kind: 'reject_once' },
+    ];
+    // Bypass still approves everything that does not rewrite shared git state.
+    assert.deepEqual(
+      await session.sdkPermissionProvider!({ toolCallId: 'c1', toolName: 'bash', title: 'npm test', rawInput: { command: 'npm test' } }, runtimeOptions),
+      { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' },
+    );
+
+    const pending = session.sdkPermissionProvider!({ toolCallId: 'c2', toolName: 'bash', title: 'commit', rawInput: { command: 'git commit -am wip' } }, runtimeOptions);
+    await Promise.resolve();
+    const card = f.frames.at(-1)!;
+    assert.equal(card.method, 'ask.presented');
+    const message = (card.payload as Record<string, unknown>).message as Record<string, unknown>;
+    assert.equal(message.kind, 'permission_request');
+    assert.equal(message.toolName, 'bash');
+
+    await f.host.handle(request('ask.reply', 'shared-reply', { runId: 'shared-checkout', requestId: message.requestId, decision: { allow: true } }));
+    assert.deepEqual(await pending, { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' });
+
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
+
+test('a managed worktree owns its git state and is not asked', async () => {
+  const f = await fixture();
+  try {
+    // The checkout the run was dispatched into is not the repository root, so
+    // its git state belongs to this session alone.
+    const checkout = join(f.root, 'checkout');
+    await mkdir(checkout, { recursive: true });
+    const options = { ...f.options, cwd: checkout, projectPath: f.options.cwd, permissions: { mode: 'bypass', allowAlways: [] } };
+    const run = f.host.handle(request('session.start', 'isolated-checkout', { message: 'hello', options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+
+    const runtimeOptions = [{ optionId: 'allow_once', name: 'Allow once', kind: 'allow_once' }];
+    const before = f.frames.length;
+    assert.deepEqual(
+      await session.sdkPermissionProvider!({ toolCallId: 'c1', toolName: 'bash', title: 'commit', rawInput: { command: 'git commit -am wip' } }, runtimeOptions),
+      { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' },
+    );
+    assert.equal(f.frames.slice(before).some((frame) => frame.method === 'ask.presented'), false);
 
     session.complete();
     await run;
@@ -3879,6 +3963,26 @@ test('starting a session forces the tool settings the app policy declares', asyn
     assert.equal(f.toolPolicyOverrides.get('astEdit.enabled'), false);
     assert.equal(f.toolPolicyOverrides.get('tools.discoveryMode'), 'off');
     assert.equal(f.toolPolicyOverrides.get('mcp.discoveryMode'), false);
+
+    session.complete();
+    await run;
+  } finally {
+    await f.close();
+  }
+});
+
+test('starting a session turns adaptive compaction on', async () => {
+  const f = await fixture();
+  try {
+    // The static threshold only fires near `contextWindow - reserve`. On a
+    // 1M-token model a long app run never gets there and resends its whole
+    // prefix every turn instead, which is where the cache-read bill comes from.
+    const run = f.host.handle(request('session.start', 'compaction-policy', { message: 'hello', options: f.options }));
+    const session = await firstSession(f.sessions);
+
+    assert.equal(f.toolPolicyOverrides.get('compaction.adaptive.enabled'), true);
+    assert.equal(f.toolPolicyOverrides.get('compaction.adaptive.baseThresholdPercent'), 75);
+    assert.equal(f.toolPolicyOverrides.get('compaction.adaptive.minThresholdPercent'), 50);
 
     session.complete();
     await run;

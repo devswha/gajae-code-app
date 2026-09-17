@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -9,10 +9,10 @@ import express from 'express';
 
 import { createSystemRouter } from './system.js';
 
-async function serve(opener) {
+async function serve(opener, roots = []) {
   const app = express();
   app.use(express.json());
-  app.use('/api/system', createSystemRouter({ opener }));
+  app.use('/api/system', createSystemRouter({ opener, projectRoots: () => roots }));
   const server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const { port } = server.address();
@@ -84,12 +84,12 @@ test('open-file reports a missing file before invoking the opener', async () => 
   }
 });
 
-test('open-file hands an existing absolute path to the opener', async () => {
+test('open-file hands an existing absolute path inside an open project to the opener', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'gajae-open-file-'));
   const target = path.join(dir, 'note.txt');
   writeFileSync(target, 'hello');
   let opened = null;
-  const server = await serve(async (file) => { opened = file; });
+  const server = await serve(async (file) => { opened = file; }, [dir]);
   try {
     const response = await server.postOpenFile({ path: target });
     assert.equal(response.status, 200);
@@ -105,7 +105,7 @@ test('open-file surfaces opener failures as a 500', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'gajae-open-file-'));
   const target = path.join(dir, 'note.txt');
   writeFileSync(target, 'hello');
-  const server = await serve(async () => { throw new Error('no opener available'); });
+  const server = await serve(async () => { throw new Error('no opener available'); }, [dir]);
   try {
     assert.equal((await server.postOpenFile({ path: target })).status, 500);
   } finally {
@@ -126,6 +126,45 @@ test('open-url hands an https link to the OS opener and refuses everything else'
     assert.equal(opened.length, 1);
   } finally {
     await server.close();
+  }
+});
+
+test('open-file refuses a file outside every open project', async () => {
+  // The OS opener runs the file's handler. A markdown link, a chat message or
+  // any other caller must not be able to name a path the owner never opened.
+  const project = mkdtempSync(path.join(tmpdir(), 'gajae-open-project-'));
+  const outside = mkdtempSync(path.join(tmpdir(), 'gajae-open-outside-'));
+  const target = path.join(outside, 'note.txt');
+  writeFileSync(target, 'hello');
+  let opened = null;
+  const server = await serve(async (file) => { opened = file; }, [project]);
+  try {
+    const response = await server.postOpenFile({ path: target });
+    assert.equal(response.status, 403);
+    assert.equal(opened, null, 'the opener is never reached');
+  } finally {
+    await server.close();
+    rmSync(project, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test('open-file refuses a path that only looks like a project prefix', async () => {
+  const parent = mkdtempSync(path.join(tmpdir(), 'gajae-open-prefix-'));
+  const project = path.join(parent, 'app');
+  const sibling = path.join(parent, 'app-secrets');
+  mkdirSync(project);
+  mkdirSync(sibling);
+  const target = path.join(sibling, 'note.txt');
+  writeFileSync(target, 'hello');
+  let opened = null;
+  const server = await serve(async (file) => { opened = file; }, [project]);
+  try {
+    assert.equal((await server.postOpenFile({ path: target })).status, 403);
+    assert.equal(opened, null);
+  } finally {
+    await server.close();
+    rmSync(parent, { recursive: true, force: true });
   }
 });
 

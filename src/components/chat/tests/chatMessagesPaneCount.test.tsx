@@ -16,7 +16,7 @@ function renderCount(loaded: number, persistedTotal: number, extra: Partial<Comp
   }));
   const visibleMessages = messages.slice(-20);
   return renderToStaticMarkup(createElement(ChatMessagesPane, {
-    scrollContainerRef: { current: null }, onWheel() {}, onTouchMove() {},
+    scrollContainerRef: { current: null }, attachScrollContainer() {}, onWheel() {}, onTouchMove() {},
     isLoadingSessionMessages: false, chatMessages: messages,
     selectedSession: { id: 'session', provider: 'gjc' }, currentSessionId: 'session', provider: 'gjc',
     isLoadingMoreMessages: false, totalMessages: persistedTotal,

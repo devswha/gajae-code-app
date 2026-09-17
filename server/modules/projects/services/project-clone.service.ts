@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import spawn from 'cross-spawn';
 
+import { childEnvironment } from '@/shared/child-environment.js';
 import { githubTokensDb } from '@/modules/database/index.js';
 import { createProject } from '@/modules/projects/services/project-management.service.js';
 import type { WorkspacePathValidationResult } from '@/shared/types.js';
@@ -20,7 +21,7 @@ type CloneProjectDependencies = {
   pathExists: (targetPath: string) => Promise<boolean>; // probe without following the clone
   createCloneWorkspace: (destination: string) => Promise<CloneWorkspace>;
   getGithubTokenById: (tokenId: number, userId: number) => Promise<{ github_token: string } | null>;
-  spawnGitClone: (cloneUrl: string, clonePath: string) => GitCloneProcess; // git clone --progress
+  spawnGitClone: (cloneUrl: string, clonePath: string, token: string | null) => GitCloneProcess; // git clone --progress
   registerProject: (projectPath: string, customName: string) => Promise<{ project: Record<string, unknown> }>; // hands off to project-management
   logError: (message: string, error: unknown) => void; // cleanup failures are logged, not thrown
 };
@@ -94,16 +95,24 @@ export async function createCloneWorkspace(destination: string): Promise<CloneWo
   };
 }
 
-function authenticatedCloneUrl(githubUrl: string, token: string | null): string {
-  if (!token) return githubUrl;
-  try {
-    const cloneUrl = new URL(githubUrl);
-    cloneUrl.username = token;
-    cloneUrl.password = '';
-    return cloneUrl.toString();
-  } catch {
-    return githubUrl;
-  }
+/**
+ * Hands git a token without putting it anywhere another process can read.
+ *
+ * The token used to be the URL's username, which meant it appeared on the
+ * `git clone` argv - visible in `ps` to every account on the machine, and in
+ * any proxy or access log that records the URL. A credential helper reads it
+ * from the child's own environment instead, so only this process and git see
+ * it. `credential.helper=` first clears any helper the user's own gitconfig
+ * would otherwise add.
+ */
+export const CLONE_TOKEN_ENVIRONMENT_NAME = 'GAJAE_CLONE_TOKEN';
+const CLONE_CREDENTIAL_HELPER = `!f() { test "$1" = get && printf 'username=x-access-token\npassword=%s\n' "$${CLONE_TOKEN_ENVIRONMENT_NAME}"; }; f`;
+
+export function gitCloneArguments(cloneUrl: string, clonePath: string, token: string | null): string[] {
+  return [
+    ...(token ? ['-c', 'credential.helper=', '-c', `credential.helper=${CLONE_CREDENTIAL_HELPER}`] : []),
+    'clone', '--progress', '--', cloneUrl, clonePath,
+  ];
 }
 
 function cloneFailureMessage(stderr: string, token: string | null): string {
@@ -139,7 +148,14 @@ const cloneDependencies: CloneProjectDependencies = {
   pathExists: async (target) => !(await pathIsAvailable(target)),
   createCloneWorkspace,
   getGithubTokenById: async (tokenId, userId) => githubTokensDb.getGithubTokenById(userId, tokenId) as { github_token: string } | null,
-  spawnGitClone: (url, destination) => spawn('git', ['clone', '--progress', '--', url, destination], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }) as unknown as GitCloneProcess,
+  spawnGitClone: (url, destination, token) => spawn('git', gitCloneArguments(url, destination, token), {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: {
+      ...childEnvironment(),
+      GIT_TERMINAL_PROMPT: '0',
+      ...(token ? { [CLONE_TOKEN_ENVIRONMENT_NAME]: token } : {}),
+    },
+  }) as unknown as GitCloneProcess,
   registerProject: (projectPath, customName) => createProject({ projectPath, customName }) as Promise<{ project: Record<string, unknown> }>,
   logError: (message, error) => console.error(message, error),
 };
@@ -189,7 +205,7 @@ async function startCloneProjectOwned(input: CloneProjectInput, handlers: CloneP
   let child: GitCloneProcess;
   try {
     handlers.onProgress(`Cloning into '${name}'...`);
-    child = dependencies.spawnGitClone(authenticatedCloneUrl(githubUrl, token), workspace.path);
+    child = dependencies.spawnGitClone(githubUrl, workspace.path, token);
   } catch (error) {
     await cleanup();
     throw error;

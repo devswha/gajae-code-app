@@ -61,11 +61,7 @@
     }
   },
   "workspace": {
-    "tabs": {
-      "tasks": "Tasks"
-    },
     "tasks": {
-      "progress": "{{done}} of {{total}} done",
       "status": {
         "pending": "Pending",
         "in_progress": "In progress",
@@ -88,6 +84,7 @@
       "changes": "Changes",
       "branch": "Branch",
       "directory": "Directory",
+      "serviceTier": "Service tier",
       "refresh": "Reload Git status",
       "notARepository": "This folder is not a Git repository",
       "gitUnavailable": "Could not read Git status"
@@ -96,7 +93,13 @@
       "title": "Work",
       "working": "Working",
       "agents": "Agents",
-      "agentRunning": "Running"
+      "agentRunning": "Running",
+      "browser": "Browser",
+      "browserRunning": "Browsing",
+      "browserSpace": "Browser space {{id}}",
+      "browserMore": "+{{count}} more",
+      "browserActivePage": "Active page",
+      "browserFrame": "Browser screen"
     },
     "actionRequired": {
       "title": "Action required",

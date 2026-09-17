@@ -61,11 +61,7 @@
     }
   },
   "workspace": {
-    "tabs": {
-      "tasks": "任務"
-    },
     "tasks": {
-      "progress": "已完成 {{done}} / {{total}}",
       "status": {
         "pending": "待處理",
         "in_progress": "進行中",
@@ -88,6 +84,7 @@
       "changes": "變更",
       "branch": "分支",
       "directory": "目錄",
+      "serviceTier": "服務層級",
       "refresh": "重新載入 Git 狀態",
       "notARepository": "此資料夾不是 Git 儲存庫",
       "gitUnavailable": "無法讀取 Git 狀態"
@@ -96,7 +93,13 @@
       "title": "工作",
       "working": "運行中",
       "agents": "代理",
-      "agentRunning": "執行中"
+      "agentRunning": "執行中",
+      "browser": "瀏覽器",
+      "browserRunning": "瀏覽中",
+      "browserSpace": "瀏覽器空間 {{id}}",
+      "browserMore": "還有 {{count}} 個",
+      "browserActivePage": "目前頁面",
+      "browserFrame": "瀏覽器畫面"
     },
     "actionRequired": {
       "title": "需要回覆",

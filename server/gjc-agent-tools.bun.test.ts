@@ -5,7 +5,7 @@ import { Settings } from '@gajae-code/coding-agent/config/settings';
 import { createTools } from '@gajae-code/coding-agent/tools';
 import { BUILTIN_TOOLS } from '@gajae-code/coding-agent/tools/descriptors';
 
-import { applyGjcToolSettingsPolicy } from './gjc-bun-sdk-adapter.js';
+import { applyGjcCompactionPolicy, applyGjcToolSettingsPolicy } from './gjc-bun-sdk-adapter.js';
 import { GJC_AGENT_TOOL_NAMES, GJC_AGENT_TOOLS_WITHHELD } from './gjc-agent-tools.js';
 
 /*
@@ -72,6 +72,67 @@ test('the SDK settings policy suppresses implicit tool additions', () => {
   assert.equal(settings.get('astEdit.enabled'), false);
   assert.equal(settings.get('mcp.discoveryMode'), false);
   assert.equal(settings.get('mcp.enableProjectConfig'), false);
+});
+
+/*
+ * The runtime ships adaptive compaction off for backward compatibility, and the
+ * static fallback only fires near `contextWindow - reserve`. On a 1M-token
+ * model that is ~850K, which a long app session never reaches while resending
+ * its whole prefix every turn - the measured failure was $125 of cache reads in
+ * one 681-turn run. The app cannot leave that to a default it tells users not
+ * to edit, so these assert the app turns it on and keeps its hands off a user
+ * who already decided.
+ */
+
+test('adaptive compaction is on for a session that configured none', () => {
+  const settings = Settings.isolated({});
+
+  assert.equal(settings.get('compaction.adaptive.enabled'), false, 'runtime default changed; revisit this policy');
+
+  applyGjcCompactionPolicy(settings);
+
+  assert.equal(settings.get('compaction.adaptive.enabled'), true);
+  assert.equal(settings.get('compaction.adaptive.baseThresholdPercent'), 75);
+  assert.equal(settings.get('compaction.adaptive.aggression'), 0.2);
+  assert.equal(settings.get('compaction.adaptive.minThresholdPercent'), 50);
+  assert.equal(settings.get('compaction.adaptive.turnWindow'), 15);
+});
+
+test('a user who configured compaction keeps every value they set', () => {
+  const settings = Settings.isolated({
+    'compaction.adaptive.enabled': false,
+    'compaction.adaptive.baseThresholdPercent': 90,
+    'compaction.adaptive.aggression': 0.5,
+    'compaction.adaptive.minThresholdPercent': 60,
+    'compaction.adaptive.turnWindow': 30,
+  });
+
+  applyGjcCompactionPolicy(settings);
+
+  assert.equal(settings.get('compaction.adaptive.enabled'), false);
+  assert.equal(settings.get('compaction.adaptive.baseThresholdPercent'), 90);
+  assert.equal(settings.get('compaction.adaptive.aggression'), 0.5);
+  assert.equal(settings.get('compaction.adaptive.minThresholdPercent'), 60);
+  assert.equal(settings.get('compaction.adaptive.turnWindow'), 30);
+});
+
+test('a partially configured session keeps its own value and gets the rest', () => {
+  const settings = Settings.isolated({ 'compaction.adaptive.baseThresholdPercent': 60 });
+
+  applyGjcCompactionPolicy(settings);
+
+  assert.equal(settings.get('compaction.adaptive.baseThresholdPercent'), 60);
+  assert.equal(settings.get('compaction.adaptive.enabled'), true);
+  assert.equal(settings.get('compaction.adaptive.minThresholdPercent'), 50);
+});
+
+test('the compaction policy leaves the tool boundary alone', () => {
+  const settings = Settings.isolated({ 'goal.enabled': true, 'astEdit.enabled': true });
+
+  applyGjcCompactionPolicy(settings);
+
+  assert.equal(settings.get('goal.enabled'), true);
+  assert.equal(settings.get('astEdit.enabled'), true);
 });
 
 /*

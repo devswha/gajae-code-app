@@ -6,7 +6,7 @@ import { Octokit } from '@octokit/rest';
 import { githubTokensDb } from '../modules/database/index.js';
 import { getProductionJobAuthority, getProductionJobOrchestrator } from '../services/gjc-job-orchestrator.js';
 import { getProductionGjcJobGitService } from '../services/gjc-job-git.service.js';
-import { asyncHandler } from '../shared/utils.js';
+import { asyncHandler, validateWorkspacePath } from '../shared/utils.js';
 
 const MAX_LIST_LIMIT = 100;
 const MAX_SAFE_U64 = Number.MAX_SAFE_INTEGER;
@@ -94,6 +94,10 @@ router.post('/jobs', asyncHandler(async (req, res) => {
   // as a job target would nest worktrees. The client already filters these out,
   // but the HTTP surface must reject them too (defense in depth for direct calls).
   if (projectPath.split(/[\\/]/u).includes('.gjc-worktrees')) return res.status(400).json({ error: 'projectPath must not target a managed job worktree.', code: 'managed_worktree_project' });
+  // A job's project path becomes the agent's working root, exactly like a
+  // session's, so it passes the same gate project registration does.
+  const jailed = await validateWorkspacePath(projectPath);
+  if (!jailed.valid) return res.status(400).json({ error: jailed.error || 'projectPath is invalid.', code: 'invalid_project_path' });
   try { const appSessionId = appSession(req.body); const handle = await orchestrator.start('gjc', appSessionId, projectPath, message, { writer, provider: 'gjc', appSessionId, model: text(req.body.model), effort: text(req.body.effort) }); return jobResponse(res, handle, appSessionId); } catch (error) { return fail(res, error); }
 }));
 router.post('/jobs/:jobId/turns', asyncHandler(async (req, res) => {

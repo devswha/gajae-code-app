@@ -52,6 +52,7 @@ import {
   type EgoBrowserCliProbe,
   type GjcBrowserBackend,
 } from './gjc-browser-backend.js';
+import { egoActivityToken } from './gjc-ego-activity.js';
 import { resolveContainedExportCommand } from './gjc-export-path.js';
 import { readSessionSnapshot } from './gjc-session-state.js';
 import { GjcGoalSession, GJC_GOAL_MODEL_OPERATIONS, matchesGjcGoalOwner, readPersistedGjcGoal, type GjcGoalScope } from './gjc-goal-session.js';
@@ -118,6 +119,8 @@ export type GjcSessionTitleGenerator = (firstMessage: string, registry: ModelReg
 export type GjcBunSdkAdapterOptions = {
   /** Source-integrity receipt from bootstrap, never a complete ownership proof. */
   sdkPatch?: VerifiedSdkPatch;
+  /** The worker's own agent directory; the session factory defaults to ~/.gjc/agent without it. */
+  agentDir?: string;
   createSessionFactory?: GjcAgentSessionFactory;
   generateSessionTitle?: GjcSessionTitleGenerator;
   /** Shorter UI grace for embedders/tests; never extends the ten-second cap. */
@@ -268,6 +271,50 @@ export function applyGjcToolSettingsPolicy(settings: Settings): void {
   settings.override('mcp.enableProjectConfig', false);
 }
 
+/**
+ * Turns on the runtime's adaptive compaction for app sessions unless the user
+ * configured compaction themselves.
+ *
+ * With adaptive compaction off - the runtime's shipped default, kept for
+ * backward compatibility - the only trigger is the legacy reserve threshold,
+ * roughly `contextWindow - reserve` and commonly near 85% of the window. On a
+ * 1M-token model that is ~850K, so an app session grows its prefix for hundreds
+ * of turns and resends all of it every turn. A measured 681-turn run peaked at
+ * 644K context (64% of the window), never reached the trigger, and spent $125
+ * of its $141 on cache reads alone - 89% of the bill to re-read its own
+ * history. The runtime's own guidance names this case: adaptive compaction
+ * "targets long sessions where a 150K-230K context can otherwise be resent many
+ * times before hitting the static threshold", and the values below are the
+ * starting point it recommends for long, tool-heavy sessions.
+ *
+ * App sessions are exactly that case, and they cannot opt in for themselves:
+ * the app tells them to use Settings instead of editing `~/.gjc`, and Settings
+ * has no compaction control. So the app picks the default.
+ *
+ * `has()` is the whole point of the guard - it is true only when the value came
+ * from loaded settings or an override, not from a schema default. A user who
+ * did configure compaction keeps every value they set. This is a default the
+ * app chooses, not a boundary it enforces, so unlike the policy above it never
+ * overwrites an explicit choice.
+ */
+export function applyGjcCompactionPolicy(settings: Settings): void {
+  if (!settings.has('compaction.adaptive.enabled')) {
+    settings.override('compaction.adaptive.enabled', true);
+  }
+  if (!settings.has('compaction.adaptive.baseThresholdPercent')) {
+    settings.override('compaction.adaptive.baseThresholdPercent', 75);
+  }
+  if (!settings.has('compaction.adaptive.aggression')) {
+    settings.override('compaction.adaptive.aggression', 0.2);
+  }
+  if (!settings.has('compaction.adaptive.minThresholdPercent')) {
+    settings.override('compaction.adaptive.minThresholdPercent', 50);
+  }
+  if (!settings.has('compaction.adaptive.turnWindow')) {
+    settings.override('compaction.adaptive.turnWindow', 15);
+  }
+}
+
 /** What a run resolved its browser backend to: the runtime's own descriptor, or the app-owned ego descriptor. */
 export type GjcResolvedBrowserBackend = Readonly<{
   id: ReturnType<typeof resolveBrowserBackend>['id'] | 'ego';
@@ -297,9 +344,12 @@ export function applyGjcBrowserBackend(
   requested: GjcBrowserBackend | undefined,
   probe: () => AsideCliProbe,
   probeEgo: () => EgoBrowserCliProbe = probeEgoBrowserCli,
-  options: { builtinBrowserAvailable?: boolean; platform?: NodeJS.Platform } = {},
+  options: { builtinBrowserAvailable?: boolean; platform?: NodeJS.Platform; appSessionId?: string } = {},
 ): GjcResolvedBrowserBackend {
-  if (requested === 'builtin') {
+  // An omitted backend is the app's default, not the user's runtime setting:
+  // a `browser.backend` in ~/.gjc would otherwise decide how an app session
+  // browses, behind the back of Settings > Automation.
+  if (requested === undefined || requested === 'builtin') {
     settings.override('browser.backend', 'native');
     if (options.builtinBrowserAvailable === false) settings.override('browser.enabled', false);
   } else if (requested === 'aside') {
@@ -324,9 +374,12 @@ export function applyGjcBrowserBackend(
         appInstructions: GJC_EGO_BROWSER_UNAVAILABLE_INSTRUCTIONS,
       };
     }
+    // The activity token lets the app attribute a live ego space to this
+    // session; it is derived from the app session id, never stored or sent.
+    const activityToken = options.appSessionId ? egoActivityToken(options.appSessionId) : undefined;
     return {
       id: 'ego', exposesBuiltinTool: false, egoReady: true, egoCliPath: found.path,
-      appInstructions: buildGjcEgoBrowserInstructions(found.path),
+      appInstructions: buildGjcEgoBrowserInstructions(found.path, activityToken),
     };
   }
   const { id, exposesBuiltinTool } = resolveBrowserBackend(settings);
@@ -1149,6 +1202,7 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       // sessions, and the clone keeps their project settings and overrides isolated.
       const settings = await globalSettings.cloneForCwd(config.cwd);
       applyGjcToolSettingsPolicy(settings);
+      applyGjcCompactionPolicy(settings);
       const builtinBrowserAvailable = config.builtinBrowserAvailable === true
         && Boolean(config.appSessionId);
       const browserBackend = applyGjcBrowserBackend(
@@ -1156,7 +1210,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         config.browserBackend,
         this.options.probeAsideCli ?? probeAsideCli,
         this.options.probeEgoBrowserCli ?? probeEgoBrowserCli,
-        { builtinBrowserAvailable, platform: this.options.platform ?? process.platform },
+        {
+          builtinBrowserAvailable,
+          platform: this.options.platform ?? process.platform,
+          ...(typeof config.appSessionId === 'string' && config.appSessionId ? { appSessionId: config.appSessionId } : {}),
+        },
       );
       const trustedBuiltinBrowserAvailable = builtinBrowserAvailable && browserBackend.exposesBuiltinTool;
       const goalScope = config.appSessionId && config.goalOwner
@@ -1169,12 +1227,23 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       if (config.goalCommand && !goalEnabled) throw new Error('Goal controls are unavailable in this view.');
       settings.override('goal.enabled', goalEnabled);
       const askController = new GjcBunAskController(writer);
+      // A managed worktree run is dispatched with the checkout as its cwd while
+      // `projectPath` stays the repository root; a project-location run gets the
+      // same path for both. Comparing the resolved paths is the session's own
+      // answer to "is this checkout mine", with no extra state to keep in sync.
+      // Unknown resolves to "shared", so a path that cannot be read asks rather
+      // than assumes.
+      const isolatedCheckout = await (async () => {
+        const declaredRoot = typeof options.projectPath === 'string' && options.projectPath ? options.projectPath : config.cwd;
+        try { return (await realpath(config.cwd)) !== (await realpath(declaredRoot)); }
+        catch { return false; }
+      })();
       const model = await modelForWithRefresh(this.modelRegistry, configuredModelId);
       const resolvedCredential = await credentialFor(this.authStorage, config.credential, model);
       let delegation: GjcDelegationExecutor | undefined;
       try {
         const permissionProvider = config.permissions
-          ? createGjcPermissionProvider(config.permissions, askController, writer)
+          ? createGjcPermissionProvider(config.permissions, askController, writer, isolatedCheckout)
           : undefined;
         const sessionOptions: Parameters<typeof createAgentSession>[0] = {
           // The app hosts the runtime in-process; the model must not reach for
@@ -1188,6 +1257,10 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
             ...(browserBackend.appInstructions ? [browserBackend.appInstructions] : []),
           ],
           cwd: config.cwd,
+          // The worker is started with its own agent directory, and the session
+          // factory otherwise defaults to ~/.gjc/agent - so skills, prompts and
+          // credentials would be discovered somewhere the worker never wrote.
+          ...(this.options.agentDir ? { agentDir: this.options.agentDir } : {}),
           sessionManager,
           // The SDK defaults provider/cache identity to this manager's logical
           // ID, including on exact-ID resume. Supplying the same ID explicitly
@@ -1350,7 +1423,8 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           this.#revision += 1;
           return;
         }
-        if (!resumedId) writer.setSessionId?.(sessionManager.getSessionId());
+        const startingSessionId = sessionManager.getSessionId();
+        if (!resumedId) writer.setSessionId?.(startingSessionId);
         const initialSnapshot = readSessionSnapshot(result.session, sessionManager);
         if (goals) writer.send({ kind: 'status', text: 'session_state', sessionState: { ...initialSnapshot, goal: goals.snapshot() } });
         let promptMessage: string | null = message;
@@ -1425,6 +1499,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
               writer.send({ kind: 'session_title', title: sessionManager.getSessionName(), source: 'auto', sessionId: sessionManager.getSessionId() });
             })
           : null;
+        // Stop can land after the session exists but before its first prompt:
+        // goal control, a builtin command and the title task all await here,
+        // and `session.abort()` has nothing to interrupt yet. Without this the
+        // turn starts anyway and Stop reads as "pause, then resume".
+        if (activeRun.abortState !== 'idle') promptMessage = null;
         let promptError: unknown;
         try {
           if (promptMessage !== null) {
@@ -1435,6 +1514,14 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           }
         } catch (error) {
           promptError = error;
+        }
+        // `/handoff` rekeys this manager onto a successor session: the same
+        // conversation continues under a new id. The app has to follow it, and
+        // the only precise way to know which session that is, is to say so -
+        // otherwise the client guesses from whichever session appears next.
+        const successorSessionId = sessionManager.getSessionId();
+        if (successorSessionId && successorSessionId !== startingSessionId) {
+          writer.send({ kind: 'status', text: 'session_handoff', handoffSessionId: successorSessionId });
         }
         if (titleTask) {
           let grace: ReturnType<typeof setTimeout> | undefined;
@@ -1488,6 +1575,7 @@ export async function createGjcBunSdkAdapter(agentDir: string = process.env.GJC_
   return new GjcBunSdkAdapter(authStorage, modelRegistry, {
     sdkPatch,
     settings,
+    agentDir,
     ...(automationBridge ? { automationBridge } : {}),
   });
 }

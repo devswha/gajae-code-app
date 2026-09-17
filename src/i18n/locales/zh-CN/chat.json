@@ -86,6 +86,14 @@
       "signInRequired": "要使用此预设，请在设置中登录 {{provider}}"
     },
     "attachImages": "添加图片",
+    "attachment": {
+      "onlyImages": "只能添加图片，因此未添加 {{names}}。文本文件请用 @ 引用，或直接粘贴内容。",
+      "tooLarge": "{{names}} 超过 5MB。",
+      "empty": "{{names}} 是空文件。",
+      "tooMany": "最多只能添加 {{count}} 张图片，因此未添加 {{names}}。",
+      "dropHere": "将图片拖放到此处",
+      "dismiss": "关闭此提示"
+    },
     "send": "发送",
     "stop": "停止",
     "hintText": {
@@ -266,5 +274,12 @@
       "partial": "部分匹配",
       "recent": "最近活跃"
     }
+  },
+  "sessionWorktree": {
+    "label": "运行位置",
+    "project": "项目",
+    "newWorktree": "新建工作树",
+    "worktree": "工作树",
+    "preparing": "正在准备工作树"
   }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ExternalLink, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
+import { ExternalLink, RefreshCw, ShieldCheck, SquareSlash, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useAppShellStore } from '../../../../stores/useAppShellStore';
@@ -8,6 +8,7 @@ import { BROWSER_BACKENDS, isBrowserBackend, type BrowserBackend } from '../../b
 import SettingsCard from '../SettingsCard';
 import SettingsRow from '../SettingsRow';
 import SettingsSection from '../SettingsSection';
+import SettingsToggle from '../SettingsToggle';
 
 type Status = {
   supported: boolean;
@@ -49,6 +50,8 @@ export default function AutomationSettingsTab() {
   const [browserBackendError, setBrowserBackendError] = useState<string | null>(null);
   const [egoReadiness, setEgoReadiness] = useState<EgoReadiness | null>(null);
   const [egoConnection, setEgoConnection] = useState<EgoConnection | null>(null);
+  const [egoActivity, setEgoActivity] = useState(false);
+  const [egoFrames, setEgoFrames] = useState(false);
   const [testingEgoConnection, setTestingEgoConnection] = useState(false);
   const [builtinBrowserStatus, setBuiltinBrowserStatus] = useState<string | null>(null);
   const selectedProjectId = useAppShellStore((state) => state.selectedProject?.projectId);
@@ -58,11 +61,14 @@ export default function AutomationSettingsTab() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [statusResponse, grantsResponse, backendResponse, egoReadinessResponse] = await Promise.all([
+      const [statusResponse, grantsResponse, backendResponse, egoReadinessResponse, egoActivityResponse] = await Promise.all([
         fetch('/api/automation/status'),
         fetch('/api/automation/grants'),
         fetch('/api/automation/browser-backend'),
         fetch('/api/automation/ego-readiness'),
+        // Without a session id this reads the stored opt-in only; it never
+        // observes a browser.
+        fetch('/api/automation/ego-activity'),
       ]);
       if (statusResponse.ok) setStatus(await statusResponse.json() as Status);
       if (grantsResponse.ok) setGrants(await grantsResponse.json() as Grants);
@@ -75,6 +81,11 @@ export default function AutomationSettingsTab() {
         }
       }
       if (egoReadinessResponse.ok) setEgoReadiness(await egoReadinessResponse.json() as EgoReadiness);
+      if (egoActivityResponse.ok) {
+        const activity = await egoActivityResponse.json() as { configured?: boolean; framesConfigured?: boolean };
+        setEgoActivity(activity.configured === true);
+        setEgoFrames(activity.framesConfigured === true);
+      }
     } finally {
       setLoading(false);
     }
@@ -93,6 +104,34 @@ export default function AutomationSettingsTab() {
     }
     const saved = await response.json() as { backend: unknown };
     if (isBrowserBackend(saved.backend)) setBrowserBackend(saved.backend);
+  };
+
+  const changeEgoActivity = async (enabled: boolean) => {
+    setEgoActivity(enabled);
+    const response = await fetch('/api/automation/ego-activity', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    if (!response.ok) {
+      setEgoActivity(!enabled);
+      return;
+    }
+    setEgoActivity((await response.json() as { enabled?: boolean }).enabled === true);
+  };
+
+  const changeEgoFrames = async (frames: boolean) => {
+    setEgoFrames(frames);
+    const response = await fetch('/api/automation/ego-activity', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ frames }),
+    });
+    if (!response.ok) {
+      setEgoFrames(!frames);
+      return;
+    }
+    setEgoFrames((await response.json() as { frames?: boolean }).frames === true);
   };
 
   const testEgoConnection = async () => {
@@ -152,6 +191,25 @@ export default function AutomationSettingsTab() {
           </SettingsRow>
           {browserBackend === 'aside' ? (
             <p className="px-4 pb-4 text-xs text-muted-foreground">{t('automation.browserBackend.asideNote')}</p>
+          ) : null}
+          {browserBackend === 'ego' ? (
+            <SettingsRow label={t('automation.browserBackend.activity')} description={t('automation.browserBackend.activityDescription')}>
+              <SettingsToggle
+                checked={egoActivity}
+                onChange={(value) => void changeEgoActivity(value)}
+                ariaLabel={t('automation.browserBackend.activity')}
+              />
+            </SettingsRow>
+          ) : null}
+          {browserBackend === 'ego' ? (
+            <SettingsRow label={t('automation.browserBackend.activityFrame')} description={t('automation.browserBackend.activityFrameDescription')}>
+              <SettingsToggle
+                checked={egoFrames}
+                onChange={(value) => void changeEgoFrames(value)}
+                ariaLabel={t('automation.browserBackend.activityFrame')}
+                disabled={!egoActivity}
+              />
+            </SettingsRow>
           ) : null}
           {browserBackend === 'ego' ? (
             <div className="space-y-2 px-4 pb-4 text-xs text-muted-foreground">
@@ -245,6 +303,34 @@ export default function AutomationSettingsTab() {
               <div className="min-w-0"><p className="truncate text-sm text-foreground">{grant.value}</p><p className="text-xs text-muted-foreground">{t(`automation.${grant.kind}`)}</p></div>
               <button type="button" onClick={() => void revoke(grant.kind, grant.value)} aria-label={t('automation.revoke')} className="rounded-md p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
             </div>
+          ))}
+        </SettingsCard>
+      </SettingsSection>
+
+      {/*
+        * The app overrides four runtime settings for every session:
+        * `mcp.discoveryMode`, `mcp.enableProjectConfig`, `tools.discoveryMode`
+        * and `astEdit.enabled`. Those overrides are a deliberate boundary and
+        * they stay - but until now nothing said so. A user whose MCP servers
+        * work in the GJC CLI found them simply absent here, with no error and
+        * no explanation, which is an unanswerable support question.
+        *
+        * Reports, not controls: there is nothing to toggle, because the point
+        * is that a session cannot toggle them either.
+        */}
+      <SettingsSection title={t('automation.withheld')} description={t('automation.withheldDescription')}>
+        <SettingsCard>
+          {([
+            ['mcp', 'automation.withheldMcp', 'automation.withheldMcpReason'],
+            ['toolDiscovery', 'automation.withheldToolDiscovery', 'automation.withheldToolDiscoveryReason'],
+            ['astEdit', 'automation.withheldAstEdit', 'automation.withheldAstEditReason'],
+          ] as const).map(([key, label, reason]) => (
+            <SettingsRow key={key} label={t(label)} description={t(reason)}>
+              <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <SquareSlash className="h-3.5 w-3.5" aria-hidden />
+                {t('automation.notInstalled')}
+              </span>
+            </SettingsRow>
           ))}
         </SettingsCard>
       </SettingsSection>

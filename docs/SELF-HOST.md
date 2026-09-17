@@ -117,6 +117,16 @@ health checks using a permitted Host.
 this DNS host protection. Host admission does not authenticate remote clients;
 keep the existing loopback/VPN/tunnel or authenticated-proxy access boundary.
 
+## Who web mode is for
+
+Web mode is a single-owner tool. The server has no sign-in: every client that
+reaches it is the owner, and `GAJAE_ALLOW_UNAUTH_REMOTE=1` states exactly that
+for a non-loopback bind. The access boundary is the network — loopback, a
+tailnet, an SSH tunnel, or a reverse proxy that authenticates before it
+forwards. A multi-user deployment with its own login is future scope, not a
+configuration of the current server; do not publish the bound address beyond a
+network you would trust with a shell on that machine.
+
 ## Cutover to a verified release
 
 A cutover changes only the `current` symlink and then restarts the service.

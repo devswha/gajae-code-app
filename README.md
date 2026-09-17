@@ -95,6 +95,7 @@ A card answered in one tab closes in every other viewer. Always deny is offered 
 | **Runtime** | Gajae Code SDK 0.15.6 on Bun 1.4.0, bundled, driven in an isolated worker; prompts pass through an owner-readable temp file, never a process argument |
 | **Where things live** | Database, assets and cache under `~/.gajae-app`; transcripts stay in the runtime's own session files and are never copied into the app's database |
 | **Network** | Loopback by default and fail-closed (it can run shell commands); cross-origin callers are rejected on HTTP and WebSocket |
+| **Trust boundary** | One owner: whoever reaches the server is the owner, so the network is the boundary — loopback, a tailnet, or a proxy that authenticates in front. Managed worktrees run git without the system or user gitconfig; a checkout filter in a repository's own `.git/config` (git-lfs is one) still runs, the same trust `git status` places in a checkout you opened |
 | **Stack** | React 19 · Vite 7 · Tailwind 4 · Express · SQLite · a Rust core · Tauri 2 for the desktop shell |
 | **Gate** | `npm run verify` — audit, typecheck, Rust core, tests, lint, identity check, build |
 | **License** | MIT since v2.0.0-beta.7 (earlier betas AGPL-3.0) |

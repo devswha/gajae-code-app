@@ -177,6 +177,7 @@ fn dispatch(workdir: &Path, request: &Request, stream: &mut Vec<Value>) -> Resul
         "status" => status(workdir, &request.id, &request.params, stream),
         "diff" => diff(workdir, &request.id, &request.params, stream),
         "worktree.prune" => prune(workdir, &request.params),
+        "worktree.reap" => reap(workdir, &request.params),
         _ => Err(GitError::InvalidRequest),
     }
 }
@@ -462,7 +463,83 @@ fn prune(workdir: &Path, params: &Value) -> Result<Value, GitError> {
     ) {
         return Err(GitError::GitFailed);
     }
-    Ok(json!({"pruned":true,"branchRetained":true}))
+    let reaped = reap_branch(workdir, &branch)?;
+    Ok(json!({"pruned":true,"branchRetained":!reaped}))
+}
+
+/// Deletes a managed job branch once nothing on it can be lost: every commit
+/// it points at is reachable from some other local or remote ref. A branch
+/// that carries work found nowhere else stays, and the caller learns that it
+/// did. `job/*` is this application's own namespace, so the decision needs no
+/// user: an empty or already-landed job ref is noise, a ref with unlanded
+/// commits is evidence.
+fn reap_branch(workdir: &Path, branch: &str) -> Result<bool, GitError> {
+    let full = format!("refs/heads/{branch}");
+    if !git_status(workdir, ["show-ref", "--verify", "--quiet", &full]) {
+        return Ok(false);
+    }
+    if !branch_is_contained_elsewhere(workdir, &full)? {
+        return Ok(false);
+    }
+    if !git_status(workdir, ["branch", "-D", "--", branch]) {
+        return Err(GitError::GitFailed);
+    }
+    Ok(true)
+}
+
+fn branch_is_contained_elsewhere(workdir: &Path, full_ref: &str) -> Result<bool, GitError> {
+    let containing = git_text(
+        workdir,
+        [
+            "for-each-ref",
+            "--format=%(refname)",
+            "--contains",
+            full_ref,
+            "refs/heads",
+            "refs/remotes",
+        ],
+    )?;
+    Ok(containing.lines().any(|line| line != full_ref))
+}
+
+/// Reaps every `job/*` branch that no registered worktree uses and whose
+/// commits are all reachable elsewhere. This is the recovery for refs that
+/// outlived their job record - a reset job store, a hand-removed
+/// `.gjc-worktrees/` - and it cannot lose work: a branch with unlanded commits
+/// is reported as retained, never deleted.
+fn reap(workdir: &Path, params: &Value) -> Result<Value, GitError> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase", deny_unknown_fields)]
+    struct Reap {}
+    let _: Reap = serde_json::from_value(params.clone()).map_err(|_| GitError::InvalidRequest)?;
+    let in_use: Vec<String> = worktrees(workdir)?
+        .into_iter()
+        .filter_map(|item| item.branch)
+        .collect();
+    let listed = git_text(
+        workdir,
+        ["for-each-ref", "--format=%(refname)", "refs/heads/job/"],
+    )?;
+    let mut reaped = Vec::new();
+    let mut retained = Vec::new();
+    for full in listed.lines().filter(|line| !line.is_empty()) {
+        let Some(branch) = full.strip_prefix("refs/heads/") else {
+            continue;
+        };
+        let Some(job_id) = branch.strip_prefix("job/") else {
+            continue;
+        };
+        if !valid_id(job_id) || in_use.iter().any(|used| used == full) {
+            retained.push(branch.to_owned());
+            continue;
+        }
+        if reap_branch(workdir, branch)? {
+            reaped.push(branch.to_owned());
+        } else {
+            retained.push(branch.to_owned());
+        }
+    }
+    Ok(json!({"reaped": reaped, "retained": retained}))
 }
 
 fn registered(
@@ -1042,8 +1119,46 @@ mod tests {
         assert!(matches!(result, Err(GitError::InvalidRequest)));
     }
 
+    fn branch_exists(repo: &TestRepo, branch: &str) -> bool {
+        git_status(
+            &repo.path,
+            [
+                "show-ref",
+                "--verify",
+                "--quiet",
+                &format!("refs/heads/{branch}"),
+            ],
+        )
+    }
+
+    fn commit_in(dir: &Path, file: &str, message: &str) {
+        std::fs::write(dir.join(file), format!("{message}\n")).unwrap();
+        for args in [
+            vec!["add", file],
+            vec![
+                "-c",
+                "user.name=Gajae Test",
+                "-c",
+                "user.email=gajae@example.test",
+                "commit",
+                "--quiet",
+                "-m",
+                message,
+            ],
+        ] {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(dir)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        }
+    }
+
     #[test]
-    fn prune_preserves_ignored_files_and_retains_clean_worktree_branches() {
+    fn prune_preserves_ignored_files_and_reaps_a_branch_with_nothing_of_its_own() {
         let repo = TestRepo::new();
         let path = repo.path.join(".gjc-worktrees/job-1");
         let params = json!({"jobId":"job-1", "branch":"job/job-1", "path":path, "confirmed":true});
@@ -1057,12 +1172,123 @@ mod tests {
         );
         assert!(matches!(result, Err(GitError::DirtyWorktree)));
         std::fs::remove_file(path.join(".env")).unwrap();
-        assert_eq!(prune(&repo.path, &params).unwrap()["pruned"], true);
+        let pruned = prune(&repo.path, &params).unwrap();
+        assert_eq!(pruned["pruned"], true);
         assert!(!path.exists());
+        // The branch still pointed at the base commit, which main holds: a ref
+        // to nothing of its own is noise, and it goes with the worktree.
+        assert_eq!(pruned["branchRetained"], false);
+        assert!(!branch_exists(&repo, "job/job-1"));
+    }
+
+    #[test]
+    fn prune_retains_a_branch_whose_commits_exist_nowhere_else() {
+        let repo = TestRepo::new();
+        let path = repo.path.join(".gjc-worktrees/job-1");
+        let params = json!({"jobId":"job-1", "branch":"job/job-1", "path":path, "confirmed":true});
+        create(&repo.path, &params).unwrap();
+        commit_in(&path, "work.txt", "unlanded work");
+        let pruned = prune(&repo.path, &params).unwrap();
+        assert_eq!(pruned["pruned"], true);
+        assert!(!path.exists());
+        assert_eq!(
+            pruned["branchRetained"], true,
+            "unlanded commits are evidence, not noise"
+        );
+        assert!(branch_exists(&repo, "job/job-1"));
+    }
+
+    #[test]
+    fn reap_deletes_orphaned_job_refs_whose_commits_landed_and_keeps_the_rest() {
+        let repo = TestRepo::new();
+        // job-empty: created and its worktree removed by hand; the ref points
+        // at the base commit main already holds.
+        let empty = repo.path.join(".gjc-worktrees/job-empty");
+        create(
+            &repo.path,
+            &json!({"jobId":"job-empty", "branch":"job/job-empty", "path":empty}),
+        )
+        .unwrap();
+        // job-landed: committed on the branch, merged into main, worktree gone.
+        let landed = repo.path.join(".gjc-worktrees/job-landed");
+        create(
+            &repo.path,
+            &json!({"jobId":"job-landed", "branch":"job/job-landed", "path":landed}),
+        )
+        .unwrap();
+        commit_in(&landed, "landed.txt", "landed work");
+        // job-unlanded: committed on the branch and nowhere else.
+        let unlanded = repo.path.join(".gjc-worktrees/job-unlanded");
+        create(
+            &repo.path,
+            &json!({"jobId":"job-unlanded", "branch":"job/job-unlanded", "path":unlanded}),
+        )
+        .unwrap();
+        commit_in(&unlanded, "orphan.txt", "unlanded work");
+        // job-live: its worktree is still registered, whatever its commits.
+        let live = repo.path.join(".gjc-worktrees/job-live");
+        create(
+            &repo.path,
+            &json!({"jobId":"job-live", "branch":"job/job-live", "path":live}),
+        )
+        .unwrap();
+        for path in [&empty, &landed, &unlanded] {
+            assert!(git_status(
+                &repo.path,
+                [
+                    "worktree",
+                    "remove",
+                    "--force",
+                    "--",
+                    path.to_str().unwrap()
+                ]
+            ));
+        }
         assert!(git_status(
             &repo.path,
-            ["show-ref", "--verify", "--quiet", "refs/heads/job/job-1"]
+            ["merge", "--quiet", "--no-edit", "job/job-landed"]
         ));
+
+        let result = reap(&repo.path, &json!({})).unwrap();
+        let names = |key: &str| -> Vec<String> {
+            result[key]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|value| value.as_str().unwrap().to_owned())
+                .collect()
+        };
+        let mut reaped = names("reaped");
+        reaped.sort();
+        assert_eq!(reaped, ["job/job-empty", "job/job-landed"]);
+        let mut retained = names("retained");
+        retained.sort();
+        assert_eq!(retained, ["job/job-live", "job/job-unlanded"]);
+        assert!(!branch_exists(&repo, "job/job-empty"));
+        assert!(!branch_exists(&repo, "job/job-landed"));
+        assert!(branch_exists(&repo, "job/job-unlanded"));
+        assert!(branch_exists(&repo, "job/job-live"));
+        assert!(live.exists(), "a registered worktree is never touched");
+
+        // A second pass finds nothing new to do and changes nothing.
+        let again = reap(&repo.path, &json!({})).unwrap();
+        assert!(again["reaped"].as_array().unwrap().is_empty());
+        assert!(matches!(
+            reap(&repo.path, &json!({"jobId":"job-live"})),
+            Err(GitError::InvalidRequest)
+        ));
+    }
+
+    #[test]
+    fn reap_leaves_branches_outside_the_job_namespace_alone() {
+        let repo = TestRepo::new();
+        assert!(git_status(&repo.path, ["branch", "feature/empty"]));
+        assert!(git_status(&repo.path, ["branch", "jobs"]));
+        let result = reap(&repo.path, &json!({})).unwrap();
+        assert!(result["reaped"].as_array().unwrap().is_empty());
+        assert!(result["retained"].as_array().unwrap().is_empty());
+        assert!(branch_exists(&repo, "feature/empty"));
+        assert!(branch_exists(&repo, "jobs"));
     }
 
     #[test]

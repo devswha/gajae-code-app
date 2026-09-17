@@ -403,4 +403,6 @@ export class GjcGitClient extends GjcNativeClient {
   status(params: Record<string, unknown> = {}): Promise<unknown> { return this.request('status', params); }
   diff(params: Record<string, unknown> = {}): Promise<unknown> { return this.request('diff', params); }
   prune(params: Record<string, unknown> = {}): Promise<unknown> { return this.request('worktree.prune', params); }
+  /** Deletes orphaned `job/*` refs whose commits all exist elsewhere; reports what it kept. */
+  reap(): Promise<unknown> { return this.request('worktree.reap', {}); }
 }

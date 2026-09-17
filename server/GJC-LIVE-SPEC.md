@@ -105,6 +105,22 @@ facade. Automatic capacity dispatch, multi-turn continuity, and branch/PR work
 from managed worktrees are deferred to Slice 3. Worker Protocol v1 and all React
 behavior are unchanged.
 
+A managed worktree's `job/<id>` ref lives exactly as long as something needs
+it (#157). `worktree.prune` removes the checkout and then deletes the branch
+unless it holds a commit reachable from no other local or remote ref, in which
+case the reply says `branchRetained: true`; unlanded work is evidence, not
+noise. Deleting a worktree session permanently (`DELETE
+/sessions/:id?force=true`) archives its job, prunes its checkout and reaps its
+ref this way; it refuses with `SESSION_WORKTREE_RUNNING` while the job runs
+and `SESSION_WORKTREE_DIRTY` while the checkout has uncommitted changes, and
+leaves the session in place in both cases. Archiving a session keeps checkout
+and ref. Refs that outlived their record - a reset job store, a
+`.gjc-worktrees/` removed by hand - are swept by `worktree.reap`, which the
+orchestrator runs once per repository per process before its first worktree
+there: it deletes every `job/*` ref with no registered worktree and no commit
+of its own, reports the rest as retained, and never touches a branch outside
+the namespace.
+
 ### Native PTY lifecycle
 
 `gajae-core pty -- <program> [args...]` owns exactly one native PTY child and

@@ -1,12 +1,17 @@
 import { randomUUID } from 'node:crypto';
 
-import { getConnection, sessionsDb, sessionWorktreesDb } from '@/modules/database/index.js';
+import { getConnection, sessionsDb, sessionWorktreesDb, type SessionWorktreeRow } from '@/modules/database/index.js';
 import { resolveSessionProjectPath } from '@/modules/providers/services/session-project-path.service.js';
 import { AppError } from '@/shared/utils.js';
 
 import type { SessionLocation } from '../../../../shared/session-worktree-protocol.js';
 
-type Services = { validateRepository(root: string): Promise<void>; readLocation(sessionId: string): SessionLocation; resolveWorkspace(projectId: string, sessionId: string): Promise<string> };
+type Services = {
+  validateRepository(root: string): Promise<void>;
+  readLocation(sessionId: string): SessionLocation;
+  resolveWorkspace(projectId: string, sessionId: string): Promise<string>;
+  release(row: SessionWorktreeRow): Promise<{ released: boolean; branchRetained: boolean }>;
+};
 let services: Services | undefined;
 export function configureSessionWorktrees(value: Services): void { services = value; }
 function requireServices(): Services {
@@ -20,6 +25,16 @@ export function sessionTranscriptWorkspace(sessionId: string, projectPath: strin
   if (!binding) return projectPath;
   if (binding.repository_root !== projectPath || !binding.worktree_path) throw new AppError('Session execution directory is unavailable.', { code: 'SESSION_WORKTREE_UNAVAILABLE', statusCode: 409 });
   return binding.worktree_path;
+}
+/**
+ * Tears down a worktree session's checkout before its row goes. A session in
+ * the project checkout has nothing to release. Refusals (running, dirty) are
+ * AppErrors the route surfaces; the session row is untouched in that case.
+ */
+export async function releaseWorktreeSession(sessionId: string): Promise<{ released: boolean; branchRetained: boolean } | null> {
+  const binding = sessionWorktreesDb.get(sessionId);
+  if (!binding) return null;
+  return requireServices().release(binding);
 }
 export function resolveSessionCommandWorkspace(projectId: string | undefined, sessionId: string): Promise<string> {
   if (!projectId) throw new AppError('projectId is required for a session workspace.', { code: 'PROJECT_ID_REQUIRED', statusCode: 400 });

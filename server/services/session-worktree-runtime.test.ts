@@ -26,7 +26,7 @@ import { GjcGitClient } from './gjc-git-client.js';
 import { DesktopRestartAuthority } from './desktop-restart-authority.js';
 import { createGjcJobOrchestratorDesktopRestartReader, JobOrchestrator, type GitWorktrees, type JobSupervisor } from './gjc-job-orchestrator.js';
 import { GjcJobsClient } from './gjc-jobs-client.js';
-import { readSessionLocation, resolveSessionWorkspacePath, validateSessionRepository } from './session-worktree-paths.js';
+import { readSessionLocation, releaseSessionWorktree, resolveSessionWorkspacePath, validateSessionRepository } from './session-worktree-paths.js';
 import { abortSessionWorktreeRun, configureSessionWorktreeDesktopAdmission, createSessionWorktreeDesktopRestartReader, prepareSessionWorktreeRun, sessionWorktreeWorkerHandle } from './session-worktree-runtime.js';
 
 const execFile = promisify(execFileCallback);
@@ -70,10 +70,13 @@ async function fixture(t: test.TestContext, options: { delayPreparation?: boolea
   projectPermissionsDb.setMode(repository, 'bypass', { acknowledgeBypass: true });
   const alias = path.join(root, 'alias');
   await symlink(repository, alias, process.platform === 'win32' ? 'junction' : 'dir');
-  configureSessionWorktrees({ validateRepository: validateSessionRepository, readLocation: readSessionLocation, resolveWorkspace: resolveSessionWorkspacePath });
-  const created = await createWorktreeSession(alias);
   const jobs = new GjcJobsClient({ database: path.join(root, 'jobs.db') });
   const git = new GjcGitClient({ workdir: repository });
+  // The release reaches the same authority and repository client the
+  // orchestrator below is given, never the production ones.
+  configureSessionWorktrees({ validateRepository: validateSessionRepository, readLocation: readSessionLocation, resolveWorkspace: resolveSessionWorkspacePath,
+    release: (row) => releaseSessionWorktree(row, { jobs, git: () => git }) });
+  const created = await createWorktreeSession(alias);
   const preparation = deferred<void>();
   let preparing = false;
   const gitBoundary: GitWorktrees = {
@@ -596,4 +599,90 @@ test('Git reads, transcript exports, and archive retain the execution directory 
   await assert.rejects(f.makeTicket().run('archived turn', runOptions, f.writer), { code: 'SESSION_PROJECT_MISMATCH' });
   sessionsService.restoreSessionById(f.created.sessionId);
   assert.equal(await resolveSessionWorkspacePath(f.project.project_id, f.created.sessionId), cwd);
+});
+
+/*
+ * Deleting a worktree session for good takes its checkout and its job/<id>
+ * ref with it (#157). Archiving keeps both (above). A refusal keeps the
+ * session too: a running job is not torn down under itself, and uncommitted
+ * changes are the user's to settle in the checkout first.
+ */
+
+async function branches(repository: string): Promise<string[]> {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+  const { stdout } = await execFile('git', ['for-each-ref', '--format=%(refname:short)', 'refs/heads/job/'], { cwd: repository, env });
+  return stdout.split('\n').filter(Boolean).sort();
+}
+
+test('permanent deletion removes a clean worktree and reaps a job ref that holds nothing of its own', async (t) => {
+  const f = await fixture(t);
+  const run = f.makeTicket().run('fixture turn', runOptions, f.writer);
+  await until(() => f.workers.length === 1);
+  f.workers[0].finish();
+  await run;
+  const location = readSessionLocation(f.created.sessionId);
+  const cwd = location.cwd!;
+  assert.deepEqual(await branches(f.repository), [`job/${location.jobId}`]);
+
+  const result = await sessionsService.deleteOrArchiveSessionById(f.created.sessionId, { force: true });
+  assert.equal(result.action, 'deleted');
+  await assert.rejects(readFile(path.join(cwd, 'README.md')), { code: 'ENOENT' });
+  assert.deepEqual(await branches(f.repository), [], 'the ref pointed at the base commit the repository already holds');
+  assert.equal(sessionWorktreesDb.get(f.created.sessionId), null);
+  assert.equal(sessionsDb.getSessionById(f.created.sessionId), null);
+  // The snapshot never carries archivedAt; archival is visible through the list filter.
+  const listed = (filter: 'exclude' | 'only') => f.jobs.list({ archived: filter }).then((value) => ((value as { items?: Array<{ jobId: string }> }).items ?? []).map((item) => item.jobId));
+  assert.ok(!(await listed('exclude')).includes(location.jobId!), 'the job record is archived with its worktree');
+  assert.ok((await listed('only')).includes(location.jobId!));
+});
+
+test('permanent deletion keeps a job ref whose commits exist nowhere else, and refuses a dirty worktree', async (t) => {
+  const f = await fixture(t);
+  const run = f.makeTicket().run('fixture turn', runOptions, f.writer);
+  await until(() => f.workers.length === 1);
+  f.workers[0].finish();
+  await run;
+  const location = readSessionLocation(f.created.sessionId);
+  const cwd = location.cwd!;
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+  const git = (...args: string[]) => execFile('git', ['-c', 'commit.gpgsign=false', '-c', 'user.name=Release Test', '-c', 'user.email=release@example.test', ...args], { cwd, env });
+  await writeFile(path.join(cwd, 'work.md'), 'unlanded\n');
+  await git('add', 'work.md');
+  await git('commit', '-q', '-m', 'unlanded work');
+  await writeFile(path.join(cwd, 'README.md'), 'uncommitted change\n');
+
+  // Dirty: nothing happens, and the session is still there to come back to.
+  await assert.rejects(sessionsService.deleteOrArchiveSessionById(f.created.sessionId, { force: true }), { code: 'SESSION_WORKTREE_DIRTY' });
+  assert.equal(await readFile(path.join(cwd, 'README.md'), 'utf8'), 'uncommitted change\n');
+  assert.ok(sessionsDb.getSessionById(f.created.sessionId));
+  const live = ((await f.jobs.list({ archived: 'exclude' })) as { items?: Array<{ jobId: string }> }).items ?? [];
+  assert.ok(live.some((item) => item.jobId === location.jobId), 'a refused release does not leave the job archived');
+
+  await git('checkout', '--', 'README.md');
+  const result = await sessionsService.deleteOrArchiveSessionById(f.created.sessionId, { force: true });
+  assert.equal(result.action, 'deleted');
+  await assert.rejects(readFile(path.join(cwd, 'work.md')), { code: 'ENOENT' });
+  assert.deepEqual(await branches(f.repository), [`job/${location.jobId}`], 'unlanded commits are evidence, not noise');
+  assert.equal(sessionsDb.getSessionById(f.created.sessionId), null);
+});
+
+test('permanent deletion refuses while the session\'s job is running, and does not touch the worktree', async (t) => {
+  const f = await fixture(t);
+  const run = f.makeTicket().run('fixture turn', runOptions, f.writer);
+  await until(() => f.workers.length === 1);
+  const cwd = readSessionLocation(f.created.sessionId).cwd!;
+  await assert.rejects(sessionsService.deleteOrArchiveSessionById(f.created.sessionId, { force: true }), { code: 'SESSION_WORKTREE_RUNNING' });
+  assert.equal(await readFile(path.join(cwd, 'README.md'), 'utf8'), 'project file\n');
+  assert.ok(sessionsDb.getSessionById(f.created.sessionId));
+  f.workers[0].finish();
+  await run;
+});
+
+test('permanent deletion of a worktree session that was never prepared releases nothing and needs no repository', async (t) => {
+  const f = await fixture(t);
+  assert.equal(readSessionLocation(f.created.sessionId).cwd, null);
+  const result = await sessionsService.deleteOrArchiveSessionById(f.created.sessionId, { force: true });
+  assert.equal(result.action, 'deleted');
+  assert.equal(sessionsDb.getSessionById(f.created.sessionId), null);
+  assert.deepEqual(await branches(f.repository), []);
 });

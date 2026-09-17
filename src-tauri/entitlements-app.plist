@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    The desktop shell (gajae-app-desktop) is a Rust binary hosting WKWebView.
+    It runs no JIT of its own - WebKit's content and GPU processes are separate,
+    Apple-signed XPC services - loads only system frameworks and its own
+    statically linked code, and takes nothing from DYLD_* variables. So it
+    carries none of the hardened-runtime exceptions the sidecar needs
+    (entitlements.plist): allow-jit, allow-unsigned-executable-memory,
+    allow-dyld-environment-variables, disable-library-validation. Granting
+    those to the shell would only widen what a compromised shell could load.
+
+    scripts/release/finalize-macos-app.mjs signs the outer app with this file
+    and refuses a bundle whose shell still carries a sidecar exception
+    (owner decision 2026-09-18, #129).
+  -->
+</dict>
+</plist>

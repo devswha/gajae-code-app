@@ -477,6 +477,17 @@ given:
 - gives `bun` the sidecar's library-validation exception, without which dyld
   refuses the GJC addon (`mapping process and mapped file have different Team
   IDs`) as soon as the runtime is hardened;
+- seals the outer app with `src-tauri/entitlements-app.plist` - no
+  entitlements at all - and refuses to finish if the desktop shell still
+  carries any of the four sidecar exceptions (`allow-jit`,
+  `allow-unsigned-executable-memory`, `allow-dyld-environment-variables`,
+  `disable-library-validation`). The Tauri bundler applies one file to every
+  binary it signs, so a plain `tauri build` leaves the shell with the sidecar's
+  exceptions as an intermediate; only a finalized bundle has the split (owner
+  decision 2026-09-18, #129). Verified on 2026-09-18 with an ad-hoc finalize of
+  the current source: the shell reported zero entitlement keys, the sidecar its
+  four, and the launched bundle reached `stage: ready` in an isolated
+  `--qa-profile` with `/health` answering on the embedded server;
 - restamps `gjc-runtime-manifest.json` inside the bundle after signing. Signing
   a native rewrites its bytes and the bundled worker refuses to start unless it
   still hashes to the pinned value (`GJC runtime manifest validation failed.`).

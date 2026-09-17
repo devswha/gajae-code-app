@@ -33,6 +33,7 @@ async function fixture(t, { externalTarget = false } = {}) {
     [addon, native('installed native')], [desktop, native('old shell')],
     [join(appPath, 'Contents/MacOS/gajae-app-server'), native('server')],
     [join(rootDir, 'src-tauri/entitlements.plist'), '<plist/>'],
+    [join(rootDir, 'src-tauri/entitlements-app.plist'), '<plist/>'],
     [join(rootDir, 'src-tauri/Cargo.toml'), '[package]\nname="fixture"\nversion="0.2.4"\n'],
     ...[...manifests, ...sourceManifests].map(path => [path, manifestBytes]),
   ];
@@ -84,8 +85,13 @@ async function fixture(t, { externalTarget = false } = {}) {
     if (args.includes('--sign') && args.at(-1) === appPath) {
       assert.deepEqual(await readFile(desktop), state.rebuiltBytes, 'outer signature must seal the rebuilt shell');
     }
-    if (args[0] === '-d') return ['allow-jit', 'allow-unsigned-executable-memory', 'disable-library-validation']
-      .map(name => `<key>com.apple.security.cs.${name}</key>`).join('');
+    if (args[0] === '-d') {
+      // What each binary reports after signing: the sidecar its exceptions,
+      // the shell nothing - unless a test plants a leak on the shell.
+      if (args.at(-1) === desktop) return state.desktopEntitlements ?? '';
+      return ['allow-jit', 'allow-unsigned-executable-memory', 'disable-library-validation']
+        .map(name => `<key>com.apple.security.cs.${name}</key>`).join('');
+    }
     return '';
   };
   state.finalize = () => finalizeMacosApp({ ...state, sourceRoot: rootDir, platform: 'darwin', arch: 'arm64' });
@@ -111,6 +117,47 @@ test('finalizer signs natives, restamps both manifests, rebuilds/copies shell, t
     .map(call => call.command === 'codesign' ? call.args.at(-1) : call.command);
   assert.deepEqual(stages, [f.addon, join(f.appPath, 'Contents/MacOS/gajae-app-server'), 'metadata', 'cargo', f.appPath]);
   assert.equal(f.calls.filter(call => call.command === 'codesign' && call.args.includes('--sign') && call.args.at(-1) === f.addon).length, 1);
+});
+
+/*
+ * The sidecar and the bundled native hosts need the hardened-runtime
+ * exceptions (JIT, RWX memory, foreign libraries, DYLD_* variables); the shell
+ * needs none of them (#129). The bundler's own pass gives every binary one
+ * file, so the finalizer is where the shell's exceptions come off - and it
+ * refuses to finish if they did not.
+ */
+
+test('the sidecar and native hosts get the sidecar entitlements; the outer app gets the shell file', async t => {
+  const f = await fixture(t);
+  await f.finalize();
+  const signed = f.calls.filter(call => call.command === 'codesign' && call.args.includes('--sign'));
+  const entitlementsFor = path => {
+    const call = signed.find(candidate => candidate.args.at(-1) === path);
+    const index = call.args.indexOf('--entitlements');
+    return index === -1 ? undefined : call.args[index + 1];
+  };
+  const sidecarPlist = join(f.rootDir, 'src-tauri/entitlements.plist');
+  const shellPlist = join(f.rootDir, 'src-tauri/entitlements-app.plist');
+  assert.equal(entitlementsFor(join(f.appPath, 'Contents/MacOS/gajae-app-server')), sidecarPlist);
+  assert.equal(entitlementsFor(f.appPath), shellPlist);
+  // A native addon is not a host; it is signed hardened without entitlements.
+  assert.equal(entitlementsFor(f.addon), undefined);
+  assert.ok(signed.every(call => call.args.includes('--options') && call.args[call.args.indexOf('--options') + 1] === 'runtime'));
+});
+
+test('a shell that still carries a sidecar exception fails finalization after sealing', async t => {
+  for (const leaked of ['allow-jit', 'allow-unsigned-executable-memory', 'allow-dyld-environment-variables', 'disable-library-validation']) {
+    const f = await fixture(t);
+    f.desktopEntitlements = `<key>com.apple.security.cs.${leaked}</key>`;
+    await assert.rejects(f.finalize(), error => error.message === `Desktop shell must not carry the sidecar entitlement: com.apple.security.cs.${leaked}`);
+  }
+});
+
+test('a missing shell entitlements file stops finalization before any signing', async t => {
+  const f = await fixture(t);
+  await rm(join(f.rootDir, 'src-tauri/entitlements-app.plist'));
+  await assert.rejects(f.finalize(), /entitlements-app\.plist/u);
+  assert.ok(f.calls.every(call => call.command === 'security'));
 });
 
 test('rebuild failure leaves the existing app executable untouched and never signs the outer app', async t => {

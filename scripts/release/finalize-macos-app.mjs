@@ -29,6 +29,18 @@ const MACH_O_MAGIC = new Set([0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe, 0x
  */
 const NATIVE_HOSTS = new Set(['bun']);
 
+/**
+ * The hardened-runtime exceptions the sidecar and native hosts need and the
+ * desktop shell must not carry (#129). The shell is a Rust binary hosting
+ * WKWebView: no JIT of its own, no foreign libraries, nothing from DYLD_*.
+ */
+const SIDECAR_ONLY_ENTITLEMENTS = [
+  'com.apple.security.cs.allow-jit',
+  'com.apple.security.cs.allow-unsigned-executable-memory',
+  'com.apple.security.cs.allow-dyld-environment-variables',
+  'com.apple.security.cs.disable-library-validation',
+];
+
 function isMachO(filePath) {
   const handle = openSync(filePath, 'r');
   try {
@@ -136,6 +148,7 @@ export async function finalizeMacosApp({
   execute = run, resolveTargetDirectory, platform = process.platform, arch = process.arch,
 } = {}) {
   const entitlements = join(sourceRoot, 'src-tauri/entitlements.plist');
+  const appEntitlements = join(sourceRoot, 'src-tauri/entitlements-app.plist');
   const identity = inheritedEnv.APPLE_SIGNING_IDENTITY?.trim() || '-';
   const adhoc = identity === '-';
   const timestamp = adhoc ? '--timestamp=none' : '--timestamp';
@@ -145,6 +158,7 @@ export async function finalizeMacosApp({
   }
   if (!existsSync(appPath)) throw new Error(`App bundle not found: ${appPath}`);
   if (!existsSync(entitlements)) throw new Error(`Entitlements file not found: ${entitlements}`);
+  if (!existsSync(appEntitlements)) throw new Error(`Entitlements file not found: ${appEntitlements}`);
   if (!adhoc && !(await invoke('security', ['find-identity', '-v', '-p', 'codesigning'])).includes(identity)) {
     throw new Error(`Signing identity is not available in the keychain: ${identity}`);
   }
@@ -169,10 +183,13 @@ export async function finalizeMacosApp({
   const rebuilt = await rebuildSignedMacosDesktop({ rootDir: sourceRoot, appPath, inheritedEnv },
     { execute, resolveTargetDirectory });
 
-  // All nested signing/restamping is complete. Seal only the outer app now.
+  // All nested signing/restamping is complete. Seal only the outer app now,
+  // with the shell's own (empty) entitlements: the bundler's pass gave the
+  // shell the sidecar exceptions as an intermediate, and this is where they
+  // come off.
   await invoke('codesign', [
     '--force', '--sign', identity, timestamp, '--options', 'runtime',
-    '--entitlements', entitlements, appPath,
+    '--entitlements', appEntitlements, appPath,
   ]);
 
   for (const executable of nestedExecutables) await invoke('codesign', ['--verify', '--strict', executable]);
@@ -190,6 +207,12 @@ export async function finalizeMacosApp({
   ]) {
     if (!sidecarEntitlements.includes(`<key>${entitlement}</key>`)) {
       throw new Error(`Sidecar is missing required entitlement: ${entitlement}`);
+    }
+  }
+  const desktopEntitlements = await invoke('codesign', ['-d', '--entitlements', ':-', desktop], { combined: true });
+  for (const entitlement of SIDECAR_ONLY_ENTITLEMENTS) {
+    if (desktopEntitlements.includes(`<key>${entitlement}</key>`)) {
+      throw new Error(`Desktop shell must not carry the sidecar entitlement: ${entitlement}`);
     }
   }
 

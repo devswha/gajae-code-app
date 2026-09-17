@@ -17,6 +17,8 @@ type ApiOptions = {
   backend?: 'builtin' | 'aside' | 'ego';
   egoActivity?: boolean;
   egoFrames?: boolean;
+  computerUse?: boolean;
+  rejectComputerUseSave?: boolean;
   rejectBackendSave?: boolean;
   browserOpen?: Response | Error;
   browserReady?: boolean;
@@ -40,6 +42,7 @@ function fakeApi(options: ApiOptions = {}) {
   let backend = options.backend ?? 'builtin';
   let egoActivity = options.egoActivity ?? false;
   let egoFrames = options.egoFrames ?? false;
+  let computerUse = options.computerUse ?? false;
   let grants = options.grants ?? { always: { origins: [], applications: [] } };
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
@@ -86,6 +89,13 @@ function fakeApi(options: ApiOptions = {}) {
         framesConfigured: egoFrames, frames: egoActivity && egoFrames,
         supported: true, backend, spaces: [],
       }));
+    }
+    if (path === '/api/automation/computer-use') {
+      if (method === 'PUT') {
+        if (options.rejectComputerUseSave) return new Response(JSON.stringify({ error: 'rejected' }), { status: 400 });
+        computerUse = (body as { enabled?: boolean }).enabled === true;
+      }
+      return new Response(JSON.stringify({ enabled: computerUse }));
     }
     if (path.startsWith('/api/browser/') && method === 'POST') {
       if (options.browserOpen instanceof Error) throw options.browserOpen;
@@ -195,6 +205,46 @@ test('the picture is a second switch: off by default and unavailable until activ
     { enabled: true },
     { frames: true },
   ]);
+});
+
+/*
+ * Computer use - the agent driving this Mac's applications through CUA Driver -
+ * is off until the user turns it on here (owner decision 2026-09-18, #131).
+ * The switch reads the stored opt-in, persists a change through the API, and
+ * falls back to what the server holds when a save is refused.
+ */
+
+test('computer use is off by default, reads the stored opt-in, and persists a change', async () => {
+  const calls = fakeApi();
+  await mount();
+  const label = english.automation.computerUse.label;
+
+  const toggle = await screen.findByRole('switch', { name: label });
+  assert.equal(toggle.getAttribute('aria-checked'), 'false', 'driving native applications is never on by default');
+  assert.ok(screen.getByText(english.automation.computerUse.description));
+  assert.equal(calls.some((call) => call.path === '/api/automation/computer-use' && call.method === 'GET'), true);
+
+  fireEvent.click(toggle);
+  await waitFor(() => assert.equal(screen.getByRole('switch', { name: label }).getAttribute('aria-checked'), 'true'));
+  fireEvent.click(screen.getByRole('switch', { name: label }));
+  await waitFor(() => assert.equal(screen.getByRole('switch', { name: label }).getAttribute('aria-checked'), 'false'));
+  assert.deepEqual(calls.filter((call) => call.path === '/api/automation/computer-use' && call.method === 'PUT').map((call) => call.body), [
+    { enabled: true },
+    { enabled: false },
+  ]);
+});
+
+test('a stored computer-use opt-in renders on, and a refused save leaves the switch where the server is', async () => {
+  fakeApi({ computerUse: true, rejectComputerUseSave: true });
+  await mount();
+  const label = english.automation.computerUse.label;
+
+  const toggle = await screen.findByRole('switch', { name: label });
+  await waitFor(() => assert.equal(screen.getByRole('switch', { name: label }).getAttribute('aria-checked'), 'true'));
+
+  fireEvent.click(toggle);
+  // Optimistic flip, then the 400 reverts it: the server still says on.
+  await waitFor(() => assert.equal(screen.getByRole('switch', { name: label }).getAttribute('aria-checked'), 'true'));
 });
 
 test('a rejected backend save keeps the persisted choice and reports the failure', async () => {

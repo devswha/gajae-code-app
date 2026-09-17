@@ -8,6 +8,7 @@ import test, { type TestContext } from 'node:test';
 
 import { AutomationGrantStore } from './automation-grants.js';
 import { AutomationService } from './automation.service.js';
+import { ComputerUseStore } from './computer-use.js';
 import { CuaDriverClient } from './cua-client.js';
 
 function memoryStorage() {
@@ -44,6 +45,11 @@ function service(t: TestContext) {
   const instance = new AutomationService();
   const grants = new AutomationGrantStore(memoryStorage());
   Object.defineProperty(instance, 'grants', { value: grants });
+  // Authority is what these tests are about; the opt-in (off by default,
+  // #131) is turned on so that the grant checks are the thing under test.
+  const computerUse = new ComputerUseStore(memoryStorage());
+  computerUse.set(true);
+  Object.defineProperty(instance, 'computerUse', { value: computerUse });
   const dispatched: Dispatched[] = [];
   let label = '';
   const inventory: string[] = [];

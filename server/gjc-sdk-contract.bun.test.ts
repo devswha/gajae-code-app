@@ -388,6 +388,10 @@ async function fixture(
     toolNames: [],
     spawns: 'deny',
     bashPolicy: { allowedPrefixes: [] },
+    // The product default is off (#131); the browser-routing tests below are
+    // about the browser transport and turn computer use on so `computer` stays
+    // a visible control. The default has its own tests.
+    computerUse: true,
   };
   return { root, adapter, authStorage, modelRegistry, settings, trace, factoryOptions, sessions, frames, host, options, toolPolicyOverrides: overrides, close: () => rm(root, { recursive: true, force: true }) };
 }
@@ -2300,6 +2304,56 @@ test('app automation is injected through the SDK built-in automationTools contra
     await run;
   } finally { await f.close(); }
 });
+test('computer use is withheld by default: no app transport and no SDK builtin name', async () => {
+  const f = await fixture();
+  try {
+    const { computerUse: _on, ...defaults } = f.options;
+    for (const [id, options] of [
+      ['computer-absent', defaults],
+      ['computer-false', { ...defaults, computerUse: false }],
+    ] as const) {
+      const index = f.sessions.length;
+      const run = f.host.handle(request('session.start', id, {
+        message: 'hello',
+        options: { ...options, builtinBrowserAvailable: true, toolNames: ['bash', 'browser', 'computer'] },
+      }, `app-session-${id}`));
+      const session = await waitFor(() => f.sessions[index]);
+      await session.promptStarted.promise;
+      const factoryInput = f.factoryOptions.at(-1)!;
+      assert.deepEqual(Object.keys(factoryInput.automationTools as Record<string, unknown>), ['browser'], id);
+      assert.equal((factoryInput.toolNames as string[]).includes('computer'), false, `${id}: the SDK builtin must not be requestable either`);
+      assert.equal((factoryInput.toolNames as string[]).includes('browser'), true, id);
+      session.complete();
+      await run;
+    }
+  } finally { await f.close(); }
+});
+
+test('computer use turned on offers the app transport on every backend, and a non-boolean is refused', async () => {
+  const f = await fixture();
+  try {
+    for (const backend of ['builtin', 'aside'] as const) {
+      const index = f.sessions.length;
+      const run = f.host.handle(request('session.start', `computer-on-${backend}`, {
+        message: 'hello',
+        options: { ...f.options, browserBackend: backend, builtinBrowserAvailable: true, toolNames: ['bash', 'computer'] },
+      }, `app-session-computer-on-${backend}`));
+      const session = await waitFor(() => f.sessions[index]);
+      await session.promptStarted.promise;
+      const factoryInput = f.factoryOptions.at(-1)!;
+      assert.equal((factoryInput.automationTools as Record<string, { name: string }>).computer?.name, 'computer', backend);
+      assert.equal((factoryInput.toolNames as string[]).includes('computer'), true, backend);
+      session.complete();
+      await run;
+    }
+    await f.host.handle(request('session.start', 'computer-malformed', {
+      message: 'hello', options: { ...f.options, computerUse: 'yes' },
+    }, 'app-session-computer-malformed'));
+    const response = [...f.frames].reverse().find((frame) => frame.kind === 'response' && frame.id === 'computer-malformed') as { payload: { ok: boolean } } | undefined;
+    assert.equal(response?.payload.ok, false, 'a run option that is not a boolean fails the start');
+  } finally { await f.close(); }
+});
+
 test('unavailable built-in browser removes both the app transport and SDK builtin name', async () => {
   const f = await fixture();
   try {

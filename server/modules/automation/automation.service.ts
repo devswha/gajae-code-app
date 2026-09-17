@@ -22,6 +22,7 @@ import { isBuiltinBrowserBinding, type BuiltinBrowserBinding, type BuiltinBrowse
 
 import { AutomationGrantStore, type AutomationGrant } from './automation-grants.js';
 import { browserBackendStore } from './browser-backend.js';
+import { computerUseStore } from './computer-use.js';
 import { egoActivityReader, egoActivityStore, type EgoActivityResponse } from './ego-activity.js';
 import { TauriBrowserClient } from './tauri-browser-client.js';
 import { automationOrigin } from './automation-url.js';
@@ -141,6 +142,8 @@ export class AutomationService {
   readonly browserBackend = browserBackendStore;
   /** Opt-in rendering of the agent's ego browser state; off by default. */
   readonly egoActivity = egoActivityStore;
+  /** Opt-in native application control through CUA Driver; off by default. */
+  readonly computerUse = computerUseStore;
   private readonly egoActivityReader = egoActivityReader;
   private readonly capabilities = automationSupport(process.platform, process.arch, process.env);
   get supported(): boolean { return this.browser.isReady(); }
@@ -602,6 +605,11 @@ export class AutomationService {
 
   private requireComputerSupported(): void {
     if (!this.capabilities.computer) throw new Error('Native computer automation is not enabled on this platform.');
+    // The user's opt-in is checked at the same choke point as the platform
+    // capability, so every caller - the worker bridge, the HTTP route, a
+    // future one - fails closed while it is off, whether or not the session
+    // was ever offered the tool.
+    if (!this.computerUse.get()) throw new Error('Computer use is off. Turn it on in Settings > Automation.');
   }
 
   private handleBridgeSocket(socket: Socket): void {

@@ -296,6 +296,8 @@ export async function resolveGjcResumeSessionRoot(
 
 type GjcRunOptionAuthorities = {
   resolveBrowserBackend(): GjcBrowserBackend;
+  /** The user's Settings opt-in for native application control; off by default. */
+  resolveComputerUse(): boolean;
   browserStatus(): Promise<unknown>;
 };
 
@@ -324,16 +326,20 @@ export async function enrichGjcSdkRunOptions(
   // from the request, like the permission policy: a client cannot switch a
   // run to Aside by sending an option.
   let browserBackend: GjcBrowserBackend;
+  let computerUse: boolean;
   let authorities = injectedAuthorities;
   try {
     if (!authorities) {
-      const { automationService, resolveGjcBrowserBackend } = await import('./modules/automation/index.js');
+      const { automationService, resolveGjcBrowserBackend, resolveGjcComputerUse } = await import('./modules/automation/index.js');
       authorities = {
         resolveBrowserBackend: resolveGjcBrowserBackend,
+        resolveComputerUse: resolveGjcComputerUse,
         browserStatus: () => automationService.browser.status(),
       };
     }
     browserBackend = authorities.resolveBrowserBackend();
+    // Same rule as the backend: the app's own setting, never the request's.
+    computerUse = authorities.resolveComputerUse() === true;
   } catch {
     throw new GjcConfigurationError('Unable to resolve the GJC browser backend.');
   }
@@ -370,6 +376,7 @@ export async function enrichGjcSdkRunOptions(
     browserBackend,
     // Always overwrite any untrusted request field.
     builtinBrowserAvailable,
+    computerUse,
   };
 }
 

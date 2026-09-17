@@ -52,6 +52,7 @@ export default function AutomationSettingsTab() {
   const [egoConnection, setEgoConnection] = useState<EgoConnection | null>(null);
   const [egoActivity, setEgoActivity] = useState(false);
   const [egoFrames, setEgoFrames] = useState(false);
+  const [computerUse, setComputerUse] = useState(false);
   const [testingEgoConnection, setTestingEgoConnection] = useState(false);
   const [builtinBrowserStatus, setBuiltinBrowserStatus] = useState<string | null>(null);
   const selectedProjectId = useAppShellStore((state) => state.selectedProject?.projectId);
@@ -61,7 +62,7 @@ export default function AutomationSettingsTab() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [statusResponse, grantsResponse, backendResponse, egoReadinessResponse, egoActivityResponse] = await Promise.all([
+      const [statusResponse, grantsResponse, backendResponse, egoReadinessResponse, egoActivityResponse, computerUseResponse] = await Promise.all([
         fetch('/api/automation/status'),
         fetch('/api/automation/grants'),
         fetch('/api/automation/browser-backend'),
@@ -69,6 +70,7 @@ export default function AutomationSettingsTab() {
         // Without a session id this reads the stored opt-in only; it never
         // observes a browser.
         fetch('/api/automation/ego-activity'),
+        fetch('/api/automation/computer-use'),
       ]);
       if (statusResponse.ok) setStatus(await statusResponse.json() as Status);
       if (grantsResponse.ok) setGrants(await grantsResponse.json() as Grants);
@@ -85,6 +87,9 @@ export default function AutomationSettingsTab() {
         const activity = await egoActivityResponse.json() as { configured?: boolean; framesConfigured?: boolean };
         setEgoActivity(activity.configured === true);
         setEgoFrames(activity.framesConfigured === true);
+      }
+      if (computerUseResponse.ok) {
+        setComputerUse((await computerUseResponse.json() as { enabled?: boolean }).enabled === true);
       }
     } finally {
       setLoading(false);
@@ -132,6 +137,23 @@ export default function AutomationSettingsTab() {
       return;
     }
     setEgoFrames((await response.json() as { frames?: boolean }).frames === true);
+  };
+
+  // Off by default (#131): the agent must not drive this Mac's applications
+  // until the user says so here. A failed save leaves the switch where the
+  // server left it.
+  const changeComputerUse = async (enabled: boolean) => {
+    setComputerUse(enabled);
+    const response = await fetch('/api/automation/computer-use', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    if (!response.ok) {
+      setComputerUse(!enabled);
+      return;
+    }
+    setComputerUse((await response.json() as { enabled?: boolean }).enabled === true);
   };
 
   const testEgoConnection = async () => {
@@ -275,6 +297,13 @@ export default function AutomationSettingsTab() {
 
       <SettingsSection title={t('automation.title')} description={t('automation.description')}>
         <SettingsCard divided>
+          <SettingsRow label={t('automation.computerUse.label')} description={t('automation.computerUse.description')}>
+            <SettingsToggle
+              checked={computerUse}
+              onChange={(value) => void changeComputerUse(value)}
+              ariaLabel={t('automation.computerUse.label')}
+            />
+          </SettingsRow>
           <div className="flex items-center justify-between gap-4 p-4">
             <div>
               <p className="text-sm font-medium text-foreground">CUA Driver</p>

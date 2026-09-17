@@ -8,6 +8,7 @@ import express, { type Router } from 'express';
 import type { AutomationService } from './automation.service.js';
 import { createAutomationRouter, createBrowserAutomationRouter } from './automation.routes.js';
 import { BrowserBackendStore } from './browser-backend.js';
+import { ComputerUseStore } from './computer-use.js';
 
 type RecordedCall = { method: string; sessionId?: string; payload?: unknown };
 
@@ -18,6 +19,10 @@ function fakeService(calls: RecordedCall[]): AutomationService {
     browserBackend: new BrowserBackendStore({
       get: (key) => stored.get(key) ?? null,
       set: (key, value) => { stored.set(key, value); calls.push({ method: 'browserBackend.set', payload: value }); },
+    }),
+    computerUse: new ComputerUseStore({
+      get: (key) => stored.get(key) ?? null,
+      set: (key, value) => { stored.set(key, value); calls.push({ method: 'computerUse.set', payload: value }); },
     }),
     status: async () => ({ supported: true, browser: { state: 'ready' }, cua: { installed: true } }),
     egoReadiness: () => ({
@@ -222,6 +227,33 @@ test('Ego readiness GET is filesystem-only and the connection test is explicit, 
     assert.deepEqual(await tested.json(), { ok: true, status: 'connected', cliVersion: '0.5.0.32' });
     assert.deepEqual(calls, [{ method: 'ego.test' }]);
     assert.equal(JSON.stringify(await (await server.request('/ego-readiness')).json()).includes('/home/'), false);
+  } finally {
+    await server.close();
+  }
+});
+
+test('computer use reads off by default and its opt-in only accepts a boolean', async () => {
+  const calls: RecordedCall[] = [];
+  const server = await serve(createAutomationRouter(fakeService(calls)));
+  try {
+    assert.deepEqual(await (await server.request('/computer-use')).json(), { enabled: false });
+
+    const on = await server.request('/computer-use', { ...json({ enabled: true }), method: 'PUT' });
+    assert.equal(on.status, 200);
+    assert.deepEqual(await on.json(), { enabled: true });
+    assert.deepEqual(await (await server.request('/computer-use')).json(), { enabled: true });
+
+    for (const body of [{ enabled: 'yes' }, { enabled: 1 }, {}, { computerUse: true }]) {
+      assert.equal((await server.request('/computer-use', { ...json(body), method: 'PUT' })).status, 400, JSON.stringify(body));
+    }
+    assert.deepEqual(await (await server.request('/computer-use')).json(), { enabled: true }, 'a refused write changes nothing');
+
+    const off = await server.request('/computer-use', { ...json({ enabled: false }), method: 'PUT' });
+    assert.deepEqual(await off.json(), { enabled: false });
+    assert.deepEqual(calls, [
+      { method: 'computerUse.set', payload: '1' },
+      { method: 'computerUse.set', payload: '0' },
+    ]);
   } finally {
     await server.close();
   }

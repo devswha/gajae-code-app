@@ -50,7 +50,7 @@ test('run enrichment overwrites client browser capability with authenticated Web
     browserBackend: 'aside', builtinBrowserAvailable: true,
   };
   const ready = await enrichGjcSdkRunOptions(options, {
-    resolveBrowserBackend: () => 'builtin',
+    resolveBrowserBackend: () => 'builtin', resolveComputerUse: () => false,
     browserStatus: async () => ({ state: 'ready', ready: true, engine: 'webview' }),
   });
   assert.equal(ready.browserBackend, 'builtin');
@@ -62,10 +62,34 @@ test('run enrichment overwrites client browser capability with authenticated Web
     async () => { throw new Error('native unavailable'); },
   ]) {
     const unavailable = await enrichGjcSdkRunOptions(options, {
-      resolveBrowserBackend: () => 'builtin', browserStatus,
+      resolveBrowserBackend: () => 'builtin', resolveComputerUse: () => false, browserStatus,
     });
     assert.equal(unavailable.builtinBrowserAvailable, false);
   }
+});
+
+test('run enrichment takes computer use from the app setting, never from the request', async () => {
+  const options = {
+    projectPath: '/fixture/project', sessionRoot: '/fixture/sessions', modelId: 'fixture-model',
+    // A client asking for the tool does not get it.
+    computerUse: true,
+  };
+  const browserStatus = async () => ({ state: 'ready', ready: true, engine: 'webview' });
+  const withheld = await enrichGjcSdkRunOptions(options, {
+    resolveBrowserBackend: () => 'builtin', resolveComputerUse: () => false, browserStatus,
+  });
+  assert.equal(withheld.computerUse, false);
+
+  const offered = await enrichGjcSdkRunOptions({ ...options, computerUse: false }, {
+    resolveBrowserBackend: () => 'builtin', resolveComputerUse: () => true, browserStatus,
+  });
+  assert.equal(offered.computerUse, true);
+
+  // The authority answers with a boolean; anything else is off.
+  const malformed = await enrichGjcSdkRunOptions(options, {
+    resolveBrowserBackend: () => 'builtin', resolveComputerUse: () => 'yes' as unknown as boolean, browserStatus,
+  });
+  assert.equal(malformed.computerUse, false);
 });
 let runSequence = 0;
 function spawn(

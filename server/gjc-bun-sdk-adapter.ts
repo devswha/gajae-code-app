@@ -1260,21 +1260,23 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       const askController = new GjcBunAskController(writer);
       // A managed worktree run is dispatched with the checkout as its cwd while
       // `projectPath` stays the repository root; a project-location run gets the
-      // same path for both. Comparing the resolved paths is the session's own
-      // answer to "is this checkout mine", with no extra state to keep in sync.
-      // Unknown resolves to "shared", so a path that cannot be read asks rather
-      // than assumes.
-      const isolatedCheckout = await (async () => {
+      // same path for both. The resolved checkout is the root whose git state
+      // this run owns: git commands inside it auto-approve, and any that leave
+      // it ask first. Unknown resolves to "shared", so a path that cannot be
+      // read asks rather than assumes.
+      const ownedCheckoutRoot = await (async () => {
         const declaredRoot = typeof options.projectPath === 'string' && options.projectPath ? options.projectPath : config.cwd;
-        try { return (await realpath(config.cwd)) !== (await realpath(declaredRoot)); }
-        catch { return false; }
+        try {
+          const cwd = await realpath(config.cwd);
+          return cwd !== (await realpath(declaredRoot)) ? cwd : undefined;
+        } catch { return undefined; }
       })();
       const model = await modelForWithRefresh(this.modelRegistry, configuredModelId);
       const resolvedCredential = await credentialFor(this.authStorage, config.credential, model);
       let delegation: GjcDelegationExecutor | undefined;
       try {
         const permissionProvider = config.permissions
-          ? createGjcPermissionProvider(config.permissions, askController, writer, isolatedCheckout)
+          ? createGjcPermissionProvider(config.permissions, askController, writer, ownedCheckoutRoot)
           : undefined;
         const sessionOptions: Parameters<typeof createAgentSession>[0] = {
           // The app hosts the runtime in-process; the model must not reach for

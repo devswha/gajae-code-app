@@ -164,7 +164,7 @@ test('ask questions and tool permissions share the controller without confusing 
 
 test('a shared checkout asks before a git state change even under bypass', async () => {
   const out = writer();
-  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: ['bash'] }, new GjcBunAskController(out), out, false);
+  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: ['bash'] }, new GjcBunAskController(out), out);
 
   const pending = provider(bashCall('git commit -am wip'), RUNTIME_OPTIONS);
 
@@ -184,7 +184,7 @@ test('a shared checkout asks before a git state change even under bypass', async
 
 test('the same session keeps auto-approving everything that is not a git state change', async () => {
   const out = writer();
-  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: [] }, new GjcBunAskController(out), out, false);
+  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: [] }, new GjcBunAskController(out), out);
 
   const read = await provider(bashCall('git status'), RUNTIME_OPTIONS);
   const build = await provider(bashCall('npm test'), RUNTIME_OPTIONS);
@@ -194,9 +194,9 @@ test('the same session keeps auto-approving everything that is not a git state c
   assert.deepEqual(requestIds(out.sent), []);
 });
 
-test('an isolated session owns its git state and is never gated for it', async () => {
+test('a run that owns its checkout auto-approves git state inside it', async () => {
   const out = writer();
-  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: [] }, new GjcBunAskController(out), out, true);
+  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: [] }, new GjcBunAskController(out), out, '/repo/.gjc-worktrees/job-1');
 
   const commit = await provider(bashCall('git commit -am wip'), RUNTIME_OPTIONS);
   const push = await provider(bashCall('git push origin HEAD'), RUNTIME_OPTIONS);
@@ -204,13 +204,40 @@ test('an isolated session owns its git state and is never gated for it', async (
   assert.deepEqual(commit, { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' });
   assert.deepEqual(push, commit);
   assert.deepEqual(requestIds(out.sent), []);
-  // No shared-checkout notice: there is nothing shared to warn about.
+  // No shared-checkout notice: nothing shared is touched.
   assert.equal(out.sent.some((m) => String(m.content ?? '').includes('other sessions share')), false);
 });
 
+test('a run that owns its checkout asks before git state outside it, even under bypass', async () => {
+  const out = writer();
+  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: ['bash'] }, new GjcBunAskController(out), out, '/repo/.gjc-worktrees/job-1');
+
+  const pending = provider(bashCall('git -C /repo commit -am wip'), RUNTIME_OPTIONS);
+
+  const [requestId] = requestIds(out.sent);
+  assert.ok(requestId, 'the call must reach a human');
+  assert.deepEqual(
+    out.sent.filter((m) => m.kind === 'system_notice').map((m) => m.content),
+    ['This git command changes state outside the worktree this session owns. It is asked about even when the project policy would approve it.'],
+  );
+  void pending;
+});
+
+test('the same worktree session keeps auto-approving its own git state afterwards', async () => {
+  const out = writer();
+  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: [] }, new GjcBunAskController(out), out, '/repo/.gjc-worktrees/job-1');
+
+  void provider(bashCall('git -C /repo push'), RUNTIME_OPTIONS);
+  const inside = await provider(bashCall('git commit -am wip'), RUNTIME_OPTIONS);
+
+  assert.deepEqual(inside, { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' });
+  assert.equal(requestIds(out.sent).length, 1);
+  // The escape notice is sent once, not once per command.
+  assert.equal(out.sent.filter((m) => String(m.content ?? '').includes('outside the worktree')).length, 1);
+});
 test('the shared-checkout notice is sent once, not once per command', async () => {
   const out = writer();
-  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: [] }, new GjcBunAskController(out), out, false);
+  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: [] }, new GjcBunAskController(out), out);
 
   void provider(bashCall('git commit -am one'), RUNTIME_OPTIONS);
   void provider(bashCall('git push'), RUNTIME_OPTIONS);
@@ -221,7 +248,7 @@ test('the shared-checkout notice is sent once, not once per command', async () =
 
 test('an ask-mode session is unchanged: the card it already showed is the same card', async () => {
   const out = writer();
-  const provider = createGjcPermissionProvider({ mode: 'ask', allowAlways: [] }, new GjcBunAskController(out), out, false);
+  const provider = createGjcPermissionProvider({ mode: 'ask', allowAlways: [] }, new GjcBunAskController(out), out);
 
   void provider(bashCall('git commit -am wip'), RUNTIME_OPTIONS);
 

@@ -2985,6 +2985,36 @@ test('a managed worktree owns its git state and is not asked', async () => {
     await run;
   } finally { await f.close(); }
 });
+test('a managed worktree that rewrites git state elsewhere asks first', async () => {
+  const f = await fixture();
+  try {
+    const checkout = join(f.root, 'checkout');
+    await mkdir(checkout, { recursive: true });
+    const options = { ...f.options, cwd: checkout, projectPath: f.options.cwd, permissions: { mode: 'bypass', allowAlways: [] } };
+    const run = f.host.handle(request('session.start', 'isolated-escape', { message: 'hello', options }));
+    const session = await firstSession(f.sessions);
+    await session.promptStarted.promise;
+
+    const runtimeOptions = [{ optionId: 'allow_once', name: 'Allow once', kind: 'allow_once' }];
+    // `-C` points the invocation at the repository root, outside the checkout
+    // this run owns, so bypass must not answer for the readers of that tree.
+    const pending = session.sdkPermissionProvider!(
+      { toolCallId: 'c1', toolName: 'bash', title: 'commit elsewhere', rawInput: { command: `git -C ${f.options.cwd} commit -am wip` } },
+      runtimeOptions,
+    );
+    await Promise.resolve();
+    const card = f.frames.at(-1)!;
+    assert.equal(card.method, 'ask.presented');
+    const message = (card.payload as Record<string, unknown>).message as Record<string, unknown>;
+    assert.equal(message.kind, 'permission_request');
+
+    await f.host.handle(request('ask.reply', 'escape-reply', { runId: 'isolated-escape', requestId: message.requestId, decision: { allow: true } }));
+    assert.deepEqual(await pending, { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' });
+
+    session.complete();
+    await run;
+  } finally { await f.close(); }
+});
 
 test('a malformed permissions block fails the run before the factory is invoked', async () => {
   const f = await fixture();

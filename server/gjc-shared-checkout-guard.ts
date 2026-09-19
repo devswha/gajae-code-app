@@ -9,8 +9,10 @@
  * switched branches in a shared checkout while a second session was mid-read,
  * and nothing asked.
  *
- * A session in its own managed worktree is exempt: the whole point of the
- * worktree is that its git state is its own.
+ * A session in its own managed worktree owns the git state *under that
+ * checkout*: an ordinary commit inside it is its own business. Walking out -
+ * `git -C ../.. commit`, `cd <repository> && git push`, a redirected
+ * `--git-dir` - touches a checkout other readers depend on, so it asks too.
  *
  * This is a prompt, not a sandbox. The command text is matched, and text can
  * be written to defeat matching; a run that wants to escape can. What it stops
@@ -18,6 +20,8 @@
  * the directory it was given, with nobody told. The runtime owns actual
  * containment.
  */
+
+import path from 'node:path';
 
 /** Tokens that make a `git` invocation rewrite state the whole checkout shares. */
 const GIT_STATE_SUBCOMMANDS = new Set([
@@ -106,23 +110,139 @@ function commandOf(rawInput: unknown): unknown {
   return (rawInput as { command?: unknown }).command;
 }
 
+export type SharedCheckoutGate = 'shared' | 'escape';
+
 /**
- * Whether this tool call must reach a human even though the project policy
- * would approve it.
+ * Why this tool call must reach a human even though the project policy would
+ * approve it, or `null` when it need not.
  *
- * `isolated` is the session's own answer, not a guess: a run in a managed
- * worktree owns its git state and is never gated here.
+ * A project-location run shares its working tree, so every git state change
+ * asks. A run that owns a checkout (a managed worktree) is asked about only
+ * when the command leaves that checkout - the git state under it is its own.
  */
-export function requiresSharedCheckoutApproval(
+export function sharedCheckoutGate(
   toolName: unknown,
   rawInput: unknown,
-  isolated: boolean,
-): boolean {
-  if (isolated) return false;
-  if (typeof toolName !== 'string' || !SHELL_TOOLS.has(toolName.toLowerCase())) return false;
-  return mutatesSharedGitState(commandOf(rawInput));
+  ownedCheckoutRoot?: string,
+): SharedCheckoutGate | null {
+  if (typeof toolName !== 'string' || !SHELL_TOOLS.has(toolName.toLowerCase())) return null;
+  const command = commandOf(rawInput);
+  if (ownedCheckoutRoot === undefined) return mutatesSharedGitState(command) ? 'shared' : null;
+  return escapesOwnedCheckout(command, ownedCheckoutRoot) ? 'escape' : null;
+}
+
+/** `cd` options that take no directory. */
+const CD_OPTIONS = new Set(['-L', '-P', '--']);
+
+/**
+ * Resolves one shell word against the directory it runs from, or `undefined`
+ * when the result is somewhere the walk cannot compare (HOME via `~`, or a
+ * relative path from a directory it failed to resolve). `undefined` reads as
+ * outside, so the unreadable asks instead of assuming.
+ */
+function resolveShellWord(from: string | undefined, word: string): string | undefined {
+  if (word.startsWith('~')) return undefined;
+  const unquoted = word.replace(/^['"]/, '').replace(/['"]$/, '');
+  if (path.isAbsolute(unquoted)) return path.normalize(unquoted);
+  return from === undefined ? undefined : path.resolve(from, unquoted);
+}
+
+function isInsideRoot(root: string, candidate: string | undefined): boolean {
+  return candidate !== undefined && (candidate === root || candidate.startsWith(root + path.sep));
+}
+
+type SegmentScan = { escape: boolean; dir: string | undefined };
+
+function scanSegment(tokens: string[], entryDir: string | undefined, ownedRoot: string): SegmentScan {
+  let dir = entryDir;
+  let index = 0;
+  // `VAR=value` prefixes and wrappers sit in front of the real command; `env`
+  // can carry a redirecting assignment of its own.
+  while (index < tokens.length) {
+    const token = tokens[index]!;
+    const assignment = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(token);
+    if (assignment) {
+      if ((assignment[1] === 'GIT_DIR' || assignment[1] === 'GIT_WORK_TREE')
+        && !isInsideRoot(ownedRoot, resolveShellWord(dir, assignment[2]))) return { escape: true, dir };
+      index += 1;
+      continue;
+    }
+    if (token === 'sudo' || token === 'command' || token === 'env') { index += 1; continue; }
+    break;
+  }
+  const head = tokens[index];
+  if (head === undefined) return { escape: false, dir };
+
+  if (head === 'cd') {
+    index += 1;
+    while (index < tokens.length && CD_OPTIONS.has(tokens[index]!)) index += 1;
+    const target = tokens[index];
+    // `cd` with no target goes HOME, which the walk cannot resolve.
+    dir = target === undefined ? undefined : resolveShellWord(dir, target);
+    return { escape: false, dir };
+  }
+
+  if (!/(?:^|\/)git(?:\.exe)?$/.test(head)) return { escape: false, dir };
+
+  // Walk the git invocation: `-C` moves it, `--git-dir`/`--work-tree` point
+  // its state somewhere else, and the first bare token is the subcommand.
+  let gitDir = dir;
+  let redirectedOutside = false;
+  let subcommand: string | undefined;
+  index += 1;
+  while (index < tokens.length) {
+    const token = tokens[index]!;
+    const attachedShort = /^-C(.+)$/.exec(token);
+    const attachedLong = /^--(?:git-dir|work-tree)=(.+)$/.exec(token);
+    if (token === '-C' || token === '--git-dir' || token === '--work-tree') {
+      const value = tokens[index + 1];
+      index += 2;
+      if (value !== undefined) {
+        const resolved = resolveShellWord(gitDir, value);
+        if (token === '-C') gitDir = resolved;
+        else if (!isInsideRoot(ownedRoot, resolved)) redirectedOutside = true;
+      }
+    } else if (attachedShort) {
+      gitDir = resolveShellWord(gitDir, attachedShort[1]);
+      index += 1;
+    } else if (attachedLong) {
+      if (!isInsideRoot(ownedRoot, resolveShellWord(gitDir, attachedLong[1]))) redirectedOutside = true;
+      index += 1;
+    } else if (GIT_VALUE_FLAGS.has(token)) { index += 2; }
+    else if (token.startsWith('-')) { index += 1; }
+    else { subcommand = token.toLowerCase(); break; }
+  }
+  if (subcommand !== undefined && GIT_STATE_SUBCOMMANDS.has(subcommand)
+    && (redirectedOutside || !isInsideRoot(ownedRoot, gitDir))) {
+    return { escape: true, dir };
+  }
+  return { escape: false, dir };
+}
+
+/**
+ * Whether a bash command line rewrites git state outside the checkout this run
+ * owns. The walk carries the working directory across `cd` and honors git's
+ * own redirects (`-C`, `--git-dir`, `--work-tree`, `GIT_DIR`/`GIT_WORK_TREE`),
+ * so `git -C ../.. commit` and `cd <repository> && git push` are caught while
+ * an ordinary commit inside the worktree stays exempt.
+ */
+export function escapesOwnedCheckout(command: unknown, ownedRoot: string): boolean {
+  if (typeof command !== 'string' || !command.trim()) return false;
+  let dir: string | undefined = ownedRoot;
+  for (const segment of command.split(COMMAND_SEPARATORS)) {
+    const tokens = segment.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) continue;
+    const scan = scanSegment(tokens, dir, ownedRoot);
+    if (scan.escape) return true;
+    dir = scan.dir;
+  }
+  return false;
 }
 
 /** The transcript line explaining why a card appeared under an auto-approving policy. */
 export const GJC_SHARED_CHECKOUT_NOTICE =
   'This session runs in the project checkout, which other sessions share. Git state changes are asked about even when the project policy would approve them.';
+
+/** Same, for a worktree session whose command left its own checkout. */
+export const GJC_CHECKOUT_ESCAPE_NOTICE =
+  'This git command changes state outside the worktree this session owns. It is asked about even when the project policy would approve it.';

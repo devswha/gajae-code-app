@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { mutatesSharedGitState, requiresSharedCheckoutApproval } from './gjc-shared-checkout-guard.js';
+import { escapesOwnedCheckout, mutatesSharedGitState, sharedCheckoutGate } from './gjc-shared-checkout-guard.js';
 
 /*
  * A session that chose the project location shares its working tree with the
@@ -99,26 +99,61 @@ test('malformed input is not a mutation', () => {
  * The decision the provider actually makes.
  */
 
-test('an isolated session is never gated, whatever it runs', () => {
-  assert.equal(requiresSharedCheckoutApproval('bash', { command: 'git push --force' }, true), false);
-  assert.equal(requiresSharedCheckoutApproval('bash', { command: 'git reset --hard' }, true), false);
+test('a run that owns a checkout is exempt for git state inside it', () => {
+  const root = '/repo/.gjc-worktrees/job-1';
+  for (const command of [
+    'git commit -am wip',
+    'git push origin HEAD',
+    // A redirect that stays under the owned checkout is still the run's own.
+    'git -C sub commit -m x',
+    'git -C /repo/.gjc-worktrees/job-1/nested reset --hard',
+    'cd sub && git checkout main',
+    'git -C ../job-1 push',
+    // Reads never ask, wherever they point.
+    'git -C /repo status',
+  ]) {
+    assert.equal(sharedCheckoutGate('bash', { command }, root), null, command);
+  }
 });
 
-test('a shared checkout is gated for shell tools only', () => {
-  assert.equal(requiresSharedCheckoutApproval('bash', { command: 'git commit -am x' }, false), true);
-  assert.equal(requiresSharedCheckoutApproval('powershell', { command: 'git push' }, false), true);
-  assert.equal(requiresSharedCheckoutApproval('BASH', { command: 'git push' }, false), true);
+test('a run that owns a checkout is gated when git state leaves it', () => {
+  const root = '/repo/.gjc-worktrees/job-1';
+  for (const command of [
+    'git -C /repo commit -am wip',
+    'git -C ../.. commit -am wip',
+    'git -C../.. push',
+    'cd /repo && git push origin HEAD',
+    'cd .. && git reset --hard',
+    // `cd` with no target goes HOME, which is never inside the worktree.
+    'cd && git commit -m x',
+    'git --git-dir /repo/.git commit -m x',
+    'git --git-dir=/repo/.git commit -m x',
+    'git --work-tree /repo commit -m x',
+    'GIT_DIR=/repo/.git git commit',
+    'GIT_WORK_TREE=/repo env git push',
+    'npm test && git -C ../.. push',
+  ]) {
+    assert.equal(sharedCheckoutGate('bash', { command }, root), 'escape', command);
+  }
+});
+
+test('a project location is gated for shell tools only', () => {
+  assert.equal(sharedCheckoutGate('bash', { command: 'git commit -am x' }), 'shared');
+  assert.equal(sharedCheckoutGate('powershell', { command: 'git push' }), 'shared');
+  assert.equal(sharedCheckoutGate('BASH', { command: 'git push' }), 'shared');
   // An editing tool cannot move HEAD, and gating it here would double-gate the
   // policy that already owns edits.
-  assert.equal(requiresSharedCheckoutApproval('edit', { command: 'git push' }, false), false);
-  assert.equal(requiresSharedCheckoutApproval('read', { path: '/repo/x' }, false), false);
+  assert.equal(sharedCheckoutGate('edit', { command: 'git push' }), null);
+  assert.equal(sharedCheckoutGate('read', { path: '/repo/x' }), null);
 });
 
 test('a tool call whose input is not shaped as expected is not gated', () => {
-  assert.equal(requiresSharedCheckoutApproval('bash', undefined, false), false);
-  assert.equal(requiresSharedCheckoutApproval('bash', { command: 123 }, false), false);
-  assert.equal(requiresSharedCheckoutApproval('bash', 'git push', false), false);
-  assert.equal(requiresSharedCheckoutApproval(undefined, { command: 'git push' }, false), false);
+  assert.equal(sharedCheckoutGate('bash', undefined), null);
+  assert.equal(sharedCheckoutGate('bash', { command: 123 }), null);
+  assert.equal(sharedCheckoutGate('bash', 'git push'), null);
+  assert.equal(sharedCheckoutGate(undefined, { command: 'git push' }), null);
+  assert.equal(sharedCheckoutGate('bash', { command: 'git push' }, '/owned'), null);
+  assert.equal(escapesOwnedCheckout(undefined, '/owned'), false);
 });
 
 /*
@@ -133,8 +168,13 @@ test('a tool call whose input is not shaped as expected is not gated', () => {
 test('text written to defeat matching is not caught, and that is the documented limit', () => {
   // A computed command name never appears as `git` in the text.
   assert.equal(mutatesSharedGitState('G=git; $G commit -m x'), false);
+  assert.equal(escapesOwnedCheckout('G=git; $G commit -m x', '/owned'), false);
   // A script whose contents the app never sees.
   assert.equal(mutatesSharedGitState('bash ./release.sh'), false);
+  assert.equal(escapesOwnedCheckout('bash ./release.sh', '/owned'), false);
   // Another program reaching the same plumbing.
   assert.equal(mutatesSharedGitState('gh pr merge 1 --squash'), false);
+  // A redirection the owned-checkout walk cannot see: the `cd` lives inside a
+  // substitution, so the following `git` still looks like it runs at the root.
+  assert.equal(escapesOwnedCheckout('x=$(cd /repo && git commit -m x)', '/owned'), false);
 });

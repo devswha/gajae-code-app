@@ -35,8 +35,8 @@ issues stay open pending upstream. The superseded
 branch (content landed as #113) were removed.
 
 Still open in this repo: #160 (serviceTier Settings exposure vs documented
-fixed — owner product decision), #158/#162 (upstream), and PR #44 (Windows,
-conflicted; desktop scope is macOS-first).
+fixed — owner product decision) and #158/#162 (upstream). PR #44 (Windows)
+was already closed on 2026-09-16; Windows desktop stays out of scope.
 
 **Published and installed: v2.0.0-beta.14 / desktop 0.2.8**, source `60c98e3`,
 release `386182917`, `updateMode: production`. It supersedes beta.13, whose

@@ -1,5 +1,43 @@
 # gajae-app v2 — Session Handoff (resume state)
 
+## Post-beta.14 checkpoint — beta.15→19 shipped, checkout isolation closed (2026-09-19)
+
+Five releases shipped without a handoff entry; release notes and published
+facts are now recorded per release:
+
+| Release | Desktop | Published (UTC) | Release ID | Source | Notes |
+| --- | --- | --- | --- | --- | --- |
+| beta.15 | 0.2.9 | 2026-09-13T07:50:45Z | 387829613 | `883ce6a` | CLA, linux-arm64 bootstrap, mobile keyboard fix, history-index caching, website macOS-only |
+| beta.16 | 0.2.10 | 2026-09-13T11:20:53Z | 387875236 | `281287a` | [RELEASE-BETA16.md](RELEASE-BETA16.md) |
+| beta.17 | 0.2.11 | 2026-09-14T03:28:39Z | 388130063 | `0f0b5b6` | [RELEASE-BETA17.md](RELEASE-BETA17.md) + acceptance |
+| beta.18 | 0.2.12 | 2026-09-14T08:06:04Z | 388226403 | `48a6212` | [RELEASE-BETA18.md](RELEASE-BETA18.md) — docked built-in browser, proxy presets, updater staleness |
+| beta.19 | 0.2.13 | 2026-09-18T13:18:04Z | 391484917 | `9f47ead` | [RELEASE-BETA19.md](RELEASE-BETA19.md) — 38 PRs: security hardening, worktree isolation, runtime policy |
+
+Beta.18/19 release docs are post-hoc: they record tag contents, asset SHA-256s
+and the updater manifest, and explicitly do not claim CI/notarization/smoke
+receipts — those drills were not recorded for these two releases.
+
+The beta.19 batch closed the checkout-isolation arc for issue #156: managed
+worktrees by default with the run-location picker (#166), shared-checkout
+rewrite approval (#167), branch/worktree reaping (#174), and — on 2026-09-19,
+after the release — the checkout-escape guard (`0c5e6aa`): a worktree run now
+owns git state only under its own checkout root; `git -C ../..`, `cd
+<repo> && git push` and `--git-dir`/`GIT_DIR` redirects that leave it ask
+first, with a distinct notice. #156 is closed.
+
+2026-09-19 session also: verified #158 (crash recorder misclassification) and
+#162 (boot noise) against 0.16.4, published 0.17.2 and upstream `dev` @
+2026-09-19 — none of it fixed upstream — and filed
+[Yeachan-Heo/gajae-code#5718](https://github.com/Yeachan-Heo/gajae-code/issues/5718)
+and [#5719](https://github.com/Yeachan-Heo/gajae-code/issues/5719); both repo
+issues stay open pending upstream. The superseded
+`gajae-desktop-server-oom` worktree and its `codex/fix-desktop-server-oom`
+branch (content landed as #113) were removed.
+
+Still open in this repo: #160 (serviceTier Settings exposure vs documented
+fixed — owner product decision), #158/#162 (upstream), and PR #44 (Windows,
+conflicted; desktop scope is macOS-first).
+
 **Published and installed: v2.0.0-beta.14 / desktop 0.2.8**, source `60c98e3`,
 release `386182917`, `updateMode: production`. It supersedes beta.13, whose
 binary shipped with the updater compiled out (`RELEASE-BETA13-ACCEPTANCE.md`);

@@ -231,8 +231,14 @@ method or frame changes; the policy travels inside existing payloads:
   the app itself produced — and the application relays the fixed text
   "Invalid GJC run permissions." to the client instead of the generic
   "GJC worker failed.".
-- A run's model must pair with a credential the runtime can use. Stored rows
-  pin deterministically as before; a provider with **no** stored row is still
+- A run's model must pair with a credential the runtime can use. With stored
+  rows and no explicit `credentialId` the run starts with no
+  `credentialSelector`: the runtime chooses the account exactly as the CLI
+  does (`gjc accounts pin`, routing exclusions, usage-limit rotation), and
+  the run result reports the row it settled on. Pinning the lowest row id
+  instead sent every run to an account the CLI never used (observed: an
+  Anthropic account whose organization refuses OAuth). Only an explicit
+  `credentialId` installs a selector. A provider with **no** stored row is still
   eligible when the auth layer can resolve a key for it (`models.yml`
   `apiKey`/`apiKeyEnv`, env fallback — probed via `peekApiKey`, which resolves
   nothing), and such a run starts with no `credentialSelector` so the runtime
@@ -253,8 +259,15 @@ method or frame changes; the policy travels inside existing payloads:
   rejected for this model; retried without it. Fast mode is off for this model
   until you re-enable it with /fast on.") is omitted from chat rows the same
   way, at any level and with or without the `priority: ` source prefix. The
-  turn already ran without priority, the app exposes no fast-mode control, and
-  the runtime re-warns once per model in every session. The notice is still
+  turn already ran without priority, and the runtime re-warns once per model
+  in every session.
+- The service tier is the runtime's, as in the CLI: the user's `serviceTier`
+  setting (default `none`, which omits `service_tier`) and the per-session
+  `/fast on|off|status` command, which the app's slash menu carries. The app
+  pins no tier and overrides none; a run reports the tier it resolved to in
+  its session snapshot and the Agent sidebar shows it only when one is set.
+  Verified on SDK 0.17.6: a new session reports no tier, `/fast on` makes the
+  next turn report `priority`, `/fast off` removes it (#160). The notice is still
   recorded, exported and forwarded; only the chat row is dropped. Any other
   wording, including a different source prefix or extra text, stays visible.
 - Any other gated call is an `ask.presented` event whose message is a

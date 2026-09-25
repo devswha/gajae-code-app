@@ -1,5 +1,70 @@
 # gajae-app v2 — Session Handoff (resume state)
 
+## CLI-parity adversarial pass on SDK 0.17.6 (2026-09-25)
+
+The same prompts ran through the app's public WebSocket (`chat.send`, the path
+the browser uses) and `gjc -p` in one fixture repo, which was reset between
+runs. Four defects surfaced and were fixed on
+`fix/cli-parity-credential-thinking-watcher`:
+
+- **Account selection (blocker).** With several stored rows for a provider,
+  the adapter pinned the lowest row id. For Anthropic that was an account
+  whose organization refuses OAuth, so every app turn failed with 403 while
+  the CLI answered: the runtime's own selection honours `gjc accounts pin`,
+  routing exclusions and usage-limit rotation. The app now pins only an
+  explicit `credentialId` and reports the row the runtime chose.
+- **Reasoning arrived only at the end of the phase.** The CLI streams
+  reasoning deltas. The app now sends `thinking_delta` previews into one live
+  row per session, and the `thinking` record replaces it. It is visible
+  under the Detailed density. Balanced and Compact hide reasoning by design
+  and show the `Thinking… Ns` indicator.
+- **Native session watcher restart loop.** macOS reports a metadata change on
+  the session-scope directory for every atomic transcript write. The watcher
+  treated each as a new directory and rescanned 25k entries, overflowed its
+  4096 bound and restarted into a full reconciliation (16 restarts in a few
+  minutes of dev). It now backfills only created or renamed directories.
+- **Tests wrote into the operator's crash journal.** Bun test files now get a
+  throwaway `HOME`. Eight of the twelve post-0.17.6 "crash" records were
+  test runs.
+
+Parity confirmed: edit+bash result and diff, project `AGENTS.md` rules, the
+skill list, user-scope MCP (none), `task`/`subagent` delegation, large bash
+output (same 8 MiB spill), multi-turn memory, abort mid-bash (no orphan
+process), resume, steering mid-run, three concurrent sessions (24 s wall for
+3×10 s sleeps), and `/fast` `/effort` `/context` `/usage` `/tools`, which run
+in the app but not under `gjc -p`. Latency for the same one-word turn: app
+11.6–11.9 s, CLI 13.5–13.8 s (the CLI pays process start).
+
+Intentional gaps (see `server/gjc-agent-tools.ts`): no `python`/`eval`,
+`job`/`monitor`, `github`, `debug`, `checkpoint`/`rewind`, tool discovery or
+`move_session`. Project `.gjc/mcp.json` and extension modules do not load.
+
+Observed, not fixed:
+
+- `ChatInterface` calls `sessionStore.setActiveSession` during render. This is
+  a React "Cannot update a component while rendering" warning on every
+  session open, present since the initial commit.
+- Zero-delay synthetic typing (puppeteer) after a reload trips "Maximum
+  update depth" in the composer's `resize`. It does not reproduce at a 10 ms
+  keystroke delay.
+
+Issues:
+
+- #160 is answered: the tier is the runtime's, as in the CLI. It comes from
+  `serviceTier` (default `none`) or per-session `/fast`, and the app pins
+  none. Checked live: no tier, then `priority` after `/fast on`, then none
+  after `/fast off`.
+- #158 stays open. 0.17.6 fixed denials and non-zero bash exits, but hook
+  refusals and tool input errors are still recorded (upstream
+  [#5938](https://github.com/Yeachan-Heo/gajae-code/issues/5938)).
+- #162 stays open for usage polling only: 29 processes, 89×429 in about six
+  hours (upstream [#5939](https://github.com/Yeachan-Heo/gajae-code/issues/5939)).
+  MCP timeouts, `Invalid port` and the `notify` collision are gone.
+
+beta.20 is blocked on the owner. `notarytool` reports `keychainLocked` and
+the updater key password is held off this Mac, so signing, notarization and
+publication need the owner at the keyboard.
+
 ## Post-beta.14 checkpoint — beta.15→19 shipped, checkout isolation closed (2026-09-19)
 
 Five releases shipped without a handoff entry; release notes and published

@@ -1,4 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -81,7 +83,18 @@ function isolatedTestEnvironment() {
   for (const name of ['TMUX', 'TMUX_PANE', 'KITTY_WINDOW_ID', 'TERM_SESSION_ID', 'WT_SESSION']) {
     delete env[name];
   }
-  return env;
+  // The SDK writes its log, crash journal and handled-error records under
+  // `~/.gjc`. Test sessions that fail on purpose would otherwise land in the
+  // operator's real crash journal and daily log as if the app had crashed,
+  // which is the evidence #158/#162 are judged on. A throwaway home keeps
+  // them out; git keeps the operator's global config so commit fixtures work.
+  const home = mkdtempSync(path.join(os.tmpdir(), 'gjc-test-home-'));
+  env.GIT_CONFIG_GLOBAL = process.env.GIT_CONFIG_GLOBAL ?? path.join(os.homedir(), '.gitconfig');
+  env.HOME = home;
+  for (const name of ['GJC_CODING_AGENT_DIR', 'PI_CODING_AGENT_DIR', 'GJC_CONFIG_DIR', 'PI_CONFIG_DIR', 'XDG_STATE_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_CONFIG_HOME']) {
+    delete env[name];
+  }
+  return { env, dispose: () => rmSync(home, { recursive: true, force: true }) };
 }
 
 function runBunTests(label, files) {
@@ -99,11 +112,13 @@ function runBunTests(label, files) {
   // Keep each contract file isolated so leaked globals, timers, or worker state
   // cannot make the aggregate Bun phase order-dependent.
   for (const file of files) {
+    const isolated = isolatedTestEnvironment();
     const result = spawnSync(bun.path, ['test', file], {
       cwd: process.cwd(),
-      env: isolatedTestEnvironment(),
+      env: isolated.env,
       stdio: ['ignore', 'inherit', 'inherit'],
     });
+    isolated.dispose();
     if (result.error) throw result.error;
     if (result.status !== 0) process.exit(result.status ?? 1);
   }

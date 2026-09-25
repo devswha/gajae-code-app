@@ -7,7 +7,7 @@ import { authenticatedFetch } from '../utils/api';
 
 import { buildRefreshMessagesUrl, shareMessageWindow } from './sessionMessageFetch';
 
-type MessageKind = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'stream_delta' | 'stream_end' | 'error' | 'complete' | 'status' | 'permission_request' | 'permission_cancelled' | 'session_created' | 'interactive_prompt' | 'task_notification' | 'system_notice' | 'delegation_updated';
+type MessageKind = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'thinking_delta' | 'stream_delta' | 'stream_end' | 'error' | 'complete' | 'status' | 'permission_request' | 'permission_cancelled' | 'session_created' | 'interactive_prompt' | 'task_notification' | 'system_notice' | 'delegation_updated';
 /**
  * The public snapshot of an App-owned delegation, as the durable receipt in
  * the owner transcript records it. It is deliberately the settlement signal
@@ -451,12 +451,34 @@ export function useSessionStore() {
   // moved with every delta would tick that duration up as the answer streams.
   const updateStreaming = useCallback((id: string, content: string, provider: LLMProvider, timestamp?: unknown) => { const slot = getSlot(id); const streamId = `__streaming_${id}`; const position = slot.realtimeMessages.findIndex((message) => message.id === streamId); const startedAt = typeof timestamp === 'string' && Number.isFinite(Date.parse(timestamp)) ? timestamp : new Date().toISOString(); const row: NormalizedMessage = { id: streamId, sessionId: id, timestamp: position < 0 ? startedAt : slot.realtimeMessages[position].timestamp, provider, kind: 'stream_delta', content }; slot.realtimeMessages = position < 0 ? [...slot.realtimeMessages, row] : slot.realtimeMessages.map((message, index) => index === position ? row : message); refreshMerged(slot); emitSession(id); }, [emitSession, getSlot]);
   const finalizeStreaming = useCallback((id: string) => { const slot = slots.current.get(id); if (!slot) return; const streamId = `__streaming_${id}`; const position = slot.realtimeMessages.findIndex((message) => message.id === streamId); if (position < 0) return; slot.realtimeMessages = slot.realtimeMessages.map((message, index) => index === position ? { ...message, id: `text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, kind: 'text', role: 'assistant' } : message); refreshMerged(slot); emitSession(id); }, [emitSession]);
+  // A reasoning phase streams into one live row per session. It is a preview:
+  // the `thinking` frame at the end of the phase is the record, so the live
+  // row is dropped when that frame (or the end of the turn) arrives.
+  const updateThinking = useCallback((id: string, content: string, provider: LLMProvider, timestamp?: unknown) => {
+    const slot = getSlot(id);
+    const liveId = `__thinking_${id}`;
+    const position = slot.realtimeMessages.findIndex((message) => message.id === liveId);
+    const startedAt = typeof timestamp === 'string' && Number.isFinite(Date.parse(timestamp)) ? timestamp : new Date().toISOString();
+    const row: NormalizedMessage = { id: liveId, sessionId: id, timestamp: position < 0 ? startedAt : slot.realtimeMessages[position].timestamp, provider, kind: 'thinking', content };
+    slot.realtimeMessages = position < 0 ? [...slot.realtimeMessages, row] : slot.realtimeMessages.map((message, index) => index === position ? row : message);
+    refreshMerged(slot);
+    emitSession(id);
+  }, [emitSession, getSlot]);
+  const clearThinking = useCallback((id: string) => {
+    const slot = slots.current.get(id);
+    if (!slot) return;
+    const liveId = `__thinking_${id}`;
+    if (!slot.realtimeMessages.some((message) => message.id === liveId)) return;
+    slot.realtimeMessages = slot.realtimeMessages.filter((message) => message.id !== liveId);
+    refreshMerged(slot);
+    emitSession(id);
+  }, [emitSession]);
   const clearRealtime = useCallback((id: string) => { const slot = slots.current.get(id); if (!slot) return; slot.realtimeMessages = []; refreshMerged(slot); emitSession(id); }, [emitSession]);
   const clear = useCallback(() => { const hadActive = activeSession.current !== null; slots.current.clear(); queryClient.removeQueries({ queryKey: ['messages'] }); activeSession.current = null; setObservedSession(null); if (hadActive) redraw((version) => version + 1); }, [queryClient]);
   const getMessages = useCallback((id: string) => { const slot = slots.current.get(id); if (!slot) return EMPTY; refreshMerged(slot); return slot.merged; }, []);
   const getSessionSlot = useCallback((id: string) => { const slot = slots.current.get(id); if (slot) refreshMerged(slot); return slot; }, []);
 
-  return useMemo(() => ({ getSlot, acceptRealtimeEvent, getReplayCursor, trackReplayFrame, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession }), [getSlot, acceptRealtimeEvent, getReplayCursor, trackReplayFrame, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession]);
+  return useMemo(() => ({ getSlot, acceptRealtimeEvent, getReplayCursor, trackReplayFrame, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, updateThinking, clearThinking, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession }), [getSlot, acceptRealtimeEvent, getReplayCursor, trackReplayFrame, has, fetchFromServer, fetchMore, appendRealtime, appendRealtimeBatch, refreshFromServer, setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, updateThinking, clearThinking, clearRealtime, clear, getJobSlot, getJobCursor, setActiveJob, applyJobSubscribed, applyJobReplayChunk, applyJobLiveEvent, setJobError, clearJobs, getMessages, getSessionSlot, subscribeSession]);
 }
 
 export type SessionStore = ReturnType<typeof useSessionStore>;

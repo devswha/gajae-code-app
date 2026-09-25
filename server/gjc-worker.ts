@@ -576,7 +576,7 @@ export class GjcWorkerHost {
       return;
     }
     let method: Exclude<GjcWorkerEventFrame['method'], 'worker.status' | GjcWorkerGlobalEventMethod> = 'message.completed';
-    if (message.kind === 'stream_delta') method = 'message.delta';
+    if (message.kind === 'stream_delta' || message.kind === 'thinking_delta') method = 'message.delta';
     else if (message.kind === 'tool_use') method = 'tool.started';
     else if (message.kind === 'tool_result') method = 'tool.completed';
     else if (message.kind === 'permission_request' || message.kind === 'permission_cancelled') method = 'ask.presented';

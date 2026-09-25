@@ -22,6 +22,7 @@ export type SessionExport = {
  */
 const TRANSIENT_KINDS = new Set([
   'stream_delta',
+  'thinking_delta',
   'stream_end',
   'complete',
   'status',

@@ -441,3 +441,19 @@ test('the live path emits the same details shape the transcript persists', () =>
   assert.equal(live?.content, history.content);
   assert.deepEqual(live?.toolUseResult, history.toolUseResult);
 });
+
+test('reasoning streams as thinking_delta previews and still ends in one thinking record', () => {
+  const update = (assistantMessageEvent: Record<string, unknown>) => ({ type: 'message_update', assistantMessageEvent });
+  const { messages } = forward([
+    update({ type: 'thinking_start' }),
+    update({ type: 'thinking_delta', delta: 'Weigh ' }),
+    update({ type: 'reasoning_summary_delta', delta: 'the options' }),
+    update({ type: 'thinking_delta', delta: '' }),
+    update({ type: 'thinking_end', content: 'Weigh the options' }),
+    update({ type: 'text_delta', delta: 'Answer' }),
+  ]);
+
+  assert.deepEqual(all(messages, 'thinking_delta').map((message) => message.content), ['Weigh ', 'the options']);
+  assert.deepEqual(all(messages, 'thinking').map((message) => message.content), ['Weigh the options']);
+  assert.deepEqual(messages.map((message) => message.kind), ['thinking_delta', 'thinking_delta', 'thinking', 'stream_delta']);
+});

@@ -297,6 +297,9 @@ async function fixture(
     resolvableProviders: new Set<string>(),
     exportSnapshot() { return { credentials: this.credentials }; },
     async peekApiKey(provider: string) { return this.resolvableProviders.has(provider) ? 'peeked-key' : undefined; },
+    /** The stored row the runtime's own account selection settled on, per provider. */
+    sessionRows: new Map<string, number>(),
+    getSessionCredentialRowId(provider: string) { return this.sessionRows.get(provider); },
     async login(provider: string, callbacks: OAuthCallbacks) {
       await oauthLogin?.(provider, callbacks);
       this.credentials.push({ id: this.credentials.length + 1, provider });
@@ -913,12 +916,15 @@ test('model catalog honors registry availability and credential changes independ
   }
 });
 
-test('provider-qualified catalog choices and the default select the matching stored credential', async (t) => {
+test('provider-qualified catalog choices route to the matching provider; only an explicit row is pinned', async (t) => {
+  // Without an explicit row the runtime picks the account (CLI parity: `gjc
+  // accounts pin`, routing exclusions, usage-limit rotation), and the run
+  // reports the row it settled on. `selected` is that runtime choice.
   const cases = [
-    { name: 'explicit proxy', modelId: 'cliproxy/gpt-6-astra', credential: { kind: 'stored' }, provider: 'cliproxy', credentialId: 1 },
-    { name: 'explicit codex', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored' }, provider: 'openai-codex', credentialId: 4 },
-    { name: 'pinned codex credential', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored', providerId: 'openai-codex', credentialId: 9 }, provider: 'openai-codex', credentialId: 9 },
-    { name: 'configured default', modelId: 'default', credential: { kind: 'stored' }, provider: 'openai-codex', credentialId: 4 },
+    { name: 'explicit proxy', modelId: 'cliproxy/gpt-6-astra', credential: { kind: 'stored' }, provider: 'cliproxy', credentialId: 1, pinned: false },
+    { name: 'explicit codex', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored' }, provider: 'openai-codex', credentialId: 9, pinned: false },
+    { name: 'pinned codex credential', modelId: 'openai-codex/gpt-6-astra', credential: { kind: 'stored', providerId: 'openai-codex', credentialId: 4 }, provider: 'openai-codex', credentialId: 4, pinned: true },
+    { name: 'configured default', modelId: 'default', credential: { kind: 'stored' }, provider: 'openai-codex', credentialId: 9, pinned: false },
   ];
   for (const scenario of cases) {
     await t.test(scenario.name, async () => {
@@ -928,6 +934,8 @@ test('provider-qualified catalog choices and the default select the matching sto
       ]);
       try {
         f.authStorage.credentials.push({ id: 9, provider: 'openai-codex' }, { id: 1, provider: 'cliproxy' }, { id: 4, provider: 'openai-codex' });
+        // The runtime's choice is deliberately not the lowest row id.
+        f.authStorage.sessionRows.set('openai-codex', 9).set('cliproxy', 1);
         const run = f.host.handle(request('session.start', 'variant-credential', {
           message: 'hello',
           options: { ...f.options, modelId: scenario.modelId, credential: scenario.credential, effort: 'xhigh' },
@@ -936,11 +944,11 @@ test('provider-qualified catalog choices and the default select the matching sto
         session.complete();
         await run;
         assert.deepEqual(f.factoryOptions[0]!.model, { id: 'gpt-6-astra', provider: scenario.provider });
-        assert.deepEqual(f.factoryOptions[0]!.credentialSelector, {
+        assert.deepEqual(f.factoryOptions[0]!.credentialSelector, scenario.pinned ? {
           provider: scenario.provider,
           selector: { kind: 'id', value: String(scenario.credentialId) },
           raw: `id:${scenario.credentialId}`,
-        });
+        } : undefined);
         const payload = response(f.frames, 'variant-credential').payload as { ok: boolean; result: { credential: unknown } };
         assert.equal(payload.ok, true);
         assert.deepEqual(payload.result.credential, { kind: 'stored', providerId: scenario.provider, credentialId: scenario.credentialId });
@@ -2926,21 +2934,25 @@ test('explicit SDK configuration rejects missing fields, unresolvable credential
     await f.host.handle(request('session.start', 'invalid-zero-rows', { message: 'x', options: { ...f.options, credential: { kind: 'stored' } } }));
     assert.equal((response(f.frames, 'invalid-zero-rows').payload as Record<string, unknown>).ok, false);
     assert.equal(f.sessions.length, 0);
-    // Multiple stored rows resolve deterministically to the lowest row id.
+    // Multiple stored rows leave the choice to the runtime, as in the CLI: no
+    // selector is installed (it would disable `gjc accounts pin`, routing
+    // exclusions and usage-limit rotation), and the run reports the row the
+    // runtime settled on - here not the lowest id.
     f.authStorage.credentials = [
       { id: 7, provider: 'contract-provider' },
       { id: 2, provider: 'contract-provider' },
     ];
-    const run = f.host.handle(request('session.start', 'stored-deterministic', { message: 'x', options: { ...f.options, credential: { kind: 'stored' } } }));
+    f.authStorage.sessionRows.set('contract-provider', 7);
+    const run = f.host.handle(request('session.start', 'stored-runtime-choice', { message: 'x', options: { ...f.options, credential: { kind: 'stored' } } }));
     const session = await firstSession(f.sessions);
     session.complete();
     await run;
-    const factoryInput = f.factoryOptions.at(-1) as { credentialSelector?: { selector: { value: string } } };
-    assert.equal(factoryInput.credentialSelector?.selector.value, '2');
-    assert.deepEqual(((response(f.frames, 'stored-deterministic').payload as Record<string, unknown>).result as Record<string, unknown>).credential, {
+    const factoryInput = f.factoryOptions.at(-1) as { credentialSelector?: unknown };
+    assert.equal(factoryInput.credentialSelector, undefined);
+    assert.deepEqual(((response(f.frames, 'stored-runtime-choice').payload as Record<string, unknown>).result as Record<string, unknown>).credential, {
       kind: 'stored',
       providerId: 'contract-provider',
-      credentialId: 2,
+      credentialId: 7,
     });
   } finally { await f.close(); }
 });

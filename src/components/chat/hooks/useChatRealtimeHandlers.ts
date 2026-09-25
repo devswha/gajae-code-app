@@ -34,7 +34,7 @@ interface UseChatRealtimeHandlersArgs {
 
 const skipsStore = new Set(['complete', 'status', 'permission_request', 'permission_cancelled']);
 /** Frames that only a live turn produces: their arrival is what "streaming" means. */
-const STREAMING_TURN_KINDS = new Set(['stream_delta', 'stream_end', 'text', 'thinking', 'tool_use', 'tool_result', 'permission_request']);
+const STREAMING_TURN_KINDS = new Set(['stream_delta', 'stream_end', 'text', 'thinking', 'thinking_delta', 'tool_use', 'tool_result', 'permission_request']);
 
 export function useChatRealtimeHandlers({
   subscribe, provider, selectedSession, currentSessionId, setTokenBudget, setSessionState,
@@ -72,6 +72,21 @@ export function useChatRealtimeHandlers({
       pendingRequests.current = next;
       setPendingPermissionRequests(next);
     };
+    // Live reasoning, one accumulator per session, painted at most once a frame.
+    const thinking = new Map<string, { content: string; timestamp: unknown }>();
+    let thinkingFrame: number | null = null;
+    const paintThinking = () => {
+      thinkingFrame = null;
+      for (const [id, live] of thinking) sessionStore.updateThinking(id, live.content, provider, live.timestamp);
+    };
+    const endThinking = (sessionId: string) => {
+      if (!thinking.delete(sessionId) && !sessionStore.getSessionSlot(sessionId)?.realtimeMessages.some(message => message.id === `__thinking_${sessionId}`)) return;
+      if (thinkingFrame !== null && thinking.size === 0) {
+        cancelAnimationFrame(thinkingFrame);
+        thinkingFrame = null;
+      }
+      sessionStore.clearThinking(sessionId);
+    };
     const flushStreaming = (sessionId: string | null | undefined, finalizeEmpty: boolean, timestamp?: unknown) => {
       stopStreamTimer();
       if (sessionId && (accumulatedStreamRef.current || finalizeEmpty)) {
@@ -94,6 +109,7 @@ export function useChatRealtimeHandlers({
         if (before !== after) {
           if (sessionId === visible) flushStreaming(sessionId, true);
           else sessionStore.finalizeStreaming(sessionId);
+          endThinking(sessionId);
         }
       }
       // Subscription responses may race and replay the same frames twice.
@@ -145,6 +161,23 @@ export function useChatRealtimeHandlers({
         return;
       }
       if (event.kind === 'session_upserted' || event.kind === 'loading_progress') return;
+
+      if (event.kind === 'thinking_delta') {
+        const content = typeof event.content === 'string' ? event.content : '';
+        // Only the session on screen shows a live preview; the `thinking`
+        // record reaches every session regardless.
+        if (!content || !sessionId || sessionId !== visible) return;
+        // This effect re-subscribes whenever its inputs change (a permission
+        // card, a navigation); the store's live row carries the phase across.
+        const live = thinking.get(sessionId) ?? (() => {
+          const row = sessionStore.getSessionSlot(sessionId)?.realtimeMessages.find(message => message.id === `__thinking_${sessionId}`);
+          return row ? { content: row.content ?? '', timestamp: row.timestamp } : undefined;
+        })();
+        thinking.set(sessionId, { content: (live?.content ?? '') + content, timestamp: live?.timestamp ?? event.timestamp });
+        if (thinkingFrame === null) thinkingFrame = requestAnimationFrame(paintThinking);
+        return;
+      }
+      if (sessionId && (event.kind === 'thinking' || event.kind === 'complete')) endThinking(sessionId);
 
       if (event.kind === 'stream_delta') {
         const content = (event.content as string) || '';
@@ -273,6 +306,10 @@ export function useChatRealtimeHandlers({
         sessionStore.updateStreaming(subscribedSession, accumulatedStreamRef.current, provider, pendingStreamTimestamp);
       }
       stopStreamTimer();
+      if (thinkingFrame !== null) {
+        cancelAnimationFrame(thinkingFrame);
+        paintThinking();
+      }
     };
   }, [
     subscribe, provider, selectedSession, currentSessionId, setTokenBudget, setSessionState,

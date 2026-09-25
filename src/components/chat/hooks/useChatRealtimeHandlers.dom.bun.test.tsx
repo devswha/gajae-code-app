@@ -396,3 +396,37 @@ test('a frame that names no session is never attached to the open conversation',
   assert.deepEqual(view.result.current.getMessages('visible'), []);
   assert.equal(view.result.current.getSessionSlot('visible')?.status, undefined);
 });
+
+test('reasoning streams into one live row that its thinking record replaces', async () => {
+  // A long reasoning phase used to show nothing until it ended, while the
+  // terminal streamed it. The live row is a preview; the record replaces it.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = renderHook(useSessionStore, {
+    wrapper: ({ children }) => createElement(QueryClientProvider, { client }, children),
+  });
+  const { send } = mount(view.result.current);
+  const rows = () => view.result.current.getSessionSlot('visible')?.realtimeMessages ?? [];
+  send({ kind: 'thinking_delta', sessionId: 'visible', content: 'Weigh ', timestamp: '2026-01-01T00:00:01Z' } as ServerEvent);
+  send({ kind: 'thinking_delta', sessionId: 'visible', content: 'the options' } as ServerEvent);
+  send({ kind: 'thinking_delta', sessionId: 'background', content: 'not on screen' } as ServerEvent);
+  assert.equal(view.result.current.getSessionSlot('visible')?.status, 'streaming');
+  await waitFor(() => assert.equal(rows().find((row) => row.id === '__thinking_visible')?.content, 'Weigh the options'));
+  assert.equal(view.result.current.getSessionSlot('background')?.realtimeMessages.some((row) => row.id === '__thinking_background') ?? false, false);
+
+  const live = rows().filter((row) => row.id === '__thinking_visible');
+  const [chat] = normalizedToChatMessages(live);
+  assert.equal(chat?.isThinking, true);
+  assert.equal(chat?.isStreaming, true, 'the live row renders as streaming reasoning');
+
+  send({ kind: 'thinking', sessionId: 'visible', id: 'thinking-1', content: 'Weigh the options' } as ServerEvent);
+  assert.deepEqual(rows().filter((row) => row.kind === 'thinking').map((row) => row.id), ['thinking-1']);
+  const [record] = normalizedToChatMessages(rows().filter((row) => row.kind === 'thinking'));
+  assert.equal(record?.isStreaming, undefined);
+
+  // A second phase in the same turn starts a fresh preview, and the end of
+  // the turn clears one that never got its record.
+  send({ kind: 'thinking_delta', sessionId: 'visible', content: 'Second pass' } as ServerEvent);
+  await waitFor(() => assert.equal(rows().find((row) => row.id === '__thinking_visible')?.content, 'Second pass'));
+  send({ kind: 'complete', sessionId: 'visible', exitCode: 0 } as ServerEvent);
+  assert.equal(rows().some((row) => row.id === '__thinking_visible'), false);
+});

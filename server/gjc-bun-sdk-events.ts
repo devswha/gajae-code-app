@@ -208,6 +208,12 @@ export function forwardSdkEvent(
       const update = object(event.assistantMessageEvent) ? event.assistantMessageEvent : undefined;
       if (update?.type === 'text_delta' && typeof update.delta === 'string') {
         writer.send({ kind: 'stream_delta', content: update.delta });
+      } else if ((update?.type === 'thinking_delta' || update?.type === 'reasoning_summary_delta') && typeof update.delta === 'string' && update.delta) {
+        // A long reasoning phase used to reach the browser as one block at its
+        // end, so a turn looked frozen for as long as the model thought while
+        // the terminal streamed it. The deltas are a live preview only: the
+        // `thinking` frame at `thinking_end` stays the record and replaces it.
+        writer.send({ kind: 'thinking_delta', content: update.delta });
       } else if (update?.type === 'thinking_end') {
         const content = typeof update.content === 'string' ? update.content : '';
         if (content) writer.send({ kind: 'thinking', content });

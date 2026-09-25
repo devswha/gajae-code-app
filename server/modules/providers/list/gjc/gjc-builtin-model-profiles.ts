@@ -8,13 +8,15 @@ export type GjcBuiltinModelProfile = {
 };
 
 /**
- * GJC 0.13.1 built-in model profiles.
+ * Built-in model profiles of the pinned @gajae-code/coding-agent (0.17.6).
  *
- * The upstream runtime module currently imports Bun-only utilities, so the
- * Node sidecar cannot load it directly. This catalog is generated from the
- * exact @gajae-code/coding-agent dependency used by the app (regenerate by
- * dumping BUILTIN_MODEL_PROFILES with dist-native/bun after an SDK bump);
+ * The upstream runtime module imports Bun-only utilities, so the Node sidecar
+ * cannot load it directly and keeps this copy. Names, order and roles mirror
+ * the SDK's BUILTIN_MODEL_PROFILES; each role holds the first selector of the
+ * SDK's fallback chain, which is the model the preset runs when available.
  * label and group are app-authored display strings the SDK does not carry.
+ * server/builtin-model-profiles-contract.bun.test.ts fails when an SDK bump moves
+ * the SDK away from this copy.
  */
 export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
   {
@@ -66,6 +68,102 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
       }
   },
   {
+      "name": "astra-lite",
+      "label": "Astra Lite",
+      "group": "CODEX",
+      "roles": {
+          "default": "openai-codex/gpt-6-astra:medium",
+          "planner": "openai-codex/gpt-6-astra:xhigh",
+          "executor": "openai-codex/gpt-5.6-luna:xhigh",
+          "architect": "openai-codex/gpt-5.6-terra:xhigh",
+          "critic": "openai-codex/gpt-5.6-sol:high"
+      }
+  },
+  {
+      "name": "astra-default",
+      "label": "Astra Default",
+      "group": "CODEX",
+      "roles": {
+          "default": "openai-codex/gpt-6-astra:medium",
+          "planner": "openai-codex/gpt-6-astra:xhigh",
+          "executor": "openai-codex/gpt-5.6-luna:max",
+          "architect": "openai-codex/gpt-5.6-terra:xhigh",
+          "critic": "openai-codex/gpt-5.6-sol:xhigh"
+      }
+  },
+  {
+      "name": "astra-heavy",
+      "label": "Astra Heavy",
+      "group": "CODEX",
+      "roles": {
+          "default": "openai-codex/gpt-6-astra:medium",
+          "planner": "openai-codex/gpt-5.6-sol:max",
+          "executor": "openai-codex/gpt-5.6-sol:max",
+          "architect": "openai-codex/gpt-6-astra:max",
+          "critic": "openai-codex/gpt-6-astra:max"
+      }
+  },
+  {
+      "name": "macos-omlx-fast",
+      "label": "macOS oMLX Fast",
+      "group": "OMLX",
+      "roles": {
+          "default": "omlx/Qwen3.6-35B-A3B-4bit:low",
+          "planner": "omlx/Qwen3.6-35B-A3B-4bit:medium",
+          "executor": "omlx/Qwen3.6-35B-A3B-4bit:low",
+          "architect": "omlx/Qwen3.6-35B-A3B-4bit:high",
+          "critic": "omlx/Qwen3.6-35B-A3B-4bit:high"
+      }
+  },
+  {
+      "name": "macos-omlx-balanced",
+      "label": "macOS oMLX Balanced",
+      "group": "OMLX",
+      "roles": {
+          "default": "omlx/Qwen3.6-35B-A3B-8bit:low",
+          "planner": "omlx/Qwen3.6-35B-A3B-8bit:medium",
+          "executor": "omlx/Qwen3.6-35B-A3B-8bit:low",
+          "architect": "omlx/Qwen3.6-35B-A3B-8bit:high",
+          "critic": "omlx/Qwen3.6-35B-A3B-8bit:high"
+      }
+  },
+  {
+      "name": "macos-omlx-quality",
+      "label": "macOS oMLX Quality",
+      "group": "OMLX",
+      "roles": {
+          "default": "omlx/Qwen3.6-35B-A3B-8bit:low",
+          "planner": "omlx/Qwen3.6-35B-A3B-8bit:medium",
+          "executor": "omlx/Qwen3.6-35B-A3B-8bit:low",
+          "architect": "omlx/Qwen3.6-35B-A3B-8bit:high",
+          "critic": "omlx/Qwen3.8-27B-8bit:high"
+      }
+  },
+  {
+      "name": "macos-omlx-abliterated-fast",
+      "label": "macOS oMLX Abliterated Fast",
+      "group": "OMLX",
+      "roles": {
+          "default": "omlx/Qwen3.8-27B-Uncensored-MLX-4bit:low",
+          "planner": "omlx/Qwen3.8-27B-Uncensored-MLX-4bit:medium",
+          "executor": "omlx/Qwen3.8-27B-Uncensored-MLX-4bit:low",
+          "architect": "omlx/Qwen3.8-27B-Uncensored-MLX-4bit:high",
+          "critic": "omlx/Qwen3.8-27B-Uncensored-MLX-4bit:high"
+      }
+  },
+  {
+      "name": "macos-omlx-abliterated-balanced",
+      "label": "macOS oMLX Abliterated Balanced",
+      "group": "OMLX",
+      "roles": {
+          "default": "omlx/Qwen3.8-27B-Uncensored-MLX-4bit:low",
+          "planner": "omlx/Qwen3.8-27B-Uncensored-MLX-4bit:medium",
+          "executor": "omlx/Qwen3.8-27B-Uncensored-MLX-4bit:low",
+          "architect": "omlx/Qwen3.8-27B-Uncensored-MLX-4bit:high",
+          "critic": "omlx/Qwen3.8-27B-Uncensored-MLX-4bit:high"
+      }
+  },
+  {
       "name": "opencodego",
       "label": "OpenCodeGo",
       "group": "OPENCODEGO",
@@ -75,6 +173,18 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
           "executor": "opencode-go/deepseek-v4-flash",
           "architect": "opencode-go/deepseek-v4-pro",
           "critic": "opencode-go/mimo-v2.5-pro"
+      }
+  },
+  {
+      "name": "commandcode-goat",
+      "label": "Command Code GOAT",
+      "group": "COMMAND CODE",
+      "roles": {
+          "default": "commandcode-goat/zai-org/GLM-5.3",
+          "planner": "commandcode-goat/moonshotai/Kimi-K3",
+          "executor": "commandcode-goat/deepseek/deepseek-v4-flash",
+          "architect": "commandcode-goat/deepseek/deepseek-v4-pro",
+          "critic": "commandcode-goat/zai-org/GLM-5.2"
       }
   },
   {
@@ -123,6 +233,42 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
           "executor": "gpt-5.6-luna:high",
           "architect": "gpt-5.6-luna:xhigh",
           "critic": "gpt-5.6-luna:xhigh"
+      }
+  },
+  {
+      "name": "open-weights-spark",
+      "label": "Open Weights Spark",
+      "group": "OPEN WEIGHTS",
+      "roles": {
+          "default": "muse-spark-1.2:medium",
+          "planner": "muse-spark-1.2:high",
+          "executor": "muse-spark-1.2:low",
+          "architect": "muse-spark-1.2:xhigh",
+          "critic": "muse-spark-1.2:high"
+      }
+  },
+  {
+      "name": "open-weights-spark-deepseek",
+      "label": "Open Weights Spark + DeepSeek",
+      "group": "OPEN WEIGHTS",
+      "roles": {
+          "default": "muse-spark-1.2:medium",
+          "planner": "muse-spark-1.2:high",
+          "executor": "deepseek-v4-flash:high",
+          "architect": "muse-spark-1.2:xhigh",
+          "critic": "muse-spark-1.2:high"
+      }
+  },
+  {
+      "name": "open-weights-spark-luna",
+      "label": "Open Weights Spark + Luna",
+      "group": "OPEN WEIGHTS",
+      "roles": {
+          "default": "muse-spark-1.2:medium",
+          "planner": "muse-spark-1.2:high",
+          "executor": "gpt-5.6-luna:high",
+          "architect": "muse-spark-1.2:xhigh",
+          "critic": "muse-spark-1.2:high"
       }
   },
   {
@@ -202,11 +348,11 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
       "label": "Claude Fable",
       "group": "CLAUDE",
       "roles": {
-          "default": "anthropic/claude-fable-5:xhigh",
-          "planner": "anthropic/claude-fable-5:low",
+          "default": "anthropic/claude-fable-5-1:xhigh",
+          "planner": "anthropic/claude-fable-5-1:low",
           "executor": "anthropic/claude-sonnet-5",
-          "architect": "anthropic/claude-fable-5:xhigh",
-          "critic": "anthropic/claude-fable-5:high"
+          "architect": "anthropic/claude-fable-5-1:xhigh",
+          "critic": "anthropic/claude-fable-5-1:high"
       }
   },
   {
@@ -214,11 +360,11 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
       "label": "GLM Eco",
       "group": "GLM",
       "roles": {
-          "default": "zai/glm-5.2:low",
-          "planner": "zai/glm-5.2:low",
-          "executor": "zai/glm-5.2:minimal",
-          "architect": "zai/glm-5.2:high",
-          "critic": "zai/glm-5.2:medium"
+          "default": "zai/glm-5.3-flash:low",
+          "planner": "zai/glm-5.3-flash:low",
+          "executor": "zai/glm-5.3-flash:low",
+          "architect": "zai/glm-5.3:high",
+          "critic": "zai/glm-5.3:high"
       }
   },
   {
@@ -226,11 +372,11 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
       "label": "GLM Medium",
       "group": "GLM",
       "roles": {
-          "default": "zai/glm-5.2:medium",
-          "planner": "zai/glm-5.2:medium",
-          "executor": "zai/glm-5.2:low",
-          "architect": "zai/glm-5.2:xhigh",
-          "critic": "zai/glm-5.2:high"
+          "default": "zai/glm-5.3:high",
+          "planner": "zai/glm-5.3:high",
+          "executor": "zai/glm-5.3-flash:low",
+          "architect": "zai/glm-5.3:max",
+          "critic": "zai/glm-5.3:high"
       }
   },
   {
@@ -238,11 +384,11 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
       "label": "GLM Pro",
       "group": "GLM",
       "roles": {
-          "default": "zai/glm-5.2:xhigh",
-          "planner": "zai/glm-5.2:high",
-          "executor": "zai/glm-5.2:medium",
-          "architect": "zai/glm-5.2:xhigh",
-          "critic": "zai/glm-5.2:xhigh"
+          "default": "zai/glm-5.3:max",
+          "planner": "zai/glm-5.3:high",
+          "executor": "zai/glm-5.3-flash:high",
+          "architect": "zai/glm-5.3:max",
+          "critic": "zai/glm-5.3:max"
       }
   },
   {
@@ -360,7 +506,7 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
       "roles": {
           "default": "xai/grok-4.5:low",
           "planner": "xai/grok-4.5:low",
-          "executor": "xai/grok-4.5:minimal",
+          "executor": "xai/grok-4.5:low",
           "architect": "xai/grok-4.5:high",
           "critic": "xai/grok-4.5:medium"
       }
@@ -387,6 +533,42 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
           "executor": "xai/grok-4.5:medium",
           "architect": "xai/grok-4.5:high",
           "critic": "xai/grok-4.5:high"
+      }
+  },
+  {
+      "name": "grok-46-eco",
+      "label": "Grok 4.6 Eco",
+      "group": "GROK",
+      "roles": {
+          "default": "xai/grok-4.6:low",
+          "planner": "xai/grok-4.6:low",
+          "executor": "xai/grok-4.6:low",
+          "architect": "xai/grok-4.6:high",
+          "critic": "xai/grok-4.6:medium"
+      }
+  },
+  {
+      "name": "grok-46-medium",
+      "label": "Grok 4.6 Medium",
+      "group": "GROK",
+      "roles": {
+          "default": "xai/grok-4.6:medium",
+          "planner": "xai/grok-4.6:medium",
+          "executor": "xai/grok-4.6:low",
+          "architect": "xai/grok-4.6:high",
+          "critic": "xai/grok-4.6:high"
+      }
+  },
+  {
+      "name": "grok-46-pro",
+      "label": "Grok 4.6 Pro",
+      "group": "GROK",
+      "roles": {
+          "default": "xai/grok-4.6:xhigh",
+          "planner": "xai/grok-4.6:high",
+          "executor": "xai/grok-4.6:medium",
+          "architect": "xai/grok-4.6:xhigh",
+          "critic": "xai/grok-4.6:xhigh"
       }
   },
   {
@@ -562,11 +744,35 @@ export const GJC_BUILTIN_MODEL_PROFILES: readonly GjcBuiltinModelProfile[] = [
       "label": "Fable + Opus + Codex",
       "group": "COMBOS",
       "roles": {
-          "default": "anthropic/claude-fable-5:high",
+          "default": "anthropic/claude-fable-5-1:high",
           "planner": "anthropic/claude-opus-5:medium",
           "executor": "openai-codex/gpt-5.6-terra:medium",
           "architect": "openai-codex/gpt-5.6-sol:xhigh",
           "critic": "anthropic/claude-opus-5:high"
+      }
+  },
+  {
+      "name": "astra-fable",
+      "label": "Astra + Fable",
+      "group": "COMBOS",
+      "roles": {
+          "default": "openai-codex/gpt-6-astra:medium",
+          "planner": "openai-codex/gpt-6-astra:xhigh",
+          "executor": "openai-codex/gpt-5.6-luna:max",
+          "architect": "anthropic/claude-fable-5-1:xhigh",
+          "critic": "anthropic/claude-fable-5-1:xhigh"
+      }
+  },
+  {
+      "name": "astra-fable-opus",
+      "label": "Astra + Fable + Opus",
+      "group": "COMBOS",
+      "roles": {
+          "default": "openai-codex/gpt-6-astra:medium",
+          "planner": "anthropic/claude-opus-5:medium",
+          "executor": "openai-codex/gpt-5.6-luna:max",
+          "architect": "anthropic/claude-fable-5-1:xhigh",
+          "critic": "anthropic/claude-fable-5-1:xhigh"
       }
   }
 ];

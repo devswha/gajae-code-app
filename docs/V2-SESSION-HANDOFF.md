@@ -61,9 +61,11 @@ Issues:
   hours (upstream [#5939](https://github.com/Yeachan-Heo/gajae-code/issues/5939)).
   MCP timeouts, `Invalid port` and the `notify` collision are gone.
 
-beta.20 is blocked on the owner. `notarytool` reports `keychainLocked` and
-the updater key password is held off this Mac, so signing, notarization and
-publication need the owner at the keyboard.
+**beta.20 / desktop 0.2.14 was published 2026-09-25T19:49:45Z** (release
+`396880985`, source `9fc9287`). It was signed, notarized and accepted locally,
+including GUI QA-profile acceptance. See [RELEASE-BETA20.md](RELEASE-BETA20.md).
+Signing over SSH works once the login keychain is unlocked inside the build's
+tmux server; the owner types the password there.
 
 ## Post-beta.14 checkpoint — beta.15→19 shipped, checkout isolation closed (2026-09-19)
 

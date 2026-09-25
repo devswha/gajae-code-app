@@ -17,8 +17,8 @@ async function fixture(t, files = ['one.ts']) {
   const pkg = '@gajae-code/coding-agent';
   const packageRoot = path.join(root, 'node_modules', pkg);
   await fs.mkdir(path.join(packageRoot, 'src'), { recursive: true });
-  await fs.writeFile(path.join(packageRoot, 'package.json'), JSON.stringify({ name: pkg, version: '0.16.4' }));
-  const manifest = { schemaVersion: 1, id: 'gjc-sdk-lifecycle-v1', packages: { [pkg]: '0.16.4' }, files: [] };
+  await fs.writeFile(path.join(packageRoot, 'package.json'), JSON.stringify({ name: pkg, version: '0.17.6' }));
+  const manifest = { schemaVersion: 1, id: 'gjc-sdk-lifecycle-v1', packages: { [pkg]: '0.17.6' }, files: [] };
   for (const name of files) {
     const before = `export const ${name.split('.')[0]} = 'unjoined';\n`;
     const after = before.replace('unjoined', 'joined');
@@ -63,7 +63,7 @@ test('all sources are validated before replacing any one file', async (t) => {
 
 test('version drift never patches a newly installed SDK even if source bytes happen to match', async (t) => {
   const f = await fixture(t);
-  await fs.writeFile(path.join(f.packageRoot, 'package.json'), JSON.stringify({ name: '@gajae-code/coding-agent', version: '0.16.6' }));
+  await fs.writeFile(path.join(f.packageRoot, 'package.json'), JSON.stringify({ name: '@gajae-code/coding-agent', version: '0.17.5' }));
   await assert.rejects(applySdkLifecyclePatch(f.root, f.manifest), /version mismatch/u);
   assert.equal(hash(await fs.readFile(f.source())), f.manifest.files[0].beforeSha256);
 });
@@ -79,7 +79,7 @@ test('malformed, traversing, duplicate and incorrect-result manifests are reject
     (m) => { m.files[0].replacements[0].before = 'not present'; },
     (m) => { m.files[0].replacements[0].before = ''; },
     (m) => { m.files[0].replacements[0].shell = 'no'; },
-    (m) => { m.packages = { 'foreign-package': '0.16.4' }; },
+    (m) => { m.packages = { 'foreign-package': '0.17.6' }; },
   ]) {
     const manifest = structuredClone(f.manifest); mutate(manifest);
     await assert.rejects(applySdkLifecyclePatch(f.root, manifest));

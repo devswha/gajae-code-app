@@ -1,20 +1,20 @@
 {
   "schemaVersion": 2,
-  "gjcSdk": "0.16.4",
+  "gjcSdk": "0.17.6",
   "bun": "1.4.0",
-  "natives": "0.16.4",
+  "natives": "0.17.6",
   "platforms": {
     "linux-x64": {
       "files": [
         {
           "package": "@gajae-code/natives-linux-x64",
           "path": "native/pi_natives.linux-x64-baseline.node",
-          "sha256": "dcc7639b0edb4617c32bc2d322105e30126f5c5e7ae75d7f3d93d43776e2c267"
+          "sha256": "3c61c349832c597574ca5b82b9503d77202b2137fa2ee9fb9597a5c36b20fb54"
         },
         {
           "package": "@gajae-code/natives-linux-x64",
           "path": "native/pi_natives.linux-x64-modern.node",
-          "sha256": "c75ddb2f46d63c3ad13f8a7a6daaa0ff49bcb3ab28c087e3917c7fe3f4eec2f2"
+          "sha256": "3d090b833bc90758b90dec85c39b5870b68c77433b4d3748f1ac2e6957f62eaf"
         },
         {
           "package": "@gajae-code/natives",
@@ -24,12 +24,12 @@
         {
           "package": "@gajae-code/natives",
           "path": "native/index.js",
-          "sha256": "516e4316618c77843058bc7f1c1c723ce8d24aa0e1c90fbea64ed20ace71a863"
+          "sha256": "3b8bab4b08f871ed6f7fac4f8e115b44ae4e64fba53a65dad12b78296a99aa40"
         },
         {
           "package": "@gajae-code/natives",
           "path": "native/loader-state.js",
-          "sha256": "7332a76de7195891429bf759c00737aef4f0b158b727c3b81cb920defe867e1f"
+          "sha256": "6330412b29b72ebbf8efc84ab5e3ffee84c3ecdd313ef3c61aa3b15be4402663"
         }
       ]
     },
@@ -38,7 +38,7 @@
         {
           "package": "@gajae-code/natives-darwin-arm64",
           "path": "native/pi_natives.darwin-arm64.node",
-          "sha256": "6dc61753c3bbdb8d22900c41aa621f3bd1ada142fa5e3715c3199a92b65a79cf"
+          "sha256": "cf1a9d54e51487f5b8809c4269c6bc01976a2f208ca4edf766b26f7184a47fc8"
         },
         {
           "package": "@gajae-code/natives",
@@ -48,12 +48,12 @@
         {
           "package": "@gajae-code/natives",
           "path": "native/index.js",
-          "sha256": "516e4316618c77843058bc7f1c1c723ce8d24aa0e1c90fbea64ed20ace71a863"
+          "sha256": "3b8bab4b08f871ed6f7fac4f8e115b44ae4e64fba53a65dad12b78296a99aa40"
         },
         {
           "package": "@gajae-code/natives",
           "path": "native/loader-state.js",
-          "sha256": "7332a76de7195891429bf759c00737aef4f0b158b727c3b81cb920defe867e1f"
+          "sha256": "6330412b29b72ebbf8efc84ab5e3ffee84c3ecdd313ef3c61aa3b15be4402663"
         }
       ]
     },
@@ -62,7 +62,7 @@
         {
           "package": "@gajae-code/natives-linux-arm64",
           "path": "native/pi_natives.linux-arm64.node",
-          "sha256": "c7c3ddb48afeccb9395dc97c50c3557ec879404f8b933df2f459c9aa8f36a3fd"
+          "sha256": "d5132dfaeb525ee9aa7c6c8ee5c1f86eb55baf5fef4231dc9be1f6aa05b26a2c"
         },
         {
           "package": "@gajae-code/natives",
@@ -72,12 +72,12 @@
         {
           "package": "@gajae-code/natives",
           "path": "native/index.js",
-          "sha256": "516e4316618c77843058bc7f1c1c723ce8d24aa0e1c90fbea64ed20ace71a863"
+          "sha256": "3b8bab4b08f871ed6f7fac4f8e115b44ae4e64fba53a65dad12b78296a99aa40"
         },
         {
           "package": "@gajae-code/natives",
           "path": "native/loader-state.js",
-          "sha256": "7332a76de7195891429bf759c00737aef4f0b158b727c3b81cb920defe867e1f"
+          "sha256": "6330412b29b72ebbf8efc84ab5e3ffee84c3ecdd313ef3c61aa3b15be4402663"
         }
       ]
     }
@@ -85,20 +85,20 @@
   "sdkLifecycle": {
     "id": "gjc-sdk-lifecycle-v1",
     "packages": {
-      "@gajae-code/coding-agent": "0.16.4",
-      "@gajae-code/agent-core": "0.16.4",
-      "@gajae-code/ai": "0.16.4"
+      "@gajae-code/coding-agent": "0.17.6",
+      "@gajae-code/agent-core": "0.17.6",
+      "@gajae-code/ai": "0.17.6"
     },
     "files": [
       {
         "package": "@gajae-code/coding-agent",
         "path": "src/sdk/session.ts",
-        "sha256": "6bc35899fa1386ab4887537eb0bdd068289291d588b0ce4cd1f1660d4075841c"
+        "sha256": "b4ff66a6c5a38ad3a998883b6efaebe9bb3893c781b5d856820898dd6caec864"
       },
       {
         "package": "@gajae-code/coding-agent",
         "path": "src/session/agent-session.ts",
-        "sha256": "838658da725233a0628bf813fc4ca9ff7f060e056636cebcfe6eb03b9a1ecc29"
+        "sha256": "7cea2f60e01a9fcbc4c7631026bfcbf351023f30c650b9352a1a1e91c20295b5"
       },
       {
         "package": "@gajae-code/agent-core",
@@ -108,22 +108,22 @@
       {
         "package": "@gajae-code/agent-core",
         "path": "src/agent-loop.ts",
-        "sha256": "efccd78060495147b0475aabb69fe10c5cefdabe7bf88b618b16c0ad49e6eab6"
+        "sha256": "73a34c415e6903f70ac23d922a4ee195a6aa335562d28e9f799a5a866d2fd388"
       },
       {
         "package": "@gajae-code/coding-agent",
         "path": "src/config/model-registry.ts",
-        "sha256": "60529fec5306da95d08127b014ee7b13e83adf6a5e6ebdfff3df53010fff4f67"
+        "sha256": "c9735abb54e2493d4c741922a4771cb0f6ee00f6380ae05fff0c357848052b99"
       },
       {
         "package": "@gajae-code/coding-agent",
         "path": "src/config/model-preset-registry.ts",
-        "sha256": "0a7f77c3d3a1cdf09db189d22bfefd4129de6adf3dc5cf72a18b6ef0a7b77835"
+        "sha256": "c5b58f5acdd48436d6fa63e34b704d8d177bc520a70b5de4bbfda8c0fee11df0"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/auth-storage.ts",
-        "sha256": "a005e9f1d9d3dc515ae04668ab364aef497f7fbce093d12fac97182981240581"
+        "sha256": "dec11edcbad05b640034502ef032666ad2436643e0cb7e0a20358815f91f5328"
       },
       {
         "package": "@gajae-code/coding-agent",
@@ -138,77 +138,77 @@
       {
         "package": "@gajae-code/ai",
         "path": "src/utils/idle-iterator.ts",
-        "sha256": "fbc6742abee2bcf20d22fa174ba7d21e688fde5cec13b32401fe36225ea90fd3"
+        "sha256": "78dc9774e9ce1d9ccfe78eb9f97fdcf88d375092c9839ee07ab3d9eaae830cb4"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/stream.ts",
-        "sha256": "404db53024a885ef16e6749911964b228d6670d3796e00acfe245956dad28a22"
+        "sha256": "f488c3f848386daeaf3b701b6ed13dbf6feebd6efc0c6c633b601689c23dca15"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/providers/register-builtins.ts",
-        "sha256": "abceac1f4e6e107da1f0bef71000ba4085508c1f56812127ecf6d556ee751a9d"
+        "sha256": "1b0df1d1df9180e637cf38a6198f29759e8b8ecb8ed0207e7d0d15cd98ead0c4"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/providers/amazon-bedrock.ts",
-        "sha256": "972549a554509bc2c2e1f0723c197aadd339c10c8345c0b78420b8499821fd65"
+        "sha256": "0ee6014454a819e6fcb1c7d212dfa53c9acb84dda56088d1883bd436a0c0da64"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/providers/anthropic.ts",
-        "sha256": "eee1c52fdd77f53dad676297560ca5722553088cf9888e7300e3d77507e4eefc"
+        "sha256": "ca73a63fe6c875d656deb6922702701afefc273ffd28475f9cffcef23851c325"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/providers/azure-openai-responses.ts",
-        "sha256": "403196951817447052fbe2f0b059679923f64ce2f1322bcdc44cc1b0a3ff0075"
+        "sha256": "9ecb3efeb5c0c52d99128ba366f763d595d0ee2cf41ffa6a59fa991d10c2f330"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/providers/cursor.ts",
-        "sha256": "3c8cbb82d7e210b126a627292e492ba010ffabe37f408b4dcfe017f2db0593ba"
+        "sha256": "a3ba24be86d584df06207ea534f894c436ca46e07184beb300211a4dad7c6192"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/providers/google-gemini-cli.ts",
-        "sha256": "0a6d88064e796dfb9890af1e88a5ea49b5844128c8a4900b4bc43f765693677b"
+        "sha256": "7a3a4f96bfe1b8f445b230a9eb098cf07c33b9cd832a6918eab3651b9c709312"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/providers/google-shared.ts",
-        "sha256": "8348e5dfdc0771292695295738024f339219ffa12d121644ce5b756b49a7871d"
+        "sha256": "a48c96e577ee46ac98d79d13717bf340fe087018a16ffeb35bce9671040da436"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/providers/kiro-api-key.ts",
-        "sha256": "b687ff7b23bcd08640652dc910303d1534069569a162082be5e6604baba17d2e"
+        "sha256": "f4b7bf701fa82eafebbbcb43de2ff646276e3d598f3ed3806944e3b5b78490d6"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/providers/kiro-codewhisperer.ts",
-        "sha256": "1769145787803a0da584b18ada0393364a576d764f7853e3cd05cf3f63be02fb"
+        "sha256": "0e17bd85373a43055b4870d9d4cf4aa1e4fb889a14f8f07c70b5026a52fab0e6"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/providers/ollama.ts",
-        "sha256": "d2b1272d91d46b92fd494605b78d0619c8f072b45e68ba8f2ef25cfc5aab7df0"
+        "sha256": "0085d9ed21a97b816065dde12ab7822eb5a4ee5b9ac11abcfdb971e11074acc4"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/providers/openai-completions.ts",
-        "sha256": "b0ba241c2645acf199dfcab65091d755286b06e5aea949d3eb9512fe25a74323"
+        "sha256": "f0908b97461a6ce53496a969b5a7f1198a8b21c521e135cb9c2b4ede2da12b1d"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/providers/openai-responses.ts",
-        "sha256": "bb6991c117a20f2e38ca7d018db3c781c74bbe2c0843b698ef38929929099d26"
+        "sha256": "9425ee939fcf612fe15e504d9a40e39569ed1092224c0317a56134c53b137df3"
       },
       {
         "package": "@gajae-code/ai",
         "path": "src/providers/openai-codex-responses.ts",
-        "sha256": "961ea9317a7852759c43555ef8a72901025cb17f6de2bfb86e72446197cc87eb"
+        "sha256": "1454476b45ccb12f99c33b069b3b675ed438f600c763e83b0324853fd6ee7244"
       },
       {
         "package": "@gajae-code/ai",
@@ -228,27 +228,27 @@
       {
         "package": "@gajae-code/coding-agent",
         "path": "src/sdk/host/host.ts",
-        "sha256": "12e497ea081ca73337288cd5ea84f85d8be141372547665bd355beb6628e19ae"
+        "sha256": "5e3602e9f1e204a589af69afe36d4368d7171babb34cb93596b5d0ea5ea616ef"
       },
       {
         "package": "@gajae-code/coding-agent",
         "path": "src/sdk/host/session-runtime.ts",
-        "sha256": "62ba771a376315285efb28ab50676a0ed2d0e1c64e637738bd04eed4e6430cff"
+        "sha256": "e31529c513cee59932b9950be3edefd6705d9a3c640dd7d6042a8390b440b3be"
       },
       {
         "package": "@gajae-code/coding-agent",
         "path": "src/sdk/host/websocket-transport.ts",
-        "sha256": "33ec5a5eb9b7bcee8828205990be0843095f490a8ccecc3166ad94ef844d65a2"
+        "sha256": "1ea4561acafca103d4db930b94dff4d9b3c6bf0b0a9e423374353e3b2809937e"
       },
       {
         "package": "@gajae-code/coding-agent",
         "path": "src/sdk/prompt-deadline-manager.ts",
-        "sha256": "6c5867ff16c5dfc7a550a0c3dfa67309a9ae234cf23253ab7739c55dd790e295"
+        "sha256": "7a2c24a4e31423037ad060f3c5443f960de5e6ab4b6b07f3dd45330a5524317f"
       },
       {
         "package": "@gajae-code/coding-agent",
         "path": "src/sdk/host/query/revision-store.ts",
-        "sha256": "db47586d7c821a7c7d5aaf9b2ea6c1dacf2a5c83919babda8a22b4017d6c6e21"
+        "sha256": "c3947cc6cd894bc93d9cdf29b486150b693be96b7bff5163c1c29c4f6c5d56d3"
       }
     ]
   }

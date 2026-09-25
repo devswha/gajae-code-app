@@ -7,7 +7,7 @@ draft, public release, workflow run, or export signing credentials. Run the
 blocks in order in the same **Bash** shell on the existing arm64 Mac. Keep the
 output directory until the acceptance record and artifacts are handed off.
 
-The candidate below requires SDK **0.16.4** in
+The candidate below requires SDK **0.17.6** in
 the selected source, installed dependencies, and packaged copy. A future SDK
 upgrade requires reviewing that expectation before using these commands.
 
@@ -50,8 +50,8 @@ import { assertOutOfTree } from './scripts/release/out-of-tree.mjs';
 await assertOutOfTree(process.argv[2], 'Candidate source');
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
 const lock = JSON.parse(await readFile('package-lock.json', 'utf8'));
-assert.equal(pkg.dependencies['@gajae-code/coding-agent'], '0.16.4');
-assert.equal(lock.packages['node_modules/@gajae-code/coding-agent'].version, '0.16.4');
+assert.equal(pkg.dependencies['@gajae-code/coding-agent'], '0.17.6');
+assert.equal(lock.packages['node_modules/@gajae-code/coding-agent'].version, '0.17.6');
 NODE
 printf '%s\n' "$RELEASE_COMMIT" > "$RELEASE_ROOT/source-commit.txt"
 printf '%s\n' "$VERSION" > "$RELEASE_ROOT/package-version.txt"
@@ -63,7 +63,7 @@ node scripts/release/check-signing-readiness.mjs --mode local \
   > "$RELEASE_ROOT/signing-readiness.json"
 node scripts/release/prime-ripgrep-cache.mjs
 HUSKY=0 npm ci
-test "$(node -p "require('./node_modules/@gajae-code/coding-agent/package.json').version")" = 0.16.4
+test "$(node -p "require('./node_modules/@gajae-code/coding-agent/package.json').version")" = 0.17.6
 node scripts/fetch-bun.mjs
 test "$(dist-native/bun --version)" = 1.4.0
 shasum -a 256 --check "$RELEASE_ROOT/source-lock.sha256"
@@ -173,7 +173,7 @@ console.log(`Local DMG, quarantined-copy and updater verification passed (update
 NODE
 COPIED_APP="$RELEASE_ROOT/acceptance/copy/Gajae Code App.app"
 PAYLOAD="$COPIED_APP/Contents/Resources/resources/server-payload"
-node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(p.version!=="0.16.4") throw new Error("Copied payload SDK is not 0.16.4");' \
+node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(p.version!=="0.17.6") throw new Error("Copied payload SDK is not 0.17.6");' \
   "$PAYLOAD/node_modules/@gajae-code/coding-agent/package.json"
 test "$("$COPIED_APP/Contents/MacOS/gajae-app-server" --version)" = v22.22.2
 test "$("$PAYLOAD/dist-native/bun" --version)" = 1.4.0

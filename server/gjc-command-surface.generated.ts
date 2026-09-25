@@ -40,7 +40,7 @@ export const GJC_APP_BUILTIN_COMMANDS: readonly GjcAppCommand[] = [
   { name: "star", description: "Star the current session for easier discovery" },
   { name: "unstar", description: "Remove the star from the current session" },
   { name: "memory", description: "Manage memory", inputHint: "<subcommand>" },
-  { name: "rename", description: "Rename the current session", inputHint: "<title>" },
+  { name: "rename", description: "Rename the current session, or regenerate the title from the conversation", inputHint: "[title]" },
   { name: "login", description: "Login with OAuth provider", inputHint: "[provider|redirect URL]" },
   { name: "logout", description: "Logout from OAuth provider", inputHint: "[provider]" },
 ];

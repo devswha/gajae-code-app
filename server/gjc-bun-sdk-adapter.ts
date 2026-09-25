@@ -225,7 +225,7 @@ const FAILURE = 'GJC SDK configuration is invalid.';
 async function disposeSdkSession(session: ActiveRun['session']): Promise<void> {
   try { await session.dispose(); }
   catch (error) {
-    // SDK 0.16.4's public caller deadline does not end its teardown owner.
+    // SDK 0.17.6's public caller deadline does not end its teardown owner.
     // Join that exact session's retained promise while the adapter root stays
     // in settling. Real cleanup failures still poison the worker; an arbitrary
     // provider error with the same name is not permission to ignore failure.

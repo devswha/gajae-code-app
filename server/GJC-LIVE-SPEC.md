@@ -194,6 +194,18 @@ carries only the public snapshot (`delegationId`, `status`, `agent`,
 projection is what restores the same rows after a reload, per
 `docs/plans/delegation-lifecycle-contract.md` §10-11.
 
+Delegated children never take a model override. Since SDK 0.17.6 the SDK's
+`ExtensionToolWrapper` runs `validateToolArguments` on direct tool execution
+as well, and that validation strips unknown keys of strict objects before
+`execute` (the model-facing agent-loop path already did this on 0.16.4). A
+`task` call that carries e.g. `model` is therefore not rejected: the key is
+dropped, and the child is created and checked on exactly the parent's
+provider/model and effort (`Child model or effort mismatch.` fails the child
+closed before it is prompted). The app cannot intercept the raw arguments,
+because the SDK's `customToolToDefinition` drops `rawArgumentValidation` and
+`lenientArgValidation`. `server/gjc-delegation-executor.bun.test.ts` pins both
+the stripped-override and the mismatch paths.
+
 The codec rejects unknown fields, methods, unsafe identifiers, incompatible
 versions, invalid JSON values, mismatched responses, oversized or unterminated
 frames, and unknown response IDs. Pending requests fail when the worker exits.

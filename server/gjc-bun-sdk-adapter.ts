@@ -660,11 +660,16 @@ async function credentialFor(
       if (await authStorage.peekApiKey(model.provider) === undefined) throw new GjcModelResolutionError();
       return { dispose() {} };
     }
-    // Deterministic selection: explicit credentialId wins; otherwise the lowest
-    // stored row id. Installing a selector also blocks the env-var fallback.
-    const row = credential.credentialId !== undefined
-      ? rows.find((candidate) => candidate.id === credential.credentialId)
-      : rows[0];
+    // Without an explicit row the runtime selects the account itself, exactly
+    // as the CLI does: it honours `gjc accounts pin`, skips accounts its
+    // routing has ruled out and rotates to another account on a usage limit.
+    // A selector would disable all three - pinning the lowest row id sent
+    // every run to an account the CLI never picks. The row it chose is
+    // reported after the prompt (`sessionCredential`).
+    if (credential.credentialId === undefined) return { dispose() {} };
+    // An explicit credentialId pins that row, which also blocks the env-var
+    // fallback and usage-limit rotation.
+    const row = rows.find((candidate) => candidate.id === credential.credentialId);
     if (!row) throw new Error(FAILURE);
     return {
       credentialSelector: {
@@ -1575,6 +1580,11 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
             ? Math.min(requestedGrace, SESSION_TITLE_GRACE_MS) : SESSION_TITLE_GRACE_MS;
           await Promise.race([titleTask, new Promise<void>((resolve) => { grace = setTimeout(resolve, graceMs); })]);
           clearTimeout(grace);
+        }
+        if (!resolvedCredential.credential) {
+          // The runtime chose the account on the first request; report that row.
+          const rowId = this.authStorage.getSessionCredentialRowId(model.provider, result.session.credentialSessionId);
+          if (rowId !== undefined) writer.setCredential?.({ kind: 'stored', providerId: model.provider, credentialId: rowId });
         }
         await delegation?.dispose();
         if (promptError !== undefined) throw promptError;

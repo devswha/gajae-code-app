@@ -299,6 +299,23 @@ Which MCP servers reach a session is decided by scope, not by discovery
   `mcp.discoveryMode` is `false`; with user-scope tools already always-on,
   `search_tool_bm25` would only add a way to activate built-ins the app
   withheld.
+- **Extension modules do not load.** SDK 0.17.6 turned extension-module
+  discovery back on in `createAgentSession`: `<agentDir>/extensions`, a
+  repository's `.gjc/extensions`, installed plugin extension entry points and
+  the `extensions` setting. The app blocks this deliberately. The trust
+  boundary is the same as the refused project MCP config: opening a repository
+  must not run its code in the worker. The adapter passes an empty
+  `preloadedExtensions` result (0.16.4's own default), with a fresh
+  `ExtensionRuntime` for each session. Only bundled extensions (Grok) and
+  inline app extensions load. `disableExtensionDiscovery` is not used, because
+  on 0.17.6 it also turns off hook-convention discovery. Native `.gjc`
+  pre/post hooks therefore keep loading exactly as on 0.16.4, including the
+  project scope, and a discovered hook still makes the session's lifecycle
+  receipt report `sdk_extension_effects_unrepresented`.
+  `server/gjc-sdk-contract.bun.test.ts` pins all of this against real files,
+  with a control run showing the same inputs load every module when the empty
+  result is absent. User-installed extension support would come later, as a
+  Settings opt-in.
 
 Settings > Automation > Withheld runtime features reports the project-scope
 refusal in these words; it offers no control because a session cannot change

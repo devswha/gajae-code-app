@@ -14,6 +14,7 @@ import { Settings } from '@gajae-code/coding-agent/config/settings';
 import { CURRENT_SESSION_VERSION, SessionManager } from '@gajae-code/coding-agent/session/session-manager';
 import { SessionDisposalIncompleteError } from '@gajae-code/coding-agent/session/agent-session';
 import { AsyncJobManager } from '@gajae-code/coding-agent/async/job-manager';
+import { reset as resetCapabilityCache } from '@gajae-code/coding-agent/capability';
 import { registerCustomApi, unregisterCustomApis } from '@gajae-code/ai/api-registry';
 import { AssistantMessageEventStream } from '@gajae-code/ai/utils/event-stream';
 import type { AssistantMessage, Context } from '@gajae-code/ai/types';
@@ -1541,6 +1542,8 @@ test('goal inspection rejects malformed and ambiguous transcripts without mutati
 async function identityFixture(behavior: {
   realPrompts?: boolean;
   onCreated?: (session: Awaited<ReturnType<typeof createAgentSession>>['session']) => void;
+  /** Keep the adapter's own extension-discovery request instead of forcing it off. */
+  adapterExtensionDiscovery?: boolean;
 } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'gjc-sdk-identity-'));
   const cwd = join(root, 'project');
@@ -1587,7 +1590,7 @@ async function identityFixture(behavior: {
         enableMcpAutoload: false,
         enableLsp: false,
         skipPythonPreflight: true,
-        disableExtensionDiscovery: true,
+        ...(behavior.adapterExtensionDiscovery ? {} : { disableExtensionDiscovery: true }),
         skills: [], rules: [], contextFiles: [], promptTemplates: [], slashCommands: [],
         systemPrompt: ['Offline session identity contract.'],
       };
@@ -1638,6 +1641,83 @@ async function identityFixture(behavior: {
     },
   };
 }
+
+// SDK 0.17.6 re-enabled extension-module discovery. App sessions keep 0.16.4's
+// behavior: an empty preloaded result blocks agent, project, plugin and settings
+// modules while hook-convention discovery (including project scope) still runs.
+test('top-level sessions load no discovered extension modules but keep hook discovery and bundled Grok', async () => {
+  const loaded: string[] = [];
+  const marker = '__gjcExtensionDiscoveryContract';
+  (globalThis as Record<string, unknown>)[marker] = loaded;
+  const f = await identityFixture({ adapterExtensionDiscovery: true });
+  try {
+    const cwd = f.options.cwd;
+    const agentDir = join(f.root, 'agent');
+    const module = (name: string) =>
+      `export default function () { globalThis.${marker}.push(${JSON.stringify(name)}); }\n`;
+    const agentExtension = join(agentDir, 'extensions', 'agent-scope.ts');
+    const projectExtension = join(cwd, '.gjc', 'extensions', 'project-scope.ts');
+    const settingsExtension = join(f.root, 'settings-scope.ts');
+    const projectHook = join(cwd, '.gjc', 'hooks', 'pre', 'bash.ts');
+    for (const [file, name] of [[agentExtension, 'agent-extension'], [projectExtension, 'project-extension'],
+      [settingsExtension, 'settings-extension']] as const) {
+      await mkdir(join(file, '..'), { recursive: true });
+      await writeFile(file, module(name));
+    }
+    f.settings.override('extensions', [settingsExtension]);
+    // Discovery caches directory listings; the fixture created these trees after startup.
+    resetCapabilityCache();
+    const seeded = [agentExtension, projectExtension, settingsExtension];
+    type Activity = { getAppLifecycleActivity(): { unknown: string[] } };
+    await f.run('extension-discovery', async (session) => {
+      const input = f.factoryOptions[0]!;
+      assert.equal(input.disableExtensionDiscovery, undefined, 'hook discovery must not be switched off');
+      // The SDK appends bundled and inline extensions to the supplied (empty) result.
+      assert.ok(input.preloadedExtensions, 'the adapter supplies its own extension result');
+      assert.ok(!input.preloadedExtensions.extensions.some((extension: { path: string }) => seeded.includes(extension.path)));
+      const paths = session.extensionRunner!.getExtensionPaths();
+      for (const file of seeded) assert.ok(!paths.includes(file), `${file} must not load`);
+      assert.ok(paths.includes('bundled:grok-build'), `bundled Grok must load: ${JSON.stringify(paths)}`);
+      const { unknown } = (session as unknown as Activity).getAppLifecycleActivity();
+      assert.ok(!unknown.includes('sdk_extension_effects_unrepresented'), JSON.stringify(unknown));
+    });
+    assert.deepEqual(loaded, []);
+
+    // Hook-convention discovery still runs for the project scope, exactly as on
+    // 0.16.4, and a discovered hook keeps the lifecycle receipt fail-closed.
+    await mkdir(join(projectHook, '..'), { recursive: true });
+    await writeFile(projectHook, module('project-hook'));
+    resetCapabilityCache();
+    await f.run('extension-discovery-hook', async (session) => {
+      const paths = session.extensionRunner!.getExtensionPaths();
+      assert.ok(paths.includes(`hook:${await realpath(projectHook)}`) || paths.includes(`hook:${projectHook}`),
+        `project hook must load: ${JSON.stringify(paths)}`);
+      for (const file of seeded) assert.ok(!paths.includes(file), `${file} must not load`);
+      assert.ok(paths.includes('bundled:grok-build'));
+      const { unknown } = (session as unknown as Activity).getAppLifecycleActivity();
+      assert.ok(unknown.includes('sdk_extension_effects_unrepresented'), JSON.stringify(unknown));
+    });
+    assert.deepEqual(loaded, ['project-hook']);
+    const first = f.factoryOptions[0]!;
+    assert.equal(f.factoryOptions.length, 2);
+    assert.notEqual(f.factoryOptions[1]!.preloadedExtensions!.runtime, first.preloadedExtensions!.runtime,
+      'each session receives its own extension runtime');
+
+    // Control: the same inputs without the app's empty result do load every seeded module,
+    // so the assertions above are not vacuous.
+    loaded.length = 0;
+    const { preloadedExtensions: _omitted, ...raw } = first;
+    const control = await createAgentSession({ ...raw, sessionManager: SessionManager.create(cwd, join(f.root, 'control')) });
+    try {
+      const paths = control.session.extensionRunner!.getExtensionPaths();
+      for (const file of seeded) assert.ok(paths.includes(file), `control must load ${file}: ${JSON.stringify(paths)}`);
+      assert.deepEqual([...loaded].sort(), ['agent-extension', 'project-extension', 'project-hook', 'settings-extension']);
+    } finally { await control.session.dispose(); }
+  } finally {
+    delete (globalThis as Record<string, unknown>)[marker];
+    await f.close();
+  }
+});
 
 test('goal-capable production sessions delegate safely and defer worktree abort to their owner', async () => {
   const f = await identityFixture();

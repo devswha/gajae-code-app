@@ -134,6 +134,13 @@ fn write_event_frames(
     let Some((kind, destination_only)) = output_event(event.kind) else {
         return true;
     };
+    // Only a directory that has just appeared under a root can hold
+    // transcripts no event described. An existing directory reports metadata
+    // changes every time an entry inside it is created or renamed (macOS
+    // FSEvents does so for each atomic transcript write), and rescanning a
+    // session scope with thousands of entries on each one overflowed the
+    // bounded scan and restarted the watcher into a full reconciliation.
+    let introduces_directories = directory_may_have_appeared(event.kind);
 
     let paths: &[PathBuf] = if destination_only {
         event.paths.last().map_or(&[], std::slice::from_ref)
@@ -146,7 +153,10 @@ fn write_event_frames(
                 return false;
             }
         }
-        if is_directory(path) && !backfills.iter().any(|(pending, _)| pending == path) {
+        if introduces_directories
+            && is_directory(path)
+            && !backfills.iter().any(|(pending, _)| pending == path)
+        {
             if backfills.len() >= MAX_PENDING_BACKFILLS {
                 return false;
             }
@@ -233,6 +243,17 @@ fn output_event(kind: EventKind) -> Option<(OutputEvent, bool)> {
         EventKind::Modify(_) => Some((OutputEvent::Change, false)),
         _ => None,
     }
+}
+
+fn directory_may_have_appeared(kind: EventKind) -> bool {
+    use notify::event::{ModifyKind, RenameMode};
+    matches!(
+        kind,
+        EventKind::Create(_)
+            | EventKind::Modify(ModifyKind::Name(
+                RenameMode::To | RenameMode::Both | RenameMode::Any | RenameMode::Other
+            ))
+    )
 }
 
 fn frame_for_path(kind: OutputEvent, path: &Path, roots: &[PathBuf]) -> Option<Vec<u8>> {
@@ -453,6 +474,51 @@ mod tests {
             &mut backfills,
         ));
         assert_eq!(backfills.front().unwrap().0, first_pending);
+        fs::remove_dir_all(container).unwrap();
+    }
+
+    #[test]
+    fn metadata_changes_on_an_existing_directory_do_not_rescan_it() {
+        // An atomic transcript write renames an entry inside the session scope
+        // directory, and FSEvents reports that directory's metadata change.
+        // Treating it as a new directory scanned the whole scope on every
+        // write and failed the watcher once the scope outgrew the scan bound.
+        let container = scratch_directory("metadata-directory");
+        fs::create_dir(&container).unwrap();
+        let root = fs::canonicalize(&container).unwrap();
+        for index in 0..=MAX_BACKFILL_ENTRIES {
+            fs::write(root.join(format!("{index}.jsonl")), b"{}\n").unwrap();
+        }
+        let mut backfills = VecDeque::new();
+        let event = Event::new(EventKind::Modify(notify::event::ModifyKind::Metadata(
+            notify::event::MetadataKind::Any,
+        )))
+        .add_path(root.clone());
+        assert!(write_event_frames(
+            &mut Vec::new(),
+            std::slice::from_ref(&root),
+            event,
+            &mut backfills,
+        ));
+        assert!(backfills.is_empty());
+
+        // A directory that was created or renamed in is still backfilled.
+        for kind in [
+            EventKind::Create(notify::event::CreateKind::Folder),
+            EventKind::Modify(notify::event::ModifyKind::Name(
+                notify::event::RenameMode::To,
+            )),
+        ] {
+            let mut backfills = VecDeque::new();
+            let event = Event::new(kind).add_path(root.clone());
+            assert!(write_event_frames(
+                &mut Vec::new(),
+                std::slice::from_ref(&root),
+                event,
+                &mut backfills,
+            ));
+            assert_eq!(backfills.len(), 1, "{kind:?}");
+        }
         fs::remove_dir_all(container).unwrap();
     }
 

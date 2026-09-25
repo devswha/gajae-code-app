@@ -27,26 +27,25 @@ standard text of the named license.
 
 | Package | Version | License | Copyright holder |
 | --- | --- | --- | --- |
-| `@bufbuild/protobuf` | 2.14.1 | (Apache-2.0 AND BSD-3-Clause) | (not stated) |
-| `@gajae-code/agent-core` | 0.16.4 | MIT | Yeachan-Heo and Gajae Code Contributors |
-| `@gajae-code/ai` | 0.16.4 | MIT | Yeachan-Heo and Gajae Code Contributors |
-| `@gajae-code/coding-agent` | 0.16.4 | MIT | Yeachan-Heo and Gajae Code Contributors |
-| `@gajae-code/natives` | 0.16.4 | MIT | Yeachan-Heo |
-| `@gajae-code/natives-darwin-arm64` | 0.16.4 | MIT | Yeachan-Heo |
-| `@gajae-code/natives-darwin-x64` | 0.16.4 | MIT | Yeachan-Heo |
-| `@gajae-code/natives-linux-arm64` | 0.16.4 | MIT | Yeachan-Heo |
-| `@gajae-code/natives-linux-x64` | 0.16.4 | MIT | Yeachan-Heo |
-| `@gajae-code/natives-win32-x64` | 0.16.4 | MIT | Yeachan-Heo |
-| `@gajae-code/stats` | 0.16.4 | MIT | Yeachan-Heo |
-| `@gajae-code/tui` | 0.16.4 | MIT | Yeachan-Heo and Gajae Code Contributors |
-| `@gajae-code/utils` | 0.16.4 | MIT | Yeachan-Heo |
+| `@bufbuild/protobuf` | 2.15.0 | (Apache-2.0 AND BSD-3-Clause) | (not stated) |
+| `@gajae-code/agent-core` | 0.17.6 | MIT | Yeachan-Heo and Gajae Code Contributors |
+| `@gajae-code/ai` | 0.17.6 | MIT | Yeachan-Heo and Gajae Code Contributors |
+| `@gajae-code/coding-agent` | 0.17.6 | MIT | Yeachan-Heo and Gajae Code Contributors |
+| `@gajae-code/natives` | 0.17.6 | MIT | Yeachan-Heo |
+| `@gajae-code/natives-darwin-arm64` | 0.17.6 | MIT | Yeachan-Heo |
+| `@gajae-code/natives-darwin-x64` | 0.17.6 | MIT | Yeachan-Heo |
+| `@gajae-code/natives-linux-arm64` | 0.17.6 | MIT | Yeachan-Heo |
+| `@gajae-code/natives-linux-x64` | 0.17.6 | MIT | Yeachan-Heo |
+| `@gajae-code/natives-win32-x64` | 0.17.6 | MIT | Yeachan-Heo |
+| `@gajae-code/stats` | 0.17.6 | MIT | Yeachan-Heo |
+| `@gajae-code/tui` | 0.17.6 | MIT | Yeachan-Heo and Gajae Code Contributors |
+| `@gajae-code/utils` | 0.17.6 | MIT | Yeachan-Heo |
 | `@nodable/entities` | 3.0.0 | MIT | Amit Gupta (https://solothought.com) |
 | `@puppeteer/browsers` | 2.13.2 | Apache-2.0 | The Chromium Authors |
 | `@tokenizer/token` | 0.3.0 | MIT | Borewit |
 | `@xterm/headless` | 6.0.0 | MIT | (not stated) |
 | `cookie-signature` | 1.0.6 | MIT | TJ Holowaychuk <tj@learnboost.com> |
 | `degenerator` | 5.0.1 | MIT | Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/) |
-| `dingbat-to-unicode` | 1.0.1 | BSD-2-Clause | Michael Williamson <mike@zwobble.org> |
 | `format` | 0.2.2 | UNKNOWN | Sami Samhuri <sami@samhuri.net> |
 | `highlightjs-vue` | 1.0.0 | CC0-1.0 | Sara Lissette <lissette.ibnz@gmail.com> (https://github.com/LissetteIbnz) |
 | `html-parse-stringify` | 3.0.1 | MIT | Henrik Joreteg <henrik@joreteg.com> |
@@ -440,7 +439,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### @bufbuild/protobuf 2.14.1
+### @bufbuild/protobuf 2.15.0
 
 License: (Apache-2.0 AND BSD-3-Clause)
 Homepage: https://protobufes.com/
@@ -448,7 +447,7 @@ Homepage: https://protobufes.com/
 _This package ships no license file. It declares (Apache-2.0 AND BSD-3-Clause); the terms are
 the standard text of that license._
 
-### @colors/colors 1.6.0
+### @colors/colors 1.6.1
 
 License: MIT
 Copyright holder: DABH
@@ -483,7 +482,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### @dabh/diagnostics 2.0.8
+### @dabh/diagnostics 2.0.9
 
 License: MIT
 Copyright holder: Arnout Kazemier
@@ -512,7 +511,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### @gajae-code/agent-core 0.16.4
+### @gajae-code/agent-core 0.17.6
 
 License: MIT
 Copyright holder: Yeachan-Heo and Gajae Code Contributors
@@ -521,7 +520,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/ai 0.16.4
+### @gajae-code/ai 0.17.6
 
 License: MIT
 Copyright holder: Yeachan-Heo and Gajae Code Contributors
@@ -530,7 +529,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/coding-agent 0.16.4
+### @gajae-code/coding-agent 0.17.6
 
 License: MIT
 Copyright holder: Yeachan-Heo and Gajae Code Contributors
@@ -539,7 +538,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/natives 0.16.4
+### @gajae-code/natives 0.17.6
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -548,7 +547,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/natives-darwin-arm64 0.16.4
+### @gajae-code/natives-darwin-arm64 0.17.6
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -557,7 +556,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/natives-darwin-x64 0.16.4
+### @gajae-code/natives-darwin-x64 0.17.6
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -566,7 +565,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/natives-linux-arm64 0.16.4
+### @gajae-code/natives-linux-arm64 0.17.6
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -575,7 +574,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/natives-linux-x64 0.16.4
+### @gajae-code/natives-linux-x64 0.17.6
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -584,7 +583,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/natives-win32-x64 0.16.4
+### @gajae-code/natives-win32-x64 0.17.6
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -593,7 +592,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/stats 0.16.4
+### @gajae-code/stats 0.17.6
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -602,7 +601,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/tui 0.16.4
+### @gajae-code/tui 0.17.6
 
 License: MIT
 Copyright holder: Yeachan-Heo and Gajae Code Contributors
@@ -611,7 +610,7 @@ Homepage: https://gajae-code.com
 _This package ships no license file. It declares MIT; the terms are
 the standard text of that license._
 
-### @gajae-code/utils 0.16.4
+### @gajae-code/utils 0.17.6
 
 License: MIT
 Copyright holder: Yeachan-Heo
@@ -5559,7 +5558,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### commander 8.3.0
+### commander 14.0.3
 
 License: MIT
 Copyright holder: TJ Holowaychuk <tj@vision-media.ca>
@@ -6527,14 +6526,36 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### dingbat-to-unicode 1.0.1
+### dingbat-to-unicode 1.0.2
 
 License: BSD-2-Clause
 Copyright holder: Michael Williamson <mike@zwobble.org>
 Homepage: https://github.com/mwilliamson/dingbat-to-unicode#readme
 
-_This package ships no license file. It declares BSD-2-Clause; the terms are
-the standard text of that license._
+```text
+Copyright (c) 2021, Michael Williamson
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
 
 ### dom-serializer 3.1.1
 
@@ -7614,7 +7635,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### fast-xml-builder 1.3.0
+### fast-xml-builder 1.3.1
 
 License: MIT
 Copyright holder: Amit Gupta (https://solothought.com)
@@ -9403,10 +9424,10 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### is-unsafe 2.0.0
+### is-unsafe 2.0.2
 
 License: MIT
-Copyright holder: Amit Gupta (https://solothought.work/)
+Copyright holder: Amit Gupta (https://solothought.com/)
 
 ```text
 MIT License
@@ -9591,6 +9612,35 @@ Copyright holder: Ivan Korolenko <iam@ivankorolenko.com>
 MIT License
 
 Copyright (c) 2023 Ivan Korolenko
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### jsonc-parser 3.3.1
+
+License: MIT
+Copyright holder: Microsoft Corporation
+
+```text
+The MIT License (MIT)
+
+Copyright (c) Microsoft
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -15300,7 +15350,7 @@ will be liable to anyone for any damages related to this
 software or this license, under any kind of legal claim.***
 ```
 
-### lucide-react 1.41.0
+### lucide-react 1.48.0
 
 License: ISC
 Copyright holder: Eric Fennis
@@ -15478,35 +15528,6 @@ Redistribution and use in source and binary forms, with or without modification,
 * Neither the name “Markdown” nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 
 This software is provided by the copyright holders and contributors “as is” and any express or implied warranties, including, but not limited to, the implied warranties of merchantability and fitness for a particular purpose are disclaimed. In no event shall the copyright owner or contributors be liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption) however caused and on any theory of liability, whether in contract, strict liability, or tort (including negligence or otherwise) arising in any way out of the use of this software, even if advised of the possibility of such damage.
-```
-
-### markit-ai 0.5.3
-
-License: MIT
-Homepage: https://github.com/Michaelliv/markit#readme
-
-```text
-MIT License
-
-Copyright (c) 2026 Michael Liv
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 ```
 
 ### math-intrinsics 1.1.0
@@ -17176,14 +17197,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### moment 2.30.1
+### moment 2.31.0
 
 License: MIT
-Copyright holder: Iskren Ivov Chernev <iskren.chernev@gmail.com> (https://github.com/ichernev)
 Homepage: https://momentjs.com
 
 ```text
-Copyright (c) JS Foundation and other contributors
+Copyright (c) OpenJS Foundation and other contributors
 
 Permission is hereby granted, free of charge, to any person
 obtaining a copy of this software and associated documentation
@@ -19607,7 +19627,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### sax 1.6.0
+### sax 1.6.1
 
 License: BlueOak-1.0.0
 Copyright holder: Isaac Z. Schlueter <i@izs.me> (http://blog.izs.me/)
@@ -20623,7 +20643,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### strnum 2.4.1
+### strnum 2.4.2
 
 License: MIT
 Copyright holder: Amit Gupta (https://solothought.work/)
@@ -22782,7 +22802,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.
 ```
 
-### xmlbuilder 10.1.1
+### xmlbuilder 11.0.1
 
 License: MIT
 Copyright holder: Ozgur Ozcitak <oozcitak@gmail.com>

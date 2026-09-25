@@ -38,6 +38,22 @@ Still open in this repo: #160 (serviceTier Settings exposure vs documented
 fixed — owner product decision) and #158/#162 (upstream). PR #44 (Windows)
 was already closed on 2026-09-16; Windows desktop stays out of scope.
 
+2026-09-25: beta.20 is being batched rather than cut for `0c5e6aa` alone.
+First item: SDK 0.16.4 → 0.17.6 on `chore/gjc-sdk-0.17.6`. The lifecycle
+patch is ported (32 files, 209 edits, none dropped; per-edit decisions in
+`patches/gjc-sdk-lifecycle/README.md`), agent/project/settings extension
+modules stay out of app sessions, and a delegated `task` with an unknown
+`model` key now runs on the parent model instead of being rejected (0.17.6
+strips unknown keys before the app sees them). The built-in preset copy is
+regenerated from 0.17.6 (17 missing presets added) and pinned by
+`server/builtin-model-profiles-contract.bun.test.ts`. Upstream fixes for
+#158 (`Yeachan-Heo/gajae-code#5743`) and #162 (`#5745`) are contained in the
+v0.17.4 and v0.17.6 tags; close both after the bump is observed live. Full
+`npm run verify`, `server:payload:macos` and `src-tauri` cargo test
+(382 + 11) pass on the branch. #175 (Windows timeline) answered and closed
+as not planned. The `/Applications` copy on the primary Mac is beta.18
+(0.2.12), not beta.14 as stated below.
+
 **Published and installed: v2.0.0-beta.14 / desktop 0.2.8**, source `60c98e3`,
 release `386182917`, `updateMode: production`. It supersedes beta.13, whose
 binary shipped with the updater compiled out (`RELEASE-BETA13-ACCEPTANCE.md`);

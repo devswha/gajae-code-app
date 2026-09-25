@@ -99,7 +99,7 @@ contents/passwords on argv, in release assets or in logs. The verifier accepts
 only the public-key file. No key generation, credential export, or production
 signing is implied by these instructions.
 
-For the final SDK 0.16.4 candidate, `scripts/release/MACOS-ACCEPTANCE.md`
+For the final SDK 0.17.6 candidate, `scripts/release/MACOS-ACCEPTANCE.md`
 provides the pinned source snapshot, isolated build paths, bounded local
 notarization, quarantined copy verification, and separate packaged smokes.
 

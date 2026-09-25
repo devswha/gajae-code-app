@@ -1,10 +1,12 @@
 # GJC SDK lifecycle remediation — app-owned patch
 
-Status: producer-completion and enabled-default-host remediation verified in isolation
-and applied through a clean checkout `npm ci` on September 8, 2026 for exactly
-**0.16.4**. All 32 files passed pristine before-hash validation and installation;
-check-only subsequently verified all 32. The app, worker and native validators
-share `shared/sdkLifecyclePolicy.json` (maximum 32 files). This is not
+Status: ported to exactly **0.17.6** on September 25, 2026 and applied through a
+clean `rm -rf node_modules && npm ci`. All 32 files passed pristine 0.17.6
+before-hash validation and installation; check-only subsequently verified all 32.
+The previous verified pin was 0.16.4 (September 8, 2026); see
+[0.17.6 port](#0176-port) for every re-anchored edit and every 0.17.6 addition.
+The app, worker and native validators share `shared/sdkLifecyclePolicy.json`
+(maximum 32 files). This is not
 an updater/plugin fork, an upstream publication, or permission to clear
 `sdk_background_ownership_unproven`. Root and packaging postinstall apply this
 same manifest; runtime manifest v2 checks all post-hashes before SDK startup.
@@ -18,26 +20,21 @@ full before/after SHA-256 digests and ordered replace-once edits. Each `before`
 snippet occurs exactly once in the preceding source. The complete transformed
 file must match `afterSha256`; snippet matches alone are not sufficient.
 
-Pristine packages were fetched on September 8, 2026 into a new temporary
-directory with `npm pack --ignore-scripts --registry=https://registry.npmjs.org`.
-The artifact review did not mutate installed dependencies. Parent integration
-subsequently applied the original eight verified edits using the guarded applier.
-The producer candidate started from independently fetched pristine packages and
-that same guarded eight-file application. New edits were made only to the isolated
-candidate and encoded as additional replace-once operations. All old replacements
-remain in order, including the four otherwise unchanged leaf/registry files;
-versions remain pinned to the published 0.16.4 packages.
+Pristine 0.17.6 packages were fetched on September 25, 2026 into a new temporary
+directory with `npm pack --ignore-scripts`; their SHA-1 digests match the registry
+`dist` values below. Every `beforeSha256` is the pristine 0.17.6 file, and every
+`afterSha256` is the complete transformed file. The port replayed the 0.16.4
+manifest's ordered edits against these files; edits whose `before` snippet no
+longer occurred exactly once were re-anchored with the same semantics, and new
+0.17.6 detached work inside already-patched files was given its own replace-once
+edits (209 edits in total, previously 191). No installed dependency file was edited
+by hand: the manifest is applied only by `npm run apply:sdk-patch`/postinstall.
 
 | Published package | npm tarball SHA-1 | npm integrity |
 | --- | --- | --- |
-| `@gajae-code/coding-agent@0.16.4` | `4613aba27825509b0be68de5b9eea05fd8c6e841` | `sha512-cnqyYOEGygPp87gCEkqahNiRYoBhL4gxvQnWY16lDADThfNjhrl7VP+5f9cLakevI+pjRbTSdDBw/iZ3Nc6PCw==` |
-| `@gajae-code/agent-core@0.16.4` | `64f8c249bad9c0f1ff8574ec476417294ef3c6c9` | `sha512-Ck0TIybhjf7qfWNQMbFEHDXCUiT0xDOq27DCeO2UbRglorI49iBmbw7Lq2J8yWVf8FgtEVD2RXEENX13GwH1Tg==` |
-| `@gajae-code/ai@0.16.4` | `e69483ff743d6e9b23e63e1781d3ed099e749f3a` | `sha512-q89+ggA3vWaWxx3u9cEelpdiLtHX2uHFsqHkJtYZDVj40RNgU8PPpYwPvHi3jwJ/THQE49GOwSddAPvT57N5KA==` |
-
-The separately inspected official `coding-agent@0.16.6` tarball has SHA-1
-`b72393e4107c69d6cfaf5549e64971c5b8017232`. Its relevant prewarm, disposal and
-forced-recovery blocks, plus its async-job manager, are unchanged from 0.16.4.
-That comparison is not runtime compatibility qualification for a pin upgrade.
+| `@gajae-code/coding-agent@0.17.6` | `d5b540e05e435dbd209be1fe3db5861bb9f1c9cb` | `sha512-ENjs77fG9R5iv8EZFQfLSQKtoPTyi4qCwkJj0c2B8NxFWH9u2VN4V4OAAO0cibBLE5q/Zm4wEWsbHe5oh0xiNA==` |
+| `@gajae-code/agent-core@0.17.6` | `bd915aea9624073a2041e5feacae900d5a45be4c` | `sha512-BX97ZGbBk90JhXZ4AUrFR1GLMth92gW+9YDEhW9nu4jbAgD6wtMVHoWUoXMgQHc/ulMxEczCmilMXcGozpmHqQ==` |
+| `@gajae-code/ai@0.17.6` | `62916c5f0d83638cae49ec1a99b0b2157179d049` | `sha512-g0ArBNjk3fgyhTYW8M3+HzhHuB6N53EL7/a3DiLVx/ctqflTbeP5JDRadA+Wpbbk+Gsv73w9P8ygYrd3FvrUjA==` |
 
 ## What changes
 
@@ -169,6 +166,81 @@ These APIs are additions to the Bun source runtime, not changes to npm declarati
 files. The async-local iterator retention is qualified for the pinned Bun runtime;
 it does not constitute browser or other JavaScript-runtime qualification.
 
+## 0.17.6 port
+
+Replay of the 0.16.4 manifest against pristine 0.17.6: 21 of 32 files applied
+unchanged (only their hashes changed); 11 files had edits whose anchor moved.
+**No edit was dropped.** Every failing edit was re-anchored to the 0.17.6 code
+with the same semantics; none of the guarantees is implemented upstream yet.
+
+| File | Edit | Decision | Reason / new anchor |
+| --- | --- | --- | --- |
+| `coding-agent/src/sdk/session.ts` | #3 | re-anchored | `session.registerToolSessionTransitionCleanup(joinStartupTasks)` stays directly after `hasSession = true`, now before 0.17.6's owned-MCP cleanup registration. |
+| | #7 | re-anchored | failed-creation async-job disposal still joins `awaitRetainedDisposalCompletion()`; only the surrounding comment changed. |
+| | #10 | re-anchored | context-file discovery now passes `{ cwd, agentDir, profileAuthority }`; still wrapped in `ownFactoryTask`. |
+| | #11 | re-anchored (split) | hook-discovery comment reworded; the two `appFactoryUnknown` insertions are separate anchors. |
+| | #12 | re-anchored | constrained plugin hooks gained `activationGeneration`/structured findings; same insertion point. |
+| | #17 | re-anchored (split) | 0.17.6 replaced conventional MCP publication with serialized owned/inherited publishers. Upstream now joins those tails in tool-session cleanup, but does not count them as activity; every reactive `void sync…`/`refreshMCPTools` publication is still owned by `startOwnedStartupTask`, including the new inherited publisher. |
+| | #19 | re-anchored | failed-creation branch comment reworded; `await joinAppHosts()` stays first. |
+| `coding-agent/src/session/agent-session.ts` | #7, #8 | re-anchored | 0.17.6 added a logical session work lease per post-prompt task. Forced recovery releases those leases, so the separate physical owner set is still required. |
+| | #12 | re-anchored | `#sessionShutdownReason` was inserted after `#disposeTerminalError`. |
+| `coding-agent/src/config/model-registry.ts` | #8, #9 (+#1, #4 context) | re-anchored | `refreshInBackground()` gained `credentialSessionId`; a fenced deferral now stores and replays it with the strategy. |
+| `ai/src/auth-storage.ts` | #4, #8, #9 | re-anchored | usage requests gained provider-generation checks and a cross-process usage lease inside the same in-flight promises; the `#ownAppTask` wrap is unchanged. |
+| `ai/src/utils/idle-iterator.ts` | #1, #2 | re-anchored | the loop was re-indented and `iterator.return()` became idempotent; raced `next()`/`return()` promises are still retained. |
+| `ai/src/stream.ts` | #3, #8 | re-anchored | `complete`/`completeSimple` now drain the stream before `result()`; the producer join wraps both. |
+| `ai/src/providers/cursor.ts` | #0–#2 | re-anchored | new `node:tls` import, first-event watchdog setup and write-drain finally; same producer wrap and unknown marker. |
+| `coding-agent/src/sdk/host/host.ts` | #0 | re-anchored | a `file-lock` import was inserted between anchored imports. |
+| `coding-agent/src/sdk/host/session-runtime.ts` | #0 | re-anchored | multi-line `./host` import with capability constants. |
+| | #1 | re-anchored (split) | runtime now keeps its own connection-capability fields. |
+| | #2 | re-anchored | `sendFrameTo()` takes one connection; capability fan-out moved to callers. |
+| | #11 | re-anchored | terminal-boundary helpers were inserted before `trackLifecycle`. |
+| | #13 | re-anchored | deadline settings resolve through helpers; `onDeadlineExceeded` added. |
+| | #19 | re-anchored | a workflow-gate turn provider follows the runtime owner literal. |
+| | #20 | re-anchored (split) | `stop()` takes lock-contention/unregister-reason options; `session_shutdown` forwards `event.reason`. |
+| `coding-agent/src/sdk/host/websocket-transport.ts` | #0 | re-anchored | a value import from `./host` was inserted. |
+| `coding-agent/src/sdk/prompt-deadline-manager.ts` | #2 | re-anchored (split) | constructor gained flush options between the anchored blocks. |
+
+New 0.17.6 detached work inside already-patched files, owned by additional edits:
+
+- `sdk/host/host.ts`: `reportActivity()` durable heartbeats are fire-and-forget from
+  `start()`, activation and session-runtime turn boundaries. The serialized write
+  is owned at its source by the host's `AppSdkHostOwner`.
+- `sdk/host/session-runtime.ts`: periodic broker re-registration. Stopping clears
+  the interval, but an already-dispatched `runBrokerRecovery()` is now owned.
+- `sdk/prompt-deadline-manager.ts`: the bounded `onDeadlineExceeded` worktree flush
+  keeps its public 10s budget, but the abandoned hook promise is physically owned.
+- `sdk/session.ts`: 0.17.6 re-enabled filesystem/plugin/settings extension-module
+  discovery. Any discovered module reports `sdk_extension_effects_unrepresented`,
+  like preloaded ones (a second layer; the app itself does not let them load, see
+  below).
+
+Audited and deliberately not patched:
+
+- `ai/src/providers/devin-acp.ts` is a new 0.17.6 transport that spawns a cached
+  `devin acp` child with detached stdio drains. It is not a registered producer, so
+  its streams report `sdk_provider_producer_unrepresented` (core join or lazy
+  adoption), i.e. fail closed. Covering it would exceed the 32-file policy and a
+  persistent child cannot be certified by promise joins anyway.
+- `agent-session.ts` gained in-memory follow-up reservation waits
+  (`#queueFollowUpAfterReservation`) and a workflow-gate continuation `abort()`.
+  They perform no I/O beyond session queues and are bounded by existing session
+  logic; they are not separately owned.
+
+App consequences of 0.17.6 recorded outside this manifest:
+
+- **Extension-module discovery.** `createAgentSession` now discovers
+  `<agentDir>/extensions`, project `.gjc/extensions`, plugin entry points and the
+  `extensions` setting. The adapter passes an empty `preloadedExtensions` result
+  (0.16.4's default, fresh `ExtensionRuntime` per session) so none of them load.
+  `disableExtensionDiscovery` is avoided because on 0.17.6 it also disables
+  hook-convention discovery, which top-level sessions kept on 0.16.4.
+- **Delegation arguments.** 0.17.6 `ExtensionToolWrapper` runs
+  `validateToolArguments` on direct execution too, and that validation strips
+  unknown strict-object keys (0.16.4's model-facing agent-loop path already did).
+  A `task` call carrying `model` is therefore ignored, not rejected, and the child
+  is forced onto the parent's exact model. The app cannot intercept, because
+  `customToolToDefinition` drops `rawArgumentValidation`/`lenientArgValidation`.
+
 ## Public registry seam
 
 ```ts
@@ -251,7 +323,7 @@ the public `awaitDisposeCompletion(): Promise<void>` signature are unchanged.
 
 `lifecycle.bun.test.ts` imports an explicitly selected isolated candidate SDK and
 core/AI. Only their 32 manifest-listed source files differ from pristine published packages.
-Other dependencies are read-only links to the existing 0.16.4 dependency closure;
+Other dependencies are read-only links to the existing 0.17.6 dependency closure;
 this is not a clean-install, cross-platform or packaged-binary qualification.
 All session data goes into independent temporary fixtures. No live credentials,
 provider requests or shell commands are needed.

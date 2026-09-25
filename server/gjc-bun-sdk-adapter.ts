@@ -19,6 +19,7 @@ import { buildAccountInventorySnapshot } from '@gajae-code/coding-agent/session/
 import { SessionDisposalIncompleteError } from '@gajae-code/coding-agent/session/agent-session';
 import { parseSessionEntries, SessionManager, type SessionEntry } from '@gajae-code/coding-agent/session/session-manager';
 import { MemorySessionStorage } from '@gajae-code/coding-agent/session/session-storage';
+import { ExtensionRuntime } from '@gajae-code/coding-agent/extensibility/extensions/loader';
 import { executeAcpBuiltinSlashCommand } from '@gajae-code/coding-agent/slash-commands/acp-builtins';
 import { probeAsideCli, type AsideCliProbe } from '@gajae-code/coding-agent/slash-commands/helpers/aside';
 import { initTheme, theme } from '@gajae-code/coding-agent/modes/theme/theme';
@@ -225,7 +226,7 @@ const FAILURE = 'GJC SDK configuration is invalid.';
 async function disposeSdkSession(session: ActiveRun['session']): Promise<void> {
   try { await session.dispose(); }
   catch (error) {
-    // SDK 0.16.4's public caller deadline does not end its teardown owner.
+    // SDK 0.17.6's public caller deadline does not end its teardown owner.
     // Join that exact session's retained promise while the adapter root stays
     // in settling. Real cleanup failures still poison the worker; an arbitrary
     // provider error with the same name is not permission to ignore failure.
@@ -1294,6 +1295,14 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           // factory otherwise defaults to ~/.gjc/agent - so skills, prompts and
           // credentials would be discovered somewhere the worker never wrote.
           ...(this.options.agentDir ? { agentDir: this.options.agentDir } : {}),
+          // SDK 0.17.6 re-enabled extension-module discovery (agent, project
+          // `.gjc/extensions`, plugin and settings modules). Opening a repository
+          // must not run its code in the worker - the same trust boundary as the
+          // refused project MCP config. This empty result is 0.16.4's own default,
+          // so only bundled extensions load and hook-convention discovery stays
+          // unchanged. `disableExtensionDiscovery` is deliberately not used: on
+          // 0.17.6 it also turns off hook discovery. One fresh runtime per session.
+          preloadedExtensions: { extensions: [], errors: [], runtime: new ExtensionRuntime() },
           sessionManager,
           // The SDK defaults provider/cache identity to this manager's logical
           // ID, including on exact-ID resume. Supplying the same ID explicitly

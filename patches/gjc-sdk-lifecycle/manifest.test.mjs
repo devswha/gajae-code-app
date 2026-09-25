@@ -44,7 +44,7 @@ async function fixture(t) {
 test('exact replace-once edits reproduce every full post-hash from published source', async () => {
   assert.deepEqual(Object.keys(manifest).sort(), ['files', 'id', 'packages', 'schemaVersion']);
   assert.equal(manifest.schemaVersion, 1); assert.equal(manifest.id, 'gjc-sdk-lifecycle-v1');
-  assert.deepEqual(manifest.packages, { '@gajae-code/coding-agent': '0.16.4', '@gajae-code/agent-core': '0.16.4', '@gajae-code/ai': '0.16.4' });
+  assert.deepEqual(manifest.packages, { '@gajae-code/coding-agent': '0.17.6', '@gajae-code/agent-core': '0.17.6', '@gajae-code/ai': '0.17.6' });
   assert.equal(manifest.files.length, 32, 'exact reviewed producer/leaf/host source closure');
   for (const file of manifest.files) {
     let source = await original(file);
@@ -74,7 +74,7 @@ test('last-file tampering fails all-file prevalidation without partially patchin
 test('wrong package versions are rejected before any replacement', async (t) => {
   const root = await fixture(t);
   const name = '@gajae-code/agent-core';
-  await fs.writeFile(path.join(root, 'node_modules', name, 'package.json'), JSON.stringify({ name, version: '0.16.6' }));
+  await fs.writeFile(path.join(root, 'node_modules', name, 'package.json'), JSON.stringify({ name, version: '0.17.5' }));
   await assert.rejects(applySdkLifecyclePatch(root, manifest), /version mismatch/);
   const first = manifest.files[0];
   assert.equal(sha(await fs.readFile(path.join(root, 'node_modules', first.package, first.path))), first.beforeSha256);

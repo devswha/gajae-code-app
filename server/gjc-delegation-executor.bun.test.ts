@@ -71,6 +71,7 @@ async function fixture(
   configureChild?: (options: CreateAgentSessionOptions) => CreateAgentSessionOptions | Promise<CreateAgentSessionOptions>,
   storedCredentials = false,
   onDelegationSettled?: (update: GjcDelegationUpdate) => void,
+  adjustChild?: (result: Awaited<ReturnType<typeof createAgentSession>>) => Awaited<ReturnType<typeof createAgentSession>>,
 ) {
   const scratch = join(await realpath(process.cwd()), '.tmp');
   await mkdir(scratch, { recursive: true });
@@ -155,7 +156,7 @@ async function fixture(
         childInputs.push(options!);
         const result = await createAgentSession(configureChild ? await configureChild(options!) : options);
         children.push(result.session);
-        return result;
+        return adjustChild ? adjustChild(result) : result;
       },
     });
     executors.push(executor);
@@ -275,10 +276,55 @@ test('denied delegation, role widening and unsupported SDK controls fail before 
     f.base.spawns = 'planner';
     await assert.rejects(tool(f.parent, 'task', task()), /role is not allowed/);
     f.base.spawns = '*';
-    await assert.rejects(tool(f.parent, 'task', { ...task(), model: 'other/model' }));
     await assert.rejects(tool(f.parent, 'subagent', { action: 'pause' }));
     assert.equal(f.childInputs.length, 0);
     assert.equal(f.calls.length, 0);
+  } finally { await f.close(); }
+});
+
+// SDK 0.17.6 validates direct tool execution like the model-facing agent loop:
+// unknown keys on strict objects are stripped before `execute`. A model override
+// therefore cannot be refused by the app; it is ignored and the parent model forced.
+test('an unknown model key on task is stripped and the child runs on the exact parent model', { timeout: 30_000 }, async () => {
+  const f = await fixture();
+  try {
+    const parentModel = f.parent.model!;
+    const [started] = await tool(f.parent, 'task', { ...task(), model: 'other/model' });
+    assert.ok(started && !Object.hasOwn(started, 'model'), 'the spawn receipt carries no model override');
+    const [settled] = await tool(f.parent, 'subagent', { action: 'await', id: started.id });
+    assert.equal(settled!.status, 'completed', JSON.stringify(settled));
+    assert.equal(f.childInputs.length, 1);
+    const input = f.childInputs[0]!;
+    assert.equal(input.model?.provider, parentModel.provider);
+    assert.equal(input.model?.id, parentModel.id);
+    assert.equal(input.modelPattern, undefined);
+    assert.ok(!Object.values(input).some((value) => value === 'other/model'), 'the stripped key reaches no child option');
+    assert.equal(f.children[0]!.model?.provider, parentModel.provider);
+    assert.equal(f.children[0]!.model?.id, parentModel.id);
+    assert.equal(f.calls.length, 1);
+    assert.equal(f.calls[0]!.model.provider, parentModel.provider);
+    assert.equal(f.calls[0]!.model.id, parentModel.id);
+  } finally { await f.close(); }
+});
+
+test('a child that does not run on the exact parent model fails closed before prompting', { timeout: 30_000 }, async () => {
+  const f = await fixture(undefined, undefined, undefined, false, undefined, (result) => ({
+    ...result,
+    session: new Proxy(result.session, {
+      get(target, property) {
+        if (property === 'model') return { ...target.model!, id: 'other-model' };
+        const value = Reflect.get(target, property, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }),
+  }));
+  try {
+    const [started] = await tool(f.parent, 'task', task());
+    const [settled] = await tool(f.parent, 'subagent', { action: 'await', id: started!.id });
+    assert.equal(settled!.status, 'failed', JSON.stringify(settled));
+    assert.equal(f.childInputs.length, 1);
+    assert.equal(f.calls.length, 0, 'a mismatched child is never prompted');
+    assert.equal(f.children[0]!.isDisposed, true);
   } finally { await f.close(); }
 });
 

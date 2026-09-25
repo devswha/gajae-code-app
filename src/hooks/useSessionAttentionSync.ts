@@ -18,7 +18,7 @@ type UseSessionAttentionSyncArgs = {
 const asksForDecision = (toolName: unknown) => toolName !== 'ExitPlanMode' && toolName !== 'exit_plan_mode';
 
 /** Events a run emits while it is doing work; seeing one for a session means its last outcome is history. */
-const LIVE_RUN_EVENTS = new Set(['stream_delta', 'text', 'tool_use', 'tool_result', 'thinking', 'status']);
+const LIVE_RUN_EVENTS = new Set(['stream_delta', 'text', 'tool_use', 'tool_result', 'thinking', 'thinking_delta', 'status']);
 
 const sessionOf = (event: ServerEvent): string | null => (typeof event.sessionId === 'string' && event.sessionId ? event.sessionId : null);
 

@@ -166,7 +166,10 @@ function convertRow(message: NormalizedMessage, attachedResult: AttachedResult):
   }
 
   if (message.kind === 'thinking') {
-    if (message.content?.trim()) output.push({ type: 'assistant', content: unescapeWithMathProtection(message.content), timestamp: message.timestamp, isThinking: true, ...common });
+    // The live reasoning preview (`__thinking_<session>`) streams until its
+    // `thinking` record replaces it.
+    const live = Boolean(message.id?.startsWith('__thinking_'));
+    if (message.content?.trim()) output.push({ type: 'assistant', content: unescapeWithMathProtection(message.content), timestamp: message.timestamp, isThinking: true, ...(live ? { isStreaming: true } : {}), ...common });
     return output;
   }
   if (message.kind === 'error') {

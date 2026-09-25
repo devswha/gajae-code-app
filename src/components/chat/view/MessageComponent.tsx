@@ -419,7 +419,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, d
               </div>
             ) : message.isThinking ? (
               /* Thinking messages — Reasoning component (ai-elements pattern) */
-              <Reasoning key={densityKey} defaultOpen={densityRules.reasoningOpen}>
+              <Reasoning key={densityKey} defaultOpen={densityRules.reasoningOpen} isStreaming={Boolean(message.isStreaming)}>
                 <ReasoningTrigger />
                 <ReasoningContent>
                   <Markdown className="prose prose-base max-w-none dark:prose-invert [&_pre]:max-w-none [&_table]:max-w-none">

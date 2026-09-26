@@ -41,9 +41,11 @@ Intentional gaps (see `server/gjc-agent-tools.ts`): no `python`/`eval`,
 
 Observed, not fixed:
 
-- `ChatInterface` calls `sessionStore.setActiveSession` during render. This is
-  a React "Cannot update a component while rendering" warning on every
-  session open, present since the initial commit.
+- ~~`ChatInterface` calls `sessionStore.setActiveSession` during render~~ —
+  fixed 2026-09-26: `useChatSessionState` marks the observed session from a
+  layout effect (still ahead of the history fetch effect), and a DOM test
+  renders the store owner above the hook and asserts no cross-component
+  update warning.
 - Zero-delay synthetic typing (puppeteer) after a reload trips "Maximum
   update depth" in the composer's `resize`. It does not reproduce at a 10 ms
   keystroke delay.

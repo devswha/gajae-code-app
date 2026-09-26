@@ -474,3 +474,37 @@ test('tail-window replacement notices a new message even with an unchanged count
     assert.equal(harness.state().hasNewMessagesBelow, true);
   } finally { harness.close(); }
 });
+
+test('opening a session does not set the store owner state during the child render', async () => {
+  globalThis.fetch = (async () => new Response(JSON.stringify({ messages: [], total: 0, hasMore: false }))) as typeof fetch;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const statusCheckSentAtRef = { current: new Map<string, number>() };
+  let store: SessionStore | undefined;
+  // Session rows are state in production; a fresh object per render would
+  // re-run the history effect and hide the defect behind a different loop.
+  const sessions: Record<string, ProjectSession> = { a: { id: 'a' } as ProjectSession, b: { id: 'b' } as ProjectSession };
+  let renders = 0;
+  function Child({ id }: { id: string }) {
+    if (++renders > 30) throw new Error(`render loop (${renders})`);
+    useChatSessionState({
+      selectedProject: project, selectedSession: sessions[id], ws: null,
+      sendMessage: noop, resetStreamingState: noop, sessionStore: store!, statusCheckSentAtRef,
+    });
+    return null;
+  }
+  // Production wiring: MainContent owns the store, ChatInterface consumes it.
+  function Owner({ id }: { id: string }) {
+    store = useSessionStore();
+    return <Child id={id} />;
+  }
+  const errors: string[] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => { errors.push(args.map(String).join(' ')); };
+  try {
+    const view = render(<QueryClientProvider client={client}><Owner id="a" /></QueryClientProvider>);
+    await act(async () => {});
+    act(() => { view.rerender(<QueryClientProvider client={client}><Owner id="b" /></QueryClientProvider>); });
+    await act(async () => {});
+  } finally { console.error = originalError; }
+  assert.deepEqual(errors.filter((line) => line.includes('Cannot update a component')), []);
+});

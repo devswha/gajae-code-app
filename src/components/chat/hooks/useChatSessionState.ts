@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
@@ -149,7 +149,6 @@ export function useChatSessionState({
   if (requestViewRef.current.key !== viewKey) requestViewRef.current = { key: viewKey };
   const activityMapRef = useRef(processingSessions);
   activityMapRef.current = processingSessions;
-  const storeSessionRef = useRef<string | null>(null);
   const pendingEchoRef = useRef<ChatMessage | null>(null);
   const messageLengthRef = useRef(0);
   const priorContentRef = useRef<{ sessionId: string | null; messages: ChatMessage[] }>({ sessionId: null, messages: [] });
@@ -205,10 +204,12 @@ export function useChatSessionState({
   const isProcessing = sessionActivity !== null;
   const canAbortSession = Boolean(isProcessing && sessionActivity.canInterrupt);
 
-  if (storeSessionRef.current !== activeSession) {
-    storeSessionRef.current = activeSession;
-    sessionStore.setActiveSession(activeSession);
-  }
+  // The store is owned by the parent (MainContent) and marking the observed
+  // session sets its state, so it must not happen during this render (React
+  // reports a cross-component update on every session open). A layout effect
+  // still runs before the history fetch effect below, so the store knows the
+  // active session before any request or realtime emit.
+  useLayoutEffect(() => { sessionStore.setActiveSession(activeSession); }, [activeSession, sessionStore]);
   const storedMessages = activeSession ? sessionStore.getMessages(activeSession) : NO_MESSAGES;
   if (messageLengthRef.current !== storedMessages.length) {
     messageLengthRef.current = storedMessages.length;

@@ -41,6 +41,14 @@ job projection protocol). `scripts/` holds build/release/verify tooling.
   `HOST=$(tailscale ip -4) GAJAE_ALLOW_UNAUTH_REMOTE=1 npm run dev`. That
   override disables authentication on the bound address, so never combine it
   with a bind that is reachable outside the tailnet.
+- The dev stack and the installed desktop app share `~/.gajae-app` (unless
+  `DATABASE_PATH` is set), and `gajae-core jobs` takes an exclusive lock on
+  `jobs.sqlite3` there. Whichever starts second runs without its jobs
+  authority: jobs are unavailable and the desktop updater's **Restart to
+  install** is refused (`updater_runtime_unknown`, journal blockers
+  `orchestrator owner_unknown` / `native-jobs owner_failed`). Stop the dev
+  stack before testing a desktop update, or run it with its own
+  `DATABASE_PATH`.
 - Tauri builds choke on `CI=1`: use `env -u CI npm run tauri -- build`.
 - A release-profile macOS build refuses to guess its updater mode: set
   `GJC_UPDATE_MODE=disabled` for ad-hoc/manual bundles, or the full production

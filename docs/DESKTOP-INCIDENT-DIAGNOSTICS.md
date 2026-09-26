@@ -165,6 +165,14 @@ a process merely because it owns a port.
    cat  ~/Library/Application\ Support/*/desktop-port      # the remembered origin
    ```
 
+   A refused **Restart to install** ends in `stage: "abort"` with
+   `updater_runtime_busy` or `updater_runtime_unknown`; the preceding
+   `stage: "backend-refused"` record names the owners in `blockers`.
+   `orchestrator owner_unknown` together with `native-jobs owner_failed`
+   means the server's native jobs authority is unavailable — check whether
+   another server instance (a dev stack, a second install) holds
+   `~/.gajae-app/jobs.sqlite3.lock` (`lsof -nP ~/.gajae-app/jobs.sqlite3.lock`).
+
 3. **Listener identity — who actually owns the port**
 
    ```bash

@@ -45,6 +45,19 @@ test('diagnostic export strips payload and raw errors and bounds records', () =>
   assert.equal(raw.stages[0].reason, undefined);
 });
 
+test('a backend refusal exports its owner blockers as bounded identifiers only', () => {
+  const refusal = { event: 'desktop_update_restart', attemptId: 'b'.repeat(64), stage: 'backend-refused', elapsedMs: 150,
+    reason: 'updater_runtime_unknown', blockers: [{ owner: 'orchestrator', code: 'owner_unknown' }, { owner: null, code: 'ingress_busy' }] };
+  const summarize = blockers => summarizeUpdateEvidence({ pending: false, completion: null,
+    diagnostics: JSON.stringify({ ...refusal, ...(blockers === undefined ? {} : { blockers }) }) }, expected).stages[0];
+  assert.deepEqual(summarize(undefined).blockers, refusal.blockers);
+  assert.deepEqual(summarize([{ owner: 'shell', code: 'owner_busy', pid: 42, path: '/tmp/x' }]).blockers, undefined);
+  for (const blockers of [[], 'owner_busy', [{ owner: '/tmp/x', code: 'owner_busy' }], [{ owner: 'shell', code: 'Bearer token' }],
+    Array(33).fill({ owner: 'shell', code: 'owner_busy' })]) {
+    assert.equal(summarize(blockers).blockers, undefined, JSON.stringify(blockers));
+  }
+});
+
 test('collector leaves fixture bytes intact, rejects aliases and oversized evidence', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'gajae-update-evidence-'));
   t.after(() => rm(root, { recursive: true, force: true }));

@@ -52,12 +52,24 @@ export function isRestartControlCommand(value: unknown): value is RestartControl
   if (value.action === 'commit') return exact(value, ['action', 'attemptId', 'token']) && token(value.token);
   return value.action === 'cancel' && exact(value, ['action', 'attemptId']);
 }
+/** Which runtime owner refused a prepare/commit and why: fixed identifiers only,
+ * never a path, prompt, PID or free-form text. Native journals them so a refused
+ * click is diagnosable from `updater-restart.jsonl` alone. */
+export type RestartBlocker = { owner: string | null; code: string };
+export const DESKTOP_RESTART_MAX_BLOCKERS = 32;
+const identifier = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(value);
+export function isRestartBlocker(value: unknown): value is RestartBlocker {
+  return object(value) && exact(value, ['owner', 'code']) && (value.owner === null || identifier(value.owner)) && identifier(value.code);
+}
 export type RestartControlResult = {
   ok: boolean; state: 'open' | 'preparing' | 'prepared' | 'committed';
   attemptId: string | null; token: string | null; expiresInMs: number | null; error: string | null;
+  blockers: readonly RestartBlocker[];
 };
 export function isRestartControlResult(value: unknown): value is RestartControlResult {
-  return object(value) && exact(value, ['ok', 'state', 'attemptId', 'token', 'expiresInMs', 'error'])
+  return object(value) && exact(value, ['ok', 'state', 'attemptId', 'token', 'expiresInMs', 'error', 'blockers'])
+    && Array.isArray(value.blockers) && value.blockers.length <= DESKTOP_RESTART_MAX_BLOCKERS && value.blockers.every(isRestartBlocker)
+    && (value.ok ? value.blockers.length === 0 : true)
     && typeof value.ok === 'boolean' && typeof value.state === 'string' && ['open', 'preparing', 'prepared', 'committed'].includes(value.state)
     && (value.attemptId === null || isRestartId(value.attemptId))
     && (value.token === null || token(value.token))

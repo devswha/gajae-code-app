@@ -12,6 +12,12 @@ const version = value => typeof value === 'string' && value.length <= 128 && sem
 const code = value => typeof value === 'string' && /^[a-z][a-z_-]{0,63}$/.test(value);
 const integer = value => Number.isSafeInteger(value) && value >= 0;
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const identifier = value => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value);
+// A backend refusal names its owners; keep only bounded identifier pairs.
+const blockers = value => Array.isArray(value) && value.length > 0 && value.length <= 32
+  && value.every(item => record(item) && Object.keys(item).length === 2
+    && (item.owner === null || identifier(item.owner)) && identifier(item.code))
+  ? value.map(({ owner, code }) => ({ owner, code })) : undefined;
 
 async function readBounded(root, name, limit) {
   let file;
@@ -41,6 +47,7 @@ export function summarizeUpdateEvidence({ diagnostics, completion, pending }, ex
       || !code(value.stage) || !integer(value.elapsedMs)) continue;
     stages.push({ attemptId: value.attemptId, stage: value.stage, elapsedMs: value.elapsedMs,
       ...(code(value.reason) ? { reason: value.reason } : {}),
+      ...(blockers(value.blockers) ? { blockers: blockers(value.blockers) } : {}),
       ...(integer(value.timeMs) ? { timeMs: value.timeMs } : {}) });
   }
   let receipt;

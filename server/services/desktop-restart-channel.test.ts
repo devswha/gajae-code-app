@@ -15,7 +15,7 @@ import { DesktopRestartChannel, type DesktopRestartHandler } from './desktop-res
 // obtain a native binding, key, socket or data directory from the running app.
 const binding = { protocolVersion: 1 as const, socket: '/unused-test-only/rpc', secret: 'a'.repeat(64), epoch: 'b'.repeat(64) };
 const attemptId = 'c'.repeat(64);
-const openResult: RestartControlResult = { ok: true, state: 'open', attemptId: null, token: null, expiresInMs: null, error: null };
+const openResult: RestartControlResult = { ok: true, state: 'open', attemptId: null, token: null, expiresInMs: null, error: null, blockers: [] };
 const line = (value: unknown) => Buffer.from(`${JSON.stringify(value)}\n`);
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 const ack = (fields: Record<string, unknown> = {}) => ({ protocolVersion: 1, kind: 'backendAttached', epoch: binding.epoch, ...fields });

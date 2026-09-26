@@ -64,6 +64,23 @@ Symlinks, non-regular files and multiply linked files are refused. A diagnostic
 write failure neither grants authority nor schedules a retry. The reason in
 status is process-local; the file survives app exit for diagnosis.
 
+A backend refusal additionally writes a `backend-refused` record carrying
+`blockers`: the owner/code pairs the server's restart authority reported
+(for example `{"owner":"orchestrator","code":"owner_unknown"}` or
+`{"owner":null,"code":"ingress_busy"}`), at most 32 fixed identifiers. The
+server includes the same `blockers` array in every `restartControlResult`
+(empty on success); native rejects a result without it. Before this, a
+refused click left only `updater_runtime_busy`/`updater_runtime_unknown` in
+the journal and the owner list existed only on the server's captured stderr,
+which a Finder-launched app never surfaces. 2026-09-26: every restart click
+recorded on the owner's Mac since 0.2.10 (21 attempts, 0.2.10→0.2.11 through
+0.2.12→0.2.14) had aborted this way; a harness replaying the backend prepare
+against the same `~/.gajae-app` showed `orchestrator owner_unknown` /
+`native-jobs owner_failed` / `native-clients owner_busy` because the
+long-lived dev stack's `gajae-core jobs` held the exclusive
+`jobs.sqlite3` lock, and a private database copy prepared cleanly. See
+`AGENTS.md` (Environment).
+
 ### Verification and acceptance boundary
 
 Regression coverage:

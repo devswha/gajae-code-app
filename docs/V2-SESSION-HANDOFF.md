@@ -1,5 +1,40 @@
 # gajae-app v2 — Session Handoff (resume state)
 
+## Why the installed beta.18 never restarts into beta.20 (2026-09-26)
+
+The owner's Mac still runs beta.18 (desktop 0.2.12). Its updater journal
+(`~/Library/Application Support/app.gajae.desktop/updater-restart.jsonl`)
+shows the download side works (the 0.2.14 archive is verified in
+`desktop-update-cache`, `ready.json` present) and that **every Restart to
+install click since 0.2.10 aborted at `backend-prepare`**: 21 attempts across
+0.2.10→0.2.11, 0.2.11→0.2.12 and 0.2.12→0.2.14, 8× `updater_runtime_unknown`
+and 13× `updater_runtime_busy`. The only completed update on record is
+0.2.6→0.2.8 under the old automatic policy.
+
+The journal did not say which owner refused. A harness
+(`/tmp/gjc-restart-harness/harness.mjs`, stands in for the shell's two native
+sockets and drives the real server's prepare) reproduced it against the same
+`~/.gajae-app`: `orchestrator owner_incomplete/owner_unknown`,
+`native-jobs owner_failed`, `native-clients owner_busy`. Cause: the
+long-lived `gajae-dev` stack's `gajae-core jobs` (running since 09-25 20:56)
+holds the exclusive `~/.gajae-app/jobs.sqlite3.lock`, so the desktop app's
+jobs authority never comes up and prepare is `unknown`; the `busy` retries
+are `ingress_busy` from clicking again while the restored SPA was still
+loading. With a private database copy the same server prepared 4/4.
+
+Landed: `restartControlResult` now carries `blockers` (server → native, exact
+key, ≤32 owner/code identifiers, empty on success), native journals a
+`backend-refused` record with them, and the evidence collector exports them.
+AGENTS.md and DESKTOP-INCIDENT-DIAGNOSTICS.md name the lock conflict. Not
+changed: where the desktop app keeps its database (sharing `~/.gajae-app`
+with a dev server is the actual hazard; splitting it is an owner decision).
+On beta.18 the fixed-in-beta.20 session-watcher restart loop can still add
+transient `watchers owner_busy`; a retry a few seconds later passes.
+
+To update the installed app: stop the dev stack (`tmux kill-session -t
+gajae-dev`), open the app, click Restart to install, then restart the dev
+stack from `/tmp/gjc-dev/README.md`.
+
 ## CLI-parity adversarial pass on SDK 0.17.6 (2026-09-25)
 
 The same prompts ran through the app's public WebSocket (`chat.send`, the path

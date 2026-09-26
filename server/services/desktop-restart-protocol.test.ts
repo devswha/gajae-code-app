@@ -25,8 +25,9 @@ const commit = { action: 'commit', attemptId, token: 'test-token:1' };
 const challenge = { protocolVersion: 1, kind: 'restartChallenge', attemptId, draftEpoch: 1, ttlMs: 5_000 };
 const disposition = { protocolVersion: 1, kind: 'restartAborted', attemptId, draftEpoch: 1, snapshot };
 const result: RestartControlResult = {
-  ok: true, state: 'prepared', attemptId, token: 'test-token:1', expiresInMs: 10_000, error: null,
+  ok: true, state: 'prepared', attemptId, token: 'test-token:1', expiresInMs: 10_000, error: null, blockers: [],
 };
+const refused: RestartControlResult = { ...result, ok: false, state: 'open', token: null, expiresInMs: null, error: 'busy', blockers: [{ owner: 'gjc-worker', code: 'owner_busy' }, { owner: null, code: 'ingress_busy' }] };
 const frame = { protocolVersion: 1, kind: 'restartControl', id: 1, epoch, command: prepare };
 
 const invalidPositive = [undefined, null, false, '1', 0, -1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1];
@@ -188,7 +189,8 @@ test('control frames recursively validate commands and disallow unrecognized kin
 
 test('control results validate bounded error codes and success/error agreement', () => {
   for (const state of ['open', 'preparing', 'prepared', 'committed']) assert.equal(isRestartControlResult({ ...result, state }), true);
-  assert.equal(isRestartControlResult({ ok: true, state: 'open', attemptId: null, token: null, expiresInMs: null, error: null }), true);
+  assert.equal(isRestartControlResult({ ok: true, state: 'open', attemptId: null, token: null, expiresInMs: null, error: null, blockers: [] }), true);
+  assert.equal(isRestartControlResult({ ok: true, state: 'open', attemptId: null, token: null, expiresInMs: null, error: null }), false, 'blockers are required');
   for (const error of ['busy', 'native_disconnected', 'a'.repeat(64)]) {
     assert.equal(isRestartControlResult({ ...result, ok: false, error }), true);
     assert.equal(isRestartControlResult({ ...result, error }), false);
@@ -197,6 +199,19 @@ test('control results validate bounded error codes and success/error agreement',
     assert.equal(isRestartControlResult({ ...result, ok: false, error }), false, String(error));
   }
   for (const ok of [undefined, null, 0, 1, 'true']) assert.equal(isRestartControlResult({ ...result, ok }), false);
+});
+
+test('control result blockers are bounded owner/code identifiers and only accompany a refusal', () => {
+  assert.equal(isRestartControlResult(refused), true);
+  assert.equal(isRestartControlResult({ ...refused, blockers: [] }), true);
+  assert.equal(isRestartControlResult({ ...result, blockers: refused.blockers }), false, 'a success carries no blockers');
+  assert.equal(isRestartControlResult({ ...refused, blockers: Array(33).fill({ owner: 'shell', code: 'owner_busy' }) }), false);
+  assert.equal(isRestartControlResult({ ...refused, blockers: Array(32).fill({ owner: 'shell', code: 'owner_busy' }) }), true);
+  for (const blockers of [undefined, null, {}, 'owner_busy', [null], ['owner_busy'], [{ owner: 'shell' }], [{ code: 'owner_busy' }],
+    [{ owner: 'shell', code: 'owner_busy', pid: 42 }], [{ owner: '/tmp/x', code: 'owner_busy' }], [{ owner: 'shell', code: 'has space' }],
+    [{ owner: 'shell', code: '' }], [{ owner: 'shell', code: 'a'.repeat(129) }], [{ owner: undefined, code: 'owner_busy' }]]) {
+    assert.equal(isRestartControlResult({ ...refused, blockers }), false, JSON.stringify(blockers));
+  }
   for (const state of [undefined, null, 1, '', 'installed', 'OPEN', {}]) assert.equal(isRestartControlResult({ ...result, state }), false);
 });
 

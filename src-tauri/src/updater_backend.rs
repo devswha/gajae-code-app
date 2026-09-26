@@ -46,6 +46,26 @@ pub(crate) enum State {
     Committed,
 }
 
+/// Which backend owner refused and why. Fixed identifiers, never a path,
+/// prompt or PID; journaled so a refused click is diagnosable afterwards.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Blocker {
+    pub owner: Option<String>,
+    pub code: String,
+}
+
+const MAX_BLOCKERS: usize = 32;
+
+fn identifier(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value.as_bytes()[0].is_ascii_alphanumeric()
+        && value
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"._:-".contains(&c))
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct Outcome {
@@ -55,11 +75,17 @@ pub(crate) struct Outcome {
     pub token: Option<String>,
     pub expires_in_ms: Option<u64>,
     pub error: Option<String>,
+    pub blockers: Vec<Blocker>,
 }
 
 impl Outcome {
     fn valid(&self) -> bool {
-        self.attempt_id.as_deref().is_none_or(hex_id)
+        self.blockers.len() <= MAX_BLOCKERS
+            && self.blockers.iter().all(|blocker| {
+                blocker.owner.as_deref().is_none_or(identifier) && identifier(&blocker.code)
+            })
+            && (!self.ok || self.blockers.is_empty())
+            && self.attempt_id.as_deref().is_none_or(hex_id)
             && self.token.as_deref().is_none_or(|value| {
                 !value.is_empty()
                     && value.len() <= 256
@@ -181,10 +207,18 @@ impl Backend {
         let result = frame["result"]
             .as_object()
             .ok_or("updater_backend_invalid")?;
-        if result.len() != 6
-            || ["ok", "state", "attemptId", "token", "expiresInMs", "error"]
-                .iter()
-                .any(|key| !result.contains_key(*key))
+        if result.len() != 7
+            || [
+                "ok",
+                "state",
+                "attemptId",
+                "token",
+                "expiresInMs",
+                "error",
+                "blockers",
+            ]
+            .iter()
+            .any(|key| !result.contains_key(*key))
         {
             return Err("updater_backend_invalid");
         }
@@ -271,7 +305,7 @@ mod tests {
             let request = read_frame(&mut node, Instant::now() + TEST_DEADLINE).unwrap();
             assert_eq!(request["command"], serde_json::json!({"action":"status"}));
             let reply = serde_json::json!({"protocolVersion":1,"kind":"restartControlResult","epoch":request["epoch"],"id":request["id"],
-                "result":{"ok":true,"state":"open","attemptId":null,"token":null,"expiresInMs":null,"error":null}});
+                "result":{"ok":true,"state":"open","attemptId":null,"token":null,"expiresInMs":null,"error":null,"blockers":[]}});
             writeln!(node, "{reply}").unwrap();
             // Production keeps this control channel alive until retirement.
             // Dropping the peer immediately after writing races the native
@@ -294,10 +328,49 @@ mod tests {
     }
 
     #[test]
+    fn a_refusal_carries_its_bounded_owner_blockers() {
+        let (native, mut node) = UnixStream::pair().unwrap();
+        let backend = Backend::new(native, "c".repeat(64)).unwrap();
+        let (release_peer, keep_peer) = std::sync::mpsc::channel::<()>();
+        let peer = std::thread::spawn(move || {
+            let request = read_frame(&mut node, Instant::now() + TEST_DEADLINE).unwrap();
+            let reply = serde_json::json!({"protocolVersion":1,"kind":"restartControlResult","epoch":request["epoch"],"id":request["id"],
+                "result":{"ok":false,"state":"open","attemptId":null,"token":null,"expiresInMs":null,"error":"unknown",
+                "blockers":[{"owner":"orchestrator","code":"owner_unknown"},{"owner":null,"code":"ingress_busy"}]}});
+            writeln!(node, "{reply}").unwrap();
+            let _ = keep_peer.recv();
+        });
+        let outcome = backend
+            .request(Control::Status, Instant::now() + TEST_DEADLINE)
+            .unwrap();
+        assert!(!outcome.ok);
+        assert_eq!(
+            outcome.blockers,
+            vec![
+                Blocker {
+                    owner: Some("orchestrator".into()),
+                    code: "owner_unknown".into()
+                },
+                Blocker {
+                    owner: None,
+                    code: "ingress_busy".into()
+                },
+            ]
+        );
+        drop(release_peer);
+        peer.join().unwrap();
+    }
+
+    #[test]
     fn forged_or_incomplete_results_retire_the_channel() {
         for malformed in [
             serde_json::json!({}),
-            serde_json::json!({"ok":true,"state":"open","attemptId":null,"token":null,"expiresInMs":null}),
+            serde_json::json!({"ok":true,"state":"open","attemptId":null,"token":null,"expiresInMs":null,"error":null}),
+            // A success never carries blockers; a refusal's blockers are bounded identifiers.
+            serde_json::json!({"ok":true,"state":"open","attemptId":null,"token":null,"expiresInMs":null,"error":null,"blockers":[{"owner":"shell","code":"owner_busy"}]}),
+            serde_json::json!({"ok":false,"state":"open","attemptId":null,"token":null,"expiresInMs":null,"error":"busy","blockers":[{"owner":"/tmp/x","code":"owner_busy"}]}),
+            serde_json::json!({"ok":false,"state":"open","attemptId":null,"token":null,"expiresInMs":null,"error":"busy","blockers":[{"owner":"shell","code":"owner_busy","pid":42}]}),
+            serde_json::json!({"ok":false,"state":"open","attemptId":null,"token":null,"expiresInMs":null,"error":"busy","blockers":vec![serde_json::json!({"owner":"shell","code":"owner_busy"}); 33]}),
         ] {
             let (native, mut node) = UnixStream::pair().unwrap();
             let backend = Backend::new(native, "b".repeat(64)).unwrap();

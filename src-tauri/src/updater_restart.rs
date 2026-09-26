@@ -87,7 +87,17 @@ impl Attempt {
         }
     }
     fn trace(&self, stage: &'static str, reason: Option<&'static str>) {
-        let record = serde_json::json!({
+        self.trace_with(stage, reason, &[]);
+    }
+    /// A backend refusal names the owners that refused (`blockers`), so the
+    /// journal alone tells busy-from-what apart from unknown-from-what.
+    fn trace_with(
+        &self,
+        stage: &'static str,
+        reason: Option<&'static str>,
+        blockers: &[crate::updater_backend::Blocker],
+    ) {
+        let mut record = serde_json::json!({
             "event": "desktop_update_restart", "attemptId": self.id,
             "stage": stage, "elapsedMs": self.started.elapsed().as_millis(),
             "reason": reason, "sourceProductVersion": env!("GJC_EXPECTED_PAYLOAD_VERSION"),
@@ -96,6 +106,9 @@ impl Attempt {
             "os": std::env::consts::OS, "arch": std::env::consts::ARCH,
             "timeMs": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis(),
         });
+        if !blockers.is_empty() {
+            record["blockers"] = serde_json::json!(blockers);
+        }
         eprintln!("{record}");
         if let Some(root) = &self.diagnostic_root {
             let _ = append_diagnostic(root, &record.to_string());
@@ -692,7 +705,13 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
         {
             value
         }
-        other => return abort(app, &attempt, prepare_failure(&other)).await,
+        other => {
+            let reason = prepare_failure(&other);
+            if let Ok(outcome) = &other {
+                attempt.trace_with("backend-refused", Some(reason), &outcome.blockers);
+            }
+            return abort(app, &attempt, reason).await;
+        }
     };
     let token_deadline =
         Instant::now() + Duration::from_millis(prepared.expires_in_ms.unwrap_or(0));
@@ -755,6 +774,11 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
                 && value.state == BackendState::Committed
                 && value.attempt_id.as_deref() == Some(&attempt.id) => {}
         Ok(value) if !value.ok && value.state != BackendState::Committed => {
+            attempt.trace_with(
+                "backend-refused",
+                Some("updater_runtime_changed"),
+                &value.blockers,
+            );
             attempt.set(Phase::Navigating);
             return abort(app, &attempt, "updater_runtime_changed").await;
         }
@@ -929,7 +953,7 @@ mod tests {
             ("arbitrary_error", "updater_backend_invalid"),
         ] {
             let outcome = serde_json::from_value(serde_json::json!({"ok":false,"state":"open",
-                "attemptId":null,"token":null,"expiresInMs":null,"error":code}))
+                "attemptId":null,"token":null,"expiresInMs":null,"error":code,"blockers":[]}))
             .unwrap();
             assert_eq!(prepare_failure(&Ok(outcome)), expected);
         }

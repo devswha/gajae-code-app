@@ -93,6 +93,8 @@ test('shell descendant uncertainty gets a stable classification while prepare re
   assert.equal(result.attemptId, null);
   assert.equal(result.token, null);
   assert.equal(isRestartControlResult(result), true);
+  // The refusing owner travels with the code so native can journal it.
+  assert.deepEqual(result.blockers, [{ owner: 'shell', code: 'owner_incomplete' }, { owner: 'shell', code: 'owner_unknown' }]);
   const snapshot = await f.authority.snapshot();
   assert.equal(snapshot.idle, false);
   assert.ok(snapshot.blockers.some(({ owner, code }) => owner === 'shell' && code === 'owner_unknown'));
@@ -104,6 +106,7 @@ test('native sealed prepare and exact token commit fence work without invoking a
   const result = await f.backend.handle(prepare, native);
   assert.equal(result.ok, true); assert.equal(result.state, 'prepared'); assert.ok(result.token);
   assert.equal(isRestartControlResult(result), true);
+  assert.deepEqual(result.blockers, []);
   assert.notEqual(f.backend.draftReader.getGeneration(), before);
   assert.equal(f.backend.draftReader.read().complete, true);
   assert.throws(() => f.authority.enter('new:work'), { code: 'DESKTOP_RESTART_FENCED' });
@@ -125,6 +128,7 @@ test('browser status refresh runs before owner reads and observes native activit
   const result = await f.backend.handle(prepare, native);
   assert.equal(result.ok, false);
   assert.equal(result.error, 'busy');
+  assert.deepEqual(result.blockers, [{ owner: 'browser', code: 'owner_busy' }]);
   assert.deepEqual(f.events, ['status', 'read']);
   assert.equal(f.authority.state, 'open');
 });
@@ -164,7 +168,9 @@ test('native browser activity after refresh invalidates commit through generatio
 test('busy runtime reopens without discarding work and a consumed draft epoch cannot be replayed', async () => {
   const f = fixture(); f.backend.bind(native);
   const release = f.authority.enter('accepted:work');
-  assert.equal((await f.backend.handle(prepare, native)).error, 'busy');
+  const refused = await f.backend.handle(prepare, native);
+  assert.equal(refused.error, 'busy');
+  assert.deepEqual(refused.blockers, [{ owner: null, code: 'ingress_busy' }]);
   assert.equal(f.backend.draftReader.read().complete, false);
   assert.equal((await f.authority.snapshot()).ingress, 1);
   release();

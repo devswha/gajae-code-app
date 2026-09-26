@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 
-import { isRestartControlCommand, isRestartId, type RestartControlCommand, type RestartControlResult } from '../../shared/desktopRestartProtocol.js';
+import { DESKTOP_RESTART_MAX_BLOCKERS, isRestartControlCommand, isRestartId, type RestartBlocker, type RestartControlCommand, type RestartControlResult } from '../../shared/desktopRestartProtocol.js';
 import type { DesktopOwnerActivity } from '../../shared/desktopUpdateProtocol.js';
 
 import { DesktopRestartAuthority } from './desktop-restart-authority.js';
@@ -12,7 +12,15 @@ type Attempt = {
 };
 type BrowserStatusRefresh = () => Promise<{ ready: boolean }>;
 
-function classifyPrepareFailure(result: Extract<Awaited<ReturnType<DesktopRestartAuthority['prepare']>>, { ok: false }>): string {
+type AuthorityFailure = Extract<Awaited<ReturnType<DesktopRestartAuthority['prepare']>>, { ok: false }>;
+
+/** Owner/code pairs only; the authority's blockers carry nothing else, but the
+ * wire shape is fixed here rather than trusting whatever a reader produced. */
+function relayBlockers(result: AuthorityFailure): RestartBlocker[] {
+  return result.blockers.slice(0, DESKTOP_RESTART_MAX_BLOCKERS).map(({ owner, code }) => ({ owner: owner ?? null, code }));
+}
+
+function classifyPrepareFailure(result: AuthorityFailure): string {
   // The shell owner deliberately keeps PTY descendant uncertainty latched for
   // the server lifetime. Preserve the authority's failed prepare while giving
   // the native/UI layers a stable, actionable reason code.
@@ -102,7 +110,7 @@ export class DesktopRestartBackend {
         const committed = await this.authority.commit(active.token, active.epoch);
         if (committed.ok) return this.result(true);
         this.clear(active);
-        return this.result(false, committed.code);
+        return this.result(false, committed.code, relayBlockers(committed));
       }
     }
   }
@@ -154,12 +162,11 @@ export class DesktopRestartBackend {
     const prepared = authority.prepare({ attemptId: active.id, epoch: active.epoch, budgetMs: remainingMs }).then((result) => {
       if (this.active !== active || this.nativeEpoch !== binding) return this.result(false, 'cancelled');
       if (!result.ok) {
-        if (process.env.GJC_DESKTOP_UPDATE_PIPE === '1') {
-          console.error('[Desktop restart] Preparation deferred:', result.blockers.map(({ owner, code }) => ({ owner, code })));
-        }
+        const blockers = relayBlockers(result);
+        if (process.env.GJC_DESKTOP_UPDATE_PIPE === '1') console.error('[Desktop restart] Preparation deferred:', blockers);
         authority.controllerLost(active.epoch);
         this.clear(active);
-        return this.result(false, classifyPrepareFailure(result));
+        return this.result(false, classifyPrepareFailure(result), blockers);
       }
       active.token = result.token;
       active.expiresAt = result.expiresAt;
@@ -187,11 +194,11 @@ export class DesktopRestartBackend {
     this.active = undefined;
     this.revision++;
   }
-  private result(ok: boolean, error: string | null = null): RestartControlResult {
+  private result(ok: boolean, error: string | null = null, blockers: readonly RestartBlocker[] = []): RestartControlResult {
     this.refresh();
     const state = this.authority?.state ?? 'open';
     const token = state === 'prepared' ? this.active?.token ?? null : null;
     const expiresInMs = token && this.active?.expiresAt !== undefined ? Math.max(1, Math.min(10_000, Math.floor(this.active.expiresAt - this.now()))) : null;
-    return { ok, state, attemptId: this.active?.id ?? null, token, expiresInMs, error };
+    return { ok, state, attemptId: this.active?.id ?? null, token, expiresInMs, error, blockers: ok ? [] : blockers };
   }
 }

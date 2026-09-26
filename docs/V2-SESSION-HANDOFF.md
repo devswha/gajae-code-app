@@ -31,9 +31,20 @@ with a dev server is the actual hazard; splitting it is an owner decision).
 On beta.18 the fixed-in-beta.20 session-watcher restart loop can still add
 transient `watchers owner_busy`; a retry a few seconds later passes.
 
-To update the installed app: stop the dev stack (`tmux kill-session -t
-gajae-dev`), open the app, click Restart to install, then restart the dev
-stack from `/tmp/gjc-dev/README.md`.
+Same day, owner decision: the dev stack now runs on its own database
+(`DATABASE_PATH=$HOME/.gajae-app-dev/auth.db`; `auth.db` copied once,
+`jobs.sqlite3` fresh) so `~/.gajae-app` belongs to the desktop app alone.
+`/tmp/gjc-dev/README.md` and AGENTS.md carry the new command. Verified after
+the restart: dev server healthy with its jobs authority,
+`~/.gajae-app/jobs.sqlite3.lock` free. The installed beta.18 can now take
+the cached 0.2.14 through **Restart to install**; the result of that click
+is not yet recorded here.
+
+Follow-up for beta.21 (owner-approved direction, not started): move the
+desktop app's database under its own data root
+(`app_local_data_dir`, where the updater journals already live) with a
+one-time migration from `~/.gajae-app`, so the collision cannot recur for
+any user who also runs the self-hosted server.
 
 ## CLI-parity adversarial pass on SDK 0.17.6 (2026-09-25)
 

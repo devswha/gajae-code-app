@@ -37,18 +37,19 @@ job projection protocol). `scripts/` holds build/release/verify tooling.
   (check `tmux ls` and `lsof -nP -iTCP:3001 -iTCP:5173 -sTCP:LISTEN`; its log is
   mirrored to `/tmp/gjc-dev/dev.log` and the address/operating notes live in
   `/tmp/gjc-dev/README.md`). Reuse it rather than starting a second
-  `npm run dev` on the same ports. On the primary Mac it serves the tailnet:
-  `HOST=$(tailscale ip -4) GAJAE_ALLOW_UNAUTH_REMOTE=1 npm run dev`. That
-  override disables authentication on the bound address, so never combine it
-  with a bind that is reachable outside the tailnet.
-- The dev stack and the installed desktop app share `~/.gajae-app` (unless
-  `DATABASE_PATH` is set), and `gajae-core jobs` takes an exclusive lock on
-  `jobs.sqlite3` there. Whichever starts second runs without its jobs
-  authority: jobs are unavailable and the desktop updater's **Restart to
-  install** is refused (`updater_runtime_unknown`, journal blockers
-  `orchestrator owner_unknown` / `native-jobs owner_failed`). Stop the dev
-  stack before testing a desktop update, or run it with its own
-  `DATABASE_PATH`.
+  `npm run dev` on the same ports. On the primary Mac it serves the tailnet
+  from its own database:
+  `HOST=$(tailscale ip -4) GAJAE_ALLOW_UNAUTH_REMOTE=1 DATABASE_PATH=$HOME/.gajae-app-dev/auth.db npm run dev`.
+  The unauth override disables authentication on the bound address, so never
+  combine it with a bind that is reachable outside the tailnet.
+- **Never run a dev server on `~/.gajae-app` while the desktop app is
+  installed.** Without `DATABASE_PATH` the server uses `~/.gajae-app`, and
+  `gajae-core jobs` takes an exclusive lock on `jobs.sqlite3` there.
+  Whichever instance starts second runs without its jobs authority: jobs are
+  unavailable and the desktop updater's **Restart to install** is refused
+  (`updater_runtime_unknown`, journal blockers `orchestrator owner_unknown` /
+  `native-jobs owner_failed`). On the primary Mac the dev stack uses
+  `~/.gajae-app-dev`; the desktop app owns `~/.gajae-app`.
 - Tauri builds choke on `CI=1`: use `env -u CI npm run tauri -- build`.
 - A release-profile macOS build refuses to guess its updater mode: set
   `GJC_UPDATE_MODE=disabled` for ad-hoc/manual bundles, or the full production

@@ -120,7 +120,7 @@ function MetricCard({
         <Icon className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
       </div>
       <p className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">{label}</p>
-      <p className={`${compact ? 'mt-0.5 text-[13px]' : 'mt-1 text-sm'} font-semibold break-all text-foreground`}>{value}</p>
+      <p className={`${compact ? 'mt-0.5 text-[13px]' : 'mt-1 text-sm'} font-semibold wrap-anywhere text-foreground`}>{value}</p>
     </div>
   );
 }
@@ -308,7 +308,7 @@ function ModelsContent({
             Active model · {providerLabel}
           </p>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <span className="font-mono text-sm font-semibold break-all text-foreground">{currentModel}</span>
+            <span className="font-mono text-sm font-semibold wrap-anywhere text-foreground">{currentModel}</span>
             {pendingSessionModel && pendingSessionModel !== currentModel && (
               <span className="text-[11px] font-semibold tracking-[0.14em] text-emerald-500 uppercase dark:text-emerald-400">
                 → {pendingSessionModel} next
@@ -358,7 +358,7 @@ function ModelsContent({
                   style={{ animationDelay: `${Math.min(index * 14, 180)}ms` }}
                 >
                   <span className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-sm font-semibold break-all text-foreground">{option.value}</span>
+                    <span className="font-mono text-sm font-semibold wrap-anywhere text-foreground">{option.value}</span>
                     {isCurrent ? (
                       <BadgeCheck className="h-4 w-4 shrink-0 text-primary" />
                     ) : isChanging ? (
@@ -470,7 +470,7 @@ function CostContent({ data }: { data: CostCommandData }) {
           </div>
           <div>
             <p className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">Model</p>
-            <p className="mt-1 font-mono text-sm break-all text-foreground">{model}</p>
+            <p className="mt-1 font-mono text-sm wrap-anywhere text-foreground">{model}</p>
           </div>
         </div>
       </div>

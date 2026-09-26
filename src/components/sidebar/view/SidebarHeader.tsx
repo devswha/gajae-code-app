@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 
 import { BRAND_NAME } from '../../../constants/branding';
 import { Button } from '../../../shared/view/ui';
+import { modShortcutLabel } from '../../../utils/shortcutLabel';
 
 type SidebarHeaderProps = {
   isPWA: boolean;
@@ -50,7 +51,7 @@ export default function SidebarHeader({
           className="size-8 rounded-lg p-0 text-muted-foreground hover:bg-accent/70 hover:text-foreground"
           onClick={onSearch}
           aria-label={searchLabel}
-          title={`${searchLabel} (Ctrl+K)`}
+          title={`${searchLabel} (${modShortcutLabel('K')})`}
         >
           <Search className="size-4.5" />
         </Button>

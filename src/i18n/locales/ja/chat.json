@@ -44,7 +44,8 @@
   },
   "tools": {
     "error": "ツールエラー",
-    "rawParams": "生パラメータ"
+    "rawParams": "生パラメータ",
+    "more": "ほか{{count}}件"
   },
   "search": {
     "in": "場所:"

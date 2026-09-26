@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { TOOL_CONFIGS, getToolConfig, getToolResultConfig, rendersCommandRow, rendersResultInline, shouldHideToolResult } from './toolConfigs';
+import { TOOL_CONFIGS, getToolConfig, getToolResultConfig, rendersCommandRow, rendersResultInline, shouldHideToolResult, toolDisplayName } from './toolConfigs';
 
 /*
  * These configs are the app's half of a contract with the runtime: the keys are
@@ -175,4 +175,21 @@ test('an edit whose result carries no details keeps the replace-mode fallback', 
   assert.equal(props.files, undefined);
   assert.equal(props.oldContent, 'x');
   assert.equal(titleOf('edit', input), 'a.ts', 'the input path names the card whatever the result says');
+});
+
+test('a read row drops the raw mode flag but keeps the line range it read', () => {
+  const value = (path: string) => TOOL_CONFIGS.read.input.getValue?.({ path });
+  assert.equal(value('tidepool/cli.py:raw'), 'tidepool/cli.py');
+  assert.equal(value('tides.csv:1-3'), 'tides.csv:1-3');
+  assert.equal(value('cli.py:2-4:raw'), 'cli.py:2-4');
+  assert.equal(value('cli.py:raw:2-4'), 'cli.py:2-4');
+  // Only the whole `raw` selector goes; a file named like it stays intact.
+  assert.equal(value('notes/rawdata.txt'), 'notes/rawdata.txt');
+  assert.equal(value('a:rawer'), 'a:rawer');
+});
+
+test('group labels read as words, not wire names', () => {
+  assert.equal(toolDisplayName('edit'), 'Edit');
+  assert.equal(toolDisplayName('apply_patch'), 'Apply patch');
+  assert.equal(toolDisplayName('Bash'), 'Bash');
 });

@@ -1,4 +1,3 @@
-import { useCallback, useRef, useState, useEffect } from 'react';
 import { PanelRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -6,12 +5,10 @@ import type { MainContentHeaderProps } from '../types/types';
 import ToolOutputDensityToggle from '../../chat/view/ToolOutputDensityToggle';
 
 import MobileMenuButton from './MobileMenuButton';
-import MainContentTabSwitcher from './MainContentTabSwitcher';
 import MainContentTitle from './MainContentTitle';
 
 export default function MainContentHeader({
   activeTab,
-  setActiveTab,
   selectedProject,
   selectedSession,
   isMobile,
@@ -20,26 +17,7 @@ export default function MainContentHeader({
   onToggleSidebar,
 }: MainContentHeaderProps) {
   const { t } = useTranslation();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
 
-
-  const updateScrollState = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 2);
-    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
-  }, []);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    updateScrollState();
-    const observer = new ResizeObserver(updateScrollState);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [updateScrollState]);
   return (
     // The bar spans the full row, but its title lines up with the conversation
     // below it, which the chat lane insets by `pl-2` to clear the sidebar rail.
@@ -54,25 +32,9 @@ export default function MainContentHeader({
           />
         </div>
 
-        <div className="flex min-w-0 shrink items-center gap-1.5 sm:shrink-0">
-        <div className="relative min-w-0 shrink overflow-hidden sm:shrink-0">
-          {canScrollLeft && (
-            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-linear-to-r from-background to-transparent" />
-          )}
-          <div
-            ref={scrollRef}
-            onScroll={updateScrollState}
-            className="scrollbar-hide overflow-x-auto"
-          >
-            <MainContentTabSwitcher
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-            />
-          </div>
-          {canScrollRight && (
-            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-linear-to-l from-background to-transparent" />
-          )}
-        </div>
+        {/* Chat is the only view, so there is no view switcher: a one-tab
+            segmented control read as a mode the user could leave. */}
+        <div className="flex shrink-0 items-center gap-1.5">
           {activeTab === 'chat' && <ToolOutputDensityToggle />}
           <button
             type="button"

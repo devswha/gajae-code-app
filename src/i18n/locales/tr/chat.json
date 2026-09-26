@@ -44,7 +44,8 @@
   },
   "tools": {
     "error": "Takım sorunu",
-    "rawParams": "ham parametreler"
+    "rawParams": "ham parametreler",
+    "more": "+{{count}} tane daha"
   },
   "search": {
     "in": "konum:"

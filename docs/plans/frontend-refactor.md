@@ -341,8 +341,9 @@ the full gate green at each commit.
 
 - ~~`dompurify` and `rehype-raw` are declared in `package.json` and imported
   nowhere.~~ Removed, together with the equally unimported `chokidar`.
-- Two `.jsx` files remain: `src/main.jsx`, `src/contexts/ThemeContext.jsx`,
-  plus `src/i18n/*.js`. (`src/hooks/useLocalStorage.jsx` was removed as dead code.)
+- One `.jsx` file remains: `src/main.jsx`, plus `src/i18n/*.js`.
+  (`src/hooks/useLocalStorage.jsx` was removed as dead code;
+  `src/contexts/ThemeContext` is now `.tsx`.)
 
 ## Acceptance criteria
 

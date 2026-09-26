@@ -44,7 +44,8 @@
   },
   "tools": {
     "error": "Problème d'outil",
-    "rawParams": "paramètres bruts"
+    "rawParams": "paramètres bruts",
+    "more": "+{{count}} de plus"
   },
   "search": {
     "in": "dans :"

@@ -210,9 +210,12 @@
     }
   },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "深色主题",
-      "description": "在亮色和暗色主题之间切换"
+    "theme": {
+      "label": "主题",
+      "description": "跟随系统外观，或固定使用一种主题",
+      "system": "跟随系统",
+      "light": "浅色",
+      "dark": "深色"
     },
     "interfaceFontSize": {
       "label": "界面文字大小",

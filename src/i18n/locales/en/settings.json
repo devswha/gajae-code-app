@@ -225,9 +225,12 @@
     }
   },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "Dark theme",
-      "description": "Switch between light and dark themes"
+    "theme": {
+      "label": "Theme",
+      "description": "Follow the system appearance or keep one theme",
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
     },
     "interfaceFontSize": {
       "label": "Interface text size",

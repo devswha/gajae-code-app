@@ -17,10 +17,10 @@ const STROKE = 2;
 const RADIUS = (SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 /**
- * A dashed track separates "this provider reports no quota" from "this quota is
- * spent". Both draw no arc, so without a difference in the track itself an
- * unsupported provider would read as an empty one — and the difference has to
- * be in the shape, because colour alone cannot carry it.
+ * A dashed track separates "no reading right now" (error, re-auth) from "this
+ * quota is spent". Both draw no arc, so without a difference in the track
+ * itself a failed read would look like an empty quota - and the difference has
+ * to be in the shape, because colour alone cannot carry it.
  */
 const TRACK_DASH = `${(CIRCUMFERENCE / 16).toFixed(2)} ${(CIRCUMFERENCE / 16).toFixed(2)}`;
 
@@ -35,9 +35,11 @@ type ProviderQuotaRingProps = {
 function ProviderGlyph({ entry }: { entry: ProviderQuotaEntry }) {
   const logoId = quotaProviderLogoId(entry.provider);
   if (logoId) return <SessionProviderLogo provider={logoId} className="size-3" />;
+  // One initial at a legible size; two letters at 8px did not fit the ring
+  // at any size a person can read.
   return (
-    <span aria-hidden className="text-[8px] leading-none font-semibold text-muted-foreground">
-      {entry.providerName.slice(0, 2).toUpperCase()}
+    <span aria-hidden className="text-[10px] leading-none font-semibold text-muted-foreground">
+      {entry.providerName.slice(0, 1).toUpperCase()}
     </span>
   );
 }
@@ -45,7 +47,6 @@ function ProviderGlyph({ entry }: { entry: ProviderQuotaEntry }) {
 function StatusNote({ entry, t }: { entry: ProviderQuotaEntry; t: TFunction }) {
   if (entry.status === 'reauth') return <span className="text-destructive">{t('providerQuota.reauth')}</span>;
   if (entry.status === 'error') return <span className="text-muted-foreground">{t('providerQuota.error')}</span>;
-  if (entry.status === 'unsupported') return <span className="text-muted-foreground">{t('providerQuota.unsupported')}</span>;
   if (entry.stale) return <span className="text-muted-foreground">{t('providerQuota.stale')}</span>;
   return null;
 }
@@ -55,7 +56,7 @@ function StatusNote({ entry, t }: { entry: ProviderQuotaEntry; t: TFunction }) {
  * whose arc is the remaining share of the window that runs out first.
  *
  * The arc length carries the meaning; colour only emphasises an almost-spent
- * quota. Loading, unsupported, re-auth and error all render at the same size
+ * quota. Loading, re-auth and error all render at the same size
  * with no arc, so the footer never shifts and no percentage is invented.
  */
 export default function ProviderQuotaRing({ entry, now = Date.now(), tooltipPosition = 'top', t }: ProviderQuotaRingProps) {

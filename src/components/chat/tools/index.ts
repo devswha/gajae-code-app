@@ -1,3 +1,3 @@
 export * from './components';
-export { getToolConfig, getToolResultConfig, rendersCommandRow, rendersResultInline, shouldHideToolResult } from './configs/toolConfigs';
+export { getToolConfig, getToolResultConfig, rendersCommandRow, rendersResultInline, shouldHideToolResult, toolDisplayName } from './configs/toolConfigs';
 export { ToolRenderer } from './ToolRenderer';

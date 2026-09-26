@@ -34,8 +34,8 @@
     "hideSidebar": "Collapse sidebar",
     "createProject": "Add a project",
     "createSession": "Start a conversation",
-    "refresh": "Reload projects and conversations (Ctrl+R)",
-    "renameProject": "Rename workspace (F2)",
+    "refresh": "Reload projects and conversations",
+    "renameProject": "Rename workspace",
     "archiveProject": "Move this project to the archive (nothing is deleted)",
     "addToFavorites": "Mark as favourite",
     "removeFromFavorites": "Remove favourite mark",
@@ -104,7 +104,6 @@
     "accounts_one": "{{count}} account",
     "accounts_other": "{{count}} accounts",
     "noWindowData": "No figures reported",
-    "unsupported": "Usage unavailable for this provider",
     "reauth": "Sign in again to read usage",
     "error": "Usage could not be refreshed",
     "stale": "Last known figures"

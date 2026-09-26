@@ -210,9 +210,12 @@
     }
   },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "Koyu tema",
-      "description": "Açık ve koyu temalar arasında geçiş yapın"
+    "theme": {
+      "label": "Tema",
+      "description": "Sistem görünümünü izleyin veya tek bir temada kalın",
+      "system": "Sistem",
+      "light": "Açık",
+      "dark": "Koyu"
     },
     "interfaceFontSize": {
       "label": "Arayüz metin boyutu",

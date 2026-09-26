@@ -9,7 +9,7 @@ import { hasFailedResult } from '../utils/toolGrouping';
 import type { ToolGroupItem } from '../utils/toolGrouping';
 import { toolOutputDensityRules } from '../utils/toolOutputDensity';
 import type { ToolOutputDensity } from '../utils/toolOutputDensity';
-import { getToolConfig, rendersCommandRow } from '../tools';
+import { getToolConfig, rendersCommandRow, toolDisplayName } from '../tools';
 
 import MessageComponent from './MessageComponent';
 
@@ -57,12 +57,14 @@ function getToolInputPreview(message: ChatMessage): string {
   return String(value || command || title || message.displayText || message.content || '').trim();
 }
 
-function getToolGroupIcon(icon: string | undefined, toolName: string): string {
-  if (icon === 'terminal' || rendersCommandRow(toolName)) {
-    return '$';
-  }
-
-  return icon || toolName.slice(0, 1).toUpperCase();
+/**
+ * Command groups keep the prompt sigil their single rows show. Other tools get
+ * no glyph: the first letter of the label ("R Read", "E Edit") only repeated
+ * the word beside it.
+ */
+function getToolGroupIcon(icon: string | undefined, toolName: string): string | null {
+  if (icon === 'terminal' || rendersCommandRow(toolName)) return '$';
+  return icon || null;
 }
 
 export default function ToolGroupContainer({
@@ -88,7 +90,7 @@ export default function ToolGroupContainer({
   }, [opensForFailure]);
   const { t } = useTranslation('chat');
   const config = getToolConfig(group.toolName).input;
-  const label = config.label || group.toolName;
+  const label = config.label || toolDisplayName(group.toolName);
   const iconClass = config.colorScheme?.icon || 'text-muted-foreground';
   const icon = getToolGroupIcon(config.icon, group.toolName);
 
@@ -100,13 +102,11 @@ export default function ToolGroupContainer({
 
     const extraCount = group.messages.length - visiblePreviews.length;
     const previewText = visiblePreviews.join(', ');
+    const more = extraCount > 0 ? t('tools.more', { count: extraCount }) : '';
 
-    if (!previewText) {
-      return extraCount > 0 ? `+${extraCount} more` : '';
-    }
-
-    return extraCount > 0 ? `${previewText}, +${extraCount} more` : previewText;
-  }, [group.messages]);
+    if (!previewText) return more;
+    return more ? `${previewText}, ${more}` : previewText;
+  }, [group.messages, t]);
 
   return (
     <div className="chat-message tool px-3 sm:px-0" data-message-timestamp={group.timestamp || undefined}>
@@ -123,7 +123,7 @@ export default function ToolGroupContainer({
           className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`}
           aria-hidden
         />
-        <span className={`${iconClass} shrink-0 text-xs font-medium`}>{icon}</span>
+        {icon && <span className={`${iconClass} shrink-0 text-xs font-medium`}>{icon}</span>}
         <span className="min-w-0 shrink-0 text-xs font-medium text-foreground">{label}</span>
         {group.messages.length > 1 && (
           <span className="shrink-0 text-[11px] text-muted-foreground/60 tabular-nums">

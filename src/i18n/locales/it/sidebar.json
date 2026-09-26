@@ -34,8 +34,8 @@
     "hideSidebar": "Comprimi la barra laterale",
     "createProject": "Aggiungi un progetto",
     "createSession": "Inizia una conversazione",
-    "refresh": "Ricarica progetti e conversazioni (Ctrl+R)",
-    "renameProject": "Rinomina area di lavoro (F2)",
+    "refresh": "Ricarica progetti e conversazioni",
+    "renameProject": "Rinomina area di lavoro",
     "archiveProject": "Sposta questo progetto nell'archivio (non viene eliminato nulla)",
     "addToFavorites": "Segna come preferito",
     "removeFromFavorites": "Rimuovi il contrassegno preferito",
@@ -104,7 +104,6 @@
     "accounts_one": "{{count}} account",
     "accounts_other": "{{count}} account",
     "noWindowData": "Nessun valore riportato",
-    "unsupported": "Utilizzo non disponibile per questo provider",
     "reauth": "Accedi di nuovo per leggere l’utilizzo",
     "error": "Impossibile aggiornare l’utilizzo",
     "stale": "Ultimi valori noti"

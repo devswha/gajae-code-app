@@ -44,7 +44,8 @@
   },
   "tools": {
     "error": "Problema con lo strumento",
-    "rawParams": "parametri grezzi"
+    "rawParams": "parametri grezzi",
+    "more": "+{{count}} altri"
   },
   "search": {
     "in": "in:"

@@ -60,7 +60,7 @@ function CommandRow({ command, copied, hasOutput, isRunning, lineCount, onCopy, 
         />
       )}
       <span className="shrink-0 font-mono text-xs text-muted-foreground select-none">$</span>
-      <code className={cn('min-w-0 flex-1 font-mono text-xs text-foreground', open ? 'break-all whitespace-pre-wrap' : 'truncate')}>
+      <code className={cn('min-w-0 flex-1 font-mono text-xs text-foreground', open ? 'wrap-anywhere whitespace-pre-wrap' : 'truncate')}>
         {command}
       </code>
       {!open && hasOutput && !isRunning && (
@@ -145,7 +145,7 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
             <span className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">Output</span>
             <div className="h-px flex-1 bg-border" />
           </div>
-          <pre className={cn('max-h-80 overflow-auto px-3 py-2 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap', isError ? 'text-destructive' : 'text-muted-foreground')}>
+          <pre className={cn('max-h-80 overflow-auto px-3 py-2 font-mono text-xs leading-relaxed wrap-anywhere whitespace-pre-wrap', isError ? 'text-destructive' : 'text-muted-foreground')}>
             {text}
           </pre>
         </div>

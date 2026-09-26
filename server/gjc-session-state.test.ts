@@ -38,6 +38,17 @@ test('reads model, reasoning level, cwd and context in one pass', () => {
   });
 });
 
+test('the model is reported as provider/model, the key the app catalog uses', () => {
+  const qualified = readSessionSnapshot(session({ model: { id: 'claude-opus-5-5', provider: 'anthropic' } }), manager());
+  assert.equal(qualified?.modelId, 'anthropic/claude-opus-5-5');
+
+  // Already qualified, or no provider to qualify with: left as reported.
+  const already = readSessionSnapshot(session({ model: { id: 'anthropic/claude-opus-5-5', provider: 'anthropic' } }), manager());
+  assert.equal(already?.modelId, 'anthropic/claude-opus-5-5');
+  const bare = readSessionSnapshot(session({ model: { id: 'gpt-test', provider: '' } }), manager());
+  assert.equal(bare?.modelId, 'gpt-test');
+});
+
 test('the percentage the session reports is preferred over recomputing it', () => {
   // The session applies its own reserve accounting; second-guessing it here
   // would put a different number in the footer than /context reports.

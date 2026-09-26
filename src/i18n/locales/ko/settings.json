@@ -210,9 +210,12 @@
     }
   },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "다크 테마",
-      "description": "라이트와 다크 테마를 변경합니다"
+    "theme": {
+      "label": "테마",
+      "description": "시스템 설정을 따르거나 하나의 테마로 고정합니다",
+      "system": "시스템",
+      "light": "라이트",
+      "dark": "다크"
     },
     "interfaceFontSize": {
       "label": "인터페이스 글자 크기",

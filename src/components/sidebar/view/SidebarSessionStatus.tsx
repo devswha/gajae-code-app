@@ -21,20 +21,21 @@ type IndicatorProps = { status: SessionStatus; t: TFunction; className?: string 
 /**
  * The unread marker on the row's leading edge. Only the three states that ask
  * something of the user get one; a running row already has its spinner and an
- * idle row has nothing to say.
+ * idle row has nothing to say. It sits inside the row's leading padding: hung
+ * off the edge, it landed on the tree's guide line and was clipped at the rail.
  */
 export function SessionStatusDot({ status, t, className }: IndicatorProps) {
   if (status === 'idle' || status === 'running') return null;
   const label = sessionStatusLabel(status, t);
   return (
-    <div className={cn('absolute top-1/2 left-0 -translate-x-1 -translate-y-1/2 transform', className)}>
+    <div className={cn('absolute top-1/2 left-1 flex -translate-y-1/2', className)}>
       <Tooltip content={label} position="right">
         <div
           role="status"
           aria-label={label ?? undefined}
           data-session-status={status}
           className={cn(
-            'h-2 w-2 rounded-full',
+            'h-1.5 w-1.5 rounded-full',
             status === 'needs_input' && 'animate-pulse bg-primary',
             status === 'blocked' && 'bg-destructive',
             status === 'ready' && 'bg-primary',

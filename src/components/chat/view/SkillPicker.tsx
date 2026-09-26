@@ -28,6 +28,7 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [popupPosition, setPopupPosition] = useState<{ bottom: number; left: number; maxHeight?: number }>({ bottom: 0, left: 0 });
 
   // The composer form clips its children (overflow-hidden rounded corners), so
@@ -52,10 +53,20 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
       const target = event.target as Node;
       if (!rootRef.current?.contains(target) && !popupRef.current?.contains(target)) setOpen(false);
     };
+    // Escape dismisses the popup and hands focus back to its trigger, the
+    // way the model and permission pickers beside it already do.
+    const closeForEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
     document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', closeForEscape);
     return () => {
       window.removeEventListener('resize', updatePosition);
       document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', closeForEscape);
     };
   }, [open]);
 
@@ -70,6 +81,7 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
   return (
     <div ref={rootRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((current) => !current)}
         disabled={skills.length === 0}
@@ -79,8 +91,10 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
         title={t('input.skills.label')}
       >
         <Sparkles className="size-4" />
+        {/* How many skills there are, not something waiting to be read: a
+            quiet count, not the primary-colored unread badge it used to be. */}
         {skills.length > 0 && (
-          <span className="absolute top-0 right-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] leading-none font-medium text-muted-foreground tabular-nums ring-2 ring-card">
             {skills.length}
           </span>
         )}

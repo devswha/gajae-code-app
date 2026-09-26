@@ -16,6 +16,11 @@ import { normalizeGjcGoalState, type GjcGoalSnapshot } from '../shared/gjc-goal.
 
 export type GjcSessionSnapshot = {
   goal?: GjcGoalSnapshot;
+  /**
+   * `provider/model`, the same selector the app's model catalog is keyed by.
+   * The bare SDK id matched no catalog entry, so the composer fell back to
+   * showing it raw (`claude-opus-5-5` where the picker says `Opus 5.5`).
+   */
   modelId?: string;
   /** Reasoning effort, as the session reports it (`off`, `low`, `high`, ...). */
   thinkingLevel?: string;
@@ -40,7 +45,7 @@ export type GjcSessionSnapshot = {
 };
 
 type SessionLike = {
-  model?: { id?: unknown } | null;
+  model?: { id?: unknown; provider?: unknown } | null;
   thinkingLevel?: unknown;
   serviceTier?: unknown;
   getContextUsage?: () => unknown;
@@ -84,7 +89,8 @@ export function readSessionSnapshot(
   try {
     const live = session as SessionLike | null;
     const modelId = text(live?.model?.id);
-    if (modelId) snapshot.modelId = modelId;
+    const provider = text(live?.model?.provider);
+    if (modelId) snapshot.modelId = provider && !modelId.startsWith(`${provider}/`) ? `${provider}/${modelId}` : modelId;
 
     const thinkingLevel = text(live?.thinkingLevel);
     if (thinkingLevel) snapshot.thinkingLevel = thinkingLevel;

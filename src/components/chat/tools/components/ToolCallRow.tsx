@@ -66,7 +66,7 @@ export const ToolCallRow: React.FC<ToolCallRowProps> = ({
         )}
       >
         <pre
-          className={`max-h-80 overflow-auto font-mono text-xs leading-relaxed break-all whitespace-pre-wrap ${
+          className={`max-h-80 overflow-auto font-mono text-xs leading-relaxed wrap-anywhere whitespace-pre-wrap ${
             isError ? 'text-destructive' : 'text-muted-foreground'
           }`}
         >

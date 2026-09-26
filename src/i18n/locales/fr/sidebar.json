@@ -34,8 +34,8 @@
     "hideSidebar": "Réduire la barre latérale",
     "createProject": "Ajouter un projet",
     "createSession": "Démarrer une conversation",
-    "refresh": "Recharger les projets et les conversations (Ctrl+R)",
-    "renameProject": "Renommer l'espace de travail (F2)",
+    "refresh": "Recharger les projets et les conversations",
+    "renameProject": "Renommer l'espace de travail",
     "archiveProject": "Déplacer ce projet vers les archives (rien n'est supprimé)",
     "addToFavorites": "Marquer comme favori",
     "removeFromFavorites": "Supprimer la marque favorite",
@@ -104,7 +104,6 @@
     "accounts_one": "{{count}} compte",
     "accounts_other": "{{count}} comptes",
     "noWindowData": "Aucune valeur communiquée",
-    "unsupported": "Consommation indisponible pour ce fournisseur",
     "reauth": "Reconnectez-vous pour lire la consommation",
     "error": "Impossible d’actualiser la consommation",
     "stale": "Dernières valeurs connues"

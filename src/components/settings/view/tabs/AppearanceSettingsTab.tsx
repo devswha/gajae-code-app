@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
 import { useUiPreferences } from '../../../../hooks/useUiPreferences';
-import { DarkModeToggle } from '../../../../shared/view/ui';
 import LanguageSelector from '../../../../shared/view/ui/LanguageSelector';
 import ToolOutputDensityPicker from '../../../chat/view/ToolOutputDensityPicker';
 import type { InterfaceFontSize, ProjectSortOrder } from '../../types/types';
@@ -9,6 +8,7 @@ import SettingsCard from '../SettingsCard';
 import SettingsRow from '../SettingsRow';
 import SettingsSection from '../SettingsSection';
 import SettingsToggle from '../SettingsToggle';
+import ThemePicker from '../ThemePicker';
 
 type AppearanceSettingsTabProps = {
   projectSortOrder: ProjectSortOrder;
@@ -35,10 +35,14 @@ export default function AppearanceSettingsTab(input: AppearanceSettingsTabProps)
 
   return (
     <div className="space-y-8">
-      <SettingsSection title={t('appearanceSettings.darkMode.label')}>
+      <SettingsSection title={t('mainTabs.appearance')}>
         <SettingsCard divided>
-          <SettingsRow label={t('appearanceSettings.darkMode.label')} description={t('appearanceSettings.darkMode.description')}>
-            <DarkModeToggle ariaLabel={t('appearanceSettings.darkMode.label')} />
+          <SettingsRow
+            label={t('appearanceSettings.theme.label')}
+            description={t('appearanceSettings.theme.description')}
+            className="flex-col items-stretch gap-3 sm:flex-row sm:items-center"
+          >
+            <ThemePicker />
           </SettingsRow>
           <SettingsRow label={t('appearanceSettings.interfaceFontSize.label')} description={t('appearanceSettings.interfaceFontSize.description')}>
             <select
@@ -61,7 +65,7 @@ export default function AppearanceSettingsTab(input: AppearanceSettingsTabProps)
         </SettingsCard>
       </SettingsSection>
 
-      <SettingsSection title={t('mainTabs.appearance')}>
+      <SettingsSection title={t('account.languageLabel')}>
         <SettingsCard><LanguageSelector /></SettingsCard>
       </SettingsSection>
 

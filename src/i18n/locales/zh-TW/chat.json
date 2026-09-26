@@ -44,7 +44,8 @@
   },
   "tools": {
     "error": "工具問題",
-    "rawParams": "原始參數"
+    "rawParams": "原始參數",
+    "more": "另外 {{count}} 個"
   },
   "search": {
     "in": "於："

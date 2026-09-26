@@ -21,13 +21,17 @@ type SidebarProviderQuotaProps = {
  * rather than growing the footer.
  */
 function ProviderQuotaRow({ collapsed, t }: Required<Pick<SidebarProviderQuotaProps, 'collapsed'>> & { t: TFunction }) {
-  const { providers, isLoading, hasFailed } = useProviderQuota();
+  const { providers: reported, isLoading, hasFailed } = useProviderQuota();
+  // A provider that does not report quota has nothing to show here. A row of
+  // empty dashed rings with two-letter initials read as noise, not as "no
+  // data"; error and re-auth stay, because the user can act on them.
+  const providers = reported.filter((entry) => entry.status !== 'unsupported');
 
   if (providers.length === 0) {
-    // Nothing connected, or the snapshot could not be read: render no section
-    // at all rather than an empty one. The first fetch keeps a fixed-size
+    // Nothing connected or reporting, or the snapshot could not be read:
+    // render no section at all rather than an empty one. The first fetch keeps a fixed-size
     // placeholder so the footer does not shift when the rings arrive.
-    if (!isLoading || hasFailed) return null;
+    if (!isLoading || hasFailed || reported.length > 0) return null;
     return (
       <div className={cn('flex items-center', collapsed ? 'flex-col gap-1 py-0.5' : 'gap-1.5 px-2.5 py-1')} aria-hidden>
         <ProviderQuotaRingPlaceholder />

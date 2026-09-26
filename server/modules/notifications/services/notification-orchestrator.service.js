@@ -1,6 +1,7 @@
 import { notificationPreferencesDb, sessionsDb } from '@/modules/database/index.js';
 import { sendDesktopNotificationAndWait } from '@/modules/notifications/services/desktop-notification-clients.service.js';
 import { enterNotificationActivity } from '@/modules/notifications/services/desktop-update-activity.service.js';
+import { CHANNEL_WEB_PUSH, sendWebPushNotification } from '@/modules/notifications/services/web-push.service.js';
 
 const eventPreferences = new Map([
   ['action_required', 'actionRequired'],
@@ -100,8 +101,8 @@ function wasDelivered(event) {
   return false;
 }
 
-function reportDesktopFailure(error) {
-  console.error('Notification channel "desktop" send error:', error);
+function reportChannelFailure(channel) {
+  return (error) => console.error(`Notification channel "${channel}" send error:`, error);
 }
 
 function notifyUserIfEnabled({ userId, event }) {
@@ -112,10 +113,18 @@ function notifyUserIfEnabled({ userId, event }) {
     const current = canonicalSession(event);
     const preferences = notificationPreferencesDb.getPreferences(userId);
     if (!eventIsAllowed(preferences, current) || wasDelivered(current)) return;
-    if (!preferences?.channels?.desktop) return;
+    const channels = preferences?.channels || {};
+    if (!channels.desktop && !channels[CHANNEL_WEB_PUSH]) return;
 
     const payload = buildNotificationPayload(current);
-    pending = Promise.resolve(sendDesktopNotificationAndWait(userId, payload)).catch(reportDesktopFailure).finally(release);
+    const deliveries = [];
+    if (channels.desktop) {
+      deliveries.push(Promise.resolve(sendDesktopNotificationAndWait(userId, payload)).catch(reportChannelFailure('desktop')));
+    }
+    if (channels[CHANNEL_WEB_PUSH]) {
+      deliveries.push(sendWebPushNotification(userId, payload).catch(reportChannelFailure(CHANNEL_WEB_PUSH)));
+    }
+    pending = Promise.all(deliveries).finally(release);
     return pending;
   } finally {
     if (!pending) release();

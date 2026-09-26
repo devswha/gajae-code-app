@@ -37,7 +37,7 @@ Gajae Code App is a self-hosted web and desktop interface for [Gajae Code](https
 - **Isolated by default**: a new repository session runs in its own managed git worktree. The run-location picker can put it on the shared checkout instead, and a run that would rewrite git state outside its own checkout asks first.
 - **A Changes tab, not a git GUI** — the working tree as a diff, a Last-turn scope for what the session just edited, and line comments that become the next message. Git stays the agent's job.
 - **Browser choices**: macOS desktop sessions can use the built-in system-WebView browser. Aside and ego lite are experimental backends, and web/self-host sessions use external links. Computer use is off until you turn it on in Settings.
-- **Every viewer** — a second tab or a phone on the LAN sees the same live run; the layout goes down to a phone screen.
+- **Every viewer** — a second tab or a phone on the LAN sees the same live run; the layout goes down to a phone screen, and over https a phone can subscribe to push notifications for approvals and finished runs.
 
 ## Quick Start
 

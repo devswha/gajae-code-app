@@ -1,6 +1,7 @@
-import { Bell, BellOff, BellRing, Play, Volume2 } from 'lucide-react';
+import { Bell, BellOff, BellRing, Play, Smartphone, Volume2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import type { WebPushState } from '../../../../hooks/useWebPush';
 import { Button } from '../../../../shared/view/ui';
 import { playChatCompletionSound } from '../../../../utils/notificationSound';
 import type { NotificationPreferencesState } from '../../types/types';
@@ -12,6 +13,10 @@ type NotificationsSettingsTabProps = {
   desktopNotifications?: { enabled: boolean; supported: boolean; connectedCount?: number; targetCount?: number; lastError?: string | null } | null;
   onEnableDesktopNotifications?: () => void;
   onDisableDesktopNotifications?: () => void;
+  webPush?: WebPushState | null;
+  onSubscribeWebPush?: () => void;
+  onUnsubscribeWebPush?: () => void;
+  onTestWebPush?: () => void;
 };
 type EventName = keyof NotificationPreferencesState['events'];
 
@@ -34,6 +39,55 @@ function EventCheckbox({ event, label, preferences, onChange }: {
       />
       {label}
     </label>
+  );
+}
+
+function WebPushCard({ webPush, onSubscribe, onUnsubscribe, onTest }: {
+  webPush: WebPushState;
+  onSubscribe?: () => void;
+  onUnsubscribe?: () => void;
+  onTest?: () => void;
+}) {
+  const { t } = useTranslation('settings');
+  if (!webPush.supported && !webPush.requiresHomeScreenInstall && !webPush.requiresSecureContext) return null;
+  const denied = webPush.permission === 'denied';
+  return (
+    <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <Smartphone className="h-4 w-4 text-primary" />
+          <h4 className="font-medium text-foreground">{t('notifications.webPush.title')}</h4>
+        </div>
+        <p className="text-sm text-muted-foreground">{t('notifications.webPush.description')}</p>
+      </div>
+      {webPush.requiresSecureContext ? (
+        <p className="text-sm text-muted-foreground">{t('notifications.webPush.httpsRequired')}</p>
+      ) : webPush.requiresHomeScreenInstall ? (
+        <p className="text-sm text-muted-foreground">{t('notifications.webPush.installFirst')}</p>
+      ) : denied ? (
+        <p className="text-sm text-destructive">{t('notifications.webPush.denied')}</p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={webPush.busy}
+            onClick={webPush.subscribed ? onUnsubscribe : onSubscribe}
+            className={webPush.subscribed
+              ? 'inline-flex items-center gap-2 rounded-md bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-60'
+              : 'inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60'}
+          >
+            {webPush.subscribed ? <BellOff className="h-4 w-4" /> : <BellRing className="h-4 w-4" />}
+            {webPush.subscribed ? t('notifications.webPush.disable') : t('notifications.webPush.enable')}
+          </button>
+          {webPush.subscribed && (
+            <Button type="button" variant="outline" size="sm" onClick={onTest}>
+              {t('notifications.webPush.test')}
+            </Button>
+          )}
+        </div>
+      )}
+      {webPush.error && <p className="text-sm text-destructive">{t('notifications.webPush.failed', { reason: webPush.error })}</p>}
+    </div>
   );
 }
 
@@ -96,6 +150,15 @@ export default function NotificationsSettingsTab(props: NotificationsSettingsTab
           )}
         </div>
       ) : null}
+
+      {props.webPush && (
+        <WebPushCard
+          webPush={props.webPush}
+          onSubscribe={props.onSubscribeWebPush}
+          onUnsubscribe={props.onUnsubscribeWebPush}
+          onTest={props.onTestWebPush}
+        />
+      )}
 
       <div className="space-y-4 rounded-lg border border-border bg-card p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

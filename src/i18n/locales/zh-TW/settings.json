@@ -193,6 +193,17 @@
       "enabled": "此桌面應用程式可以顯示通知",
       "unsupported": "此系統不支援桌面通知。"
     },
+    "webPush": {
+      "title": "推播通知到此裝置",
+      "description": "即使應用程式已關閉，當執行需要核准、完成或失敗時，此手機或瀏覽器也會收到系統通知。在 iPhone 上，請先將應用程式加入主畫面。",
+      "enable": "開啟推播通知",
+      "disable": "關閉推播通知",
+      "test": "傳送測試通知",
+      "installFirst": "請從主畫面開啟此應用程式以開啟推播通知。在 Safari 中點選「分享」，然後選擇「加入主畫面」。",
+      "httpsRequired": "推播需要 https 位址。請透過 https 開啟應用程式（例如 `tailscale serve` 或帶憑證的反向代理）；區域網路或 tailnet IP 上的一般 http 無法註冊推播工作程式。",
+      "denied": "此網站的通知已被封鎖。請在瀏覽器或系統設定中允許後再試一次。",
+      "failed": "推播設定失敗：{{reason}}"
+    },
     "sound": {
       "title": "音效",
       "description": "在聊天執行結束或需要工具確認時播放簡短音效。",

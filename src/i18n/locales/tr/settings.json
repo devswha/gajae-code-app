@@ -193,6 +193,17 @@
       "enabled": "Bu masaüstü uygulaması bildirimleri gösterebilir",
       "unsupported": "Bu sistem masaüstü bildirimlerini desteklemiyor."
     },
+    "webPush": {
+      "title": "Bu cihaza anlık bildirim",
+      "description": "Uygulama kapalıyken bile bir çalıştırma onay beklediğinde, bittiğinde veya başarısız olduğunda bu telefona ya da tarayıcıya sistem bildirimi alın. iPhone’da önce uygulamayı Ana Ekran’a ekleyin.",
+      "enable": "Anlık bildirimleri aç",
+      "disable": "Anlık bildirimleri kapat",
+      "test": "Test bildirimi gönder",
+      "installFirst": "Anlık bildirimleri açmak için bu uygulamayı Ana Ekran’dan açın. Safari’de Paylaş’a dokunup “Ana Ekrana Ekle”yi seçin.",
+      "httpsRequired": "Anlık bildirim için https adresi gerekir. Uygulamayı https üzerinden açın (örneğin `tailscale serve` veya sertifikalı bir ters vekil); LAN ya da tailnet IP’sindeki düz http anlık bildirim işçisi kaydedemez.",
+      "denied": "Bu site için bildirimler engellenmiş. Tarayıcı veya sistem ayarlarından izin verip yeniden deneyin.",
+      "failed": "Anlık bildirim kurulumu başarısız: {{reason}}"
+    },
     "sound": {
       "title": "Bildirim sesi",
       "description": "Bir sohbet çalışması sona erdiğinde veya araç onayına ihtiyaç duyulduğunda kısa bir ses çalın.",

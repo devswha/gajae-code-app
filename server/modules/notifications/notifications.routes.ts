@@ -1,6 +1,13 @@
 import express from 'express';
 
 import { notificationChannelEndpointsDb, notificationPreferencesDb } from '@/modules/database/index.js';
+import { buildNotificationPayload, createNotificationEvent } from '@/modules/notifications/services/notification-orchestrator.service.js';
+import {
+  CHANNEL_WEB_PUSH,
+  getVapidPublicKey,
+  parseWebPushSubscription,
+  sendWebPushNotification,
+} from '@/modules/notifications/services/web-push.service.js';
 import { asyncHandler } from '@/shared/utils.js';
 
 const router = express.Router();
@@ -146,6 +153,73 @@ router.delete('/endpoints/:channel/:endpointId', asyncHandler((request, response
       return response.json({ success: true, preferences: syncChannelPreference(userId, channel) });
     },
   );
+}));
+
+// Web push: the browser's PushSubscription is the endpoint row. Its endpoint
+// URL is the row key and its encryption keys are the metadata, so the generic
+// endpoint routes above can list and disable it while these own the
+// subscription lifecycle, which needs the VAPID key and body-carried URLs.
+router.get('/web-push/public-key', asyncHandler((request, response) => guardEndpointRoute(
+  response,
+  { log: 'Error reading web push key:', body: 'Failed to read web push key' },
+  () => {
+    authenticatedUserId(request);
+    return response.json({ success: true, publicKey: getVapidPublicKey() });
+  },
+)));
+
+router.post('/web-push/subscriptions', asyncHandler((request, response) => {
+  const subscription = parseWebPushSubscription(request.body?.subscription);
+  if (!subscription) return response.status(400).json({ error: 'subscription with endpoint and keys is required' });
+
+  return guardEndpointRoute(
+    response,
+    { log: 'Error registering web push subscription:', body: 'Failed to register web push subscription' },
+    () => {
+      const userId = authenticatedUserId(request);
+      const stored = notificationChannelEndpointsDb.upsertEndpoint({
+        userId,
+        channel: CHANNEL_WEB_PUSH,
+        endpointId: subscription.endpoint,
+        label: requiredText(request.body?.label) || null,
+        metadata: { keys: subscription.keys, expirationTime: subscription.expirationTime ?? null },
+        enabled: true,
+      });
+      return response.json({
+        success: true,
+        endpoint: endpointView(stored),
+        preferences: syncChannelPreference(userId, CHANNEL_WEB_PUSH),
+      });
+    },
+  );
+}));
+
+router.delete('/web-push/subscriptions', asyncHandler((request, response) => {
+  const endpoint = requiredText(request.body?.endpoint);
+  if (!endpoint) return response.status(400).json({ error: 'endpoint is required' });
+
+  return guardEndpointRoute(
+    response,
+    { log: 'Error removing web push subscription:', body: 'Failed to remove web push subscription' },
+    () => {
+      const userId = authenticatedUserId(request);
+      // A browser that already dropped the subscription still gets a clean answer.
+      notificationChannelEndpointsDb.removeEndpoint(userId, CHANNEL_WEB_PUSH, endpoint);
+      return response.json({ success: true, preferences: syncChannelPreference(userId, CHANNEL_WEB_PUSH) });
+    },
+  );
+}));
+
+router.post('/web-push/test', asyncHandler(async (request, response) => {
+  let userId: number;
+  try {
+    userId = authenticatedUserId(request);
+  } catch (error) {
+    return reportEndpointFailure(response, error, 'Error sending web push test:', 'Failed to send web push test');
+  }
+  const payload = buildNotificationPayload(createNotificationEvent({ provider: 'system', code: 'push.enabled' }));
+  const result = await sendWebPushNotification(userId, payload);
+  return response.json({ success: true, ...result });
 }));
 
 export default router;

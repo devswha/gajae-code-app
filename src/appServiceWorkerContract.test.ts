@@ -1,28 +1,29 @@
 import assert from 'node:assert/strict';
-import { access, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 
-const serviceWorkerRegistrationPattern = /navigator\.serviceWorker\.register\(\s*['"]\/sw\.js/;
+/*
+ * The shipped worker exists only to receive web push. Offline caching was
+ * removed on purpose: a cached shell served stale assets after updates and the
+ * app is useless without its server anyway. These pin both halves so a worker
+ * cannot quietly grow a fetch handler and the shell cannot register a worker
+ * that is not shipped.
+ */
+const rootDir = process.cwd();
 
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await access(filePath);
-    return true;
-  } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-      return false;
-    }
-    throw error;
-  }
-}
+test('the shell registers the shipped push worker', async () => {
+  const main = await readFile(path.join(rootDir, 'src', 'main.jsx'), 'utf8');
+  assert.match(main, /navigator\.serviceWorker\.register\(SERVICE_WORKER_URL\)/);
+  const hook = await readFile(path.join(rootDir, 'src', 'hooks', 'useWebPush.ts'), 'utf8');
+  assert.match(hook, /export const SERVICE_WORKER_URL = '\/sw\.js'/);
+  await readFile(path.join(rootDir, 'public', 'sw.js'), 'utf8');
+});
 
-test('Given the production shell when no service worker file ships then it does not register one', async () => {
-  const rootDir = process.cwd();
-  const indexHtml = await readFile(path.join(rootDir, 'index.html'), 'utf8');
-  const serviceWorkerExists = await fileExists(path.join(rootDir, 'public', 'sw.js'));
-
-  const registersMissingServiceWorker = serviceWorkerRegistrationPattern.test(indexHtml) && !serviceWorkerExists;
-
-  assert.equal(registersMissingServiceWorker, false);
+test('the push worker handles push and taps only, never fetch', async () => {
+  const worker = await readFile(path.join(rootDir, 'public', 'sw.js'), 'utf8');
+  assert.match(worker, /addEventListener\('push'/);
+  assert.match(worker, /addEventListener\('notificationclick'/);
+  assert.doesNotMatch(worker, /addEventListener\('fetch'/);
+  assert.doesNotMatch(worker, /caches\./);
 });

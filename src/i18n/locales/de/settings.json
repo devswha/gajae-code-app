@@ -193,6 +193,17 @@
       "enabled": "Diese Desktop-App kann Benachrichtigungen anzeigen",
       "unsupported": "Dieses System unterstützt keine Desktop-Benachrichtigungen."
     },
+    "webPush": {
+      "title": "Push-Benachrichtigungen an dieses Gerät",
+      "description": "Erhalte auf diesem Telefon oder Browser eine Systembenachrichtigung, wenn ein Lauf eine Freigabe braucht, endet oder fehlschlägt, auch bei geschlossener App. Auf dem iPhone zuerst die App zum Home-Bildschirm hinzufügen.",
+      "enable": "Push-Benachrichtigungen aktivieren",
+      "disable": "Push-Benachrichtigungen deaktivieren",
+      "test": "Testbenachrichtigung senden",
+      "installFirst": "Öffne diese App vom Home-Bildschirm, um Push-Benachrichtigungen zu aktivieren. In Safari auf Teilen tippen, dann „Zum Home-Bildschirm“.",
+      "httpsRequired": "Push braucht eine https-Adresse. Öffne die App über https (z. B. `tailscale serve` oder einen Reverse-Proxy mit Zertifikat); reines http über eine LAN- oder Tailnet-IP kann keinen Push-Worker registrieren.",
+      "denied": "Benachrichtigungen sind für diese Seite blockiert. Erlaube sie in den Browser- oder Systemeinstellungen und versuche es erneut.",
+      "failed": "Push-Einrichtung fehlgeschlagen: {{reason}}"
+    },
     "sound": {
       "title": "Ton",
       "description": "Spielen Sie einen kurzen Ton ab, wenn ein Chat-Lauf endet oder eine Tool-Genehmigung erforderlich ist.",

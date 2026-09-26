@@ -155,6 +155,12 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   not add one without the other. There is no embedded editor: the app has no
   file browser, git GUI or code editor, and file references open in the user's
   own editor through `POST /api/system/open-file`.
+- **Service worker is push-only**: `public/sw.js` receives web push and
+  routes notification taps; it has no fetch handler and no cache, and
+  `src/appServiceWorkerContract.test.ts` pins that. There is no offline
+  mode. Push subscriptions are `notification_channel_endpoints` rows on the
+  `webPush` channel (`server/modules/notifications/services/web-push.service.ts`);
+  the VAPID pair lives in `app_config`. Do not add caching to the worker.
 - **Testing**: client tests render with `renderToStaticMarkup` and assert on the
   HTML string, which cannot reach a hook, an event or an effect. Anything that
   needs one goes in a `*.dom.bun.test.tsx` file, which Bun runs with happy-dom

@@ -127,6 +127,21 @@ forwards. A multi-user deployment with its own login is future scope, not a
 configuration of the current server; do not publish the bound address beyond a
 network you would trust with a shell on that machine.
 
+### Phone notifications (web push)
+
+A phone or browser that opens the app over **https** can subscribe to push
+notifications in `Settings > Notifications > Push notifications to this
+device`; approval requests, run completion and run failure then arrive as
+system notifications while the app is closed. Push goes browser → push
+service (Apple/Google/Mozilla) with VAPID; no relay of ours is involved. The
+server mints its VAPID key pair once into `app_config`
+(`webPush.vapid.v1`); deleting that row invalidates every subscription. On
+iPhone the app must be added to the Home Screen first (iOS 16.4+). Plain
+http on a LAN or tailnet IP cannot register the push worker — front the
+server with `tailscale serve` or a certificate-bearing reverse proxy and
+list that name in `ALLOWED_HOSTS`. The worker (`/sw.js`) receives push and
+routes taps only; it caches nothing, so there is still no offline mode.
+
 ## Cutover to a verified release
 
 A cutover changes only the `current` symlink and then restarts the service.

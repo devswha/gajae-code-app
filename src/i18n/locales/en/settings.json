@@ -208,6 +208,17 @@
       "enabled": "This desktop app can show notifications",
       "unsupported": "This system does not support desktop notifications."
     },
+    "webPush": {
+      "title": "Push notifications to this device",
+      "description": "Get a system notification on this phone or browser when a run needs approval, finishes, or fails, even while the app is closed. On iPhone, add the app to the Home Screen first.",
+      "enable": "Enable push notifications",
+      "disable": "Disable push notifications",
+      "test": "Send test notification",
+      "installFirst": "Open this app from your Home Screen to enable push notifications. In Safari, tap Share, then \"Add to Home Screen\".",
+      "httpsRequired": "Push needs an https address. Open the app through https (for example `tailscale serve` or a reverse proxy with a certificate); plain http on a LAN or tailnet IP cannot register a push worker.",
+      "denied": "Notifications are blocked for this site. Allow them in your browser or system settings, then try again.",
+      "failed": "Push setup failed: {{reason}}"
+    },
     "sound": {
       "title": "Sound",
       "description": "Play a brief sound when a chat run ends or needs tool approval.",

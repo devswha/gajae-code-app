@@ -34,7 +34,7 @@ function decodeStoredValue<T>(value: string | null, fallback: T): T {
 
 function notificationDefaults(): NotificationPreferencesState {
   return {
-    channels: { inApp: true, desktop: false, sound: true },
+    channels: { inApp: true, desktop: false, webPush: false, sound: true },
     events: { actionRequired: true, stop: true, error: true },
   };
 }
@@ -45,6 +45,9 @@ function normalizeNotificationPreferences(value?: Partial<NotificationPreference
     channels: {
       inApp: value?.channels?.inApp ?? fallback.channels.inApp,
       desktop: value?.channels?.desktop ?? fallback.channels.desktop,
+      // The server flips this when a subscription is stored or removed; the
+      // autosave PUT sends the whole channel map, so it has to round-trip here.
+      webPush: value?.channels?.webPush ?? fallback.channels.webPush,
       sound: value?.channels?.sound ?? fallback.channels.sound,
     },
     events: {

@@ -193,6 +193,17 @@
       "enabled": "Questa app desktop può mostrare notifiche",
       "unsupported": "Questo sistema non supporta le notifiche desktop."
     },
+    "webPush": {
+      "title": "Notifiche push su questo dispositivo",
+      "description": "Ricevi una notifica di sistema su questo telefono o browser quando un’esecuzione richiede approvazione, termina o fallisce, anche con l’app chiusa. Su iPhone, aggiungi prima l’app alla schermata Home.",
+      "enable": "Attiva le notifiche push",
+      "disable": "Disattiva le notifiche push",
+      "test": "Invia notifica di prova",
+      "installFirst": "Apri questa app dalla schermata Home per attivare le notifiche push. In Safari tocca Condividi, poi “Aggiungi alla schermata Home”.",
+      "httpsRequired": "Il push richiede un indirizzo https. Apri l’app tramite https (ad esempio `tailscale serve` o un reverse proxy con certificato); l’http semplice su un IP LAN o tailnet non può registrare un worker push.",
+      "denied": "Le notifiche sono bloccate per questo sito. Consentile nelle impostazioni del browser o del sistema e riprova.",
+      "failed": "Configurazione push non riuscita: {{reason}}"
+    },
     "sound": {
       "title": "Suono",
       "description": "Riproduci un breve suono quando l'esecuzione di una chat termina o richiede l'approvazione dello strumento.",

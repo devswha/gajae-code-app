@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { useWebPush } from '../../../hooks/useWebPush';
 import { useSettingsController } from '../hooks/useSettingsController';
 import { Button, Dialog, DialogContent } from '../../../shared/view/ui';
 import type { SettingsProps } from '../types/types';
@@ -76,6 +77,13 @@ function Settings({ isOpen, onClose, initialTab = 'appearance' }: SettingsProps)
     };
   }, [bridge]);
 
+  const webPush = useWebPush((enabled) => {
+    setNotificationPreferences({
+      ...notificationPreferences,
+      channels: { ...notificationPreferences.channels, webPush: enabled },
+    });
+  });
+
   const setDesktopNotificationsEnabled = async (enabled: boolean) => {
     if (!bridge) return;
     const snapshot = await bridge.update({ enabled });
@@ -132,6 +140,10 @@ function Settings({ isOpen, onClose, initialTab = 'appearance' }: SettingsProps)
                   desktopNotifications={desktopState}
                   onEnableDesktopNotifications={() => setDesktopNotificationsEnabled(true)}
                   onDisableDesktopNotifications={() => setDesktopNotificationsEnabled(false)}
+                  webPush={webPush}
+                  onSubscribeWebPush={() => { void webPush.subscribe(); }}
+                  onUnsubscribeWebPush={() => { void webPush.unsubscribe(); }}
+                  onTestWebPush={() => { void webPush.sendTest(); }}
                 />
               )}
               {activeTab === 'voice' && <VoiceSettingsTab />}

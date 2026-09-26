@@ -193,6 +193,17 @@
       "enabled": "此桌面应用可以显示通知",
       "unsupported": "此系统不支持桌面通知。"
     },
+    "webPush": {
+      "title": "推送通知到此设备",
+      "description": "即使应用已关闭，当运行需要审批、完成或失败时，此手机或浏览器也会收到系统通知。在 iPhone 上，请先将应用添加到主屏幕。",
+      "enable": "开启推送通知",
+      "disable": "关闭推送通知",
+      "test": "发送测试通知",
+      "installFirst": "请从主屏幕打开此应用以开启推送通知。在 Safari 中点按“共享”，然后选择“添加到主屏幕”。",
+      "httpsRequired": "推送需要 https 地址。请通过 https 打开应用（例如 `tailscale serve` 或带证书的反向代理）；局域网或 tailnet IP 上的普通 http 无法注册推送工作线程。",
+      "denied": "此站点的通知已被阻止。请在浏览器或系统设置中允许后重试。",
+      "failed": "推送设置失败：{{reason}}"
+    },
     "sound": {
       "title": "声音",
       "description": "在聊天运行结束或需要工具审批时播放简短的声音。",

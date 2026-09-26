@@ -7,6 +7,7 @@ import { AuthProvider, ProtectedRoute } from './components/auth';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import AppContent from './components/app/AppContent';
 import DesktopDeepLinkBridge from './components/app/DesktopDeepLinkBridge';
+import PushNavigationBridge from './components/app/PushNavigationBridge';
 import { appShellRoutePaths, rootFallbackRoutePath } from './components/app/appRoutes';
 import i18n from './i18n/config.js';
 import { useComposerFreezeBridge } from './shared/composerFreezeBridge';
@@ -75,6 +76,7 @@ type ApplicationLayoutProps = {
 function ApplicationRoutes({ routerBasename }: ApplicationLayoutProps) {
   return <Router basename={routerBasename}>
     <DesktopDeepLinkBridge />
+    <PushNavigationBridge />
     <Routes>
       {appShellRoutePaths.map((path) => (
         <Route key={path} path={path} element={<AppContent />} />

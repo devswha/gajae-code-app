@@ -71,6 +71,39 @@ desktop app's database under its own data root
 one-time migration from `~/.gajae-app`, so the collision cannot recur for
 any user who also runs the self-hosted server.
 
+## Mobile: thin client, web push first (2026-09-26)
+
+Owner decision: no native mobile app for now; the phone is a thin client of
+the Mac server. The only capability a native shell would add that the
+installed web app cannot is lock-screen notifications, and APNs would need
+a relay we operate, so web push (VAPID, browser → push service directly)
+was restored instead of the stack removed in `2e506fc`:
+
+- Server: `server/modules/notifications/services/web-push.service.ts`
+  (channel `webPush`, VAPID pair minted once into `app_config`
+  `webPush.vapid.v1`, subscriptions are `notification_channel_endpoints`
+  rows keyed by endpoint URL with the keys in metadata, 404/410 removes the
+  row). Orchestrator fans out to desktop and web push per the channel
+  preference. Routes: `GET /api/notifications/web-push/public-key`,
+  `POST|DELETE /api/notifications/web-push/subscriptions`,
+  `POST /api/notifications/web-push/test`.
+- Client: `public/sw.js` is push + notification tap only (no fetch handler,
+  no cache; `src/appServiceWorkerContract.test.ts` pins that), registered
+  from `src/main.jsx`. `src/hooks/useWebPush.ts` owns the subscribe /
+  unsubscribe / test flow and reports `requiresSecureContext` (plain http)
+  and `requiresHomeScreenInstall` (iOS Safari tab). `PushNavigationBridge`
+  accepts only `/` or `/session/<id>` from the worker. The settings
+  controller round-trips `channels.webPush` so its autosave does not undo
+  the server's flip.
+- Real-device check is still owed: the tailnet dev URL is plain http, so a
+  phone needs `tailscale serve` (https) in front of :5173/:3001 before the
+  card offers the subscribe button.
+
+Next if a native shell is ever wanted: make the SPA origin-independent
+(server URL setting, bearer token instead of same-origin cookies, WS address
+from the setting, CORS/CSP for the shell origin) before `tauri ios init`;
+that work is required for any shell and is not started.
+
 ## CLI-parity adversarial pass on SDK 0.17.6 (2026-09-25)
 
 The same prompts ran through the app's public WebSocket (`chat.send`, the path

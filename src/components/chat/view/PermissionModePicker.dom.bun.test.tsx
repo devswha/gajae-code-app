@@ -61,7 +61,7 @@ test('the first switch to bypass asks for confirmation and only then reports it,
   assert.deepEqual(updates, [], 'nothing is sent before the user confirms');
 
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-  await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
+  await waitFor(() => assert.equal(screen.queryByRole('dialog') === null, true));
   assert.deepEqual(updates, [], 'cancelling keeps the current mode');
 
   fireEvent.click(trigger);

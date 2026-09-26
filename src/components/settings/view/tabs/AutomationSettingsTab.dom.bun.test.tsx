@@ -180,7 +180,10 @@ test('the browser activity opt-in belongs to ego, is off by default and persists
   assert.equal(calls.some((call) => call.path.startsWith('/api/automation/ego-activity?')), false);
 
   fireEvent.change(backendSelect(), { target: { value: 'builtin' } });
-  await waitFor(() => assert.equal(screen.queryByRole('switch', { name: activityLabel }), null));
+  // Compare a boolean, not the element: every failed retry formats its
+  // message, and inspecting a mounted element walks the React fiber tree
+  // (about 0.5 s here, past the 5 s test timeout on a loaded CI runner).
+  await waitFor(() => assert.equal(screen.queryByRole('switch', { name: activityLabel }) === null, true));
 });
 
 test('the picture is a second switch: off by default and unavailable until activity is on', async () => {
@@ -270,7 +273,7 @@ test('plain web hides desktop launch while CUA diagnostics and saved grants rema
   assert.ok(screen.getByText('Safari'));
 
   fireEvent.click(screen.getAllByRole('button', { name: english.automation.revoke })[0]!);
-  await waitFor(() => assert.equal(screen.queryByText('https://example.com'), null));
+  await waitFor(() => assert.equal(screen.queryByText('https://example.com') === null, true));
   assert.deepEqual(calls.find((call) => call.method === 'DELETE')?.body, {
     kind: 'origin', value: 'https://example.com', scope: 'always',
   });

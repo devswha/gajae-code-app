@@ -7,6 +7,10 @@ use std::fs::OpenOptions;
 use fs2::FileExt;
 use tauri::Manager;
 
+#[cfg(target_os = "macos")]
+mod app_menu;
+#[cfg(target_os = "macos")]
+mod app_window;
 mod build_info;
 #[cfg(target_os = "macos")]
 mod builtin_browser;
@@ -60,6 +64,10 @@ mod updater_signature;
 mod updater_store;
 #[cfg(target_os = "macos")]
 mod updater_transport;
+#[cfg(target_os = "macos")]
+mod window_chrome;
+#[cfg(target_os = "macos")]
+mod window_title;
 
 #[cfg(target_os = "windows")]
 struct SingleInstanceLock {
@@ -449,7 +457,7 @@ fn main() {
     }
     let context = tauri::generate_context!();
     #[cfg(target_os = "macos")]
-    let (context, qa_windows) = {
+    let (context, windows) = {
         let mut context = context;
         if cfg!(target_arch = "aarch64") {
             updater_binding::Binding::compiled().configure_plugin(
@@ -458,10 +466,12 @@ fn main() {
                 !cfg!(debug_assertions),
             );
         }
-        let windows = qa_profile
-            .as_ref()
-            .map(|profile| profile.configure(context.config_mut()))
-            .unwrap_or_default();
+        // Every window is built in setup, where the main one gets its title
+        // observer; a QA profile also gives each its isolated store.
+        let windows = match qa_profile.as_ref() {
+            Some(profile) => profile.configure(context.config_mut()),
+            None => app_window::defer(context.config_mut()),
+        };
         (context, windows)
     };
 
@@ -557,12 +567,17 @@ fn main() {
         #[cfg(target_os = "macos")]
         app.manage(updater_restart::Restarts::default());
         #[cfg(target_os = "macos")]
-        if let Some(profile) = app.try_state::<qa_profile::QaProfile>() {
-            profile.create_windows(app, &qa_windows)?;
+        {
+            app.manage(window_title::Attention::default());
+            app_window::create(app, &windows)?;
+            app.set_menu(app_menu::build(app.handle())?)?;
+            app.on_menu_event(app_menu::handle);
         }
         let main = app
             .get_webview_window("main")
             .ok_or("main webview is unavailable")?;
+        #[cfg(target_os = "macos")]
+        window_chrome::follow_page_color(&main);
         app.manage(MainWebviewWindow(main));
         #[cfg(target_os = "linux")]
         {

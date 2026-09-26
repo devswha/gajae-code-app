@@ -36,8 +36,17 @@ const applyTheme = (dark: boolean) => {
   const statusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
   if (statusBar) statusBar.setAttribute('content', dark ? 'black-translucent' : 'default');
 
-  const themeColor = document.querySelector('meta[name="theme-color"]');
-  if (themeColor) themeColor.setAttribute('content', dark ? '#141414' : '#f6f4ef');
+  // The page background, read from the token so the colour can never drift
+  // from the palette. Browsers tint their chrome with it, and the macOS shell
+  // paints the window's title bar with it (src-tauri/src/window_chrome.rs).
+  let themeColor = document.querySelector('meta[name="theme-color"]');
+  if (!themeColor) {
+    themeColor = document.createElement('meta');
+    themeColor.setAttribute('name', 'theme-color');
+    document.head.append(themeColor);
+  }
+  const background = getComputedStyle(document.documentElement).getPropertyValue('--background').trim();
+  themeColor.setAttribute('content', background ? `hsl(${background})` : (dark ? '#141414' : '#f6f4ef'));
 };
 
 export const useTheme = (): ThemeContextValue => {

@@ -65,6 +65,17 @@ export const clearCompletionTitleIndicator = (): void => {
   resetTitle();
 };
 
+/**
+ * Sets the title underneath a live completion notice, which it keeps: the
+ * notice is about the conversation on screen finishing while the window was
+ * elsewhere, and a title change must not swallow it.
+ */
+export const setWindowTitle = (title: string): void => {
+  if (typeof document === 'undefined') return;
+  const next = document.title.startsWith(DONE_PREFIX) ? `${DONE_PREFIX}${title}` : title;
+  if (document.title !== next) document.title = next;
+};
+
 export const showCompletionTitleIndicator = (): void => {
   if (typeof document === 'undefined' || typeof window === 'undefined') return;
 

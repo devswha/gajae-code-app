@@ -1,12 +1,11 @@
 import { Archive, Bug, RefreshCw, Settings } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
+import { DISCORD_INVITE_URL, GITHUB_ISSUES_URL, GITHUB_REPOSITORY_URL } from '../../../constants/branding';
+
 import SidebarDesktopUpdate from './SidebarDesktopUpdate';
 import SidebarProviderQuota from './SidebarProviderQuota';
 
-const GITHUB_ISSUES_URL = 'https://github.com/devswha/gajae-code-app/issues/new';
-const GITHUB_REPO_URL = 'https://github.com/devswha/gajae-code-app';
-const DISCORD_INVITE_URL = 'https://discord.gg/dskZax5JPh';
 
 function DiscordIcon({ className }: { className?: string }) {
   return (
@@ -65,7 +64,7 @@ export default function SidebarFooter({
           </a>
         </div>
         <a
-          href={GITHUB_REPO_URL}
+          href={GITHUB_REPOSITORY_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="rounded px-1 text-[10px] text-muted-foreground/50 transition-colors hover:text-muted-foreground"

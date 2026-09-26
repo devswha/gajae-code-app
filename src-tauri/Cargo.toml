@@ -36,8 +36,8 @@ tauri-runtime-wry = "=2.11.4"
 hmac = "=0.12.1"
 block2 = "=0.6.2"
 objc2 = { version = "=0.6.4", default-features = false, features = ["std"] }
-objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSView", "NSWindow"] }
-objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSError", "NSString"] }
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSColor", "NSResponder", "NSView", "NSWindow"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSError", "NSKeyValueObserving", "NSString"] }
 objc2-web-kit = { version = "=0.3.2", default-features = false, features = ["std", "block2", "objc2-app-kit", "WKContentWorld", "WKFrameInfo", "WKNavigation", "WKWebView"] }
 rustls-webpki = { version = "=0.103.15", default-features = false, features = ["std"] }
 rustls-pki-types = "=1.15.1"

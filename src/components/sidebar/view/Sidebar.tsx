@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { version as currentVersion } from '../../../../package.json';
@@ -7,10 +7,14 @@ import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useProjectsQuery } from '../../../hooks/useProjectsQuery';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useAppShellStore } from '../../../stores/useAppShellStore';
-import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
+import { needsAttention } from '../../../stores/sessionStatusModel';
+import { usePaletteOps, usePaletteOpsRegister } from '../../../stores/usePaletteOpsStore';
 import type { LLMProvider, Project } from '../../../types/app';
+import { setWindowTitle } from '../../../utils/pageTitleNotification';
+import { composeWindowTitle } from '../../../utils/windowTitle';
 import { useSessionStatusResolver } from '../hooks/useSessionStatusResolver';
 import { useSidebarController } from '../hooks/useSidebarController';
+import { collectWorkRows } from '../utils/workList';
 import type { SidebarProps } from '../types/types';
 
 import SidebarCollapsed from './SidebarCollapsed';
@@ -53,6 +57,18 @@ function Sidebar(props: SidebarProps) {
     sidebarVisible: preferences.sidebarVisible,
   });
 
+  const setSidebarOpen = useAppShellStore((shell) => shell.setSidebarOpen);
+  const { isSidebarCollapsed, collapseSidebar, expandSidebar, setShowNewProject } = controller;
+  // The desktop menu's View and File commands. On a phone the sidebar is a
+  // drawer, so "toggle" opens or closes the drawer instead.
+  const toggleSidebar = useCallback(() => {
+    if (isMobile) setSidebarOpen((open) => !open);
+    else if (isSidebarCollapsed) expandSidebar();
+    else collapseSidebar();
+  }, [collapseSidebar, expandSidebar, isMobile, isSidebarCollapsed, setSidebarOpen]);
+  const createWorkspace = useCallback(() => setShowNewProject(true), [setShowNewProject]);
+  usePaletteOpsRegister({ toggleSidebar, createWorkspace });
+
   useEffect(() => {
     if (typeof document === 'undefined') return;
     document.documentElement.classList.toggle('pwa-mode', isPWA);
@@ -61,6 +77,14 @@ function Sidebar(props: SidebarProps) {
 
   const isExplicit = (project: Project) => project.origin === 'explicit';
   const visibleProjects = projects.filter(isExplicit);
+
+  // The window's title names where the user is and counts the conversations
+  // waiting on them; the desktop shell turns that count into the Dock badge.
+  const attention = collectWorkRows({ filteredProjects: visibleProjects, getProjectSessions: controller.getProjectSessions, getSessionStatus })
+    .filter((row) => needsAttention(row.status)).length;
+  const sessionTitle = typeof selectedSession?.summary === 'string' ? selectedSession.summary : null;
+  const windowTitle = composeWindowTitle({ attention, place: sessionTitle || selectedProject?.displayName });
+  useEffect(() => { setWindowTitle(windowTitle); }, [windowTitle]);
   const visibleFilteredProjects = controller.filteredProjects.filter(isExplicit);
   const projectListProps: SidebarProjectListProps = {
     projects: visibleProjects,

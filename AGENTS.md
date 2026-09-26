@@ -205,6 +205,14 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   unknown dependencies. Do not add cross-module imports that violate them.
 - **Product identity is checked**: `npm run check:identity` verifies names/URLs/scheme
   against `shared/productIdentity.js`. Change identity constants there, nowhere else.
+- **Shell ↔ page without IPC**: the app page has no Tauri IPC, so the macOS
+  shell talks to it through public surfaces only. Down: menu commands are a
+  `gajae:menu` window event with a constant id (`src-tauri/src/app_menu.rs` →
+  `src/components/app/DesktopMenuBridge.tsx`; a Rust test keeps the id lists in
+  step). Up: the shell reads `document.title` (`(n) …` → Dock badge,
+  `window_title.rs`) and `<meta name="theme-color">` (title-bar colour,
+  `window_chrome.rs`). The shell never opens URLs for the page. All windows are
+  built in setup (`app_window.rs`) so the main one carries its title observer.
 - **Desktop updates are click-driven**: `automatic` means discovery checks only.
   Download/restart require the native `targetId`; cached bytes alone cannot
   authorize startup installation. Preserve one-shot manual intent consumption

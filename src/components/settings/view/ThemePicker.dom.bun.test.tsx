@@ -94,3 +94,16 @@ test('the quick toggle from System pins the opposite of what is on screen', () =
   assert.equal(localStorage.getItem('theme'), 'light');
   assert.equal(isDark(), false);
 });
+
+test('the page states its background as theme-color, which the desktop title bar follows', () => {
+  fakeSystemAppearance(false);
+  document.head.querySelectorAll('meta[name="theme-color"]').forEach((meta) => meta.remove());
+  mount();
+  const meta = () => document.head.querySelectorAll('meta[name="theme-color"]');
+  assert.equal(meta().length, 1, 'the provider creates the tag when the page has none');
+  const light = meta()[0].getAttribute('content');
+
+  fireEvent.click(screen.getByRole('radio', { name: 'Dark' }));
+  assert.equal(meta().length, 1);
+  assert.notEqual(meta()[0].getAttribute('content'), light, 'the colour follows the theme');
+});

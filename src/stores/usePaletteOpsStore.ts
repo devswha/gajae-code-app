@@ -28,6 +28,12 @@ export type PaletteOps = {
   openExternalUrl: (url: string) => void;
   openSettings: (tab?: string) => void;
   refreshProjects: () => Promise<void> | void;
+  // Opens the add-workspace dialog.
+  createWorkspace: () => void;
+  // Shows or hides the left sidebar (collapses it on desktop).
+  toggleSidebar: () => void;
+  // Shows or hides the right-hand agent panel.
+  toggleAgentPanel: () => void;
 };
 
 type PaletteOpsRegistry = Partial<PaletteOps>;
@@ -46,6 +52,9 @@ const OPS_KEYS = [
   'openExternalUrl',
   'openSettings',
   'refreshProjects',
+  'createWorkspace',
+  'toggleSidebar',
+  'toggleAgentPanel',
 ] as const;
 
 /**
@@ -119,6 +128,9 @@ export function usePaletteOpsRegister(partial: PaletteOpsRegistry) {
     openExternalUrl,
     openSettings,
     refreshProjects,
+    createWorkspace,
+    toggleSidebar,
+    toggleAgentPanel,
   } = partial;
 
   useEffect(() => {
@@ -132,8 +144,11 @@ export function usePaletteOpsRegister(partial: PaletteOpsRegistry) {
       ...(openExternalUrl ? { openExternalUrl } : {}),
       ...(openSettings ? { openSettings } : {}),
       ...(refreshProjects ? { refreshProjects } : {}),
+      ...(createWorkspace ? { createWorkspace } : {}),
+      ...(toggleSidebar ? { toggleSidebar } : {}),
+      ...(toggleAgentPanel ? { toggleAgentPanel } : {}),
     });
-  }, [openCommandPalette, openSessionPicker, startNewChat, openFile, openFileInEditor, openBuiltinBrowser, openExternalUrl, openSettings, refreshProjects]);
+  }, [openCommandPalette, openSessionPicker, startNewChat, openFile, openFileInEditor, openBuiltinBrowser, openExternalUrl, openSettings, refreshProjects, createWorkspace, toggleSidebar, toggleAgentPanel]);
 }
 
 const read = () => usePaletteOpsRegistryStore.getState().registry;
@@ -153,6 +168,9 @@ const ops: PaletteOps = {
   openExternalUrl: (url) => (read().openExternalUrl ?? (() => undefined))(url),
   openSettings: (tab) => (read().openSettings ?? (() => undefined))(tab),
   refreshProjects: () => (read().refreshProjects ?? (() => undefined))(),
+  createWorkspace: () => (read().createWorkspace ?? (() => undefined))(),
+  toggleSidebar: () => (read().toggleSidebar ?? (() => undefined))(),
+  toggleAgentPanel: () => (read().toggleAgentPanel ?? (() => undefined))(),
 };
 
 /** Kept as a hook-shaped export so consumers only change their import path. */

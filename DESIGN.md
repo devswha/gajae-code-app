@@ -227,6 +227,12 @@ The system uses Tailwind's 4px spacing scale. Existing values like `p-2`, `gap-2
 - **Behavior**: the divider supports pointer and keyboard resizing. Expand preserves the hidden conversation viewport and draft; restore returns to its previous width. Closing always restores the conversation. Titles remain plain text, and loading/error feedback stays within the chrome.
 - **Accessibility**: labelled native buttons, pressed state for expand/restore, a labelled address field, visible focus rings, reduced-motion support, and the app's selected UI language.
 
+### Desktop Window (macOS)
+
+- **Title bar**: transparent and title-less (`titleBarStyle: Transparent`, `hiddenTitle`). The band holding the traffic lights takes the page's `theme-color`, which `ThemeContext` sets from `--background`; the shell observes `WKWebView.themeColor` (`src-tauri/src/window_chrome.rs`). The window's appearance is never forced, because it drives the page's `prefers-color-scheme`.
+- **Title and Dock badge**: the page title is `(n) <conversation or workspace> — Gajae Code App`, where `n` counts conversations that need the user (waiting, failed, finished unread). The shell mirrors the clean title onto the window, shows `n` (+1 for a `[Done] ` notice) on the Dock icon, and bounces the Dock once when it rises while the window is in the background (`src-tauri/src/window_title.rs`).
+- **Menu bar**: App (About, Settings… ⌘,), File (New Conversation ⌘N, Add Workspace… ⇧⌘N, Close Window), Edit, View (Search… ⌘K, Show or Hide Sidebar ⌃⌘S, Show or Hide Agent Panel ⌥⌘0), Window, Help. Page commands reach the app as a `gajae:menu` window event handled by `DesktopMenuBridge`; the shell sends only constant ids and opens nothing itself.
+
 ### Desktop Update Notice
 
 - **Placement**: a compact `bg-card`, `border-border`, `rounded-lg` card sits immediately above Settings in the fixed sidebar footer. The collapsed rail keeps an accessible update-details icon immediately above its bottom Settings control; opening details only expands the sidebar, without a modal or automatic focus change.

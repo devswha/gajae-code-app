@@ -245,25 +245,11 @@ impl QaProfile {
             if window.create {
                 windows.push(window.clone());
             }
-            // The runtime drops the UUID in WindowConfig -> WebviewAttributes.
-            // Build QA windows with the explicit setter.
+            // The runtime drops the UUID in WindowConfig -> WebviewAttributes;
+            // app_window::create builds these with the explicit setter.
             window.create = false;
         }
         windows
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn create_windows(
-        &self,
-        app: &tauri::App,
-        windows: &[WindowConfig],
-    ) -> tauri::Result<()> {
-        for window in windows {
-            tauri::WebviewWindowBuilder::from_config(app, window)?
-                .data_store_identifier(self.webkit_store)
-                .build()?;
-        }
-        Ok(())
     }
 
     pub(crate) fn environment(&self) -> BTreeMap<String, String> {

@@ -107,7 +107,7 @@ function MetricCard({
     tone === 'primary'
       ? 'border-primary/35 bg-primary/10 text-primary'
       : tone === 'success'
-        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
+        ? 'border-success/30 bg-success/10 text-success'
         : 'border-border/70 bg-background/75 text-muted-foreground';
 
   return (
@@ -310,7 +310,7 @@ function ModelsContent({
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-mono text-sm font-semibold wrap-anywhere text-foreground">{currentModel}</span>
             {pendingSessionModel && pendingSessionModel !== currentModel && (
-              <span className="text-[11px] font-semibold tracking-[0.14em] text-emerald-500 uppercase dark:text-emerald-400">
+              <span className="text-[11px] font-semibold tracking-[0.14em] text-success uppercase">
                 → {pendingSessionModel} next
               </span>
             )}
@@ -352,7 +352,7 @@ function ModelsContent({
                     isCurrent
                       ? 'border-primary/45 bg-primary/10'
                       : isPendingSelection
-                        ? 'border-emerald-500/35 bg-emerald-500/10'
+                        ? 'border-success/35 bg-success/10'
                         : 'border-border/70 bg-background/80 hover:border-primary/30 hover:bg-background'
                   }`}
                   style={{ animationDelay: `${Math.min(index * 14, 180)}ms` }}
@@ -375,7 +375,7 @@ function ModelsContent({
                     <span className="mt-2 text-[11px] font-semibold tracking-[0.16em] text-primary uppercase">Current selection</span>
                   )}
                   {isPendingSelection && !isCurrent && (
-                    <span className="mt-2 text-[11px] font-semibold tracking-[0.16em] text-emerald-500 uppercase dark:text-emerald-400">
+                    <span className="mt-2 text-[11px] font-semibold tracking-[0.16em] text-success uppercase">
                       Applies next response
                     </span>
                   )}
@@ -493,18 +493,18 @@ function StatusContent({ data }: { data: StatusCommandData }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between rounded-3xl border border-emerald-500/25 bg-emerald-500/10 p-4">
+      <div className="flex items-center justify-between rounded-3xl border border-success/25 bg-success/10 p-4">
         <div className="flex items-center gap-3">
           <span className="relative flex h-3 w-3">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+            <span className="relative inline-flex h-3 w-3 rounded-full bg-success" />
           </span>
           <div>
             <p className="text-sm font-semibold text-foreground">Runtime online</p>
             <p className="text-xs text-muted-foreground">Process {data.pid ? `#${data.pid}` : 'status'} is responding.</p>
           </div>
         </div>
-        <Badge className="rounded-full bg-emerald-500 text-white hover:bg-emerald-500">Healthy</Badge>
+        <Badge className="rounded-full bg-success text-success-foreground hover:bg-success">Healthy</Badge>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

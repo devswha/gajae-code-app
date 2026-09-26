@@ -2,9 +2,9 @@
   "buttons": {
     "cancel": "İşlemi iptal et"
   },
-  "tabs": {
-    "chat": "Sohbet",
-    "git": "Sürüm kontrolü"
+  "toasts": {
+    "region": "Bildirimler",
+    "dismiss": "Kapat"
   },
   "status": {
     "success": "Başarı"
@@ -12,17 +12,16 @@
   "mainContent": {
     "loading": "Gajae-app başlatılıyor",
     "settingUpWorkspace": "Çalışma alanı hazırlanıyor…",
-    "chooseProject": "Bir proje seçin",
-    "selectProjectDescription": "Gajae Code'da kodlamaya başlamak için bir kenar çubuğu projesi seçin. Konuşmaları ve dosya geçmişi burada bir arada kalır.",
-    "firstProject": "İlk projenizi ekleyin",
-    "firstProjectDescription": "Bu makinedeki bir klasörü seçin. Gajae Code onun içinde çalışır ve projenin konuşmaları orada kalır.",
-    "addProject": "Proje ekle",
+    "chooseProject": "Bir çalışma alanı seçin",
+    "selectProjectDescription": "Gajae Code'da kodlamaya başlamak için kenar çubuğundan bir çalışma alanı seçin. Sohbetleri ve dosya geçmişi burada bir arada kalır.",
+    "firstProject": "İlk çalışma alanınızı ekleyin",
+    "firstProjectDescription": "Bu makinedeki bir klasörü seçin. Gajae Code onun içinde çalışır ve çalışma alanının sohbetleri orada kalır.",
+    "addProject": "Çalışma alanı ekle",
     "scratchStart": "Geçici bir çalışma alanında başla",
     "scratchStarting": "Hazırlanıyor…",
-    "scratchDescription": "Henüz klasör yok mu? Gajae Code, tek kullanımlık bir git deposu olan ~/gajae-scratch klasörünü oluşturur ve orada bir konuşma açar. Ajan bu klasörün içinde kalır.",
+    "scratchDescription": "Henüz klasör yok mu? Gajae Code, tek kullanımlık bir git deposu olan ~/gajae-scratch klasörünü oluşturur ve orada bir sohbet açar. Ajan bu klasörün içinde kalır.",
     "scratchFailed": "Geçici çalışma alanı başlatılamadı: {{reason}}",
-    "newSession": "Konuşmayı başlat",
-    "projectFiles": "Projedeki dosyalar"
+    "newSession": "Sohbet başlat"
   },
   "projectWizard": {
     "step2": {
@@ -52,7 +51,10 @@
       "path": "Yol:",
       "useThisFolder": "Bu klasörü seç",
       "browseFolders": "Klasörlere göz atın"
-    }
+    },
+    "addProject": "Çalışma alanı ekle",
+    "addProjectDescription": "Çalışma alanı olarak kullanılacak yerel bir klasör seçin.",
+    "addButton": "Ekle"
   },
   "versionUpdate": {
     "ariaLabels": {
@@ -84,6 +86,7 @@
       "changes": "Değişiklikler",
       "branch": "Dal",
       "directory": "Dizin",
+      "worktreeOf": "{{name}} worktree",
       "serviceTier": "Hizmet katmanı",
       "refresh": "Git durumunu yeniden yükle",
       "notARepository": "Bu klasör bir Git deposu değil",
@@ -113,14 +116,14 @@
     "pages": {
       "actions": "Eylemler",
       "files": "Dosyalar",
-      "sessions": "Oturumlar",
+      "sessions": "Sohbetler",
       "commits": "Commit'ler",
       "branches": "Dallar"
     },
     "search": {
       "actions": "Eylem ara…",
       "files": "Dosya ara…",
-      "sessions": "Oturum ara…",
+      "sessions": "Sohbet ara…",
       "commits": "Commit ara…",
       "branches": "Dal ara…",
       "anything": "Aramak için yazın…"
@@ -130,16 +133,14 @@
     "noResults": "Sonuç yok.",
     "current": "Geçerli",
     "groups": {
-      "navigate": "Gezin",
       "git": "Git",
       "settings": "Ayarlar"
     },
     "actions": {
       "startNewChat": "Yeni sohbet başlat",
-      "selectProjectFirst": "Önce bir proje seçin",
+      "selectProjectFirst": "Önce bir çalışma alanı seçin",
       "openSettings": "Ayarları aç",
       "toggleTheme": "Temayı değiştir",
-      "goToChat": "Sohbete git",
       "gitFetch": "Git: Fetch",
       "gitPull": "Git: Pull",
       "gitPush": "Git: Push",
@@ -147,7 +148,7 @@
       "switchToBranch": "Geç: {{branch}}"
     },
     "browseAll": {
-      "sessions": "Tüm oturumlara göz at ({{total}})",
+      "sessions": "Tüm sohbetlere göz at ({{total}})",
       "files": "Tüm dosyalara göz at ({{total}})",
       "commits": "Tüm commit'lere göz at ({{total}})",
       "branches": "Tüm dallara göz at ({{total}})"

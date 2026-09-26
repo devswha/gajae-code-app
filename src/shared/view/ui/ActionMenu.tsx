@@ -12,7 +12,7 @@ export type ActionMenuItem = { key: string; label: string; description?: string;
 
 type ActionMenuProps = { label: string; items: ActionMenuItem[]; icon?: LucideIcon; ariaLabel?: string; align?: 'left' | 'right'; variant?: ButtonVariant; size?: ButtonSize; className?: string; triggerClassName?: string; disabled?: boolean; };
 
-function MenuItems({ items, onChoose }: { items: ActionMenuItem[]; onChoose: (item: ActionMenuItem) => void; }) {
+export function MenuItems({ items, onChoose }: { items: ActionMenuItem[]; onChoose: (item: ActionMenuItem) => void; }) {
   return items.map((item) => {
     const ItemIcon = item.icon;
     const unavailable = item.disabled || item.loading;

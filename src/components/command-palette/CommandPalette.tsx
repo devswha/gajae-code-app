@@ -35,7 +35,7 @@ import {
   DialogTitle,
 } from '../../shared/view/ui';
 import { usePaletteOps, usePaletteOpsRegister } from '../../stores/usePaletteOpsStore';
-import type { AppTab, Project } from '../../types/app';
+import type { Project } from '../../types/app';
 import { SETTINGS_MAIN_TABS } from '../settings/constants/constants';
 
 import { useBranchesSource } from './sources/useBranchesSource';
@@ -46,7 +46,7 @@ import { useSessionMessageSearch } from './sources/useSessionMessageSearch';
 import { useSessionsSource } from './sources/useSessionsSource';
 
 type Page = 'actions' | 'files' | 'sessions' | 'commits' | 'branches';
-type CommandPaletteProps = { selectedProject: Project | null; currentSessionId?: string; onStartNewChat: (project: Project) => void; onOpenSettings: (tab?: string) => void; onShowTab?: (tab: AppTab) => void };
+type CommandPaletteProps = { selectedProject: Project | null; currentSessionId?: string; onStartNewChat: (project: Project) => void; onOpenSettings: (tab?: string) => void };
 type SessionRow = { id: string; label: string; provider?: string; snippet?: string };
 type PaletteState = { open: boolean; query: string; history: Page[] };
 type ActionItemProps = {
@@ -67,11 +67,6 @@ type PaletteAction =
   | { type: 'clear-closed' }
   | { type: 'set-query'; query: string };
 
-// Search keywords stay English alongside the translated label so a user can
-// match an action either way; the `value` is what cmdk filters on.
-const NAV_TABS: Array<{ id: AppTab; labelKey: string; keywords: string }> = [
-  { id: 'chat', labelKey: 'commandPalette.actions.goToChat', keywords: 'Go to Chat chat messages conversation' },
-];
 const BROWSE_LIMIT = 5;
 
 function paletteReducer(previous: PaletteState, action: PaletteAction): PaletteState {
@@ -149,7 +144,6 @@ export default function CommandPalette({
   currentSessionId,
   onStartNewChat,
   onOpenSettings,
-  onShowTab,
 }: CommandPaletteProps) {
   const [palette, dispatchPalette] = React.useReducer(paletteReducer, { open: false, query: '', history: [] });
   const { toggleDarkMode } = useTheme();
@@ -220,6 +214,8 @@ export default function CommandPalette({
   const branchesShown = browseItems(branches, currentPage, 'branches');
   const pageLabel = (page: Page) => t(`commandPalette.pages.${page}`);
   const currentHint = t('commandPalette.current');
+  // Search keywords stay English alongside the translated label so a user can
+  // match an action either way; the `value` is what cmdk filters on.
   const primaryActions: ActionItemProps[] = [
     {
       icon: MessageSquarePlus,
@@ -322,20 +318,6 @@ export default function CommandPalette({
             {actionsVisible && (
               <CommandGroup heading={pageLabel('actions')}>
                 {primaryActions.map((action) => <PaletteActionItem key={action.value} {...action} />)}
-              </CommandGroup>
-            )}
-
-            {actionsVisible && (
-              <CommandGroup heading={t('commandPalette.groups.navigate')}>
-                {NAV_TABS.map((tab) => (
-                  <CommandItem
-                    key={tab.id as string}
-                    value={`${t(tab.labelKey)} ${tab.keywords}`}
-                    onSelect={() => runAfterDismissal(() => onShowTab?.(tab.id))}
-                  >
-                    <span className="flex-1">{t(tab.labelKey)}</span>
-                  </CommandItem>
-                ))}
               </CommandGroup>
             )}
 

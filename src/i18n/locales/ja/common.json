@@ -2,9 +2,9 @@
   "buttons": {
     "cancel": "キャンセル"
   },
-  "tabs": {
-    "chat": "チャット",
-    "git": "ソース管理"
+  "toasts": {
+    "region": "通知",
+    "dismiss": "閉じる"
   },
   "status": {
     "success": "成功"
@@ -12,17 +12,16 @@
   "mainContent": {
     "loading": "Gajae Code App を読み込んでいます",
     "settingUpWorkspace": "ワークスペースを準備しています...",
-    "chooseProject": "プロジェクトを選択",
-    "selectProjectDescription": "サイドバーからプロジェクトを選択して、Gajae Codeとコーディングを始めましょう。各プロジェクトにはチャットセッションとファイル履歴が含まれています。",
-    "firstProject": "最初のプロジェクトを追加",
-    "firstProjectDescription": "このマシン上のフォルダを選びます。Gajae Code はその中で作業し、プロジェクトの会話もそこに残ります。",
-    "addProject": "プロジェクトを追加",
+    "chooseProject": "ワークスペースを選択",
+    "selectProjectDescription": "サイドバーからワークスペースを選択して、Gajae Codeとコーディングを始めましょう。各ワークスペースには会話とファイル履歴が含まれています。",
+    "firstProject": "最初のワークスペースを追加",
+    "firstProjectDescription": "このマシン上のフォルダを選びます。Gajae Code はその中で作業し、ワークスペースの会話もそこに残ります。",
+    "addProject": "ワークスペースを追加",
     "scratchStart": "スクラッチ用ワークスペースで始める",
     "scratchStarting": "準備中…",
     "scratchDescription": "まだフォルダがありませんか？Gajae Code が使い捨ての git リポジトリ ~/gajae-scratch を作成し、そこで会話を開きます。エージェントはその中だけで作業します。",
     "scratchFailed": "スクラッチ用ワークスペースを開始できませんでした: {{reason}}",
-    "newSession": "新しいセッション",
-    "projectFiles": "プロジェクトファイル"
+    "newSession": "会話を開始"
   },
   "projectWizard": {
     "step2": {
@@ -52,7 +51,10 @@
       "path": "パス:",
       "useThisFolder": "このフォルダを使用",
       "browseFolders": "フォルダを参照"
-    }
+    },
+    "addProject": "ワークスペースを追加",
+    "addProjectDescription": "ワークスペースとして使うローカルフォルダを選んでください。",
+    "addButton": "追加"
   },
   "versionUpdate": {
     "ariaLabels": {
@@ -84,6 +86,7 @@
       "changes": "変更",
       "branch": "ブランチ",
       "directory": "ディレクトリ",
+      "worktreeOf": "{{name}} のワークツリー",
       "serviceTier": "サービスティア",
       "refresh": "Git ステータスを再読み込み",
       "notARepository": "このフォルダーは Git リポジトリではありません",
@@ -113,14 +116,14 @@
     "pages": {
       "actions": "アクション",
       "files": "ファイル",
-      "sessions": "セッション",
+      "sessions": "会話",
       "commits": "コミット",
       "branches": "ブランチ"
     },
     "search": {
       "actions": "アクションを検索…",
       "files": "ファイルを検索…",
-      "sessions": "セッションを検索…",
+      "sessions": "会話を検索…",
       "commits": "コミットを検索…",
       "branches": "ブランチを検索…",
       "anything": "入力して何でも検索…"
@@ -130,16 +133,14 @@
     "noResults": "結果がありません。",
     "current": "現在",
     "groups": {
-      "navigate": "移動",
       "git": "Git",
       "settings": "設定"
     },
     "actions": {
-      "startNewChat": "新しいチャットを開始",
-      "selectProjectFirst": "まずプロジェクトを選択してください",
+      "startNewChat": "新しい会話を開始",
+      "selectProjectFirst": "まずワークスペースを選択してください",
       "openSettings": "設定を開く",
       "toggleTheme": "テーマを切り替え",
-      "goToChat": "チャットへ移動",
       "gitFetch": "Git: Fetch",
       "gitPull": "Git: Pull",
       "gitPush": "Git: Push",
@@ -147,7 +148,7 @@
       "switchToBranch": "切り替え: {{branch}}"
     },
     "browseAll": {
-      "sessions": "すべてのセッションを表示 ({{total}})",
+      "sessions": "すべての会話を表示 ({{total}})",
       "files": "すべてのファイルを表示 ({{total}})",
       "commits": "すべてのコミットを表示 ({{total}})",
       "branches": "すべてのブランチを表示 ({{total}})"

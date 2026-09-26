@@ -228,3 +228,34 @@ test('renaming on touch takes the row over as an input, not a silent no-op', asy
   fireEvent.click(save);
   assert.deepEqual(saved.map(([projectId, sessionId, name]) => [projectId === project.projectId, sessionId === session.id, name]), [[true, true, 'renamed draft']]);
 });
+
+test('a secondary click opens the whole action set at the pointer, not the link menu', async () => {
+  const archived: string[] = [];
+  const { container, sessionId } = await mountRow('idle', { onArchiveSession: (id) => archived.push(id) });
+  const row = container.querySelector('[data-session-status]')!;
+
+  const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 40, clientY: 60 });
+  row.dispatchEvent(event);
+  assert.equal(event.defaultPrevented, true, 'the browser link menu is replaced');
+
+  const menu = await screen.findByRole('menu', { name: 'Conversation actions' });
+  const labels = within(menu).getAllByRole('menuitem').map((item) => item.textContent);
+  assert.deepEqual(labels, ['Pin', 'Archive conversation', 'Rename conversation', 'Export Markdown', 'Delete conversation']);
+  assert.equal(document.activeElement, within(menu).getAllByRole('menuitem')[0], 'the first item takes focus');
+
+  fireEvent.click(within(menu).getByRole('menuitem', { name: 'Archive conversation' }));
+  assert.deepEqual(archived, [sessionId]);
+  assert.equal(screen.queryByRole('menu'), null);
+});
+
+test('Escape closes the context menu; a running row offers no archive or delete', async () => {
+  const { container } = await mountRow('running', {}, { isProcessing: true });
+  fireEvent.contextMenu(container.querySelector('[data-session-status]')!);
+  const menu = await screen.findByRole('menu');
+  const labels = within(menu).getAllByRole('menuitem').map((item) => item.textContent);
+  assert.equal(labels.includes('Archive conversation'), false);
+  assert.equal(labels.includes('Delete conversation'), false);
+
+  fireEvent.keyDown(document, { key: 'Escape' });
+  assert.equal(screen.queryByRole('menu'), null);
+});

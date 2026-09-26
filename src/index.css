@@ -36,6 +36,9 @@
   --color-secondary-foreground: hsl(var(--secondary-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-favorite: hsl(var(--favorite));
   --color-diff-added: hsl(var(--diff-added));
   --color-diff-added-foreground: hsl(var(--diff-added-foreground));
   --color-diff-removed: hsl(var(--diff-removed));
@@ -133,6 +136,8 @@
     --muted: 44 15% 91%; --muted-foreground: 40 5% 40%;
     --accent: 44 15% 91%; --accent-foreground: 36 15% 18%;
     --destructive: 0 72% 45%; --destructive-foreground: 0 0% 100%;
+    /* Success (signed in, healthy, saved) and the favourite star; text-safe on the page. */
+    --success: 142 64% 28%; --success-foreground: 0 0% 100%; --favorite: 38 92% 42%;
     --diff-added: 142 45% 92%; --diff-added-foreground: 142 60% 25%;
     --diff-removed: 0 60% 94%; --diff-removed-foreground: 0 65% 38%;
     --border: 44 14% 87%; --input: 44 14% 87%; --ring: 14 89% 41%;
@@ -154,6 +159,7 @@
     --secondary: 0 0% 17%; --secondary-foreground: 40 8% 93%; --muted: 0 0% 17%;
     --muted-foreground: 0 0% 60%; --accent: 0 0% 17%; --accent-foreground: 40 8% 93%;
     --destructive: 354 100% 65%; --destructive-foreground: 0 0% 8%;
+    --success: 142 55% 55%; --success-foreground: 0 0% 8%; --favorite: 43 96% 56%;
     --diff-added: 142 30% 16%; --diff-added-foreground: 142 45% 70%;
     --diff-removed: 0 35% 18%; --diff-removed-foreground: 0 60% 72%;
     --border: 0 0% 17%; --input: 0 0% 23%; --ring: 16 90% 57%;

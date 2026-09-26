@@ -1,20 +1,20 @@
 {
   "projects": {
     "title": "ワークスペース",
-    "newProject": "プロジェクトを追加",
+    "newProject": "ワークスペースを追加",
     "renameProject": "ワークスペースの名前を変更",
     "noProjects": "ワークスペースはまだありません",
     "addFirst": "追加",
     "loadingProjects": "ワークスペースを取得中…",
     "projectNamePlaceholder": "ワークスペース名",
-    "untitledSession": "無題のセッション",
+    "untitledSession": "無題の会話",
     "newSession": "会話を開始",
-    "fetchingProjects": "プロジェクトと会話を取得中",
-    "projects": "プロジェクト"
+    "fetchingProjects": "ワークスペースと会話を取得中",
+    "projects": "ワークスペース"
   },
   "sessions": {
-    "work": "作業",
-    "newTask": "新しい作業項目",
+    "work": "進行中",
+    "newTask": "新しい会話",
     "newSession": "会話を開始",
     "deleteSession": "会話を削除",
     "archiveSession": "会話をアーカイブ",
@@ -32,17 +32,17 @@
   },
   "tooltips": {
     "hideSidebar": "サイドバーを隠す",
-    "createProject": "プロジェクトを追加",
+    "createProject": "ワークスペースを追加",
     "createSession": "会話を開始",
-    "refresh": "プロジェクトと会話を再読み込み",
-    "renameProject": "プロジェクト名を変更",
-    "archiveProject": "このプロジェクトをアーカイブへ移動 (削除はされません)",
+    "refresh": "ワークスペースと会話を再読み込み",
+    "renameProject": "ワークスペースの名前を変更",
+    "archiveProject": "このワークスペースをアーカイブへ移動 (削除はされません)",
     "addToFavorites": "お気に入りに追加",
     "removeFromFavorites": "お気に入りから削除",
     "editSessionName": "会話名を編集",
     "sessionActions": "会話の操作",
     "deleteSession": "この会話を完全に削除",
-    "activeSessionIndicator": "最近アクティブなセッション（過去10分以内）",
+    "activeSessionIndicator": "最近アクティブな会話（過去10分以内）",
     "save": "保存",
     "cancel": "キャンセル",
     "attentionRequiredIndicator": "会話に対応が必要です"
@@ -78,20 +78,20 @@
     "projectAttentionCount_other": "確認が必要な会話 {{count}} 件"
   },
   "messages": {
-    "deleteSessionFailed": "セッションの削除に失敗しました。もう一度お試しください。",
-    "deleteSessionError": "セッションの削除でエラーが発生しました。もう一度お試しください。",
-    "renameSessionFailed": "セッション名の変更に失敗しました。もう一度お試しください。",
-    "renameSessionError": "セッション名の変更でエラーが発生しました。もう一度お試しください。",
+    "deleteSessionFailed": "会話の削除に失敗しました。もう一度お試しください。",
+    "deleteSessionError": "会話の削除でエラーが発生しました。もう一度お試しください。",
+    "renameSessionFailed": "会話名の変更に失敗しました。もう一度お試しください。",
+    "renameSessionError": "会話名の変更でエラーが発生しました。もう一度お試しください。",
     "regenerateTitleFailed": "タイトルを再生成できませんでした。もう一度お試しください。",
-    "exportSessionError": "セッションのエクスポートに失敗しました。もう一度お試しください。",
-    "archiveProjectFailed": "プロジェクトのアーカイブに失敗しました。もう一度お試しください。",
-    "archiveProjectError": "プロジェクトのアーカイブでエラーが発生しました。もう一度お試しください。",
-    "updateProjectError": "プロジェクトの更新でエラーが発生しました。もう一度お試しください。",
+    "exportSessionError": "会話のエクスポートに失敗しました。もう一度お試しください。",
+    "archiveProjectFailed": "ワークスペースのアーカイブに失敗しました。もう一度お試しください。",
+    "archiveProjectError": "ワークスペースのアーカイブでエラーが発生しました。もう一度お試しください。",
+    "updateProjectError": "ワークスペースの更新でエラーが発生しました。もう一度お試しください。",
     "refreshError": "更新に失敗しました。もう一度お試しください。",
-    "restoreProjectFailed": "プロジェクトの復元に失敗しました。もう一度お試しください。",
-    "restoreProjectError": "プロジェクトの復元でエラーが発生しました。もう一度お試しください。",
-    "restoreSessionFailed": "セッションの復元に失敗しました。もう一度お試しください。",
-    "restoreSessionError": "セッションの復元でエラーが発生しました。もう一度お試しください。",
+    "restoreProjectFailed": "ワークスペースの復元に失敗しました。もう一度お試しください。",
+    "restoreProjectError": "ワークスペースの復元でエラーが発生しました。もう一度お試しください。",
+    "restoreSessionFailed": "会話の復元に失敗しました。もう一度お試しください。",
+    "restoreSessionError": "会話の復元でエラーが発生しました。もう一度お試しください。",
     "archiveSessionFailed": "会話のアーカイブに失敗しました。もう一度お試しください。",
     "archiveSessionError": "会話のアーカイブでエラーが発生しました。もう一度お試しください。",
     "debugInfoError": "デバッグ情報をコピーできませんでした。"
@@ -113,6 +113,13 @@
   },
   "deleteConfirmation": {
     "deleteSession": "会話を削除",
-    "confirmDelete": "このプロジェクトをどうしますか："
+    "confirmDelete": "次の会話の扱いを選択：",
+    "archiveSessionNotice": "アーカイブすると履歴を残したまま一覧から外します。",
+    "archivedSessionNotice": "この会話はすでにアーカイブされています。非表示のままにするか、完全に削除できます。",
+    "archiveSession": "会話をアーカイブ",
+    "deleteSessionPermanently": "完全に削除"
+  },
+  "navigation": {
+    "primary": "メインナビゲーション"
   }
 }

@@ -1,6 +1,7 @@
 import { Archive, Check, ChevronRight, Edit3, Folder, Plus, Star, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
+import { useContextMenu } from '../../../shared/view/ui/ContextMenu';
 import { cn } from '../../../utils/cn';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
@@ -14,6 +15,8 @@ type SidebarProjectItemProps = {
   project: Project;
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
+  /** The open conversation is highlighted in Work instead, so its tree row stays plain. */
+  selectionShownInWork?: boolean;
   isExpanded: boolean;
   isMobile: boolean;
   showSessions: boolean;
@@ -57,6 +60,7 @@ export default function SidebarProjectItem({
   project,
   selectedProject,
   selectedSession,
+  selectionShownInWork = false,
   isExpanded,
   isMobile,
   showSessions,
@@ -96,6 +100,10 @@ export default function SidebarProjectItem({
   t,
 }: SidebarProjectItemProps) {
   const isSelected = selectedProject?.projectId === project.projectId;
+  // Like a folder in Finder, the workspace row is highlighted only when it is
+  // itself the selection (a new conversation), not whenever one of its
+  // conversations is open - that painted a second selected row above it.
+  const isCurrent = isSelected && !selectedSession;
   const isEditing = editingProject === project.projectId;
   const statuses = sessions.map((session) => getSessionStatus(session.id));
   const attentionCount = statuses.filter(needsAttention).length;
@@ -109,9 +117,23 @@ export default function SidebarProjectItem({
 
   const saveProjectName = () => onSaveProjectName(project.projectId);
 
+  // The hover toolbar's actions, reachable by a secondary click as well.
+  const contextMenu = useContextMenu([
+    { key: 'new', label: t('tooltips.createSession'), icon: Plus, onSelect: () => onNewSession(project) },
+    {
+      key: 'star',
+      label: isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites'),
+      icon: Star,
+      onSelect: () => onToggleStarProject(project.projectId),
+    },
+    { key: 'rename', label: t('tooltips.renameProject'), icon: Edit3, onSelect: () => onStartEditingProject(project) },
+    { key: 'archive', label: t('tooltips.archiveProject'), icon: Archive, onSelect: () => onArchiveProject(project), showDividerBefore: true },
+  ], project.displayName);
+
   return (
     <div className={cn('space-y-1', isArchiving && 'pointer-events-none opacity-50')}>
-      <div className="group/project relative">
+      <div className="group/project relative" onContextMenu={isEditing ? undefined : contextMenu.onContextMenu}>
+        {contextMenu.menu}
         {isEditing ? (
           <div className="flex items-center gap-1 px-1.5 py-1">
             <input
@@ -126,7 +148,7 @@ export default function SidebarProjectItem({
                 if (event.key === 'Escape') onCancelEditingProject();
               }}
             />
-            <button className="flex size-8 items-center justify-center rounded-md text-emerald-600 hover:bg-accent" onClick={saveProjectName} aria-label={t('tooltips.save')}>
+            <button className="flex size-8 items-center justify-center rounded-md text-success hover:bg-accent" onClick={saveProjectName} aria-label={t('tooltips.save')}>
               <Check className="size-3.5" />
             </button>
             <button className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent" onClick={onCancelEditingProject} aria-label={t('tooltips.cancel')}>
@@ -139,13 +161,14 @@ export default function SidebarProjectItem({
               type="button"
               className={cn(
                 'flex h-9 w-full min-w-0 items-center gap-2 rounded-lg px-2.5 pr-9 text-left text-sm outline-hidden transition-colors hover:bg-accent/70 focus-visible:ring-1 focus-visible:ring-ring',
-                isSelected && 'bg-accent text-accent-foreground',
+                isCurrent && 'bg-accent text-accent-foreground',
+                contextMenu.isOpen && 'ring-1 ring-ring/60',
               )}
               onClick={selectProject}
               title={project.fullPath}
               aria-expanded={showSessions ? isExpanded : undefined}
             >
-              <Folder className={cn('stroke-1.7 size-4 shrink-0 text-muted-foreground', isSelected && 'text-foreground')} aria-hidden />
+              <Folder className={cn('stroke-1.7 size-4 shrink-0 text-muted-foreground', isCurrent && 'text-foreground')} aria-hidden />
               <span className="min-w-0 flex-1 truncate">{project.displayName}</span>
               {attentionCount > 0 && (
                 <span
@@ -180,7 +203,7 @@ export default function SidebarProjectItem({
                 aria-label={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
                 title={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
               >
-                <Star className={cn('size-3.5', isStarred && 'fill-amber-400 text-amber-500')} />
+                <Star className={cn('size-3.5', isStarred && 'fill-favorite text-favorite')} />
               </button>
               <button className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground" onClick={() => onStartEditingProject(project)} aria-label={t('tooltips.renameProject')} title={t('tooltips.renameProject')}>
                 <Edit3 className="size-3.5" />
@@ -199,7 +222,7 @@ export default function SidebarProjectItem({
           isExpanded={isExpanded}
           isMobile={isMobile}
           sessions={sessions}
-          selectedSession={selectedSession}
+          selectedSession={selectionShownInWork ? null : selectedSession}
           initialSessionsLoaded={initialSessionsLoaded}
           hasMoreSessions={Boolean(project.sessionMeta?.hasMore)}
           isLoadingMoreSessions={isLoadingMoreSessions}

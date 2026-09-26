@@ -125,9 +125,11 @@ hooks throughout.
 One legacy `.jsx` file remains (`src/main.jsx`); everything else
 is `.ts`/`.tsx`. Routing is react-router-dom 7.
 
-- **The UI primitives are owned, not installed.** `src/shared/view/ui/` holds 18
+- **The UI primitives are owned, not installed.** `src/shared/view/ui/` holds 20
   shadcn-shaped components (Button, Dialog, Collapsible, Command, Tooltip,
-  ScrollArea, ActionMenu, ...) written in this repo. **There is no Radix
+  ScrollArea, ActionMenu, ContextMenu, Toaster, ...) written in this repo.
+  Composer popups share `src/hooks/useAnchoredPopup.ts`; notices go through
+  `showToast`/`showErrorToast`, never `window.alert`. **There is no Radix
   dependency.** Reaching for one to get a primitive that already exists here is
   a regression, not a shortcut. `cmdk` backs the command palette, `lucide-react`
   supplies icons.

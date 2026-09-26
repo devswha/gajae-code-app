@@ -1,7 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ShieldAlertIcon } from 'lucide-react';
+import { ChevronRight, ShieldAlertIcon } from 'lucide-react';
 
+import { approveShortcutLabel, useApproveShortcut } from '../hooks/useApproveShortcut';
 import type { PendingPermissionRequest, PermissionDecision } from '../types/types';
 import { formatToolInputForDisplay, offeredPermissionKinds } from '../utils/chatPermissions';
 import { getPermissionPanel, registerPermissionPanel } from '../tools/configs/permissionPanelRegistry';
@@ -47,6 +48,13 @@ export default function PermissionRequestsBanner({
     (r) => r.toolName !== 'ExitPlanMode' && r.toolName !== 'exit_plan_mode'
   );
 
+  // Cmd/Ctrl+Enter approves the oldest request that is a plain Allow/Deny
+  // card; a custom panel (a question) needs an answer, not an approval.
+  const firstApprovable = filteredRequests.find((request) => !getPermissionPanel(request.toolName));
+  useApproveShortcut(Boolean(firstApprovable), () => {
+    if (firstApprovable) handlePermissionDecision(firstApprovable.requestId, { allow: true });
+  });
+
   if (!filteredRequests.length) {
     return null;
   }
@@ -81,16 +89,19 @@ export default function PermissionRequestsBanner({
                   <span className="ml-2 text-muted-foreground">
                     {t('permissionCard.tool')} <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{request.toolName}</code>
                   </span>
+                  {/* The whole command, wrapped: approving a command has to mean
+                      approving what it actually runs, not its first 60 characters. */}
                   {title && (
-                    <code className="mt-1 block truncate font-mono text-xs text-foreground/80" title={title}>{title}</code>
+                    <code className="mt-2 block max-h-28 overflow-y-auto rounded-md bg-muted/60 px-2.5 py-1.5 font-mono text-xs wrap-anywhere whitespace-pre-wrap text-foreground/90" title={title}>{title}</code>
                   )}
                 </div>
               </ConfirmationRequest>
             </ConfirmationTitle>
 
             {rawInput && (
-              <details className="mt-2">
-                <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+              <details className="group mt-1">
+                <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded text-xs text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="size-3 shrink-0 transition-transform group-open:rotate-90" aria-hidden />
                   {t('permissionCard.viewInput')}
                 </summary>
                 <pre className="mt-2 max-h-40 overflow-auto rounded-md border bg-muted/50 p-2 text-xs whitespace-pre-wrap text-muted-foreground">
@@ -99,40 +110,50 @@ export default function PermissionRequestsBanner({
               </details>
             )}
 
-            <ConfirmationActions className="flex-wrap">
-              <ConfirmationAction
-                variant="outline"
-                onClick={() => handlePermissionDecision(request.requestId, { allow: false, message: 'User denied tool use' })}
-              >
-                {t('permissionCard.deny')}
-              </ConfirmationAction>
-              {showsAlwaysDeny && (
-                <ConfirmationAction
-                  variant="outline"
-                  data-action="always-deny"
-                  title={t('permissionCard.alwaysDenyHint')}
-                  onClick={() => handlePermissionDecision(request.requestId, { allow: false, always: true, message: 'User denied tool use (always)' })}
-                >
-                  {t('permissionCard.alwaysDeny', { tool: request.toolName })}
-                </ConfirmationAction>
-              )}
+            {/* One decision, weighted like a native sheet: the standing rules
+                are quiet options on the left, the one-off pair on the right. */}
+            <div className="flex flex-wrap items-center gap-2">
               {showsAlwaysAllow && (
                 <ConfirmationAction
-                  variant="outline"
+                  variant="ghost"
                   data-action="always-allow"
                   title={t('permissionCard.alwaysAllowHint')}
+                  className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
                   onClick={() => handlePermissionDecision(request.requestId, { allow: true, always: true })}
                 >
                   {t('permissionCard.alwaysAllow', { tool: request.toolName })}
                 </ConfirmationAction>
               )}
-              <ConfirmationAction
-                variant="default"
-                onClick={() => handlePermissionDecision(request.requestId, { allow: true })}
-              >
-                {t('permissionCard.allow')}
-              </ConfirmationAction>
-            </ConfirmationActions>
+              {showsAlwaysDeny && (
+                <ConfirmationAction
+                  variant="ghost"
+                  data-action="always-deny"
+                  title={t('permissionCard.alwaysDenyHint')}
+                  className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => handlePermissionDecision(request.requestId, { allow: false, always: true, message: 'User denied tool use (always)' })}
+                >
+                  {t('permissionCard.alwaysDeny', { tool: request.toolName })}
+                </ConfirmationAction>
+              )}
+              <ConfirmationActions className="ml-auto">
+                <ConfirmationAction
+                  variant="outline"
+                  onClick={() => handlePermissionDecision(request.requestId, { allow: false, message: 'User denied tool use' })}
+                >
+                  {t('permissionCard.deny')}
+                </ConfirmationAction>
+                <ConfirmationAction
+                  variant="default"
+                  aria-keyshortcuts={request === firstApprovable ? 'Meta+Enter Control+Enter' : undefined}
+                  onClick={() => handlePermissionDecision(request.requestId, { allow: true })}
+                >
+                  {t('permissionCard.allow')}
+                  {request === firstApprovable && (
+                    <kbd aria-hidden className="ml-1.5 rounded bg-primary-foreground/20 px-1 py-0.5 font-mono text-[10px]">{approveShortcutLabel()}</kbd>
+                  )}
+                </ConfirmationAction>
+              </ConfirmationActions>
+            </div>
           </Confirmation>
         );
       })}

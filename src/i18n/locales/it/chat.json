@@ -1,6 +1,6 @@
 {
   "goal": {
-    "region": "Obiettivo della sessione",
+    "region": "Obiettivo della conversazione",
     "title": "Obiettivo",
     "active": "In corso",
     "paused": "In pausa",
@@ -130,7 +130,7 @@
     "skills": {
       "label": "Scegli una skill",
       "title": "Skill",
-      "description": "Scegli una skill da usare nel progetto corrente.",
+      "description": "Scegli una skill da usare nello spazio di lavoro corrente.",
       "search": "Cerca skill",
       "noMatches": "Nessuna skill corrisponde."
     }
@@ -199,7 +199,7 @@
     "otherTools_other": "{{count}} altri strumenti"
   },
   "projectSelection": {
-    "startChatWithProvider": "Scegli un progetto prima di chattare con {{provider}}"
+    "startChatWithProvider": "Scegli uno spazio di lavoro prima di chattare con {{provider}}"
   },
   "newSession": {
     "greeting": "Cosa dovremmo costruire?",
@@ -221,7 +221,7 @@
   "permissionMode": {
     "label": "Modalità permessi",
     "title": "Permessi",
-    "description": "Cosa può fare l’agente in questo progetto senza chiedere.",
+    "description": "Cosa può fare l’agente in questo spazio di lavoro senza chiedere.",
     "tooltip": "Permessi: {{mode}} ({{shortcut}})",
     "paletteAction": "Permessi: {{mode}}",
     "alwaysAllowedSummary": "Sempre consentiti ({{count}}): {{tools}}",
@@ -236,7 +236,7 @@
       },
       "bypass": {
         "label": "Ignora",
-        "description": "Nessuna richiesta. L’agente esegue qualsiasi comando in questo progetto."
+        "description": "Nessuna richiesta. L’agente esegue qualsiasi comando in questo spazio di lavoro."
       }
     }
   },
@@ -249,7 +249,7 @@
     "alwaysDeny": "Rifiuta sempre {{tool}}",
     "alwaysDenyHint": "Rifiuta automaticamente questo strumento per il resto dell'esecuzione corrente",
     "alwaysAllow": "Consenti sempre {{tool}}",
-    "alwaysAllowHint": "Approva automaticamente questo strumento in questo progetto da ora in avanti"
+    "alwaysAllowHint": "Approva automaticamente questo strumento in questo spazio di lavoro da ora in avanti"
   },
   "plan": {
     "toggle": "Mostra/nascondi piano",
@@ -271,7 +271,7 @@
   },
   "sessionWorktree": {
     "label": "Directory di esecuzione",
-    "project": "Progetto",
+    "project": "Spazio di lavoro",
     "newWorktree": "Nuovo worktree",
     "worktree": "Worktree",
     "preparing": "Preparazione del worktree"

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useSessionStatus } from '../../../contexts/SessionStatusContext';
 import { useProjectGitSummary } from '../../workspace/hooks/useProjectGitSummary';
+import { displayBranch, leafName, sessionWorktreeOf } from '../utils/environmentLabels';
 
 export type AgentSidebarEnvironmentProps = {
   projectId?: string;
@@ -39,6 +40,7 @@ export default function AgentSidebarEnvironment({ projectId, projectPath, sessio
   const { state: git, refresh } = useProjectGitSummary(projectId, Boolean(projectId), sessionId, projectPath);
 
   const directory = status.cwd ?? projectPath;
+  const worktree = directory ? sessionWorktreeOf(directory) : null;
 
   return (
     <section aria-labelledby="agent-sidebar-environment" className="px-1 py-2 text-xs">
@@ -69,7 +71,7 @@ export default function AgentSidebarEnvironment({ projectId, projectPath, sessio
       {directory && (
         <Row icon={Folder} title={directory}>
           <span className="sr-only">{t('agentSidebar.environment.directory')}: </span>
-          {leafName(directory)}
+          {worktree ? t('agentSidebar.environment.worktreeOf', { name: worktree.repository }) : leafName(directory)}
         </Row>
       )}
       {status.serviceTier && (
@@ -81,7 +83,7 @@ export default function AgentSidebarEnvironment({ projectId, projectPath, sessio
       {git.kind === 'ready' && git.summary.branch && (
         <Row icon={GitBranch} title={git.summary.branch}>
           <span className="sr-only">{t('agentSidebar.environment.branch')}: </span>
-          {git.summary.branch}
+          {displayBranch(git.summary.branch)}
         </Row>
       )}
       {git.kind === 'not-a-repository' && (
@@ -92,11 +94,6 @@ export default function AgentSidebarEnvironment({ projectId, projectPath, sessio
       )}
     </section>
   );
-}
-
-/** The last path segment; a trailing slash does not make the name empty. */
-function leafName(path: string): string {
-  return path.replace(/\/+$/, '').split('/').pop() || path;
 }
 
 function Row({ icon: Icon, title, value, children }: { icon: LucideIcon; title?: string; value?: number; children: ReactNode }) {

@@ -1,7 +1,7 @@
 {
   "projects": {
     "title": "工作区",
-    "newProject": "添加项目",
+    "newProject": "添加工作区",
     "renameProject": "重命名工作区",
     "noProjects": "暂无工作区",
     "addFirst": "添加",
@@ -9,12 +9,12 @@
     "projectNamePlaceholder": "工作区名称",
     "untitledSession": "未命名对话",
     "newSession": "开始对话",
-    "fetchingProjects": "正在检索项目和对话",
-    "projects": "项目集"
+    "fetchingProjects": "正在检索工作区和对话",
+    "projects": "工作区"
   },
   "sessions": {
-    "work": "办公",
-    "newTask": "新建任务项",
+    "work": "进行中",
+    "newTask": "新建对话",
     "newSession": "开始对话",
     "deleteSession": "删除对话",
     "archiveSession": "归档对话",
@@ -32,11 +32,11 @@
   },
   "tooltips": {
     "hideSidebar": "折叠侧边栏",
-    "createProject": "添加一个项目",
+    "createProject": "添加一个工作区",
     "createSession": "开始对话",
-    "refresh": "重新加载项目和对话",
+    "refresh": "重新加载工作区和对话",
     "renameProject": "重命名工作区",
-    "archiveProject": "将该项目移入归档（不会删除任何内容）",
+    "archiveProject": "将该工作区移入归档（不会删除任何内容）",
     "addToFavorites": "标记为收藏",
     "removeFromFavorites": "取消收藏标记",
     "editSessionName": "编辑对话名称",
@@ -84,12 +84,12 @@
     "renameSessionError": "发生了对话重命名错误，请重试。",
     "regenerateTitleFailed": "无法重新生成标题。请重试。",
     "exportSessionError": "无法导出对话，请重试。",
-    "archiveProjectFailed": "无法归档项目，请重试。",
-    "archiveProjectError": "归档项目时出错，请重试。",
-    "updateProjectError": "发生了项目更新错误，请重试。",
+    "archiveProjectFailed": "无法归档工作区，请重试。",
+    "archiveProjectError": "归档工作区时出错，请重试。",
+    "updateProjectError": "发生了工作区更新错误，请重试。",
     "refreshError": "无法刷新，请重试。",
-    "restoreProjectFailed": "无法恢复该项目，请重试。",
-    "restoreProjectError": "发生了项目恢复错误，请重试。",
+    "restoreProjectFailed": "无法恢复该工作区，请重试。",
+    "restoreProjectError": "发生了工作区恢复错误，请重试。",
     "restoreSessionFailed": "无法恢复对话，请重试。",
     "restoreSessionError": "发生了对话恢复错误，请重试。",
     "archiveSessionFailed": "无法归档对话，请重试。",
@@ -113,6 +113,13 @@
   },
   "deleteConfirmation": {
     "deleteSession": "删除对话",
-    "confirmDelete": "请选择要执行的操作"
+    "confirmDelete": "请选择要执行的操作",
+    "archiveSessionNotice": "归档会将对话移出列表，同时保留其历史。",
+    "archivedSessionNotice": "此对话已归档。可以继续隐藏，也可以永久删除。",
+    "archiveSession": "归档对话",
+    "deleteSessionPermanently": "永久删除"
+  },
+  "navigation": {
+    "primary": "主导航"
   }
 }

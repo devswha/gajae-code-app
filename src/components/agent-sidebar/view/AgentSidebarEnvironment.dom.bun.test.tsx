@@ -176,3 +176,16 @@ test('a session that reports no tier renders no tier row', async () => {
 
   assert.equal(screen.queryByText(/agentSidebar\.environment\.serviceTier/), null);
 });
+
+test('a conversation worktree reads as its repository and a short branch, with the full values kept', async () => {
+  const worktree = '/work/alpha/.gjc-worktrees/job-session-a03ab805-5770-4245-9517-f9c1d2e3a4b5';
+  answer(status({ branch: 'job/job-session-a03ab805-5770-4245-9517-f9c1d2e3a4b5' }));
+  const snapshot: SessionStatusSnapshot = { ...EMPTY_SESSION_STATUS, sessionId: 'session-1', cwd: worktree };
+  render(createElement(SessionStatusProvider, null,
+    createElement(Publisher, { snapshot }, environment())));
+
+  const directory = await screen.findByTitle(worktree);
+  assert.match(directory.textContent ?? '', /agentSidebar\.environment\.worktreeOf$/);
+  const branch = await screen.findByTitle('job/job-session-a03ab805-5770-4245-9517-f9c1d2e3a4b5');
+  assert.match(branch.textContent ?? '', /: job\/a03ab805$/);
+});

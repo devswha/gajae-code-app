@@ -60,16 +60,6 @@ test('sidebarOpen subscribers do not re-render for selectedSession updates', () 
   assert.equal(renders, 1);
 });
 
-test('invalid persisted tabs fall back to chat and tab updates persist', () => {
-  localStorage.setItem('activeTab', 'files');
-  resetAppShellStore();
-
-  assert.equal(useAppShellStore.getState().activeTab, 'chat');
-
-  useAppShellStore.getState().setActiveTab('tasks');
-  assert.equal(localStorage.getItem('activeTab'), 'tasks');
-});
-
 test('the selected project id is remembered, and forgotten when the selection clears', () => {
   const project = { projectId: 'project-1', displayName: 'One' } as Project;
   useAppShellStore.getState().setSelectedProject(project);

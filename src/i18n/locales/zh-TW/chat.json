@@ -130,7 +130,7 @@
     "skills": {
       "label": "選擇技能",
       "title": "技能",
-      "description": "選擇要在目前專案中使用的技能。",
+      "description": "選擇要在目前工作區中使用的技能。",
       "search": "搜尋技能",
       "noMatches": "沒有符合的技能。"
     }
@@ -199,7 +199,7 @@
     "otherTools_other": "{{count}} 個其他工具"
   },
   "projectSelection": {
-    "startChatWithProvider": "請先選擇一個專案再與 {{provider}} 聊天"
+    "startChatWithProvider": "請先選擇一個工作區再與 {{provider}} 聊天"
   },
   "newSession": {
     "greeting": "我們要建什麼？",
@@ -221,7 +221,7 @@
   "permissionMode": {
     "label": "權限模式",
     "title": "權限",
-    "description": "代理在此專案中無需詢問即可執行的操作。",
+    "description": "代理在此工作區中無需詢問即可執行的操作。",
     "tooltip": "權限：{{mode}}（{{shortcut}}）",
     "paletteAction": "權限：{{mode}}",
     "alwaysAllowedSummary": "一律允許（{{count}}）：{{tools}}",
@@ -236,7 +236,7 @@
       },
       "bypass": {
         "label": "略過",
-        "description": "不再詢問。代理可在此專案中執行任何命令。"
+        "description": "不再詢問。代理可在此工作區中執行任何命令。"
       }
     }
   },
@@ -249,7 +249,7 @@
     "alwaysDeny": "總是拒絕 {{tool}}",
     "alwaysDenyHint": "在目前執行結束前自動拒絕此工具",
     "alwaysAllow": "一律允許 {{tool}}",
-    "alwaysAllowHint": "從現在起在此專案中自動核准此工具"
+    "alwaysAllowHint": "從現在起在此工作區中自動核准此工具"
   },
   "plan": {
     "toggle": "展開/收合計畫",
@@ -271,7 +271,7 @@
   },
   "sessionWorktree": {
     "label": "執行位置",
-    "project": "專案",
+    "project": "工作區",
     "newWorktree": "新增工作樹",
     "worktree": "工作樹",
     "preparing": "正在準備工作樹"

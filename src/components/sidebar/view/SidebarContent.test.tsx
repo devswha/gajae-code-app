@@ -137,28 +137,27 @@ test('project rows show an attention badge only when a session needs a look', as
   assert.match(failed, /aria-label="1 conversation needs a look"[^>]*class="[^"]*text-destructive/);
 });
 
-test('renders the Codex-style New task action with Projects and Work sections', async () => {
+test('renders the New conversation action with Workspaces and Active sections', async () => {
   const t = await makeT();
   const html = renderSidebarContent(t);
 
   assert.match(html, /Alpha Workspace/);
   assert.match(html, /Implement navigation cleanup/);
   assert.match(html, /lucide-loader-circle/);
-  assert.match(html, />New task</);
-  const newTaskButton = html.match(/<button[^>]*aria-label="New task"[^>]*>/)?.[0];
+  assert.match(html, />New conversation</);
+  const newTaskButton = html.match(/<button[^>]*aria-label="New conversation"[^>]*>/)?.[0];
   assert.ok(newTaskButton);
   assert.doesNotMatch(newTaskButton, /disabled/);
-  assert.match(html, /id="sidebar-projects-heading"[^>]*>Projects/);
-  assert.match(html, /id="sidebar-work-heading"[^>]*>Work/);
+  assert.match(html, /id="sidebar-projects-heading"[^>]*>Workspaces/);
+  assert.match(html, /id="sidebar-work-heading"[^>]*>Active/);
   assert.doesNotMatch(html, /role="tablist"/);
-  assert.match(html, />Projects<|>Work</);
   assert.doesNotMatch(html, /Search projects/);
   assert.doesNotMatch(html, /type="text"/);
   assert.doesNotMatch(html, />Conversations<|Running sessions|Archive only/);
   assert.doesNotMatch(html, /data-job-sidebar|data-job-inbox|New job|Jobs/);
 });
 
-test('an inline filter sits beneath New task and stays out of the archive view', async () => {
+test('an inline filter sits beneath New conversation and stays out of the archive view', async () => {
   const t = await makeT();
   const html = renderSidebarContent(t);
 
@@ -167,7 +166,7 @@ test('an inline filter sits beneath New task and stays out of the archive view',
   assert.match(filter, /type="search"/);
   assert.match(filter, /aria-label="Filter conversations"/);
   assert.match(filter, /title="Filter conversations \(\/\)"/);
-  assert.ok(html.indexOf('aria-label="New task"') < html.indexOf('data-sidebar-filter'), 'it follows the primary action');
+  assert.ok(html.indexOf('aria-label="New conversation"') < html.indexOf('data-sidebar-filter'), 'it follows the primary action');
   assert.ok(html.indexOf('data-sidebar-filter') < html.indexOf('id="sidebar-projects-heading"'), 'and precedes the sections');
   assert.doesNotMatch(html, /aria-label="Clear filter"/, 'no clear control while empty');
   assert.doesNotMatch(html, /data-testid="sidebar-filter-empty"/);
@@ -249,7 +248,7 @@ test('renders a recoverable inline error when archive loading fails', async () =
   assert.doesNotMatch(html, /type="text"/);
 });
 
-test('renders the empty project state under the Projects and Work sections without Jobs controls', async () => {
+test('renders the empty workspace state under the Workspaces heading without Jobs controls', async () => {
   const t = await makeT();
   const emptyProps = sidebarContentProps(t);
   const html = renderSidebarContent(t, {
@@ -269,12 +268,12 @@ test('renders the empty project state under the Projects and Work sections witho
   assert.ok(emptyRow, 'the empty projects state is a single button row');
   assert.match(emptyRow, /No projects yet/);
   assert.match(emptyRow, /Add one/);
-  assert.match(html, /id="sidebar-projects-heading"[^>]*>Projects/);
+  assert.match(html, /id="sidebar-projects-heading"[^>]*>Workspaces/);
   // No primary button, no Work section, no filter until the first project
   // exists. "Create project" appears once: the section header's "+", the one
   // place the action belongs next to the empty row.
   assert.equal(html.match(/aria-label="Create project"/g)?.length, 1);
-  assert.doesNotMatch(html, /aria-label="New task"/);
+  assert.doesNotMatch(html, /aria-label="New conversation"/);
   assert.doesNotMatch(html, /id="sidebar-work-heading"/);
   assert.doesNotMatch(html, /data-sidebar-filter/);
   assert.doesNotMatch(html, /Create a workspace to start|Choose a project/);
@@ -284,7 +283,7 @@ test('renders the empty project state under the Projects and Work sections witho
   assert.doesNotMatch(html, /data-job-sidebar|data-job-inbox|New job|Jobs/);
 });
 
-test('with projects but nothing running, the Work section stays out of the way', async () => {
+test('with workspaces but nothing active, the Active section stays out of the way', async () => {
   const t = await makeT();
   const html = renderSidebarContent(t, {
     projectListProps: {
@@ -295,5 +294,5 @@ test('with projects but nothing running, the Work section stays out of the way',
   assert.match(html, /id="sidebar-projects-heading"/);
   assert.doesNotMatch(html, /id="sidebar-work-heading"/);
   assert.match(html, /data-sidebar-filter/);
-  assert.match(html, /aria-label="New task"/);
+  assert.match(html, /aria-label="New conversation"/);
 });

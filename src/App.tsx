@@ -11,6 +11,7 @@ import PushNavigationBridge from './components/app/PushNavigationBridge';
 import { appShellRoutePaths, rootFallbackRoutePath } from './components/app/appRoutes';
 import i18n from './i18n/config.js';
 import { useComposerFreezeBridge } from './shared/composerFreezeBridge';
+import { Toaster } from './shared/view/ui/Toaster';
 
 
 const DEPLOYMENT_ASSET_DIRECTORIES = new Set(['assets', 'static', 'icons', 'images']);
@@ -92,6 +93,7 @@ function ApplicationLayout({ routerBasename }: ApplicationLayoutProps) {
   return (
     <I18nextProvider i18n={i18n}>
       <ThemeProvider>
+        <Toaster />
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <WebSocketProvider>

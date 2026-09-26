@@ -219,18 +219,18 @@
     },
     "interfaceFontSize": {
       "label": "Textgröße der Benutzeroberfläche",
-      "description": "Legen Sie die Textgröße für Chats, Sitzungen, Einstellungen und die Benutzeroberfläche fest",
+      "description": "Legen Sie die Textgröße für Unterhaltungen, Einstellungen und die Benutzeroberfläche fest",
       "small": "Klein",
       "medium": "Mittel",
       "large": "Groß"
     },
     "imagePreviews": {
       "label": "Vorschau der Bildanhänge",
-      "description": "Laden Sie Bildanhänge in den Konversationsverlauf"
+      "description": "Laden Sie Bildanhänge in den Unterhaltungsverlauf"
     },
     "projectSorting": {
-      "label": "Projektauftrag",
-      "description": "Legen Sie die Projektreihenfolge in der Seitenleiste fest",
+      "label": "Workspace-Reihenfolge",
+      "description": "Legen Sie die Workspace-Reihenfolge in der Seitenleiste fest",
       "alphabetical": "Alphabetisch",
       "recentActivity": "Letzte Aktivität"
     }
@@ -259,14 +259,14 @@
   },
   "permissions": {
     "title": "Berechtigungen",
-    "description": "Projektweise Regeln dafür, was der Agent ohne Nachfrage ausführen darf. Projekte mit der Standardrichtlinie (Umgehen wie in der GJC-CLI, nichts immer erlaubt) werden nicht aufgeführt.",
+    "description": "Regeln pro Workspace dafür, was der Agent ohne Nachfrage ausführen darf. Workspaces mit der Standardrichtlinie (Umgehen wie in der GJC-CLI, nichts immer erlaubt) werden nicht aufgeführt.",
     "mode": "Modus",
     "alwaysAllowed": "Immer erlaubt",
     "none": "Keine",
     "revoke": "Entziehen",
     "revokeTool": "{{tool}} nicht mehr immer erlauben",
     "resetToDefault": "Auf Standard zurücksetzen",
-    "empty": "Jedes Projekt läuft wie die GJC-CLI ohne Nachfrage.",
+    "empty": "Jeder Workspace läuft wie die GJC-CLI ohne Nachfrage.",
     "loading": "Wird geladen…",
     "error": "Berechtigungen konnten nicht geladen werden."
   }

@@ -1,6 +1,6 @@
 {
   "goal": {
-    "region": "Oturum hedefi",
+    "region": "Sohbet hedefi",
     "title": "Hedef",
     "active": "Etkin",
     "paused": "Duraklatıldı",
@@ -70,7 +70,7 @@
     "modelReasoning": {
       "label": "Model ve muhakeme ayarları",
       "providerTitle": "sağlayıcı",
-      "modelTitle": "Konuşma modeli",
+      "modelTitle": "Sohbet modeli",
       "reasoningTitle": "muhakeme",
       "defaultModel": "Standart model",
       "currentConfiguration": "Mevcut yapılandırmayı koru",
@@ -130,7 +130,7 @@
     "skills": {
       "label": "Beceri seç",
       "title": "Beceriler",
-      "description": "Geçerli projede kullanılacak beceriyi seçin.",
+      "description": "Geçerli çalışma alanında kullanılacak beceriyi seçin.",
       "search": "Beceri ara",
       "noMatches": "Eşleşen beceri yok."
     }
@@ -140,7 +140,7 @@
       "olderMessages": "Önceki mesajlar alınıyor…",
       "olderMessagesFailed": "Önceki mesajlar alınamadı.",
       "retry": "Yeniden dene",
-      "sessionMessages": "Konuşma mesajları alınıyor…"
+      "sessionMessages": "Sohbet mesajları alınıyor…"
     },
     "messages": {
       "loadAll": "Tüm mesajları al",
@@ -199,7 +199,7 @@
     "otherTools_other": "{{count}} diğer araç"
   },
   "projectSelection": {
-    "startChatWithProvider": "{{provider}} ile sohbet etmeden önce bir proje seçin"
+    "startChatWithProvider": "{{provider}} ile sohbet etmeden önce bir çalışma alanı seçin"
   },
   "newSession": {
     "greeting": "Ne inşa etmeliyiz?",
@@ -221,7 +221,7 @@
   "permissionMode": {
     "label": "İzin modu",
     "title": "İzinler",
-    "description": "Ajanın bu projede sormadan yapabilecekleri.",
+    "description": "Ajanın bu çalışma alanında sormadan yapabilecekleri.",
     "tooltip": "İzinler: {{mode}} ({{shortcut}})",
     "paletteAction": "İzinler: {{mode}}",
     "alwaysAllowedSummary": "Her zaman izinli ({{count}}): {{tools}}",
@@ -236,7 +236,7 @@
       },
       "bypass": {
         "label": "Atla",
-        "description": "Hiçbir şey sorulmaz. Ajan bu projede her komutu çalıştırır."
+        "description": "Hiçbir şey sorulmaz. Ajan bu çalışma alanında her komutu çalıştırır."
       }
     }
   },
@@ -249,7 +249,7 @@
     "alwaysDeny": "{{tool}} aracını her zaman reddet",
     "alwaysDenyHint": "Mevcut çalıştırmanın sonuna kadar bu aracı otomatik olarak reddet",
     "alwaysAllow": "{{tool}} için her zaman izin ver",
-    "alwaysAllowHint": "Bu aracı bu projede bundan sonra otomatik onayla"
+    "alwaysAllowHint": "Bu aracı bu çalışma alanında bundan sonra otomatik onayla"
   },
   "plan": {
     "toggle": "Planı aç/kapat",
@@ -271,7 +271,7 @@
   },
   "sessionWorktree": {
     "label": "Çalışma konumu",
-    "project": "Proje",
+    "project": "Çalışma alanı",
     "newWorktree": "Yeni çalışma ağacı",
     "worktree": "Çalışma ağacı",
     "preparing": "Çalışma ağacı hazırlanıyor"

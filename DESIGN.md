@@ -39,6 +39,8 @@ All new product colors must route through semantic CSS variables in `src/index.c
 | Destructive text | `--destructive-foreground` | `0 0% 100%` | `0 0% 8%` | Text/icons on destructive surfaces; dark on the light dark-mode red, as primary does |
 | Border | `--border` / `border-border` | `44 14% 87%` | `0 0% 17%` | Dividers, card outlines, default borders |
 | Input border | `--input` / `border-input` | `44 14% 87%` | `0 0% 23%` | Inputs and outline buttons |
+| Success | `--success` / `text-success` | `142 64% 28%` | `142 55% 55%` | Signed in, healthy, saved; `--success-foreground` is white / near-black on it |
+| Favourite | `--favorite` / `text-favorite` | `38 92% 42%` | `43 96% 56%` | The favourite star, filled |
 | Focus ring | `--ring` / `ring-ring` | `14 89% 41%` | `16 90% 57%` | Focus rings and checkbox focus outline |
 
 ### Navigation and Mobile Tokens
@@ -57,7 +59,7 @@ All new product colors must route through semantic CSS variables in `src/index.c
 - Prefer semantic HSL variables through Tailwind classes: `bg-background`, `text-muted-foreground`, `border-border`, `bg-primary`, `text-destructive`.
 - Theme is `System` (default, follows `prefers-color-scheme` live), `Light` or `Dark`; only an explicit choice is stored (`localStorage.theme`).
 - Native controls use `accent-color: hsl(var(--primary))`; placeholders use `--muted-foreground` in both themes.
-- Use raw Tailwind status colors only for existing status semantics that have not been tokenized yet: emerald/green running, amber/yellow attention, and red destructive rows.
+- Status colours are tokens too: `success` (signed in, healthy, saved), `favorite` (the star), `destructive`. Raw Tailwind palette classes are not used for product colour.
 - New persistent colors require a named token in this section before use.
 
 ## 3. Typography
@@ -173,6 +175,13 @@ The system uses Tailwind's 4px spacing scale. Existing values like `p-2`, `gap-2
 - **Interaction**: hover delay defaults to 350ms; touch uses long press and outside pointer dismissal.
 - **Debt**: current tooltip is mostly pointer/touch driven; keyboard/focus semantics are recorded in Section 8.
 
+### Popovers, Menus and Notices
+
+- **Composer popups** (model, preset, permission mode, skills, worktree, workspace target) share `useAnchoredPopup`: body portal, anchored above the trigger (or below when there is no room), clamped to the viewport, closed by an outside press or Escape with focus returned to the trigger, and walked with the arrow keys. While a run can be stopped, Escape stops the run first, as the Stop button's twin.
+- **Context menus** use `useContextMenu` with the same `ActionMenuItem` list as the row's overflow button; the menu opens at the pointer, stays on screen, and closes on Escape, Tab, scroll, resize or window blur.
+- **Notices** go through `showToast` / `showErrorToast` (`src/stores/useToastStore.ts`) and the single root `Toaster`: top centre, `bg-popover`, at most three, errors 8s and notices 4s, held while hovered or focused. Never `window.alert`.
+- **Permission requests** show the full command in a wrapped mono block; the standing rules (`Always allow/deny …`) are quiet ghost actions on the left, Deny and Allow on the right; Cmd/Ctrl+Enter approves the oldest plain request (and the plan card's Build), except inside a text field.
+
 ### Prompt Input
 
 - **Structure**: compound form with `PromptInput`, header, body, textarea, footer, tools, button, submit.
@@ -195,15 +204,18 @@ The system uses Tailwind's 4px spacing scale. Existing values like `p-2`, `gap-2
 
 ### Sidebar Rows and Header
 
-- **Structure**: desktop and mobile share the same Codex-aligned hierarchy: product wordmark and global search, one `New task` action, an inline filter field (`h-8`, `bg-muted/60`, `type="search"`; `/` focuses it from outside any text field, Escape clears it) that narrows the tree by conversation title and message body while force-expanding matching projects, then independently collapsible `Projects` and `Work` sections. Project rows are not duplicated as session containers; Work owns the latest-first session list and identifies each row's project in secondary text.
+- **Vocabulary**: the sidebar container is a **workspace** and the unit inside it a **conversation**, in every string and locale. `project`/`session` stay in code identifiers only.
+- **Structure**: desktop and mobile share the same hierarchy: product wordmark and global search, one `New conversation` action, an inline filter field (`h-8`, `bg-muted/60`, `type="search"`; `/` focuses it from outside any text field, Escape clears it) that narrows the tree by conversation title and message body while force-expanding matching workspaces, then independently collapsible `Workspaces` and `Active` sections. `Active` lists the conversations that are running, waiting, failed or finished-unread, each naming its workspace in secondary text; they also appear in their workspace's tree.
+- **Selection**: exactly one row looks selected. A conversation in both lists is highlighted in the list it was picked from (a selection from the palette or a link belongs to the tree), and a workspace row is highlighted only when it is itself the selection (a new conversation), never because a conversation inside it is open.
+- **Context menus**: a secondary click on a conversation or workspace row opens the row's full action set at the pointer (`useContextMenu`); it replaces WebKit's link menu.
 - **Surface**: `bg-background`, borderless list rows, and restrained tonal hover/selected states.
-- **States**: selected `bg-primary/5 border-primary/20`, starred yellow tint, destructive red actions. Each session row carries one derived status (`src/stores/sessionStatusModel.ts`): `running` shows the muted spinner in the age slot; `needs_input` a pulsing `bg-primary` leading dot (6px, inside the row's leading padding, never hung off the edge) plus a `text-primary` alert glyph; `blocked` a `bg-destructive` dot plus a `text-destructive` warning glyph; `ready` (finished, not yet opened) a solid `bg-primary` dot with the age left in place. Every indicator has `role="status"` and a translated `aria-label`. The Work heading shows non-zero per-state counts and project rows a `bg-primary/10` (or `bg-destructive/10` when a run failed) count of sessions that need a look; zero counts are never rendered, and project rows carry no total count.
+- **States**: selected `bg-primary/5 border-primary/20`, starred yellow tint, destructive red actions. Each session row carries one derived status (`src/stores/sessionStatusModel.ts`): `running` shows the muted spinner in the age slot; `needs_input` a pulsing `bg-primary` leading dot (6px, inside the row's leading padding, never hung off the edge) plus a `text-primary` alert glyph; `blocked` a `bg-destructive` dot plus a `text-destructive` warning glyph; `ready` (finished, not yet opened) a solid `bg-primary` dot with the age left in place. Every indicator has `role="status"` and a translated `aria-label`. The Active heading shows non-zero per-state counts and project rows a `bg-primary/10` (or `bg-destructive/10` when a run failed) count of sessions that need a look; zero counts are never rendered, and project rows carry no total count.
 - **Layout**: scroll ownership stays in `ScrollArea`; the wordmark/search header, primary action, and utility footer remain fixed. Archive recovery, refresh, issue reporting, community, and version remain compact footer utilities.
 
 ### Sidebar Primary Navigation
 
-- **Structure**: a single icon-and-label `New task` row is the primary action. `Projects` and `Work` are section headings with native `aria-expanded` disclosure controls; the Projects heading also owns an adjacent labelled `+` action.
-- **Actions**: `New task` starts a session for the selected project. With no selected project it opens project creation, avoiding a disabled primary action. Global search opens the existing command palette.
+- **Structure**: a single icon-and-label `New conversation` row is the primary action. `Workspaces` and `Active` are section headings with native `aria-expanded` disclosure controls; the Workspaces heading also owns an adjacent labelled `+` action.
+- **Actions**: `New conversation` starts one in the selected workspace. With no selected workspace it opens workspace creation, avoiding a disabled primary action. Global search opens the existing command palette.
 - **States**: section chevrons rotate when expanded, rows use tonal hover/selection, and project management actions appear on hover or keyboard focus.
 - **Accessibility**: disclosure buttons expose `aria-expanded` and `aria-controls`; all icon-only actions have names and titles, and every control preserves a visible focus ring.
 - **Responsive behavior**: desktop and mobile preserve the same information order and one scroll owner, with touch-sized primary rows on mobile.
@@ -301,7 +313,6 @@ The current strategy is mixed but restrained: borders and tonal shifts for defau
 
 | Item | Location | Why accepted | Owner / Exit |
 |------|----------|--------------|--------------|
-| Raw Tailwind status colors (emerald success, amber star) | `CommandResultModal`, `OAuthLoginDialog`, sidebar project rows | Form controls, placeholders and tool rows are tokenized; success and favourite states have no token yet. | Add `--success`/`--warning` tokens and route these through them. |
 | Tooltip lacks full keyboard/focus tooltip semantics | `src/shared/view/ui/Tooltip.tsx` | Current tooltip supports hover, touch long press, and outside dismissal; changing behavior would alter product interaction. | Add focus-triggered display and ARIA association in a focused accessibility pass. |
 | Some dense sidebar action controls are smaller than 44px | `src/components/sidebar/view/subcomponents/*` | Desktop density is central to the command-center feel; mobile rows provide larger surrounding hit areas for primary actions. | Audit primary mobile controls during visual QA and expand hit areas where actions are frequent or destructive. |
 | No standalone primitive showcase exists yet | Project root / shared UI docs | Focused render harnesses and real-app breakpoint QA cover the sidebar tab primitive, but the project does not yet have a shared Storybook-style surface. | Expand the existing state harness into a reusable shared-primitive showcase during the next design-system consolidation pass. |

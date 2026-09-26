@@ -1,20 +1,20 @@
 {
   "projects": {
     "title": "Spazi di lavoro",
-    "newProject": "Aggiungi progetto",
-    "renameProject": "Rinominare l'area di lavoro",
+    "newProject": "Aggiungi spazio di lavoro",
+    "renameProject": "Rinomina spazio di lavoro",
     "noProjects": "Ancora nessuno spazio di lavoro",
     "addFirst": "Aggiungine uno",
     "loadingProjects": "Recupero degli spazi di lavoro…",
-    "projectNamePlaceholder": "Nome dell'area di lavoro",
+    "projectNamePlaceholder": "Nome dello spazio di lavoro",
     "untitledSession": "Conversazione senza nome",
     "newSession": "Inizia la conversazione",
-    "fetchingProjects": "Recupero di progetti e conversazioni",
-    "projects": "progetti"
+    "fetchingProjects": "Recupero di spazi di lavoro e conversazioni",
+    "projects": "spazi di lavoro"
   },
   "sessions": {
-    "work": "Area di lavoro",
-    "newTask": "Nuovo oggetto di lavoro",
+    "work": "In corso",
+    "newTask": "Nuova conversazione",
     "newSession": "Inizia la conversazione",
     "deleteSession": "Elimina conversazione",
     "archiveSession": "Archivia conversazione",
@@ -32,11 +32,11 @@
   },
   "tooltips": {
     "hideSidebar": "Comprimi la barra laterale",
-    "createProject": "Aggiungi un progetto",
+    "createProject": "Aggiungi uno spazio di lavoro",
     "createSession": "Inizia una conversazione",
-    "refresh": "Ricarica progetti e conversazioni",
-    "renameProject": "Rinomina area di lavoro",
-    "archiveProject": "Sposta questo progetto nell'archivio (non viene eliminato nulla)",
+    "refresh": "Ricarica spazi di lavoro e conversazioni",
+    "renameProject": "Rinomina spazio di lavoro",
+    "archiveProject": "Sposta questo spazio di lavoro nell'archivio (non viene eliminato nulla)",
     "addToFavorites": "Segna come preferito",
     "removeFromFavorites": "Rimuovi il contrassegno preferito",
     "editSessionName": "Modifica il nome della conversazione",
@@ -84,12 +84,12 @@
     "renameSessionError": "Si è verificato un errore di ridenominazione della conversazione. Riprova.",
     "regenerateTitleFailed": "Impossibile rigenerare il titolo. Riprova.",
     "exportSessionError": "Impossibile esportare la conversazione. Riprova.",
-    "archiveProjectFailed": "Impossibile archiviare il progetto. Riprova.",
-    "archiveProjectError": "Si è verificato un errore di archiviazione del progetto. Riprova.",
-    "updateProjectError": "Si è verificato un errore di aggiornamento del progetto. Riprova.",
+    "archiveProjectFailed": "Impossibile archiviare lo spazio di lavoro. Riprova.",
+    "archiveProjectError": "Si è verificato un errore di archiviazione dello spazio di lavoro. Riprova.",
+    "updateProjectError": "Si è verificato un errore di aggiornamento dello spazio di lavoro. Riprova.",
     "refreshError": "Impossibile aggiornare. Riprova.",
-    "restoreProjectFailed": "Impossibile ripristinare il progetto. Riprova.",
-    "restoreProjectError": "Si è verificato un errore di ripristino del progetto. Riprova.",
+    "restoreProjectFailed": "Impossibile ripristinare lo spazio di lavoro. Riprova.",
+    "restoreProjectError": "Si è verificato un errore di ripristino dello spazio di lavoro. Riprova.",
     "restoreSessionFailed": "Impossibile ripristinare la conversazione. Riprova.",
     "restoreSessionError": "Si è verificato un errore di ripristino della conversazione. Riprova.",
     "archiveSessionFailed": "Impossibile archiviare la conversazione. Riprova.",
@@ -113,6 +113,13 @@
   },
   "deleteConfirmation": {
     "deleteSession": "Elimina conversazione",
-    "confirmDelete": "Scegli cosa fare con"
+    "confirmDelete": "Scegli cosa fare con",
+    "archiveSessionNotice": "L’archiviazione toglie la conversazione dall’elenco conservandone la cronologia.",
+    "archivedSessionNotice": "Questa conversazione è già archiviata. Tienila nascosta o eliminala definitivamente.",
+    "archiveSession": "Archivia conversazione",
+    "deleteSessionPermanently": "Elimina definitivamente"
+  },
+  "navigation": {
+    "primary": "Navigazione principale"
   }
 }

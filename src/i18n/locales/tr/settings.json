@@ -219,18 +219,18 @@
     },
     "interfaceFontSize": {
       "label": "Arayüz metin boyutu",
-      "description": "Sohbetler, oturumlar, ayarlar ve arayüz genelinde metin boyutunu ayarlayın",
+      "description": "Sohbetler, ayarlar ve arayüz genelinde metin boyutunu ayarlayın",
       "small": "Küçük",
       "medium": "Orta",
       "large": "Büyük"
     },
     "imagePreviews": {
       "label": "Resim eki önizlemeleri",
-      "description": "Görüntü eklerini konuşma geçmişine yükle"
+      "description": "Görüntü eklerini sohbet geçmişine yükle"
     },
     "projectSorting": {
-      "label": "Proje sırası",
-      "description": "Kenar çubuğu proje sırasını ayarlayın",
+      "label": "Çalışma alanı sırası",
+      "description": "Kenar çubuğu çalışma alanı sırasını ayarlayın",
       "alphabetical": "alfabetik",
       "recentActivity": "En son etkinlik"
     }
@@ -259,14 +259,14 @@
   },
   "permissions": {
     "title": "İzinler",
-    "description": "Ajanın sormadan çalıştırabileceklerine ilişkin proje bazlı kurallar. Varsayılan politikadaki (GJC CLI’daki gibi Atla, her zaman izinli yok) projeler listelenmez.",
+    "description": "Ajanın sormadan çalıştırabileceklerine ilişkin çalışma alanı bazlı kurallar. Varsayılan politikadaki (GJC CLI’daki gibi Atla, her zaman izinli yok) çalışma alanları listelenmez.",
     "mode": "Mod",
     "alwaysAllowed": "Her zaman izinli",
     "none": "Yok",
     "revoke": "Kaldır",
     "revokeTool": "{{tool}} için her zaman izni kaldır",
     "resetToDefault": "Varsayılana sıfırla",
-    "empty": "Her proje, GJC CLI gibi sormadan çalışır.",
+    "empty": "Her çalışma alanı, GJC CLI gibi sormadan çalışır.",
     "loading": "Yükleniyor…",
     "error": "İzinler yüklenemedi."
   }

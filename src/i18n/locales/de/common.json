@@ -2,31 +2,30 @@
   "buttons": {
     "cancel": "Vorgang abbrechen"
   },
-  "tabs": {
-    "chat": "Chatten",
-    "git": "Versionskontrolle"
+  "toasts": {
+    "region": "Mitteilungen",
+    "dismiss": "Schließen"
   },
   "status": {
     "success": "Erfolg"
   },
   "mainContent": {
     "loading": "Gajae-App starten",
-    "settingUpWorkspace": "Vorbereiten des Arbeitsbereichs…",
-    "chooseProject": "Wählen Sie ein Projekt",
-    "selectProjectDescription": "Wählen Sie ein Seitenleistenprojekt aus, um mit dem Codieren in Gajae Code zu beginnen. Die Gespräche und der Dateiverlauf bleiben dort zusammen.",
-    "firstProject": "Erstes Projekt hinzufügen",
-    "firstProjectDescription": "Wählen Sie einen Ordner auf diesem Rechner. Gajae Code arbeitet darin, und die Gespräche des Projekts bleiben dort.",
-    "addProject": "Projekt hinzufügen",
-    "scratchStart": "In einem Scratch-Arbeitsbereich starten",
+    "settingUpWorkspace": "Workspace wird vorbereitet…",
+    "chooseProject": "Wählen Sie einen Workspace",
+    "selectProjectDescription": "Wählen Sie einen Workspace in der Seitenleiste aus, um mit dem Codieren in Gajae Code zu beginnen. Die Unterhaltungen und der Dateiverlauf bleiben dort zusammen.",
+    "firstProject": "Ersten Workspace hinzufügen",
+    "firstProjectDescription": "Wählen Sie einen Ordner auf diesem Rechner. Gajae Code arbeitet darin, und die Unterhaltungen des Workspace bleiben dort.",
+    "addProject": "Workspace hinzufügen",
+    "scratchStart": "In einem Scratch-Workspace starten",
     "scratchStarting": "Wird eingerichtet…",
-    "scratchDescription": "Noch kein Ordner? Gajae Code legt ~/gajae-scratch an, ein Wegwerf-Git-Repository, und öffnet dort ein Gespräch. Der Agent bleibt darin.",
-    "scratchFailed": "Der Scratch-Arbeitsbereich konnte nicht gestartet werden: {{reason}}",
-    "newSession": "Gespräch beginnen",
-    "projectFiles": "Dateien im Projekt"
+    "scratchDescription": "Noch kein Ordner? Gajae Code legt ~/gajae-scratch an, ein Wegwerf-Git-Repository, und öffnet dort eine Unterhaltung. Der Agent bleibt darin.",
+    "scratchFailed": "Der Scratch-Workspace konnte nicht gestartet werden: {{reason}}",
+    "newSession": "Unterhaltung beginnen"
   },
   "projectWizard": {
     "step2": {
-      "existingPath": "Standort des Arbeitsbereichs",
+      "existingPath": "Speicherort des Workspace",
       "existingPlaceholder": "/path/to/existing/workspace"
     },
     "buttons": {
@@ -34,8 +33,8 @@
       "creating": "Erstellen…"
     },
     "errors": {
-      "providePath": "Geben Sie einen Arbeitsbereichspfad ein",
-      "failedToCreate": "Arbeitsbereich konnte nicht erstellt werden"
+      "providePath": "Geben Sie einen Workspace-Pfad ein",
+      "failedToCreate": "Workspace konnte nicht erstellt werden"
     },
     "folderBrowser": {
       "title": "Ordner auswählen",
@@ -52,7 +51,10 @@
       "path": "Pfad:",
       "useThisFolder": "Wählen Sie diesen Ordner",
       "browseFolders": "Suchen Sie nach Ordnern"
-    }
+    },
+    "addProject": "Workspace hinzufügen",
+    "addProjectDescription": "Wähle einen lokalen Ordner als Workspace.",
+    "addButton": "Hinzufügen"
   },
   "versionUpdate": {
     "ariaLabels": {
@@ -84,6 +86,7 @@
       "changes": "Änderungen",
       "branch": "Branch",
       "directory": "Verzeichnis",
+      "worktreeOf": "Worktree von {{name}}",
       "serviceTier": "Service-Stufe",
       "refresh": "Git-Status neu laden",
       "notARepository": "Dieser Ordner ist kein Git-Repository",
@@ -113,14 +116,14 @@
     "pages": {
       "actions": "Aktionen",
       "files": "Dateien",
-      "sessions": "Sitzungen",
+      "sessions": "Unterhaltungen",
       "commits": "Commits",
       "branches": "Branches"
     },
     "search": {
       "actions": "Aktionen suchen…",
       "files": "Dateien suchen…",
-      "sessions": "Sitzungen suchen…",
+      "sessions": "Unterhaltungen suchen…",
       "commits": "Commits suchen…",
       "branches": "Branches suchen…",
       "anything": "Tippen, um alles zu durchsuchen…"
@@ -130,16 +133,14 @@
     "noResults": "Keine Ergebnisse.",
     "current": "Aktuell",
     "groups": {
-      "navigate": "Navigieren",
       "git": "Git",
       "settings": "Einstellungen"
     },
     "actions": {
-      "startNewChat": "Neuen Chat starten",
-      "selectProjectFirst": "Zuerst ein Projekt auswählen",
+      "startNewChat": "Neue Unterhaltung starten",
+      "selectProjectFirst": "Zuerst einen Workspace auswählen",
       "openSettings": "Einstellungen öffnen",
       "toggleTheme": "Design wechseln",
-      "goToChat": "Zum Chat",
       "gitFetch": "Git: Fetch",
       "gitPull": "Git: Pull",
       "gitPush": "Git: Push",
@@ -147,7 +148,7 @@
       "switchToBranch": "Wechseln zu: {{branch}}"
     },
     "browseAll": {
-      "sessions": "Alle Sitzungen durchsuchen ({{total}})",
+      "sessions": "Alle Unterhaltungen durchsuchen ({{total}})",
       "files": "Alle Dateien durchsuchen ({{total}})",
       "commits": "Alle Commits durchsuchen ({{total}})",
       "branches": "Alle Branches durchsuchen ({{total}})"

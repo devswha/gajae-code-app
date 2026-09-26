@@ -60,12 +60,14 @@ export async function makeSidebarT(): Promise<TFunction> {
             addFirst: 'Add one',
             noProjects: 'No projects yet',
             searchPlaceholder: 'Search projects',
-            title: 'Projects',
+            title: 'Workspaces',
           },
           sessions: {
             noSessions: 'No conversations yet',
-            work: 'Work',
+            newTask: 'New conversation',
+            work: 'Active',
           },
+          navigation: { primary: 'Primary navigation' },
           filter: {
             placeholder: 'Filter conversations',
             clear: 'Clear filter',

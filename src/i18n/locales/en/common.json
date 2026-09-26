@@ -2,9 +2,9 @@
   "buttons": {
     "cancel": "Cancel"
   },
-  "tabs": {
-    "chat": "Chat",
-    "git": "Version control"
+  "toasts": {
+    "region": "Notifications",
+    "dismiss": "Dismiss"
   },
   "status": {
     "success": "Success"
@@ -12,17 +12,16 @@
   "mainContent": {
     "loading": "Starting gajae-app",
     "settingUpWorkspace": "Preparing the workspace…",
-    "chooseProject": "Pick a project",
-    "selectProjectDescription": "Pick a sidebar project to begin coding in Gajae Code. Its conversations and file history stay together there.",
-    "firstProject": "Add your first project",
-    "firstProjectDescription": "Pick a folder on this machine. Gajae Code works inside it, and the project’s conversations stay with it.",
-    "addProject": "Add a project",
+    "chooseProject": "Pick a workspace",
+    "selectProjectDescription": "Pick a sidebar workspace to begin coding in Gajae Code. Its conversations and file history stay together there.",
+    "firstProject": "Add your first workspace",
+    "firstProjectDescription": "Pick a folder on this machine. Gajae Code works inside it, and the workspace’s conversations stay with it.",
+    "addProject": "Add a workspace",
     "scratchStart": "Start in a scratch workspace",
     "scratchStarting": "Setting up…",
     "scratchDescription": "No folder yet? Gajae Code creates ~/gajae-scratch, a disposable git repository, and opens a conversation there. The agent stays inside it.",
     "scratchFailed": "Could not start the scratch workspace: {{reason}}",
-    "newSession": "Start conversation",
-    "projectFiles": "Files in project"
+    "newSession": "Start conversation"
   },
   "projectWizard": {
     "step2": {
@@ -52,7 +51,10 @@
       "path": "Path:",
       "useThisFolder": "Choose this folder",
       "browseFolders": "Browse for folders"
-    }
+    },
+    "addProject": "Add workspace",
+    "addProjectDescription": "Choose a local folder to use as a workspace.",
+    "addButton": "Add"
   },
   "versionUpdate": {
     "ariaLabels": {
@@ -84,6 +86,7 @@
       "changes": "Changes",
       "branch": "Branch",
       "directory": "Directory",
+      "worktreeOf": "{{name}} worktree",
       "serviceTier": "Service tier",
       "refresh": "Reload Git status",
       "notARepository": "This folder is not a Git repository",
@@ -113,14 +116,14 @@
     "pages": {
       "actions": "Actions",
       "files": "Files",
-      "sessions": "Sessions",
+      "sessions": "Conversations",
       "commits": "Commits",
       "branches": "Branches"
     },
     "search": {
       "actions": "Search actions…",
       "files": "Search files…",
-      "sessions": "Search sessions…",
+      "sessions": "Search conversations…",
       "commits": "Search commits…",
       "branches": "Search branches…",
       "anything": "Type to search anything…"
@@ -130,16 +133,14 @@
     "noResults": "No results.",
     "current": "Current",
     "groups": {
-      "navigate": "Navigate",
       "git": "Git",
       "settings": "Settings"
     },
     "actions": {
-      "startNewChat": "Start new chat",
-      "selectProjectFirst": "Select a project first",
+      "startNewChat": "Start new conversation",
+      "selectProjectFirst": "Select a workspace first",
       "openSettings": "Open settings",
       "toggleTheme": "Toggle theme",
-      "goToChat": "Go to Chat",
       "gitFetch": "Git: Fetch",
       "gitPull": "Git: Pull",
       "gitPush": "Git: Push",
@@ -147,7 +148,7 @@
       "switchToBranch": "Switch to: {{branch}}"
     },
     "browseAll": {
-      "sessions": "Browse all sessions ({{total}})",
+      "sessions": "Browse all conversations ({{total}})",
       "files": "Browse all files ({{total}})",
       "commits": "Browse all commits ({{total}})",
       "branches": "Browse all branches ({{total}})"

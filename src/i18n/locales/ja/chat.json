@@ -70,7 +70,7 @@
     "modelReasoning": {
       "label": "モデルと推論",
       "providerTitle": "プロバイダー",
-      "modelTitle": "チャットモデル",
+      "modelTitle": "会話モデル",
       "reasoningTitle": "推論",
       "defaultModel": "デフォルト",
       "currentConfiguration": "現在の設定を使用",
@@ -130,7 +130,7 @@
     "skills": {
       "label": "スキルを選択",
       "title": "スキル",
-      "description": "現在のプロジェクトで使うスキルを選びます。",
+      "description": "現在のワークスペースで使うスキルを選びます。",
       "search": "スキルを検索",
       "noMatches": "一致するスキルはありません。"
     }
@@ -140,7 +140,7 @@
       "olderMessages": "過去のメッセージを読み込んでいます...",
       "olderMessagesFailed": "過去のメッセージを読み込めませんでした。",
       "retry": "再試行",
-      "sessionMessages": "セッションメッセージを読み込んでいます..."
+      "sessionMessages": "会話のメッセージを読み込んでいます..."
     },
     "messages": {
       "loadAll": "すべてのメッセージを取得",
@@ -199,7 +199,7 @@
     "otherTools_other": "その他のツール {{count}} 件"
   },
   "projectSelection": {
-    "startChatWithProvider": "{{provider}} と会話する前にプロジェクトを選択してください"
+    "startChatWithProvider": "{{provider}} と会話する前にワークスペースを選択してください"
   },
   "newSession": {
     "greeting": "今日は何を作りましょうか？",
@@ -221,7 +221,7 @@
   "permissionMode": {
     "label": "権限モード",
     "title": "権限",
-    "description": "このプロジェクトでエージェントが確認なしに行えることを決めます。",
+    "description": "このワークスペースでエージェントが確認なしに行えることを決めます。",
     "tooltip": "権限: {{mode}} ({{shortcut}})",
     "paletteAction": "権限: {{mode}}",
     "alwaysAllowedSummary": "常に許可 ({{count}}): {{tools}}",
@@ -236,7 +236,7 @@
       },
       "bypass": {
         "label": "バイパス",
-        "description": "何も確認しません。エージェントはこのプロジェクトで任意のコマンドを実行します。"
+        "description": "何も確認しません。エージェントはこのワークスペースで任意のコマンドを実行します。"
       }
     }
   },
@@ -249,7 +249,7 @@
     "alwaysDeny": "{{tool}}を常に拒否",
     "alwaysDenyHint": "現在の実行が終了するまでこのツールを自動的に拒否します",
     "alwaysAllow": "{{tool}} を常に許可",
-    "alwaysAllowHint": "このプロジェクトでこのツールを今後自動承認します"
+    "alwaysAllowHint": "このワークスペースでこのツールを今後自動承認します"
   },
   "plan": {
     "toggle": "計画の表示を切り替え",
@@ -271,7 +271,7 @@
   },
   "sessionWorktree": {
     "label": "実行場所",
-    "project": "プロジェクト",
+    "project": "ワークスペース",
     "newWorktree": "新しいワークツリー",
     "worktree": "ワークツリー",
     "preparing": "ワークツリーを準備中"

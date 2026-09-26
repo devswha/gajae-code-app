@@ -3,6 +3,7 @@ import { Archive, Bug, Check, Download, Edit2, MoreHorizontal, Pin, RefreshCw, T
 import type { TFunction } from 'i18next';
 
 import ActionMenu, { type ActionMenuItem } from '../../../shared/view/ui/ActionMenu';
+import { useContextMenu } from '../../../shared/view/ui/ContextMenu';
 import type { SessionStatus } from '../../../stores/sessionStatusModel';
 import { cn } from '../../../utils/cn';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
@@ -266,6 +267,35 @@ export default function SidebarSessionItem({
     onDeleteSession(project.projectId, session.id, sessionView.sessionName, session.__provider);
   };
 
+  const sessionActions = buildSessionActions({
+    sessionId: session.id,
+    sessionName: sessionView.sessionName,
+    isProcessing,
+    t,
+    onRegenerateTitle,
+    onExportSession,
+    onCopyDebugInfo,
+    onStartEditingSession,
+    onDeleteSession: requestDeleteSession,
+  });
+  // The right-click menu is the whole set: the row's quick actions first, as
+  // a native list puts them, then the overflow menu's entries.
+  const contextMenu = useContextMenu([
+    ...(onToggleSessionStar ? [{
+      key: 'pin',
+      label: t(isStarred ? 'sessions.unpin' : 'sessions.pin'),
+      icon: Pin,
+      onSelect: () => onToggleSessionStar(session.id),
+    }] : []),
+    ...(onArchiveSession && !isProcessing ? [{
+      key: 'archive',
+      label: t('sessions.archiveSession', 'Archive conversation'),
+      icon: Archive,
+      onSelect: () => onArchiveSession(session.id),
+    }] : []),
+    ...sessionActions.map((item, index) => (index === 0 ? { ...item, showDividerBefore: true } : item)),
+  ], t('tooltips.sessionActions'));
+
   // Renaming takes the row over as an input with its own buttons, on every
   // device: a rename panel that only existed on desktop made the menu item a
   // silent no-op on touch.
@@ -312,18 +342,6 @@ export default function SidebarSessionItem({
     );
   }
 
-  const sessionActions = buildSessionActions({
-    sessionId: session.id,
-    sessionName: sessionView.sessionName,
-    isProcessing,
-    t,
-    onRegenerateTitle,
-    onExportSession,
-    onCopyDebugInfo,
-    onStartEditingSession,
-    onDeleteSession: requestDeleteSession,
-  });
-
   // The whole row is the target. It is a stretched link rather than a wrapper
   // so the quick actions can sit in the flow beside the title instead of
   // covering it - buttons cannot be nested inside an anchor.
@@ -352,7 +370,7 @@ export default function SidebarSessionItem({
   return (
     <div
       className={cn(
-        'group relative my-0.5 flex h-8 items-center gap-1 rounded-md border border-transparent pr-2 pl-3.5 transition-colors duration-150',
+        'group relative my-0.5 flex h-8 items-center gap-1 rounded-md border border-transparent pr-2 pl-3.5 transition-colors duration-150 data-context-menu-open:border-ring/60',
         isSelected
           ? 'bg-accent text-accent-foreground'
           : isBusy || sessionView.isActive
@@ -360,8 +378,11 @@ export default function SidebarSessionItem({
             : 'hover:bg-accent/70',
       )}
       data-session-status={status}
+      data-context-menu-open={contextMenu.isOpen || undefined}
+      onContextMenu={contextMenu.onContextMenu}
     >
       {rowTarget}
+      {contextMenu.menu}
       {/* After the stretched link so the dot keeps its own tooltip. */}
       <SessionStatusDot status={status} t={t} />
 

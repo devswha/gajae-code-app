@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import { forgetSessionStorage } from '../../chat/utils/chatStorage';
 import { useAppShellStore } from '../../../stores/useAppShellStore';
 import { usePaletteOps } from '../../../stores/usePaletteOpsStore';
+import { showErrorToast } from '../../../stores/useToastStore';
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import { api, authenticatedFetch } from '../../../utils/api';
 import { copyTextToClipboard } from '../../../utils/clipboard';
@@ -159,7 +160,7 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
         if (starRequests.current.get(projectId) !== requestNumber) return;
         setStarOverrides((previous) => new Map(previous).set(projectId, oldValue));
         console.error('[Sidebar] Failed to toggle project star:', error);
-        alert(t('messages.updateProjectError'));
+        showErrorToast(t('messages.updateProjectError'));
       }
     })();
   }, [resolveStar, t]);
@@ -174,7 +175,7 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
     });
     if (!canStart) return;
     try { await onLoadMoreSessions(projectId); }
-    catch (error) { console.error('[Sidebar] Failed to load more sessions:', error); alert(t('messages.refreshError')); }
+    catch (error) { console.error('[Sidebar] Failed to load more sessions:', error); showErrorToast(t('messages.refreshError')); }
     finally { setLoadingMoreProjects((previous) => cloneWith(previous, projectId, false)); }
   }, [onLoadMoreSessions, t]);
 
@@ -201,11 +202,11 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
     setSessionDeleteConfirmation(null);
     try {
       const response = await api.deleteSession(sessionId, hardDelete);
-      if (!response.ok) { console.error('[Sidebar] Failed to delete session:', { status: response.status, error: await response.text() }); alert(t('messages.deleteSessionFailed')); return; }
+      if (!response.ok) { console.error('[Sidebar] Failed to delete session:', { status: response.status, error: await response.text() }); showErrorToast(t('messages.deleteSessionFailed')); return; }
       forgetSessionStorage(sessionId);
       onSessionDelete?.(sessionId);
       await fetchArchivedSessions();
-    } catch (error) { console.error('[Sidebar] Error deleting session:', error); alert(t('messages.deleteSessionError')); }
+    } catch (error) { console.error('[Sidebar] Error deleting session:', error); showErrorToast(t('messages.deleteSessionError')); }
   }, [fetchArchivedSessions, onSessionDelete, sessionDeleteConfirmation, t]);
 
   // The row's one-click archive. It is the same soft delete the confirmation
@@ -214,11 +215,11 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
   const archiveSession = useCallback(async (sessionId: string) => {
     try {
       const response = await api.deleteSession(sessionId, false);
-      if (!response.ok) { console.error('[Sidebar] Failed to archive session:', { status: response.status, error: await response.text() }); alert(t('messages.archiveSessionFailed', 'Could not archive the conversation. Try again.')); return; }
+      if (!response.ok) { console.error('[Sidebar] Failed to archive session:', { status: response.status, error: await response.text() }); showErrorToast(t('messages.archiveSessionFailed', 'Could not archive the conversation. Try again.')); return; }
       forgetSessionStorage(sessionId);
       onSessionDelete?.(sessionId);
       await fetchArchivedSessions();
-    } catch (error) { console.error('[Sidebar] Error archiving session:', error); alert(t('messages.archiveSessionError', 'A conversation archive error occurred. Try again.')); }
+    } catch (error) { console.error('[Sidebar] Error archiving session:', error); showErrorToast(t('messages.archiveSessionError', 'A conversation archive error occurred. Try again.')); }
   }, [fetchArchivedSessions, onSessionDelete, t]);
 
   // The project row's one action for getting a workspace out of the way. Like the
@@ -228,10 +229,10 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
     setArchivingProjects((previous) => cloneWith(previous, project.projectId, true));
     try {
       const response = await api.archiveProject(project.projectId);
-      if (!response.ok) { alert(errorMessage(await response.json() as { error?: string | { message?: string } }, t('messages.archiveProjectFailed'))); return; }
+      if (!response.ok) { showErrorToast(errorMessage(await response.json() as { error?: string | { message?: string } }, t('messages.archiveProjectFailed'))); return; }
       onProjectArchive?.(project.projectId);
       await fetchArchivedSessions();
-    } catch (error) { console.error('[Sidebar] Error archiving project:', error); alert(t('messages.archiveProjectError')); }
+    } catch (error) { console.error('[Sidebar] Error archiving project:', error); showErrorToast(t('messages.archiveProjectError')); }
     finally { setArchivingProjects((previous) => cloneWith(previous, project.projectId, false)); }
   }, [fetchArchivedSessions, onProjectArchive, t]);
 
@@ -247,13 +248,13 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
       const response = kind === 'project' ? await api.restoreProject(id) : await api.restoreSession(id);
       if (!response.ok) {
         console.error(`[Sidebar] Failed to restore ${kind}:`, { status: response.status, error: await response.text() });
-        alert(kind === 'project' ? t('messages.restoreProjectFailed', 'Failed to restore project. Please try again.') : t('messages.restoreSessionFailed', 'Failed to restore session. Please try again.'));
+        showErrorToast(kind === 'project' ? t('messages.restoreProjectFailed', 'Failed to restore project. Please try again.') : t('messages.restoreSessionFailed', 'Failed to restore session. Please try again.'));
         return;
       }
       await Promise.all([Promise.resolve(onRefresh()), fetchArchivedSessions()]);
     } catch (error) {
       console.error(`[Sidebar] Error restoring ${kind}:`, error);
-      alert(kind === 'project' ? t('messages.restoreProjectError', 'Error restoring project. Please try again.') : t('messages.restoreSessionError', 'Error restoring session. Please try again.'));
+      showErrorToast(kind === 'project' ? t('messages.restoreProjectError', 'Error restoring project. Please try again.') : t('messages.restoreSessionError', 'Error restoring session. Please try again.'));
     }
   }, [fetchArchivedSessions, onRefresh, t]);
   const restoreArchivedProject = useCallback(async (projectId: string) => restore(projectId, 'project'), [restore]);
@@ -267,30 +268,30 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
     try {
       const response = await api.renameSession(sessionId, nextSummary);
       if (response.ok) await onRefresh();
-      else { console.error('[Sidebar] Failed to rename session:', response.status); alert(t('messages.renameSessionFailed')); }
-    } catch (error) { console.error('[Sidebar] Error renaming session:', error); alert(t('messages.renameSessionError')); }
+      else { console.error('[Sidebar] Failed to rename session:', response.status); showErrorToast(t('messages.renameSessionFailed')); }
+    } catch (error) { console.error('[Sidebar] Error renaming session:', error); showErrorToast(t('messages.renameSessionError')); }
     finally { setEditingSession(null); setEditingSessionName(''); }
   }, [onRefresh, t]);
   const regenerateSessionTitle = useCallback(async (sessionId: string) => {
     try {
       const response = await api.regenerateSessionTitle(sessionId);
-      if (!response.ok) { console.error('[Sidebar] Failed to regenerate session title:', response.status); alert(t('messages.regenerateTitleFailed')); return; }
+      if (!response.ok) { console.error('[Sidebar] Failed to regenerate session title:', response.status); showErrorToast(t('messages.regenerateTitleFailed')); return; }
       await onRefresh();
-    } catch (error) { console.error('[Sidebar] Error regenerating session title:', error); alert(t('messages.regenerateTitleFailed')); }
+    } catch (error) { console.error('[Sidebar] Error regenerating session title:', error); showErrorToast(t('messages.regenerateTitleFailed')); }
   }, [onRefresh, t]);
   const toggleSessionStar = useCallback(async (sessionId: string) => {
     try {
       const response = await api.toggleSessionStar(sessionId);
-      if (!response.ok) { console.error('[Sidebar] Failed to toggle session star:', response.status); alert(t('messages.updateSessionError')); return; }
+      if (!response.ok) { console.error('[Sidebar] Failed to toggle session star:', response.status); showErrorToast(t('messages.updateSessionError')); return; }
       await onRefresh();
-    } catch (error) { console.error('[Sidebar] Error toggling session star:', error); alert(t('messages.updateSessionError')); }
+    } catch (error) { console.error('[Sidebar] Error toggling session star:', error); showErrorToast(t('messages.updateSessionError')); }
   }, [onRefresh, t]);
   const exportSession = useCallback(async (sessionId: string) => {
     try {
       const response = await api.exportSession(sessionId);
-      if (!response.ok) { console.error('[Sidebar] Failed to export session:', response.status); alert(t('messages.exportSessionError')); return; }
+      if (!response.ok) { console.error('[Sidebar] Failed to export session:', response.status); showErrorToast(t('messages.exportSessionError')); return; }
       downloadBlob(await response.blob(), filenameFromContentDisposition(response.headers.get('content-disposition'), `${sessionId}.md`));
-    } catch (error) { console.error('[Sidebar] Error exporting session:', error); alert(t('messages.exportSessionError')); }
+    } catch (error) { console.error('[Sidebar] Error exporting session:', error); showErrorToast(t('messages.exportSessionError')); }
   }, [t]);
  
   const copyDebugInfo = useCallback(async (sessionId: string) => {
@@ -302,9 +303,9 @@ export function useSidebarController(args: UseSidebarControllerArgs) {
       });
       const payload = response.ok ? await response.json() : null;
       const bundle = payload?.bundle;
-      if (typeof bundle !== 'string' || !bundle) { console.error('[Sidebar] Debug bundle failed:', response.status); alert(t('messages.debugInfoError')); return; }
-      if (!(await copyTextToClipboard(bundle))) { console.error('[Sidebar] Debug bundle copy was refused'); alert(t('messages.debugInfoError')); }
-    } catch (error) { console.error('[Sidebar] Error assembling debug info:', error); alert(t('messages.debugInfoError')); }
+      if (typeof bundle !== 'string' || !bundle) { console.error('[Sidebar] Debug bundle failed:', response.status); showErrorToast(t('messages.debugInfoError')); return; }
+      if (!(await copyTextToClipboard(bundle))) { console.error('[Sidebar] Debug bundle copy was refused'); showErrorToast(t('messages.debugInfoError')); }
+    } catch (error) { console.error('[Sidebar] Error assembling debug info:', error); showErrorToast(t('messages.debugInfoError')); }
   }, [t]); const collapseSidebar = useCallback(() => setSidebarVisible(false), [setSidebarVisible]);
   const expandSidebar = useCallback(() => setSidebarVisible(true), [setSidebarVisible]);
 

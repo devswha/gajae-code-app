@@ -16,10 +16,10 @@ export default function SidebarNavigationTabs({
   onCreateSession,
   t,
 }: SidebarNavigationTabsProps) {
-  const label = t('sessions.newTask', 'New task');
+  const label = t('sessions.newTask');
 
   return (
-    <nav className="shrink-0 px-2 pb-2" aria-label={t('navigation.primary', 'Primary navigation')}>
+    <nav className="shrink-0 px-2 pb-2" aria-label={t('navigation.primary')}>
       <button
         type="button"
         className="group flex h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[0.9375rem] font-medium text-foreground outline-hidden transition-colors hover:bg-accent/70 focus-visible:ring-1 focus-visible:ring-ring"

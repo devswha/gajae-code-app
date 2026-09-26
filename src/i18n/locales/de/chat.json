@@ -1,6 +1,6 @@
 {
   "goal": {
-    "region": "Sitzungsziel",
+    "region": "Ziel der Unterhaltung",
     "title": "Ziel",
     "active": "Aktiv",
     "paused": "Pausiert",
@@ -70,7 +70,7 @@
     "modelReasoning": {
       "label": "Modell- und Argumentationseinstellungen",
       "providerTitle": "Anbieter",
-      "modelTitle": "Gesprächsmodell",
+      "modelTitle": "Unterhaltungsmodell",
       "reasoningTitle": "Begründung",
       "defaultModel": "Voreinstellung",
       "currentConfiguration": "Behalten Sie die aktuelle Konfiguration bei",
@@ -130,7 +130,7 @@
     "skills": {
       "label": "Skill auswählen",
       "title": "Skills",
-      "description": "Wähle einen Skill für das aktuelle Projekt.",
+      "description": "Wähle einen Skill für den aktuellen Workspace.",
       "search": "Skills suchen",
       "noMatches": "Keine passenden Skills."
     }
@@ -140,7 +140,7 @@
       "olderMessages": "Frühere Nachrichten abrufen…",
       "olderMessagesFailed": "Frühere Nachrichten konnten nicht abgerufen werden.",
       "retry": "Erneut versuchen",
-      "sessionMessages": "Konversationsnachrichten werden abgerufen…"
+      "sessionMessages": "Nachrichten der Unterhaltung werden abgerufen…"
     },
     "messages": {
       "loadAll": "Erhalten Sie alle Nachrichten",
@@ -199,7 +199,7 @@
     "otherTools_other": "{{count}} weitere Werkzeuge"
   },
   "projectSelection": {
-    "startChatWithProvider": "Wählen Sie ein Projekt aus, bevor Sie mit {{provider}} chatten"
+    "startChatWithProvider": "Wählen Sie einen Workspace aus, bevor Sie mit {{provider}} chatten"
   },
   "newSession": {
     "greeting": "Was sollen wir bauen?",
@@ -221,7 +221,7 @@
   "permissionMode": {
     "label": "Berechtigungsmodus",
     "title": "Berechtigungen",
-    "description": "Was der Agent in diesem Projekt ohne Nachfrage tun darf.",
+    "description": "Was der Agent in diesem Workspace ohne Nachfrage tun darf.",
     "tooltip": "Berechtigungen: {{mode}} ({{shortcut}})",
     "paletteAction": "Berechtigungen: {{mode}}",
     "alwaysAllowedSummary": "Immer erlaubt ({{count}}): {{tools}}",
@@ -236,7 +236,7 @@
       },
       "bypass": {
         "label": "Umgehen",
-        "description": "Nichts fragt nach. Der Agent führt in diesem Projekt jeden Befehl aus."
+        "description": "Nichts fragt nach. Der Agent führt in diesem Workspace jeden Befehl aus."
       }
     }
   },
@@ -249,7 +249,7 @@
     "alwaysDeny": "{{tool}} immer ablehnen",
     "alwaysDenyHint": "Dieses Werkzeug für den Rest dieses Laufs automatisch ablehnen",
     "alwaysAllow": "{{tool}} immer erlauben",
-    "alwaysAllowHint": "Dieses Werkzeug in diesem Projekt ab jetzt automatisch freigeben"
+    "alwaysAllowHint": "Dieses Werkzeug in diesem Workspace ab jetzt automatisch freigeben"
   },
   "plan": {
     "toggle": "Plan ein-/ausklappen",
@@ -271,7 +271,7 @@
   },
   "sessionWorktree": {
     "label": "Ausführungsort",
-    "project": "Projekt",
+    "project": "Workspace",
     "newWorktree": "Neuer Worktree",
     "worktree": "Worktree",
     "preparing": "Worktree wird vorbereitet"

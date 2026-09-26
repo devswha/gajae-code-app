@@ -37,7 +37,7 @@ export default function RunningActivityRow({ liveActivity, runStartedAt = null, 
 
   return (
     <div className="chat-message tool px-3 sm:px-0" data-run-activity={variant}>
-      <div className="flex items-center gap-2 px-1 py-0.5 text-xs">
+      <div className="flex items-center gap-2 py-0.5 pr-1 text-xs">
         <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
         {/* One gapless group, so every separator is spaced by its own text. */}

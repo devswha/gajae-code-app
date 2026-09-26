@@ -103,7 +103,7 @@ function FoldedTurnWork({ block, prevMessage, running = false, liveActivity, run
     <div className="chat-message tool px-3 sm:px-0" data-message-timestamp={block.timestamp || undefined} data-work-block={running ? 'running' : 'finished'}>
       <button
         type="button"
-        className="group flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-xs transition-colors hover:bg-muted/30"
+        className="group flex w-full items-center gap-2 rounded py-0.5 pr-1 text-left text-xs transition-colors hover:bg-muted/30"
         onClick={() => setIsExpanded((current) => !current)}
         aria-expanded={isExpanded}
         aria-controls={bodyId}

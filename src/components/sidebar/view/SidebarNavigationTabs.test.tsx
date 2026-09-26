@@ -14,8 +14,9 @@ async function makeT(): Promise<TFunction> {
     fallbackLng: 'en',
     interpolation: { escapeValue: false },
     resources: { en: { sidebar: {
-      sessions: { newTask: 'New task' },
-      tooltips: { createProject: 'Add a project' },
+      sessions: { newTask: 'New conversation' },
+      tooltips: { createProject: 'Add a workspace' },
+      navigation: { primary: 'Primary navigation' },
     } } },
   });
   return i18n.getFixedT('en', 'sidebar');
@@ -28,11 +29,11 @@ function renderNavigation(t: TFunction): string {
   }));
 }
 
-test('renders one prominent New task action without mode tabs', async () => {
+test('renders one prominent New conversation action without mode tabs', async () => {
   const html = renderNavigation(await makeT());
   assert.match(html, /<nav/);
-  assert.match(html, /aria-label="New task"/);
-  assert.match(html, />New task</);
+  assert.match(html, /aria-label="New conversation"/);
+  assert.match(html, />New conversation</);
   assert.doesNotMatch(html, /role="tablist"|role="tab"/);
   assert.doesNotMatch(html, /disabled/);
 });

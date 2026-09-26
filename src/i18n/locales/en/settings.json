@@ -234,7 +234,7 @@
     },
     "interfaceFontSize": {
       "label": "Interface text size",
-      "description": "Set text size throughout chats, sessions, settings, and the interface",
+      "description": "Set text size throughout conversations, settings, and the interface",
       "small": "Small",
       "medium": "Medium",
       "large": "Large"
@@ -244,8 +244,8 @@
       "description": "Load image attachments in conversation history"
     },
     "projectSorting": {
-      "label": "Project order",
-      "description": "Set the sidebar project order",
+      "label": "Workspace order",
+      "description": "Set the sidebar workspace order",
       "alphabetical": "Alphabetical",
       "recentActivity": "Latest activity"
     }
@@ -274,14 +274,14 @@
   },
   "permissions": {
     "title": "Permissions",
-    "description": "Per-project rules for what the agent may run without asking. Projects on the default policy (Bypass, as in the GJC CLI, nothing always allowed) are not listed.",
+    "description": "Per-workspace rules for what the agent may run without asking. Workspaces on the default policy (Bypass, as in the GJC CLI, nothing always allowed) are not listed.",
     "mode": "Mode",
     "alwaysAllowed": "Always allowed",
     "none": "None",
     "revoke": "Revoke",
     "revokeTool": "Stop always allowing {{tool}}",
     "resetToDefault": "Reset to default",
-    "empty": "Every project runs without asking, as the GJC CLI does.",
+    "empty": "Every workspace runs without asking, as the GJC CLI does.",
     "loading": "Loading…",
     "error": "Permissions could not be loaded."
   }

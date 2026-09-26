@@ -130,7 +130,7 @@
     "skills": {
       "label": "스킬 선택",
       "title": "스킬",
-      "description": "현재 프로젝트에서 사용할 스킬을 선택합니다.",
+      "description": "현재 워크스페이스에서 사용할 스킬을 선택합니다.",
       "search": "스킬 검색",
       "noMatches": "일치하는 스킬이 없습니다."
     }
@@ -199,7 +199,7 @@
     "otherTools_other": "기타 도구 {{count}}개"
   },
   "projectSelection": {
-    "startChatWithProvider": "{{provider}}와 대화하기 전에 프로젝트를 선택하세요."
+    "startChatWithProvider": "{{provider}}와 대화하기 전에 워크스페이스를 선택하세요."
   },
   "newSession": {
     "greeting": "우리가 무엇을 만들까요?",
@@ -221,7 +221,7 @@
   "permissionMode": {
     "label": "권한 모드",
     "title": "권한",
-    "description": "이 프로젝트에서 에이전트가 묻지 않고 할 수 있는 일을 정합니다.",
+    "description": "이 워크스페이스에서 에이전트가 묻지 않고 할 수 있는 일을 정합니다.",
     "tooltip": "권한: {{mode}} ({{shortcut}})",
     "paletteAction": "권한: {{mode}}",
     "alwaysAllowedSummary": "항상 허용 ({{count}}): {{tools}}",
@@ -236,7 +236,7 @@
       },
       "bypass": {
         "label": "우회",
-        "description": "아무것도 묻지 않습니다. 에이전트가 이 프로젝트에서 어떤 명령이든 실행합니다."
+        "description": "아무것도 묻지 않습니다. 에이전트가 이 워크스페이스에서 어떤 명령이든 실행합니다."
       }
     }
   },
@@ -249,7 +249,7 @@
     "alwaysDeny": "항상 {{tool}} 거부",
     "alwaysDenyHint": "현재 실행이 끝날 때까지 이 도구를 자동으로 거부합니다",
     "alwaysAllow": "{{tool}} 항상 허용",
-    "alwaysAllowHint": "이 프로젝트에서 이 도구를 앞으로 자동 승인합니다"
+    "alwaysAllowHint": "이 워크스페이스에서 이 도구를 앞으로 자동 승인합니다"
   },
   "plan": {
     "toggle": "계획 펼치기/접기",
@@ -271,7 +271,7 @@
   },
   "sessionWorktree": {
     "label": "실행 위치",
-    "project": "프로젝트",
+    "project": "워크스페이스",
     "newWorktree": "새 워크트리",
     "worktree": "워크트리",
     "preparing": "워크트리 준비 중"

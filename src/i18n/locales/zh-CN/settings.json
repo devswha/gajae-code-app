@@ -219,7 +219,7 @@
     },
     "interfaceFontSize": {
       "label": "界面文字大小",
-      "description": "在整个会话、设置以及界面上设置文本大小",
+      "description": "在整个对话、设置以及界面上设置文本大小",
       "small": "小",
       "medium": "中",
       "large": "大"
@@ -229,8 +229,8 @@
       "description": "在对话历史记录中加载图片附件"
     },
     "projectSorting": {
-      "label": "项目顺序",
-      "description": "设置侧边栏项目顺序",
+      "label": "工作区顺序",
+      "description": "设置侧边栏工作区顺序",
       "alphabetical": "按字母排序",
       "recentActivity": "最新活动"
     }
@@ -259,14 +259,14 @@
   },
   "permissions": {
     "title": "权限",
-    "description": "按项目设定代理无需询问即可运行的内容。使用默认策略（与 GJC CLI 相同的绕过，无始终允许）的项目不会列出。",
+    "description": "按工作区设定代理无需询问即可运行的内容。使用默认策略（与 GJC CLI 相同的绕过，无始终允许）的工作区不会列出。",
     "mode": "模式",
     "alwaysAllowed": "始终允许",
     "none": "无",
     "revoke": "撤销",
     "revokeTool": "停止始终允许 {{tool}}",
     "resetToDefault": "重置为默认",
-    "empty": "所有项目都像 GJC CLI 一样无需询问即可运行。",
+    "empty": "所有工作区都像 GJC CLI 一样无需询问即可运行。",
     "loading": "加载中…",
     "error": "无法加载权限。"
   }

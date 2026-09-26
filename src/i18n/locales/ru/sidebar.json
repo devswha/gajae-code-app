@@ -1,24 +1,24 @@
 {
   "projects": {
-    "title": "Рабочие пространства",
-    "newProject": "Добавить проект",
+    "title": "Рабочие области",
+    "newProject": "Добавить рабочую область",
     "renameProject": "Переименовать рабочую область",
-    "noProjects": "Рабочих мест пока нет",
+    "noProjects": "Рабочих областей пока нет",
     "addFirst": "Добавить",
-    "loadingProjects": "Получение рабочих пространств…",
+    "loadingProjects": "Получение рабочих областей…",
     "projectNamePlaceholder": "Имя рабочей области",
     "untitledSession": "Безымянный разговор",
     "newSession": "Начать разговор",
-    "fetchingProjects": "Получение проектов и разговоров",
-    "projects": "проекты"
+    "fetchingProjects": "Получение рабочих областей и разговоров",
+    "projects": "рабочие области"
   },
   "sessions": {
-    "work": "Рабочие сеансы",
-    "newTask": "Новый рабочий элемент",
+    "work": "Активные",
+    "newTask": "Новый разговор",
     "newSession": "Начать разговор",
     "deleteSession": "Удалить разговор",
     "archiveSession": "Архивировать разговор",
-    "renameSession": "Переименовать беседу",
+    "renameSession": "Переименовать разговор",
     "regenerateTitle": "Сгенерировать название заново",
     "exportSession": "Экспортировать уценку",
     "copyDebugInfo": "Скопировать отладочную информацию",
@@ -27,20 +27,20 @@
     "noSessions": "Пока нет разговоров",
     "loadingSessions": "Получение разговоров…",
     "unnamed": "Безымянный",
-    "loading": "Загрузка сеансов…",
+    "loading": "Загрузка разговоров…",
     "showMore": "Показать больше разговоров"
   },
   "tooltips": {
     "hideSidebar": "Свернуть боковую панель",
-    "createProject": "Добавить проект",
+    "createProject": "Добавить рабочую область",
     "createSession": "Начать разговор",
-    "refresh": "Перезагрузить проекты и обсуждения.",
+    "refresh": "Перезагрузить рабочие области и разговоры.",
     "renameProject": "Переименовать рабочую область",
-    "archiveProject": "Переместить проект в архив (ничего не удаляется)",
+    "archiveProject": "Переместить рабочую область в архив (ничего не удаляется)",
     "addToFavorites": "Отметить как избранное",
     "removeFromFavorites": "Удалить отметку избранного",
     "editSessionName": "Изменить название разговора",
-    "sessionActions": "Действия в диалоге",
+    "sessionActions": "Действия с разговором",
     "deleteSession": "Удалить этот разговор навсегда",
     "activeSessionIndicator": "Разговор активен в течение последних 10 минут",
     "save": "Сохранить изменения",
@@ -48,12 +48,12 @@
     "attentionRequiredIndicator": "Разговор требует внимания"
   },
   "filter": {
-    "placeholder": "Фильтр бесед",
+    "placeholder": "Фильтр разговоров",
     "clear": "Сбросить фильтр",
-    "noMatches": "Нет бесед, соответствующих «{{query}}»"
+    "noMatches": "Нет разговоров, соответствующих «{{query}}»"
   },
   "actions": {
-    "search": "Найти в проекте",
+    "search": "Поиск",
     "settings": "Открыть настройки",
     "cancel": "Отменить действие",
     "save": "Сохранить изменения",
@@ -82,28 +82,28 @@
     "countBlocked_few": "{{count}} не удались",
     "countBlocked_many": "{{count}} не удались",
     "countBlocked_other": "{{count}} не удались",
-    "projectAttentionCount_one": "{{count}} беседа требует внимания",
-    "projectAttentionCount_few": "{{count}} беседы требуют внимания",
-    "projectAttentionCount_many": "{{count}} бесед требуют внимания",
-    "projectAttentionCount_other": "{{count}} бесед требуют внимания"
+    "projectAttentionCount_one": "{{count}} разговор требует внимания",
+    "projectAttentionCount_few": "{{count}} разговора требуют внимания",
+    "projectAttentionCount_many": "{{count}} разговоров требуют внимания",
+    "projectAttentionCount_other": "{{count}} разговоров требуют внимания"
   },
   "messages": {
-    "deleteSessionFailed": "Не удалось удалить беседу. Попробуйте еще раз.",
-    "deleteSessionError": "Произошла ошибка удаления беседы. Попробуйте еще раз.",
-    "renameSessionFailed": "Не удалось переименовать беседу. Попробуйте еще раз.",
-    "renameSessionError": "Произошла ошибка переименования беседы. Попробуйте еще раз.",
+    "deleteSessionFailed": "Не удалось удалить разговор. Попробуйте еще раз.",
+    "deleteSessionError": "Произошла ошибка удаления разговора. Попробуйте еще раз.",
+    "renameSessionFailed": "Не удалось переименовать разговор. Попробуйте еще раз.",
+    "renameSessionError": "Произошла ошибка переименования разговора. Попробуйте еще раз.",
     "regenerateTitleFailed": "Не удалось сгенерировать название заново. Попробуйте ещё раз.",
     "exportSessionError": "Не удалось экспортировать разговор. Попробуйте еще раз.",
-    "archiveProjectFailed": "Не удалось архивировать проект. Попробуйте еще раз.",
-    "archiveProjectError": "Произошла ошибка архивации проекта. Попробуйте еще раз.",
-    "updateProjectError": "Произошла ошибка обновления проекта. Попробуйте еще раз.",
+    "archiveProjectFailed": "Не удалось архивировать рабочую область. Попробуйте еще раз.",
+    "archiveProjectError": "Произошла ошибка архивации рабочей области. Попробуйте еще раз.",
+    "updateProjectError": "Произошла ошибка обновления рабочей области. Попробуйте еще раз.",
     "refreshError": "Не удалось обновить. Попробуйте еще раз.",
-    "restoreProjectFailed": "Не удалось восстановить проект. Попробуйте еще раз.",
-    "restoreProjectError": "Произошла ошибка восстановления проекта. Попробуйте еще раз.",
+    "restoreProjectFailed": "Не удалось восстановить рабочую область. Попробуйте еще раз.",
+    "restoreProjectError": "Произошла ошибка восстановления рабочей области. Попробуйте еще раз.",
     "restoreSessionFailed": "Не удалось восстановить разговор. Попробуйте еще раз.",
-    "restoreSessionError": "Произошла ошибка восстановления беседы. Попробуйте еще раз.",
+    "restoreSessionError": "Произошла ошибка восстановления разговора. Попробуйте еще раз.",
     "archiveSessionFailed": "Не удалось архивировать разговор. Попробуйте еще раз.",
-    "archiveSessionError": "Произошла ошибка архивации беседы. Попробуйте еще раз.",
+    "archiveSessionError": "Произошла ошибка архивации разговора. Попробуйте еще раз.",
     "debugInfoError": "Не удалось скопировать отладочную информацию."
   },
   "providerQuota": {
@@ -125,6 +125,13 @@
   },
   "deleteConfirmation": {
     "deleteSession": "Удалить разговор",
-    "confirmDelete": "Выберите, что делать с"
+    "confirmDelete": "Выберите, что делать с",
+    "archiveSessionNotice": "Архивация убирает разговор из списка, сохраняя его историю.",
+    "archivedSessionNotice": "Этот разговор уже в архиве. Оставьте его скрытым или удалите навсегда.",
+    "archiveSession": "Архивировать разговор",
+    "deleteSessionPermanently": "Удалить навсегда"
+  },
+  "navigation": {
+    "primary": "Основная навигация"
   }
 }

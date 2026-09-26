@@ -219,7 +219,7 @@
     },
     "interfaceFontSize": {
       "label": "Dimensione del testo dell'interfaccia",
-      "description": "Imposta la dimensione del testo nelle chat, nelle sessioni, nelle impostazioni e nell'interfaccia",
+      "description": "Imposta la dimensione del testo nelle conversazioni, nelle impostazioni e nell'interfaccia",
       "small": "Piccolo",
       "medium": "Medio",
       "large": "Grande"
@@ -229,8 +229,8 @@
       "description": "Carica gli allegati di immagini nella cronologia delle conversazioni"
     },
     "projectSorting": {
-      "label": "Ordine del progetto",
-      "description": "Imposta l'ordine del progetto della barra laterale",
+      "label": "Ordine degli spazi di lavoro",
+      "description": "Imposta l'ordine degli spazi di lavoro nella barra laterale",
       "alphabetical": "Alfabetico",
       "recentActivity": "Ultima attività"
     }
@@ -259,14 +259,14 @@
   },
   "permissions": {
     "title": "Permessi",
-    "description": "Regole per progetto su cosa l’agente può eseguire senza chiedere. I progetti con la politica predefinita (Ignora, come nella CLI GJC, niente sempre consentito) non sono elencati.",
+    "description": "Regole per spazio di lavoro su cosa l’agente può eseguire senza chiedere. Gli spazi di lavoro con la politica predefinita (Ignora, come nella CLI GJC, niente sempre consentito) non sono elencati.",
     "mode": "Modalità",
     "alwaysAllowed": "Sempre consentiti",
     "none": "Nessuno",
     "revoke": "Revoca",
     "revokeTool": "Non consentire più sempre {{tool}}",
     "resetToDefault": "Ripristina predefinito",
-    "empty": "Ogni progetto viene eseguito senza chiedere, come la CLI GJC.",
+    "empty": "Ogni spazio di lavoro viene eseguito senza chiedere, come la CLI GJC.",
     "loading": "Caricamento…",
     "error": "Impossibile caricare i permessi."
   }

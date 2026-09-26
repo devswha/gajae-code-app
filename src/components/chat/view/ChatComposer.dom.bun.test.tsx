@@ -85,9 +85,9 @@ function composer(props: ComposerProps) {
 test('the chat toolbar does not expose a project or worktree selector', async () => {
   await i18n.changeLanguage('en');
   const view = render(composer(composerProps()));
-  assert.equal(view.queryByRole('combobox', { name: 'Run location' }), null);
-  assert.equal(view.queryByText('New worktree'), null);
-  assert.equal(view.queryByText('Project', { exact: true }), null);
+  assert.equal(view.queryByRole('button', { name: english.sessionWorktree.label }), null);
+  assert.equal(view.queryByText(english.sessionWorktree.newWorktree), null);
+  assert.equal(view.queryByText(english.sessionWorktree.project, { exact: true }), null);
 });
 
 function slot(container: HTMLElement, name: string) {

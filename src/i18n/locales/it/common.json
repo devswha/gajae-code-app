@@ -2,9 +2,9 @@
   "buttons": {
     "cancel": "Interrompi"
   },
-  "tabs": {
-    "chat": "Chatta",
-    "git": "Controllo della versione"
+  "toasts": {
+    "region": "Notifiche",
+    "dismiss": "Chiudi"
   },
   "status": {
     "success": "Successo"
@@ -12,30 +12,29 @@
   "mainContent": {
     "loading": "Avvio dell'app gajae",
     "settingUpWorkspace": "Preparazione dello spazio di lavoro...",
-    "chooseProject": "Scegli un progetto",
-    "selectProjectDescription": "Scegli un progetto nella barra laterale per iniziare a scrivere codice in Gajae Code. Le sue conversazioni e la cronologia dei file rimangono insieme lì.",
-    "firstProject": "Aggiungi il primo progetto",
-    "firstProjectDescription": "Scegli una cartella su questo computer. Gajae Code lavora al suo interno e le conversazioni del progetto restano lì.",
-    "addProject": "Aggiungi un progetto",
+    "chooseProject": "Scegli uno spazio di lavoro",
+    "selectProjectDescription": "Scegli uno spazio di lavoro nella barra laterale per iniziare a scrivere codice in Gajae Code. Le sue conversazioni e la cronologia dei file rimangono insieme lì.",
+    "firstProject": "Aggiungi il primo spazio di lavoro",
+    "firstProjectDescription": "Scegli una cartella su questo computer. Gajae Code lavora al suo interno e le conversazioni dello spazio di lavoro restano lì.",
+    "addProject": "Aggiungi uno spazio di lavoro",
     "scratchStart": "Inizia in uno spazio di prova",
     "scratchStarting": "Preparazione…",
     "scratchDescription": "Nessuna cartella ancora? Gajae Code crea ~/gajae-scratch, un repository git usa e getta, e apre lì una conversazione. L’agente resta al suo interno.",
     "scratchFailed": "Impossibile avviare lo spazio di prova: {{reason}}",
-    "newSession": "Inizia la conversazione",
-    "projectFiles": "File nel progetto"
+    "newSession": "Inizia la conversazione"
   },
   "projectWizard": {
     "step2": {
-      "existingPath": "Posizione dell'area di lavoro",
-      "existingPlaceholder": "/percorso/dell'area di lavoro/esistente"
+      "existingPath": "Posizione dello spazio di lavoro",
+      "existingPlaceholder": "/percorso/dello/spazio-di-lavoro/esistente"
     },
     "buttons": {
       "cancel": "Interrompi",
       "creating": "Creazione…"
     },
     "errors": {
-      "providePath": "Inserisci un percorso dell'area di lavoro",
-      "failedToCreate": "Impossibile creare l'area di lavoro"
+      "providePath": "Inserisci un percorso dello spazio di lavoro",
+      "failedToCreate": "Impossibile creare lo spazio di lavoro"
     },
     "folderBrowser": {
       "title": "Scegli la cartella",
@@ -52,7 +51,10 @@
       "path": "Percorso:",
       "useThisFolder": "Scegli questa cartella",
       "browseFolders": "Sfoglia le cartelle"
-    }
+    },
+    "addProject": "Aggiungi spazio di lavoro",
+    "addProjectDescription": "Scegli una cartella locale da usare come spazio di lavoro.",
+    "addButton": "Aggiungi"
   },
   "versionUpdate": {
     "ariaLabels": {
@@ -84,6 +86,7 @@
       "changes": "Modifiche",
       "branch": "Branch",
       "directory": "Directory",
+      "worktreeOf": "Worktree di {{name}}",
       "serviceTier": "Livello di servizio",
       "refresh": "Ricarica lo stato Git",
       "notARepository": "Questa cartella non è un repository Git",
@@ -113,14 +116,14 @@
     "pages": {
       "actions": "Azioni",
       "files": "File",
-      "sessions": "Sessioni",
+      "sessions": "Conversazioni",
       "commits": "Commit",
       "branches": "Branch"
     },
     "search": {
       "actions": "Cerca azioni…",
       "files": "Cerca file…",
-      "sessions": "Cerca sessioni…",
+      "sessions": "Cerca conversazioni…",
       "commits": "Cerca commit…",
       "branches": "Cerca branch…",
       "anything": "Digita per cercare qualsiasi cosa…"
@@ -130,16 +133,14 @@
     "noResults": "Nessun risultato.",
     "current": "Attuale",
     "groups": {
-      "navigate": "Naviga",
       "git": "Git",
       "settings": "Impostazioni"
     },
     "actions": {
-      "startNewChat": "Nuova chat",
-      "selectProjectFirst": "Seleziona prima un progetto",
+      "startNewChat": "Nuova conversazione",
+      "selectProjectFirst": "Seleziona prima uno spazio di lavoro",
       "openSettings": "Apri impostazioni",
       "toggleTheme": "Cambia tema",
-      "goToChat": "Vai alla chat",
       "gitFetch": "Git: Fetch",
       "gitPull": "Git: Pull",
       "gitPush": "Git: Push",
@@ -147,7 +148,7 @@
       "switchToBranch": "Passa a: {{branch}}"
     },
     "browseAll": {
-      "sessions": "Sfoglia tutte le sessioni ({{total}})",
+      "sessions": "Sfoglia tutte le conversazioni ({{total}})",
       "files": "Sfoglia tutti i file ({{total}})",
       "commits": "Sfoglia tutti i commit ({{total}})",
       "branches": "Sfoglia tutti i branch ({{total}})"

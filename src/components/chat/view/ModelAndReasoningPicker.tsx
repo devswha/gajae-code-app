@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Check, ChevronDown, ChevronRight, Loader2, Search } from 'lucide-react';
 
+import { useAnchoredPopup } from '../../../hooks/useAnchoredPopup';
 import { focusSearchInputSafely } from '../../../hooks/useDeviceSettings';
 import { isModelSelectionReference, primaryModelSelector } from '../../../../shared/model-selectors';
 import { cn } from '../../../utils/cn';
@@ -211,6 +212,9 @@ export async function persistChosenModel(
   if (modelId !== currentValue) await onSelect(modelId);
 }
 
+/** `w-md`, the popup's width, for clamping it to the viewport. */
+const POPUP_WIDTH = 448;
+
 /**
  * One composer control for the two settings that define the next answer:
  * the session's chat model and its reasoning effort. The popup is a cascading
@@ -241,7 +245,6 @@ export default function ModelAndReasoningPicker({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const returnFocus = useRef(false);
-  const [popupPosition, setPopupPosition] = useState<{ bottom: number; left: number; maxHeight?: number }>({ bottom: 0, left: 0 });
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -269,42 +272,20 @@ export default function ModelAndReasoningPicker({
     : activeModel ?? selectedModelId;
   const reasoningOptions = reasoningOptionsForModel(reasoningModelId ?? undefined, modelOptions);
 
-  // The composer form clips its children (overflow-hidden rounded corners), so
-  // the popup must escape through a body portal with fixed positioning.
-  useEffect(() => {
-    if (!open) return;
-    const updatePosition = () => {
-      const rect = rootRef.current?.getBoundingClientRect();
-      if (rect) {
-        setPopupPosition({
-          bottom: window.innerHeight - rect.top + 8,
-          left: Math.max(8, Math.min(rect.left, window.innerWidth - 448 - 8)),
-          maxHeight: Math.max(0, rect.top - 16),
-        });
+  const popupPosition = useAnchoredPopup({
+    open,
+    onClose: (reason) => {
+      if (reason === 'escape') {
+        // Clear the filter before restoring focus: no matches disables the trigger.
+        returnFocus.current = true;
+        setQuery('');
       }
-    };
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
-    const close = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!rootRef.current?.contains(target) && !popupRef.current?.contains(target)) setOpen(false);
-    };
-    const closeForEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      event.preventDefault();
-      returnFocus.current = true;
-      // Clear the filter before restoring focus: no matches disables the trigger.
-      setQuery('');
       setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', closeForEscape);
-    return () => {
-      window.removeEventListener('resize', updatePosition);
-      document.removeEventListener('mousedown', close);
-      document.removeEventListener('keydown', closeForEscape);
-    };
-  }, [open]);
+    },
+    anchorRef: rootRef,
+    popupRef,
+    width: POPUP_WIDTH,
+  });
 
   useEffect(() => {
     if (!open) {
@@ -381,7 +362,7 @@ export default function ModelAndReasoningPicker({
         <div
           ref={popupRef}
           className="fixed z-80 flex w-md max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
-          style={{ bottom: popupPosition.bottom, left: popupPosition.left, maxHeight: popupPosition.maxHeight }}
+          style={popupPosition}
         >
           <button
             type="button"

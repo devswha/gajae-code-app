@@ -173,6 +173,16 @@ a process merely because it owns a port.
    another server instance (a dev stack, a second install) holds
    `~/.gajae-app/jobs.sqlite3.lock` (`lsof -nP ~/.gajae-app/jobs.sqlite3.lock`).
 
+   `updater_owner_unknown` / `updater_owner_changed` after `backend-prepared`
+   is the native same-user process census; the preceding `owner-refused`
+   record's `detail` is the scanner's fixed sentence. `process or bundle
+   census changed` and `observation budget exceeded` mean the machine had
+   process churn (Spotlight `mdworker_shared`, iCloud helpers, `git`,
+   agents' shells, the app's own `gajae-core git` children) between the
+   scanner's two or three passes inside its 2 s budget — not a security
+   finding. Measure it with a 10 s same-UID `ps` diff; more than a handful of
+   births/exits per second makes the census unlikely to pass.
+
 3. **Listener identity — who actually owns the port**
 
    ```bash

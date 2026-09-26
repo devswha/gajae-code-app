@@ -58,6 +58,18 @@ test('a backend refusal exports its owner blockers as bounded identifiers only',
   }
 });
 
+test('an owner census refusal exports its fixed sentence and nothing free-form', () => {
+  const summarize = detail => summarizeUpdateEvidence({ pending: false, completion: null,
+    diagnostics: JSON.stringify({ event: 'desktop_update_restart', attemptId: 'b'.repeat(64), stage: 'owner-refused', elapsedMs: 2001,
+      reason: 'updater_owner_unknown', detail }) }, expected).stages[0];
+  assert.equal(summarize('process or bundle census changed').detail, 'process or bundle census changed');
+  assert.equal(summarize('observation budget exceeded').detail, 'observation budget exceeded');
+  assert.equal(summarize('Info.plist read failed').detail, 'Info.plist read failed');
+  for (const detail of ['/Applications/Private.app', 'a /tmp/x b', 'Bearer_token', 'x'.repeat(129), '', 1, null, 'com.example.app']) {
+    assert.equal(summarize(detail).detail, undefined, String(detail));
+  }
+});
+
 test('collector leaves fixture bytes intact, rejects aliases and oversized evidence', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'gajae-update-evidence-'));
   t.after(() => rm(root, { recursive: true, force: true }));

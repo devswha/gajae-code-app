@@ -36,9 +36,28 @@ Same day, owner decision: the dev stack now runs on its own database
 `jobs.sqlite3` fresh) so `~/.gajae-app` belongs to the desktop app alone.
 `/tmp/gjc-dev/README.md` and AGENTS.md carry the new command. Verified after
 the restart: dev server healthy with its jobs authority,
-`~/.gajae-app/jobs.sqlite3.lock` free. The installed beta.18 can now take
-the cached 0.2.14 through **Restart to install**; the result of that click
-is not yet recorded here.
+`~/.gajae-app/jobs.sqlite3.lock` free. Result of the next clicks (17:07 KST, 5 attempts): two `busy` right after
+launch, then **`backend-prepared` passed three times** — the database-lock
+cause is gone — and each aborted 30–2000 ms later as `updater_owner_unknown`
+from `capture_owned_server`. The native same-user census (516–524 BSD
+identities, 78 bundles here) requires two identical full scans plus a
+revalidation inside a 2 s budget; on this Mac it passes 2 of 5 runs in
+isolation (`read_only_real_mac_census_smoke`) and 0 of 3 inside the app,
+where the app's own server also spawns `gajae-core git` children. A 10 s
+`ps` diff showed about one unrelated birth/exit per second (Spotlight
+`mdworker_shared`, iCloud helpers, `git`). Production journals did not
+record the scanner's reason (QA-debug only); `000363d`+ adds an
+`owner-refused` record with the fixed sentence as `detail`, exported by the
+evidence collector.
+
+Open owner decision for beta.21: the census-stability rule ("unrelated
+PID/path churn makes the proof unknown", no retry) is documented policy in
+`updater_owners.rs` and `DESKTOP-UPDATE-FAILURE-BETA14.md`, and it makes
+click-update unreachable on a developer Mac. Candidates: (a) bounded retry
+of the census inside a longer budget, (b) stability required only for
+product-bundle and reserved-role processes, with unrelated foreign births
+classified in the later pass. Until then the installed app updates by
+manual DMG.
 
 Follow-up for beta.21 (owner-approved direction, not started): move the
 desktop app's database under its own data root

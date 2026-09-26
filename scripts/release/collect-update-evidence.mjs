@@ -13,6 +13,8 @@ const code = value => typeof value === 'string' && /^[a-z][a-z_-]{0,63}$/.test(v
 const integer = value => Number.isSafeInteger(value) && value >= 0;
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const identifier = value => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value);
+// The owner census reports one of its fixed lowercase sentences; anything else is dropped.
+const detail = value => typeof value === 'string' && /^[A-Za-z][A-Za-z0-9 ,./-]{0,127}$/.test(value) && !/[/.][^ ]*[/.]/.test(value);
 // A backend refusal names its owners; keep only bounded identifier pairs.
 const blockers = value => Array.isArray(value) && value.length > 0 && value.length <= 32
   && value.every(item => record(item) && Object.keys(item).length === 2
@@ -48,6 +50,7 @@ export function summarizeUpdateEvidence({ diagnostics, completion, pending }, ex
     stages.push({ attemptId: value.attemptId, stage: value.stage, elapsedMs: value.elapsedMs,
       ...(code(value.reason) ? { reason: value.reason } : {}),
       ...(blockers(value.blockers) ? { blockers: blockers(value.blockers) } : {}),
+      ...(detail(value.detail) ? { detail: value.detail } : {}),
       ...(integer(value.timeMs) ? { timeMs: value.timeMs } : {}) });
   }
   let receipt;

@@ -16,7 +16,7 @@ use tauri::{AppHandle, Manager};
 use crate::{
     updater::{Phase as UpdatePhase, Snapshot},
     updater_backend::{Backend, Control, State as BackendState},
-    updater_binding::{Binding, Mode},
+    updater_binding::Binding,
     updater_location::InstallLocation,
     updater_store::Store,
 };
@@ -87,7 +87,7 @@ impl Attempt {
         }
     }
     fn trace(&self, stage: &'static str, reason: Option<&'static str>) {
-        self.trace_with(stage, reason, &[]);
+        self.trace_record(stage, reason, serde_json::Value::Null);
     }
     /// A backend refusal names the owners that refused (`blockers`), so the
     /// journal alone tells busy-from-what apart from unknown-from-what.
@@ -96,6 +96,30 @@ impl Attempt {
         stage: &'static str,
         reason: Option<&'static str>,
         blockers: &[crate::updater_backend::Blocker],
+    ) {
+        let extra = if blockers.is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::json!({ "blockers": blockers })
+        };
+        self.trace_record(stage, reason, extra);
+    }
+    /// The owner scanner returns one of its fixed reason sentences, never
+    /// process argv, user content or authentication material, so the journal
+    /// may carry it as `detail`. Before this it was printed only by debug QA
+    /// builds, and a production refusal was undiagnosable from the journal.
+    fn trace_owner(&self, stage: &'static str, reason: &'static str, detail: &str) {
+        let detail = detail
+            .strip_prefix("Updater owner evidence is unknown: ")
+            .unwrap_or(detail)
+            .trim_end_matches('.');
+        self.trace_record(stage, Some(reason), serde_json::json!({ "detail": detail }));
+    }
+    fn trace_record(
+        &self,
+        stage: &'static str,
+        reason: Option<&'static str>,
+        extra: serde_json::Value,
     ) {
         let mut record = serde_json::json!({
             "event": "desktop_update_restart", "attemptId": self.id,
@@ -106,8 +130,8 @@ impl Attempt {
             "os": std::env::consts::OS, "arch": std::env::consts::ARCH,
             "timeMs": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis(),
         });
-        if !blockers.is_empty() {
-            record["blockers"] = serde_json::json!(blockers);
+        if let (Some(target), Some(source)) = (record.as_object_mut(), extra.as_object()) {
+            target.extend(source.clone());
         }
         eprintln!("{record}");
         if let Some(root) = &self.diagnostic_root {
@@ -728,7 +752,7 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
     ) {
         Ok(tree) => tree,
         Err(error) => {
-            trace_owner_failure(&error);
+            attempt.trace_owner("owner-refused", "updater_owner_unknown", &error);
             return abort(app, &attempt, "updater_owner_unknown").await;
         }
     };
@@ -745,7 +769,7 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
         return abort(app, &attempt, "updater_restart_cancelled").await;
     }
     if let Err(error) = tree.revalidate() {
-        trace_owner_failure(&error);
+        attempt.trace_owner("owner-refused", "updater_owner_changed", &error);
         return abort(app, &attempt, "updater_owner_changed").await;
     }
     // Cancellation and commit elect one winner at this final synchronous point.
@@ -819,14 +843,6 @@ async fn prepare_restart(app: &AppHandle, attempt: Arc<Attempt>) -> Result<Reply
         }
     });
     Ok(Reply::Snapshot(snapshot(app)?))
-}
-
-fn trace_owner_failure(error: &str) {
-    if cfg!(debug_assertions) && Binding::compiled().mode == Mode::Qa {
-        // The owner scanner returns static reason descriptions, not process
-        // argv, user content, or authentication material.
-        eprintln!("[restart-qa:{}] {error}", std::process::id());
-    }
 }
 
 pub(crate) fn blocks_start(app: &AppHandle) -> bool {

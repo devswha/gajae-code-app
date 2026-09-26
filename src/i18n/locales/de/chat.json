@@ -237,13 +237,6 @@
         "label": "Umgehen",
         "description": "Nichts fragt nach. Der Agent führt in diesem Projekt jeden Befehl aus."
       }
-    },
-    "bypassConfirm": {
-      "title": "Berechtigungsabfragen ausschalten?",
-      "body": "Damit kann der Agent jeden Befehl ohne Nachfrage ausführen.",
-      "scope": "Gilt nur für dieses Projekt. Du kannst jederzeit zu „Fragen“ zurückwechseln.",
-      "cancel": "Abbrechen",
-      "confirm": "Umgehen aktivieren"
     }
   },
   "permissionCard": {

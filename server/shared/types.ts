@@ -44,7 +44,7 @@ export interface CredentialPublicRow { credential_name: string; credential_type:
 export interface CreateCredentialResult { credentialName: string; credentialType: string; id: number | bigint; }
 export interface ProjectRepositoryRow { custom_project_name: string | null; isArchived: number; isStarred: number; origin: 'legacy' | 'explicit' | 'auto'; project_id: string; project_path: string; }
 export type ProjectPermissionMode = 'ask' | 'auto_edits' | 'bypass';
-export interface ProjectPermissionsRow { project_path: string; mode: ProjectPermissionMode; allow_always: string[]; bypass_acknowledged: boolean; updated_at: string | null; }
+export interface ProjectPermissionsRow { project_path: string; mode: ProjectPermissionMode; allow_always: string[]; updated_at: string | null; }
 type CreateProjectPathOutcome = 'created' | 'reactivated_archived' | 'active_conflict';
 export interface CreateProjectPathResult { project: ProjectRepositoryRow | null; outcome: CreateProjectPathOutcome; }
 export interface WorkspacePathValidationResult { error?: string; resolvedPath?: string; valid: boolean; }

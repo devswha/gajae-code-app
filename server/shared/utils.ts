@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
-import { access, lstat, mkdir, readFile, readdir, readlink, realpath, stat, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -114,21 +114,15 @@ export class AppError extends Error {
 }
 
 /**
- * The tree a workspace, a session root, a job root or a terminal may live in.
- *
- * Read per call rather than captured once: this is the gate several routes now
- * share, and a process that starts before its environment is complete (or a
- * test that points the app at a fixture tree) must not be stuck with the value
- * that happened to exist at import time.
+ * Where the folder browser opens, what `~` expands to in path inputs, and
+ * where the scratch workspace lives. It is a starting point, not a boundary:
+ * like the GJC CLI, which runs in whatever directory it is started in, a
+ * project, session, job or terminal may be anywhere on the machine.
  */
 export function workspacesRoot(): string {
   return process.env.WORKSPACES_ROOT || os.homedir();
 }
 export const WORKSPACES_ROOT = workspacesRoot();
-const FORBIDDEN_WORKSPACE_PATHS = [
-  '/', '/etc', '/bin', '/sbin', '/usr', '/dev', '/proc', '/sys', '/var', '/boot', '/root', '/lib', '/lib64', '/opt', '/tmp', '/run',
-  'C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)', 'C:\\ProgramData', 'C:\\System Volume Information', 'C:\\$Recycle.Bin',
-];
 
 function pathDialect(value: string): typeof path.posix {
   return process.platform === 'win32' || value.startsWith('\\\\') || /^[a-zA-Z]:([\\/]|$)/.test(value)
@@ -152,30 +146,6 @@ export function normalizeProjectPath(inputPath: string): string {
   return result === implementation.parse(result).root ? result : result.replace(/[\\/]+$/, '');
 }
 
-function outsideRoot(candidate: string, root: string): boolean {
-  return candidate !== root && !candidate.startsWith(`${root}${path.sep}`);
-}
-
-function protectedWorkspacePath(candidate: string): string | undefined {
-  if (FORBIDDEN_WORKSPACE_PATHS.includes(candidate) || candidate === '/') {
-    return 'Cannot use system-critical directories as workspace locations';
-  }
-  // A deployment that names its own workspace root has already chosen that
-  // tree; the list below exists to stop a default-rooted install from adopting
-  // /etc or /tmp, not to overrule an operator who pointed WORKSPACES_ROOT at a
-  // directory underneath one of them (a packaged smoke run, a QA home, a test
-  // fixture). The exact protected paths above stay refused either way.
-  const configuredRoot = normalizeProjectPath(process.env.WORKSPACES_ROOT ?? '');
-  if (configuredRoot && !outsideRoot(candidate, configuredRoot)) return undefined;
-  for (const protectedPath of FORBIDDEN_WORKSPACE_PATHS) {
-    const canonicalProtectedPath = normalizeProjectPath(protectedPath);
-    if (candidate !== canonicalProtectedPath && !candidate.startsWith(`${canonicalProtectedPath}${path.sep}`)) continue;
-    if (canonicalProtectedPath === '/var' && (candidate.startsWith('/var/tmp') || candidate.startsWith('/var/folders'))) continue;
-    return `Cannot create workspace in system directory: ${protectedPath}`;
-  }
-  return undefined;
-}
-
 async function resolveCandidatePath(absolutePath: string): Promise<string> {
   let output = normalizeProjectPath(absolutePath);
   try {
@@ -196,68 +166,24 @@ async function resolveCandidatePath(absolutePath: string): Promise<string> {
   }
 }
 
-async function symlinkLeavesWorkspace(absolutePath: string, workspaceRoot: string): Promise<boolean> {
-  try {
-    await access(absolutePath);
-    if (!(await lstat(absolutePath)).isSymbolicLink()) return false;
-    const target = await readlink(absolutePath);
-    return outsideRoot(await realpath(path.resolve(path.dirname(absolutePath), target)), workspaceRoot);
-  } catch (error) {
-    const failure = error as NodeJS.ErrnoException;
-    if (failure.code !== 'ENOENT') throw failure;
-    return false;
-  }
-}
-
 async function evaluateWorkspacePath(requestedPath: string): Promise<WorkspacePathValidationResult> {
   const requested = normalizeProjectPath(requestedPath);
   if (!requested) return { valid: false, error: 'Workspace path is required' };
-  const absolute = path.resolve(requested);
-  const protectedError = protectedWorkspacePath(normalizeProjectPath(absolute));
-  if (protectedError) return { valid: false, error: protectedError };
-  const resolvedPath = await resolveCandidatePath(absolute);
-  const root = normalizeProjectPath(await realpath(workspacesRoot()));
-  if (outsideRoot(resolvedPath, root)) {
-    return { valid: false, error: `Workspace path must be within the allowed workspace root: ${workspacesRoot()}` };
-  }
-  if (await symlinkLeavesWorkspace(absolute, root)) {
-    return { valid: false, error: 'Symlink target is outside the allowed workspace root' };
-  }
-  return { valid: true, resolvedPath };
-}
-
-export async function validateWorkspacePath(requestedPath: string): Promise<WorkspacePathValidationResult> {
-  // Any filesystem surprise is a rejection, never a crash: the caller treats
-  // this as a yes/no gate on user-supplied input.
-  return evaluateWorkspacePath(requestedPath).catch((error: unknown) => (
-    { valid: false, error: `Path validation failed: ${(error as Error).message}` }
-  ));
+  return { valid: true, resolvedPath: await resolveCandidatePath(path.resolve(requested)) };
 }
 
 /**
- * The same gate for callers that cannot await.
- *
- * The shell WebSocket decides a PTY's working directory inside a synchronous
- * message handler that holds the desktop restart admission lease for exactly
- * that handler, so it cannot become async without releasing the lease before
- * the process it is admitting exists.
+ * Resolves a user-supplied project directory to its canonical path. Any
+ * directory is accepted, exactly as the GJC CLI accepts whatever directory it
+ * is started in; only an empty value or a path the filesystem cannot resolve
+ * is refused.
  */
-export function validateWorkspacePathSync(requestedPath: string): WorkspacePathValidationResult {
-  try {
-    const requested = normalizeProjectPath(requestedPath);
-    if (!requested) return { valid: false, error: 'Workspace path is required' };
-    const absolute = path.resolve(requested);
-    const protectedError = protectedWorkspacePath(normalizeProjectPath(absolute));
-    if (protectedError) return { valid: false, error: protectedError };
-    const resolvedPath = normalizeProjectPath(fs.realpathSync(absolute));
-    const root = normalizeProjectPath(fs.realpathSync(workspacesRoot()));
-    if (outsideRoot(resolvedPath, root)) {
-      return { valid: false, error: `Workspace path must be within the allowed workspace root: ${workspacesRoot()}` };
-    }
-    return { valid: true, resolvedPath };
-  } catch (error) {
-    return { valid: false, error: `Path validation failed: ${(error as Error).message}` };
-  }
+export async function validateWorkspacePath(requestedPath: string): Promise<WorkspacePathValidationResult> {
+  // Any filesystem surprise is a rejection, never a crash: the caller treats
+  // this as a yes/no answer on user-supplied input.
+  return evaluateWorkspacePath(requestedPath).catch((error: unknown) => (
+    { valid: false, error: `Path validation failed: ${(error as Error).message}` }
+  ));
 }
 
 export function generateMessageId(prefix = 'msg'): string {

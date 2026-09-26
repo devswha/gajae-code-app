@@ -144,7 +144,7 @@ async function githubToken(input: CloneProjectInput, dependencies: CloneProjectD
 
 const cloneDependencies: CloneProjectDependencies = {
   ensureDirectory: async (directory) => { await mkdir(directory, { recursive: true }); },
-  validatePath: validateWorkspacePath, // shared workspace gate from utils
+  validatePath: validateWorkspacePath, // canonical path resolution shared with project creation
   pathExists: async (target) => !(await pathIsAvailable(target)),
   createCloneWorkspace,
   getGithubTokenById: async (tokenId, userId) => githubTokensDb.getGithubTokenById(userId, tokenId) as { github_token: string } | null,

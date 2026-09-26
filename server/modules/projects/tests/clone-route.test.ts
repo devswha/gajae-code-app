@@ -30,10 +30,8 @@ type Server = {
 async function serve(t: test.TestContext): Promise<Server> {
   const directory = await mkdtemp(path.join(tmpdir(), 'clone-route-'));
   const previousDatabase = process.env.DATABASE_PATH;
-  const previousRoot = process.env.WORKSPACES_ROOT;
   closeConnection();
   process.env.DATABASE_PATH = path.join(directory, 'auth.db');
-  process.env.WORKSPACES_ROOT = directory;
   await initializeDatabase();
 
   const app = express();
@@ -53,8 +51,6 @@ async function serve(t: test.TestContext): Promise<Server> {
     closeConnection();
     if (previousDatabase === undefined) delete process.env.DATABASE_PATH;
     else process.env.DATABASE_PATH = previousDatabase;
-    if (previousRoot === undefined) delete process.env.WORKSPACES_ROOT;
-    else process.env.WORKSPACES_ROOT = previousRoot;
     await new Promise<void>((resolve) => { server.close(() => resolve()); });
     await rm(directory, { recursive: true, force: true });
   });

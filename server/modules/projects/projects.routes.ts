@@ -92,7 +92,6 @@ router.put('/:projectId/permissions', asyncHandler(async (request, response) => 
   const body: Record<string, unknown> = request.body ?? {};
   response.json(createApiSuccessResponse(updateProjectPermissionMode(routeProjectId(request.params.projectId, true), {
     mode: body.mode,
-    acknowledgeBypass: body.acknowledgeBypass,
   })));
 }));
 

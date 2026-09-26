@@ -22,7 +22,6 @@ import { useProjectPermissions } from '../../hooks/useProjectPermissions';
 import { useUiPreferences } from '../../hooks/useUiPreferences';
 import { PERMISSION_MODE_ICONS, PERMISSION_MODES } from '../chat/utils/permissionMode';
 import { TOOL_OUTPUT_DENSITIES } from '../chat/utils/toolOutputDensity';
-import BypassConfirmDialog from '../chat/view/BypassConfirmDialog';
 import { TOOL_OUTPUT_DENSITY_ICONS } from '../chat/view/ToolOutputDensityPicker';
 import {
   Command,
@@ -153,7 +152,6 @@ export default function CommandPalette({
   onShowTab,
 }: CommandPaletteProps) {
   const [palette, dispatchPalette] = React.useReducer(paletteReducer, { open: false, query: '', history: [] });
-  const [confirmingBypass, setConfirmingBypass] = React.useState(false);
   const { toggleDarkMode } = useTheme();
   const { t } = useTranslation(['common', 'chat', 'settings']);
   const { preferences, setPreference } = useUiPreferences();
@@ -266,11 +264,6 @@ export default function CommandPalette({
         hint: current ? currentHint : undefined,
         onSelect: () => runAfterDismissal(() => {
           if (current) return;
-          // Bypass keeps its one-time warning even from the palette.
-          if (mode === 'bypass' && !projectPermissions.permissions?.bypassAcknowledged) {
-            setConfirmingBypass(true);
-            return;
-          }
           void projectPermissions.setMode({ mode }).catch(() => {});
         }),
       };
@@ -299,15 +292,6 @@ export default function CommandPalette({
 
   return (
     <Dialog open={palette.open} onOpenChange={(open) => dispatchPalette({ type: 'change-visibility', open })}>
-      {/* Its own dialog; it opens after the palette has been dismissed. */}
-      <BypassConfirmDialog
-        open={confirmingBypass}
-        onCancel={() => setConfirmingBypass(false)}
-        onConfirm={() => {
-          setConfirmingBypass(false);
-          void projectPermissions.setMode({ mode: 'bypass', acknowledgeBypass: true }).catch(() => {});
-        }}
-      />
       <DialogContent className="max-w-xl overflow-hidden p-0">
         <DialogTitle>{t('commandPalette.title')}</DialogTitle>
         <Command label={t('commandPalette.title')} onKeyDown={handleKeyDown}>

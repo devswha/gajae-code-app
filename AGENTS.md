@@ -185,6 +185,18 @@ is `.ts`/`.tsx`. Routing is react-router-dom 7.
   `gjc-bun-sdk-events.ts`). Claude/Codex/Cursor/OpenCode keep their own paths.
   Contract: `server/GJC-LIVE-SPEC.md`. Prompts are passed via owner-readable temp
   file (`@file`), never on the process argv.
+- **The app never narrows the GJC CLI** (owner decision 2026-09-27): what `gjc`
+  can do, an app session can do. Projects default to `bypass` (the CLI runs its
+  tools without asking); sessions, jobs and terminals open in any directory
+  (`WORKSPACES_ROOT` is only where browsing starts); every runtime tool is
+  requested and `~/.gjc` settings decide availability; project `.gjc/mcp.json`,
+  extensions and tool discovery load as in the CLI; slash commands run without
+  a confirmation card; `/export` and file links resolve anywhere. The only
+  withheld tools are the ones the per-turn SDK session or the project binding
+  cannot carry (`job`/`monitor`/`cron`, `move_session`). Network exposure
+  guards (loopback bind, origin/host checks, desktop key) are not CLI
+  capabilities and stay. Do not add an app-only restriction on a CLI
+  capability; offer it as an opt-in mode instead.
 - **Backend module boundaries are lint-enforced**: `eslint-plugin-boundaries` rules in
   `eslint.config.js` govern imports between `server/modules/*`
   (assets/automation/database/notifications/projects/providers/websocket) and fail on

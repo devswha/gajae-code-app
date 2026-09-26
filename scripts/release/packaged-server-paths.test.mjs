@@ -307,7 +307,7 @@ test('packaged shutdown requires a graceful exit and reaps a hung child', async 
   });
 });
 
-test('default fixture directory passes the production workspace gate while /tmp remains forbidden', async t => {
+test('default fixture directory is a private, disposable home the production path resolver accepts', async t => {
   const dataDirectory = await createSmokeDataDirectory();
   t.after(() => fs.rm(dataDirectory, { recursive: true, force: true }));
   assert.equal(path.dirname(dataDirectory), os.homedir());
@@ -317,8 +317,7 @@ test('default fixture directory passes the production workspace gate while /tmp 
   const source = `
     import { validateWorkspacePath } from ${JSON.stringify(new URL('../../server/shared/utils.ts', import.meta.url).href)};
     const allowed = await validateWorkspacePath(process.env.WORKSPACES_ROOT);
-    const forbidden = await validateWorkspacePath('/tmp/gajae-packaged-project');
-    console.log(JSON.stringify({ allowed, forbidden }));
+    console.log(JSON.stringify({ allowed }));
   `;
   const target = { command: process.execPath, cwd: dataDirectory };
   const checked = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval', source], {
@@ -331,10 +330,8 @@ test('default fixture directory passes the production workspace gate while /tmp 
     encoding: 'utf8',
   });
   assert.equal(checked.status, 0, checked.stderr);
-  const { allowed, forbidden } = JSON.parse(checked.stdout);
+  const { allowed } = JSON.parse(checked.stdout);
   assert.deepEqual(allowed, { valid: true, resolvedPath: await fs.realpath(projectDir) });
-  assert.equal(forbidden.valid, false);
-  assert.match(forbidden.error, /Cannot create workspace in system directory: \/tmp/);
   await fs.rm(dataDirectory, { recursive: true, force: true });
   await assert.rejects(fs.access(dataDirectory), 'the whole fixture, including its isolated HOME, is disposable');
 });

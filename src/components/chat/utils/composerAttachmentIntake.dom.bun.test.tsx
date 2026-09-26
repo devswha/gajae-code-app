@@ -43,7 +43,6 @@ function ComposerBody() {
       isLoading={false} sessionState={null} onShowTokenUsage={() => {}} onAbortSession={c.handleAbortSession}
       onSubmit={c.handleSubmit} onSteer={c.handleSteer}
       onEditQueuedDraft={c.editQueuedDraft} onDeleteQueuedDraft={c.deleteQueuedDraft} onMoveQueuedDraft={c.moveQueuedDraft}
-      onConfirmCommandGate={c.confirmCommandGate} onCancelCommandGate={c.cancelCommandGate}
       onRemoveImage={(index) => c.setAttachedImages((files) => files.filter((_, position) => position !== index))}
       onDismissAttachmentNotice={c.dismissAttachmentNotice}
       onSelectFile={c.selectFile} onCommandSelect={c.handleCommandSelect}

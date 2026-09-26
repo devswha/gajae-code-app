@@ -173,15 +173,7 @@
     "noGrants": "Kaydedilmiş otomasyon onayı yok.",
     "origin": "Sitenin kökeni",
     "application": "Masaüstü uygulaması",
-    "revoke": "Onayı kaldır",
-    "withheld": "Uygulamada devre dışı çalışma zamanı özellikleri",
-    "withheldDescription": "Araç kümesine uygulama karar verir. GJC yapılandırmanız ne olursa olsun bu çalışma zamanı özellikleri her oturumda kapalıdır.",
-    "withheldMcp": "Proje MCP sunucuları",
-    "withheldMcpReason": "GJC’ye kendiniz kaydettiğiniz sunucular (gjc mcp add) CLI’daki gibi yüklenir. Projenin kendi .gjc/mcp.json dosyası yüklenmez; böylece bir depoyu açmak, içindeki programları bir oturumda başlatamaz.",
-    "withheldToolDiscovery": "Araç keşfi",
-    "withheldToolDiscoveryReason": "Oturumlar çalışırken ek araç etkinleştiremez; uygulamanın seçtiği küme kümenin tamamıdır.",
-    "withheldAstEdit": "AST düzenleme",
-    "withheldAstEditReason": "Yalnızca yeniden yazımları önizler ve bunları uygulamanın sunmadığı bir araçla uygular; yani oturumun asla işleyemeyeceği düzenlemeleri duyurur."
+    "revoke": "Onayı kaldır"
   },
   "notifications": {
     "title": "Uygulama bildirimleri",
@@ -264,14 +256,14 @@
   },
   "permissions": {
     "title": "İzinler",
-    "description": "Ajanın sormadan çalıştırabileceklerine ilişkin proje bazlı kurallar. Varsayılan politikadaki (Sor, her zaman izinli yok) projeler listelenmez.",
+    "description": "Ajanın sormadan çalıştırabileceklerine ilişkin proje bazlı kurallar. Varsayılan politikadaki (GJC CLI’daki gibi Atla, her zaman izinli yok) projeler listelenmez.",
     "mode": "Mod",
     "alwaysAllowed": "Her zaman izinli",
     "none": "Yok",
     "revoke": "Kaldır",
     "revokeTool": "{{tool}} için her zaman izni kaldır",
-    "resetToAsk": "“Sor” moduna sıfırla",
-    "empty": "Her proje komut çalıştırmadan önce sorar.",
+    "resetToDefault": "Varsayılana sıfırla",
+    "empty": "Her proje, GJC CLI gibi sormadan çalışır.",
     "loading": "Yükleniyor…",
     "error": "İzinler yüklenemedi."
   }

@@ -153,106 +153,31 @@ test('ask questions and tool permissions share the controller without confusing 
 });
 
 /*
- * Git state changes in a shared checkout.
- *
- * Approving these in advance approves them on behalf of every other session
- * reading that directory. Every project on the machine where this was found
- * was set to `bypass`, so honouring the mode here would have left the observed
- * failure - an unattended run committing, pushing and switching branches under
- * a live reader - exactly as unprotected as it was.
+ * Git commands follow the project policy like every other bash call. Under
+ * `bypass` nothing asks, in a shared checkout or a worktree, exactly as the
+ * GJC CLI runs them.
  */
 
-test('a shared checkout asks before a git state change even under bypass', async () => {
-  const out = writer();
-  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: ['bash'] }, new GjcBunAskController(out), out);
-
-  const pending = provider(bashCall('git commit -am wip'), RUNTIME_OPTIONS);
-
-  const [requestId] = requestIds(out.sent);
-  assert.ok(requestId, 'the call must reach a human');
-  assert.deepEqual(
-    out.sent.filter((m) => m.kind === 'system_notice').map((m) => m.content),
-    ['This session runs in the project checkout, which other sessions share. Git state changes are asked about even when the project policy would approve them.'],
-  );
-
-  const asks = out.sent.find((m) => m.requestId === requestId);
-  assert.equal(asks?.kind, 'permission_request');
-  // The card still resolves normally; this changes who decides, not the flow.
-  assert.equal(provider === undefined, false);
-  void pending;
-});
-
-test('the same session keeps auto-approving everything that is not a git state change', async () => {
+test('bypass runs git state changes without a card, in a shared checkout or a worktree', async () => {
   const out = writer();
   const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: [] }, new GjcBunAskController(out), out);
 
-  const read = await provider(bashCall('git status'), RUNTIME_OPTIONS);
-  const build = await provider(bashCall('npm test'), RUNTIME_OPTIONS);
-
-  assert.deepEqual(read, { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' });
-  assert.deepEqual(build, read);
+  for (const command of ['git commit -am wip', 'git push origin HEAD', 'git -C /repo checkout -b other', 'git reset --hard']) {
+    assert.deepEqual(await provider(bashCall(command), RUNTIME_OPTIONS), { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' }, command);
+  }
   assert.deepEqual(requestIds(out.sent), []);
-});
-
-test('a run that owns its checkout auto-approves git state inside it', async () => {
-  const out = writer();
-  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: [] }, new GjcBunAskController(out), out, '/repo/.gjc-worktrees/job-1');
-
-  const commit = await provider(bashCall('git commit -am wip'), RUNTIME_OPTIONS);
-  const push = await provider(bashCall('git push origin HEAD'), RUNTIME_OPTIONS);
-
-  assert.deepEqual(commit, { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' });
-  assert.deepEqual(push, commit);
-  assert.deepEqual(requestIds(out.sent), []);
-  // No shared-checkout notice: nothing shared is touched.
-  assert.equal(out.sent.some((m) => String(m.content ?? '').includes('other sessions share')), false);
-});
-
-test('a run that owns its checkout asks before git state outside it, even under bypass', async () => {
-  const out = writer();
-  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: ['bash'] }, new GjcBunAskController(out), out, '/repo/.gjc-worktrees/job-1');
-
-  const pending = provider(bashCall('git -C /repo commit -am wip'), RUNTIME_OPTIONS);
-
-  const [requestId] = requestIds(out.sent);
-  assert.ok(requestId, 'the call must reach a human');
   assert.deepEqual(
     out.sent.filter((m) => m.kind === 'system_notice').map((m) => m.content),
-    ['This git command changes state outside the worktree this session owns. It is asked about even when the project policy would approve it.'],
+    ['Auto-approved bash (bypass)'],
   );
-  void pending;
 });
 
-test('the same worktree session keeps auto-approving its own git state afterwards', async () => {
-  const out = writer();
-  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: [] }, new GjcBunAskController(out), out, '/repo/.gjc-worktrees/job-1');
-
-  void provider(bashCall('git -C /repo push'), RUNTIME_OPTIONS);
-  const inside = await provider(bashCall('git commit -am wip'), RUNTIME_OPTIONS);
-
-  assert.deepEqual(inside, { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' });
-  assert.equal(requestIds(out.sent).length, 1);
-  // The escape notice is sent once, not once per command.
-  assert.equal(out.sent.filter((m) => String(m.content ?? '').includes('outside the worktree')).length, 1);
-});
-test('the shared-checkout notice is sent once, not once per command', async () => {
-  const out = writer();
-  const provider = createGjcPermissionProvider({ mode: 'bypass', allowAlways: [] }, new GjcBunAskController(out), out);
-
-  void provider(bashCall('git commit -am one'), RUNTIME_OPTIONS);
-  void provider(bashCall('git push'), RUNTIME_OPTIONS);
-
-  assert.equal(out.sent.filter((m) => String(m.content ?? '').includes('other sessions share')).length, 1);
-  assert.equal(requestIds(out.sent).length, 2);
-});
-
-test('an ask-mode session is unchanged: the card it already showed is the same card', async () => {
+test('an ask-mode session asks for a git state change like any other command', async () => {
   const out = writer();
   const provider = createGjcPermissionProvider({ mode: 'ask', allowAlways: [] }, new GjcBunAskController(out), out);
 
   void provider(bashCall('git commit -am wip'), RUNTIME_OPTIONS);
 
   assert.equal(requestIds(out.sent).length, 1);
-  // Nothing to explain when the policy was going to ask anyway.
-  assert.equal(out.sent.some((m) => String(m.content ?? '').includes('other sessions share')), false);
+  assert.deepEqual(out.sent.filter((m) => m.kind === 'system_notice'), []);
 });

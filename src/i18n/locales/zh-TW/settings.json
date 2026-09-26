@@ -173,15 +173,7 @@
     "noGrants": "無存儲自動化批准。",
     "origin": "網站原始碼",
     "application": "桌面應用程式",
-    "revoke": "移除批准",
-    "withheld": "應用程式中停用的執行階段功能",
-    "withheldDescription": "工具集由應用程式決定。無論你的 GJC 設定為何，以下執行階段功能在所有工作階段中都保持關閉。",
-    "withheldMcp": "專案 MCP 伺服器",
-    "withheldMcpReason": "你自己在 GJC 中註冊的伺服器（gjc mcp add）會像在 CLI 中一樣載入。專案自帶的 .gjc/mcp.json 不會載入，因此開啟一個儲存庫不會在工作階段中啟動它的程式。",
-    "withheldToolDiscovery": "工具探索",
-    "withheldToolDiscoveryReason": "工作階段無法在執行期間啟用額外工具；應用程式選定的集合就是全部集合。",
-    "withheldAstEdit": "AST 編輯",
-    "withheldAstEditReason": "它只預覽改寫，並透過應用程式未開放的工具套用，因此會展示工作階段永遠無法提交的編輯。"
+    "revoke": "移除批准"
   },
   "notifications": {
     "title": "通知",
@@ -264,14 +256,14 @@
   },
   "permissions": {
     "title": "權限",
-    "description": "依專案設定代理無需詢問即可執行的內容。使用預設策略（詢問，無一律允許）的專案不會列出。",
+    "description": "依專案設定代理無需詢問即可執行的內容。使用預設策略（與 GJC CLI 相同的略過，無一律允許）的專案不會列出。",
     "mode": "模式",
     "alwaysAllowed": "一律允許",
     "none": "無",
     "revoke": "撤銷",
     "revokeTool": "停止一律允許 {{tool}}",
-    "resetToAsk": "重設為「詢問」",
-    "empty": "所有專案在執行命令前都會詢問。",
+    "resetToDefault": "重設為預設",
+    "empty": "所有專案都像 GJC CLI 一樣無需詢問即可執行。",
     "loading": "載入中…",
     "error": "無法載入權限。"
   }

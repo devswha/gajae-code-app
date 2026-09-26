@@ -9,7 +9,6 @@ import type { Project } from '../../../types/app';
 import { api } from '../../../utils/api';
 import {
   useChatComposerState,
-  type PendingCommandGate,
   type QueuedDraft,
 } from '../hooks/useChatComposerState';
 import ChatComposer from '../view/ChatComposer';
@@ -50,9 +49,6 @@ const baseComposerProps = {
   onEditQueuedDraft: () => undefined,
   onDeleteQueuedDraft: () => undefined,
   onMoveQueuedDraft: () => undefined,
-  pendingCommandGate: null as PendingCommandGate | null,
-  onConfirmCommandGate: () => undefined,
-  onCancelCommandGate: () => undefined,
   attachedImages: [],
   onRemoveImage: () => undefined,
   attachmentNotice: null,

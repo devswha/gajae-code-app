@@ -260,15 +260,6 @@ test('two submits before upload finishes allocate and send only one turn', async
   assert.equal(sent.length, 1);
 });
 
-test('a destructive command confirmation belongs to the conversation that requested it', async () => {
-  const view = composer({ selectedSession: session('a') });
-  typeText(view, '/clear');
-  await act(async () => view.result.current.handleSubmit(submit()));
-  assert.ok(view.result.current.pendingCommandGate);
-  view.rerender({ selectedSession: session('b') });
-  assert.equal(view.result.current.pendingCommandGate, null, 'a confirmation for A must not clear B');
-});
-
 test('image attachments follow their draft when switching between conversations', () => {
   const first = new File(['a'], 'a.png', { type: 'image/png' });
   const second = new File(['b'], 'b.png', { type: 'image/png' });

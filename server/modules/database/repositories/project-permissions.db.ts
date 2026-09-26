@@ -1,3 +1,4 @@
+import { DEFAULT_GJC_PERMISSION_MODE, isGjcPermissionMode } from '@/gjc-engine.js';
 import { getConnection } from '@/modules/database/connection.js';
 import type { ProjectPermissionMode, ProjectPermissionsRow } from '@/shared/types.js';
 import { normalizeProjectPath } from '@/shared/utils.js';
@@ -6,12 +7,10 @@ type StoredRow = {
   project_path: string;
   mode: string;
   allow_always_json: string;
-  bypass_acknowledged: number;
   updated_at: string | null;
 };
 
-const COLUMNS = 'project_path, mode, allow_always_json, bypass_acknowledged, updated_at';
-const MODES: readonly ProjectPermissionMode[] = ['ask', 'auto_edits', 'bypass'];
+const COLUMNS = 'project_path, mode, allow_always_json, updated_at';
 
 function parseAllowList(json: string): string[] {
   try {
@@ -26,9 +25,8 @@ function parseAllowList(json: string): string[] {
 function toRow(stored: StoredRow): ProjectPermissionsRow {
   return {
     project_path: stored.project_path,
-    mode: (MODES as readonly string[]).includes(stored.mode) ? stored.mode as ProjectPermissionMode : 'ask',
+    mode: isGjcPermissionMode(stored.mode) ? stored.mode : DEFAULT_GJC_PERMISSION_MODE,
     allow_always: parseAllowList(stored.allow_always_json),
-    bypass_acknowledged: stored.bypass_acknowledged === 1,
     updated_at: stored.updated_at,
   };
 }
@@ -37,9 +35,8 @@ function toRow(stored: StoredRow): ProjectPermissionsRow {
 export function defaultProjectPermissions(projectPath: string): ProjectPermissionsRow {
   return {
     project_path: normalizeProjectPath(projectPath),
-    mode: 'ask',
+    mode: DEFAULT_GJC_PERMISSION_MODE,
     allow_always: [],
-    bypass_acknowledged: false,
     updated_at: null,
   };
 }
@@ -52,12 +49,12 @@ function read(projectPath: string): ProjectPermissionsRow {
 }
 
 function isDefault(row: ProjectPermissionsRow): boolean {
-  return row.mode === 'ask' && row.allow_always.length === 0 && !row.bypass_acknowledged;
+  return row.mode === DEFAULT_GJC_PERMISSION_MODE && row.allow_always.length === 0;
 }
 
 /**
  * Writes the whole policy. A row that equals the default is deleted instead,
- * so "reset to Ask" and "never configured" are the same state on disk and the
+ * so "reset" and "never configured" are the same state on disk and the
  * Settings listing only shows projects that actually deviate.
  */
 function write(projectPath: string, next: Omit<ProjectPermissionsRow, 'project_path' | 'updated_at'>): ProjectPermissionsRow {
@@ -68,24 +65,19 @@ function write(projectPath: string, next: Omit<ProjectPermissionsRow, 'project_p
     return defaultProjectPermissions(path);
   }
   getConnection().prepare(`
-    INSERT INTO project_permissions (project_path, mode, allow_always_json, bypass_acknowledged, updated_at)
-    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO project_permissions (project_path, mode, allow_always_json, updated_at)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(project_path) DO UPDATE SET
       mode = excluded.mode,
       allow_always_json = excluded.allow_always_json,
-      bypass_acknowledged = excluded.bypass_acknowledged,
       updated_at = CURRENT_TIMESTAMP
-  `).run(path, row.mode, JSON.stringify(row.allow_always), row.bypass_acknowledged ? 1 : 0);
+  `).run(path, row.mode, JSON.stringify(row.allow_always));
   return read(path);
 }
 
-function setMode(projectPath: string, mode: ProjectPermissionMode, options: { acknowledgeBypass?: boolean } = {}): ProjectPermissionsRow {
+function setMode(projectPath: string, mode: ProjectPermissionMode): ProjectPermissionsRow {
   const current = read(projectPath);
-  return write(projectPath, {
-    mode,
-    allow_always: current.allow_always,
-    bypass_acknowledged: current.bypass_acknowledged || options.acknowledgeBypass === true,
-  });
+  return write(projectPath, { mode, allow_always: current.allow_always });
 }
 
 function addAllowAlways(projectPath: string, toolName: string): ProjectPermissionsRow {
@@ -105,11 +97,12 @@ function reset(projectPath: string): ProjectPermissionsRow {
   return defaultProjectPermissions(projectPath);
 }
 
+/** Rows that differ from the default; a stored row can equal it once the default moves. */
 function listConfigured(): ProjectPermissionsRow[] {
   const rows = getConnection()
     .prepare(`SELECT ${COLUMNS} FROM project_permissions ORDER BY project_path`)
     .all() as StoredRow[];
-  return rows.map(toRow);
+  return rows.map(toRow).filter((row) => !isDefault(row));
 }
 
 export const projectPermissionsDb = {

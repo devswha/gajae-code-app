@@ -83,9 +83,8 @@ export const PROJECTS_TABLE_SCHEMA_SQL = table(`
 export const PROJECT_PERMISSIONS_TABLE_SCHEMA_SQL = table(`
   CREATE TABLE IF NOT EXISTS project_permissions (
       project_path TEXT NOT NULL PRIMARY KEY, -- one policy per project, keyed like sessions are
-      mode TEXT NOT NULL DEFAULT 'ask' CHECK (mode IN ('ask', 'auto_edits', 'bypass')), -- how gated tools resolve
+      mode TEXT NOT NULL DEFAULT 'bypass' CHECK (mode IN ('ask', 'auto_edits', 'bypass')), -- how gated tools resolve
       allow_always_json TEXT NOT NULL DEFAULT '[]', -- JSON array of tool names approved with "Always allow"
-      bypass_acknowledged INTEGER NOT NULL DEFAULT 0 CHECK (bypass_acknowledged IN (0, 1)), -- the one-time warning was accepted
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- last policy change
       FOREIGN KEY (project_path) REFERENCES projects (project_path)
           ON DELETE CASCADE

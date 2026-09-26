@@ -219,8 +219,13 @@ The runtime gates `bash`, `monitor`, `eval`, `delete`, `move` and destructive
 `setSdkPermissionProvider`. Its SDK default is `allow`, so a session the app
 does not configure runs those tools unprompted.
 
-The application decides per project and the worker enforces. No protocol
-method or frame changes; the policy travels inside existing payloads:
+The application decides per project and the worker enforces. A project that
+never chose a mode is on `bypass`, which is what the GJC CLI does: its tools
+run without asking (owner decision 2026-09-27, CLI parity). `ask` and
+`auto_edits` are one click away for a project that wants cards; no mode needs
+a confirmation to select. Git commands follow the policy like every other bash
+call - there is no separate shared-checkout prompt. No protocol method or
+frame changes; the policy travels inside existing payloads:
 
 - `session.start` / `session.resume` options may carry
   `permissions: { mode: 'ask' | 'auto_edits' | 'bypass', allowAlways: string[] }`
@@ -299,52 +304,43 @@ not auto-answer `ask` questions or override native readiness, OS permissions,
 or CUA driver restrictions. The mode is captured for the run; no
 implicit grant survives into a later Ask run.
 
-## MCP servers
+## MCP servers, tools and extensions
 
-Which MCP servers reach a session is decided by scope, not by discovery
-(owner decision 2026-09-18, #161; `applyGjcToolSettingsPolicy` in
-`server/gjc-bun-sdk-adapter.ts`, pinned by `server/gjc-mcp-autoload.bun.test.ts`):
+An app session gets what a GJC CLI session gets (owner decision 2026-09-27,
+which replaces the project-scope and extension refusals of #161):
 
-- **User scope loads as in the CLI.** The servers the user registered with
-  `gjc mcp add` live in `<agentDir>/mcp.json` (the worker's agent directory is
-  `~/.gjc/agent` unless `GJC_WORKER_AGENT_DIR` names another). The runtime's
-  conventional autoload connects them before the session exists and their
-  tools are always-on for the model - independent of the app's explicit
-  `toolNames` and of discovery mode. The adapter never passes
+- **Both MCP scopes load as in the CLI.** User scope (`<agentDir>/mcp.json`,
+  written by `gjc mcp add`; the worker's agent directory is `~/.gjc/agent`
+  unless `GJC_WORKER_AGENT_DIR` names another) and project scope
+  (`<cwd>/.gjc/mcp.json`, written by `gjc mcp add --project`) are connected by
+  the runtime's conventional autoload before the session exists, and their
+  tools are always-on for the model, independent of the app's explicit
+  `toolNames`. The app does not override `mcp.enableProjectConfig`; a user who
+  set it to `false` in `~/.gjc` keeps that choice. The adapter never passes
   `enableMcpAutoload: false` for a top-level session; app-owned delegated
-  children do opt out.
-- **Project scope does not load.** A repository's own `.gjc/mcp.json` is
-  refused by overriding `mcp.enableProjectConfig` to `false` for every run.
-  The runtime reads an *unset* value as `true`, so the override is
-  load-bearing: it is what stops opening a repository from starting its
-  programs inside a session. A `.mcp.json` in Claude Code format is an
-  import source for the runtime and is not loaded at run time by either
-  product.
-- **Discovery stays off.** `tools.discoveryMode` is `off` and
-  `mcp.discoveryMode` is `false`; with user-scope tools already always-on,
-  `search_tool_bm25` would only add a way to activate built-ins the app
-  withheld.
-- **Extension modules do not load.** SDK 0.17.6 turned extension-module
-  discovery back on in `createAgentSession`: `<agentDir>/extensions`, a
+  children do opt out. `server/gjc-mcp-autoload.bun.test.ts` pins both scopes.
+- **The tool set is the CLI's.** `server/gjc-agent-tools.ts` requests every
+  runtime builtin, and each tool's own availability rule decides - the user's
+  `~/.gjc` settings (`calc.enabled`, `github.enabled`, `checkpoint.enabled`,
+  `astEdit.enabled`, ...), a configured SSH host, the Telegram setup. The app
+  overrides only `goal.enabled`, which the adapter re-enables per run for a
+  view with goal controls. Tool discovery (`tools.discoveryMode`,
+  `mcp.discoveryMode`, `search_tool_bm25`) is the user's setting, as in the
+  CLI. Withheld are only the tools the app's hosting model cannot carry: `job`,
+  `monitor` and `cron` (the app disposes the SDK session when each turn ends,
+  so background work could never outlive or wake a turn) and `move_session`
+  (the session cwd is bound to its project, like the excluded `/move`).
+- **Extension modules load as in the CLI.** `<agentDir>/extensions`, a
   repository's `.gjc/extensions`, installed plugin extension entry points and
-  the `extensions` setting. The app blocks this deliberately. The trust
-  boundary is the same as the refused project MCP config: opening a repository
-  must not run its code in the worker. The adapter passes an empty
-  `preloadedExtensions` result (0.16.4's own default), with a fresh
-  `ExtensionRuntime` for each session. Only bundled extensions (Grok) and
-  inline app extensions load. `disableExtensionDiscovery` is not used, because
-  on 0.17.6 it also turns off hook-convention discovery. Native `.gjc`
-  pre/post hooks therefore keep loading exactly as on 0.16.4, including the
-  project scope, and a discovered hook still makes the session's lifecycle
-  receipt report `sdk_extension_effects_unrepresented`.
-  `server/gjc-sdk-contract.bun.test.ts` pins all of this against real files,
-  with a control run showing the same inputs load every module when the empty
-  result is absent. User-installed extension support would come later, as a
-  Settings opt-in.
-
-Settings > Automation > Withheld runtime features reports the project-scope
-refusal in these words; it offers no control because a session cannot change
-it either.
+  the `extensions` setting load through the runtime's own discovery, alongside
+  native `.gjc` pre/post hooks and the bundled Grok extension. A session that
+  loads any of them reports `sdk_extension_effects_unrepresented` in its
+  lifecycle receipt, exactly as a discovered hook always has, so a worker that
+  ran one cannot prove quiescence for a desktop restart until it is restarted.
+  `server/gjc-sdk-contract.bun.test.ts` pins this against real files.
+- **The system prompt does not narrow the model.** The app environment note
+  says the runtime is hosted in-process and the full `gjc` CLI may be absent;
+  it does not forbid editing `~/.gjc`, which the CLI's model may do too.
 
 ## Browser backend
 
@@ -371,9 +367,10 @@ protocol method or frame changes; the value travels inside existing payloads:
   false so non-browser self-hosted chat can still start.
 - `builtin` writes `browser.backend=native` on the per-run settings clone. The
   app's WebView transport replaces the runtime tool only when trusted readiness
-  is true. Otherwise the adapter removes `browser` from both `automationTools`
-  and `toolNames`, preventing the SDK's Puppeteer implementation from appearing
-  as a fallback. `computer` and every other allowed tool remain unchanged.
+  is true. Otherwise - a self-hosted server, or a desktop browser that is not
+  ready - the runtime's own browser tool runs, exactly as it would in the GJC
+  CLI, and delegated children inherit it. `computer` and every other tool
+  remain unchanged.
 - `aside` first runs the runtime's own Aside CLI discovery (`probeAsideCli`:
   `~/.local/bin/aside`, the `Aside CLI.app` bundle, then `PATH`) and, when it
   finds nothing, fails the run with the application error code

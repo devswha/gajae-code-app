@@ -108,9 +108,9 @@ exec ${[target.command, ...target.args].map(quote).join(' ')} "$@"
 }
 
 export function createSmokeDataDirectory() {
-  // The project-creation API rejects /tmp even inside WORKSPACES_ROOT. Keep
-  // the isolated HOME and its fixture project together in a private, disposable
-  // directory under the user's home; never register or modify their checkout.
+  // Keep the isolated HOME and its fixture project together in a private,
+  // disposable directory under the user's home; never register or modify
+  // their checkout.
   return mkdtemp(path.join(os.homedir(), '.gajae-packaged-smoke-'));
 }
 

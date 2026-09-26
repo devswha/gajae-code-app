@@ -173,15 +173,7 @@
     "noGrants": "저장된 자동화 승인 없음.",
     "origin": "사이트 원본",
     "application": "데스크톱 애플리케이션",
-    "revoke": "승인 취소",
-    "withheld": "앱에서 비활성화된 런타임 기능",
-    "withheldDescription": "앱이 자체 도구 집합을 결정합니다. GJC 설정과 무관하게 아래 런타임 기능은 모든 세션에서 꺼져 있습니다.",
-    "withheldMcp": "프로젝트 MCP 서버",
-    "withheldMcpReason": "직접 GJC에 등록한 서버(gjc mcp add)는 CLI와 똑같이 불러옵니다. 프로젝트의 .gjc/mcp.json은 불러오지 않으므로, 저장소를 여는 것만으로 그 안의 프로그램이 세션에서 실행되지 않습니다.",
-    "withheldToolDiscovery": "도구 탐색",
-    "withheldToolDiscoveryReason": "세션이 실행 중에 도구를 추가로 활성화할 수 없습니다. 앱이 선택한 집합이 전부입니다.",
-    "withheldAstEdit": "AST 편집",
-    "withheldAstEditReason": "수정안을 미리 보여주기만 하고 적용은 앱이 노출하지 않는 도구로 합니다. 세션이 절대 커밋할 수 없는 편집을 광고하게 됩니다."
+    "revoke": "승인 취소"
   },
   "notifications": {
     "title": "알림 메시지",
@@ -264,14 +256,14 @@
   },
   "permissions": {
     "title": "권한",
-    "description": "에이전트가 묻지 않고 실행할 수 있는 항목을 프로젝트별로 정합니다. 기본 정책(확인, 항상 허용 없음)인 프로젝트는 표시되지 않습니다.",
+    "description": "에이전트가 묻지 않고 실행할 수 있는 항목을 프로젝트별로 정합니다. 기본 정책(GJC CLI와 같은 우회, 항상 허용 없음)인 프로젝트는 표시되지 않습니다.",
     "mode": "모드",
     "alwaysAllowed": "항상 허용",
     "none": "없음",
     "revoke": "해제",
     "revokeTool": "{{tool}} 항상 허용 해제",
-    "resetToAsk": "확인 모드로 초기화",
-    "empty": "모든 프로젝트가 명령 실행 전에 확인합니다.",
+    "resetToDefault": "기본값으로 초기화",
+    "empty": "모든 프로젝트가 GJC CLI처럼 묻지 않고 실행합니다.",
     "loading": "불러오는 중…",
     "error": "권한 정보를 불러오지 못했습니다."
   }

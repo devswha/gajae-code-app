@@ -136,7 +136,7 @@ test('a failed initialization releases the next scratch request', async () => {
   });
 });
 
-test('a path the workspace gate rejects leaves nothing on disk', async () => {
+test('a path project registration rejects leaves nothing on disk', async () => {
   await withScratch(async (dependencies) => {
     await assert.rejects(
       () => startScratchWorkspace(dependencies),

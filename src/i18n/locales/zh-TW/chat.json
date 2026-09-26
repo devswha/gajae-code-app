@@ -237,13 +237,6 @@
         "label": "略過",
         "description": "不再詢問。代理可在此專案中執行任何命令。"
       }
-    },
-    "bypassConfirm": {
-      "title": "關閉權限提示？",
-      "body": "這會讓代理在不詢問的情況下執行任何命令。",
-      "scope": "僅適用於此專案。您可以隨時切換回「詢問」。",
-      "cancel": "取消",
-      "confirm": "啟用略過"
     }
   },
   "permissionCard": {

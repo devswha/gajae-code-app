@@ -4,7 +4,6 @@ import {
   resolveCommandAlias,
   type AppUiCommand,
 } from './appUiCommands';
-import { gateForCommand, type CommandGate } from './commandGatePolicy';
 
 /**
  * Shared pre-dispatch classification for composer input.
@@ -30,16 +29,10 @@ export type CommandDisposition =
   /** Renders a local message; requires the owning session's message list. */
   | { kind: 'notice'; commandName: string; text: string }
   /**
-   * A slash form that reaches the runtime and may run without asking: reads,
-   * and session preferences that are visible at once and trivially reversed.
+   * A slash form that reaches the runtime. It runs the moment it is sent, as
+   * in the GJC CLI, including forms a newer runtime added.
    */
-  | { kind: 'command'; commandName: string }
-  /**
-   * A slash form that must be confirmed before anything is sent. Includes every
-   * form the app has not classified, so a command added by a future runtime
-   * asks once instead of running unannounced.
-   */
-  | { kind: 'gate'; commandName: string; gate: CommandGate };
+  | { kind: 'command'; commandName: string };
 
 /**
  * Mirrors the composer's interception test: a leading "/" after trailing
@@ -61,9 +54,10 @@ export function parseCommandName(text: string): { commandName: string; args: str
 /**
  * Classifies composer input without acting on it.
  *
- * Fail-closed: anything that parses as a slash form and is not positively an
- * app action or a notice resolves to `command`, so an unknown or newly added
- * slash name is withheld from the queued producer rather than dispatched blind.
+ * Anything that parses as a slash form and is not positively an app action or
+ * a notice resolves to `command`, so an unknown or newly added slash name still
+ * reaches the runtime from the composer, and the queued producer holds it for
+ * the owning session's UI rather than dispatching it unseen.
  */
 export function classifyCommandInput(text: string): CommandDisposition {
   const parsed = parseCommandName(text);
@@ -82,11 +76,6 @@ export function classifyCommandInput(text: string): CommandDisposition {
   const notice = getLocalCommandNotice(commandName, args);
   if (notice) return { kind: 'notice', commandName, text: notice };
 
-  // Aliases resolve first here too, so `/contribution-prep` gates exactly as
-  // `/contribute-pr` does rather than slipping through under another name.
-  const gate = gateForCommand(resolveCommandAlias(commandName), args);
-  if (gate) return { kind: 'gate', commandName, gate };
-
   return { kind: 'command', commandName };
 }
 
@@ -95,8 +84,8 @@ export function classifyCommandInput(text: string): CommandDisposition {
  *
  * Only plain prose qualifies. Every slash disposition needs the owning
  * session's composer: an app action drives that session's UI, a notice renders
- * into its message list, and a runtime command may be destructive with no gate
- * on this path.
+ * into its message list, and a runtime command's effect (a cleared context, a
+ * handoff into a new session) belongs in front of the person who typed it.
  */
 export function isAutoSendable(disposition: CommandDisposition): boolean {
   return disposition.kind === 'allow';

@@ -17,7 +17,7 @@ import { classifyCommandInput, isAutoSendable } from '../commandDispatchPolicy';
 import { isComposerSealed, registerComposerInputValue, subscribeComposerFreeze } from '../../../shared/composerFreeze';
 import { useVoiceInput } from '../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../hooks/useVoiceAvailable';
-import type { PendingCommandGate, QueuedDraft } from '../hooks/useChatComposerState';
+import type { QueuedDraft } from '../hooks/useChatComposerState';
 import type { DraftPersistenceStatus } from '../hooks/useDurableComposerDraft';
 import type { WorkspaceCandidate } from '../hooks/useWorkspaceTarget';
 import type { PendingPermissionRequest, PermissionDecision } from '../types/types';
@@ -41,7 +41,6 @@ import ImageAttachment from './ImageAttachment';
 import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import QueuedMessageCard from './QueuedMessageCard';
-import CommandGateCard from './CommandGateCard';
 import AgentConfigurationPicker from './AgentConfigurationPicker';
 import ModelAndReasoningPicker from './ModelAndReasoningPicker';
 import PermissionModePicker from './PermissionModePicker';
@@ -94,9 +93,6 @@ interface ChatComposerProps {
   onEditQueuedDraft: (index: number) => void;
   onDeleteQueuedDraft: (index: number) => void;
   onMoveQueuedDraft: (from: number, to: number) => void;
-  pendingCommandGate: PendingCommandGate | null;
-  onConfirmCommandGate: () => void;
-  onCancelCommandGate: () => void;
   attachedImages: File[];
   onRemoveImage: (index: number) => void;
   attachmentNotice: string | null;
@@ -173,9 +169,6 @@ export default function ChatComposer({
   onEditQueuedDraft,
   onDeleteQueuedDraft,
   onMoveQueuedDraft,
-  pendingCommandGate,
-  onConfirmCommandGate,
-  onCancelCommandGate,
   attachedImages,
   onRemoveImage,
   attachmentNotice,
@@ -312,16 +305,6 @@ export default function ChatComposer({
             handlePermissionDecision={handlePermissionDecision}
           />
         </div>
-      )}
-
-      {pendingCommandGate && (
-        <CommandGateCard
-          text={pendingCommandGate.text}
-          summary={pendingCommandGate.summary}
-          classified={pendingCommandGate.classified}
-          onConfirm={onConfirmCommandGate}
-          onCancel={onCancelCommandGate}
-        />
       )}
 
       {queuedDrafts.map((draft, index) => (

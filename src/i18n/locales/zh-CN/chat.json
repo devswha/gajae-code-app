@@ -237,13 +237,6 @@
         "label": "绕过",
         "description": "不再询问。代理可在此项目中运行任何命令。"
       }
-    },
-    "bypassConfirm": {
-      "title": "关闭权限提示？",
-      "body": "这将允许代理在不询问的情况下运行任何命令。",
-      "scope": "仅适用于此项目。您可以随时切换回“询问”。",
-      "cancel": "取消",
-      "confirm": "启用绕过"
     }
   },
   "permissionCard": {

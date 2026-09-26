@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { Settings } from '@gajae-code/coding-agent/config/settings';
 import { createTools } from '@gajae-code/coding-agent/tools';
-import { BUILTIN_TOOLS } from '@gajae-code/coding-agent/tools/descriptors';
+import { BUILTIN_TOOLS, HIDDEN_TOOLS } from '@gajae-code/coding-agent/tools/descriptors';
 
 import { applyGjcCompactionPolicy, applyGjcToolSettingsPolicy } from './gjc-bun-sdk-adapter.js';
 import { GJC_AGENT_TOOL_NAMES, GJC_AGENT_TOOLS_WITHHELD } from './gjc-agent-tools.js';
@@ -23,7 +23,7 @@ import { GJC_AGENT_TOOL_NAMES, GJC_AGENT_TOOLS_WITHHELD } from './gjc-agent-tool
 test('every enabled tool exists in the runtime', () => {
   for (const name of GJC_AGENT_TOOL_NAMES) {
     assert.equal(
-      name in BUILTIN_TOOLS,
+      name in BUILTIN_TOOLS || name in HIDDEN_TOOLS,
       true,
       `${name} is enabled but the runtime has no such tool`,
     );
@@ -58,20 +58,27 @@ test('every runtime builtin has exactly one recorded policy decision', () => {
   }
 });
 
-test('the SDK settings policy suppresses implicit tool additions', () => {
+test('the SDK settings policy keeps the user\u2019s own tool and MCP settings, as the CLI does', () => {
   const settings = Settings.isolated({
     'goal.enabled': true,
     'astEdit.enabled': true,
+    'tools.discoveryMode': 'all',
     'mcp.discoveryMode': true,
     'mcp.enableProjectConfig': true,
   });
 
   applyGjcToolSettingsPolicy(settings);
 
+  // Goal mode alone is decided per run by the adapter, for a view with controls.
   assert.equal(settings.get('goal.enabled'), false);
-  assert.equal(settings.get('astEdit.enabled'), false);
-  assert.equal(settings.get('mcp.discoveryMode'), false);
-  assert.equal(settings.get('mcp.enableProjectConfig'), false);
+  assert.equal(settings.get('astEdit.enabled'), true);
+  assert.equal(settings.get('tools.discoveryMode'), 'all');
+  assert.equal(settings.get('mcp.discoveryMode'), true);
+  assert.equal(settings.get('mcp.enableProjectConfig'), true);
+  // An unset project-MCP setting stays unset, which the runtime reads as on.
+  const untouched = Settings.isolated({});
+  applyGjcToolSettingsPolicy(untouched);
+  assert.equal(untouched.has('mcp.enableProjectConfig'), false);
 });
 
 /*
@@ -136,33 +143,31 @@ test('the compaction policy leaves the tool boundary alone', () => {
 });
 
 /*
- * The decision has to survive the runtime that acts on it.
+ * The decision has to survive the runtime that acts on it. `createTools` adds
+ * `goal` from `goal.enabled`, which is how goal mode once ran in every browser
+ * session while a list said it was withheld; building the tools the way a
+ * session does is the only way to see what actually comes out.
  *
- * The two lists above are a statement of intent; `toolNames` is a seed the
- * runtime adds to. `createTools` appends `ast_grep`, `ast_edit` and `recipe`
- * from settings whose siblings are requested, and `goal` from `goal.enabled` -
- * which is how goal mode ran in every browser session while this file said it
- * was withheld. Asserting on the lists alone cannot see any of that, so this
- * builds the tools the way a session does and asks what actually came out.
- *
- * Deliberately hostile settings: everything a user could turn on is on, and
- * the policy has to win anyway.
+ * Deliberately permissive settings: everything a user could turn on is on,
+ * and only the structurally withheld tools may be missing.
  */
-test('nothing outside the allowlist survives real tool construction', async () => {
+test('real tool construction yields the CLI tool set minus only the withheld tools', async () => {
   const settings = Settings.isolated({
     'goal.enabled': true,
     'astEdit.enabled': true,
     'astGrep.enabled': true,
     'recipe.enabled': true,
-    'mcp.discoveryMode': true,
-    'mcp.enableProjectConfig': true,
+    'calc.enabled': true,
+    'checkpoint.enabled': true,
+    'renderMermaid.enabled': true,
+    'tools.discoveryMode': 'all',
   });
   applyGjcToolSettingsPolicy(settings);
 
   const tools = await createTools(
     // The fields `createTools` reads. `skipPythonPreflight` keeps the eval
     // backend probe from shelling out during a unit test.
-    { cwd: process.cwd(), hasUI: false, skipPythonPreflight: true, settings } as never,
+    { cwd: process.cwd(), hasUI: true, skipPythonPreflight: true, settings } as never,
     [...GJC_AGENT_TOOL_NAMES],
   );
   const built = tools.map((tool) => tool.name);
@@ -173,20 +178,17 @@ test('nothing outside the allowlist survives real tool construction', async () =
       false,
       `${name} is withheld but the runtime built it anyway: ${GJC_AGENT_TOOLS_WITHHELD[name]}`,
     );
+    assert.ok(GJC_AGENT_TOOL_NAMES.includes(name), `${name} was built without a policy entry`);
   }
 
-  // `resolve` is a hidden companion rather than a builtin, so it is in neither
-  // list: `createTools` always appends it, and the SDK session then drops it
-  // unless some tool is deferrable. With ast_edit forced off nothing is, so it
-  // never reaches a browser session - but it is named here rather than left to
-  // look like an escape.
-  const allowed = new Set([...GJC_AGENT_TOOL_NAMES, 'resolve']);
-  for (const name of built) {
-    assert.ok(allowed.has(name), `${name} was built without an allowlist entry`);
-  }
-
-  // A tool that silently stops materializing is the other direction of drift.
-  for (const name of ['bash', 'read', 'edit', 'search', 'find', 'write']) {
+  // What the CLI would give a user with these settings, and what used to be
+  // withheld in the app, all materialize. (`skill` and `search_tool_bm25` need
+  // a live session's skill registry and discovery hooks, which this bare tool
+  // session does not carry.)
+  for (const name of [
+    'bash', 'read', 'edit', 'search', 'find', 'write', 'ask',
+    'ast_edit', 'eval', 'python', 'calc', 'bisect', 'render_mermaid', 'checkpoint', 'rewind', 'resolve',
+  ]) {
     assert.ok(built.includes(name), `${name} did not survive construction`);
   }
 });
@@ -198,13 +200,17 @@ test('the core coding loop is never accidentally dropped', () => {
   }
 });
 
-test('unmediated tools that reach outside this machine stay off', () => {
-  // The ones whose blast radius is not confined to the session. Named
-  // explicitly so widening the set has to argue with this test.
-  for (const name of ['ssh', 'telegram_send', 'irc', 'cron']) {
-    assert.equal(GJC_AGENT_TOOL_NAMES.includes(name), false, `${name} must not be enabled`);
-    assert.ok(name in GJC_AGENT_TOOLS_WITHHELD, `${name} must carry a written reason`);
+test('tools that reach outside this machine are offered as in the CLI', () => {
+  // Their own availability rules (a configured SSH host, Telegram setup, the
+  // gh CLI) decide whether they appear, exactly as in a CLI session.
+  for (const name of ['ssh', 'telegram_send', 'irc', 'github']) {
+    assert.equal(GJC_AGENT_TOOL_NAMES.includes(name), true, `${name} must be requested`);
+    assert.equal(name in GJC_AGENT_TOOLS_WITHHELD, false, name);
   }
+});
+
+test('only tools the per-turn session lifetime or the project binding cannot carry are withheld', () => {
+  assert.deepEqual(Object.keys(GJC_AGENT_TOOLS_WITHHELD).sort(), ['cron', 'goal', 'job', 'monitor', 'move_session']);
 });
 
 test('browser and computer use the app-owned automation transports', () => {

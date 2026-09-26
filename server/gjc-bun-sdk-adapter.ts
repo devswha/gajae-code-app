@@ -19,7 +19,6 @@ import { buildAccountInventorySnapshot } from '@gajae-code/coding-agent/session/
 import { SessionDisposalIncompleteError } from '@gajae-code/coding-agent/session/agent-session';
 import { parseSessionEntries, SessionManager, type SessionEntry } from '@gajae-code/coding-agent/session/session-manager';
 import { MemorySessionStorage } from '@gajae-code/coding-agent/session/session-storage';
-import { ExtensionRuntime } from '@gajae-code/coding-agent/extensibility/extensions/loader';
 import { executeAcpBuiltinSlashCommand } from '@gajae-code/coding-agent/slash-commands/acp-builtins';
 import { probeAsideCli, type AsideCliProbe } from '@gajae-code/coding-agent/slash-commands/helpers/aside';
 import { initTheme, theme } from '@gajae-code/coding-agent/modes/theme/theme';
@@ -54,7 +53,7 @@ import {
   type GjcBrowserBackend,
 } from './gjc-browser-backend.js';
 import { egoActivityToken } from './gjc-ego-activity.js';
-import { resolveContainedExportCommand } from './gjc-export-path.js';
+import { resolveExportCommand } from './gjc-export-path.js';
 import { readSessionSnapshot } from './gjc-session-state.js';
 import { GjcGoalSession, GJC_GOAL_MODEL_OPERATIONS, matchesGjcGoalOwner, readPersistedGjcGoal, type GjcGoalScope } from './gjc-goal-session.js';
 import { installGjcGoalTool } from './gjc-goal-tool.js';
@@ -114,7 +113,7 @@ export type SdkRunConfig = {
  */
 const GAJAE_APP_ENV_NOTE = [
   'This session runs inside Gajae Code App, which hosts the Gajae Code runtime in-process.',
-  "The bundled gjc shim on PATH is for bundled workflow skills' `gjc state <skill> ...` commands; for sign-in, models, and permissions, use the app's Settings and never edit ~/.gjc directly.",
+  "The bundled gjc shim on PATH serves bundled workflow skills' `gjc state <skill> ...` commands; the full gjc CLI may not be installed. ~/.gjc is the same configuration the CLI reads, and the app's Settings also manage sign-in, models and permissions.",
 ].join(' ');
 
 let warnedAboutGjcCliShim = false;
@@ -256,38 +255,18 @@ const RUNTIME_CREDENTIAL_ENV_VARS = new Set([
   'GJC_RUNTIME_API_KEY',
 ]);
 
+/**
+ * The one runtime setting an app session does not take from `~/.gjc`.
+ *
+ * Everything else - AST edit, tool discovery, MCP discovery, project-scope
+ * MCP servers (`.gjc/mcp.json`) - is the user's own setting and behaves as it
+ * does in the GJC CLI (owner decision 2026-09-27: the app must not narrow what
+ * the CLI does). `server/gjc-mcp-autoload.bun.test.ts` pins both MCP scopes.
+ */
 export function applyGjcToolSettingsPolicy(settings: Settings): void {
   // Default closed. The adapter enables this only after admitting a capable,
   // owned app view with scoped controls, persistence and a continuation limit.
   settings.override('goal.enabled', false);
-
-  // ast_edit only previews rewrites and queues hidden `resolve` to apply them.
-  // `resolve` is not requestable through toolNames, so leaving this enabled
-  // would advertise edits the browser session can never commit.
-  settings.override('astEdit.enabled', false);
-
-  // MCP servers load by scope, and the scope is the trust boundary (owner
-  // decision 2026-09-18, #161):
-  //
-  // - User scope - the servers the user registered themselves with
-  //   `gjc mcp add`, in `<agentDir>/mcp.json` - loads exactly as in the CLI.
-  //   The runtime's conventional autoload connects them before the session
-  //   exists and surfaces their tools as always-on, independent of `toolNames`
-  //   and of discovery mode. The adapter never passes `enableMcpAutoload:
-  //   false` for a top-level session (delegated children do opt out).
-  // - Project scope - a repository's own `.gjc/mcp.json` - does not load. The
-  //   runtime treats an *unset* `mcp.enableProjectConfig` as true, so this
-  //   override is what stops opening a repository from starting its programs
-  //   inside a session. A `.mcp.json` (Claude Code format) is an import source
-  //   for the runtime, never loaded at run time in either product.
-  //
-  // Tool discovery is the other door into the session's tool set, and it does
-  // not consult `toolNames`. It stays off: with user-scope MCP tools already
-  // always-on, the search tool would only add a way to activate built-ins the
-  // app withheld. `server/gjc-mcp-autoload.bun.test.ts` pins both scopes.
-  settings.override('tools.discoveryMode', 'off');
-  settings.override('mcp.discoveryMode', false);
-  settings.override('mcp.enableProjectConfig', false);
 }
 
 /**
@@ -352,7 +331,9 @@ export type GjcResolvedBrowserBackend = Readonly<{
  *
  * `builtin` explicitly selects the runtime's built-in browser mode, preventing
  * a user-level runtime Aside setting from silently changing the app selection.
- * `aside` validates the runtime's CLI first, then writes its routing setting.
+ * Where the app's own WebView transport is not available (self-hosted servers,
+ * a desktop browser that is not ready), the runtime's own browser tool runs
+ * instead, exactly as it would in the GJC CLI. `aside` validates the runtime's CLI first, then writes its routing setting.
  * `ego` keeps the runtime on `native` so no Aside routing is injected, disables
  * the runtime's built-in browser tool outright and returns either the pinned
  * routing block or a browser-unavailable block. A missing Ego CLI never bricks
@@ -363,14 +344,13 @@ export function applyGjcBrowserBackend(
   requested: GjcBrowserBackend | undefined,
   probe: () => AsideCliProbe,
   probeEgo: () => EgoBrowserCliProbe = probeEgoBrowserCli,
-  options: { builtinBrowserAvailable?: boolean; platform?: NodeJS.Platform; appSessionId?: string } = {},
+  options: { platform?: NodeJS.Platform; appSessionId?: string } = {},
 ): GjcResolvedBrowserBackend {
   // An omitted backend is the app's default, not the user's runtime setting:
   // a `browser.backend` in ~/.gjc would otherwise decide how an app session
   // browses, behind the back of Settings > Automation.
   if (requested === undefined || requested === 'builtin') {
     settings.override('browser.backend', 'native');
-    if (options.builtinBrowserAvailable === false) settings.override('browser.enabled', false);
   } else if (requested === 'aside') {
     const found = probe();
     if (!found.ok) throw new GjcAsideUnavailableError(found.searched);
@@ -487,8 +467,8 @@ function configFromOptions(value: Record<string, unknown>): SdkRunConfig {
     // The SDK resolves builtin names case-insensitively. Canonicalize before
     // selecting app replacements so TASK cannot reach its builtin executor.
     toolNames: candidate.toolNames.map((name: string) => name.toLowerCase()),
-    // Older/internal callers that do not carry the trusted capability must
-    // never expose the SDK's own Puppeteer browser as an accidental fallback.
+    // Only a trusted readiness report selects the app's WebView transport;
+    // without it the runtime's own browser tool is used, as in the CLI.
     builtinBrowserAvailable: candidate.builtinBrowserAvailable === true,
     // Same for computer use: absent is off.
     computerUse: candidate.computerUse === true,
@@ -1247,7 +1227,6 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
         this.options.probeAsideCli ?? probeAsideCli,
         this.options.probeEgoBrowserCli ?? probeEgoBrowserCli,
         {
-          builtinBrowserAvailable,
           platform: this.options.platform ?? process.platform,
           ...(typeof config.appSessionId === 'string' && config.appSessionId ? { appSessionId: config.appSessionId } : {}),
         },
@@ -1264,32 +1243,16 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
       if (config.goalCommand && !goalEnabled) throw new Error('Goal controls are unavailable in this view.');
       settings.override('goal.enabled', goalEnabled);
       const askController = new GjcBunAskController(writer);
-      // A managed worktree run is dispatched with the checkout as its cwd while
-      // `projectPath` stays the repository root; a project-location run gets the
-      // same path for both. The resolved checkout is the root whose git state
-      // this run owns: git commands inside it auto-approve, and any that leave
-      // it ask first. Unknown resolves to "shared", so a path that cannot be
-      // read asks rather than assumes.
-      const ownedCheckoutRoot = await (async () => {
-        const declaredRoot = typeof options.projectPath === 'string' && options.projectPath ? options.projectPath : config.cwd;
-        try {
-          const cwd = await realpath(config.cwd);
-          return cwd !== (await realpath(declaredRoot)) ? cwd : undefined;
-        } catch { return undefined; }
-      })();
       const model = await modelForWithRefresh(this.modelRegistry, configuredModelId);
       const resolvedCredential = await credentialFor(this.authStorage, config.credential, model);
       let delegation: GjcDelegationExecutor | undefined;
       try {
         const permissionProvider = config.permissions
-          ? createGjcPermissionProvider(config.permissions, askController, writer, ownedCheckoutRoot)
+          ? createGjcPermissionProvider(config.permissions, askController, writer)
           : undefined;
         const sessionOptions: Parameters<typeof createAgentSession>[0] = {
-          // The app hosts the runtime in-process; the model must not reach for
-          // the gjc CLI (absent on most app installs) or hand-edit ~/.gjc when
-          // asked to configure sign-in, models or permissions — those live in
-          // the app's UI, and "the agent stopped instead of editing .gjc" is
-          // the alternative.
+          // The app hosts the runtime in-process, so the full gjc CLI may be
+          // absent; the note says so without narrowing what the model may do.
           systemPrompt: (defaults: string[]) => [
             ...defaults,
             GAJAE_APP_ENV_NOTE,
@@ -1300,14 +1263,10 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
           // factory otherwise defaults to ~/.gjc/agent - so skills, prompts and
           // credentials would be discovered somewhere the worker never wrote.
           ...(this.options.agentDir ? { agentDir: this.options.agentDir } : {}),
-          // SDK 0.17.6 re-enabled extension-module discovery (agent, project
-          // `.gjc/extensions`, plugin and settings modules). Opening a repository
-          // must not run its code in the worker - the same trust boundary as the
-          // refused project MCP config. This empty result is 0.16.4's own default,
-          // so only bundled extensions load and hook-convention discovery stays
-          // unchanged. `disableExtensionDiscovery` is deliberately not used: on
-          // 0.17.6 it also turns off hook discovery. One fresh runtime per session.
-          preloadedExtensions: { extensions: [], errors: [], runtime: new ExtensionRuntime() },
+          // Extension modules (agent, project `.gjc/extensions`, plugin and
+          // settings modules) load through the runtime's own discovery, as in
+          // the GJC CLI. A session that loads one reports
+          // `sdk_extension_effects_unrepresented`, like a discovered hook does.
           sessionManager,
           // The SDK defaults provider/cache identity to this manager's logical
           // ID, including on exact-ID resume. Supplying the same ID explicitly
@@ -1327,7 +1286,9 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
             ? { credentialSelector: resolvedCredential.credentialSelector }
             : {}),
           toolNames: [...new Set([...config.toolNames, 'ask', ...(goalEnabled ? ['goal'] : [])])]
-            .filter((name) => name !== 'browser' || trustedBuiltinBrowserAvailable)
+            // The app WebView transport replaces the runtime's browser tool when
+            // it is ready; otherwise the runtime's own tool runs, as in the CLI.
+            .filter((name) => name !== 'browser' || browserBackend.exposesBuiltinTool)
             // The SDK has its own `computer` builtin; withholding the app
             // transport alone would leave that name requestable.
             .filter((name) => name !== 'computer' || computerUse),
@@ -1507,18 +1468,18 @@ export class GjcBunSdkAdapter implements GjcWorkerRuntime {
             });
           };
           // `/export` writes through a relative path resolved against the
-          // worker's process cwd, and one worker serves every session. Rebind
-          // the destination to this run's own project directory before the
-          // handler sees it, and refuse rather than write outside it.
+          // worker's process cwd, and one worker serves every session. Resolve
+          // the destination against this run's own project directory before the
+          // handler sees it, as the CLI resolves it against its own cwd.
           const exportPath = commandName === 'export'
-            ? resolveContainedExportCommand(message, config.cwd, sessionManager.getSessionFile())
+            ? resolveExportCommand(message, config.cwd, sessionManager.getSessionFile())
             : ({ kind: 'passthrough' } as const);
           if (exportPath.kind === 'rejected') {
             output(exportPath.reason);
             promptMessage = null;
           } else {
             const commandResult = await (this.options.executeBuiltinCommand ?? executeAcpBuiltinSlashCommand)(
-              exportPath.kind === 'contained' ? exportPath.message : message,
+              exportPath.kind === 'resolved' ? exportPath.message : message,
               {
                 session: result.session,
                 sessionManager,

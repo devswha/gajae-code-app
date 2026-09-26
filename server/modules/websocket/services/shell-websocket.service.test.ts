@@ -80,8 +80,6 @@ function fixture(t: test.TestContext) {
       normalizeDetectedUrl: () => null,
       extractUrlsFromText: () => [],
       shouldAutoOpenUrlFromOutput: () => false,
-      // The real gate is the workspace root; this fixture starts in the temp dir.
-      validateProjectPath: () => ({ valid: true }),
     });
     return socket;
   };
@@ -531,19 +529,18 @@ test('synchronous exit during a requested restart does not leak or delete the re
   assert.deepEqual(f.terminals[1]!.writes, ['replacement\n']);
 });
 
-test('a terminal cannot start outside the workspace root', t => {
-  // The client names the PTY's working directory. Without the same gate a
-  // project passes, `/` or any other tree on the machine becomes a terminal.
+test('a terminal starts in any existing directory, as it would from the GJC CLI', t => {
   const f = fixture(t);
-  const socket = new FakeSocket();
-  handleShellConnection(socket as unknown as WebSocket, {
-    resolveProviderSessionId: () => undefined,
-    stripAnsiSequences: value => value,
-    normalizeDetectedUrl: () => null,
-    extractUrlsFromText: () => [],
-    shouldAutoOpenUrlFromOutput: () => false,
-  });
+  const socket = f.connect();
   socket.receive({ ...f.init, projectPath: path.parse(os.homedir()).root });
+  assert.equal(f.terminals.length, 1, 'the PTY is spawned at the filesystem root');
+  assert.equal(f.spawn.mock.calls[0]?.arguments[2]?.cwd, path.parse(os.homedir()).root);
+});
+
+test('a terminal is refused only for a path that is not a directory', t => {
+  const f = fixture(t);
+  const socket = f.connect();
+  socket.receive({ ...f.init, projectPath: path.join(os.tmpdir(), `missing-${randomUUID()}`) });
   assert.equal(f.terminals.length, 0, 'no PTY is spawned');
   assert.deepEqual(socket.frames, [{ type: 'error', message: 'Invalid project path' }]);
 });

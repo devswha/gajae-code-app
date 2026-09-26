@@ -139,9 +139,15 @@ process), resume, steering mid-run, three concurrent sessions (24 s wall for
 in the app but not under `gjc -p`. Latency for the same one-word turn: app
 11.6–11.9 s, CLI 13.5–13.8 s (the CLI pays process start).
 
-Intentional gaps (see `server/gjc-agent-tools.ts`): no `python`/`eval`,
-`job`/`monitor`, `github`, `debug`, `checkpoint`/`rewind`, tool discovery or
-`move_session`. Project `.gjc/mcp.json` and extension modules do not load.
+CLI parity (owner decision 2026-09-27: the app must not narrow what the GJC
+CLI does): every runtime tool is requested and the user's `~/.gjc` settings
+decide availability, project `.gjc/mcp.json` and extension modules load, tool
+discovery follows the user's setting, projects default to `bypass`, slash
+commands run without a confirmation card, sessions/jobs/terminals open in any
+directory, and the self-host browser falls back to the runtime's own tool.
+Remaining structural gaps (see `server/gjc-agent-tools.ts`): `job`/`monitor`/
+`cron` (the SDK session is disposed at every turn end) and `move_session`/
+`/move` (the session cwd is bound to its project).
 
 Observed, not fixed:
 

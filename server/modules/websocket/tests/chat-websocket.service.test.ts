@@ -239,6 +239,7 @@ async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promis
 test('chat.send carries the project\'s stored permission policy and ignores what the browser sends', async () => {
   await withIsolatedDatabase(async () => {
     sessionsDb.createAppSession('policy-session', 'gjc', '/workspace/policy-project');
+    projectPermissionsDb.setMode('/workspace/policy-project', 'ask');
     projectPermissionsDb.addAllowAlways('/workspace/policy-project', 'bash');
     const socket = new FakeWebSocket();
     let receivedOptions: Record<string, unknown> | undefined;

@@ -12,15 +12,14 @@ import {
  * The frozen command disposition matrix.
  *
  * Every slash form a user can type has exactly one app-owned answer: run a
- * local UI action, print a local notice, forward it to the runtime, or ask
- * first. Which one it gets is the app's contract; what the runtime then prints
+ * local UI action, print a local notice, or forward it to the runtime, which
+ * runs it at once as the GJC CLI does. Which one it gets is the app's contract; what the runtime then prints
  * for a malformed argument is the runtime's business and is not asserted here.
  *
  * This matrix exists because the routing bugs it pins were all invisible at the
  * command-name level. `/move`, `/models`, `/bg`, `/quit`, `/contribution-prep`
  * and bare `help` each reached the model as prose while their names looked
- * handled, and `/skill:ralplan` was advertised in the slash menu and then
- * confirmed with copy saying the app did not recognize it. Looping over the
+ * handled. Looping over the
  * registries — as the neighbouring tests do — cannot catch any of those,
  * because a form that falls out of a registry silently falls out of the loop
  * with it. Rows are therefore written out one by one, and a new command has to
@@ -48,12 +47,12 @@ const GROUP_A: readonly Row[] = [
   ['A07', '/bg now', 'notice'],
   ['A08', '/quit', 'notice'],
   ['A09', '/quit now', 'notice'],
-  ['A10', '/contribution-prep', 'gate'],
-  ['A11', '/contribution-prep focus e2e', 'gate'],
+  ['A10', '/contribution-prep', 'command'],
+  ['A11', '/contribution-prep focus e2e', 'command'],
   ['A12', '/help', 'notice'],
   ['A13', 'help', 'notice'],
   ['A14', '/help extra e2e-arg', 'notice'],
-  ['A15', '/notacommand-e2e', 'gate'],
+  ['A15', '/notacommand-e2e', 'command'],
 ];
 
 const GROUP_B: readonly Row[] = [
@@ -117,13 +116,11 @@ const GROUP_C: readonly Row[] = [
 
 const GROUP_D: readonly Row[] = [
   // Runtime text forms, including every argument branch the handlers carry.
-  // A bogus verb on a command that has gated verbs is itself gated: the app
-  // cannot tell `/session e2e-bogus` from a verb added by the next runtime
-  // release, and asking once is the cheaper mistake.
+  // A bogus verb reaches the runtime too, which answers it as the CLI would.
   ['D01', '/dump', 'command'],
   ['D02', '/session', 'command'],
   ['D03', '/session info', 'command'],
-  ['D04', '/session e2e-bogus', 'gate'],
+  ['D04', '/session e2e-bogus', 'command'],
   ['D05', '/jobs', 'command'],
   ['D06', '/transcript', 'notice'],
   ['D07', '/context', 'command'],
@@ -137,15 +134,15 @@ const GROUP_D: readonly Row[] = [
   ['D15', '/notify status', 'command'],
   ['D16', '/notify health', 'command'],
   ['D17', '/notify setup', 'command'],
-  ['D18', '/notify e2e-bogus', 'gate'],
+  ['D18', '/notify e2e-bogus', 'command'],
   // The one /notify form upstream returns as a residual prompt. The app runs
   // its own notification stack, so it answers instead of letting it reach the
   // model as prose.
   ['D19', '/notify on', 'notice'],
   ['D20', '/notify off', 'notice'],
-  ['D21', '/notify test', 'gate'],
-  ['D22', '/notify test e2e message', 'gate'],
-  ['D23', '/notify recovery', 'gate'],
+  ['D21', '/notify test', 'command'],
+  ['D22', '/notify test e2e message', 'command'],
+  ['D23', '/notify recovery', 'command'],
   ['D24', '/effort', 'command'],
   ['D25', '/effort e2e-bogus', 'command'],
   ['D26', '/effort medium high', 'command'],
@@ -161,45 +158,42 @@ const GROUP_D: readonly Row[] = [
   ['D36', '/provider help', 'command'],
   ['D37', '/provider login', 'command'],
   ['D38', '/provider login anthropic', 'command'],
-  ['D39', '/provider e2e-bogus', 'gate'],
-  // Everything under `/provider add` gates on the verb alone. Whether these
-  // particular arguments would have been rejected by the runtime parser is not
-  // knowable here without reimplementing it, and a wrong guess writes
-  // credentials into shared configuration.
-  ['D40', '/provider add', 'gate'],
-  ['D41', '/provider add --compat openai', 'gate'],
-  ['D42', '/provider add --api-key sk-e2e-not-real', 'gate'],
-  ['D43', '/provider add --preset glm', 'gate'],
-  ['D44', '/provider add glm', 'gate'],
-  ['D45', '/provider add zai', 'gate'],
-  ['D46', '/provider add --compat openai --provider e2e-local --base-url http://127.0.0.1:9/ --api-key-env E2E_KEY --model e2e-model', 'gate'],
+  ['D39', '/provider e2e-bogus', 'command'],
+  // `/provider add` runs as typed; the runtime parser owns its arguments.
+  ['D40', '/provider add', 'command'],
+  ['D41', '/provider add --compat openai', 'command'],
+  ['D42', '/provider add --api-key sk-e2e-not-real', 'command'],
+  ['D43', '/provider add --preset glm', 'command'],
+  ['D44', '/provider add glm', 'command'],
+  ['D45', '/provider add zai', 'command'],
+  ['D46', '/provider add --compat openai --provider e2e-local --base-url http://127.0.0.1:9/ --api-key-env E2E_KEY --model e2e-model', 'command'],
   ['D47', '/ssh', 'command'],
   ['D48', '/ssh help', 'command'],
   ['D49', '/ssh list', 'command'],
-  ['D50', '/ssh e2e-bogus', 'gate'],
+  ['D50', '/ssh e2e-bogus', 'command'],
   // Same rule as /provider add: the verb decides, not the arguments.
-  ['D51', '/ssh add', 'gate'],
-  ['D52', '/ssh add --host 127.0.0.1', 'gate'],
-  ['D53', '/ssh add e2e-host', 'gate'],
-  ['D54', '/ssh add e2e-host --bogus x', 'gate'],
-  ['D55', '/ssh add e2e-host e2e-extra --host 127.0.0.1', 'gate'],
-  ['D56', '/ssh add e2e-host --host', 'gate'],
-  ['D57', '/ssh add e2e-host --host 127.0.0.1 --user', 'gate'],
-  ['D58', '/ssh add e2e-host --host 127.0.0.1 --port', 'gate'],
-  ['D59', '/ssh add e2e-host --host 127.0.0.1 --port 22oops', 'gate'],
-  ['D60', '/ssh add e2e-host --host 127.0.0.1 --port 70000', 'gate'],
-  ['D61', '/ssh add e2e-host --host 127.0.0.1 --key', 'gate'],
-  ['D62', '/ssh add e2e-host --host 127.0.0.1 --scope', 'gate'],
-  ['D63', '/ssh add e2e-host --host 127.0.0.1 --scope e2e-bogus', 'gate'],
-  ['D64', '/ssh remove', 'gate'],
-  ['D65', '/ssh rm', 'gate'],
-  ['D66', '/ssh remove --scope user', 'gate'],
-  ['D67', '/ssh remove e2e-host --bogus x', 'gate'],
-  ['D68', '/ssh remove e2e-host --scope', 'gate'],
-  ['D69', '/ssh remove e2e-host --scope e2e-bogus', 'gate'],
+  ['D51', '/ssh add', 'command'],
+  ['D52', '/ssh add --host 127.0.0.1', 'command'],
+  ['D53', '/ssh add e2e-host', 'command'],
+  ['D54', '/ssh add e2e-host --bogus x', 'command'],
+  ['D55', '/ssh add e2e-host e2e-extra --host 127.0.0.1', 'command'],
+  ['D56', '/ssh add e2e-host --host', 'command'],
+  ['D57', '/ssh add e2e-host --host 127.0.0.1 --user', 'command'],
+  ['D58', '/ssh add e2e-host --host 127.0.0.1 --port', 'command'],
+  ['D59', '/ssh add e2e-host --host 127.0.0.1 --port 22oops', 'command'],
+  ['D60', '/ssh add e2e-host --host 127.0.0.1 --port 70000', 'command'],
+  ['D61', '/ssh add e2e-host --host 127.0.0.1 --key', 'command'],
+  ['D62', '/ssh add e2e-host --host 127.0.0.1 --scope', 'command'],
+  ['D63', '/ssh add e2e-host --host 127.0.0.1 --scope e2e-bogus', 'command'],
+  ['D64', '/ssh remove', 'command'],
+  ['D65', '/ssh rm', 'command'],
+  ['D66', '/ssh remove --scope user', 'command'],
+  ['D67', '/ssh remove e2e-host --bogus x', 'command'],
+  ['D68', '/ssh remove e2e-host --scope', 'command'],
+  ['D69', '/ssh remove e2e-host --scope e2e-bogus', 'command'],
   ['D70', '/memory', 'command'],
   ['D71', '/memory view', 'command'],
-  ['D72', '/memory e2e-bogus', 'gate'],
+  ['D72', '/memory e2e-bogus', 'command'],
   ['D73', '/memory mm', 'command'],
   ['D74', '/memory mm list', 'command'],
   ['D75', '/memory mm show e2e-id', 'command'],
@@ -208,8 +202,8 @@ const GROUP_D: readonly Row[] = [
   ['D78', '/memory mm seed', 'command'],
   ['D79', '/memory mm delete e2e-id', 'command'],
   ['D80', '/memory mm reload', 'command'],
-  // /export writes one file the user asked for, contained to the project by
-  // resolveContainedExportCommand, so no form of it gates.
+  // /export writes one file the user asked for, resolved against the run's
+  // project directory by resolveExportCommand.
   ['D81', '/export copy', 'command'],
   ['D82', '/export clipboard', 'command'],
   ['D83', '/export --copy', 'command'],
@@ -221,41 +215,40 @@ const GROUP_D: readonly Row[] = [
 
 const GROUP_E: readonly Row[] = [
   // Data loss, credential changes, and writes to configuration shared with
-  // every other project on this machine. None of these may ever resolve to
-  // anything but `gate`.
-  ['E01', '/clear', 'gate'],
-  ['E02', '/compact', 'gate'],
-  ['E03', '/compact focus e2e', 'gate'],
-  ['E04', '/handoff', 'gate'],
-  ['E05', '/handoff focus e2e', 'gate'],
-  ['E06', '/session delete', 'gate'],
-  ['E07', '/contribute-pr', 'gate'],
-  ['E08', '/contribute-pr focus e2e', 'gate'],
-  ['E09', '/memory clear', 'gate'],
-  ['E10', '/memory reset', 'gate'],
-  ['E11', '/memory enqueue', 'gate'],
-  ['E12', '/memory rebuild', 'gate'],
-  ['E13', '/login', 'gate'],
-  ['E14', '/login anthropic', 'gate'],
-  ['E15', '/logout', 'gate'],
-  ['E16', '/logout anthropic', 'gate'],
-  ['E17', '/ssh add e2e-host --host 127.0.0.1', 'gate'],
-  ['E18', '/ssh add e2e-host --host 127.0.0.1 --scope project', 'gate'],
-  ['E19', '/ssh add e2e-host --host 127.0.0.1 --scope user', 'gate'],
-  ['E20', '/ssh add e2e-host --host 127.0.0.1 --user e2e-user --port 2222 --key /tmp/e2e-key', 'gate'],
-  ['E21', '/ssh remove e2e-host', 'gate'],
-  ['E22', '/ssh remove e2e-host --scope project', 'gate'],
-  ['E23', '/ssh remove e2e-host --scope user', 'gate'],
-  ['E24', '/ssh rm e2e-host', 'gate'],
+  // every other project on this machine. They run at once, as in the CLI.
+  ['E01', '/clear', 'command'],
+  ['E02', '/compact', 'command'],
+  ['E03', '/compact focus e2e', 'command'],
+  ['E04', '/handoff', 'command'],
+  ['E05', '/handoff focus e2e', 'command'],
+  ['E06', '/session delete', 'command'],
+  ['E07', '/contribute-pr', 'command'],
+  ['E08', '/contribute-pr focus e2e', 'command'],
+  ['E09', '/memory clear', 'command'],
+  ['E10', '/memory reset', 'command'],
+  ['E11', '/memory enqueue', 'command'],
+  ['E12', '/memory rebuild', 'command'],
+  ['E13', '/login', 'command'],
+  ['E14', '/login anthropic', 'command'],
+  ['E15', '/logout', 'command'],
+  ['E16', '/logout anthropic', 'command'],
+  ['E17', '/ssh add e2e-host --host 127.0.0.1', 'command'],
+  ['E18', '/ssh add e2e-host --host 127.0.0.1 --scope project', 'command'],
+  ['E19', '/ssh add e2e-host --host 127.0.0.1 --scope user', 'command'],
+  ['E20', '/ssh add e2e-host --host 127.0.0.1 --user e2e-user --port 2222 --key /tmp/e2e-key', 'command'],
+  ['E21', '/ssh remove e2e-host', 'command'],
+  ['E22', '/ssh remove e2e-host --scope project', 'command'],
+  ['E23', '/ssh remove e2e-host --scope user', 'command'],
+  ['E24', '/ssh rm e2e-host', 'command'],
 ];
 
 const GROUP_F: readonly Row[] = [
   // Bundled skills. /skill:team is declined outright because it drives tmux
-  // panes the app cannot show; the rest gate.
-  ['F01', '/skill:deep-interview', 'gate'],
-  ['F02', '/skill:ralplan', 'gate'],
+  // panes the app cannot show; the rest run.
+  ['F01', '/skill:deep-interview', 'command'],
+  ['F02', '/skill:ralplan', 'command'],
   ['F03', '/skill:team', 'notice'],
-  ['F04', '/skill:ultragoal', 'gate'],
+  ['F04', '/skill:ultragoal', 'command'],
 ];
 
 const GROUP_G: readonly Row[] = [
@@ -293,7 +286,7 @@ test('row ids and typed forms are unique', () => {
 
 test('no row in the matrix is auto-sendable', () => {
   // Every row is a slash form, and the queued producer has no session UI to
-  // show a picker, render a notice, or put a confirmation in front of anyone.
+  // show a picker, render a notice, or show a command's effect to anyone.
   for (const [id, form] of MATRIX) {
     assert.equal(isAutoSendable(classifyCommandInput(form)), false, `${id} "${form}"`);
   }
@@ -312,53 +305,10 @@ test('group B covers every TUI-only key, bare and with arguments', () => {
   assert.equal(GROUP_B.length, expected.length * 2, 'every key needs a bare and an argument row');
 });
 
-test('every gated row states a consequence the app actually recognizes', () => {
-  // The fail-closed copy ("the app has not classified this command") is correct
-  // for a form the app has never seen, and wrong for one it advertises in its
-  // own slash menu. A15 is the only row that is meant to be unclassified.
-  const unclassified = MATRIX.filter(([, form]) => {
-    const disposition = classifyCommandInput(form);
-    return disposition.kind === 'gate' && !disposition.gate.classified;
-  }).map(([id]) => id);
-
-  assert.deepEqual(
-    unclassified,
-    ['A15', 'D04', 'D18', 'D39', 'D50', 'D72'],
-    'a gated row changed its classification',
-  );
-});
-
-test('bundled skills are confirmed by name, not by the unclassified fallback', () => {
-  // The slash menu offers these, so confirming them with "the app has not
-  // classified this command" told the user the app did not recognize a command
-  // it had just advertised.
-  for (const form of ['/skill:deep-interview', '/skill:ralplan', '/skill:ultragoal']) {
-    const disposition = classifyCommandInput(form);
-    assert.equal(disposition.kind, 'gate', form);
-    if (disposition.kind !== 'gate') continue;
-    assert.equal(disposition.gate.classified, true, `${form} must be classified`);
-    assert.match(disposition.gate.summary, /skill/, form);
-    assert.equal(disposition.gate.gateId, form, 'the card is keyed by the skill');
+test('runtime forms, skills and forms the app has never seen all reach the runtime', () => {
+  for (const form of ['/clear', '/skill:ralplan', '/skill:ralplan --deliberate', '/skill:e2e-project-local', '/notacommand-e2e']) {
+    assert.equal(classifyCommandInput(form).kind, 'command', form);
   }
-});
-
-test('a skill invoked with arguments shares the bare form\u2019s confirmation card', () => {
-  const bare = classifyCommandInput('/skill:ralplan');
-  const withArgs = classifyCommandInput('/skill:ralplan --deliberate');
-  assert.equal(withArgs.kind, 'gate');
-  if (bare.kind !== 'gate' || withArgs.kind !== 'gate') return;
-  assert.equal(withArgs.gate.gateId, bare.gate.gateId);
-  assert.equal(withArgs.gate.summary, bare.gate.summary);
-});
-
-test('a project- or user-scoped skill is classified like a bundled one', () => {
-  // Skills are discovered at runtime, so the policy matches the prefix rather
-  // than a list of names it cannot know.
-  const disposition = classifyCommandInput('/skill:e2e-project-local');
-  assert.equal(disposition.kind, 'gate');
-  if (disposition.kind !== 'gate') return;
-  assert.equal(disposition.gate.classified, true);
-  assert.match(disposition.gate.summary, /e2e-project-local/);
 });
 
 test('the matrix has not silently shrunk', () => {

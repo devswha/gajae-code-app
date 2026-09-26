@@ -19,22 +19,20 @@ const renderPicker = (value: ProjectPermissions | null) => renderToStaticMarkup(
 );
 
 test('the closed trigger names the current mode and nothing else', () => {
-  const html = renderPicker(permissions());
+  const html = renderPicker(permissions({ mode: 'ask' }));
 
   assert.match(html, /data-mode="ask"/);
   assert.match(html, /permissionMode\.modes\.ask\.label/);
-  // No popup and no confirmation dialog are in the static markup.
+  // No popup is in the static markup.
   assert.doesNotMatch(html, /role="listbox"/);
-  assert.doesNotMatch(html, /role="dialog"/);
   assert.doesNotMatch(html, /permissionMode\.modes\.bypass\.label/);
 });
 
-test('bypass is drawn in the destructive colour so it cannot pass for a tuning knob', () => {
-  const ask = renderPicker(permissions({ mode: 'ask' }));
-  const bypass = renderPicker(permissions({ mode: 'bypass', bypassAcknowledged: true }));
+test('bypass is the default and is drawn like any other mode, not as a warning', () => {
+  const bypass = renderPicker(permissions());
 
-  assert.doesNotMatch(ask, /text-destructive/);
-  assert.match(bypass, /data-mode="bypass"[^>]*class="[^"]*text-destructive/);
+  assert.match(bypass, /data-mode="bypass"/);
+  assert.doesNotMatch(bypass, /text-destructive/);
 });
 
 test('the trigger is disabled until the project policy is known', () => {

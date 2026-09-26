@@ -173,15 +173,7 @@
     "noGrants": "保存された自動化の承認はありません。",
     "origin": "サイトのオリジン",
     "application": "デスクトップアプリケーション",
-    "revoke": "承認を削除",
-    "withheld": "アプリで無効なランタイム機能",
-    "withheldDescription": "ツールセットはアプリが決定します。GJC の設定にかかわらず、以下のランタイム機能はすべてのセッションで無効です。",
-    "withheldMcp": "プロジェクトの MCP サーバー",
-    "withheldMcpReason": "自分で GJC に登録したサーバー（gjc mcp add）は CLI と同じように読み込まれます。プロジェクトの .gjc/mcp.json は読み込まないため、リポジトリを開いただけでその中のプログラムがセッションで起動することはありません。",
-    "withheldToolDiscovery": "ツール探索",
-    "withheldToolDiscoveryReason": "セッションは実行中に追加のツールを有効化できません。アプリが選んだ集合がすべてです。",
-    "withheldAstEdit": "AST 編集",
-    "withheldAstEditReason": "書き換えをプレビューするだけで、適用にはアプリが公開していないツールを使うため、セッションが決して確定できない編集を提示することになります。"
+    "revoke": "承認を削除"
   },
   "notifications": {
     "title": "通知",
@@ -264,14 +256,14 @@
   },
   "permissions": {
     "title": "権限",
-    "description": "エージェントが確認なしに実行できる内容をプロジェクトごとに定めます。既定のポリシー（確認、常に許可なし）のプロジェクトは表示されません。",
+    "description": "エージェントが確認なしに実行できる内容をプロジェクトごとに定めます。既定のポリシー（GJC CLI と同じバイパス、常に許可なし）のプロジェクトは表示されません。",
     "mode": "モード",
     "alwaysAllowed": "常に許可",
     "none": "なし",
     "revoke": "取り消す",
     "revokeTool": "{{tool}} の常時許可を取り消す",
-    "resetToAsk": "「確認」にリセット",
-    "empty": "すべてのプロジェクトがコマンド実行前に確認します。",
+    "resetToDefault": "既定に戻す",
+    "empty": "すべてのプロジェクトが GJC CLI と同じく確認なしで実行されます。",
     "loading": "読み込み中…",
     "error": "権限を読み込めませんでした。"
   }

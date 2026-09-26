@@ -237,13 +237,6 @@
         "label": "Contourner",
         "description": "Rien ne demande. L’agent exécute n’importe quelle commande dans ce projet."
       }
-    },
-    "bypassConfirm": {
-      "title": "Désactiver les demandes de permission ?",
-      "body": "L’agent pourra exécuter n’importe quelle commande sans demander.",
-      "scope": "S’applique uniquement à ce projet. Vous pouvez revenir à « Demander » à tout moment.",
-      "cancel": "Annuler",
-      "confirm": "Activer le contournement"
     }
   },
   "permissionCard": {

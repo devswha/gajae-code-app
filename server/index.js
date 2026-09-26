@@ -365,7 +365,8 @@ app.get('/api/browse-filesystem', authenticateToken, asyncHandler(async (req, re
         // Resolve and normalize the path
         targetPath = path.resolve(targetPath);
 
-        // Security check - ensure path is within allowed workspace root
+        // Any directory may be browsed, as it could be opened from the GJC CLI;
+        // this only resolves it to its canonical path.
         const validation = await validateWorkspacePath(targetPath);
         if (!validation.valid) {
             return res.status(403).json({ error: validation.error });

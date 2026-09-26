@@ -237,13 +237,6 @@
         "label": "Bypass",
         "description": "Nothing asks. The agent runs any command in this project."
       }
-    },
-    "bypassConfirm": {
-      "title": "Turn off permission prompts?",
-      "body": "This lets the agent run any command without asking.",
-      "scope": "Applies to this project only. You can switch back to Ask at any time.",
-      "cancel": "Cancel",
-      "confirm": "Enable bypass"
     }
   },
   "permissionCard": {

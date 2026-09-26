@@ -38,7 +38,7 @@ const projectStore: CreateProjectDependencies = {
   getProjectByPath: (projectPath) => projectsDb.getProjectPath(projectPath),
   persistProjectPath: (projectPath, customName) => projectsDb.createProjectPath(projectPath, customName),
   ensureWorkspaceDirectory: provisionProjectDirectory,
-  validatePath: validateWorkspacePath, // shared workspace gate from utils
+  validatePath: validateWorkspacePath, // canonical path resolution; any directory is accepted
 };
 
 export function projectApiView(project: ProjectRepositoryRow): ProjectApiView {

@@ -640,15 +640,15 @@ test('builtin stdout is terminal-safe, preserves Unicode, and retains export pat
 });
 
 /*
- * `/export` containment across a shared worker.
+ * `/export` resolution across a shared worker.
  *
  * One worker process serves every session, so its cwd is fixed at spawn time
- * and cannot describe the run. These two tests pin the destination to the
- * per-run project directory instead: the first proves the rewrite happens at
+ * and cannot describe the run. These two tests resolve the destination against
+ * the per-run project directory instead, as the CLI resolves it against its cwd: the first proves the rewrite happens at
  * the command boundary, the second proves it still tracks the run after the
  * adapter is already warm and has served a different project.
  */
-test('/export is rewritten to an absolute path inside the run project directory', async () => {
+test('/export is rewritten to an absolute path in the run project directory', async () => {
   let executedText = '';
   const f = await fixture(
     'contract-model',
@@ -679,7 +679,7 @@ test('/export is rewritten to an absolute path inside the run project directory'
   }
 });
 
-test('a warm adapter contains /export per run, not per worker lifetime', async () => {
+test('a warm adapter resolves /export per run, not per worker lifetime', async () => {
   const executed: string[] = [];
   const f = await fixture(
     'contract-model',
@@ -1650,10 +1650,11 @@ async function identityFixture(behavior: {
   };
 }
 
-// SDK 0.17.6 re-enabled extension-module discovery. App sessions keep 0.16.4's
-// behavior: an empty preloaded result blocks agent, project, plugin and settings
-// modules while hook-convention discovery (including project scope) still runs.
-test('top-level sessions load no discovered extension modules but keep hook discovery and bundled Grok', async () => {
+// Extension modules load exactly as in the GJC CLI: agent, project, plugin and
+// settings modules through the runtime's own discovery, alongside hook
+// discovery and the bundled Grok extension. Loading one makes the lifecycle
+// receipt report its effects as unrepresented, as a discovered hook does.
+test('top-level sessions load discovered extension modules and hooks as the CLI does', async () => {
   const loaded: string[] = [];
   const marker = '__gjcExtensionDiscoveryContract';
   (globalThis as Record<string, unknown>)[marker] = loaded;
@@ -1668,59 +1669,29 @@ test('top-level sessions load no discovered extension modules but keep hook disc
     const settingsExtension = join(f.root, 'settings-scope.ts');
     const projectHook = join(cwd, '.gjc', 'hooks', 'pre', 'bash.ts');
     for (const [file, name] of [[agentExtension, 'agent-extension'], [projectExtension, 'project-extension'],
-      [settingsExtension, 'settings-extension']] as const) {
+      [settingsExtension, 'settings-extension'], [projectHook, 'project-hook']] as const) {
       await mkdir(join(file, '..'), { recursive: true });
       await writeFile(file, module(name));
     }
     f.settings.override('extensions', [settingsExtension]);
     // Discovery caches directory listings; the fixture created these trees after startup.
     resetCapabilityCache();
-    const seeded = [agentExtension, projectExtension, settingsExtension];
     type Activity = { getAppLifecycleActivity(): { unknown: string[] } };
     await f.run('extension-discovery', async (session) => {
       const input = f.factoryOptions[0]!;
-      assert.equal(input.disableExtensionDiscovery, undefined, 'hook discovery must not be switched off');
-      // The SDK appends bundled and inline extensions to the supplied (empty) result.
-      assert.ok(input.preloadedExtensions, 'the adapter supplies its own extension result');
-      assert.ok(!input.preloadedExtensions.extensions.some((extension: { path: string }) => seeded.includes(extension.path)));
+      assert.equal(input.disableExtensionDiscovery, undefined, 'discovery must not be switched off');
+      assert.equal(input.preloadedExtensions, undefined, 'the runtime discovers extensions itself');
       const paths = session.extensionRunner!.getExtensionPaths();
-      for (const file of seeded) assert.ok(!paths.includes(file), `${file} must not load`);
-      assert.ok(paths.includes('bundled:grok-build'), `bundled Grok must load: ${JSON.stringify(paths)}`);
-      const { unknown } = (session as unknown as Activity).getAppLifecycleActivity();
-      assert.ok(!unknown.includes('sdk_extension_effects_unrepresented'), JSON.stringify(unknown));
-    });
-    assert.deepEqual(loaded, []);
-
-    // Hook-convention discovery still runs for the project scope, exactly as on
-    // 0.16.4, and a discovered hook keeps the lifecycle receipt fail-closed.
-    await mkdir(join(projectHook, '..'), { recursive: true });
-    await writeFile(projectHook, module('project-hook'));
-    resetCapabilityCache();
-    await f.run('extension-discovery-hook', async (session) => {
-      const paths = session.extensionRunner!.getExtensionPaths();
+      for (const file of [agentExtension, projectExtension, settingsExtension]) {
+        assert.ok(paths.includes(file), `${file} must load: ${JSON.stringify(paths)}`);
+      }
       assert.ok(paths.includes(`hook:${await realpath(projectHook)}`) || paths.includes(`hook:${projectHook}`),
         `project hook must load: ${JSON.stringify(paths)}`);
-      for (const file of seeded) assert.ok(!paths.includes(file), `${file} must not load`);
-      assert.ok(paths.includes('bundled:grok-build'));
+      assert.ok(paths.includes('bundled:grok-build'), `bundled Grok must load: ${JSON.stringify(paths)}`);
       const { unknown } = (session as unknown as Activity).getAppLifecycleActivity();
       assert.ok(unknown.includes('sdk_extension_effects_unrepresented'), JSON.stringify(unknown));
     });
-    assert.deepEqual(loaded, ['project-hook']);
-    const first = f.factoryOptions[0]!;
-    assert.equal(f.factoryOptions.length, 2);
-    assert.notEqual(f.factoryOptions[1]!.preloadedExtensions!.runtime, first.preloadedExtensions!.runtime,
-      'each session receives its own extension runtime');
-
-    // Control: the same inputs without the app's empty result do load every seeded module,
-    // so the assertions above are not vacuous.
-    loaded.length = 0;
-    const { preloadedExtensions: _omitted, ...raw } = first;
-    const control = await createAgentSession({ ...raw, sessionManager: SessionManager.create(cwd, join(f.root, 'control')) });
-    try {
-      const paths = control.session.extensionRunner!.getExtensionPaths();
-      for (const file of seeded) assert.ok(paths.includes(file), `control must load ${file}: ${JSON.stringify(paths)}`);
-      assert.deepEqual([...loaded].sort(), ['agent-extension', 'project-extension', 'project-hook', 'settings-extension']);
-    } finally { await control.session.dispose(); }
+    assert.deepEqual([...loaded].sort(), ['agent-extension', 'project-extension', 'project-hook', 'settings-extension']);
   } finally {
     delete (globalThis as Record<string, unknown>)[marker];
     await f.close();
@@ -1768,7 +1739,7 @@ test('goal-capable production sessions delegate safely and defer worktree abort 
   } finally { await f.close(); }
 });
 
-test('delegated sessions inherit an unavailable built-in browser without SDK fallback', async () => {
+test('without the app WebView, parent and delegated sessions get the runtime browser the CLI would', async () => {
   const f = await identityFixture();
   f.settings.override('tools.discoveryMode', 'all');
   Object.assign(f.options, {
@@ -1777,12 +1748,10 @@ test('delegated sessions inherit an unavailable built-in browser without SDK fal
   });
   try {
     await f.run('browserless-delegation', async (parent) => {
-      assert.equal(parent.getActiveToolNames().includes('browser'), false);
-      assert.equal(parent.getDiscoverableTools({ source: 'builtin' }).some((tool: { name: string }) => tool.name === 'browser'), false);
+      assert.equal(parent.getActiveToolNames().includes('browser'), true);
       let childChecked = false;
       f.enqueueInspection(async (child) => {
-        assert.equal(child.getActiveToolNames().includes('browser'), false);
-        assert.equal(child.getDiscoverableTools({ source: 'builtin' }).some((tool: { name: string }) => tool.name === 'browser'), false);
+        assert.equal(child.getActiveToolNames().includes('browser'), true);
         childChecked = true;
       });
       const launched = await parent.getToolByName('task')!.execute('start-browserless-child', {
@@ -2455,7 +2424,7 @@ test('computer use turned on offers the app transport on every backend, and a no
   } finally { await f.close(); }
 });
 
-test('unavailable built-in browser removes both the app transport and SDK builtin name', async () => {
+test('an unavailable app browser leaves the runtime browser tool in place, as in the CLI', async () => {
   const f = await fixture();
   try {
     const run = f.host.handle(request('session.start', 'browser-unavailable', {
@@ -2466,9 +2435,11 @@ test('unavailable built-in browser removes both the app transport and SDK builti
     const session = await firstSession(f.sessions);
     await session.promptStarted.promise;
     const factoryInput = f.factoryOptions[0]!;
+    // No app WebView transport: the runtime builds its own browser tool.
     assert.deepEqual(Object.keys(factoryInput.automationTools as Record<string, unknown>), ['computer']);
-    assert.equal((factoryInput.toolNames as string[]).includes('browser'), false);
+    assert.equal((factoryInput.toolNames as string[]).includes('browser'), true);
     assert.equal((factoryInput.toolNames as string[]).includes('computer'), true);
+    assert.equal(f.toolPolicyOverrides.has('browser.enabled'), false, 'the runtime browser stays enabled');
     session.complete();
     await run;
   } finally { await f.close(); }
@@ -3010,101 +2981,35 @@ test('a permissions block switches the SDK gate to prompt and answers it from th
 });
 
 /*
- * A run that chose the project location shares its working tree with every
- * other session of that project, so a git state change there moves `HEAD` and
- * the index underneath a live reader. The run's own cwd is the answer: a
- * managed worktree is dispatched with the checkout as `cwd` while
- * `projectPath` stays the repository root, and a project-location run gets the
- * same path for both.
+ * Under `bypass` a git state change is approved like any other bash call, in
+ * the shared project checkout and in a managed worktree alike - exactly as the
+ * GJC CLI runs it.
  */
 
-test('a shared checkout asks before a git state change even when the policy would approve it', async () => {
-  const f = await fixture();
-  try {
-    // cwd and projectPath are the same directory: nothing was isolated.
-    const options = { ...f.options, projectPath: f.options.cwd, permissions: { mode: 'bypass', allowAlways: [] } };
-    const run = f.host.handle(request('session.start', 'shared-checkout', { message: 'hello', options }));
-    const session = await firstSession(f.sessions);
-    await session.promptStarted.promise;
-
-    const runtimeOptions = [
-      { optionId: 'allow_once', name: 'Allow once', kind: 'allow_once' },
-      { optionId: 'reject_once', name: 'Reject', kind: 'reject_once' },
-    ];
-    // Bypass still approves everything that does not rewrite shared git state.
-    assert.deepEqual(
-      await session.sdkPermissionProvider!({ toolCallId: 'c1', toolName: 'bash', title: 'npm test', rawInput: { command: 'npm test' } }, runtimeOptions),
-      { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' },
-    );
-
-    const pending = session.sdkPermissionProvider!({ toolCallId: 'c2', toolName: 'bash', title: 'commit', rawInput: { command: 'git commit -am wip' } }, runtimeOptions);
-    await Promise.resolve();
-    const card = f.frames.at(-1)!;
-    assert.equal(card.method, 'ask.presented');
-    const message = (card.payload as Record<string, unknown>).message as Record<string, unknown>;
-    assert.equal(message.kind, 'permission_request');
-    assert.equal(message.toolName, 'bash');
-
-    await f.host.handle(request('ask.reply', 'shared-reply', { runId: 'shared-checkout', requestId: message.requestId, decision: { allow: true } }));
-    assert.deepEqual(await pending, { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' });
-
-    session.complete();
-    await run;
-  } finally { await f.close(); }
-});
-
-test('a managed worktree owns its git state and is not asked', async () => {
-  const f = await fixture();
-  try {
-    // The checkout the run was dispatched into is not the repository root, so
-    // its git state belongs to this session alone.
-    const checkout = join(f.root, 'checkout');
-    await mkdir(checkout, { recursive: true });
-    const options = { ...f.options, cwd: checkout, projectPath: f.options.cwd, permissions: { mode: 'bypass', allowAlways: [] } };
-    const run = f.host.handle(request('session.start', 'isolated-checkout', { message: 'hello', options }));
-    const session = await firstSession(f.sessions);
-    await session.promptStarted.promise;
-
-    const runtimeOptions = [{ optionId: 'allow_once', name: 'Allow once', kind: 'allow_once' }];
-    const before = f.frames.length;
-    assert.deepEqual(
-      await session.sdkPermissionProvider!({ toolCallId: 'c1', toolName: 'bash', title: 'commit', rawInput: { command: 'git commit -am wip' } }, runtimeOptions),
-      { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' },
-    );
-    assert.equal(f.frames.slice(before).some((frame) => frame.method === 'ask.presented'), false);
-
-    session.complete();
-    await run;
-  } finally { await f.close(); }
-});
-test('a managed worktree that rewrites git state elsewhere asks first', async () => {
+test('bypass approves git state changes without a card wherever the run is dispatched', async () => {
   const f = await fixture();
   try {
     const checkout = join(f.root, 'checkout');
     await mkdir(checkout, { recursive: true });
-    const options = { ...f.options, cwd: checkout, projectPath: f.options.cwd, permissions: { mode: 'bypass', allowAlways: [] } };
-    const run = f.host.handle(request('session.start', 'isolated-escape', { message: 'hello', options }));
-    const session = await firstSession(f.sessions);
-    await session.promptStarted.promise;
-
     const runtimeOptions = [{ optionId: 'allow_once', name: 'Allow once', kind: 'allow_once' }];
-    // `-C` points the invocation at the repository root, outside the checkout
-    // this run owns, so bypass must not answer for the readers of that tree.
-    const pending = session.sdkPermissionProvider!(
-      { toolCallId: 'c1', toolName: 'bash', title: 'commit elsewhere', rawInput: { command: `git -C ${f.options.cwd} commit -am wip` } },
-      runtimeOptions,
-    );
-    await Promise.resolve();
-    const card = f.frames.at(-1)!;
-    assert.equal(card.method, 'ask.presented');
-    const message = (card.payload as Record<string, unknown>).message as Record<string, unknown>;
-    assert.equal(message.kind, 'permission_request');
-
-    await f.host.handle(request('ask.reply', 'escape-reply', { runId: 'isolated-escape', requestId: message.requestId, decision: { allow: true } }));
-    assert.deepEqual(await pending, { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' });
-
-    session.complete();
-    await run;
+    for (const [index, [runId, cwd]] of ([['shared-checkout', f.options.cwd], ['isolated-checkout', checkout]] as const).entries()) {
+      const options = { ...f.options, cwd, projectPath: f.options.cwd, permissions: { mode: 'bypass', allowAlways: [] } };
+      const run = f.host.handle(request('session.start', runId, { message: 'hello', options }));
+      for (let attempt = 0; attempt < 100 && !f.sessions[index]; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 1));
+      const session = f.sessions[index]!;
+      await session.promptStarted.promise;
+      const before = f.frames.length;
+      for (const command of ['git commit -am wip', `git -C ${f.options.cwd} push`]) {
+        assert.deepEqual(
+          await session.sdkPermissionProvider!({ toolCallId: command, toolName: 'bash', title: command, rawInput: { command } }, runtimeOptions),
+          { outcome: 'selected', optionId: 'allow_once', kind: 'allow_once' },
+          `${runId}: ${command}`,
+        );
+      }
+      assert.equal(f.frames.slice(before).some((frame) => frame.method === 'ask.presented'), false, runId);
+      session.complete();
+      await run;
+    }
   } finally { await f.close(); }
 });
 
@@ -4140,7 +4045,7 @@ test('a generator that declines leaves the session untitled, and a resumed sessi
   } finally { await f.close(); }
 });
 
-test('starting a session forces the tool settings the app policy declares', async () => {
+test('starting a session leaves the user\u2019s tool settings as the CLI would see them', async () => {
   const f = await fixture();
   try {
     // Not awaited: `session.start` settles only when the turn completes, and
@@ -4148,10 +4053,11 @@ test('starting a session forces the tool settings the app policy declares', asyn
     const run = f.host.handle(request('session.start', 'tool-policy', { message: 'hello', options: f.options }));
     const session = await firstSession(f.sessions);
 
+    // Goal mode is decided per run for a view with controls; nothing else is.
     assert.equal(f.toolPolicyOverrides.get('goal.enabled'), false);
-    assert.equal(f.toolPolicyOverrides.get('astEdit.enabled'), false);
-    assert.equal(f.toolPolicyOverrides.get('tools.discoveryMode'), 'off');
-    assert.equal(f.toolPolicyOverrides.get('mcp.discoveryMode'), false);
+    for (const key of ['astEdit.enabled', 'tools.discoveryMode', 'mcp.discoveryMode', 'mcp.enableProjectConfig']) {
+      assert.equal(f.toolPolicyOverrides.has(key), false, `${key} must not be overridden`);
+    }
 
     session.complete();
     await run;

@@ -6,11 +6,15 @@
  * once a session's SDK permission mode is `prompt`. This module is the policy
  * both sides agree on: which mode a run is in, which tools the project has
  * marked "always allow", and how a gated call resolves without a human.
+ *
+ * The default is `bypass`: the GJC CLI runs its tools without asking, and a
+ * project in the app starts the same way. `ask` and `auto_edits` are there
+ * for a project whose owner wants cards.
  */
 
 export const GJC_PERMISSION_MODES = ['ask', 'auto_edits', 'bypass'] as const;
 export type GjcPermissionMode = typeof GJC_PERMISSION_MODES[number];
-export const DEFAULT_GJC_PERMISSION_MODE: GjcPermissionMode = 'ask';
+export const DEFAULT_GJC_PERMISSION_MODE: GjcPermissionMode = 'bypass';
 
 export type GjcRunPermissions = {
   mode: GjcPermissionMode;

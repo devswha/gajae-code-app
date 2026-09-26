@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Check, ChevronDown, Loader2 } from 'lucide-react';
 
-import type { PermissionModeUpdate, ProjectPermissions } from '../../../hooks/useProjectPermissions';
+import { DEFAULT_PERMISSION_MODE, type PermissionModeUpdate, type ProjectPermissions } from '../../../hooks/useProjectPermissions';
 import { cn } from '../../../utils/cn';
 import {
   opensPermissionModePicker,
@@ -12,8 +12,6 @@ import {
   permissionModeShortcutLabel,
   type PermissionMode,
 } from '../utils/permissionMode';
-
-import BypassConfirmDialog from './BypassConfirmDialog';
 
 type PermissionModePickerProps = {
   permissions: ProjectPermissions | null;
@@ -27,14 +25,12 @@ type PermissionModePickerProps = {
  * The composer control for what the agent may do without asking.
  *
  * Three modes, per project, stored on the server so the next run reads the same
- * policy from any device. `bypass` is drawn in the destructive colour and, the
- * first time a project switches to it, put behind a confirmation dialog: it is
- * the one setting here that removes a safety net rather than tuning one.
+ * policy from any device. `bypass` is the default, matching the GJC CLI, and
+ * like every mode it is one click away.
  */
 export default function PermissionModePicker({ permissions, onSelectMode, busy = false, disabled = false, className }: PermissionModePickerProps) {
   const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
-  const [confirmingBypass, setConfirmingBypass] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const projectId = permissions?.projectId;
@@ -43,7 +39,7 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
   const popupRef = useRef<HTMLDivElement>(null);
   const [popupPosition, setPopupPosition] = useState({ bottom: 0, left: 0 });
 
-  const mode: PermissionMode = permissions?.mode ?? 'ask';
+  const mode: PermissionMode = permissions?.mode ?? DEFAULT_PERMISSION_MODE;
   const Icon = PERMISSION_MODE_ICONS[mode];
   const unavailable = disabled || !permissions;
   const isBusy = busy || selecting;
@@ -52,7 +48,6 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
   useEffect(() => {
     selectionOwner.current = {};
     setOpen(false);
-    setConfirmingBypass(false);
     setError(null);
     setSelecting(false);
     return () => { selectionOwner.current = null; };
@@ -113,16 +108,7 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
     if (unavailable || isBusy) return;
     setOpen(false);
     if (next === mode) return;
-    if (next === 'bypass' && !permissions?.bypassAcknowledged) {
-      setConfirmingBypass(true);
-      return;
-    }
     await apply({ mode: next });
-  };
-
-  const confirmBypass = async () => {
-    setConfirmingBypass(false);
-    await apply({ mode: 'bypass', acknowledgeBypass: true });
   };
 
   const label = t(`permissionMode.modes.${mode}.label`);
@@ -134,10 +120,7 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
         onClick={() => setOpen((current) => !current)}
         disabled={unavailable || isBusy}
         data-mode={mode}
-        className={cn(
-          'flex h-8 w-full max-w-40 min-w-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50',
-          mode === 'bypass' ? 'text-destructive hover:text-destructive' : 'text-muted-foreground hover:text-foreground',
-        )}
+        className="flex h-8 w-full max-w-40 min-w-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
         aria-label={t('permissionMode.label')}
         aria-expanded={open}
         aria-haspopup="listbox"
@@ -163,7 +146,6 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
           {PERMISSION_MODES.map((option) => {
             const OptionIcon = PERMISSION_MODE_ICONS[option];
             const isSelected = option === mode;
-            const isBypass = option === 'bypass';
             return (
               <button
                 key={option}
@@ -173,15 +155,14 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
                 data-mode={option}
                 onClick={() => { void choose(option); }}
                 className={cn(
-                  'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
-                  isBypass ? 'text-destructive hover:bg-destructive/10' : 'hover:bg-accent',
-                  isSelected && (isBypass ? 'bg-destructive/10' : 'bg-accent/70'),
+                  'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-accent',
+                  isSelected && 'bg-accent/70',
                 )}
               >
                 <OptionIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
                 <span className="min-w-0 flex-1">
                   <span className="block text-xs font-medium">{t(`permissionMode.modes.${option}.label`)}</span>
-                  <span className={cn('mt-0.5 block text-[11px]', isBypass ? 'text-destructive/80' : 'text-muted-foreground')}>
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground">
                     {t(`permissionMode.modes.${option}.description`)}
                   </span>
                 </span>
@@ -198,11 +179,6 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
         document.body,
       )}
 
-      <BypassConfirmDialog
-        open={confirmingBypass && !unavailable && !isBusy}
-        onCancel={() => setConfirmingBypass(false)}
-        onConfirm={() => { void confirmBypass(); }}
-      />
       {error && <p role="alert" className="mt-1 max-w-80 text-xs text-destructive">{error}</p>}
     </div>
   );

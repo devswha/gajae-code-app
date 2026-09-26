@@ -41,15 +41,15 @@ function project(projectPath: string): { id: string; path: string } {
 
 const code = (error: unknown) => (error instanceof AppError ? error.code : undefined);
 
-test('a project starts in ask mode with an empty allow-list and no stored row', async () => {
+test('a project starts in bypass mode, like the GJC CLI, with an empty allow-list and no stored row', async () => {
   await withDatabase(() => {
     const alpha = project('/work/alpha');
     assert.deepEqual(getProjectPermissions(alpha.id), {
-      projectId: alpha.id, projectPath: alpha.path, mode: 'ask', allowAlways: [], bypassAcknowledged: false, updatedAt: null,
+      projectId: alpha.id, projectPath: alpha.path, mode: 'bypass', allowAlways: [], updatedAt: null,
     });
     assert.deepEqual(listConfiguredProjectPermissions(), []);
-    assert.deepEqual(resolveRunPermissions(alpha.path), { mode: 'ask', allowAlways: [] });
-    assert.deepEqual(resolveRunPermissions(null), { mode: 'ask', allowAlways: [] });
+    assert.deepEqual(resolveRunPermissions(alpha.path), { mode: 'bypass', allowAlways: [] });
+    assert.deepEqual(resolveRunPermissions(null), { mode: 'bypass', allowAlways: [] });
   });
 });
 
@@ -71,24 +71,24 @@ test('every policy block the app emits is one the worker accepts', async () => {
   });
 });
 
-test('bypass needs the warning acknowledged once per project', async () => {
+test('any mode, bypass included, is one request away', async () => {
   await withDatabase(() => {
     const alpha = project('/work/alpha');
-    try {
-      updateProjectPermissionMode(alpha.id, { mode: 'bypass' });
-      assert.fail('bypass without acknowledgement must be refused');
-    } catch (error) {
-      assert.equal(code(error), 'BYPASS_ACKNOWLEDGEMENT_REQUIRED');
-    }
-
-    const enabled = updateProjectPermissionMode(alpha.id, { mode: 'bypass', acknowledgeBypass: true });
-    assert.equal(enabled.mode, 'bypass');
-    assert.equal(enabled.bypassAcknowledged, true);
-    assert.deepEqual(resolveRunPermissions(alpha.path), { mode: 'bypass', allowAlways: [] });
-
-    // Switching away and back needs no second warning.
     assert.equal(updateProjectPermissionMode(alpha.id, { mode: 'ask' }).mode, 'ask');
+    assert.deepEqual(resolveRunPermissions(alpha.path), { mode: 'ask', allowAlways: [] });
     assert.equal(updateProjectPermissionMode(alpha.id, { mode: 'bypass' }).mode, 'bypass');
+    assert.deepEqual(resolveRunPermissions(alpha.path), { mode: 'bypass', allowAlways: [] });
+  });
+});
+
+test('a stored row that now equals the default is not listed as configured', async () => {
+  // A row written as `bypass` before bypass became the default describes the
+  // default policy, so Settings does not list it as a deviation.
+  await withDatabase(() => {
+    const alpha = project('/work/alpha');
+    getConnection().prepare("INSERT INTO project_permissions (project_path, mode, allow_always_json) VALUES (?, 'bypass', '[]')").run(alpha.path);
+    assert.equal(getProjectPermissions(alpha.id).mode, 'bypass');
+    assert.deepEqual(listConfiguredProjectPermissions(), []);
   });
 });
 
@@ -114,6 +114,7 @@ test('always-allow grants are per project, revocable, and part of the run policy
   await withDatabase(() => {
     const alpha = project('/work/alpha');
     const beta = project('/work/beta');
+    updateProjectPermissionMode(alpha.id, { mode: 'ask' });
 
     assert.ok(grantProjectAlwaysAllow(alpha.path, 'bash'));
     assert.ok(grantProjectAlwaysAllow(alpha.path, 'eval'));
@@ -135,7 +136,7 @@ test('always-allow grants are per project, revocable, and part of the run policy
 
     assert.equal(listConfiguredProjectPermissions().length, 1);
     const reset = resetProjectPermissions(alpha.id);
-    assert.deepEqual([reset.mode, reset.allowAlways], ['ask', []]);
+    assert.deepEqual([reset.mode, reset.allowAlways], ['bypass', []]);
     assert.deepEqual(listConfiguredProjectPermissions(), [], 'a reset project leaves no row behind');
   });
 });
@@ -145,8 +146,9 @@ test('a policy that returns to the default is deleted rather than stored', async
     const alpha = project('/work/alpha');
     updateProjectPermissionMode(alpha.id, { mode: 'auto_edits' });
     assert.equal(projectPermissionsDb.listConfigured().length, 1);
-    updateProjectPermissionMode(alpha.id, { mode: 'ask' });
+    updateProjectPermissionMode(alpha.id, { mode: 'bypass' });
     assert.equal(projectPermissionsDb.listConfigured().length, 0);
+    assert.equal((getConnection().prepare('SELECT COUNT(*) AS n FROM project_permissions').get() as { n: number }).n, 0);
   });
 });
 

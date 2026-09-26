@@ -14,7 +14,6 @@ import { randomUUID } from '../../../utils/uuid';
 import { authenticatedFetch } from '../../../utils/api';
 import { classifyCommandInput, isAutoSendable } from '../commandDispatchPolicy';
 import { findAppUiCommand, getLocalCommandNotice, resolveCommandAlias, runAppUiCommand, type AppUiCommand } from '../appUiCommands';
-import { gateForCommand, type CommandGate } from '../commandGatePolicy';
 import { permissionResponseMessage } from '../utils/chatPermissions';
 import { draftKeysToClear, readQueuedMessages, reorderQueue, safeLocalStorage, type QueuedSendOptions } from '../utils/chatStorage';
 import type { ComposerDraftRepository, ComposerRoute, DurableQueuedDraft } from '../utils/composerDraftStorage';
@@ -27,7 +26,7 @@ import { useSlashCommands } from './useSlashCommands';
 import { useWorkspaceTarget, type WorkspaceCandidate } from './useWorkspaceTarget';
 import { newQueuedDraftId, settleRetainedComposerSteer, useDurableComposerDraft } from './useDurableComposerDraft';
 
-interface UseChatComposerStateArgs { draftRepository?: ComposerDraftRepository; executionCwd?: string | null; selectedProject: Project | null; selectedSession: ProjectSession | null; currentSessionId: string | null; gjcModel: string; reasoningEffort?: string; isLoading: boolean; canAbortSession: boolean; tokenBudget: Record<string, unknown> | null; sendMessage: (message: unknown) => boolean | void; sendByCtrlEnter?: boolean; onSessionProcessing?: MarkSessionProcessing; onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void; onInputFocusChange?: (focused: boolean) => void; onCommandGateChange?: (gate: PendingCommandGate | null) => void; onShowSettings?: () => void; onLogin?: (providerId?: string) => void;
+interface UseChatComposerStateArgs { draftRepository?: ComposerDraftRepository; executionCwd?: string | null; selectedProject: Project | null; selectedSession: ProjectSession | null; currentSessionId: string | null; gjcModel: string; reasoningEffort?: string; isLoading: boolean; canAbortSession: boolean; tokenBudget: Record<string, unknown> | null; sendMessage: (message: unknown) => boolean | void; sendByCtrlEnter?: boolean; onSessionProcessing?: MarkSessionProcessing; onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void; onInputFocusChange?: (focused: boolean) => void; onShowSettings?: () => void; onLogin?: (providerId?: string) => void;
   /**
    * What the run-location picker shows before the user touches it.
    *
@@ -44,7 +43,6 @@ export type HelpCommandData = { content?: string; format?: string; commands?: Ar
 type CommandModalKind = 'help' | 'models' | 'cost' | 'status';
 export type CommandModalPayload = { kind: CommandModalKind; data: HelpCommandData | ModelCommandData | CostCommandData | StatusCommandData; };
 export type QueuedDraft = DurableQueuedDraft;
-export type PendingCommandGate = CommandGate & { text: string };
 
 const TURN_START_GRACE = 5000;
 const syntheticSubmit = () => ({ preventDefault() {} }) as unknown as FormEvent<HTMLFormElement>;
@@ -55,7 +53,7 @@ const resetBox = (setInput: (value: string) => void, value: MutableRefObject<str
 
 export function useChatComposerState(args: UseChatComposerStateArgs) {
   const { t } = useTranslation('chat');
-  const { executionCwd, selectedProject, selectedSession, currentSessionId, gjcModel, reasoningEffort = 'default', isLoading, canAbortSession, tokenBudget, sendMessage, sendByCtrlEnter, onSessionProcessing, onSessionEstablished, onInputFocusChange, onCommandGateChange, onShowSettings, onLogin, scrollToBottom, addMessage, setIsUserScrolledUp, setPendingPermissionRequests, defaultUseWorktree = false } = args;
+  const { executionCwd, selectedProject, selectedSession, currentSessionId, gjcModel, reasoningEffort = 'default', isLoading, canAbortSession, tokenBudget, sendMessage, sendByCtrlEnter, onSessionProcessing, onSessionEstablished, onInputFocusChange, onShowSettings, onLogin, scrollToBottom, addMessage, setIsUserScrolledUp, setPendingPermissionRequests, defaultUseWorktree = false } = args;
   const projectId = selectedProject?.projectId;
   const conversation = selectedSession?.id || currentSessionId || null;
   const drafts = useDurableComposerDraft(projectId, conversation, args.draftRepository);
@@ -72,7 +70,6 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   const [worktreeChoice, setWorktreeChoice] = useState<boolean | null>(null);
   const useWorktree = worktreeChoice ?? defaultUseWorktree;
   const [modelPickerTrigger, setModelPickerTrigger] = useState(0);
-  const [pendingCommandGate, setGateState] = useState<PendingCommandGate | null>(null);
   const [queuePulse, setQueuePulse] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputHighlightRef = useRef<HTMLDivElement>(null);
@@ -89,13 +86,9 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   const dispatchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const priorLoading = useRef(isLoading);
   const priorConversation = useRef(composerOwner);
-  const bypassGate = useRef(false);
-  const gateRef = useRef<PendingCommandGate | null>(null);
   const steerWaiting = useRef(new Map<string, Array<{ draft: QueuedDraft; route: ComposerRoute }>>());
   const submissionOwner = useRef<object | null>({});
   const submissionInFlight = useRef<object | null>(null);
-  const gateChangeRef = useRef(onCommandGateChange);
-  gateChangeRef.current = onCommandGateChange;
   const recoveryNotice = useRef('');
   const storageErrorNotice = useRef('');
 
@@ -133,19 +126,9 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   useEffect(() => { liveImages.current = attachedImages; }, [attachedImages]);
 
   const eraseDraft = useCallback((settled?: string | null) => { if (projectId) draftKeysToClear(projectId, conversation, settled).forEach((key) => safeLocalStorage.removeItem(key)); }, [conversation, projectId]);
-  const announceGate = useCallback((gate: PendingCommandGate | null) => { gateRef.current = gate; setGateState(gate); onCommandGateChange?.(gate); }, [onCommandGateChange]);
-  // The pending command stays in the durable input. Editing it revokes the old
-  // confirmation instead of retaining a second, volatile send intent.
-  useEffect(() => {
-    if (gateRef.current && input.trimEnd() !== gateRef.current.text) announceGate(null);
-  }, [announceGate, input]);
   useEffect(() => {
     setAttachmentNotice(null);
     setModal(null);
-    gateRef.current = null;
-    setGateState(null);
-    gateChangeRef.current?.(null);
-    bypassGate.current = false;
   }, [conversation, projectId]);
   const login = useCallback((provider?: string) => { if (isComposerSealed()) return; resetBox(setInput, inputRef, setAttachedImages, () => undefined, setExpanded, textareaRef); eraseDraft(); onLogin?.(provider); }, [eraseDraft, onLogin, setAttachedImages, setInput]);
   const palette = usePaletteOps();
@@ -202,7 +185,12 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
     const signIn = /^\/login(?:\s+(.*))?$/.exec(text.trim()); if (signIn) { login(signIn[1]?.trim() || undefined); resetCommandMenuState(); return; }
     if (isLoading) { queueOwner.current = composerOwner; setQueuedDrafts((q) => [...q, { id: newQueuedDraftId(), content: text, images: files, options: sendOptions }]); clearComposer(); eraseDraft(); return; }
     const candidate = text.trimEnd(); const help = candidate.trim().toLowerCase() === 'help';
-    if (candidate.startsWith('/') || help) { const gap = candidate.indexOf(' '); const name = help ? '/help' : gap > 0 ? candidate.slice(0, gap) : candidate; const commandArgs = gap > 0 ? candidate.slice(gap).trim() : ''; const app = findAppUiCommand(resolveCommandAlias(name)); if (app && (app.interceptWithArgs !== false || !commandArgs)) { clearComposer(); applyAppCommand(app); return; } const notice = getLocalCommandNotice(name, commandArgs); if (notice) { clearComposer(); addMessage({ type: 'assistant', content: notice, timestamp: Date.now() }); return; } if (!bypassGate.current) { const gate = gateForCommand(resolveCommandAlias(name), commandArgs); if (gate) { announceGate({ ...gate, text: candidate }); return; } } bypassGate.current = false; }
+    if (candidate.startsWith('/') || help) { const gap = candidate.indexOf(' '); const name = help ? '/help' : gap > 0 ? candidate.slice(0, gap) : candidate; const commandArgs = gap > 0 ? candidate.slice(gap).trim() : ''; const app = findAppUiCommand(resolveCommandAlias(name)); if (app && (app.interceptWithArgs !== false || !commandArgs)) { clearComposer(); applyAppCommand(app); return; } const notice = getLocalCommandNotice(name, commandArgs); if (notice) { clearComposer(); addMessage({ type: 'assistant', content: notice, timestamp: Date.now() }); return; } 
+      // Runtime slash commands run at once, as in the GJC CLI. A handoff moves
+      // the runtime to a fresh session; the next session_upserted for a new id
+      // in this project is it, and the app follows instead of staying on the
+      // old session (issue #6).
+      if (/^\/handoff\b/.test(candidate.trim())) useAppShellStore.getState().setPendingHandoff({ fromSessionId: conversation, projectId, at: Date.now() }); }
     const owner = submissionOwner.current;
     if (!owner || submissionInFlight.current === owner) return;
     const finishOperation = beginComposerOperation('send');
@@ -245,7 +233,7 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
       if (submissionInFlight.current === owner) submissionInFlight.current = null;
       finishOperation();
     }
-  }, [addMessage, allocate, announceGate, applyAppCommand, attachedImages, clearComposer, composerOwner, draftPersistence.phase, draftReady, eraseDraft, isLoading, login, onSessionEstablished, onSessionProcessing, optionsFor, resetCommandMenuState, retryDraftPersistence, scrollToBottom, selectedProject, selectedSession, sendMessage, setIsUserScrolledUp, setQueuedDrafts, t, upload]);
+  }, [addMessage, allocate, applyAppCommand, attachedImages, clearComposer, composerOwner, conversation, draftPersistence.phase, draftReady, eraseDraft, isLoading, login, onSessionEstablished, onSessionProcessing, optionsFor, projectId, resetCommandMenuState, retryDraftPersistence, scrollToBottom, selectedProject, selectedSession, sendMessage, setIsUserScrolledUp, setQueuedDrafts, t, upload]);
   useEffect(() => { submitRef.current = handleSubmit; }, [handleSubmit]);
 
   const handleSteer = useCallback((event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>) => {
@@ -413,13 +401,6 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
   }, [attachedImages, draftReady, queuedDrafts, setAttachedImages, setInput, setQueuedDrafts]);
   const deleteQueuedDraft = useCallback((index: number) => { if (draftReady && !isComposerSealed()) setQueuedDrafts((q) => q.filter((_, position) => position !== index)); }, [draftReady, setQueuedDrafts]);
   const moveQueuedDraft = useCallback((from: number, to: number) => { if (draftReady && !isComposerSealed()) setQueuedDrafts((q) => reorderQueue(q, from, to)); }, [draftReady, setQueuedDrafts]);
-  const confirmCommandGate = useCallback(() => { const gate = gateRef.current; if (!gate || isComposerFrozen() || inputRef.current.trimEnd() !== gate.text) return; announceGate(null); bypassGate.current = true;
-    // A confirmed handoff moves the runtime to a fresh session; the next
-    // session_upserted for a new id in this project is it, and the app should
-    // follow instead of staying on the old session (issue #6).
-    if (/^\/handoff\b/.test(gate.text.trim())) useAppShellStore.getState().setPendingHandoff({ fromSessionId: conversation, projectId, at: Date.now() });
-    setInput(gate.text); inputRef.current = gate.text; void handleSubmit(syntheticSubmit()); }, [announceGate, conversation, handleSubmit, projectId, setInput]);
-  const cancelCommandGate = useCallback(() => { if (isComposerSealed()) return; announceGate(null); bypassGate.current = false; }, [announceGate]);
   const handleClearInput = useCallback(() => { clearComposer(); textareaRef.current?.focus(); }, [clearComposer]);
   // The Changes tab's line comments arrive here: one new paragraph with the
   // reference and the quote, focus moved to the composer, ready to send.
@@ -437,5 +418,5 @@ export function useChatComposerState(args: UseChatComposerStateArgs) {
     } finally { finishOperation(); }
   }, [sendMessage, setPendingPermissionRequests]);
   const handleInputFocusChange = useCallback((focused: boolean) => { setFocused(focused); onInputFocusChange?.(focused); }, [onInputFocusChange]);
-  return { useWorktree, setUseWorktree: setWorktreeChoice, composerFrozen, draftPersistence, draftReady, retryDraftPersistence, input, setInput, textareaRef, inputHighlightRef, isTextareaExpanded, slashCommandsCount, skillCommands: slashCommands.filter((command) => command.type === 'skill'), filteredCommands, frequentCommands, commandQuery, showCommandMenu, selectedCommandIndex, resetCommandMenuState, handleCommandSelect, handleToggleCommandMenu, showFileDropdown, filteredFiles: filteredFiles as MentionableFile[], selectedFileIndex, renderInputWithMentions, selectFile, attachedImages, setAttachedImages, attachmentNotice, dismissAttachmentNotice: () => setAttachmentNotice(null), getRootProps, getInputProps, isDragActive, openImagePicker: open, handleSubmit, handleSteer, modelPickerTrigger, queuedDrafts, editQueuedDraft, deleteQueuedDraft, moveQueuedDraft, resolveSteerResult, pendingCommandGate, confirmCommandGate, cancelCommandGate, handleVoiceTranscript, insertAtEnd, handleInputChange, handleKeyDown, handlePaste, handleTextareaClick: (event: MouseEvent<HTMLTextAreaElement>) => setCursorPosition(event.currentTarget.selectionStart), handleTextareaInput, syncInputOverlayScroll, handleClearInput, handleAbortSession, handlePermissionDecision, handleInputFocusChange, isInputFocused, commandModalPayload, closeCommandModal: () => setModal(null), showCostModal, isWorkspace: workspaceTarget.isWorkspace, workspaceCandidates: workspaceTarget.candidates, workspaceTargetValue: workspaceTarget.target, pickWorkspaceTarget: workspaceTarget.pickTarget };
+  return { useWorktree, setUseWorktree: setWorktreeChoice, composerFrozen, draftPersistence, draftReady, retryDraftPersistence, input, setInput, textareaRef, inputHighlightRef, isTextareaExpanded, slashCommandsCount, skillCommands: slashCommands.filter((command) => command.type === 'skill'), filteredCommands, frequentCommands, commandQuery, showCommandMenu, selectedCommandIndex, resetCommandMenuState, handleCommandSelect, handleToggleCommandMenu, showFileDropdown, filteredFiles: filteredFiles as MentionableFile[], selectedFileIndex, renderInputWithMentions, selectFile, attachedImages, setAttachedImages, attachmentNotice, dismissAttachmentNotice: () => setAttachmentNotice(null), getRootProps, getInputProps, isDragActive, openImagePicker: open, handleSubmit, handleSteer, modelPickerTrigger, queuedDrafts, editQueuedDraft, deleteQueuedDraft, moveQueuedDraft, resolveSteerResult, handleVoiceTranscript, insertAtEnd, handleInputChange, handleKeyDown, handlePaste, handleTextareaClick: (event: MouseEvent<HTMLTextAreaElement>) => setCursorPosition(event.currentTarget.selectionStart), handleTextareaInput, syncInputOverlayScroll, handleClearInput, handleAbortSession, handlePermissionDecision, handleInputFocusChange, isInputFocused, commandModalPayload, closeCommandModal: () => setModal(null), showCostModal, isWorkspace: workspaceTarget.isWorkspace, workspaceCandidates: workspaceTarget.candidates, workspaceTargetValue: workspaceTarget.target, pickWorkspaceTarget: workspaceTarget.pickTarget };
 }

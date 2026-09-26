@@ -48,12 +48,8 @@ async function until(predicate: () => boolean) {
 async function fixture(t: test.TestContext, options: { delayPreparation?: boolean; delayStartup?: boolean; failStartupOnce?: boolean } = {}) {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'session-worktree-runtime-')));
   const previous = process.env.DATABASE_PATH;
-  const previousRoot = process.env.WORKSPACES_ROOT;
   closeConnection();
   process.env.DATABASE_PATH = path.join(root, 'app.db');
-  // Session project paths pass the workspace gate, so this fixture tree is the
-  // workspace root while the test runs.
-  process.env.WORKSPACES_ROOT = root;
   await initializeDatabase();
   const repository = path.join(root, 'repository');
   await mkdir(repository);
@@ -67,7 +63,7 @@ async function fixture(t: test.TestContext, options: { delayPreparation?: boolea
   await gitCommand('add', 'README.md');
   await gitCommand('commit', '-m', 'fixture');
   const project = projectsDb.createProjectPath(repository).project!;
-  projectPermissionsDb.setMode(repository, 'bypass', { acknowledgeBypass: true });
+  projectPermissionsDb.setMode(repository, 'ask');
   const alias = path.join(root, 'alias');
   await symlink(repository, alias, process.platform === 'win32' ? 'junction' : 'dir');
   const jobs = new GjcJobsClient({ database: path.join(root, 'jobs.db') });
@@ -131,8 +127,6 @@ async function fixture(t: test.TestContext, options: { delayPreparation?: boolea
     jobs.close(); git.close(); closeConnection();
     if (previous === undefined) delete process.env.DATABASE_PATH;
     else process.env.DATABASE_PATH = previous;
-    if (previousRoot === undefined) delete process.env.WORKSPACES_ROOT;
-    else process.env.WORKSPACES_ROOT = previousRoot;
     await rm(root, { recursive: true, force: true, maxRetries: 3 });
   });
   return { root, repository, project, created, jobs, git, supervisor, orchestrator, messages, writer, workers, makeTicket, preparation, isPreparing: () => preparing };
@@ -278,7 +272,7 @@ test('worktree session keeps canonical project policy, actual cwd, and provider 
   const location = readSessionLocation(f.created.sessionId);
   assert.equal(input.options?.cwd, location.cwd);
   assert.equal(input.options?.projectPath, f.repository);
-  assert.equal((input.options?.permissions as { mode: string }).mode, 'bypass');
+  assert.equal((input.options?.permissions as { mode: string }).mode, 'ask');
   assert.notEqual(location.cwd, f.repository);
   input.writer.setSessionId?.('provider-session');
   await writeFile(path.join(location.cwd!, 'README.md'), 'isolated edits\n');
@@ -343,7 +337,7 @@ test('chat dispatch uses the bound runtime and emits complete only after native 
   socket.emit('message', JSON.stringify({ type: 'chat.send', sessionId: f.created.sessionId, content: 'fixture turn', options: { ...runOptions, cwd: '/untrusted', permissions: { mode: 'ask' } } }));
   await until(() => f.workers.length === 1);
   assert.equal(f.workers[0].input.options?.cwd, readSessionLocation(f.created.sessionId).cwd);
-  assert.equal((f.workers[0].input.options?.permissions as { mode: string }).mode, 'bypass');
+  assert.equal((f.workers[0].input.options?.permissions as { mode: string }).mode, 'ask');
   f.workers[0].input.writer.setSessionId?.('wire-provider-session');
   f.workers[0].input.writer.send({ kind: 'complete', provider: 'gjc', exitCode: 0 });
   assert.equal(socket.sent.some(({ kind }) => kind === 'complete'), false);

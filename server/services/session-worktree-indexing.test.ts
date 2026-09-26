@@ -57,7 +57,7 @@ async function fixture(t: test.TestContext, sameIdentity = false) {
   await gitCommand('add', 'README.md');
   await gitCommand('commit', '-m', 'fixture');
   const project = projectsDb.createProjectPath(repository).project!;
-  projectPermissionsDb.setMode(repository, 'bypass', { acknowledgeBypass: true });
+  projectPermissionsDb.setMode(repository, 'ask');
   const git = new GjcGitClient({ workdir: repository });
   const jobId = 'job-index-fixture';
   const cwd = path.join(repository, '.gjc-worktrees', jobId);
@@ -94,7 +94,7 @@ test('SDK-written worktree transcripts keep their parent project through watcher
     assert.equal(row.project_path, f.repository);
     assert.equal(row.provider_session_id, f.transcript.id);
     assert.equal(row.jsonl_path, f.transcript.file);
-    assert.equal(resolveProjectRunPermissions(row.project_path).mode, 'bypass');
+    assert.equal(resolveProjectRunPermissions(row.project_path).mode, 'ask');
     assert.equal(await resolveSessionWorkspacePath(f.project.project_id, f.appId), f.cwd);
     assert.equal(readSessionLocation(f.appId).projectPath, f.repository);
     assert.equal(sessionsDb.countSessionsByProjectPath(f.repository), 1);

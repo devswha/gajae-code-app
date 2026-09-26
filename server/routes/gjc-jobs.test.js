@@ -119,12 +119,11 @@ test('GJC job creation rejects managed worktree project paths before orchestrato
     await server.close();
   }
 });
-test('GJC job creation rejects project paths outside the workspace root', async () => {
-  // A job's project path becomes the agent's working root exactly like a
-  // session's, so a path the owner never opened must not reach the
-  // orchestrator at all.
-  let starts = 0;
-  const orchestrator = { start: async () => { starts++; throw new Error('must not be called'); } };
+test('GJC job creation reaches the orchestrator for a project anywhere on the machine', async () => {
+  // Like the GJC CLI, a job may run in any directory: nothing outside
+  // WORKSPACES_ROOT is refused before the orchestrator sees it.
+  const started = [];
+  const orchestrator = { start: async (_provider, _session, projectPath) => { started.push(projectPath); throw new Error('stop after admission'); } };
   const app = express();
   app.use(express.json());
   app.use(createGjcJobsRouter({ orchestrator, gitService: {} }));
@@ -137,10 +136,9 @@ test('GJC job creation rejects project paths outside the workspace root', async 
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ message: 'do it', projectPath }),
       });
-      assert.equal(response.status, 400);
-      assert.equal((await response.json()).code, 'invalid_project_path');
+      assert.notEqual((await response.json()).code, 'invalid_project_path');
     }
-    assert.equal(starts, 0);
+    assert.deepEqual(started, [outside, path.parse(os.homedir()).root]);
   } finally {
     await server.close();
     await rm(outside, { recursive: true, force: true });

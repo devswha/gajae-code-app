@@ -188,15 +188,7 @@
     "noGrants": "No saved automation approvals.",
     "origin": "Site origin",
     "application": "Desktop application",
-    "revoke": "Remove approval",
-    "withheld": "Withheld runtime features",
-    "withheldDescription": "The app decides its own tool set. These runtime features stay off for every session, whatever your GJC configuration says.",
-    "withheldMcp": "Project MCP servers",
-    "withheldMcpReason": "Servers you registered in GJC yourself (gjc mcp add) load exactly as in the CLI. A project’s own .gjc/mcp.json is not loaded, so opening a repository cannot start its programs inside a session.",
-    "withheldToolDiscovery": "Tool discovery",
-    "withheldToolDiscoveryReason": "Sessions cannot activate additional tools at runtime; the app-selected set is the whole set.",
-    "withheldAstEdit": "AST edit",
-    "withheldAstEditReason": "It only previews rewrites and applies them through a tool the app does not expose, so it would advertise edits a session could never commit."
+    "revoke": "Remove approval"
   },
   "notifications": {
     "title": "Notifications",
@@ -279,14 +271,14 @@
   },
   "permissions": {
     "title": "Permissions",
-    "description": "Per-project rules for what the agent may run without asking. Projects on the default policy (Ask, nothing always allowed) are not listed.",
+    "description": "Per-project rules for what the agent may run without asking. Projects on the default policy (Bypass, as in the GJC CLI, nothing always allowed) are not listed.",
     "mode": "Mode",
     "alwaysAllowed": "Always allowed",
     "none": "None",
     "revoke": "Revoke",
     "revokeTool": "Stop always allowing {{tool}}",
-    "resetToAsk": "Reset to Ask",
-    "empty": "Every project asks before running commands.",
+    "resetToDefault": "Reset to default",
+    "empty": "Every project runs without asking, as the GJC CLI does.",
     "loading": "Loading…",
     "error": "Permissions could not be loaded."
   }

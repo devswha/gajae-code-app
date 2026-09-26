@@ -1,4 +1,4 @@
-import { isGjcPermissionMode, isGjcPermissionToolName, type GjcRunPermissions } from '@/gjc-engine.js';
+import { DEFAULT_GJC_PERMISSION_MODE, isGjcPermissionMode, isGjcPermissionToolName, type GjcRunPermissions } from '@/gjc-engine.js';
 import { projectPermissionsDb, projectsDb } from '@/modules/database/index.js';
 import type { ProjectPermissionMode, ProjectPermissionsRow, ProjectRepositoryRow } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
@@ -9,11 +9,10 @@ export type ProjectPermissionsView = {
   projectPath: string;
   mode: ProjectPermissionMode;
   allowAlways: string[];
-  bypassAcknowledged: boolean;
   updatedAt: string | null;
 };
 
-export type UpdateProjectPermissionModeInput = { mode: unknown; acknowledgeBypass?: unknown };
+export type UpdateProjectPermissionModeInput = { mode: unknown };
 
 function view(project: ProjectRepositoryRow, row: ProjectPermissionsRow): ProjectPermissionsView {
   return {
@@ -21,7 +20,6 @@ function view(project: ProjectRepositoryRow, row: ProjectPermissionsRow): Projec
     projectPath: project.project_path,
     mode: row.mode,
     allowAlways: row.allow_always,
-    bypassAcknowledged: row.bypass_acknowledged,
     updatedAt: row.updated_at,
   };
 }
@@ -46,24 +44,13 @@ export function getProjectPermissions(projectId: string): ProjectPermissionsView
   return view(project, projectPermissionsDb.get(project.project_path));
 }
 
-/**
- * Switches the mode. `bypass` is refused until the caller acknowledges the
- * one-time warning, either in this request or on an earlier one for the same
- * project, so a stray click cannot silence every card.
- */
+/** Switches the mode. Every mode, bypass included, is one request away, as in the CLI. */
 export function updateProjectPermissionMode(projectId: string, input: UpdateProjectPermissionModeInput): ProjectPermissionsView {
   const project = requireProject(projectId);
   if (!isGjcPermissionMode(input.mode)) {
     throw new AppError('mode must be one of ask, auto_edits, bypass', { code: 'INVALID_PERMISSION_MODE', statusCode: 400 });
   }
-  const acknowledgeBypass = input.acknowledgeBypass === true;
-  if (input.mode === 'bypass' && !acknowledgeBypass && !projectPermissionsDb.get(project.project_path).bypass_acknowledged) {
-    throw new AppError('Enabling bypass requires acknowledging the warning first', {
-      code: 'BYPASS_ACKNOWLEDGEMENT_REQUIRED',
-      statusCode: 409,
-    });
-  }
-  return view(project, projectPermissionsDb.setMode(project.project_path, input.mode, { acknowledgeBypass }));
+  return view(project, projectPermissionsDb.setMode(project.project_path, input.mode));
 }
 
 export function revokeProjectAlwaysAllow(projectId: string, toolName: unknown): ProjectPermissionsView {
@@ -99,7 +86,7 @@ export function grantProjectAlwaysAllow(projectPath: string, toolName: unknown):
 
 /** The policy block a run's options carry to the worker. */
 export function resolveRunPermissions(projectPath: string | null | undefined): GjcRunPermissions {
-  if (!projectPath) return { mode: 'ask', allowAlways: [] };
+  if (!projectPath) return { mode: DEFAULT_GJC_PERMISSION_MODE, allowAlways: [] };
   const row = projectPermissionsDb.get(projectPath);
   return { mode: row.mode, allowAlways: row.allow_always };
 }

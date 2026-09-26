@@ -173,15 +173,7 @@
     "noGrants": "Keine gespeicherten Automatisierungsgenehmigungen.",
     "origin": "Herkunft der Website",
     "application": "Desktop-Anwendung",
-    "revoke": "Genehmigung entfernen",
-    "withheld": "In der App deaktivierte Laufzeitfunktionen",
-    "withheldDescription": "Die App bestimmt ihren eigenen Werkzeugsatz. Unabhängig von Ihrer GJC-Konfiguration bleiben diese Laufzeitfunktionen in jeder Sitzung aus.",
-    "withheldMcp": "Projekt-MCP-Server",
-    "withheldMcpReason": "Server, die Sie selbst in GJC registriert haben (gjc mcp add), werden genau wie in der CLI geladen. Die .gjc/mcp.json eines Projekts wird nicht geladen, damit das Öffnen eines Repositorys keines seiner Programme in einer Sitzung startet.",
-    "withheldToolDiscovery": "Werkzeugsuche",
-    "withheldToolDiscoveryReason": "Sitzungen können zur Laufzeit keine weiteren Werkzeuge aktivieren; der von der App gewählte Satz ist der gesamte Satz.",
-    "withheldAstEdit": "AST-Bearbeitung",
-    "withheldAstEditReason": "Sie zeigt Änderungen nur als Vorschau und wendet sie über ein Werkzeug an, das die App nicht bereitstellt — sie würde also Änderungen anbieten, die eine Sitzung nie übernehmen könnte."
+    "revoke": "Genehmigung entfernen"
   },
   "notifications": {
     "title": "Hinweise",
@@ -264,14 +256,14 @@
   },
   "permissions": {
     "title": "Berechtigungen",
-    "description": "Projektweise Regeln dafür, was der Agent ohne Nachfrage ausführen darf. Projekte mit der Standardrichtlinie (Fragen, nichts immer erlaubt) werden nicht aufgeführt.",
+    "description": "Projektweise Regeln dafür, was der Agent ohne Nachfrage ausführen darf. Projekte mit der Standardrichtlinie (Umgehen wie in der GJC-CLI, nichts immer erlaubt) werden nicht aufgeführt.",
     "mode": "Modus",
     "alwaysAllowed": "Immer erlaubt",
     "none": "Keine",
     "revoke": "Entziehen",
     "revokeTool": "{{tool}} nicht mehr immer erlauben",
-    "resetToAsk": "Auf „Fragen“ zurücksetzen",
-    "empty": "Jedes Projekt fragt, bevor Befehle ausgeführt werden.",
+    "resetToDefault": "Auf Standard zurücksetzen",
+    "empty": "Jedes Projekt läuft wie die GJC-CLI ohne Nachfrage.",
     "loading": "Wird geladen…",
     "error": "Berechtigungen konnten nicht geladen werden."
   }

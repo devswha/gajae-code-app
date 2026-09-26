@@ -90,13 +90,13 @@ test('one click creates the scratch project, refreshes the list and opens a conv
 
 test('a server failure keeps the empty state and shows the reason', async () => {
   const { opened, restore } = mount((call) => {
-    if (call.url.includes('/api/projects/scratch')) return json({ success: false, error: { code: 'INVALID_PROJECT_PATH', message: 'Invalid project path', details: 'Workspace path must be within the allowed workspace root: /srv' } }, 400);
+    if (call.url.includes('/api/projects/scratch')) return json({ success: false, error: { code: 'INVALID_PROJECT_PATH', message: 'Invalid project path', details: 'Path validation failed: EACCES: permission denied, realpath \'/srv\'' } }, 400);
     return json([]);
   });
   try {
     fireEvent.click(screen.getByTestId('main-start-scratch'));
     const alert = await screen.findByRole('alert');
-    assert.equal(alert.textContent, 'failed: Workspace path must be within the allowed workspace root: /srv');
+    assert.equal(alert.textContent, "failed: Path validation failed: EACCES: permission denied, realpath '/srv'");
     assert.deepEqual(opened, []);
     assert.equal((screen.getByTestId('main-start-scratch') as HTMLButtonElement).disabled, false, 'the button is usable again');
   } finally {

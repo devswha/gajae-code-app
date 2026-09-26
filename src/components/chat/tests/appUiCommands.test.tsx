@@ -165,9 +165,7 @@ test('typed TUI-only command gets a local notice instead of a model prompt', asy
   assert.match(notice.content, /not available in the app/);
 });
 
-test('an unknown slash command is held for confirmation, not sent blind', async () => {
-  // Before the gate this fell straight through to chat.send. Fail-closed now:
-  // a form the app cannot classify asks once instead of running unannounced.
+test('an unknown slash command reaches the runtime, which answers it as the CLI would', async () => {
   const sentMessages: unknown[] = [];
   const addedMessages: unknown[] = [];
   const composer = captureComposer(sentMessages, addedMessages);
@@ -175,8 +173,9 @@ test('an unknown slash command is held for confirmation, not sent blind', async 
   composer.handleVoiceTranscript('/not-a-real-command hello');
   await composer.handleSubmit(submitEvent);
 
-  assert.deepEqual(sentMessages, []);
-  assert.deepEqual(addedMessages, []);
+  assert.equal(sentMessages.length, 1);
+  assert.equal((sentMessages[0] as { content: string }).content, '/not-a-real-command hello');
+  assert.deepEqual(addedMessages.filter((message) => (message as { type?: string }).type === 'assistant'), [], 'no local notice');
 });
 
 test('a TUI command the app can already do points at how to do it', () => {
@@ -302,8 +301,7 @@ test('/models with arguments reaches the runtime unchanged', async () => {
   assert.equal((sentMessages[0] as { content: string }).content, '/models gpt-test-2');
 });
 
-test('/contribution-prep is gated, because /contribute-pr is', async () => {
-  // An alias must not be a way around the confirmation its command carries.
+test('/contribution-prep runs like /contribute-pr, the command it aliases', async () => {
   const sentMessages: unknown[] = [];
   const addedMessages: unknown[] = [];
   const composer = captureComposer(sentMessages, addedMessages);
@@ -311,8 +309,9 @@ test('/contribution-prep is gated, because /contribute-pr is', async () => {
   composer.handleVoiceTranscript('/contribution-prep focus e2e');
   await composer.handleSubmit(submitEvent);
 
-  assert.deepEqual(sentMessages, []);
-  assert.deepEqual(addedMessages, []);
+  assert.equal(sentMessages.length, 1);
+  assert.equal((sentMessages[0] as { content: string }).content, '/contribution-prep focus e2e');
+  assert.deepEqual(addedMessages.filter((message) => (message as { type?: string }).type === 'assistant'), [], 'no local notice');
 });
 
 test('/notify on and off are answered locally, other verbs still dispatch', async () => {

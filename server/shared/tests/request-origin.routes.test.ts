@@ -12,15 +12,13 @@ import { createGjcAppFactory } from '../../app-factory.js';
 import { validateApiKey } from '../../middleware/auth.js';
 
 async function fixture(t: TestContext, allowedHosts?: string) {
-  const previous = Object.fromEntries(['ALLOWED_HOSTS', 'API_KEY', 'GJC_DESKTOP', 'WORKSPACES_ROOT'].map((key) => [key, process.env[key]]));
+  const previous = Object.fromEntries(['ALLOWED_HOSTS', 'API_KEY', 'GJC_DESKTOP'].map((key) => [key, process.env[key]]));
   delete process.env.API_KEY;
   delete process.env.GJC_DESKTOP;
   if (allowedHosts === undefined) delete process.env.ALLOWED_HOSTS;
   else process.env.ALLOWED_HOSTS = allowedHosts;
-  // This suite is about origin admission, so the job payload's project path has
-  // to be a real directory inside the workspace root the gate checks.
+  // This suite is about origin admission; the job payload names a real directory.
   const projectRoot = await realpath(await mkdtemp(path.join(tmpdir(), 'request-origin-routes-')));
-  process.env.WORKSPACES_ROOT = projectRoot;
   t.after(async () => {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];

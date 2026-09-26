@@ -7,7 +7,7 @@ import PermissionContext from '../../../contexts/PermissionContext';
 import { displayModelId, readSessionFacts, readTokenTotals, type SessionStatusSnapshot } from '../../../contexts/sessionStatusSnapshot';
 import { usePublishSessionStatus } from '../../../contexts/SessionStatusContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
-import { useLegacySkipPermissionsMigration, useProjectPermissions } from '../../../hooks/useProjectPermissions';
+import { useProjectPermissions } from '../../../hooks/useProjectPermissions';
 import type { ProjectSession } from '../../../types/app';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useSessionLocation } from '../hooks/useSessionLocation';
@@ -74,7 +74,6 @@ function ChatInterface({
   } = useChatProviderState({ selectedSession, selectedProject });
   const oauthLogin = useOAuthLogin();
   const projectPermissions = useProjectPermissions(selectedProject?.projectId);
-  useLegacySkipPermissionsMigration(selectedProject?.projectId, projectPermissions.setMode);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(readReasoningEffort);
   const reasoningSessionRef = useRef<string | null>(selectedSession?.id ?? null);
 
@@ -268,9 +267,6 @@ function ChatInterface({
       onEditQueuedDraft={composer.editQueuedDraft}
       onDeleteQueuedDraft={composer.deleteQueuedDraft}
       onMoveQueuedDraft={composer.moveQueuedDraft}
-      pendingCommandGate={composer.pendingCommandGate}
-      onConfirmCommandGate={composer.confirmCommandGate}
-      onCancelCommandGate={composer.cancelCommandGate}
       attachedImages={composer.attachedImages}
       onRemoveImage={(index) => composer.setAttachedImages((images) => images.filter((_, imageIndex) => imageIndex !== index))}
       attachmentNotice={composer.attachmentNotice}

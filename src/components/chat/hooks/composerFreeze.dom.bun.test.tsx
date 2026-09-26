@@ -115,7 +115,6 @@ function Composer({ repository, overrides = {} }: { repository: Repository; over
       isLoading={overrides.isLoading ?? base.isLoading} sessionState={null} onShowTokenUsage={() => {}} onAbortSession={c.handleAbortSession}
       onSubmit={c.handleSubmit} onSteer={c.handleSteer}
       onEditQueuedDraft={c.editQueuedDraft} onDeleteQueuedDraft={c.deleteQueuedDraft} onMoveQueuedDraft={c.moveQueuedDraft}
-      onConfirmCommandGate={c.confirmCommandGate} onCancelCommandGate={c.cancelCommandGate}
       onRemoveImage={(index) => c.setAttachedImages((files) => files.filter((_, position) => position !== index))}
       onDismissAttachmentNotice={c.dismissAttachmentNotice}
       onSelectFile={c.selectFile} onCommandSelect={c.handleCommandSelect}
@@ -565,21 +564,6 @@ test('steer and voice-send callbacks captured before freeze cannot dispatch new 
   assert.equal(view.result.current.input, 'kept input late transcript');
   assert.equal(view.result.current.queuedDrafts.length, 0);
   assert.equal(isComposerFreezeCurrent(receipt), false);
-});
-
-test('a pending command confirmation retains its text and Files in the durable draft', async () => {
-  const repository = new Repository(); const view = composer(repository, { isLoading: false }); await saved(view);
-  act(() => { view.result.current.setInput('/clear'); view.result.current.setAttachedImages(dataFiles()); });
-  await act(async () => view.result.current.handleSubmit(submit()));
-  assert.ok(view.result.current.pendingCommandGate);
-  const receipt = await freeze();
-  assert.equal(receipt.drafts[0].fileCount, 2);
-  assert.equal([...repository.records.values()][0].input, '/clear');
-  act(() => { view.result.current.confirmCommandGate(); });
-  assert.ok(view.result.current.pendingCommandGate);
-  act(() => { view.result.current.handleInputChange({ target: { value: 'replacement draft', selectionStart: 17 } } as never); });
-  assert.equal(view.result.current.pendingCommandGate, null, 'editing invalidates the old confirmation');
-  assert.equal(view.result.current.input, 'replacement draft');
 });
 
 test('storage events and direct projection changes invalidate an already-issued receipt', async () => {

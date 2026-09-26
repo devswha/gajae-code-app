@@ -10,9 +10,9 @@ import { defaultProjectPermissions, type PermissionModeUpdate, type ProjectPermi
 import PermissionModePicker from './PermissionModePicker';
 
 /*
- * Opening the popup, choosing a mode and the bypass confirmation all live in
- * state and effects, which a static render never reaches. This mounts the real
- * picker and drives it the way a user would.
+ * Opening the popup and choosing a mode live in state and effects, which a
+ * static render never reaches. This mounts the real picker and drives it the
+ * way a user would.
  */
 
 const permissions = (overrides: Partial<ProjectPermissions> = {}): ProjectPermissions => ({
@@ -42,7 +42,13 @@ test('clicking the trigger lists the three modes with the current one selected',
   assert.deepEqual(options.map((option) => option.getAttribute('aria-selected')), ['false', 'true', 'false']);
 });
 
-test('choosing a non-bypass mode reports it at once and closes the popup', async () => {
+test('a project on the default policy shows Bypass, as the GJC CLI runs without asking', () => {
+  const { trigger } = mount(permissions());
+  assert.equal(trigger.getAttribute('data-mode'), 'bypass');
+  assert.equal(trigger.textContent?.includes('Bypass'), true);
+});
+
+test('choosing a mode reports it at once and closes the popup', async () => {
   const { updates, trigger } = mount(permissions());
   fireEvent.click(trigger);
   fireEvent.click(screen.getByRole('option', { name: /Auto-approve edits/ }));
@@ -51,27 +57,8 @@ test('choosing a non-bypass mode reports it at once and closes the popup', async
   assert.equal(screen.queryByRole('listbox'), null);
 });
 
-test('the first switch to bypass asks for confirmation and only then reports it, acknowledged', async () => {
-  const { updates, trigger } = mount(permissions());
-  fireEvent.click(trigger);
-  fireEvent.click(screen.getByRole('option', { name: /Bypass/ }));
-
-  const dialog = await screen.findByRole('dialog');
-  assert.match(dialog.textContent ?? '', /run any command without asking/);
-  assert.deepEqual(updates, [], 'nothing is sent before the user confirms');
-
-  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-  await waitFor(() => assert.equal(screen.queryByRole('dialog') === null, true));
-  assert.deepEqual(updates, [], 'cancelling keeps the current mode');
-
-  fireEvent.click(trigger);
-  fireEvent.click(screen.getByRole('option', { name: /Bypass/ }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Enable bypass' }));
-  await waitFor(() => assert.deepEqual(updates, [{ mode: 'bypass', acknowledgeBypass: true }]));
-});
-
-test('a project that already acknowledged the warning switches to bypass without a second dialog', async () => {
-  const { updates, trigger } = mount(permissions({ bypassAcknowledged: true }));
+test('switching to bypass needs no confirmation, as in the CLI', async () => {
+  const { updates, trigger } = mount(permissions({ mode: 'ask' }));
   fireEvent.click(trigger);
   fireEvent.click(screen.getByRole('option', { name: /Bypass/ }));
 
@@ -88,21 +75,6 @@ test('Cmd/Ctrl+Shift+P opens the picker from anywhere while it is mounted', () =
 
   fireEvent.keyDown(document, { key: 'Escape' });
   assert.equal(screen.queryByRole('listbox'), null);
-});
-
-test('switching projects dismisses the previous project bypass confirmation', async () => {
-  const updates: unknown[] = [];
-  const view = render(createElement(PermissionModePicker, {
-    permissions: permissions(), onSelectMode: (update) => { updates.push(['a', update]); },
-  }));
-  fireEvent.click(screen.getByRole('button', { name: 'Permission mode' }));
-  fireEvent.click(screen.getByRole('option', { name: /Bypass/ }));
-  assert.ok(await screen.findByRole('button', { name: 'Enable bypass' }));
-  view.rerender(createElement(PermissionModePicker, {
-    permissions: permissions({ projectId: 'project-2' }), onSelectMode: (update) => { updates.push(['b', update]); },
-  }));
-  assert.equal(screen.queryByRole('dialog'), null, 'a confirmation for A must never enable bypass for B');
-  assert.deepEqual(updates, []);
 });
 
 test('the keyboard shortcut cannot open the mode picker while a policy write is pending', () => {

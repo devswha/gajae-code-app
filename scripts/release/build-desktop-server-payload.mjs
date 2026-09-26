@@ -31,6 +31,7 @@ const RUNTIME_DEPENDENCIES = [
   'node-pty',
   'puppeteer-core',
   'shell-quote',
+  'web-push',
   'ws',
   'zod',
 ];

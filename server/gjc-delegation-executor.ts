@@ -393,8 +393,10 @@ export class GjcDelegationExecutor {
       const inherited: string[] = parent.getActiveToolNames().filter((name: string) => requested.has(name));
       // Role tools can narrow the parent policy, never widen it. The SDK's exec
       // pseudo-tool is deliberately not expanded into unrequested capabilities.
+      // A browser or computer the parent holds is inherited with the same
+      // implementation: the app transport in `base.automationTools` when the
+      // parent has one, the runtime's own tool otherwise.
       const allowed = inherited.filter((name) => name !== 'goal'
-        && (name !== 'browser' && name !== 'computer' || base.automationTools?.[name] !== undefined)
         && (!role.tools || role.tools.includes(name) || name === 'task' || name === 'subagent' || name === 'ask'));
       // Public extension hooks guard later subskill activation as well as the
       // initial selection. A tool added after bootstrap cannot widen policy.

@@ -237,13 +237,6 @@
         "label": "Atla",
         "description": "Hiçbir şey sorulmaz. Ajan bu projede her komutu çalıştırır."
       }
-    },
-    "bypassConfirm": {
-      "title": "İzin istemleri kapatılsın mı?",
-      "body": "Ajan sormadan her komutu çalıştırabilecek.",
-      "scope": "Yalnızca bu proje için geçerlidir. İstediğiniz zaman “Sor” moduna dönebilirsiniz.",
-      "cancel": "İptal",
-      "confirm": "Atlamayı etkinleştir"
     }
   },
   "permissionCard": {

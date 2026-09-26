@@ -67,7 +67,7 @@ test('the registered browser action scopes a desktop launch to the selected sess
     if (path === '/api/projects?skipSynchronization=1') return new Response('[]');
     if (path.endsWith('/permissions')) {
       return new Response(JSON.stringify({ data: {
-        projectId: 'project-a', projectPath: '/work/alpha', mode: 'ask', allowAlways: [], bypassAcknowledged: false, updatedAt: null,
+        projectId: 'project-a', projectPath: '/work/alpha', mode: 'ask', allowAlways: [], updatedAt: null,
       } }));
     }
     if (path.endsWith('/location')) return new Response(JSON.stringify({ data: { mode: 'direct', cwd: '/work/alpha' } }));
@@ -110,7 +110,7 @@ test('the external action hands HTTP links to the OS browser even when the built
     if (path === '/api/projects?skipSynchronization=1') return new Response('[]');
     if (path.endsWith('/permissions')) {
       return new Response(JSON.stringify({ data: {
-        projectId: 'project-a', projectPath: '/work/alpha', mode: 'ask', allowAlways: [], bypassAcknowledged: false, updatedAt: null,
+        projectId: 'project-a', projectPath: '/work/alpha', mode: 'ask', allowAlways: [], updatedAt: null,
       } }));
     }
     if (path.endsWith('/location')) return new Response(JSON.stringify({ data: { mode: 'direct', cwd: '/work/alpha' } }));
@@ -146,7 +146,7 @@ test('native launch failures are visible only for the session that made the requ
     if (path === '/api/projects?skipSynchronization=1') return new Response('[]');
     if (path.endsWith('/permissions')) {
       return new Response(JSON.stringify({ data: {
-        projectId: 'project-a', projectPath: '/work/alpha', mode: 'ask', allowAlways: [], bypassAcknowledged: false, updatedAt: null,
+        projectId: 'project-a', projectPath: '/work/alpha', mode: 'ask', allowAlways: [], updatedAt: null,
       } }));
     }
     if (path.endsWith('/location')) return new Response(JSON.stringify({ data: { mode: 'direct', cwd: '/work/alpha' } }));

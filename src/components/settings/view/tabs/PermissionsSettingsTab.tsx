@@ -19,7 +19,6 @@ function ProjectPermissionsRow({ entry, displayName, onRevoke, onReset }: Projec
   const { t } = useTranslation('settings');
   const { t: tChat } = useTranslation('chat');
   const ModeIcon = PERMISSION_MODE_ICONS[entry.mode];
-  const isBypass = entry.mode === 'bypass';
 
   return (
     <div className="space-y-3 px-4 py-4" data-project-id={entry.projectId}>
@@ -29,12 +28,12 @@ function ProjectPermissionsRow({ entry, displayName, onRevoke, onReset }: Projec
           <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground" title={entry.projectPath}>{entry.projectPath}</div>
         </div>
         <Button variant="outline" size="sm" onClick={onReset} className="shrink-0">
-          {t('permissions.resetToAsk')}
+          {t('permissions.resetToDefault')}
         </Button>
       </div>
       <dl className="grid grid-cols-[6rem_1fr] gap-x-3 gap-y-2 text-sm">
         <dt className="text-muted-foreground">{t('permissions.mode')}</dt>
-        <dd className={`inline-flex items-center gap-1.5 font-medium ${isBypass ? 'text-destructive' : 'text-foreground'}`} data-mode={entry.mode}>
+        <dd className="inline-flex items-center gap-1.5 font-medium text-foreground" data-mode={entry.mode}>
           <ModeIcon className="size-3.5" aria-hidden />
           {tChat(`permissionMode.modes.${entry.mode}.label`)}
         </dd>
@@ -68,8 +67,8 @@ function ProjectPermissionsRow({ entry, displayName, onRevoke, onReset }: Projec
 
 /**
  * Every project whose permission policy is not the default, with the two
- * ways back: revoke one always-allowed tool, or reset the whole project to Ask.
- * Projects on the default are not listed, so an empty list is the safe state.
+ * ways back: revoke one always-allowed tool, or reset the whole project to the
+ * default (Bypass, as in the GJC CLI). Projects on the default are not listed.
  */
 export default function PermissionsSettingsTab() {
   const { t } = useTranslation('settings');

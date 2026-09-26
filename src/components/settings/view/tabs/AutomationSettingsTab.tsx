@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ExternalLink, RefreshCw, ShieldCheck, SquareSlash, Trash2 } from 'lucide-react';
+import { ExternalLink, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useAppShellStore } from '../../../../stores/useAppShellStore';
@@ -336,35 +336,6 @@ export default function AutomationSettingsTab() {
         </SettingsCard>
       </SettingsSection>
 
-      {/*
-        * The app overrides four runtime settings for every session:
-        * `mcp.discoveryMode`, `mcp.enableProjectConfig`, `tools.discoveryMode`
-        * and `astEdit.enabled`. Those overrides are a deliberate boundary and
-        * they stay - but until now nothing said so, and the first wording of
-        * this block overstated it: user-scope MCP servers (`gjc mcp add`) do
-        * load, exactly as in the CLI; it is a project's own `.gjc/mcp.json`
-        * that never does (`server/GJC-LIVE-SPEC.md`, "MCP servers"). The row
-        * says that, so "works in the CLI, missing here" has an answer.
-        *
-        * Reports, not controls: there is nothing to toggle, because the point
-        * is that a session cannot toggle them either.
-        */}
-      <SettingsSection title={t('automation.withheld')} description={t('automation.withheldDescription')}>
-        <SettingsCard>
-          {([
-            ['mcp', 'automation.withheldMcp', 'automation.withheldMcpReason'],
-            ['toolDiscovery', 'automation.withheldToolDiscovery', 'automation.withheldToolDiscoveryReason'],
-            ['astEdit', 'automation.withheldAstEdit', 'automation.withheldAstEditReason'],
-          ] as const).map(([key, label, reason]) => (
-            <SettingsRow key={key} label={t(label)} description={t(reason)}>
-              <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                <SquareSlash className="h-3.5 w-3.5" aria-hidden />
-                {t('automation.notInstalled')}
-              </span>
-            </SettingsRow>
-          ))}
-        </SettingsCard>
-      </SettingsSection>
     </div>
   );
 }

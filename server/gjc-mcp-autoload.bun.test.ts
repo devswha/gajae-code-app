@@ -11,15 +11,15 @@ import { SessionManager } from '@gajae-code/coding-agent/session/session-manager
 import { applyGjcToolSettingsPolicy } from './gjc-bun-sdk-adapter.js';
 
 /*
- * Which MCP servers reach an app session is decided by scope, not by the
- * discovery switches (owner decision 2026-09-18, #161):
+ * MCP servers reach an app session exactly as they reach a GJC CLI session
+ * (owner decision 2026-09-27, which replaces the project-scope refusal of
+ * #161):
  *
- * - user scope, `<agentDir>/mcp.json` (what `gjc mcp add` writes): loads as in
- *   the CLI, and its tools are always-on regardless of `toolNames`;
- * - project scope, `<cwd>/.gjc/mcp.json`: never loads, so opening a repository
- *   cannot start its programs inside a session.
+ * - user scope, `<agentDir>/mcp.json` (what `gjc mcp add` writes);
+ * - project scope, `<cwd>/.gjc/mcp.json` (what `gjc mcp add --project` writes),
+ *   which the runtime loads unless `mcp.enableProjectConfig` is set to false.
  *
- * Both halves depend on runtime behaviour the app does not own - conventional
+ * Both depend on runtime behaviour the app does not own - conventional
  * autoload, the "unset means true" reading of `mcp.enableProjectConfig`, and
  * the always-include of conventional tools past an explicit `toolNames` - so
  * both are pinned against the real SDK with a real stdio server. A bun test
@@ -91,19 +91,7 @@ async function fixture() {
 const userTool = 'mcp__userscope_probe_echo';
 const projectTool = 'mcp__projectscope_probe_echo';
 
-test('the runtime itself loads both scopes, so the project half is the app\'s decision', async () => {
-  const f = await fixture();
-  try {
-    const session = await f.open();
-    try {
-      const active = session.getActiveToolNames();
-      assert.ok(active.includes(userTool), active.join(', '));
-      assert.ok(active.includes(projectTool), 'runtime stopped autoloading project scope; the policy override may be redundant now');
-    } finally { await session.dispose(); }
-  } finally { await f.close(); }
-});
-
-test('with the app policy, user-scope servers load as in the CLI and project scope does not', async () => {
+test('with the app policy, both scopes load as in the CLI', async () => {
   const f = await fixture();
   try {
     applyGjcToolSettingsPolicy(f.settings);
@@ -111,11 +99,25 @@ test('with the app policy, user-scope servers load as in the CLI and project sco
     try {
       const active = session.getActiveToolNames();
       assert.ok(active.includes(userTool), `user-scope MCP tool missing from: ${active.join(', ')}`);
-      assert.ok(!active.includes(projectTool), `project-scope MCP tool leaked into: ${active.join(', ')}`);
-      // Always-on, not merely discoverable: discovery is off and the tool was
-      // not in `toolNames`, yet it is active for the model right now.
-      assert.equal(f.settings.get('tools.discoveryMode'), 'off');
+      assert.ok(active.includes(projectTool), `project-scope MCP tool missing from: ${active.join(', ')}`);
+      // Always-on, not merely discoverable: the tools were not in `toolNames`,
+      // yet they are active for the model right now.
       assert.ok(session.getToolByName(userTool), 'the user-scope tool must be executable, not just listed');
+      assert.ok(session.getToolByName(projectTool), 'the project-scope tool must be executable, not just listed');
+    } finally { await session.dispose(); }
+  } finally { await f.close(); }
+});
+
+test('a user who turned project scope off in ~/.gjc keeps that choice in the app', async () => {
+  const f = await fixture();
+  try {
+    f.settings.override('mcp.enableProjectConfig', false);
+    applyGjcToolSettingsPolicy(f.settings);
+    const session = await f.open();
+    try {
+      const active = session.getActiveToolNames();
+      assert.ok(active.includes(userTool), active.join(', '));
+      assert.ok(!active.includes(projectTool), active.join(', '));
     } finally { await session.dispose(); }
   } finally { await f.close(); }
 });

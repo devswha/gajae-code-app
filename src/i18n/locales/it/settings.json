@@ -173,15 +173,7 @@
     "noGrants": "Nessuna approvazione di automazione salvata.",
     "origin": "Origine del sito",
     "application": "Applicazione desktop",
-    "revoke": "Rimuovi l'approvazione",
-    "withheld": "Funzioni del runtime disattivate nell'app",
-    "withheldDescription": "L'app decide il proprio insieme di strumenti. Qualunque sia la tua configurazione GJC, queste funzioni del runtime restano disattivate in ogni sessione.",
-    "withheldMcp": "Server MCP del progetto",
-    "withheldMcpReason": "I server che hai registrato tu stesso in GJC (gjc mcp add) vengono caricati esattamente come nella CLI. Il .gjc/mcp.json di un progetto non viene caricato, così aprire un repository non può avviare i suoi programmi in una sessione.",
-    "withheldToolDiscovery": "Rilevamento strumenti",
-    "withheldToolDiscoveryReason": "Le sessioni non possono attivare altri strumenti in esecuzione; l'insieme scelto dall'app è l'insieme completo.",
-    "withheldAstEdit": "Modifica AST",
-    "withheldAstEditReason": "Si limita ad anteprimare le riscritture e le applica tramite uno strumento che l'app non espone, quindi proporrebbe modifiche che una sessione non potrebbe mai confermare."
+    "revoke": "Rimuovi l'approvazione"
   },
   "notifications": {
     "title": "Avvisi",
@@ -264,14 +256,14 @@
   },
   "permissions": {
     "title": "Permessi",
-    "description": "Regole per progetto su cosa l’agente può eseguire senza chiedere. I progetti con la politica predefinita (Chiedi, niente sempre consentito) non sono elencati.",
+    "description": "Regole per progetto su cosa l’agente può eseguire senza chiedere. I progetti con la politica predefinita (Ignora, come nella CLI GJC, niente sempre consentito) non sono elencati.",
     "mode": "Modalità",
     "alwaysAllowed": "Sempre consentiti",
     "none": "Nessuno",
     "revoke": "Revoca",
     "revokeTool": "Non consentire più sempre {{tool}}",
-    "resetToAsk": "Ripristina « Chiedi »",
-    "empty": "Ogni progetto chiede prima di eseguire comandi.",
+    "resetToDefault": "Ripristina predefinito",
+    "empty": "Ogni progetto viene eseguito senza chiedere, come la CLI GJC.",
     "loading": "Caricamento…",
     "error": "Impossibile caricare i permessi."
   }

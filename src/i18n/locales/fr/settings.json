@@ -173,15 +173,7 @@
     "noGrants": "Aucune approbation d’automatisation enregistrée.",
     "origin": "Origine du site",
     "application": "Application de bureau",
-    "revoke": "Supprimer l'approbation",
-    "withheld": "Fonctions du runtime désactivées dans l'application",
-    "withheldDescription": "L'application décide de son propre jeu d'outils. Quelle que soit votre configuration GJC, ces fonctions du runtime restent désactivées dans toutes les sessions.",
-    "withheldMcp": "Serveurs MCP du projet",
-    "withheldMcpReason": "Les serveurs que vous avez enregistrés vous-même dans GJC (gjc mcp add) sont chargés exactement comme dans la CLI. Le .gjc/mcp.json d’un projet n’est pas chargé, afin qu’ouvrir un dépôt ne puisse pas lancer ses programmes dans une session.",
-    "withheldToolDiscovery": "Découverte d'outils",
-    "withheldToolDiscoveryReason": "Une session ne peut pas activer d'outils supplémentaires en cours d'exécution ; le jeu choisi par l'application est le jeu complet.",
-    "withheldAstEdit": "Édition AST",
-    "withheldAstEditReason": "Elle ne fait que prévisualiser les réécritures et les applique via un outil que l'application n'expose pas : elle annoncerait donc des modifications qu'une session ne pourrait jamais valider."
+    "revoke": "Supprimer l'approbation"
   },
   "notifications": {
     "title": "Alertes",
@@ -264,14 +256,14 @@
   },
   "permissions": {
     "title": "Permissions",
-    "description": "Règles par projet sur ce que l’agent peut exécuter sans demander. Les projets utilisant la politique par défaut (Demander, rien de toujours autorisé) ne sont pas listés.",
+    "description": "Règles par projet sur ce que l’agent peut exécuter sans demander. Les projets utilisant la politique par défaut (Contourner, comme dans la CLI GJC, rien de toujours autorisé) ne sont pas listés.",
     "mode": "Mode",
     "alwaysAllowed": "Toujours autorisés",
     "none": "Aucun",
     "revoke": "Révoquer",
     "revokeTool": "Ne plus toujours autoriser {{tool}}",
-    "resetToAsk": "Revenir à « Demander »",
-    "empty": "Chaque projet demande avant d’exécuter des commandes.",
+    "resetToDefault": "Rétablir la valeur par défaut",
+    "empty": "Chaque projet s’exécute sans demander, comme la CLI GJC.",
     "loading": "Chargement…",
     "error": "Impossible de charger les permissions."
   }

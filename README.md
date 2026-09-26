@@ -30,11 +30,11 @@
 
 Gajae Code App is a self-hosted web and desktop interface for [Gajae Code](https://github.com/devswha/gajae-code). It drives the agent through the runtime's own SDK in an isolated worker, shows every turn as it happens, and puts a review loop between the agent's edits and your next message — on a machine you control, with credentials that never leave it.
 
-- **The same agent as the terminal**: the app uses the runtime's own account selection (`gjc accounts pin`, usage-limit rotation), the user's models, presets, skills and user-scope MCP servers, and slash commands such as `/fast`, `/effort`, `/context` and `/compact`. Reasoning streams live while the model thinks.
+- **The same agent as the terminal**: the app uses the runtime's own account selection (`gjc accounts pin`, usage-limit rotation), the user's models, presets, skills, user- and project-scope MCP servers, extensions and tool settings from `~/.gjc`, and slash commands such as `/fast`, `/effort`, `/context` and `/compact`, which run as soon as you send them. Sessions open in any directory, as `gjc` does. Reasoning streams live while the model thinks.
 - **Sessions with a state** — running, waiting for your answer, finished unread, or failed; a Work section lists what needs a look across every project, and the model titles each session from its first message.
 - **The work, folded** — a turn's tool calls collapse into one block with a live status row; three output densities; Stop or Esc ends a turn, a message sent mid-turn steers it.
-- **Permissions that ask** — commands and destructive edits wait for approval by default; each project picks Ask, Auto-approve edits or Bypass, plus an always-allow list.
-- **Isolated by default**: a new repository session runs in its own managed git worktree. The run-location picker can put it on the shared checkout instead, and a run that would rewrite git state outside its own checkout asks first.
+- **Permissions like the CLI** — tools run without asking by default, as in `gjc`; a project that wants cards picks Ask or Auto-approve edits, plus an always-allow list.
+- **Isolated by default**: a new repository session runs in its own managed git worktree. The run-location picker can put it on the shared checkout instead.
 - **A Changes tab, not a git GUI** — the working tree as a diff, a Last-turn scope for what the session just edited, and line comments that become the next message. Git stays the agent's job.
 - **Browser choices**: macOS desktop sessions can use the built-in system-WebView browser. Aside and ego lite are experimental backends, and web/self-host sessions use external links. Computer use is off until you turn it on in Settings.
 - **Every viewer** — a second tab or a phone on the LAN sees the same live run; the layout goes down to a phone screen, and over https a phone can subscribe to push notifications for approvals and finished runs.
@@ -71,13 +71,13 @@ The app uses the models, presets, skills and credentials of the Gajae Code insta
 
 ## Permission Modes
 
-The runtime's own gate defaults to *allow*; the app does not. Every project has a persisted mode, set from the composer or Settings → Permissions, and an always-allow list that the permission card's **Always allow** fills.
+The runtime's own gate defaults to *allow*, and so does the app: a project starts on **Bypass**, exactly like a `gjc` session in the terminal. Every project has a persisted mode, set from the composer or Settings → Permissions, and an always-allow list that the permission card's **Always allow** fills.
 
 | Mode | Runs without asking | Waits for approval |
 |---|---|---|
-| **Ask** (default) | Reads, searches, and file writes and edits the runtime does not gate | Commands (`bash`, `eval`), file deletes and moves — everything the runtime gates |
+| **Ask** | Reads, searches, and file writes and edits the runtime does not gate | Commands (`bash`, `eval`), file deletes and moves — everything the runtime gates |
 | **Auto-approve edits** | The above, plus every file mutation (`edit`, `write`, `delete`, `move`) | Commands |
-| **Bypass** | Everything | Nothing — for a scratch project you trust the agent with |
+| **Bypass** (default) | Everything, as in the GJC CLI | Nothing |
 
 A card answered in one tab closes in every other viewer. Always deny is offered when the runtime offers it and holds for the run.
 

@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 /**
- * `/export` output-path containment.
+ * `/export` output-path resolution.
  *
  * The upstream handler passes `command.args` straight to
  * `session.exportToHtml(arg || undefined)`, which resolves through
@@ -18,8 +18,9 @@ import path from 'node:path';
  * per run, at the command boundary, from the run's own `config.cwd`.
  *
  * This module rewrites the command text so the argument is an absolute path
- * contained inside the run's project directory, and rejects arguments that
- * would escape it.
+ * resolved against the run's project directory - the directory the GJC CLI
+ * would have been started in - so `/export` writes exactly where it would in
+ * the CLI, including paths that climb out of the project.
  */
 
 /** Mirrors `APP_NAME` in @gajae-code/utils, used by the upstream default name. */
@@ -37,24 +38,14 @@ const EXPORT_COMMAND = /^\/export(?:\s+([\s\S]*))?$/;
 export type ExportPathResolution =
   /** Not an /export invocation, or one this module deliberately leaves alone. */
   | { kind: 'passthrough' }
-  /** Rewritten so the handler receives an absolute, contained output path. */
-  | { kind: 'contained'; message: string; outputPath: string }
-  /** The requested path escapes the project directory; do not run the export. */
+  /** Rewritten so the handler receives an absolute output path. */
+  | { kind: 'resolved'; message: string; outputPath: string }
+  /** The run has no project directory to resolve against; do not run the export. */
   | { kind: 'rejected'; reason: string };
 
 /**
- * True when `candidate` is `root` itself or lies underneath it. Purely lexical:
- * both inputs must already be absolute and normalized. Symlink escapes are the
- * filesystem layer's problem, not this one's.
- */
-function isInside(root: string, candidate: string): boolean {
-  const relative = path.relative(root, candidate);
-  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
-}
-
-/**
  * Reproduces the upstream default export filename so a bare `/export` keeps
- * its familiar name while gaining an explicit, contained directory.
+ * its familiar name while gaining an explicit directory.
  */
 export function defaultExportFileName(sessionFile: string): string {
   return `${APP_NAME}-session-${path.basename(sessionFile, '.jsonl')}.html`;
@@ -62,18 +53,15 @@ export function defaultExportFileName(sessionFile: string): string {
 
 /**
  * Resolves the output path for an `/export` invocation against the run's own
- * project directory.
+ * project directory, the way the CLI resolves it against its working directory.
  *
  * - bare `/export`               -> `<cwd>/gjc-session-<id>.html`
  * - relative `/export out.html`  -> `<cwd>/out.html`
- * - absolute `/export /tmp/x`    -> untouched; an absolute path is a deliberate
- *                                   destination, not the ambient-cwd defect.
+ * - relative `/export ../x.html` -> `<parent of cwd>/x.html`
+ * - absolute `/export /tmp/x`    -> untouched
  * - clipboard aliases            -> untouched; upstream owns that diagnostic.
- *
- * Relative paths that climb out of `cwd` are rejected rather than silently
- * written outside the project.
  */
-export function resolveContainedExportCommand(
+export function resolveExportCommand(
   message: string,
   cwd: string,
   sessionFile: string | null | undefined,
@@ -84,11 +72,11 @@ export function resolveContainedExportCommand(
   const arg = (match[1] ?? '').trim();
   if (CLIPBOARD_ALIASES.has(arg)) return { kind: 'passthrough' };
 
-  // An absolute destination is explicit user intent and is left as-is.
+  // An absolute destination needs no resolution.
   if (arg && path.isAbsolute(arg)) return { kind: 'passthrough' };
 
-  // Without a usable project root there is nothing to contain the write to.
-  // Refusing beats writing into the server's launch directory.
+  // Without a usable project directory a relative path would land in the
+  // server's launch directory, which is not where the user's session runs.
   if (!cwd || !path.isAbsolute(cwd)) {
     return {
       kind: 'rejected',
@@ -99,18 +87,6 @@ export function resolveContainedExportCommand(
   // An in-memory session has no default name; upstream raises its own error.
   if (!arg && !sessionFile) return { kind: 'passthrough' };
 
-  const target = arg || defaultExportFileName(sessionFile as string);
-  const projectRoot = path.resolve(cwd);
-  const outputPath = path.resolve(projectRoot, target);
-
-  if (!isInside(projectRoot, outputPath)) {
-    return {
-      kind: 'rejected',
-      reason:
-        `Cannot export to "${target}": the resolved path escapes the project directory. ` +
-        'Use a path inside the project, or pass an absolute path to export elsewhere.',
-    };
-  }
-
-  return { kind: 'contained', message: `/export ${outputPath}`, outputPath };
+  const outputPath = path.resolve(cwd, arg || defaultExportFileName(sessionFile as string));
+  return { kind: 'resolved', message: `/export ${outputPath}`, outputPath };
 }

@@ -1,11 +1,10 @@
 import { execFile } from 'node:child_process';
-import { readFile, realpath, stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, resolve, sep } from 'node:path';
+import { isAbsolute } from 'node:path';
 
 import express from 'express';
 
-import { projectsDb } from '../modules/database/repositories/projects.db.js';
 import { sessionsDb } from '../modules/database/repositories/sessions.db.js';
 import { asyncHandler } from '../shared/utils.js';
 
@@ -28,36 +27,7 @@ function defaultOpener(target) {
   });
 }
 
-/** Registered project roots, archived ones included: those are still the owner's own trees. */
-function registeredProjectRoots() {
-  try {
-    return [...projectsDb.getProjectPaths(), ...projectsDb.getArchivedProjectPaths()]
-      .map((row) => row.project_path)
-      .filter((projectPath) => typeof projectPath === 'string' && projectPath.length > 0);
-  } catch {
-    // A fresh install has no projects table yet; nothing is inside a project.
-    return [];
-  }
-}
-
-async function canonical(target) {
-  try {
-    return await realpath(target);
-  } catch {
-    return resolve(target);
-  }
-}
-
-export async function isInsideProjectRoots(target, roots) {
-  const file = await canonical(target);
-  for (const root of roots) {
-    const canonicalRoot = await canonical(root);
-    if (file === canonicalRoot || file.startsWith(canonicalRoot.endsWith(sep) ? canonicalRoot : `${canonicalRoot}${sep}`)) return true;
-  }
-  return false;
-}
-
-export function createSystemRouter({ opener = defaultOpener, projectRoots = registeredProjectRoots } = {}) {
+export function createSystemRouter({ opener = defaultOpener } = {}) {
   const router = express.Router();
 
   router.post('/open-file', asyncHandler(async (req, res) => {
@@ -72,15 +42,9 @@ export function createSystemRouter({ opener = defaultOpener, projectRoots = regi
       return res.status(404).json({ error: 'File not found' });
     }
 
-    // This hands a path to the OS opener, which is "run whatever that file's
-    // handler is". A chat message, a markdown link or any caller that reaches
-    // this route could otherwise name a file anywhere on the machine, so the
-    // target has to belong to a project the owner actually opened. Managed
-    // worktrees live under their repository root and are covered by it.
-    if (!(await isInsideProjectRoots(target, projectRoots()))) {
-      return res.status(403).json({ error: 'The file is not inside an open project.' });
-    }
-
+    // The agent reads and writes files anywhere on the machine, as it does in
+    // the GJC CLI, so a reference to any of them opens in the owner's editor
+    // the way a file link in the CLI's terminal would.
     try {
       await opener(target);
       return res.json({ success: true });

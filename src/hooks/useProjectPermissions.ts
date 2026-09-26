@@ -1,18 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
 
 import { authenticatedFetch } from '../utils/api';
 
 export const PERMISSION_MODES = ['ask', 'auto_edits', 'bypass'] as const;
 export type PermissionMode = typeof PERMISSION_MODES[number];
-export const DEFAULT_PERMISSION_MODE: PermissionMode = 'ask';
+/** Matches the GJC CLI, which runs its tools without asking. */
+export const DEFAULT_PERMISSION_MODE: PermissionMode = 'bypass';
 
 export type ProjectPermissions = {
   projectId: string;
   projectPath: string;
   mode: PermissionMode;
   allowAlways: string[];
-  bypassAcknowledged: boolean;
   updatedAt: string | null;
 };
 
@@ -28,7 +27,6 @@ export const defaultProjectPermissions = (projectId: string): ProjectPermissions
   projectPath: '',
   mode: DEFAULT_PERMISSION_MODE,
   allowAlways: [],
-  bypassAcknowledged: false,
   updatedAt: null,
 });
 
@@ -42,7 +40,6 @@ const readPermissions = (payload: unknown): ProjectPermissions | null => {
     projectPath: typeof record.projectPath === 'string' ? record.projectPath : '',
     mode: record.mode,
     allowAlways: Array.isArray(record.allowAlways) ? record.allowAlways.filter((tool): tool is string => typeof tool === 'string') : [],
-    bypassAcknowledged: record.bypassAcknowledged === true,
     updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : null,
   };
 };
@@ -63,7 +60,7 @@ async function requestPermissions(url: string, init: RequestInit = {}): Promise<
 
 const permissionsUrl = (projectId: string) => `/api/projects/${encodeURIComponent(projectId)}/permissions`;
 
-export type PermissionModeUpdate = { mode: PermissionMode; acknowledgeBypass?: boolean };
+export type PermissionModeUpdate = { mode: PermissionMode };
 
 /**
  * The selected project's permission policy, and the mutations that change it.
@@ -103,8 +100,8 @@ export function useProjectPermissions(projectId: string | null | undefined) {
     onSuccess: store,
   });
 
-  // Only a successful server read establishes the policy. A failed read can
-  // happen for a project on bypass too; it must never manufacture an Ask mode.
+  // Only a successful server read establishes the policy. A failed read must
+  // never manufacture a mode the project is not in.
   // Query retains the last confirmed policy if a later refresh fails.
   const permissions = query.data ?? null;
 
@@ -155,56 +152,4 @@ export function useConfiguredProjectPermissions(enabled = true) {
     revokeAlwaysAllow: revoke.mutateAsync,
     reset: reset.mutateAsync,
   };
-}
-
-const LEGACY_TOOLS_SETTINGS_KEY = 'gjc-tools-settings';
-
-/**
- * Reads the hidden `skipPermissions` flag the old tools-settings blob carried
- * and clears it. Returns true when it was set, so the caller can carry that
- * choice into the project's policy exactly once.
- */
-export function takeLegacySkipPermissions(storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | null = typeof localStorage === 'undefined' ? null : localStorage): boolean {
-  if (!storage) return false;
-  let raw: string | null;
-  try {
-    raw = storage.getItem(LEGACY_TOOLS_SETTINGS_KEY);
-  } catch {
-    return false;
-  }
-  if (!raw) return false;
-  let settings: Record<string, unknown>;
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
-    settings = parsed as Record<string, unknown>;
-  } catch {
-    return false;
-  }
-  if (!('skipPermissions' in settings)) return false;
-  const wasSkipping = settings.skipPermissions === true;
-  const { skipPermissions: _skip, ...rest } = settings;
-  try {
-    if (Object.keys(rest).length === 0) storage.removeItem(LEGACY_TOOLS_SETTINGS_KEY);
-    else storage.setItem(LEGACY_TOOLS_SETTINGS_KEY, JSON.stringify(rest));
-  } catch {
-    // The flag is consumed even if the cleanup write fails.
-  }
-  return wasSkipping;
-}
-
-/**
- * One-time migration: a browser that had `skipPermissions` switched on used to
- * get an unprompted agent everywhere. That becomes `bypass` for the project
- * open when the migration runs, after which the flag is gone and nothing reads
- * it again. Bypass stays per project; the old global reach is not carried over.
- */
-export function useLegacySkipPermissionsMigration(projectId: string | null | undefined, setMode: (update: PermissionModeUpdate) => Promise<unknown>) {
-  useEffect(() => {
-    if (!projectId) return;
-    if (!takeLegacySkipPermissions()) return;
-    void setMode({ mode: 'bypass', acknowledgeBypass: true }).catch(() => {
-      // The stored flag is already gone; a failed migration leaves the safer default.
-    });
-  }, [projectId, setMode]);
 }

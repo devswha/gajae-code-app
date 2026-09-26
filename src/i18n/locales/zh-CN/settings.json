@@ -173,15 +173,7 @@
     "noGrants": "没有保存的自动化批准。",
     "origin": "站点来源",
     "application": "桌面应用",
-    "revoke": "移除批准",
-    "withheld": "应用中停用的运行时功能",
-    "withheldDescription": "工具集由应用决定。无论你的 GJC 配置如何，以下运行时功能在所有会话中都保持关闭。",
-    "withheldMcp": "项目 MCP 服务器",
-    "withheldMcpReason": "你自己在 GJC 中注册的服务器（gjc mcp add）会像在 CLI 中一样加载。项目自带的 .gjc/mcp.json 不会加载，因此打开一个仓库不会在会话中启动它的程序。",
-    "withheldToolDiscovery": "工具发现",
-    "withheldToolDiscoveryReason": "会话无法在运行时激活额外工具；应用选定的集合就是全部集合。",
-    "withheldAstEdit": "AST 编辑",
-    "withheldAstEditReason": "它只预览改写，并通过应用未开放的工具来应用，因此会展示会话永远无法提交的编辑。"
+    "revoke": "移除批准"
   },
   "notifications": {
     "title": "通知",
@@ -264,14 +256,14 @@
   },
   "permissions": {
     "title": "权限",
-    "description": "按项目设定代理无需询问即可运行的内容。使用默认策略（询问，无始终允许）的项目不会列出。",
+    "description": "按项目设定代理无需询问即可运行的内容。使用默认策略（与 GJC CLI 相同的绕过，无始终允许）的项目不会列出。",
     "mode": "模式",
     "alwaysAllowed": "始终允许",
     "none": "无",
     "revoke": "撤销",
     "revokeTool": "停止始终允许 {{tool}}",
-    "resetToAsk": "重置为“询问”",
-    "empty": "所有项目在运行命令前都会询问。",
+    "resetToDefault": "重置为默认",
+    "empty": "所有项目都像 GJC CLI 一样无需询问即可运行。",
     "loading": "加载中…",
     "error": "无法加载权限。"
   }

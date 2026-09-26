@@ -1,7 +1,10 @@
 //! Read-only macOS packaged-owner evidence, never installation authority.
 //!
 //! Call under the native single-instance/startup gate and revalidate immediately
-//! before the consuming action. Two bounded censuses detect observed changes;
+//! before the consuming action. Two bounded censuses detect observed changes to
+//! packaged owners, reserved-role executables, required PIDs and their
+//! descendants (`Census::owned`); unrelated same-user processes are classified
+//! fail-closed in every pass but may come and go between passes.
 //! libproc does NOT provide an atomic history or prevent unmanaged new starts.
 //! A captured tree covers identities connected to the owned sidecar at capture,
 //! not previously reparented processes or arbitrary escaped external daemons.
@@ -13,7 +16,7 @@
 //! identifier/team as its positive role evidence; candidates/current/captured
 //! owners always require their full birth identity. This exception never applies
 //! to a current or required PID, or to a product/reserved kernel role.
-//! Unrelated PID/path churn and unclassified evidence still make either unknown.
+//! Unclassified evidence in any pass still makes either unknown.
 //! Post-shutdown verification neither signals processes nor waits for idle.
 //! The elapsed budget is checked around bounded operations; it cannot interrupt
 //! an in-progress OS/filesystem call. Run off the UI thread. No successful proof
@@ -237,15 +240,80 @@ struct ForeignProcess {
     basis: ForeignBasis,
 }
 
-#[derive(PartialEq, Eq)]
 struct Census {
-    // Retain raw membership too: disappearing short-lived PIDs must not be
-    // dropped into two falsely equal live-record snapshots under churn.
-    listed: BTreeSet<u32>,
     processes: BTreeMap<u32, Process>,
     foreign: BTreeMap<u32, ForeignProcess>,
     bundles: BTreeMap<PathBuf, Bundle>,
     current_signature: Option<KernelSignature>,
+}
+
+/// The part of a census a proof depends on. Every pass still classifies every
+/// same-user process fail-closed; only this projection has to agree between
+/// passes. An unrelated process may be born or exit between passes (Spotlight
+/// workers, sync helpers, a user's `git`): on a working machine that happens
+/// about once a second, which made the whole-census equality that preceded
+/// this unreachable in practice. A packaged owner, a reserved-role executable,
+/// a required PID or anything descended from one is ours, and must not change.
+#[derive(PartialEq, Eq)]
+struct OwnedCensus {
+    processes: BTreeMap<u32, Process>,
+    bundles: BTreeMap<PathBuf, Bundle>,
+    current_signature: Option<KernelSignature>,
+}
+
+impl Census {
+    fn owned(&self, scope: &ScanScope<'_>, current_pid: u32) -> OwnedCensus {
+        let product = scope.product;
+        let anchored = |pid: u32| pid == current_pid || scope.required.contains(&pid);
+        // Same domain rule as deny_other_packaged: a QA build does not own the
+        // user's independent production app.
+        let packaged = |executable: &Path| {
+            scope.domain.includes_path(executable)
+                && (reserved_role(executable, product)
+                    || app_roots(executable).iter().any(|root| {
+                        self.bundles
+                            .get(root)
+                            .is_some_and(|bundle| bundle.identifier == product.identifier)
+                    }))
+        };
+        let descends = |mut pid: u32| {
+            let mut visited = BTreeSet::new();
+            while let Some(node) = self.processes.get(&pid) {
+                if !visited.insert(pid) {
+                    return false;
+                }
+                pid = node.identity.parent;
+                if anchored(pid) {
+                    return true;
+                }
+            }
+            false
+        };
+        let processes: BTreeMap<u32, Process> = self
+            .processes
+            .iter()
+            .filter(|(&pid, process)| {
+                anchored(pid) || packaged(&process.executable) || descends(pid)
+            })
+            .map(|(&pid, process)| (pid, process.clone()))
+            .collect();
+        let bundles = self
+            .bundles
+            .iter()
+            .filter(|(root, bundle)| {
+                bundle.identifier == product.identifier
+                    || processes
+                        .values()
+                        .any(|process| process.executable.starts_with(root))
+            })
+            .map(|(root, bundle)| (root.clone(), bundle.clone()))
+            .collect();
+        OwnedCensus {
+            processes,
+            bundles,
+            current_signature: self.current_signature.clone(),
+        }
+    }
 }
 
 /// Process-bound observation, not Clone/Serialize/Deserialize or browser input.
@@ -497,7 +565,6 @@ fn scan(probe: &mut impl Probe, scope: &ScanScope<'_>, deadline: &Deadline) -> R
         "incomplete same-user census",
     )?;
     let mut census = Census {
-        listed: pids.clone(),
         processes: BTreeMap::new(),
         foreign: BTreeMap::new(),
         bundles: BTreeMap::new(),
@@ -645,23 +712,29 @@ fn stable_census(
 ) -> Result<Census> {
     let first = scan(probe, scope, deadline)?;
     let second = scan(probe, scope, deadline)?;
-    require(first == second, "process or bundle census changed")?;
+    let current = probe.current_pid();
+    require(
+        first.owned(scope, current) == second.owned(scope, current),
+        "packaged owners changed between census passes",
+    )?;
     Ok(second)
 }
 
 /// Tail guard after plist/tree work. This is a fixed additional sample, not a
-/// retry-until-idle loop; newly observed processes/execs make the proof unknown.
+/// retry-until-idle loop; a packaged owner or owned descendant observed to
+/// appear, exit or change makes the proof unknown.
 fn revalidate_census(
     probe: &mut impl Probe,
     scope: &ScanScope<'_>,
     census: &Census,
     deadline: &Deadline,
 ) -> Result<()> {
-    // Recheck positive foreign evidence too, not only birth-accounted processes.
+    // The fresh pass reclassifies every process, including foreign evidence.
     let fresh = scan(probe, scope, deadline)?;
+    let current = probe.current_pid();
     require(
-        fresh == *census,
-        "process, foreign evidence or bundle changed after census",
+        fresh.owned(scope, current) == census.owned(scope, current),
+        "packaged owners changed after census",
     )
 }
 
@@ -970,8 +1043,8 @@ fn capture(
     let members = tree(probe, &first, server.identity, &deadline)?;
     let second = scan(probe, &scope, &deadline)?;
     require(
-        first == second,
-        "process or bundle census changed during capture",
+        first.owned(&scope, parent_pid) == second.owned(&scope, parent_pid),
+        "packaged owners changed during capture",
     )?;
     require(
         tree(probe, &second, server.identity, &deadline)? == members,
@@ -1608,6 +1681,9 @@ mod tests {
         mutate_on_second: bool,
         mutate_on_tail: bool,
         gone_on_second: bool,
+        remove_on_second: Option<u32>,
+        born_on_second: Option<Process>,
+        rebundle_on_second: Option<(PathBuf, Bundle)>,
     }
     impl Fake {
         fn new() -> Self {
@@ -1642,6 +1718,9 @@ mod tests {
                 mutate_on_second: false,
                 mutate_on_tail: false,
                 gone_on_second: false,
+                remove_on_second: None,
+                born_on_second: None,
+                rebundle_on_second: None,
             }
         }
         fn with_tree() -> Self {
@@ -1677,6 +1756,17 @@ mod tests {
             {
                 self.records
                     .insert(30, process(30, 1, 140, "/usr/bin/true"));
+            }
+            if self.listing_calls == 3 {
+                if let Some(pid) = self.remove_on_second.take() {
+                    self.records.remove(&pid);
+                }
+                if let Some(process) = self.born_on_second.take() {
+                    self.records.insert(process.identity.pid, process);
+                }
+                if let Some((root, bundle)) = self.rebundle_on_second.take() {
+                    self.bundles.insert(root, bundle);
+                }
             }
             let mut pids: Vec<_> = self
                 .records
@@ -2135,7 +2225,17 @@ mod tests {
                 1 => {
                     fake.denied.insert(90);
                 }
-                2 => fake.mutate_on_second = true,
+                2 => {
+                    fake.born_on_second = Some(process(
+                        30,
+                        1,
+                        200,
+                        qa_app()
+                            .join("Contents/MacOS/gajae-app-server")
+                            .to_str()
+                            .unwrap(),
+                    ))
+                }
                 _ => {
                     let before = fake.records[&90].identity;
                     let mut after = before;
@@ -2168,7 +2268,6 @@ mod tests {
             required: BTreeSet::from([10]),
         };
         let census = stable_census(&mut fake, &scope, &Deadline::new()).unwrap();
-        assert!(census.listed.contains(&30)); // Never drop RUID-only membership.
         assert!(!census.processes.contains_key(&30)); // No invented birth identity.
         assert!(matches!(
             census.foreign[&30].basis,
@@ -2208,19 +2307,44 @@ mod tests {
     fn foreign_path_or_platform_evidence_changes_in_any_sample_fail_closed() {
         let path = PathBuf::from("/usr/bin/helper-fixture");
         let other = PathBuf::from("/usr/bin/different-helper-fixture");
-        for change_at in [1, 2, 4] {
-            // Within first read, second census, and tail census.
+        // A path that changes inside one exclusion proof is unknown.
+        let mut fake = denied_platform_helper();
+        let mut reads = VecDeque::from(vec![Some(path.clone()); 6]);
+        reads[1] = Some(other.clone());
+        fake.path_reads.insert(30, reads);
+        assert!(prove_absence(&mut fake, &product(), Path::new(APP), None).is_err());
+        // An unrelated helper that exec's into another proven-foreign path
+        // between passes is still unrelated; one that exec's into a reserved
+        // role is a candidate and fails its own pass.
+        for (change_at, replacement, ok) in [
+            (2, other.clone(), true),
+            (4, other.clone(), true),
+            (2, PathBuf::from("/usr/bin/gajae-core"), false),
+            (4, PathBuf::from("/usr/bin/gajae-core"), false),
+        ] {
             let mut fake = denied_platform_helper();
             let mut reads = VecDeque::from(vec![Some(path.clone()); 6]);
-            reads[change_at] = Some(other.clone());
+            // Both reads of every later pass see the new image.
+            for read in reads.iter_mut().skip(change_at) {
+                *read = Some(replacement.clone());
+            }
             fake.path_reads.insert(30, reads);
-            assert!(prove_absence(&mut fake, &product(), Path::new(APP), None).is_err());
+            assert_eq!(
+                prove_absence(&mut fake, &product(), Path::new(APP), None).is_ok(),
+                ok,
+                "change at read {change_at}"
+            );
         }
-        for flags in [0, CS_VALID | CS_PLATFORM_BINARY | 0x10] {
+        // Losing platform identity in a later pass is unknown; an unrelated
+        // status bit changing on a still-valid platform binary is not ours.
+        for (flags, ok) in [(0, false), (CS_VALID | CS_PLATFORM_BINARY | 0x10, true)] {
             let mut fake = denied_platform_helper();
             fake.flag_reads
                 .insert(30, VecDeque::from([CS_VALID | CS_PLATFORM_BINARY, flags]));
-            assert!(prove_absence(&mut fake, &product(), Path::new(APP), None).is_err());
+            assert_eq!(
+                prove_absence(&mut fake, &product(), Path::new(APP), None).is_ok(),
+                ok
+            );
         }
         let mut fake = denied_platform_helper();
         fake.path_reads
@@ -2431,16 +2555,80 @@ mod tests {
     }
 
     #[test]
-    fn changing_membership_or_invalid_path_invalidates_census() {
+    fn unrelated_process_churn_between_passes_is_tolerated() {
+        // Born on the second pass, born on the tail pass, listed then gone
+        // before its identity read: none of these is ours.
         let mut fake = Fake::new();
         fake.mutate_on_second = true;
-        assert!(prove_absence(&mut fake, &product(), Path::new(APP), None).is_err());
+        assert!(prove_absence(&mut fake, &product(), Path::new(APP), None).is_ok());
         let mut tail = Fake::new();
         tail.mutate_on_tail = true;
-        assert!(prove_absence(&mut tail, &product(), Path::new(APP), None).is_err());
+        assert!(prove_absence(&mut tail, &product(), Path::new(APP), None).is_ok());
         let mut gone = Fake::new();
         gone.gone_on_second = true;
-        assert!(prove_absence(&mut gone, &product(), Path::new(APP), None).is_err());
+        assert!(prove_absence(&mut gone, &product(), Path::new(APP), None).is_ok());
+        let mut fake = Fake::with_tree();
+        fake.mutate_on_second = true;
+        assert!(capture(&mut fake, &product(), 20, 10).is_ok());
+        let mut fake = Fake::new();
+        fake.records
+            .insert(30, process(30, 1, 140, "/usr/bin/true"));
+        fake.remove_on_second = Some(30);
+        assert!(prove_absence(&mut fake, &product(), Path::new(APP), None).is_ok());
+    }
+
+    #[test]
+    fn packaged_owner_or_owned_descendant_churn_between_passes_is_unknown() {
+        // A product process that exits between passes was observed: unknown.
+        let mut fake = Fake::new();
+        fake.records.insert(
+            30,
+            process(
+                30,
+                1,
+                200,
+                "/Applications/Copy.app/Contents/MacOS/other-helper",
+            ),
+        );
+        fake.bundles.insert(
+            "/Applications/Copy.app".into(),
+            bundle("app.gajae.desktop", "gajae-app-desktop"),
+        );
+        fake.remove_on_second = Some(30);
+        assert!(prove_absence(&mut fake, &product(), Path::new(APP), None).is_err());
+        // A reserved-role executable outside any bundle, likewise.
+        let mut fake = Fake::new();
+        fake.records
+            .insert(30, process(30, 1, 200, "/usr/local/bin/gajae-core"));
+        fake.remove_on_second = Some(30);
+        assert!(prove_absence(&mut fake, &product(), Path::new(APP), None).is_err());
+        // A child of the current process born between passes is ours.
+        let mut fake = Fake::new();
+        fake.born_on_second = Some(process(30, 10, 140, "/usr/bin/true"));
+        assert!(prove_absence(&mut fake, &product(), Path::new(APP), None).is_err());
+        // A grandchild of the captured server born between passes, likewise.
+        let mut fake = Fake::with_tree();
+        fake.born_on_second = Some(process(30, 22, 140, "/usr/bin/true"));
+        assert!(capture(&mut fake, &product(), 20, 10).is_err());
+        // A product bundle that changes identity between passes, likewise.
+        let mut fake = Fake::new();
+        fake.records.insert(
+            30,
+            process(30, 1, 200, "/Applications/Other.app/Contents/MacOS/helper"),
+        );
+        fake.bundles.insert(
+            "/Applications/Other.app".into(),
+            bundle("org.other", "helper"),
+        );
+        fake.rebundle_on_second = Some((
+            "/Applications/Other.app".into(),
+            bundle("app.gajae.desktop", "gajae-app-desktop"),
+        ));
+        assert!(prove_absence(&mut fake, &product(), Path::new(APP), None).is_err());
+    }
+
+    #[test]
+    fn invalid_executable_paths_invalidate_census() {
         for path in ["relative/bun", "/Applications/../Other.app/x"] {
             let mut fake = Fake::new();
             fake.records.insert(20, process(20, 1, 200, path));

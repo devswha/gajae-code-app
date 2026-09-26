@@ -175,13 +175,15 @@ a process merely because it owns a port.
 
    `updater_owner_unknown` / `updater_owner_changed` after `backend-prepared`
    is the native same-user process census; the preceding `owner-refused`
-   record's `detail` is the scanner's fixed sentence. `process or bundle
-   census changed` and `observation budget exceeded` mean the machine had
-   process churn (Spotlight `mdworker_shared`, iCloud helpers, `git`,
-   agents' shells, the app's own `gajae-core git` children) between the
-   scanner's two or three passes inside its 2 s budget — not a security
-   finding. Measure it with a 10 s same-UID `ps` diff; more than a handful of
-   births/exits per second makes the census unlikely to pass.
+   record's `detail` is the scanner's fixed sentence. Up to desktop 0.2.14
+   the scanner required the whole same-user process list to be identical
+   across its passes, so `process or bundle census changed` meant ordinary
+   churn (Spotlight `mdworker_shared`, iCloud helpers, `git`) — not a
+   security finding. Later builds compare only packaged owners,
+   reserved-role executables and the app's own descendants
+   (`packaged owners changed between census passes` / `after census` /
+   `during capture`): one of those really did appear, exit or change.
+   `observation budget exceeded` is the 2 s scan budget.
 
 3. **Listener identity — who actually owns the port**
 

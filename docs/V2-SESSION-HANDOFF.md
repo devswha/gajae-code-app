@@ -50,14 +50,20 @@ record the scanner's reason (QA-debug only); `000363d`+ adds an
 `owner-refused` record with the fixed sentence as `detail`, exported by the
 evidence collector.
 
-Open owner decision for beta.21: the census-stability rule ("unrelated
-PID/path churn makes the proof unknown", no retry) is documented policy in
-`updater_owners.rs` and `DESKTOP-UPDATE-FAILURE-BETA14.md`, and it makes
-click-update unreachable on a developer Mac. Candidates: (a) bounded retry
-of the census inside a longer budget, (b) stability required only for
-product-bundle and reserved-role processes, with unrelated foreign births
-classified in the later pass. Until then the installed app updates by
-manual DMG.
+Owner decision (same day): option (b). `Census::owned` projects each pass
+to packaged owners, reserved-role executables, required PIDs and their
+descendants (domain-scoped like `deny_other_packaged`) plus product bundles
+and the current signature; only that projection must agree across the two
+passes and the tail revalidation. Every pass still classifies every
+same-user process fail-closed. Live census on the owner's Mac: 8/8 idle and
+5/5 under ~100 synthetic process births per second (was 2/5 idle). Native
+tests cover unrelated churn tolerated (born on pass 2, born on tail, listed
+then gone, exited between passes, foreign exec to another foreign image,
+platform status bit change) and ours refused (product process exiting,
+reserved-role exiting, child of the shell or grandchild of the server born
+between passes, a bundle changing to the product identifier, foreign exec
+into a reserved role). Ships in beta.21; the installed beta.18 cannot
+receive it through its own updater, so today's update is by DMG.
 
 Follow-up for beta.21 (owner-approved direction, not started): move the
 desktop app's database under its own data root

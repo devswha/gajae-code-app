@@ -20,7 +20,8 @@ job projection protocol). `scripts/` holds build/release/verify tooling.
 ## Environment
 
 - Node 22.22.2+ (22.x) or 24.15.0+ (24.x) — the test runner refuses other majors.
-  On the primary Mac: `. "$HOME/.nvm/nvm.sh" && nvm use 22`.
+  On the Linux workstation: `. "$HOME/.nvm/nvm.sh" && nvm use 22` (its nvm
+  default is 24). On the Mac, Node 22 comes from Homebrew.
 - Rust/cargo required for `check:core`, `build:core*`, and the Tauri shell
   (`. "$HOME/.cargo/env"`).
 - Bun **exactly 1.4.0** for `*.bun.test.ts` and `*.dom.bun.test.tsx` files (pinned in
@@ -33,23 +34,44 @@ job projection protocol). `scripts/` holds build/release/verify tooling.
   dependency files. Unknown local modifications must fail rather than be replaced.
 - Server binds loopback by default (fail-closed; it can run shell commands).
   `SERVER_PORT` defaults to 3001, Vite dev on 5173. Do not export `SERVER_PORT=0`.
+- **Machines (owner setup, 2026-09-27).** Day-to-day work happens on the
+  Linux workstation `home-server` (Ubuntu 24.04, x86_64, checkout at
+  `~/workspace/gajae-code-app`). Everything except the macOS desktop shell
+  builds and tests there; CI is Ubuntu too. The MacBook (`macbookpro` on the
+  tailnet) is the macOS build host, driven over SSH (next item). The Linux
+  host's global git identity is a test placeholder, so the checkout carries a
+  repo-local `user.name`/`user.email`; keep it when re-cloning.
+- **macOS lanes from Linux**: `scripts/macos-remote.sh -- '<command>'` runs a
+  command on the Mac (`GAJAE_MAC_HOST=macbookpro`) at the current commit, which
+  must be pushed first. It uses the disposable detached worktree
+  `.gjc-worktrees/mac-build` of the Mac's checkout, re-runs `npm ci` only when
+  `package-lock.json` changes, and runs in a zsh login shell (a plain
+  non-interactive SSH shell lacks Homebrew's Node). Desktop shell gate:
+  `scripts/macos-remote.sh -- 'npm run server:payload:macos && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo test --locked --manifest-path src-tauri/Cargo.toml'`.
+  The Mac stays awake on AC through the LaunchAgent `local.mac-awake`
+  (`caffeinate -s -i`); it must be logged in for GUI work. Screenshots and
+  menu clicks over SSH (`screencapture`, `osascript`) need Screen Recording
+  and Accessibility granted to `sshd-keygen-wrapper` on the Mac.
 - A long-lived dev stack may already be running in tmux session `gajae-dev`
-  (check `tmux ls` and `lsof -nP -iTCP:3001 -iTCP:5173 -sTCP:LISTEN`; its log is
+  (check `tmux ls` and `ss -ltn | grep -E ':(3101|5174) '`; its log is
   mirrored to `/tmp/gjc-dev/dev.log` and the address/operating notes live in
   `/tmp/gjc-dev/README.md`). Reuse it rather than starting a second
-  `npm run dev` on the same ports. On the primary Mac it serves the tailnet
-  from its own database:
-  `HOST=$(tailscale ip -4) GAJAE_ALLOW_UNAUTH_REMOTE=1 DATABASE_PATH=$HOME/.gajae-app-dev/auth.db npm run dev`.
-  The unauth override disables authentication on the bound address, so never
-  combine it with a bind that is reachable outside the tailnet.
+  `npm run dev` on the same ports. On `home-server` it serves the tailnet
+  from its own database on **3101/5174**:
+  `HOST=$(tailscale ip -4) SERVER_PORT=3101 VITE_PORT=5174 GAJAE_ALLOW_UNAUTH_REMOTE=1 DATABASE_PATH=$HOME/.gajae-app-dev/auth.db npm run dev`.
+  There, chatmux owns 3001 and `tailscale serve` already proxies
+  `127.0.0.1:3001` and `127.0.0.1:5173` with Funnel on `:443`, so never run a
+  dev stack on loopback 3001/5173 on that host. The unauth override disables
+  authentication on the bound address, so never combine it with a bind that
+  is reachable outside the tailnet, or put it behind `serve`/Funnel.
 - **Never run a dev server on `~/.gajae-app` while the desktop app is
   installed.** Without `DATABASE_PATH` the server uses `~/.gajae-app`, and
   `gajae-core jobs` takes an exclusive lock on `jobs.sqlite3` there.
   Whichever instance starts second runs without its jobs authority: jobs are
   unavailable and the desktop updater's **Restart to install** is refused
   (`updater_runtime_unknown`, journal blockers `orchestrator owner_unknown` /
-  `native-jobs owner_failed`). On the primary Mac the dev stack uses
-  `~/.gajae-app-dev`; the desktop app owns `~/.gajae-app`.
+  `native-jobs owner_failed`). Dev stacks use `~/.gajae-app-dev` on every
+  machine; on the Mac the desktop app owns `~/.gajae-app`.
 - Tauri builds choke on `CI=1`: use `env -u CI npm run tauri -- build`.
 - A release-profile macOS build refuses to guess its updater mode: set
   `GJC_UPDATE_MODE=disabled` for ad-hoc/manual bundles, or the full production
@@ -76,6 +98,7 @@ npm run check:core       # cargo fmt --check + clippy -D warnings + cargo test
 npm run verify           # FULL GATE: audit + typecheck + check:core + test + test:e2e:gjc + lint + check:identity + build
 npm run test:e2e:gjc     # 8 GJC wire/browser e2e tests (also part of verify; not part of npm test)
 npm run desktop:dev      # Tauri dev shell
+scripts/macos-remote.sh -- '<cmd>'  # run a macOS-only command on the Mac over SSH (pushed commit)
 npm run server:payload:macos # embedded macOS server payload + sidecar (prerequisite for src-tauri cargo test)
 GJC_UPDATE_MODE=disabled env -u CI npm run tauri -- build --bundles app # ad-hoc macOS app bundle (unsigned, no updater)
 npm run server:payload:linux # Linux x64 self-host payload + pinned runtimes

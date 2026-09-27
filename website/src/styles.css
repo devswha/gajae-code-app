@@ -1682,7 +1682,7 @@ p {
 }
 
 /* Body copy in tiles. :where() keeps this at one class of specificity, so the eyebrow and the
-   component rules below (.mode-line, .mode-footnote) win without !important. */
+   component rules below (.mode-line) win without !important. */
 .tile :where(p:not(.eyebrow)) {
   color: var(--text-2);
   font-size: 15px;
@@ -1981,20 +1981,6 @@ p {
   font-weight: 600;
 }
 
-.mode-default {
-  margin-left: 4px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: var(--green-soft);
-  color: var(--green);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  vertical-align: 2px;
-}
-
 .mode-table {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2042,11 +2028,6 @@ p {
   color: var(--text);
   font-size: 15px;
   line-height: 1.5;
-}
-
-.mode-footnote {
-  color: var(--text-3);
-  font-size: 13.5px;
 }
 
 @media (max-width: 599px) {

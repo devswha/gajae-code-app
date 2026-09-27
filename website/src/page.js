@@ -77,7 +77,7 @@ const CHAPTERS = [
     id: 'permission',
     label: 'Permissions',
     title: 'Commands wait for you.',
-    body: 'In the default Ask mode, a shell command stops the turn on a card. Allow it once, always allow it in this project, or deny it. The turn resumes where it paused.',
+    body: 'Put a project in Ask mode and every shell command stops the turn on a card. Allow it once, always allow it in this project, or deny it. The turn resumes where it paused.',
     readout: ['Permission required', 'Tool: bash'],
     note: 'A card answered in one window closes in every other.',
     media: feature('permission'),
@@ -142,7 +142,6 @@ const PERMISSION_MODES = [
   {
     id: 'ask',
     label: 'Ask',
-    isDefault: true,
     line: 'Commands and destructive file changes wait for your approval.',
     runs: 'Reads, searches, and file writes and edits the runtime does not gate',
     waits:
@@ -160,9 +159,8 @@ const PERMISSION_MODES = [
     id: 'bypass',
     label: 'Bypass',
     line: 'Nothing asks. The agent runs any command in this project.',
-    runs: 'Everything',
-    waits: 'Nothing — for a scratch project you trust the agent with',
-    footnote: 'Turning it on takes a one-time confirmation per project.',
+    runs: 'Everything, as in the GJC CLI',
+    waits: 'Nothing',
   },
 ];
 
@@ -301,18 +299,17 @@ function chapterCopy(chapter, index) {
 function permissionModes() {
   const inputs = PERMISSION_MODES.map(
     (mode) => `
-                <input type="radio" name="permission-mode" id="mode-${mode.id}" value="${mode.id}"${mode.isDefault ? ' checked' : ''} />
+                <input type="radio" name="permission-mode" id="mode-${mode.id}" value="${mode.id}"${mode.id === 'ask' ? ' checked' : ''} />
                 <label for="mode-${mode.id}">${mode.label}</label>`,
   ).join('');
   const panels = PERMISSION_MODES.map(
     (mode) => `
               <div class="mode-panel" data-mode="${mode.id}">
-                <p class="mode-line"><strong>${mode.label}${mode.isDefault ? ' <span class="mode-default">default</span>' : ''}</strong> ${mode.line}</p>
+                <p class="mode-line"><strong>${mode.label}</strong> ${mode.line}</p>
                 <dl class="mode-table">
                   <div class="mode-runs"><dt>Runs without asking</dt><dd>${mode.runs}</dd></div>
                   <div class="mode-waits"><dt>Waits for approval</dt><dd>${mode.waits}</dd></div>
                 </dl>
-                ${mode.footnote ? `<p class="mode-footnote">${mode.footnote}</p>` : ''}
               </div>`,
   ).join('');
   return `
@@ -550,7 +547,7 @@ export function renderLandingPage({ release = RELEASE, filmChapters = [] } = {})
               <div class="tile-head">
                 <p class="eyebrow">Permission modes</p>
                 <h3 id="modes-title">Decide what waits for you, per project.</h3>
-                <p>The runtime’s own gate defaults to allow; the app does not. Set the mode from the composer or Settings → Permissions. <strong>Always allow</strong> on a card adds that tool to the project’s list.</p>
+                <p>Every project keeps its own mode, set from the composer or Settings → Permissions. <strong>Always allow</strong> on a card adds that tool to the project’s list.</p>
               </div>
               ${permissionModes()}
             </article>

@@ -12,9 +12,24 @@ export interface ToolDisplayConfig {
 
 type TodoOp = { op?: string; list?: { phase?: string; items?: string[] }[]; task?: string; phase?: string; items?: string[]; text?: string };
 
-const neutralColors = { primary: 'text-gray-700 dark:text-gray-300', secondary: 'text-gray-500 dark:text-gray-400', background: '', border: 'border-gray-400 dark:border-gray-500', icon: 'text-gray-500 dark:text-gray-400' };
-const readColors = { primary: 'text-gray-700 dark:text-gray-300', background: '', border: 'border-gray-300 dark:border-gray-600', icon: 'text-gray-500 dark:text-gray-400' };
-const skillColors = { primary: 'text-blue-600 dark:text-blue-400 font-medium', secondary: 'text-gray-500 dark:text-gray-400', background: '', border: 'border-blue-400 dark:border-blue-500', icon: 'text-blue-500 dark:text-blue-400' };
+// Tool rows draw from the app palette; raw gray and blue read as a second,
+// foreign palette beside the tokenized transcript.
+const neutralColors = { primary: 'text-foreground/80', secondary: 'text-muted-foreground', background: '', border: 'border-border', icon: 'text-muted-foreground' };
+const readColors = { primary: 'text-foreground/80', background: '', border: 'border-border', icon: 'text-muted-foreground' };
+const skillColors = { primary: 'text-primary font-medium', secondary: 'text-muted-foreground', background: '', border: 'border-primary/40', icon: 'text-primary' };
+
+/**
+ * The read tool's path carries an optional selector (`file:raw`, `file:2-4`,
+ * `file:2-4:raw`). Line ranges say what was read and stay; `raw` is a mode
+ * flag for the model, not something the person reading the transcript needs.
+ */
+export const readTarget = (path: unknown): string => String(path || '').replace(/:raw(?=$|:)/, '');
+
+/** `edit` -> `Edit`, `apply_patch` -> `Apply patch`: a label, never a wire name. */
+export function toolDisplayName(toolName: string): string {
+  const words = toolName.replace(/_/g, ' ').trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : toolName;
+}
 const planInput = { type: 'plan' as const, title: 'Implementation plan', defaultOpen: true, contentType: 'markdown' as const, getContentProps: (input: any) => ({ content: input.plan?.replace(/\\n/g, '\n') || input.plan }) };
 
 function todoEntries(ops: unknown): TodoOp[] { return Array.isArray(ops) ? ops as TodoOp[] : []; }
@@ -112,7 +127,7 @@ const questions: ToolDisplayConfig = {
 
 export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
   bash: { input: { type: 'hidden' }, result: { type: 'collapsible', contentType: 'text', getContentProps: outputAsCode } },
-  read: { input: { type: 'one-line', label: 'Read', getValue: (input) => input.path || '', action: 'open-file', colorScheme: readColors }, result: { hidden: true } },
+  read: { input: { type: 'one-line', label: 'Read', getValue: (input) => readTarget(input.path), action: 'open-file', colorScheme: readColors }, result: { hidden: true } },
   write: { input: { type: 'collapsible', title: leafName, defaultOpen: false, contentType: 'text', actionButton: 'file-button', getContentProps: (input) => ({ content: input.content ?? '', format: 'code' }) }, result: { hideOnSuccess: true } },
   search: { input: { type: 'one-line', label: 'Search', getValue: (input) => input.pattern || '', getSecondary: (input) => { const paths = Array.isArray(input.paths) ? input.paths : []; return paths.length ? `in ${paths.join(', ')}` : undefined; }, action: 'none', colorScheme: neutralColors } },
   find: callOnly('Find', (input) => Array.isArray(input.paths) ? input.paths.join(', ') : ''),

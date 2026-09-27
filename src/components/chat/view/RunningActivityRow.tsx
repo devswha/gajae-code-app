@@ -7,6 +7,8 @@ import { formatElapsed } from '../utils/elapsed';
 import { formatLiveActivity, phaseActivity } from '../utils/toolActivity';
 import type { LiveActivity } from '../utils/toolActivity';
 
+import StatusSeparator from './StatusSeparator';
+
 interface RunningActivityRowProps {
   /** What the run is doing now; `Thinking` when nothing is derived yet. */
   liveActivity?: LiveActivity | null;
@@ -15,8 +17,6 @@ interface RunningActivityRowProps {
   /** Which fold this row stands in for, for tests and styling hooks. */
   variant?: 'pending-block' | 'inline';
 }
-
-const SEPARATOR = ' · ';
 
 /**
  * One line for a run that has no work block to speak for it: the live turn
@@ -40,21 +40,24 @@ export default function RunningActivityRow({ liveActivity, runStartedAt = null, 
       <div className="flex items-center gap-2 px-1 py-0.5 text-xs">
         <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
-        <span role="status" className="flex min-w-0 items-center text-muted-foreground">
-          <Shimmer className="shrink-0 font-medium">{`${label}…`}</Shimmer>
-          {callLabel && (
-            <span className="min-w-0 truncate" data-live-call>
-              <span aria-hidden>{SEPARATOR}</span>
-              {callLabel}
+        {/* One gapless group, so every separator is spaced by its own text. */}
+        <span className="flex min-w-0 items-center">
+          <span role="status" className="flex min-w-0 items-center text-muted-foreground">
+            <Shimmer className="shrink-0 font-medium">{`${label}…`}</Shimmer>
+            {callLabel && (
+              <span className="min-w-0 truncate" data-live-call>
+                <StatusSeparator />
+                {callLabel}
+              </span>
+            )}
+          </span>
+          {runStartedAt !== null && (
+            <span className="shrink-0 text-muted-foreground tabular-nums">
+              <StatusSeparator />
+              {formatElapsed(elapsedSeconds, t)}
             </span>
           )}
         </span>
-        {runStartedAt !== null && (
-          <span className="shrink-0 text-muted-foreground tabular-nums">
-            <span aria-hidden>{SEPARATOR}</span>
-            {formatElapsed(elapsedSeconds, t)}
-          </span>
-        )}
       </div>
     </div>
   );

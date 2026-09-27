@@ -34,8 +34,8 @@
     "hideSidebar": "Kenar çubuğunu daralt",
     "createProject": "Proje ekle",
     "createSession": "Konuşma başlat",
-    "refresh": "Projeleri ve konuşmaları yeniden yükle (Ctrl+R)",
-    "renameProject": "Çalışma alanını yeniden adlandırın (F2)",
+    "refresh": "Projeleri ve konuşmaları yeniden yükle",
+    "renameProject": "Çalışma alanını yeniden adlandırın",
     "archiveProject": "Bu projeyi arşive taşı (hiçbir şey silinmez)",
     "addToFavorites": "Favori olarak işaretle",
     "removeFromFavorites": "Favori işaretini kaldır",
@@ -104,7 +104,6 @@
     "accounts_one": "{{count}} hesap",
     "accounts_other": "{{count}} hesap",
     "noWindowData": "Bildirilen değer yok",
-    "unsupported": "Bu sağlayıcı için kullanım bilgisi yok",
     "reauth": "Kullanımı okumak için yeniden oturum açın",
     "error": "Kullanım yenilenemedi",
     "stale": "Son bilinen değerler"

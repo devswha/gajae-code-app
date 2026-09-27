@@ -120,14 +120,14 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
         onClick={() => setOpen((current) => !current)}
         disabled={unavailable || isBusy}
         data-mode={mode}
-        className="flex h-8 w-full max-w-40 min-w-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+        className="flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
         aria-label={t('permissionMode.label')}
         aria-expanded={open}
         aria-haspopup="listbox"
         title={t('permissionMode.tooltip', { mode: label, shortcut })}
       >
         {isBusy ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden /> : <Icon className="size-3.5 shrink-0" aria-hidden />}
-        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+        <span className="min-w-0 truncate text-left">{label}</span>
         <ChevronDown className={cn('size-3 shrink-0 transition-transform', open && 'rotate-180')} aria-hidden />
       </button>
 

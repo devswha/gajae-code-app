@@ -122,10 +122,10 @@ React 19.2 + TypeScript 5.9 on Vite 7 with the React Compiler enabled
 (babel-plugin-react-compiler via @vitejs/plugin-react - do not add manual
 memoization for performance; the compiler owns it), function components and
 hooks throughout.
-Two legacy `.jsx` files remain (`src/main.jsx`, `src/contexts/ThemeContext.jsx`); everything else
+One legacy `.jsx` file remains (`src/main.jsx`); everything else
 is `.ts`/`.tsx`. Routing is react-router-dom 7.
 
-- **The UI primitives are owned, not installed.** `src/shared/view/ui/` holds 19
+- **The UI primitives are owned, not installed.** `src/shared/view/ui/` holds 18
   shadcn-shaped components (Button, Dialog, Collapsible, Command, Tooltip,
   ScrollArea, ActionMenu, ...) written in this repo. **There is no Radix
   dependency.** Reaching for one to get a primitive that already exists here is

@@ -210,9 +210,12 @@
     }
   },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "ダークモード",
-      "description": "ライトテーマとダークテーマを切り替えます"
+    "theme": {
+      "label": "テーマ",
+      "description": "システムの外観に合わせるか、テーマを固定します",
+      "system": "システム",
+      "light": "ライト",
+      "dark": "ダーク"
     },
     "interfaceFontSize": {
       "label": "インターフェースの文字サイズ",

@@ -297,7 +297,7 @@ export default function SidebarArchiveContent({
               <div className="flex items-center gap-2">
                 <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="truncate text-sm font-normal text-foreground">{project.displayName}</span>
-                <span className="inline-flex items-center justify-center rounded-full bg-muted px-1 py-px text-center text-[7px] leading-none font-medium tracking-[0.02em] text-muted-foreground uppercase">
+                <span className="inline-flex shrink-0 items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-center text-[10px] leading-none font-medium text-muted-foreground">
                   {t('archived.projectArchived', 'Project archived')}
                 </span>
               </div>
@@ -322,7 +322,7 @@ export default function SidebarArchiveContent({
                 <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="truncate text-sm font-normal text-foreground">{group.projectDisplayName}</span>
                 {group.isProjectArchived && (
-                  <span className="inline-flex items-center justify-center rounded-full bg-muted px-1 py-px text-center text-[7px] leading-none font-medium tracking-[0.02em] text-muted-foreground uppercase">
+                  <span className="inline-flex shrink-0 items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-center text-[10px] leading-none font-medium text-muted-foreground">
                     {t('archived.projectArchived', 'Project archived')}
                   </span>
                 )}

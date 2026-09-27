@@ -97,7 +97,6 @@ export default function SidebarProjectItem({
 }: SidebarProjectItemProps) {
   const isSelected = selectedProject?.projectId === project.projectId;
   const isEditing = editingProject === project.projectId;
-  const sessionCount = Number(project.sessionMeta?.total ?? sessions.length);
   const statuses = sessions.map((session) => getSessionStatus(session.id));
   const attentionCount = statuses.filter(needsAttention).length;
   const hasBlocked = statuses.includes('blocked');
@@ -161,7 +160,6 @@ export default function SidebarProjectItem({
                   {attentionCount}
                 </span>
               )}
-              <span className="text-[0.6875rem] text-muted-foreground tabular-nums transition-opacity group-hover/project:opacity-0">{sessionCount}</span>
               {showSessions && (
                 <ChevronRight className={cn('size-3.5 shrink-0 text-muted-foreground transition-transform', isExpanded && 'rotate-90')} aria-hidden />
               )}

@@ -210,9 +210,12 @@
     }
   },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "Dunkles Thema",
-      "description": "Wechseln Sie zwischen hellen und dunklen Themen"
+    "theme": {
+      "label": "Design",
+      "description": "Dem Erscheinungsbild des Systems folgen oder ein Design festlegen",
+      "system": "System",
+      "light": "Hell",
+      "dark": "Dunkel"
     },
     "interfaceFontSize": {
       "label": "Textgröße der Benutzeroberfläche",

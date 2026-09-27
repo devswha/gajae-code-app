@@ -3,15 +3,13 @@ import { useTranslation } from 'react-i18next';
 
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { Tooltip } from '../../../shared/view/ui';
+import { modShortcutLabel } from '../../../utils/shortcutLabel';
 import { cyclesToolOutputDensity, nextToolOutputDensity } from '../utils/toolOutputDensity';
 
 import { TOOL_OUTPUT_DENSITY_ICONS } from './ToolOutputDensityPicker';
 
-const isApplePlatform = () =>
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || '');
-
 /** The chord as the keyboard in front of the user labels it. */
-export const toolOutputDensityShortcutLabel = (): string => (isApplePlatform() ? '⌘⇧D' : 'Ctrl+Shift+D');
+export const toolOutputDensityShortcutLabel = (): string => modShortcutLabel('D', { shift: true });
 
 /**
  * One icon button in the chat header that walks compact -> balanced ->

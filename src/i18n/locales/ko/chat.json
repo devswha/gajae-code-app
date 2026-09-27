@@ -44,7 +44,8 @@
   },
   "tools": {
     "error": "도구 문제",
-    "rawParams": "원본 매개변수"
+    "rawParams": "원본 매개변수",
+    "more": "외 {{count}}개"
   },
   "search": {
     "in": "에서:"

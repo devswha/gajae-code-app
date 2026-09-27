@@ -13,7 +13,7 @@ export interface MainContentProps {
 
 export interface MainContentHeaderProps {
   activeTab: AppTab; isMobile: boolean; selectedProject: Project; selectedSession: ProjectSession | null; sidebarOpen: boolean;
-  onMenuClick: () => void; onToggleSidebar: () => void; setActiveTab: TabSetter;
+  onMenuClick: () => void; onToggleSidebar: () => void;
 }
 
 export interface MainContentStateViewProps { isMobile: boolean; mode: 'loading' | 'empty'; onMenuClick: () => void; onNewSession: (project: Project) => void; }

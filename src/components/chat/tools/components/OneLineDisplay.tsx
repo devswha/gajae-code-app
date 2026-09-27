@@ -65,7 +65,7 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const displayLabel = label || toolName;
-  const valueClass = wrapText ? 'break-all whitespace-pre-wrap' : 'truncate';
+  const valueClass = wrapText ? 'wrap-anywhere whitespace-pre-wrap' : 'truncate';
   const runAction = async () => {
     if (action === 'copy' && value) {
       if (!await copyTextToClipboard(value)) return;
@@ -78,7 +78,7 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
   const copyButton = action === 'copy' ? <CopyButton copied={copied} onClick={runAction} /> : null;
 
   if (style === 'terminal') {
-    const commandClass = wrapText ? 'break-all whitespace-pre-wrap' : 'block truncate';
+    const commandClass = wrapText ? 'wrap-anywhere whitespace-pre-wrap' : 'block truncate';
     return (
       <div className="group my-1">
         <div className="flex items-start gap-1.5">

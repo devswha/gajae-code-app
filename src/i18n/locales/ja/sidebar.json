@@ -34,8 +34,8 @@
     "hideSidebar": "サイドバーを隠す",
     "createProject": "プロジェクトを追加",
     "createSession": "会話を開始",
-    "refresh": "プロジェクトと会話を再読み込み (Ctrl+R)",
-    "renameProject": "プロジェクト名を変更 (F2)",
+    "refresh": "プロジェクトと会話を再読み込み",
+    "renameProject": "プロジェクト名を変更",
     "archiveProject": "このプロジェクトをアーカイブへ移動 (削除はされません)",
     "addToFavorites": "お気に入りに追加",
     "removeFromFavorites": "お気に入りから削除",
@@ -104,7 +104,6 @@
     "accounts_one": "{{count}} アカウント",
     "accounts_other": "{{count}} アカウント",
     "noWindowData": "数値の報告なし",
-    "unsupported": "このプロバイダーの使用量は取得できません",
     "reauth": "使用量を読むには再度サインインしてください",
     "error": "使用量を更新できませんでした",
     "stale": "最後に取得した数値"

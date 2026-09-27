@@ -1,6 +1,7 @@
 import { ShieldHalf, ShieldOff, ShieldQuestion, type LucideIcon } from 'lucide-react';
 
 import { PERMISSION_MODES, type PermissionMode } from '../../../hooks/useProjectPermissions';
+import { modShortcutLabel } from '../../../utils/shortcutLabel';
 
 export { PERMISSION_MODES };
 export type { PermissionMode };
@@ -12,11 +13,8 @@ export const PERMISSION_MODE_ICONS: Record<PermissionMode, LucideIcon> = {
   bypass: ShieldOff,
 };
 
-const isApplePlatform = () =>
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || '');
-
 /** The chord as the keyboard in front of the user labels it. */
-export const permissionModeShortcutLabel = (): string => (isApplePlatform() ? '⌘⇧P' : 'Ctrl+Shift+P');
+export const permissionModeShortcutLabel = (): string => modShortcutLabel('P', { shift: true });
 
 /**
  * The composer shortcut: Cmd/Ctrl+Shift+P ("permissions"). It opens the

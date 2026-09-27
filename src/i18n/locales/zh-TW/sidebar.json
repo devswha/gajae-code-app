@@ -34,8 +34,8 @@
     "hideSidebar": "收合側欄",
     "createProject": "新增專案",
     "createSession": "開始對話",
-    "refresh": "重新載入專案和對話 (Ctrl+R)",
-    "renameProject": "重命名工作區 (F2)",
+    "refresh": "重新載入專案和對話",
+    "renameProject": "重命名工作區",
     "archiveProject": "將此專案移至封存（不會刪除任何內容）",
     "addToFavorites": "標記為最愛",
     "removeFromFavorites": "移除最愛標記",
@@ -104,7 +104,6 @@
     "accounts_one": "{{count}} 個帳戶",
     "accounts_other": "{{count}} 個帳戶",
     "noWindowData": "未回報數值",
-    "unsupported": "此供應方不提供用量資料",
     "reauth": "請重新登入才能讀取用量",
     "error": "無法重新整理用量",
     "stale": "最後一次已知數值"

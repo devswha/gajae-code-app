@@ -27,19 +27,19 @@ All new product colors must route through semantic CSS variables in `src/index.c
 | Card text | `--card-foreground` | `36 25% 4%` | `40 8% 93%` | Text on card surfaces |
 | Popover surface | `--popover` / `bg-popover` | `0 0% 100%` | `0 0% 12%` | Dialogs, command result modal, popovers |
 | Popover text | `--popover-foreground` | `36 25% 4%` | `40 8% 93%` | Text on popover surfaces |
-| Primary action | `--primary` / `bg-primary` | `14 89% 52%` | `16 90% 57%` | Primary buttons, send button, focus ring, selected accents |
-| Primary action text | `--primary-foreground` | `210 40% 98%` | `0 0% 8%` | Text/icons on primary action surfaces |
+| Primary action | `--primary` / `bg-primary` | `14 89% 41%` | `16 90% 57%` | Primary buttons, send button, focus ring, selected accents. Light is the deep orange: at 52% neither orange text on the page nor white text on an orange button reached 4.5:1 |
+| Primary action text | `--primary-foreground` | `0 0% 100%` | `0 0% 8%` | Text/icons on primary action surfaces |
 | Secondary surface | `--secondary` / `bg-secondary` | `44 15% 91%` | `0 0% 17%` | Secondary buttons, muted controls |
 | Secondary text | `--secondary-foreground` | `36 15% 18%` | `40 8% 93%` | Text on secondary surfaces |
 | Muted surface | `--muted` / `bg-muted` | `44 15% 91%` | `0 0% 17%` | Empty states, pills, rows, placeholder surfaces |
-| Muted text | `--muted-foreground` | `40 5% 44%` | `0 0% 60%` | Captions, timestamps, hints, secondary metadata |
+| Muted text | `--muted-foreground` | `40 5% 40%` | `0 0% 60%` | Captions, timestamps, hints, secondary metadata |
 | Accent surface | `--accent` / `bg-accent` | `44 15% 91%` | `0 0% 17%` | Hover rows, ghost-button hover, selected command item |
 | Accent text | `--accent-foreground` | `36 15% 18%` | `40 8% 93%` | Text on accent surfaces |
-| Destructive | `--destructive` / `text-destructive` | `0 84.2% 60.2%` | `354 100% 65%` | Error text, destructive alerts, delete affordances when tokenized. Dark is the GJC TUI's `dangerRed` (`#ff4d5e`): the shadcn maroon read as text on a dark surface failed contrast |
-| Destructive text | `--destructive-foreground` | `210 40% 98%` | `0 0% 8%` | Text/icons on destructive surfaces; dark on the light dark-mode red, as primary does |
+| Destructive | `--destructive` / `text-destructive` | `0 72% 45%` | `354 100% 65%` | Error text, destructive alerts, delete affordances when tokenized. Dark is the GJC TUI's `dangerRed` (`#ff4d5e`): the shadcn maroon read as text on a dark surface failed contrast |
+| Destructive text | `--destructive-foreground` | `0 0% 100%` | `0 0% 8%` | Text/icons on destructive surfaces; dark on the light dark-mode red, as primary does |
 | Border | `--border` / `border-border` | `44 14% 87%` | `0 0% 17%` | Dividers, card outlines, default borders |
 | Input border | `--input` / `border-input` | `44 14% 87%` | `0 0% 23%` | Inputs and outline buttons |
-| Focus ring | `--ring` / `ring-ring` | `14 89% 52%` | `16 90% 57%` | Focus rings and checkbox focus outline |
+| Focus ring | `--ring` / `ring-ring` | `14 89% 41%` | `16 90% 57%` | Focus rings and checkbox focus outline |
 
 ### Navigation and Mobile Tokens
 
@@ -55,6 +55,8 @@ All new product colors must route through semantic CSS variables in `src/index.c
 ### Rules
 
 - Prefer semantic HSL variables through Tailwind classes: `bg-background`, `text-muted-foreground`, `border-border`, `bg-primary`, `text-destructive`.
+- Theme is `System` (default, follows `prefers-color-scheme` live), `Light` or `Dark`; only an explicit choice is stored (`localStorage.theme`).
+- Native controls use `accent-color: hsl(var(--primary))`; placeholders use `--muted-foreground` in both themes.
 - Use raw Tailwind status colors only for existing status semantics that have not been tokenized yet: emerald/green running, amber/yellow attention, and red destructive rows.
 - New persistent colors require a named token in this section before use.
 
@@ -75,7 +77,7 @@ All new product colors must route through semantic CSS variables in `src/index.c
 | Section/card title | `text-base` or `text-sm` | `font-medium` / `font-semibold` | default or tight | Empty states and card titles |
 | Body | `text-sm` | `font-normal` | default / `leading-6` in composer | Main row labels, chat input, messages |
 | Secondary | `text-xs` | regular/medium/semibold by context | relaxed for snippets, uppercase tracking for labels | Metadata, counts, timestamps |
-| Micro | `text-[0.6875rem]` (11px), `text-[10px]`, `text-[9px]`, `text-[8px]`, `text-[7px]` | regular to semibold | uppercase/tracking on provider/status micro-labels | Dense sidebar badges, command hints, running counts |
+| Micro | `text-[0.6875rem]` (11px), `text-[10px]` | regular to semibold | tabular numerals for counts | Dense sidebar badges, command hints, running counts. 10px is the floor: nothing renders smaller |
 | Code/content | `font-mono text-xs`, prose code | regular | wraps aggressively in chat | Paths, JSON, code, and terminal output |
 
 ### Rules
@@ -84,6 +86,8 @@ All new product colors must route through semantic CSS variables in `src/index.c
 - Mobile form fields use at least 16px when needed to avoid iOS zoom, as seen in mobile edit/select overrides.
 - Preserve Pretendard loading before `index.css` in `src/main.jsx`.
 - Use `truncate`, `break-words`, `whitespace-pre-wrap`, and `overflow-wrap` patterns for long paths, prompts, URLs, and chat messages.
+- Never hyphenate or `break-all`: prose wraps at word boundaries, and code, commands and ids use `wrap-anywhere` so a token breaks only when it alone is wider than the line.
+- A status-line separator (` · `) that opens a flex item uses `StatusSeparator` (`whitespace-pre`); plain leading spaces are dropped there.
 
 ## 4. Spacing & Layout
 
@@ -193,7 +197,7 @@ The system uses Tailwind's 4px spacing scale. Existing values like `p-2`, `gap-2
 
 - **Structure**: desktop and mobile share the same Codex-aligned hierarchy: product wordmark and global search, one `New task` action, an inline filter field (`h-8`, `bg-muted/60`, `type="search"`; `/` focuses it from outside any text field, Escape clears it) that narrows the tree by conversation title and message body while force-expanding matching projects, then independently collapsible `Projects` and `Work` sections. Project rows are not duplicated as session containers; Work owns the latest-first session list and identifies each row's project in secondary text.
 - **Surface**: `bg-background`, borderless list rows, and restrained tonal hover/selected states.
-- **States**: selected `bg-primary/5 border-primary/20`, starred yellow tint, destructive red actions. Each session row carries one derived status (`src/stores/sessionStatusModel.ts`): `running` shows the muted spinner in the age slot; `needs_input` a pulsing `bg-primary` leading dot plus a `text-primary` alert glyph; `blocked` a `bg-destructive` dot plus a `text-destructive` warning glyph; `ready` (finished, not yet opened) a solid `bg-primary` dot with the age left in place. Every indicator has `role="status"` and a translated `aria-label`. The Work heading shows non-zero per-state counts and project rows a `bg-primary/10` (or `bg-destructive/10` when a run failed) count of sessions that need a look; zero counts are never rendered.
+- **States**: selected `bg-primary/5 border-primary/20`, starred yellow tint, destructive red actions. Each session row carries one derived status (`src/stores/sessionStatusModel.ts`): `running` shows the muted spinner in the age slot; `needs_input` a pulsing `bg-primary` leading dot (6px, inside the row's leading padding, never hung off the edge) plus a `text-primary` alert glyph; `blocked` a `bg-destructive` dot plus a `text-destructive` warning glyph; `ready` (finished, not yet opened) a solid `bg-primary` dot with the age left in place. Every indicator has `role="status"` and a translated `aria-label`. The Work heading shows non-zero per-state counts and project rows a `bg-primary/10` (or `bg-destructive/10` when a run failed) count of sessions that need a look; zero counts are never rendered, and project rows carry no total count.
 - **Layout**: scroll ownership stays in `ScrollArea`; the wordmark/search header, primary action, and utility footer remain fixed. Archive recovery, refresh, issue reporting, community, and version remain compact footer utilities.
 
 ### Sidebar Primary Navigation
@@ -239,11 +243,10 @@ The system uses Tailwind's 4px spacing scale. Existing values like `p-2`, `gap-2
 
 | Type | Duration / Easing | Usage |
 |------|-------------------|-------|
-| Instant reset | `transition: none` base on `*` before scoped rules | Prevent inherited accidental transitions |
+| Instant reset | `transition: none` base on `*` before scoped rules | Structure (rows, panes, theme changes) repaints at once, as a native app does |
 | Micro hover | 100ms | Hover shortening for buttons, anchors, role buttons |
 | Active press | 50ms | Active-state tap feedback |
-| Standard controls | 150ms `cubic-bezier(0.4, 0, 0.2, 1)` | Buttons, transforms, focus outline/ring, modal show |
-| Theme color | 200ms ease-in-out | Background, border, color transitions for non-interactive structural elements |
+| Standard controls | 150ms `cubic-bezier(0.4, 0, 0.2, 1)` | Colour, border, shadow and opacity of buttons, links and fields; modal show |
 | Modal/dropdown | 200ms ease-in-out / standard bezier | Modal opacity/transform transitions |
 | Sidebar overlay | 150ms ease-out mobile, 300ms sidebar utility | Mobile drawer and sidebar transitions |
 | Message | 300ms | Chat message affordances |
@@ -298,7 +301,7 @@ The current strategy is mixed but restrained: borders and tonal shifts for defau
 
 | Item | Location | Why accepted | Owner / Exit |
 |------|----------|--------------|--------------|
-| Legacy raw RGB/Tailwind colors for dark form controls, placeholders, status badges, and sidebar semantic states | `src/index.css`, sidebar rows | Existing product UI already relies on these colors; this task documents the system without changing visible styling. | Tokenize status/form colors in a dedicated visual consolidation pass. |
+| Raw Tailwind status colors (emerald success, amber star) | `CommandResultModal`, `OAuthLoginDialog`, sidebar project rows | Form controls, placeholders and tool rows are tokenized; success and favourite states have no token yet. | Add `--success`/`--warning` tokens and route these through them. |
 | Tooltip lacks full keyboard/focus tooltip semantics | `src/shared/view/ui/Tooltip.tsx` | Current tooltip supports hover, touch long press, and outside dismissal; changing behavior would alter product interaction. | Add focus-triggered display and ARIA association in a focused accessibility pass. |
 | Some dense sidebar action controls are smaller than 44px | `src/components/sidebar/view/subcomponents/*` | Desktop density is central to the command-center feel; mobile rows provide larger surrounding hit areas for primary actions. | Audit primary mobile controls during visual QA and expand hit areas where actions are frequent or destructive. |
 | No standalone primitive showcase exists yet | Project root / shared UI docs | Focused render harnesses and real-app breakpoint QA cover the sidebar tab primitive, but the project does not yet have a shared Storybook-style surface. | Expand the existing state harness into a reusable shared-primitive showcase during the next design-system consolidation pass. |

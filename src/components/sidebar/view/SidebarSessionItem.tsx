@@ -272,7 +272,6 @@ export default function SidebarSessionItem({
   if (isEditing) {
     return (
       <div className="group relative" data-session-status={status}>
-        <SessionStatusDot status={status} t={t} />
         <div
           ref={editingContainerRef}
           className="my-0.5 flex items-center gap-1 rounded-md border border-border bg-card px-1.5 py-1"
@@ -353,7 +352,7 @@ export default function SidebarSessionItem({
   return (
     <div
       className={cn(
-        'group relative my-0.5 flex h-8 items-center gap-1 rounded-md border border-transparent px-2 transition-colors duration-150',
+        'group relative my-0.5 flex h-8 items-center gap-1 rounded-md border border-transparent pr-2 pl-3.5 transition-colors duration-150',
         isSelected
           ? 'bg-accent text-accent-foreground'
           : isBusy || sessionView.isActive

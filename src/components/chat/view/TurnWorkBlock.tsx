@@ -16,6 +16,7 @@ import type { TurnWorkBlockItem } from '../utils/turnWork';
 import GroupedMessageList from './GroupedMessageList';
 import type { MessageRenderProps } from './GroupedMessageList';
 import RunningActivityRow from './RunningActivityRow';
+import StatusSeparator from './StatusSeparator';
 
 interface TurnWorkBlockProps extends MessageRenderProps {
   block: TurnWorkBlockItem;
@@ -115,37 +116,40 @@ function FoldedTurnWork({ block, prevMessage, running = false, liveActivity, run
         {running ? (
           <>
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
-            <span role="status" className="flex min-w-0 items-center text-muted-foreground">
-              <Shimmer className="shrink-0 font-medium">{`${runningLabel}…`}</Shimmer>
-              {callLabel && (
-                <span className="min-w-0 truncate" data-live-call>
-                  <span aria-hidden>{SEPARATOR}</span>
-                  {callLabel}
+            {/* One gapless group, so every separator is spaced by its own text. */}
+            <span className="flex min-w-0 items-center">
+              <span role="status" className="flex min-w-0 items-center text-muted-foreground">
+                <Shimmer className="shrink-0 font-medium">{`${runningLabel}…`}</Shimmer>
+                {callLabel && (
+                  <span className="min-w-0 truncate" data-live-call>
+                    <StatusSeparator />
+                    {callLabel}
+                  </span>
+                )}
+              </span>
+              {runStartedAt !== null && (
+                <span className="shrink-0 text-muted-foreground tabular-nums">
+                  <StatusSeparator />
+                  {formatElapsed(elapsedSeconds, t)}
                 </span>
               )}
             </span>
-            {runStartedAt !== null && (
-              <span className="shrink-0 text-muted-foreground tabular-nums">
-                <span aria-hidden>{SEPARATOR}</span>
-                {formatElapsed(elapsedSeconds, t)}
-              </span>
-            )}
           </>
         ) : (
-          <>
+          <span className="flex min-w-0 items-center">
             <span className="shrink-0 font-medium text-foreground">{finishedLeading}</span>
             {finishedDetail.length > 0 && (
               <span className="min-w-0 truncate text-muted-foreground">
-                <span aria-hidden>{SEPARATOR}</span>
+                <StatusSeparator />
                 {finishedDetail.join(SEPARATOR)}
               </span>
             )}
-          </>
+          </span>
         )}
         {summary.failed > 0 && (
           <span className="shrink-0 text-[11px] text-destructive">
             {t('tools.error')}
-            <span aria-hidden>{SEPARATOR}</span>
+            <StatusSeparator />
             {t('workBlock.failed', { count: summary.failed, defaultValue: '{{count}} failed' })}
           </span>
         )}

@@ -210,9 +210,12 @@
     }
   },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "Thème sombre",
-      "description": "Basculer entre les thèmes clairs et sombres"
+    "theme": {
+      "label": "Thème",
+      "description": "Suivre l'apparence du système ou conserver un thème",
+      "system": "Système",
+      "light": "Clair",
+      "dark": "Sombre"
     },
     "interfaceFontSize": {
       "label": "Taille du texte de l'interface",

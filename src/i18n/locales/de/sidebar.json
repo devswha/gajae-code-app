@@ -34,8 +34,8 @@
     "hideSidebar": "Seitenleiste einklappen",
     "createProject": "Fügen Sie ein Projekt hinzu",
     "createSession": "Beginnen Sie ein Gespräch",
-    "refresh": "Projekte und Konversationen neu laden (Ctrl+R)",
-    "renameProject": "Arbeitsbereich umbenennen (F2)",
+    "refresh": "Projekte und Konversationen neu laden",
+    "renameProject": "Arbeitsbereich umbenennen",
     "archiveProject": "Dieses Projekt ins Archiv verschieben (nichts wird gelöscht)",
     "addToFavorites": "Als Favorit markieren",
     "removeFromFavorites": "Favoritenmarkierung entfernen",
@@ -104,7 +104,6 @@
     "accounts_one": "{{count}} Konto",
     "accounts_other": "{{count}} Konten",
     "noWindowData": "Keine Werte gemeldet",
-    "unsupported": "Verbrauch für diesen Anbieter nicht verfügbar",
     "reauth": "Erneut anmelden, um den Verbrauch zu lesen",
     "error": "Verbrauch konnte nicht aktualisiert werden",
     "stale": "Zuletzt bekannte Werte"

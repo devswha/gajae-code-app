@@ -2,8 +2,8 @@
  * Rendering contract for the sidebar quota row.
  *
  * These assertions are about what a person can actually see: the arc length is
- * the lowest remaining window, a provider that cannot report a quota never
- * draws one, one provider's failure never blanks its peers, and the footer does
+ * the lowest remaining window, a provider that cannot report a quota gets no
+ * indicator, one provider's failure never blanks its peers, and the footer does
  * not gain a section when there is nothing to show.
  */
 
@@ -123,17 +123,34 @@ test('the accessible name still states the quota for assistive technology', asyn
   await waitFor(() => assert.ok(screen.getByLabelText('Claude: 41% of quota left')));
 });
 
-test('an unsupported provider draws no arc and never a fabricated percentage', async () => {
-  stubQuota([entry({ provider: 'zai', providerName: 'Z.ai', status: 'unsupported', reason: 'usage_unsupported', windows: [] })]);
+test('a provider that reports no quota gets no indicator at all', async () => {
+  stubQuota([
+    entry({ provider: 'zai', providerName: 'Z.ai', status: 'unsupported', reason: 'usage_unsupported', windows: [] }),
+    entry(),
+  ]);
   renderRow();
 
-  await waitFor(() => assert.ok(screen.getByLabelText('Z.ai')));
-  assert.equal(arc('zai'), null, 'an unsupported provider must not draw a quota it does not have');
-  assert.ok(
-    track('zai')?.getAttribute('stroke-dasharray'),
-    'a dashed track separates "no quota reported" from "quota spent", which also draws no arc',
-  );
-  assert.equal(rings().length, 1, 'the indicator still occupies its slot');
+  await waitFor(() => assert.equal(remainingOf('anthropic'), 41));
+  assert.equal(screen.queryByLabelText('Z.ai'), null, 'an empty ring for a provider with nothing to report is noise');
+  assert.equal(rings().length, 1);
+});
+
+test('when no provider reports quota, the row is not rendered', async () => {
+  stubQuota([entry({ provider: 'zai', providerName: 'Z.ai', status: 'unsupported', reason: 'usage_unsupported', windows: [] })]);
+  const view = renderRow();
+
+  // The first-fetch placeholder goes away and nothing takes its place.
+  await waitFor(() => assert.equal(requestedUrls.length, 1));
+  await waitFor(() => assert.equal(view.container.innerHTML, ''));
+});
+
+test('a failed read draws a dashed track, so it cannot be read as a spent quota', async () => {
+  stubQuota([entry({ status: 'error', reason: 'fetch_failed', windows: [] })]);
+  renderRow();
+
+  await waitFor(() => assert.ok(track('anthropic')));
+  assert.equal(arc('anthropic'), null, 'a failed read must not draw a quota it does not have');
+  assert.ok(track('anthropic')?.getAttribute('stroke-dasharray'));
 });
 
 test('a spent quota keeps a solid track, so it cannot be read as "no data"', async () => {

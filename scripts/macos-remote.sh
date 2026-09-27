@@ -9,9 +9,11 @@
 #   GAJAE_MAC_CHECKOUT  build checkout on the Mac, relative to its home or
 #                       absolute (default: workspace/gajae-code-app/.gjc-worktrees/mac-build)
 #
-# The ref (default HEAD) is resolved here and must already be pushed. The
-# checkout is disposable: it is force-checked-out to that commit, and
-# `npm ci` runs again whenever package-lock.json differs from its last install.
+# The ref (default HEAD) is resolved here and must already be on an origin
+# branch. The checkout is disposable: it is force-checked-out to that commit
+# and cleaned of untracked files (ignored build outputs are kept, so builds
+# stay incremental), and `npm ci` runs again whenever package-lock.json
+# differs from its last install.
 # The command runs in a zsh login shell from the checkout root, e.g.
 #   scripts/macos-remote.sh -- 'npm run server:payload:macos && cargo test --locked --manifest-path src-tauri/Cargo.toml'
 set -euo pipefail
@@ -34,12 +36,17 @@ remote_script=$(cat <<'REMOTE'
 set -e
 cd "$HOME"
 cd "$GAJAE_CHECKOUT"
-git fetch --quiet origin
-if ! git cat-file -e "$GAJAE_SHA^{commit}" 2>/dev/null; then
+git fetch --quiet --prune origin
+# Reachable from a remote-tracking branch, not merely present in the Mac's
+# object store, which also holds the Mac's own unpushed work.
+if [ -z "$(git branch -r --contains "$GAJAE_SHA" 2>/dev/null)" ]; then
   print -u2 "macos-remote: $GAJAE_SHA is not on origin; push it first."
   exit 65
 fi
 git checkout --quiet --force --detach "$GAJAE_SHA"
+# Untracked leftovers go; ignored build outputs (node_modules, cargo target,
+# the server payload) stay so builds remain incremental.
+git clean -fdq
 lock="$(shasum -a 256 package-lock.json | cut -d' ' -f1)"
 if [ "$(cat node_modules/.macos-remote-lock 2>/dev/null)" != "$lock" ]; then
   npm ci --no-audit --no-fund

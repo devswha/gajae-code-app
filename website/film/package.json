@@ -1,0 +1,16 @@
+{
+  "name": "gajae-code-app-film",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic compositor for the Gajae Code App homepage film and UI loops. Not installed or run by CI.",
+  "scripts": {
+    "serve": "node engine/server.mjs",
+    "render": "node engine/render.mjs",
+    "encode": "node engine/encode.mjs",
+    "qc": "node engine/qc.mjs",
+    "loops": "node engine/build.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

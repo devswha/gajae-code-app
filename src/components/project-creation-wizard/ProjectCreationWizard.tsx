@@ -59,10 +59,10 @@ export default function ProjectCreationWizard({
             </div>
             <div className="min-w-0">
               <h2 id="add-project-title" className="text-base font-semibold text-foreground">
-                {t('projectWizard.addProject', { defaultValue: 'Add project' })}
+                {t('projectWizard.addProject')}
               </h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {t('projectWizard.addProjectDescription', { defaultValue: 'Choose a local folder to use as a project.' })}
+                {t('projectWizard.addProjectDescription')}
               </p>
             </div>
           </div>
@@ -98,7 +98,7 @@ export default function ProjectCreationWizard({
             {isCreating && <Loader2 className="mr-2 size-4 animate-spin" />}
             {isCreating
               ? t('projectWizard.buttons.creating')
-              : t('projectWizard.addButton', { defaultValue: 'Add' })}
+              : t('projectWizard.addButton')}
           </Button>
         </div>
       </div>

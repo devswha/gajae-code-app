@@ -168,7 +168,7 @@ test('Given the filter empty state lives in SidebarContent when project state so
   assert.deepEqual(obsoleteSourceText.filter((text) => source.includes(text)), []);
 });
 
-test('Given the Codex-aligned product surface when DESIGN.md is inspected then it documents primary action and disclosure sections without Jobs', () => {
+test('Given the product surface when DESIGN.md is inspected then it documents primary action and disclosure sections without Jobs', () => {
   const design = readFileSync(path.join(ROOT, 'DESIGN.md'), 'utf8');
   const obsoleteDesignText = [
     'jobs surfaces',
@@ -189,7 +189,8 @@ test('Given the Codex-aligned product surface when DESIGN.md is inspected then i
   ] as const;
 
   assert.deepEqual(obsoleteDesignText.filter((text) => design.includes(text)), []);
-  assert.match(design, /Codex-aligned hierarchy/i);
+  assert.match(design, /one `New conversation` action/);
+  assert.match(design, /`Workspaces` and `Active` sections/);
   assert.match(design, /Sidebar Primary Navigation/);
   assert.match(design, /compact footer utilities/i);
 });

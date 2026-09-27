@@ -20,6 +20,15 @@ test('a session that never reported a window renders nothing', () => {
   assert.equal(render({ contextWindow: 200_000 }), '', 'a window without a percentage is not a gauge');
 });
 
+test('the gauge is a filled wedge, not a stroked arc that reads as a spinner', () => {
+  const html = render({ contextPercent: 40, contextWindow: 1000 });
+  assert.doesNotMatch(html, /stroke-linecap/);
+  const wedge = /<circle[^>]*stroke-dasharray[^>]*>/.exec(html)?.[0] ?? '';
+  const radius = Number(/\br="([\d.]+)"/.exec(wedge)?.[1]);
+  const width = Number(/stroke-width="([\d.]+)"/.exec(wedge)?.[1]);
+  assert.equal(width, radius * 2, 'a stroke as wide as the diameter fills the wedge to the centre');
+});
+
 test('the arc covers the reported share of the window', () => {
   const html = render({ contextPercent: 25, contextWindow: 200_000, contextTokens: 50_000 });
   const dash = arcLength(html);
@@ -31,7 +40,7 @@ test('the arc covers the reported share of the window', () => {
 test('an empty context draws the track alone so a fresh session shows no dot', () => {
   const html = render({ contextPercent: 0, contextWindow: 200_000, contextTokens: 0 });
   assert.equal(arcLength(html), null);
-  assert.match(html, /stroke-border/);
+  assert.match(html, /stroke-muted-foreground\/50/, 'the outline alone');
 });
 
 test('the arc warms as the window fills and is clamped at full', () => {

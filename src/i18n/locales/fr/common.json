@@ -2,9 +2,9 @@
   "buttons": {
     "cancel": "Abandonner"
   },
-  "tabs": {
-    "chat": "Discuter",
-    "git": "Contrôle des versions"
+  "toasts": {
+    "region": "Notifications",
+    "dismiss": "Fermer"
   },
   "status": {
     "success": "Opération réussie"
@@ -12,17 +12,16 @@
   "mainContent": {
     "loading": "Démarrage de l'application Gajae",
     "settingUpWorkspace": "Préparation de l'espace de travail…",
-    "chooseProject": "Choisissez un projet",
-    "selectProjectDescription": "Choisissez un projet de la barre latérale pour commencer à coder dans Gajae Code. Ses conversations et son historique de fichiers y restent ensemble.",
-    "firstProject": "Ajoutez votre premier projet",
-    "firstProjectDescription": "Choisissez un dossier sur cette machine. Gajae Code y travaille et les conversations du projet y restent.",
-    "addProject": "Ajouter un projet",
+    "chooseProject": "Choisissez un espace de travail",
+    "selectProjectDescription": "Choisissez un espace de travail dans la barre latérale pour commencer à coder dans Gajae Code. Ses conversations et son historique de fichiers y restent ensemble.",
+    "firstProject": "Ajoutez votre premier espace de travail",
+    "firstProjectDescription": "Choisissez un dossier sur cette machine. Gajae Code y travaille et les conversations de l’espace de travail y restent.",
+    "addProject": "Ajouter un espace de travail",
     "scratchStart": "Commencer dans un espace brouillon",
     "scratchStarting": "Préparation…",
     "scratchDescription": "Pas encore de dossier ? Gajae Code crée ~/gajae-scratch, un dépôt git jetable, et y ouvre une conversation. L’agent y reste confiné.",
     "scratchFailed": "Impossible de démarrer l’espace brouillon : {{reason}}",
-    "newSession": "Démarrer une conversation",
-    "projectFiles": "Fichiers dans le projet"
+    "newSession": "Démarrer une conversation"
   },
   "projectWizard": {
     "step2": {
@@ -52,7 +51,10 @@
       "path": "Chemin :",
       "useThisFolder": "Choisissez ce dossier",
       "browseFolders": "Rechercher des dossiers"
-    }
+    },
+    "addProject": "Ajouter un espace de travail",
+    "addProjectDescription": "Choisissez un dossier local à utiliser comme espace de travail.",
+    "addButton": "Ajouter"
   },
   "versionUpdate": {
     "ariaLabels": {
@@ -84,6 +86,7 @@
       "changes": "Modifications",
       "branch": "Branche",
       "directory": "Répertoire",
+      "worktreeOf": "Worktree de {{name}}",
       "serviceTier": "Niveau de service",
       "refresh": "Recharger l'état Git",
       "notARepository": "Ce dossier n'est pas un dépôt Git",
@@ -113,14 +116,14 @@
     "pages": {
       "actions": "Actions",
       "files": "Fichiers",
-      "sessions": "Sessions",
+      "sessions": "Conversations",
       "commits": "Commits",
       "branches": "Branches"
     },
     "search": {
       "actions": "Rechercher des actions…",
       "files": "Rechercher des fichiers…",
-      "sessions": "Rechercher des sessions…",
+      "sessions": "Rechercher des conversations…",
       "commits": "Rechercher des commits…",
       "branches": "Rechercher des branches…",
       "anything": "Tapez pour tout rechercher…"
@@ -130,16 +133,14 @@
     "noResults": "Aucun résultat.",
     "current": "Actuel",
     "groups": {
-      "navigate": "Naviguer",
       "git": "Git",
       "settings": "Paramètres"
     },
     "actions": {
-      "startNewChat": "Nouvelle discussion",
-      "selectProjectFirst": "Sélectionnez d'abord un projet",
+      "startNewChat": "Nouvelle conversation",
+      "selectProjectFirst": "Sélectionnez d'abord un espace de travail",
       "openSettings": "Ouvrir les paramètres",
       "toggleTheme": "Changer de thème",
-      "goToChat": "Aller à la discussion",
       "gitFetch": "Git : Fetch",
       "gitPull": "Git : Pull",
       "gitPush": "Git : Push",
@@ -147,7 +148,7 @@
       "switchToBranch": "Basculer vers : {{branch}}"
     },
     "browseAll": {
-      "sessions": "Parcourir toutes les sessions ({{total}})",
+      "sessions": "Parcourir toutes les conversations ({{total}})",
       "files": "Parcourir tous les fichiers ({{total}})",
       "commits": "Parcourir tous les commits ({{total}})",
       "branches": "Parcourir toutes les branches ({{total}})"

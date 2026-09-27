@@ -21,7 +21,6 @@ const selectedProject: Project = {
 };
 
 const headerProps = {
-  activeTab: 'chat',
   selectedProject,
   selectedSession: null,
   isMobile: false,

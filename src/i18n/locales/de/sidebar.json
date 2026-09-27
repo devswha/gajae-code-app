@@ -1,56 +1,56 @@
 {
   "projects": {
-    "title": "Arbeitsbereiche",
-    "newProject": "Projekt hinzufügen",
-    "renameProject": "Arbeitsbereich umbenennen",
-    "noProjects": "Noch keine Arbeitsbereiche",
+    "title": "Workspaces",
+    "newProject": "Workspace hinzufügen",
+    "renameProject": "Workspace umbenennen",
+    "noProjects": "Noch keine Workspaces",
     "addFirst": "Hinzufügen",
-    "loadingProjects": "Arbeitsbereiche werden abgerufen…",
-    "projectNamePlaceholder": "Name des Arbeitsbereichs",
-    "untitledSession": "Unbenanntes Gespräch",
-    "newSession": "Gespräch beginnen",
-    "fetchingProjects": "Projekte und Gespräche abrufen",
-    "projects": "Arbeitsprojekte"
+    "loadingProjects": "Workspaces werden abgerufen…",
+    "projectNamePlaceholder": "Name des Workspace",
+    "untitledSession": "Unbenannte Unterhaltung",
+    "newSession": "Unterhaltung beginnen",
+    "fetchingProjects": "Workspaces und Unterhaltungen abrufen",
+    "projects": "Workspaces"
   },
   "sessions": {
-    "work": "Arbeitsbereich",
-    "newTask": "Neues Arbeitselement",
-    "newSession": "Gespräch beginnen",
-    "deleteSession": "Konversation löschen",
-    "archiveSession": "Konversation archivieren",
-    "renameSession": "Konversation umbenennen",
+    "work": "Aktiv",
+    "newTask": "Neue Unterhaltung",
+    "newSession": "Unterhaltung beginnen",
+    "deleteSession": "Unterhaltung löschen",
+    "archiveSession": "Unterhaltung archivieren",
+    "renameSession": "Unterhaltung umbenennen",
     "regenerateTitle": "Titel neu erzeugen",
     "exportSession": "Exportieren Sie Markdown",
     "copyDebugInfo": "Debug-Infos kopieren",
     "pin": "Pin",
     "unpin": "Lösen",
-    "noSessions": "Noch keine Gespräche",
-    "loadingSessions": "Gespräche abrufen…",
+    "noSessions": "Noch keine Unterhaltungen",
+    "loadingSessions": "Unterhaltungen abrufen…",
     "unnamed": "Ohne Titel",
     "loading": "Laden...",
-    "showMore": "Weitere Gespräche anzeigen"
+    "showMore": "Weitere Unterhaltungen anzeigen"
   },
   "tooltips": {
     "hideSidebar": "Seitenleiste einklappen",
-    "createProject": "Fügen Sie ein Projekt hinzu",
-    "createSession": "Beginnen Sie ein Gespräch",
-    "refresh": "Projekte und Konversationen neu laden",
-    "renameProject": "Arbeitsbereich umbenennen",
-    "archiveProject": "Dieses Projekt ins Archiv verschieben (nichts wird gelöscht)",
+    "createProject": "Fügen Sie einen Workspace hinzu",
+    "createSession": "Beginnen Sie eine Unterhaltung",
+    "refresh": "Workspaces und Unterhaltungen neu laden",
+    "renameProject": "Workspace umbenennen",
+    "archiveProject": "Diesen Workspace ins Archiv verschieben (nichts wird gelöscht)",
     "addToFavorites": "Als Favorit markieren",
     "removeFromFavorites": "Favoritenmarkierung entfernen",
-    "editSessionName": "Bearbeiten Sie den Konversationsnamen",
-    "sessionActions": "Konversationsaktionen",
-    "deleteSession": "Diese Konversation dauerhaft löschen",
-    "activeSessionIndicator": "Konversation aktiv innerhalb der letzten 10 Minuten",
+    "editSessionName": "Bearbeiten Sie den Namen der Unterhaltung",
+    "sessionActions": "Aktionen für die Unterhaltung",
+    "deleteSession": "Diese Unterhaltung dauerhaft löschen",
+    "activeSessionIndicator": "Unterhaltung aktiv innerhalb der letzten 10 Minuten",
     "save": "Änderungen sichern",
     "cancel": "Vorgang abbrechen",
-    "attentionRequiredIndicator": "Gespräche brauchen Aufmerksamkeit"
+    "attentionRequiredIndicator": "Unterhaltung braucht Aufmerksamkeit"
   },
   "filter": {
-    "placeholder": "Gespräche filtern",
+    "placeholder": "Unterhaltungen filtern",
     "clear": "Filter löschen",
-    "noMatches": "Keine Gespräche passen zu „{{query}}“"
+    "noMatches": "Keine Unterhaltungen passen zu „{{query}}“"
   },
   "actions": {
     "search": "Suche starten",
@@ -74,26 +74,26 @@
     "countReady_other": "{{count}} abgeschlossen",
     "countBlocked_one": "{{count}} fehlgeschlagen",
     "countBlocked_other": "{{count}} fehlgeschlagen",
-    "projectAttentionCount_one": "{{count}} Gespräch braucht Aufmerksamkeit",
-    "projectAttentionCount_other": "{{count}} Gespräche brauchen Aufmerksamkeit"
+    "projectAttentionCount_one": "{{count}} Unterhaltung braucht Aufmerksamkeit",
+    "projectAttentionCount_other": "{{count}} Unterhaltungen brauchen Aufmerksamkeit"
   },
   "messages": {
-    "deleteSessionFailed": "Die Konversation konnte nicht gelöscht werden. Versuchen Sie es erneut.",
-    "deleteSessionError": "Beim Löschen der Konversation ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
-    "renameSessionFailed": "Konversation konnte nicht umbenannt werden. Versuchen Sie es erneut.",
-    "renameSessionError": "Es ist ein Fehler beim Umbenennen der Konversation aufgetreten. Versuchen Sie es erneut.",
+    "deleteSessionFailed": "Die Unterhaltung konnte nicht gelöscht werden. Versuchen Sie es erneut.",
+    "deleteSessionError": "Beim Löschen der Unterhaltung ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
+    "renameSessionFailed": "Unterhaltung konnte nicht umbenannt werden. Versuchen Sie es erneut.",
+    "renameSessionError": "Es ist ein Fehler beim Umbenennen der Unterhaltung aufgetreten. Versuchen Sie es erneut.",
     "regenerateTitleFailed": "Der Titel konnte nicht neu erzeugt werden. Bitte erneut versuchen.",
-    "exportSessionError": "Konversation konnte nicht exportiert werden. Versuchen Sie es erneut.",
-    "archiveProjectFailed": "Das Projekt konnte nicht archiviert werden. Versuchen Sie es erneut.",
-    "archiveProjectError": "Beim Archivieren des Projekts ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
-    "updateProjectError": "Es ist ein Projektaktualisierungsfehler aufgetreten. Versuchen Sie es erneut.",
+    "exportSessionError": "Unterhaltung konnte nicht exportiert werden. Versuchen Sie es erneut.",
+    "archiveProjectFailed": "Der Workspace konnte nicht archiviert werden. Versuchen Sie es erneut.",
+    "archiveProjectError": "Beim Archivieren des Workspace ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
+    "updateProjectError": "Beim Aktualisieren des Workspace ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
     "refreshError": "Konnte nicht aktualisiert werden. Versuchen Sie es erneut.",
-    "restoreProjectFailed": "Das Projekt konnte nicht wiederhergestellt werden. Versuchen Sie es erneut.",
-    "restoreProjectError": "Bei der Projektwiederherstellung ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
-    "restoreSessionFailed": "Konversation konnte nicht wiederhergestellt werden. Versuchen Sie es erneut.",
-    "restoreSessionError": "Beim Wiederherstellen der Konversation ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
-    "archiveSessionFailed": "Konversation konnte nicht archiviert werden. Versuchen Sie es erneut.",
-    "archiveSessionError": "Beim Archivieren der Konversation ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
+    "restoreProjectFailed": "Der Workspace konnte nicht wiederhergestellt werden. Versuchen Sie es erneut.",
+    "restoreProjectError": "Beim Wiederherstellen des Workspace ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
+    "restoreSessionFailed": "Unterhaltung konnte nicht wiederhergestellt werden. Versuchen Sie es erneut.",
+    "restoreSessionError": "Beim Wiederherstellen der Unterhaltung ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
+    "archiveSessionFailed": "Unterhaltung konnte nicht archiviert werden. Versuchen Sie es erneut.",
+    "archiveSessionError": "Beim Archivieren der Unterhaltung ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
     "debugInfoError": "Die Debug-Infos konnten nicht kopiert werden."
   },
   "providerQuota": {
@@ -112,7 +112,14 @@
     "updateAvailable": "Neues Update verfügbar"
   },
   "deleteConfirmation": {
-    "deleteSession": "Konversation löschen",
-    "confirmDelete": "Wählen Sie, was Sie tun möchten"
+    "deleteSession": "Unterhaltung löschen",
+    "confirmDelete": "Wählen Sie, was Sie tun möchten",
+    "archiveSessionNotice": "Archivieren nimmt die Unterhaltung aus der Liste und behält ihren Verlauf.",
+    "archivedSessionNotice": "Diese Unterhaltung ist bereits archiviert. Behalte sie ausgeblendet oder lösche sie endgültig.",
+    "archiveSession": "Unterhaltung archivieren",
+    "deleteSessionPermanently": "Endgültig löschen"
+  },
+  "navigation": {
+    "primary": "Hauptnavigation"
   }
 }

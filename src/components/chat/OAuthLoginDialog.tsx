@@ -189,8 +189,8 @@ function OAuthLoginDialog({
           )}
 
           {attempt?.phase === 'completed' && (
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-4 text-center">
-              <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600 dark:text-emerald-300" aria-hidden />
+            <div className="rounded-xl border border-success/30 bg-success/10 px-4 py-4 text-center">
+              <CheckCircle2 className="mx-auto h-8 w-8 text-success" aria-hidden />
               <p className="mt-2 font-medium text-foreground">Sign-in complete</p>
               <p className="mt-1 text-sm text-muted-foreground">{attempt.instruction || 'Your provider is ready to use.'}</p>
             </div>
@@ -311,7 +311,7 @@ function OAuthLoginDialog({
                         {!provider.available ? 'Unavailable' : provider.authenticated ? 'Already signed in' : 'Sign in'}
                       </span>
                     </span>
-                    {provider.authenticated && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-label="Already signed in" />}
+                    {provider.authenticated && <CheckCircle2 className="h-4 w-4 text-success" aria-label="Already signed in" />}
                   </button>
                 ))}
               </div>

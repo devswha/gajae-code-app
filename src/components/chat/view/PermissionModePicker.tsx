@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Check, ChevronDown, Loader2 } from 'lucide-react';
 
+import { useAnchoredPopup } from '../../../hooks/useAnchoredPopup';
 import { DEFAULT_PERMISSION_MODE, type PermissionModeUpdate, type ProjectPermissions } from '../../../hooks/useProjectPermissions';
 import { cn } from '../../../utils/cn';
 import {
@@ -12,6 +13,8 @@ import {
   permissionModeShortcutLabel,
   type PermissionMode,
 } from '../utils/permissionMode';
+
+const POPUP_WIDTH = 320;
 
 type PermissionModePickerProps = {
   permissions: ProjectPermissions | null;
@@ -37,7 +40,13 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
   const selectionOwner = useRef<object | null>({});
   const rootRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
-  const [popupPosition, setPopupPosition] = useState({ bottom: 0, left: 0 });
+  const popupPosition = useAnchoredPopup({
+    open,
+    onClose: () => setOpen(false),
+    anchorRef: rootRef,
+    popupRef,
+    width: POPUP_WIDTH,
+  });
 
   const mode: PermissionMode = permissions?.mode ?? DEFAULT_PERMISSION_MODE;
   const Icon = PERMISSION_MODE_ICONS[mode];
@@ -63,32 +72,6 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
     document.addEventListener('keydown', handleShortcut);
     return () => document.removeEventListener('keydown', handleShortcut);
   }, [unavailable, isBusy]);
-
-  // Same body portal as the model and preset pickers: the composer clips its
-  // children, so the popup is positioned above the trigger in viewport space.
-  useEffect(() => {
-    if (!open) return;
-    const rect = rootRef.current?.getBoundingClientRect();
-    if (rect) {
-      setPopupPosition({
-        bottom: window.innerHeight - rect.top + 8,
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 320 - 8)),
-      });
-    }
-    const close = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!rootRef.current?.contains(target) && !popupRef.current?.contains(target)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('mousedown', close);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [open]);
 
   const apply = async (update: PermissionModeUpdate) => {
     if (unavailable || isBusy) return;
@@ -136,8 +119,8 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
           ref={popupRef}
           role="listbox"
           aria-label={t('permissionMode.label')}
-          className="fixed z-80 w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
-          style={{ bottom: popupPosition.bottom, left: popupPosition.left }}
+          className="fixed z-80 w-80 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+          style={popupPosition}
         >
           <div className="px-2.5 pt-1 pb-1.5">
             <p className="text-xs font-semibold">{t('permissionMode.title')}</p>
@@ -155,7 +138,7 @@ export default function PermissionModePicker({ permissions, onSelectMode, busy =
                 data-mode={option}
                 onClick={() => { void choose(option); }}
                 className={cn(
-                  'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-accent',
+                  'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left outline-hidden transition-colors hover:bg-accent focus-visible:bg-accent',
                   isSelected && 'bg-accent/70',
                 )}
               >

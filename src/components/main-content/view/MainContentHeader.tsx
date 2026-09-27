@@ -8,7 +8,6 @@ import MobileMenuButton from './MobileMenuButton';
 import MainContentTitle from './MainContentTitle';
 
 export default function MainContentHeader({
-  activeTab,
   selectedProject,
   selectedSession,
   isMobile,
@@ -26,7 +25,6 @@ export default function MainContentHeader({
         <div className="flex min-w-0 flex-1 items-center gap-2">
           {isMobile && <MobileMenuButton onMenuClick={onMenuClick} />}
           <MainContentTitle
-            activeTab={activeTab}
             selectedProject={selectedProject}
             selectedSession={selectedSession}
           />
@@ -35,7 +33,7 @@ export default function MainContentHeader({
         {/* Chat is the only view, so there is no view switcher: a one-tab
             segmented control read as a mode the user could leave. */}
         <div className="flex shrink-0 items-center gap-1.5">
-          {activeTab === 'chat' && <ToolOutputDensityToggle />}
+          <ToolOutputDensityToggle />
           <button
             type="button"
             onClick={onToggleSidebar}

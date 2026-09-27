@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Boxes, Check, ChevronDown, ChevronRight, Loader2, Search } from 'lucide-react';
 
+import { useAnchoredPopup } from '../../../hooks/useAnchoredPopup';
 import { focusSearchInputSafely } from '../../../hooks/useDeviceSettings';
 import { primaryModelSelector } from '../../../../shared/model-selectors';
 import { cn } from '../../../utils/cn';
@@ -158,6 +159,9 @@ export function derivePresetAvailability(
   return availability;
 }
 
+/** `w-96`, the popup's width, for clamping it to the viewport. */
+const POPUP_WIDTH = 384;
+
 export default function AgentConfigurationPicker({ value, options, loading = false, openTrigger, iconOnly = false, modelOptions = [], availabilityKnown = false, onSelect }: AgentConfigurationPickerProps) {
   const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
@@ -167,7 +171,17 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
   const rootRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const [popupPosition, setPopupPosition] = useState({ bottom: 0, left: 0, maxHeight: 0 });
+  // Left-anchored and clamped like the model and skill popups: a
+  // right-anchored w-96 popup grows left off the viewport on phones. The role
+  // summary makes it taller than the model picker, so it is bounded to the
+  // room above the trigger.
+  const popupPosition = useAnchoredPopup({
+    open,
+    onClose: () => setOpen(false),
+    anchorRef: rootRef,
+    popupRef,
+    width: POPUP_WIDTH,
+  });
 
   const selected = useMemo(
     () => options.find((option) => option.value === value) ?? options[0],
@@ -188,37 +202,6 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
     setExpandedGroup(selected?.group || null);
     focusSearchInputSafely(searchRef.current);
   }, [open, selected?.group]);
-
-  useEffect(() => {
-    if (!open) return;
-    const updatePosition = () => {
-      const rect = rootRef.current?.getBoundingClientRect();
-      if (rect) {
-        // Left-anchored and clamped like the model and skill popups: a
-        // right-anchored w-96 popup grows left off the viewport on phones,
-        // cutting off its own list.
-        setPopupPosition({
-          bottom: window.innerHeight - rect.top + 8,
-          left: Math.max(8, Math.min(rect.left, window.innerWidth - 384 - 8)),
-          // The role summary makes this popup taller than the model picker.
-          // Bound it to the space above the trigger so its header and first
-          // provider groups never disappear beyond the top of the viewport.
-          maxHeight: Math.max(0, rect.top - 16),
-        });
-      }
-    };
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
-    const close = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!rootRef.current?.contains(target) && !popupRef.current?.contains(target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => {
-      window.removeEventListener('resize', updatePosition);
-      document.removeEventListener('mousedown', close);
-    };
-  }, [open]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const matches = useMemo(
@@ -315,11 +298,7 @@ export default function AgentConfigurationPicker({ value, options, loading = fal
         <div
           ref={popupRef}
           className="fixed z-80 flex w-96 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
-          style={{
-            bottom: popupPosition.bottom,
-            left: popupPosition.left,
-            maxHeight: popupPosition.maxHeight,
-          }}
+          style={popupPosition}
         >
           <div className="px-2 pt-1 pb-1.5">
             <p className="text-xs font-semibold">{t('input.agentConfiguration.title')}</p>

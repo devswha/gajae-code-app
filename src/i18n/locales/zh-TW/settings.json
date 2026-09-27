@@ -219,7 +219,7 @@
     },
     "interfaceFontSize": {
       "label": "介面文字大小",
-      "description": "設定聊天、會話、設置和介面的文字大小",
+      "description": "設定對話、設定和介面的文字大小",
       "small": "小型",
       "medium": "中型",
       "large": "大型"
@@ -229,8 +229,8 @@
       "description": "在對話 HISTORY 中加載圖像附件"
     },
     "projectSorting": {
-      "label": "專案順序",
-      "description": "設定側欄專案順序",
+      "label": "工作區順序",
+      "description": "設定側欄工作區順序",
       "alphabetical": "字母順序",
       "recentActivity": "最新活動"
     }
@@ -259,14 +259,14 @@
   },
   "permissions": {
     "title": "權限",
-    "description": "依專案設定代理無需詢問即可執行的內容。使用預設策略（與 GJC CLI 相同的略過，無一律允許）的專案不會列出。",
+    "description": "依工作區設定代理無需詢問即可執行的內容。使用預設策略（與 GJC CLI 相同的略過，無一律允許）的工作區不會列出。",
     "mode": "模式",
     "alwaysAllowed": "一律允許",
     "none": "無",
     "revoke": "撤銷",
     "revokeTool": "停止一律允許 {{tool}}",
     "resetToDefault": "重設為預設",
-    "empty": "所有專案都像 GJC CLI 一樣無需詢問即可執行。",
+    "empty": "所有工作區都像 GJC CLI 一樣無需詢問即可執行。",
     "loading": "載入中…",
     "error": "無法載入權限。"
   }

@@ -1,13 +1,12 @@
 import { create } from 'zustand';
 
-import type { AppTab, LoadingProgress, Project, ProjectSession } from '../types/app';
+import type { LoadingProgress, Project, ProjectSession } from '../types/app';
 
 type Updater<T> = T | ((prev: T) => T);
 
 export type AppShellState = {
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
-  activeTab: AppTab;
   sidebarOpen: boolean;
   showSettings: boolean;
   settingsInitialTab: string;
@@ -23,33 +22,12 @@ export type AppShellState = {
   pendingHandoff: { fromSessionId: string | null; projectId: string | undefined; at: number; providerSessionId?: string } | null;
   setSelectedProject: (next: Updater<Project | null>) => void;
   setSelectedSession: (next: Updater<ProjectSession | null>) => void;
-  setActiveTab: (next: Updater<AppTab>) => void;
   setSidebarOpen: (next: Updater<boolean>) => void;
   openSettings: (tab?: string) => void;
   setShowSettings: (next: Updater<boolean>) => void;
   setLoadingProgress: (next: Updater<LoadingProgress | null>) => void;
   setNewProjectOpen: (next: Updater<boolean>) => void;
   setPendingHandoff: (next: AppShellState['pendingHandoff']) => void;
-};
-
-// 'shell'/'git'/'files' were removed as tabs (Files is a side panel now);
-// persisted selections fall back to 'chat' via isValidTab.
-const VALID_TABS: Set<string> = new Set(['chat', 'tasks', 'browser']);
-
-const isValidTab = (tab: string): tab is AppTab => {
-  return VALID_TABS.has(tab) || tab.startsWith('plugin:');
-};
-
-const readPersistedTab = (): AppTab => {
-  try {
-    const stored = localStorage.getItem('activeTab');
-    if (stored && isValidTab(stored)) {
-      return stored;
-    }
-  } catch {
-    // localStorage unavailable
-  }
-  return 'chat';
 };
 
 const SELECTED_PROJECT_KEY = 'selectedProjectId';
@@ -85,7 +63,6 @@ const resolve = <T,>(next: T | ((prev: T) => T), prev: T): T =>
 const createInitialState = (): AppShellState => ({
   selectedProject: null,
   selectedSession: null,
-  activeTab: readPersistedTab(),
   sidebarOpen: false,
   showSettings: false,
   settingsInitialTab: 'agents',
@@ -94,7 +71,6 @@ const createInitialState = (): AppShellState => ({
   pendingHandoff: null,
   setSelectedProject: () => undefined,
   setSelectedSession: () => undefined,
-  setActiveTab: () => undefined,
   setSidebarOpen: () => undefined,
   openSettings: () => undefined,
   setShowSettings: () => undefined,
@@ -116,15 +92,6 @@ export const useAppShellStore = create<AppShellState>()((set) => ({
   setSelectedSession: (next) => set((state) => ({
     selectedSession: resolve(next, state.selectedSession),
   })),
-  setActiveTab: (next) => set((state) => {
-    const activeTab = resolve(next, state.activeTab);
-    try {
-      localStorage.setItem('activeTab', activeTab);
-    } catch {
-      // Silently ignore storage errors
-    }
-    return { activeTab };
-  }),
   setSidebarOpen: (next) => set((state) => ({
     sidebarOpen: resolve(next, state.sidebarOpen),
   })),
@@ -149,7 +116,6 @@ export const resetAppShellStore = () => {
     ...createInitialState(),
     setSelectedProject: useAppShellStore.getState().setSelectedProject,
     setSelectedSession: useAppShellStore.getState().setSelectedSession,
-    setActiveTab: useAppShellStore.getState().setActiveTab,
     setSidebarOpen: useAppShellStore.getState().setSidebarOpen,
     openSettings: useAppShellStore.getState().openSettings,
     setShowSettings: useAppShellStore.getState().setShowSettings,

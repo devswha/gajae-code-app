@@ -80,3 +80,32 @@ test('Always deny appears only when the runtime offered reject_always, and refus
   assert.equal(screen.queryByRole('button', { name: /Always deny/ }), null);
   assert.ok(screen.getByRole('button', { name: 'Always allow bash' }));
 });
+
+test('Cmd/Ctrl+Enter approves the waiting card once', () => {
+  const decisions = mount();
+  fireEvent.keyDown(document.body, { key: 'Enter', metaKey: true });
+  assert.deepEqual(decisions, [['sdk-permission:1', { allow: true }]]);
+
+  fireEvent.keyDown(document.body, { key: 'Enter', ctrlKey: true, shiftKey: true });
+  fireEvent.keyDown(document.body, { key: 'Enter' });
+  assert.equal(decisions.length, 1, 'only the exact chord approves');
+});
+
+test('the chord in a text field stays with the field: a draft never becomes an approval', () => {
+  const decisions = mount();
+  const draft = document.createElement('textarea');
+  document.body.append(draft);
+  try {
+    fireEvent.keyDown(draft, { key: 'Enter', metaKey: true });
+    assert.equal(decisions.length, 0);
+  } finally {
+    draft.remove();
+  }
+});
+
+test('the full command is shown, not truncated to one line', () => {
+  mount();
+  const command = screen.getByText('npm test', { selector: 'code' });
+  assert.equal(command.classList.contains('truncate'), false);
+  assert.ok(command.classList.contains('whitespace-pre-wrap'));
+});

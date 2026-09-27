@@ -4,6 +4,7 @@ import { ChevronsUpDown, FileText } from 'lucide-react';
 
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, Button, Collapsible, CollapsibleTrigger, CollapsibleContent, Shimmer } from '../../../../shared/view/ui';
 import { usePermission } from '../../../../contexts/PermissionContext';
+import { approveShortcutLabel, useApproveShortcut } from '../../hooks/useApproveShortcut';
 
 import { MarkdownContent } from './ContentRenderers';
 
@@ -28,6 +29,8 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({ title, content, defaul
     if (!pendingRequest || !permissions) return;
     permissions.handlePermissionDecision(pendingRequest.requestId, allow ? { allow: true } : { allow: false, message: 'User asked to revise the plan' });
   };
+  // The Build button has always shown this chord; now it also answers to it.
+  useApproveShortcut(Boolean(pendingRequest), () => decide(true));
 
   return <Collapsible defaultOpen={defaultOpen}>
     <Card className="my-1 flex flex-col rounded-lg border border-border bg-card shadow-none">
@@ -44,7 +47,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({ title, content, defaul
       </CardContent></CollapsibleContent>
       {pendingRequest && <CardFooter className="justify-end gap-2 border-t border-border/40 px-4 pt-3 pb-3">
         <Button variant="ghost" size="sm" onClick={() => decide(false)} className="text-muted-foreground">{t('plan.revise')}</Button>
-        <Button size="sm" onClick={() => decide(true)}>{t('plan.build')}{' '}<kbd className="ml-1 rounded bg-primary-foreground/20 px-1 py-0.5 font-mono text-[10px]">⌘↩</kbd></Button>
+        <Button size="sm" onClick={() => decide(true)}>{t('plan.build')}{' '}<kbd aria-hidden className="ml-1 rounded bg-primary-foreground/20 px-1 py-0.5 font-mono text-[10px]">{approveShortcutLabel()}</kbd></Button>
       </CardFooter>}
     </Card>
   </Collapsible>;

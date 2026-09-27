@@ -14,6 +14,8 @@ export type SidebarProjectListProps = {
   filteredProjects: Project[];
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
+  /** The open conversation is highlighted in Work instead, so its tree row stays plain. */
+  selectionShownInWork?: boolean;
   isLoading: boolean;
   isMobile: boolean;
   loadingProgress: LoadingProgress | null;
@@ -68,6 +70,7 @@ export default function SidebarProjectList({
   filteredProjects,
   selectedProject,
   selectedSession,
+  selectionShownInWork = false,
   isLoading,
   isMobile,
   loadingProgress,
@@ -144,6 +147,7 @@ export default function SidebarProjectList({
               project={project}
               selectedProject={selectedProject}
               selectedSession={selectedSession}
+              selectionShownInWork={selectionShownInWork}
               isExpanded={forceExpanded || expandedProjects.has(project.projectId)}
               isMobile={isMobile}
               showSessions={showSessions}

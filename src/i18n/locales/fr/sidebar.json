@@ -1,7 +1,7 @@
 {
   "projects": {
     "title": "Espaces de travail",
-    "newProject": "Ajouter un projet",
+    "newProject": "Ajouter un espace de travail",
     "renameProject": "Renommer l'espace de travail",
     "noProjects": "Aucun espace de travail pour l'instant",
     "addFirst": "En ajouter un",
@@ -9,12 +9,12 @@
     "projectNamePlaceholder": "Nom de l'espace de travail",
     "untitledSession": "Conversation sans nom",
     "newSession": "Démarrer une conversation",
-    "fetchingProjects": "Récupération de projets et de conversations",
-    "projects": "projets"
+    "fetchingProjects": "Récupération des espaces de travail et des conversations",
+    "projects": "espaces de travail"
   },
   "sessions": {
-    "work": "Espace de travail",
-    "newTask": "Nouvel élément de travail",
+    "work": "En cours",
+    "newTask": "Nouvelle conversation",
     "newSession": "Démarrer une conversation",
     "deleteSession": "Supprimer la conversation",
     "archiveSession": "Archiver la conversation",
@@ -32,11 +32,11 @@
   },
   "tooltips": {
     "hideSidebar": "Réduire la barre latérale",
-    "createProject": "Ajouter un projet",
+    "createProject": "Ajouter un espace de travail",
     "createSession": "Démarrer une conversation",
-    "refresh": "Recharger les projets et les conversations",
+    "refresh": "Recharger les espaces de travail et les conversations",
     "renameProject": "Renommer l'espace de travail",
-    "archiveProject": "Déplacer ce projet vers les archives (rien n'est supprimé)",
+    "archiveProject": "Déplacer cet espace de travail vers les archives (rien n'est supprimé)",
     "addToFavorites": "Marquer comme favori",
     "removeFromFavorites": "Supprimer la marque favorite",
     "editSessionName": "Modifier le nom de la conversation",
@@ -84,12 +84,12 @@
     "renameSessionError": "Une erreur de renommage de la conversation s'est produite. Essayer à nouveau.",
     "regenerateTitleFailed": "Impossible de régénérer le titre. Réessayez.",
     "exportSessionError": "Impossible d'exporter la conversation. Essayer à nouveau.",
-    "archiveProjectFailed": "Impossible d'archiver le projet. Essayer à nouveau.",
-    "archiveProjectError": "Une erreur d'archivage du projet s'est produite. Essayer à nouveau.",
-    "updateProjectError": "Une erreur de mise à jour du projet s'est produite. Essayer à nouveau.",
+    "archiveProjectFailed": "Impossible d'archiver l'espace de travail. Essayer à nouveau.",
+    "archiveProjectError": "Une erreur d'archivage de l'espace de travail s'est produite. Essayer à nouveau.",
+    "updateProjectError": "Une erreur de mise à jour de l'espace de travail s'est produite. Essayer à nouveau.",
     "refreshError": "Impossible d'actualiser. Essayer à nouveau.",
-    "restoreProjectFailed": "Impossible de restaurer le projet. Essayer à nouveau.",
-    "restoreProjectError": "Une erreur de restauration du projet s'est produite. Essayer à nouveau.",
+    "restoreProjectFailed": "Impossible de restaurer l'espace de travail. Essayer à nouveau.",
+    "restoreProjectError": "Une erreur de restauration de l'espace de travail s'est produite. Essayer à nouveau.",
     "restoreSessionFailed": "Impossible de restaurer la conversation. Essayer à nouveau.",
     "restoreSessionError": "Une erreur de restauration de conversation s'est produite. Essayer à nouveau.",
     "archiveSessionFailed": "Impossible d'archiver la conversation. Essayer à nouveau.",
@@ -113,6 +113,13 @@
   },
   "deleteConfirmation": {
     "deleteSession": "Supprimer la conversation",
-    "confirmDelete": "Choisissez quoi faire avec"
+    "confirmDelete": "Choisissez quoi faire avec",
+    "archiveSessionNotice": "L’archivage retire la conversation de la liste tout en conservant son historique.",
+    "archivedSessionNotice": "Cette conversation est déjà archivée. Gardez-la masquée ou supprimez-la définitivement.",
+    "archiveSession": "Archiver la conversation",
+    "deleteSessionPermanently": "Supprimer définitivement"
+  },
+  "navigation": {
+    "primary": "Navigation principale"
   }
 }

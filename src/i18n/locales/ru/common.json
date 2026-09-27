@@ -2,32 +2,31 @@
   "buttons": {
     "cancel": "Отменить"
   },
-  "tabs": {
-    "chat": "Чат",
-    "git": "Контроль версий"
+  "toasts": {
+    "region": "Уведомления",
+    "dismiss": "Закрыть"
   },
   "status": {
     "success": "Успех"
   },
   "mainContent": {
     "loading": "Запускаем приложение gajae",
-    "settingUpWorkspace": "Подготовка рабочего места…",
-    "chooseProject": "Выберите проект",
-    "selectProjectDescription": "Выберите проект боковой панели, чтобы начать кодирование в Gajae Code. Его разговоры и история файлов остаются там вместе.",
-    "firstProject": "Добавьте первый проект",
-    "firstProjectDescription": "Выберите папку на этом компьютере. Gajae Code работает внутри неё, и разговоры проекта остаются там.",
-    "addProject": "Добавить проект",
-    "scratchStart": "Начать в черновом рабочем пространстве",
+    "settingUpWorkspace": "Подготовка рабочей области…",
+    "chooseProject": "Выберите рабочую область",
+    "selectProjectDescription": "Выберите рабочую область на боковой панели, чтобы начать кодирование в Gajae Code. Её разговоры и история файлов остаются там вместе.",
+    "firstProject": "Добавьте первую рабочую область",
+    "firstProjectDescription": "Выберите папку на этом компьютере. Gajae Code работает внутри неё, и разговоры рабочей области остаются там.",
+    "addProject": "Добавить рабочую область",
+    "scratchStart": "Начать в черновой рабочей области",
     "scratchStarting": "Подготовка…",
     "scratchDescription": "Ещё нет папки? Gajae Code создаст ~/gajae-scratch — одноразовый git-репозиторий — и откроет там разговор. Агент останется внутри него.",
-    "scratchFailed": "Не удалось запустить черновое рабочее пространство: {{reason}}",
-    "newSession": "Начать разговор",
-    "projectFiles": "Файлы в проекте"
+    "scratchFailed": "Не удалось запустить черновую рабочую область: {{reason}}",
+    "newSession": "Начать разговор"
   },
   "projectWizard": {
     "step2": {
       "existingPath": "Расположение рабочей области",
-      "existingPlaceholder": "/путь/к/существующему/рабочему пространству"
+      "existingPlaceholder": "/путь/к/существующей/рабочей/области"
     },
     "buttons": {
       "cancel": "Отмена",
@@ -52,7 +51,10 @@
       "path": "Путь:",
       "useThisFolder": "Выберите эту папку",
       "browseFolders": "Обзор папок"
-    }
+    },
+    "addProject": "Добавить рабочую область",
+    "addProjectDescription": "Выберите локальную папку для рабочей области.",
+    "addButton": "Добавить"
   },
   "versionUpdate": {
     "ariaLabels": {
@@ -84,6 +86,7 @@
       "changes": "Изменения",
       "branch": "Ветка",
       "directory": "Каталог",
+      "worktreeOf": "Worktree {{name}}",
       "serviceTier": "Уровень обслуживания",
       "refresh": "Обновить статус Git",
       "notARepository": "Эта папка не является репозиторием Git",
@@ -113,14 +116,14 @@
     "pages": {
       "actions": "Действия",
       "files": "Файлы",
-      "sessions": "Сессии",
+      "sessions": "Разговоры",
       "commits": "Коммиты",
       "branches": "Ветки"
     },
     "search": {
       "actions": "Поиск действий…",
       "files": "Поиск файлов…",
-      "sessions": "Поиск сессий…",
+      "sessions": "Поиск разговоров…",
       "commits": "Поиск коммитов…",
       "branches": "Поиск веток…",
       "anything": "Введите текст для поиска…"
@@ -130,16 +133,14 @@
     "noResults": "Ничего не найдено.",
     "current": "Текущий",
     "groups": {
-      "navigate": "Навигация",
       "git": "Git",
       "settings": "Настройки"
     },
     "actions": {
-      "startNewChat": "Начать новый чат",
-      "selectProjectFirst": "Сначала выберите проект",
+      "startNewChat": "Начать новый разговор",
+      "selectProjectFirst": "Сначала выберите рабочую область",
       "openSettings": "Открыть настройки",
       "toggleTheme": "Переключить тему",
-      "goToChat": "Перейти к чату",
       "gitFetch": "Git: Fetch",
       "gitPull": "Git: Pull",
       "gitPush": "Git: Push",
@@ -147,7 +148,7 @@
       "switchToBranch": "Переключиться на: {{branch}}"
     },
     "browseAll": {
-      "sessions": "Все сессии ({{total}})",
+      "sessions": "Все разговоры ({{total}})",
       "files": "Все файлы ({{total}})",
       "commits": "Все коммиты ({{total}})",
       "branches": "Все ветки ({{total}})"

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { MainContentProps } from '../types/types';
@@ -24,8 +24,6 @@ const AgentSidebar = lazy(() => import('../../agent-sidebar/view/AgentSidebar'))
 function MainContent({
   selectedProject,
   selectedSession,
-  activeTab,
-  setActiveTab,
   ws,
   sendMessage,
   isMobile,
@@ -64,12 +62,6 @@ function MainContent({
   }, []);
 
   const resolveFile = useFileOpenResolver(selectedProject, revealFile, selectedSession?.id, sessionLocation.data?.cwd);
-
-  useEffect(() => {
-    if (activeTab === 'shell' || activeTab === 'git' || activeTab === 'files') {
-      setActiveTab('chat');
-    }
-  }, [activeTab, setActiveTab]);
 
   usePaletteOpsRegister({
     openFile: revealFile,
@@ -127,7 +119,6 @@ function MainContent({
   return (
     <div className="flex h-full flex-col">
       <MainContentHeader
-        activeTab={activeTab}
         selectedProject={selectedProject}
         selectedSession={selectedSession}
         isMobile={isMobile}
@@ -147,7 +138,7 @@ function MainContent({
           Below `md` the rail is a drawer and there is no border to clear.
         */}
         <div style={{ minWidth: MIN_AGENT_SIDEBAR_CHAT_WIDTH }} className="flex min-h-0 flex-1 flex-col overflow-hidden md:pl-2">
-          <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
+          <div className="h-full">
             <ErrorBoundary showDetails>
               <Suspense fallback={null}>
                 <ChatInterface

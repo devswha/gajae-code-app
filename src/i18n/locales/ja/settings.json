@@ -219,18 +219,18 @@
     },
     "interfaceFontSize": {
       "label": "インターフェースの文字サイズ",
-      "description": "チャット、セッション、設定など画面全体の文字サイズを変更します",
+      "description": "会話、設定など画面全体の文字サイズを変更します",
       "small": "小",
       "medium": "中",
       "large": "大"
     },
     "imagePreviews": {
       "label": "画像プレビュー",
-      "description": "チャット履歴の添付画像を読み込んで表示します"
+      "description": "会話履歴の添付画像を読み込んで表示します"
     },
     "projectSorting": {
-      "label": "プロジェクトの並び順",
-      "description": "サイドバーでのプロジェクトの並び順を設定します",
+      "label": "ワークスペースの並び順",
+      "description": "サイドバーでのワークスペースの並び順を設定します",
       "alphabetical": "アルファベット順",
       "recentActivity": "最近のアクティビティ順"
     }
@@ -259,14 +259,14 @@
   },
   "permissions": {
     "title": "権限",
-    "description": "エージェントが確認なしに実行できる内容をプロジェクトごとに定めます。既定のポリシー（GJC CLI と同じバイパス、常に許可なし）のプロジェクトは表示されません。",
+    "description": "エージェントが確認なしに実行できる内容をワークスペースごとに定めます。既定のポリシー（GJC CLI と同じバイパス、常に許可なし）のワークスペースは表示されません。",
     "mode": "モード",
     "alwaysAllowed": "常に許可",
     "none": "なし",
     "revoke": "取り消す",
     "revokeTool": "{{tool}} の常時許可を取り消す",
     "resetToDefault": "既定に戻す",
-    "empty": "すべてのプロジェクトが GJC CLI と同じく確認なしで実行されます。",
+    "empty": "すべてのワークスペースが GJC CLI と同じく確認なしで実行されます。",
     "loading": "読み込み中…",
     "error": "権限を読み込めませんでした。"
   }

@@ -1,6 +1,6 @@
 {
   "goal": {
-    "region": "Objectif de la session",
+    "region": "Objectif de la conversation",
     "title": "Objectif",
     "active": "En cours",
     "paused": "En pause",
@@ -130,7 +130,7 @@
     "skills": {
       "label": "Choisir une compétence",
       "title": "Compétences",
-      "description": "Choisissez une compétence à utiliser dans le projet actuel.",
+      "description": "Choisissez une compétence à utiliser dans l’espace de travail actuel.",
       "search": "Rechercher des compétences",
       "noMatches": "Aucune compétence ne correspond."
     }
@@ -199,7 +199,7 @@
     "otherTools_other": "{{count}} autres outils"
   },
   "projectSelection": {
-    "startChatWithProvider": "Choisissez un projet avant de discuter avec {{provider}}"
+    "startChatWithProvider": "Choisissez un espace de travail avant de discuter avec {{provider}}"
   },
   "newSession": {
     "greeting": "Que devons-nous construire ?",
@@ -221,7 +221,7 @@
   "permissionMode": {
     "label": "Mode de permissions",
     "title": "Permissions",
-    "description": "Ce que l’agent peut faire dans ce projet sans demander.",
+    "description": "Ce que l’agent peut faire dans cet espace de travail sans demander.",
     "tooltip": "Permissions : {{mode}} ({{shortcut}})",
     "paletteAction": "Permissions : {{mode}}",
     "alwaysAllowedSummary": "Toujours autorisés ({{count}}) : {{tools}}",
@@ -236,7 +236,7 @@
       },
       "bypass": {
         "label": "Contourner",
-        "description": "Rien ne demande. L’agent exécute n’importe quelle commande dans ce projet."
+        "description": "Rien ne demande. L’agent exécute n’importe quelle commande dans cet espace de travail."
       }
     }
   },
@@ -249,7 +249,7 @@
     "alwaysDeny": "Toujours refuser {{tool}}",
     "alwaysDenyHint": "Refuser automatiquement cet outil jusqu’à la fin de cette exécution",
     "alwaysAllow": "Toujours autoriser {{tool}}",
-    "alwaysAllowHint": "Approuver automatiquement cet outil dans ce projet à partir de maintenant"
+    "alwaysAllowHint": "Approuver automatiquement cet outil dans cet espace de travail à partir de maintenant"
   },
   "plan": {
     "toggle": "Afficher/masquer le plan",
@@ -271,7 +271,7 @@
   },
   "sessionWorktree": {
     "label": "Dossier d’exécution",
-    "project": "Projet",
+    "project": "Espace de travail",
     "newWorktree": "Nouveau worktree",
     "worktree": "Worktree",
     "preparing": "Préparation du worktree"

@@ -86,11 +86,9 @@ export default function AppContent() {
   const {
     selectedProject,
     selectedSession,
-    activeTab,
     sidebarOpen,
     isLoadingProjects,
     newSessionTrigger,
-    setActiveTab,
     setSidebarOpen,
     setIsInputFocused,
     openSettings,
@@ -168,8 +166,6 @@ export default function AppContent() {
         <MainContent
           selectedProject={selectedProject}
           selectedSession={selectedSession}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
           ws={ws}
           sendMessage={sendMessage}
           isMobile={isMobile}
@@ -192,7 +188,6 @@ export default function AppContent() {
         currentSessionId={sessionId}
         onStartNewChat={handleNewSession}
         onOpenSettings={() => openSettings()}
-        onShowTab={setActiveTab}
       />
     </div>
   );

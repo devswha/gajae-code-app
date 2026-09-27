@@ -1,6 +1,6 @@
 {
   "goal": {
-    "region": "会话目标",
+    "region": "对话目标",
     "title": "目标",
     "active": "进行中",
     "paused": "已暂停",
@@ -130,7 +130,7 @@
     "skills": {
       "label": "选择技能",
       "title": "技能",
-      "description": "选择要在当前项目中使用的技能。",
+      "description": "选择要在当前工作区中使用的技能。",
       "search": "搜索技能",
       "noMatches": "没有匹配的技能。"
     }
@@ -199,11 +199,11 @@
     "otherTools_other": "{{count}} 个其他工具"
   },
   "projectSelection": {
-    "startChatWithProvider": "在与{{provider}}聊天前，请先选择一个项目"
+    "startChatWithProvider": "在与{{provider}}聊天前，请先选择一个工作区"
   },
   "newSession": {
     "greeting": "我们应该构建什么？",
-    "subtitle": "Gajae Code App 已准备好在 {{project}} 项目中。"
+    "subtitle": "Gajae Code 已在 {{project}} 中准备就绪。"
   },
   "reasoning": {
     "thinking": "推理……",
@@ -221,7 +221,7 @@
   "permissionMode": {
     "label": "权限模式",
     "title": "权限",
-    "description": "代理在此项目中无需询问即可执行的操作。",
+    "description": "代理在此工作区中无需询问即可执行的操作。",
     "tooltip": "权限：{{mode}}（{{shortcut}}）",
     "paletteAction": "权限：{{mode}}",
     "alwaysAllowedSummary": "始终允许（{{count}}）：{{tools}}",
@@ -236,7 +236,7 @@
       },
       "bypass": {
         "label": "绕过",
-        "description": "不再询问。代理可在此项目中运行任何命令。"
+        "description": "不再询问。代理可在此工作区中运行任何命令。"
       }
     }
   },
@@ -249,7 +249,7 @@
     "alwaysDeny": "总是拒绝 {{tool}}",
     "alwaysDenyHint": "在当前运行结束前自动拒绝此工具",
     "alwaysAllow": "始终允许 {{tool}}",
-    "alwaysAllowHint": "从现在起在此项目中自动批准该工具"
+    "alwaysAllowHint": "从现在起在此工作区中自动批准该工具"
   },
   "plan": {
     "toggle": "展开/收起计划",
@@ -271,7 +271,7 @@
   },
   "sessionWorktree": {
     "label": "运行位置",
-    "project": "项目",
+    "project": "工作区",
     "newWorktree": "新建工作树",
     "worktree": "工作树",
     "preparing": "正在准备工作树"

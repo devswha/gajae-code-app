@@ -2,27 +2,26 @@
   "buttons": {
     "cancel": "取消"
   },
-  "tabs": {
-    "chat": "對話",
-    "git": "版本管理"
+  "toasts": {
+    "region": "通知",
+    "dismiss": "關閉"
   },
   "status": {
     "success": "完成"
   },
   "mainContent": {
     "loading": "啟動 Gajae Code App",
-    "settingUpWorkspace": "準備工作空間……",
-    "chooseProject": "選擇專案",
-    "selectProjectDescription": "使用側欄的專案文件夹按鈕來新增一個專案，開始在 Gajae Code 中編寫代碼。它的對話和檔案歷史將一起保存在那裡。",
-    "firstProject": "新增第一個專案",
-    "firstProjectDescription": "選擇這台電腦上的一個資料夾。Gajae Code 會在其中工作，專案的對話也會保留在那裡。",
-    "addProject": "新增專案",
+    "settingUpWorkspace": "準備工作區……",
+    "chooseProject": "選擇工作區",
+    "selectProjectDescription": "選擇側欄中的工作區，開始在 Gajae Code 中編寫程式碼。它的對話和檔案歷史將一起保存在那裡。",
+    "firstProject": "新增第一個工作區",
+    "firstProjectDescription": "選擇這台電腦上的一個資料夾。Gajae Code 會在其中工作，工作區的對話也會保留在那裡。",
+    "addProject": "新增工作區",
     "scratchStart": "在暫存工作區中開始",
     "scratchStarting": "正在準備…",
     "scratchDescription": "還沒有資料夾？Gajae Code 會建立一次性的 git 儲存庫 ~/gajae-scratch，並在其中開啟對話。代理只會在該資料夾內工作。",
     "scratchFailed": "無法啟動暫存工作區：{{reason}}",
-    "newSession": "開始對話",
-    "projectFiles": "專案中的檔案"
+    "newSession": "開始對話"
   },
   "projectWizard": {
     "step2": {
@@ -52,7 +51,10 @@
       "path": "路徑：",
       "useThisFolder": "選擇此資料夾",
       "browseFolders": "瀏覽資料夾"
-    }
+    },
+    "addProject": "新增工作區",
+    "addProjectDescription": "選擇一個本機資料夾作為工作區。",
+    "addButton": "新增"
   },
   "versionUpdate": {
     "ariaLabels": {
@@ -84,6 +86,7 @@
       "changes": "變更",
       "branch": "分支",
       "directory": "目錄",
+      "worktreeOf": "{{name}} 工作樹",
       "serviceTier": "服務層級",
       "refresh": "重新載入 Git 狀態",
       "notARepository": "此資料夾不是 Git 儲存庫",
@@ -113,14 +116,14 @@
     "pages": {
       "actions": "動作",
       "files": "檔案",
-      "sessions": "工作階段",
+      "sessions": "對話",
       "commits": "提交",
       "branches": "分支"
     },
     "search": {
       "actions": "搜尋動作…",
       "files": "搜尋檔案…",
-      "sessions": "搜尋工作階段…",
+      "sessions": "搜尋對話…",
       "commits": "搜尋提交…",
       "branches": "搜尋分支…",
       "anything": "輸入以搜尋任何內容…"
@@ -130,16 +133,14 @@
     "noResults": "沒有結果。",
     "current": "目前",
     "groups": {
-      "navigate": "導覽",
       "git": "Git",
       "settings": "設定"
     },
     "actions": {
       "startNewChat": "開始新對話",
-      "selectProjectFirst": "請先選擇一個專案",
+      "selectProjectFirst": "請先選擇一個工作區",
       "openSettings": "開啟設定",
       "toggleTheme": "切換主題",
-      "goToChat": "前往聊天",
       "gitFetch": "Git: Fetch",
       "gitPull": "Git: Pull",
       "gitPush": "Git: Push",
@@ -147,7 +148,7 @@
       "switchToBranch": "切換至：{{branch}}"
     },
     "browseAll": {
-      "sessions": "瀏覽所有工作階段 ({{total}})",
+      "sessions": "瀏覽所有對話 ({{total}})",
       "files": "瀏覽所有檔案 ({{total}})",
       "commits": "瀏覽所有提交 ({{total}})",
       "branches": "瀏覽所有分支 ({{total}})"

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Search, Sparkles } from 'lucide-react';
 
+import { useAnchoredPopup } from '../../../hooks/useAnchoredPopup';
 import { focusSearchInputSafely } from '../../../hooks/useDeviceSettings';
 
 type SelectableSkill = {
@@ -18,6 +19,8 @@ type SkillPickerProps = {
   onSelect: (skill: SelectableSkill, index: number) => void;
 };
 
+const POPUP_WIDTH = 320;
+
 const displayName = (skill: SelectableSkill): string =>
   String(skill.metadata?.skillName ?? skill.name.replace(/^\/skill:/, ''));
 
@@ -28,46 +31,18 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const [popupPosition, setPopupPosition] = useState<{ bottom: number; left: number; maxHeight?: number }>({ bottom: 0, left: 0 });
+  const popupPosition = useAnchoredPopup({
+    open,
+    onClose: () => setOpen(false),
+    anchorRef: rootRef,
+    popupRef,
+    width: POPUP_WIDTH,
+  });
 
-  // The composer form clips its children (overflow-hidden rounded corners), so
-  // the popup must escape through a body portal with fixed positioning.
   useEffect(() => {
     if (!open) return;
     setQuery('');
-    const updatePosition = () => {
-      const rect = rootRef.current?.getBoundingClientRect();
-      if (rect) {
-        setPopupPosition({
-          bottom: window.innerHeight - rect.top + 8,
-          left: Math.max(8, Math.min(rect.left, window.innerWidth - 320 - 8)),
-          maxHeight: Math.max(0, rect.top - 16),
-        });
-      }
-    };
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
     focusSearchInputSafely(searchRef.current);
-    const close = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!rootRef.current?.contains(target) && !popupRef.current?.contains(target)) setOpen(false);
-    };
-    // Escape dismisses the popup and hands focus back to its trigger, the
-    // way the model and permission pickers beside it already do.
-    const closeForEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      event.preventDefault();
-      setOpen(false);
-      triggerRef.current?.focus();
-    };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', closeForEscape);
-    return () => {
-      window.removeEventListener('resize', updatePosition);
-      document.removeEventListener('mousedown', close);
-      document.removeEventListener('keydown', closeForEscape);
-    };
   }, [open]);
 
   const filteredSkills = useMemo(() => {
@@ -81,13 +56,13 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
   return (
     <div ref={rootRef} className="relative">
       <button
-        ref={triggerRef}
         type="button"
         onClick={() => setOpen((current) => !current)}
         disabled={skills.length === 0}
         className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
         aria-label={t('input.skills.label')}
         aria-expanded={open}
+        aria-haspopup="listbox"
         title={t('input.skills.label')}
       >
         <Sparkles className="size-4" />
@@ -104,7 +79,7 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
         <div
           ref={popupRef}
           className="fixed z-80 flex w-80 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
-          style={{ bottom: popupPosition.bottom, left: popupPosition.left, maxHeight: popupPosition.maxHeight }}
+          style={popupPosition}
         >
           <div className="px-2 pt-1 pb-1.5">
             <p className="text-xs font-semibold">{t('input.skills.title')}</p>
@@ -121,18 +96,20 @@ export default function SkillPicker({ skills, onSelect }: SkillPickerProps) {
               className="h-7 w-full rounded-md border border-input bg-background pr-2 pl-7 text-xs outline-hidden placeholder:text-muted-foreground focus:border-ring"
             />
           </div>
-          <div className="max-h-72 min-h-0 flex-1 overflow-y-auto">
+          <div role="listbox" aria-label={t('input.skills.title')} className="max-h-72 min-h-0 flex-1 overflow-y-auto">
             {filteredSkills.length > 0 ? filteredSkills.map((skill) => {
               const originalIndex = skills.indexOf(skill);
               return (
                 <button
                   key={skill.name}
                   type="button"
+                  role="option"
+                  aria-selected={false}
                   onClick={() => {
                     onSelect(skill, originalIndex);
                     setOpen(false);
                   }}
-                  className="flex w-full flex-col rounded-lg px-2.5 py-2 text-left hover:bg-accent"
+                  className="flex w-full flex-col rounded-lg px-2.5 py-2 text-left outline-hidden hover:bg-accent focus-visible:bg-accent"
                 >
                   <span className="text-xs font-medium">{displayName(skill)}</span>
                   {skill.description && (

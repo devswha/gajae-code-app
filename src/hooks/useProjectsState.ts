@@ -126,14 +126,12 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
   const projects = useMemo(() => query.data ?? [], [query.data]);
   const selectedProject = useAppShellStore((state) => state.selectedProject);
   const selectedSession = useAppShellStore((state) => state.selectedSession);
-  const activeTab = useAppShellStore((state) => state.activeTab);
   const sidebarOpen = useAppShellStore((state) => state.sidebarOpen);
   const loadingProgress = useAppShellStore((state) => state.loadingProgress);
   const showSettings = useAppShellStore((state) => state.showSettings);
   const settingsInitialTab = useAppShellStore((state) => state.settingsInitialTab);
   const setSelectedProject = useAppShellStore((state) => state.setSelectedProject);
   const setSelectedSession = useAppShellStore((state) => state.setSelectedSession);
-  const setActiveTab = useAppShellStore((state) => state.setActiveTab);
   const setSidebarOpen = useAppShellStore((state) => state.setSidebarOpen);
   const setShowSettings = useAppShellStore((state) => state.setShowSettings);
   const openSettings = useAppShellStore((state) => state.openSettings);
@@ -306,19 +304,17 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
     // landed yet is cancelled, and the URL owns the context again.
     leavingRoute.current = null;
     setSelectedSession(session);
-    if (activeTab === 'tasks' || activeTab === 'browser') setActiveTab('chat');
     if (isMobile && session.__projectId !== selectedProject?.projectId) setSidebarOpen(false);
     navigate(`/session/${session.id}`);
-  }, [activeTab, isMobile, navigate, selectedProject?.projectId, setActiveTab, setSelectedSession, setSidebarOpen]);
+  }, [isMobile, navigate, selectedProject?.projectId, setSelectedSession, setSidebarOpen]);
 
   const handleNewSession = useCallback((project: Project) => {
     setSelectedProject(project);
     setSelectedSession(null);
-    setActiveTab('chat');
     setNewSessionTrigger((trigger) => trigger + 1);
     leaveSessionRoute();
     if (isMobile) setSidebarOpen(false);
-  }, [isMobile, leaveSessionRoute, setActiveTab, setSelectedProject, setSelectedSession, setSidebarOpen]);
+  }, [isMobile, leaveSessionRoute, setSelectedProject, setSelectedSession, setSidebarOpen]);
 
   const handleSessionDelete = useCallback((id: string) => {
     useSessionAttentionStore.getState().forgetSession(id);
@@ -381,5 +377,5 @@ export function useProjectsState({ sessionId, navigate, subscribe, isMobile, act
 
   const sidebarSharedProps = useMemo(() => ({ activeSessions, onProjectSelect: handleProjectSelect, onSessionSelect: handleSessionSelect, onNewSession: handleNewSession, onSessionDelete: handleSessionDelete, onLoadMoreSessions: loadMoreProjectSessions, onProjectArchive: handleProjectArchive, onRefresh: handleSidebarRefresh, isMobile }), [activeSessions, handleNewSession, handleProjectArchive, handleProjectSelect, handleSessionDelete, handleSessionSelect, handleSidebarRefresh, isMobile, loadMoreProjectSessions]);
 
-  return { projects, selectedProject, selectedSession, activeTab, sidebarOpen, isLoadingProjects: query.isLoading, loadingProgress, isInputFocused, showSettings, settingsInitialTab, newSessionTrigger, setActiveTab, setSidebarOpen, setIsInputFocused, setShowSettings, openSettings, fetchProjects: refetch, refreshProjectsSilently: refetch, registerOptimisticSession, sidebarSharedProps, handleProjectSelect, handleSessionSelect, handleNewSession, handleSessionDelete, loadMoreProjectSessions, handleProjectArchive, handleSidebarRefresh };
+  return { projects, selectedProject, selectedSession, sidebarOpen, isLoadingProjects: query.isLoading, loadingProgress, isInputFocused, showSettings, settingsInitialTab, newSessionTrigger, setSidebarOpen, setIsInputFocused, setShowSettings, openSettings, fetchProjects: refetch, refreshProjectsSilently: refetch, registerOptimisticSession, sidebarSharedProps, handleProjectSelect, handleSessionSelect, handleNewSession, handleSessionDelete, loadMoreProjectSessions, handleProjectArchive, handleSidebarRefresh };
 }

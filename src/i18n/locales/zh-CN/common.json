@@ -2,9 +2,9 @@
   "buttons": {
     "cancel": "取消"
   },
-  "tabs": {
-    "chat": "交流",
-    "git": "版本控制"
+  "toasts": {
+    "region": "通知",
+    "dismiss": "关闭"
   },
   "status": {
     "success": "完成"
@@ -12,17 +12,16 @@
   "mainContent": {
     "loading": "启动gajae-app",
     "settingUpWorkspace": "准备工作区…",
-    "chooseProject": "选择项目",
-    "selectProjectDescription": "在 Gajae Code 中开始编码之前，请选择一个侧边栏项目。其对话和文件历史将保持在一起。",
-    "firstProject": "添加第一个项目",
-    "firstProjectDescription": "选择这台机器上的一个文件夹。Gajae Code 在其中工作，项目的对话也保留在那里。",
-    "addProject": "添加项目",
+    "chooseProject": "选择工作区",
+    "selectProjectDescription": "在 Gajae Code 中开始编码之前，请选择一个侧边栏工作区。其对话和文件历史将保持在一起。",
+    "firstProject": "添加第一个工作区",
+    "firstProjectDescription": "选择这台机器上的一个文件夹。Gajae Code 在其中工作，工作区的对话也保留在那里。",
+    "addProject": "添加工作区",
     "scratchStart": "在临时工作区中开始",
     "scratchStarting": "正在准备…",
     "scratchDescription": "还没有文件夹？Gajae Code 会创建一次性的 git 仓库 ~/gajae-scratch，并在其中打开对话。代理只在该文件夹内工作。",
     "scratchFailed": "无法启动临时工作区：{{reason}}",
-    "newSession": "发起对话",
-    "projectFiles": "项目中的文件"
+    "newSession": "发起对话"
   },
   "projectWizard": {
     "step2": {
@@ -52,7 +51,10 @@
       "path": "路径：",
       "useThisFolder": "选择此文件夹",
       "browseFolders": "浏览文件夹"
-    }
+    },
+    "addProject": "添加工作区",
+    "addProjectDescription": "选择一个本地文件夹作为工作区。",
+    "addButton": "添加"
   },
   "versionUpdate": {
     "ariaLabels": {
@@ -84,6 +86,7 @@
       "changes": "更改",
       "branch": "分支",
       "directory": "目录",
+      "worktreeOf": "{{name}} 工作树",
       "serviceTier": "服务层级",
       "refresh": "刷新 Git 状态",
       "notARepository": "此文件夹不是 Git 仓库",
@@ -113,14 +116,14 @@
     "pages": {
       "actions": "操作",
       "files": "文件",
-      "sessions": "会话",
+      "sessions": "对话",
       "commits": "提交",
       "branches": "分支"
     },
     "search": {
       "actions": "搜索操作…",
       "files": "搜索文件…",
-      "sessions": "搜索会话…",
+      "sessions": "搜索对话…",
       "commits": "搜索提交…",
       "branches": "搜索分支…",
       "anything": "输入以搜索任何内容…"
@@ -130,16 +133,14 @@
     "noResults": "没有结果。",
     "current": "当前",
     "groups": {
-      "navigate": "导航",
       "git": "Git",
       "settings": "设置"
     },
     "actions": {
       "startNewChat": "开始新对话",
-      "selectProjectFirst": "请先选择一个项目",
+      "selectProjectFirst": "请先选择一个工作区",
       "openSettings": "打开设置",
       "toggleTheme": "切换主题",
-      "goToChat": "转到聊天",
       "gitFetch": "Git: Fetch",
       "gitPull": "Git: Pull",
       "gitPush": "Git: Push",
@@ -147,7 +148,7 @@
       "switchToBranch": "切换到：{{branch}}"
     },
     "browseAll": {
-      "sessions": "浏览所有会话 ({{total}})",
+      "sessions": "浏览所有对话 ({{total}})",
       "files": "浏览所有文件 ({{total}})",
       "commits": "浏览所有提交 ({{total}})",
       "branches": "浏览所有分支 ({{total}})"

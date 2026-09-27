@@ -219,7 +219,7 @@
     },
     "interfaceFontSize": {
       "label": "Taille du texte de l'interface",
-      "description": "Définir la taille du texte dans les discussions, les sessions, les paramètres et l'interface",
+      "description": "Définir la taille du texte dans les conversations, les paramètres et l'interface",
       "small": "Petit",
       "medium": "Moyen",
       "large": "Grand"
@@ -229,8 +229,8 @@
       "description": "Charger les pièces jointes d’images dans l’historique des conversations"
     },
     "projectSorting": {
-      "label": "Ordre du projet",
-      "description": "Définir l'ordre du projet dans la barre latérale",
+      "label": "Ordre des espaces de travail",
+      "description": "Définir l'ordre des espaces de travail dans la barre latérale",
       "alphabetical": "Alphabétique",
       "recentActivity": "Dernière activité"
     }
@@ -259,14 +259,14 @@
   },
   "permissions": {
     "title": "Permissions",
-    "description": "Règles par projet sur ce que l’agent peut exécuter sans demander. Les projets utilisant la politique par défaut (Contourner, comme dans la CLI GJC, rien de toujours autorisé) ne sont pas listés.",
+    "description": "Règles par espace de travail sur ce que l’agent peut exécuter sans demander. Les espaces de travail utilisant la politique par défaut (Contourner, comme dans la CLI GJC, rien de toujours autorisé) ne sont pas listés.",
     "mode": "Mode",
     "alwaysAllowed": "Toujours autorisés",
     "none": "Aucun",
     "revoke": "Révoquer",
     "revokeTool": "Ne plus toujours autoriser {{tool}}",
     "resetToDefault": "Rétablir la valeur par défaut",
-    "empty": "Chaque projet s’exécute sans demander, comme la CLI GJC.",
+    "empty": "Chaque espace de travail s’exécute sans demander, comme la CLI GJC.",
     "loading": "Chargement…",
     "error": "Impossible de charger les permissions."
   }

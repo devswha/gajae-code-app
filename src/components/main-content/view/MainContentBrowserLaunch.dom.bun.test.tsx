@@ -38,8 +38,6 @@ function props(selectedSession: ProjectSession | null): MainContentProps {
   return {
     selectedProject: project,
     selectedSession,
-    activeTab: 'chat',
-    setActiveTab: () => undefined,
     ws: null,
     sendMessage: () => undefined,
     isMobile: false,

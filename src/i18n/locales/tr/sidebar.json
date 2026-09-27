@@ -1,59 +1,59 @@
 {
   "projects": {
     "title": "Çalışma alanları",
-    "newProject": "Proje ekle",
+    "newProject": "Çalışma alanı ekle",
     "renameProject": "Çalışma alanını yeniden adlandırın",
     "noProjects": "Henüz çalışma alanı yok",
     "addFirst": "Ekle",
     "loadingProjects": "Çalışma alanları alınıyor…",
     "projectNamePlaceholder": "Çalışma alanı adı",
-    "untitledSession": "Adsız görüşme",
-    "newSession": "Konuşmayı başlat",
-    "fetchingProjects": "Projeleri ve konuşmaları alma",
-    "projects": "projeler"
+    "untitledSession": "Adsız sohbet",
+    "newSession": "Sohbet başlat",
+    "fetchingProjects": "Çalışma alanları ve sohbetler alınıyor",
+    "projects": "çalışma alanları"
   },
   "sessions": {
-    "work": "iş",
-    "newTask": "Yeni iş öğesi",
-    "newSession": "Konuşmayı başlat",
-    "deleteSession": "Görüşmeyi sil",
-    "archiveSession": "Görüşmeyi arşivle",
-    "renameSession": "Konuşmayı yeniden adlandır",
+    "work": "Etkin",
+    "newTask": "Yeni sohbet",
+    "newSession": "Sohbet başlat",
+    "deleteSession": "Sohbeti sil",
+    "archiveSession": "Sohbeti arşivle",
+    "renameSession": "Sohbeti yeniden adlandır",
     "regenerateTitle": "Başlığı yeniden oluştur",
     "exportSession": "İhracat İndirimi",
     "copyDebugInfo": "Hata ayıklama bilgisini kopyala",
     "pin": "Sabitle",
     "unpin": "Sabitlemeyi kaldır",
-    "noSessions": "Henüz görüşme yok",
-    "loadingSessions": "Konuşmalar alınıyor…",
+    "noSessions": "Henüz sohbet yok",
+    "loadingSessions": "Sohbetler alınıyor…",
     "unnamed": "İsimsiz",
-    "loading": "Oturumlar yükleniyor…",
-    "showMore": "Daha fazla görüşme göster"
+    "loading": "Sohbetler yükleniyor…",
+    "showMore": "Daha fazla sohbet göster"
   },
   "tooltips": {
     "hideSidebar": "Kenar çubuğunu daralt",
-    "createProject": "Proje ekle",
-    "createSession": "Konuşma başlat",
-    "refresh": "Projeleri ve konuşmaları yeniden yükle",
+    "createProject": "Çalışma alanı ekle",
+    "createSession": "Sohbet başlat",
+    "refresh": "Çalışma alanlarını ve sohbetleri yeniden yükle",
     "renameProject": "Çalışma alanını yeniden adlandırın",
-    "archiveProject": "Bu projeyi arşive taşı (hiçbir şey silinmez)",
+    "archiveProject": "Bu çalışma alanını arşive taşı (hiçbir şey silinmez)",
     "addToFavorites": "Favori olarak işaretle",
     "removeFromFavorites": "Favori işaretini kaldır",
-    "editSessionName": "Görüşme adını düzenleyin",
-    "sessionActions": "Konuşma eylemleri",
-    "deleteSession": "Bu görüşmeyi kalıcı olarak sil",
-    "activeSessionIndicator": "Konuşma son 10 dakika içinde aktif",
+    "editSessionName": "Sohbet adını düzenleyin",
+    "sessionActions": "Sohbet eylemleri",
+    "deleteSession": "Bu sohbeti kalıcı olarak sil",
+    "activeSessionIndicator": "Sohbet son 10 dakika içinde aktif",
     "save": "Değişiklikleri kaydet",
     "cancel": "İşlemi iptal et",
-    "attentionRequiredIndicator": "Konuşmaya dikkat edilmesi gerekiyor"
+    "attentionRequiredIndicator": "Sohbet ilgi bekliyor"
   },
   "filter": {
-    "placeholder": "Görüşmeleri filtrele",
+    "placeholder": "Sohbetleri filtrele",
     "clear": "Filtreyi temizle",
-    "noMatches": "“{{query}}” ile eşleşen görüşme yok"
+    "noMatches": "“{{query}}” ile eşleşen sohbet yok"
   },
   "actions": {
-    "search": "Projede ara",
+    "search": "Ara",
     "settings": "Ayarları aç",
     "cancel": "İşlemi iptal et",
     "save": "Değişiklikleri kaydet",
@@ -74,26 +74,26 @@
     "countReady_other": "{{count}} tamamlandı",
     "countBlocked_one": "{{count}} başarısız",
     "countBlocked_other": "{{count}} başarısız",
-    "projectAttentionCount_one": "{{count}} görüşme ilgi bekliyor",
-    "projectAttentionCount_other": "{{count}} görüşme ilgi bekliyor"
+    "projectAttentionCount_one": "{{count}} sohbet ilgi bekliyor",
+    "projectAttentionCount_other": "{{count}} sohbet ilgi bekliyor"
   },
   "messages": {
-    "deleteSessionFailed": "Görüşme silinemedi. Tekrar deneyin.",
-    "deleteSessionError": "Konuşma silme hatası oluştu. Tekrar deneyin.",
-    "renameSessionFailed": "Görüşme yeniden adlandırılamadı. Tekrar deneyin.",
-    "renameSessionError": "Konuşmayı yeniden adlandırma hatası oluştu. Tekrar deneyin.",
+    "deleteSessionFailed": "Sohbet silinemedi. Tekrar deneyin.",
+    "deleteSessionError": "Sohbet silme hatası oluştu. Tekrar deneyin.",
+    "renameSessionFailed": "Sohbet yeniden adlandırılamadı. Tekrar deneyin.",
+    "renameSessionError": "Sohbeti yeniden adlandırma hatası oluştu. Tekrar deneyin.",
     "regenerateTitleFailed": "Başlık yeniden oluşturulamadı. Tekrar deneyin.",
-    "exportSessionError": "Görüşme dışa aktarılamadı. Tekrar deneyin.",
-    "archiveProjectFailed": "Proje arşivlenemedi. Tekrar deneyin.",
-    "archiveProjectError": "Proje arşivlenirken bir hata oluştu. Tekrar deneyin.",
-    "updateProjectError": "Bir proje güncelleme hatası oluştu. Tekrar deneyin.",
+    "exportSessionError": "Sohbet dışa aktarılamadı. Tekrar deneyin.",
+    "archiveProjectFailed": "Çalışma alanı arşivlenemedi. Tekrar deneyin.",
+    "archiveProjectError": "Çalışma alanı arşivlenirken bir hata oluştu. Tekrar deneyin.",
+    "updateProjectError": "Bir çalışma alanı güncelleme hatası oluştu. Tekrar deneyin.",
     "refreshError": "Yenilenemedi. Tekrar deneyin.",
-    "restoreProjectFailed": "Proje geri yüklenemedi. Tekrar deneyin.",
-    "restoreProjectError": "Bir proje geri yükleme hatası oluştu. Tekrar deneyin.",
-    "restoreSessionFailed": "Görüşme geri yüklenemedi. Tekrar deneyin.",
-    "restoreSessionError": "Konuşma geri yükleme hatası oluştu. Tekrar deneyin.",
-    "archiveSessionFailed": "Görüşme arşivlenemedi. Tekrar deneyin.",
-    "archiveSessionError": "Konuşma arşivleme hatası oluştu. Tekrar deneyin.",
+    "restoreProjectFailed": "Çalışma alanı geri yüklenemedi. Tekrar deneyin.",
+    "restoreProjectError": "Bir çalışma alanı geri yükleme hatası oluştu. Tekrar deneyin.",
+    "restoreSessionFailed": "Sohbet geri yüklenemedi. Tekrar deneyin.",
+    "restoreSessionError": "Sohbet geri yükleme hatası oluştu. Tekrar deneyin.",
+    "archiveSessionFailed": "Sohbet arşivlenemedi. Tekrar deneyin.",
+    "archiveSessionError": "Sohbet arşivleme hatası oluştu. Tekrar deneyin.",
     "debugInfoError": "Hata ayıklama bilgisi kopyalanamadı."
   },
   "providerQuota": {
@@ -112,7 +112,14 @@
     "updateAvailable": "Yeni güncelleme mevcut"
   },
   "deleteConfirmation": {
-    "deleteSession": "Görüşmeyi sil",
-    "confirmDelete": "Ne yapacağınızı seçin"
+    "deleteSession": "Sohbeti sil",
+    "confirmDelete": "Ne yapacağınızı seçin",
+    "archiveSessionNotice": "Arşivlemek sohbeti geçmişini koruyarak listeden kaldırır.",
+    "archivedSessionNotice": "Bu sohbet zaten arşivlendi. Gizli tutabilir veya kalıcı olarak silebilirsiniz.",
+    "archiveSession": "Sohbeti arşivle",
+    "deleteSessionPermanently": "Kalıcı olarak sil"
+  },
+  "navigation": {
+    "primary": "Ana gezinme"
   }
 }

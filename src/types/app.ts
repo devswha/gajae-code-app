@@ -7,8 +7,6 @@ export interface ProviderModelOption { label: string; value: string; description
 export interface ProviderModelsDefinition { DEFAULT: string; OPTIONS: ProviderModelOption[]; MODELS?: ProviderModelOption[]; }
 export interface ProviderModelsCacheInfo { expiresAt: string; source: 'memory' | 'disk' | 'fresh'; updatedAt: string; }
 
-export type AppTab = `plugin:${string}` | 'browser' | 'chat' | 'files' | 'git' | 'shell' | 'tasks';
-
 export interface ProjectSession {
   id: string; title?: string; summary?: string; name?: string; createdAt?: string; created_at?: string; updated_at?: string; lastActivity?: string; messageCount?: number; provider?: LLMProvider; __provider?: LLMProvider; __projectId?: string;
   [key: string]: unknown;

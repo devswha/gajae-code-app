@@ -115,7 +115,7 @@ export default function ToolGroupContainer({
         // One quiet line. A tool call is scaffolding around the answer, so it
         // gets a row, not a card: no rail, no fill, no padding block. The status
         // colour moves onto the icon, which is where the eye already goes.
-        className="group flex w-full items-center gap-2 rounded px-1 py-0.5 text-left transition-colors hover:bg-muted/30"
+        className="group flex w-full items-center gap-2 rounded py-0.5 pr-1 text-left transition-colors hover:bg-muted/30"
         onClick={() => setIsExpanded((current) => !current)}
         aria-expanded={isExpanded}
       >

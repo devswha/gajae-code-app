@@ -10,10 +10,18 @@ const finite = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 
 const SIZE = 18;
-const STROKE = 2.5;
-const RADIUS = (SIZE - STROKE) / 2;
 const CENTER = SIZE / 2;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+const TRACK_STROKE = 1.5;
+const TRACK_RADIUS = (SIZE - TRACK_STROKE) / 2;
+/*
+ * The usage is a filled wedge inside a thin outline, drawn as a circle whose
+ * stroke is as wide as its diameter. A stroked arc beside the Stop button read
+ * as a second loading spinner; a pie reads as an amount, like a battery or a
+ * disk gauge.
+ */
+const PIE_FILL = 6.5;
+const PIE_RADIUS = PIE_FILL / 2;
+const CIRCUMFERENCE = 2 * Math.PI * PIE_RADIUS;
 
 /**
  * Context fullness as a single ring next to the send button. Renders only when
@@ -30,10 +38,8 @@ export default function ContextUsageRing({ sessionState, onClick }: ContextUsage
 
   const used = finite(sessionState?.contextTokens);
   const rounded = Math.min(100, Math.max(0, Math.round(percent)));
-  // Neutral until the window is actually under pressure: an orange ring on a
-  // half-empty context reads as a warning that is not there. The track is
-  // border, so the arc has to be darker than muted-foreground to be legible at
-  // 18px.
+  // Neutral until the window is actually under pressure: an orange gauge on a
+  // half-empty context reads as a warning that is not there.
   const tone = rounded >= 90
     ? 'stroke-destructive'
     : rounded >= 70
@@ -55,18 +61,16 @@ export default function ContextUsageRing({ sessionState, onClick }: ContextUsage
       aria-label={`${label} ${rounded}%`}
     >
       <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="-rotate-90" aria-hidden>
-        <circle cx={CENTER} cy={CENTER} r={RADIUS} fill="none" strokeWidth={STROKE} className="stroke-border" />
-        {/* A zero-length arc with a round cap still paints a dot, which would
-            read as usage on a fresh session. Draw the arc only once there is
-            one. */}
+        <circle cx={CENTER} cy={CENTER} r={TRACK_RADIUS} fill="none" strokeWidth={TRACK_STROKE} className="stroke-muted-foreground/50" />
+        {/* Nothing is drawn for an empty context: a fresh session shows the
+            outline alone rather than a sliver that reads as usage. */}
         {rounded > 0 && (
           <circle
             cx={CENTER}
             cy={CENTER}
-            r={RADIUS}
+            r={PIE_RADIUS}
             fill="none"
-            strokeWidth={STROKE}
-            strokeLinecap="round"
+            strokeWidth={PIE_FILL}
             strokeDasharray={`${(CIRCUMFERENCE * rounded) / 100} ${CIRCUMFERENCE}`}
             className={`transition-[stroke-dasharray] duration-500 ${tone}`}
           />

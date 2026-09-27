@@ -35,23 +35,27 @@ test('the picker offers both locations and reports the one chosen', () => {
   const chosen: boolean[] = [];
   render(picker({ onChange: (value) => chosen.push(value) }));
 
-  const select = screen.getByRole('combobox', { name: 'sessionWorktree.label' }) as HTMLSelectElement;
-  assert.equal(select.value, 'project');
-  assert.deepEqual(
-    [...select.options].map((option) => option.value),
-    ['project', 'worktree'],
-  );
+  const trigger = screen.getByRole('button', { name: 'sessionWorktree.label' });
+  assert.match(trigger.textContent ?? '', /sessionWorktree\.project/);
 
-  fireEvent.change(select, { target: { value: 'worktree' } });
-  fireEvent.change(select, { target: { value: 'project' } });
-  assert.deepEqual(chosen, [true, false]);
+  fireEvent.click(trigger);
+  const options = screen.getAllByRole('option');
+  assert.deepEqual(options.map((option) => option.textContent), ['sessionWorktree.project', 'sessionWorktree.newWorktree']);
+  assert.deepEqual(options.map((option) => option.getAttribute('aria-selected')), ['true', 'false']);
+
+  fireEvent.click(screen.getByRole('option', { name: 'sessionWorktree.newWorktree' }));
+  assert.equal(screen.queryByRole('listbox'), null, 'choosing closes the list');
+  // Re-choosing the current location reports nothing.
+  fireEvent.click(trigger);
+  fireEvent.click(screen.getByRole('option', { name: 'sessionWorktree.project' }));
+  assert.deepEqual(chosen, [true]);
 });
 
 test('a session that already exists reports its location instead of offering a choice', () => {
   // The location is fixed at creation: a running session cannot be moved, so a
   // control here would offer something the server would refuse.
   const { unmount } = render(picker({ value: true, sessionId: 'session-one', location: { mode: 'worktree', projectPath: '/repo', cwd: '/repo/.gjc-worktrees/job-one', jobId: 'job-one' } }));
-  assert.equal(screen.queryByRole('combobox'), null);
+  assert.equal(screen.queryByRole('button'), null);
   assert.ok(screen.getByText('sessionWorktree.worktree'));
   unmount();
 
@@ -63,7 +67,7 @@ test('a session that already exists reports its location instead of offering a c
 
 test('a project-bound session renders nothing at all', () => {
   render(picker({ sessionId: 'session-one', location: { mode: 'project', projectPath: '/repo', cwd: '/repo', jobId: null } }));
-  assert.equal(screen.queryByRole('combobox'), null);
+  assert.equal(screen.queryByRole('button'), null);
   assert.equal(screen.queryByText('sessionWorktree.worktree'), null);
 });
 

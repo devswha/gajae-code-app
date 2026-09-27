@@ -89,6 +89,31 @@ export default function SidebarContent({
   const showWork = hasProjects && workRows.length > 0;
   const showsFilterEmptyState = filter.active && filter.matchCount === 0 && !projectListProps.isLoading;
 
+  // A conversation in Work is also in its workspace's tree. Only the list the
+  // user picked it from shows it selected - two highlighted rows read as two
+  // selections. Work gives the highlight back once the row leaves it (a
+  // finished run becomes idle when opened), and a selection that arrived
+  // from elsewhere (the palette, a link) belongs to the tree.
+  const [selectionOrigin, setSelectionOrigin] = useState<'tree' | 'work'>('tree');
+  const selectedId = listProps.selectedSession?.id;
+  const workOwnsSelection = selectionOrigin === 'work' && workRows.some((row) => row.session.id === selectedId);
+  const treeProps: SidebarProjectListProps = {
+    ...listProps,
+    selectionShownInWork: workOwnsSelection,
+    onSessionSelect: (session, projectId) => {
+      setSelectionOrigin('tree');
+      listProps.onSessionSelect(session, projectId);
+    },
+  };
+  const workProps: SidebarProjectListProps = {
+    ...listProps,
+    selectedSession: workOwnsSelection ? listProps.selectedSession : null,
+    onSessionSelect: (session, projectId) => {
+      setSelectionOrigin('work');
+      listProps.onSessionSelect(session, projectId);
+    },
+  };
+
   const createSession = () => {
     const project = selectedProjectIsAvailable ? selectedProject : availableProjects[0];
     if (!project) {
@@ -153,7 +178,7 @@ export default function SidebarContent({
               actionLabel={t('tooltips.createProject')}
               onAction={onCreateProject}
             >
-              <SidebarProjectList {...listProps} onCreateProject={onCreateProject} showSessions />
+              <SidebarProjectList {...treeProps} onCreateProject={onCreateProject} showSessions />
             </SidebarSection>
             {showWork && (
               <SidebarSection
@@ -163,7 +188,7 @@ export default function SidebarContent({
                 onOpenChange={setWorkOpen}
                 trailing={<SidebarWorkCounts counts={workCounts} t={t} />}
               >
-                <SidebarWorkList projectListProps={listProps} />
+                <SidebarWorkList projectListProps={workProps} />
               </SidebarSection>
             )}
           </div>

@@ -1,7 +1,7 @@
 {
   "projects": {
     "title": "Workspaces",
-    "newProject": "Add project",
+    "newProject": "Add workspace",
     "renameProject": "Rename workspace",
     "noProjects": "No workspaces yet",
     "addFirst": "Add one",
@@ -9,12 +9,12 @@
     "projectNamePlaceholder": "Workspace name",
     "untitledSession": "Unnamed conversation",
     "newSession": "Start conversation",
-    "fetchingProjects": "Retrieving projects and conversations",
-    "projects": "projects"
+    "fetchingProjects": "Retrieving workspaces and conversations",
+    "projects": "workspaces"
   },
   "sessions": {
-    "work": "Work",
-    "newTask": "New work item",
+    "work": "Active",
+    "newTask": "New conversation",
     "newSession": "Start conversation",
     "deleteSession": "Delete conversation",
     "archiveSession": "Archive conversation",
@@ -32,11 +32,11 @@
   },
   "tooltips": {
     "hideSidebar": "Collapse sidebar",
-    "createProject": "Add a project",
+    "createProject": "Add a workspace",
     "createSession": "Start a conversation",
-    "refresh": "Reload projects and conversations",
+    "refresh": "Reload workspaces and conversations",
     "renameProject": "Rename workspace",
-    "archiveProject": "Move this project to the archive (nothing is deleted)",
+    "archiveProject": "Move this workspace to the archive (nothing is deleted)",
     "addToFavorites": "Mark as favourite",
     "removeFromFavorites": "Remove favourite mark",
     "editSessionName": "Edit the conversation name",
@@ -84,12 +84,12 @@
     "renameSessionError": "A conversation rename error occurred. Try again.",
     "regenerateTitleFailed": "Could not regenerate the title. Try again.",
     "exportSessionError": "Could not export the conversation. Try again.",
-    "archiveProjectFailed": "Could not archive the project. Try again.",
-    "archiveProjectError": "A project archive error occurred. Try again.",
-    "updateProjectError": "A project update error occurred. Try again.",
+    "archiveProjectFailed": "Could not archive the workspace. Try again.",
+    "archiveProjectError": "A workspace archive error occurred. Try again.",
+    "updateProjectError": "A workspace update error occurred. Try again.",
     "refreshError": "Could not refresh. Try again.",
-    "restoreProjectFailed": "Could not restore the project. Try again.",
-    "restoreProjectError": "A project restore error occurred. Try again.",
+    "restoreProjectFailed": "Could not restore the workspace. Try again.",
+    "restoreProjectError": "A workspace restore error occurred. Try again.",
     "restoreSessionFailed": "Could not restore the conversation. Try again.",
     "restoreSessionError": "A conversation restore error occurred. Try again.",
     "archiveSessionFailed": "Could not archive the conversation. Try again.",
@@ -113,6 +113,13 @@
   },
   "deleteConfirmation": {
     "deleteSession": "Delete conversation",
-    "confirmDelete": "Choose what to do with"
+    "confirmDelete": "Choose what to do with",
+    "archiveSessionNotice": "Archive keeps the conversation out of the list while preserving its history.",
+    "archivedSessionNotice": "This conversation is already archived. Keep it hidden or delete it permanently.",
+    "archiveSession": "Archive conversation",
+    "deleteSessionPermanently": "Delete permanently"
+  },
+  "navigation": {
+    "primary": "Primary navigation"
   }
 }

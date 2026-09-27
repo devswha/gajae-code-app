@@ -22,10 +22,10 @@
 </p>
 
 <p align="center">
-  <img src="website/public/screenshots/session-review.jpg" alt="A two-turn Gajae Code App session that writes greet.py and adds a --shout flag, with the Changes tab open on the diff and a review comment waiting to be sent" width="960">
+  <img src="website/public/media/stills/permission-1440.jpg" alt="A Gajae Code App session adding a --json flag to a small Python CLI, paused on a permission card for the test command with Deny, Always deny bash, Always allow bash and Allow buttons" width="960">
 </p>
 
-<p align="center"><em>Two turns in one session: each turn's tool calls folded into a work block, the Changes tab showing the working tree as a diff, and a line comment waiting to become the next message.</em></p>
+<p align="center"><em>A real v2.0.0-beta.20 session: the turn's reads, search and edits folded into one work block, paused on a permission card before it runs the tests.</em></p>
 
 
 Gajae Code App is a self-hosted web and desktop interface for [Gajae Code](https://github.com/devswha/gajae-code). It drives the agent through the runtime's own SDK in an isolated worker, shows every turn as it happens, and puts a review loop between the agent's edits and your next message — on a machine you control, with credentials that never leave it.

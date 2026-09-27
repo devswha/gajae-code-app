@@ -6,23 +6,45 @@
     <title>Gajae Code App — The desktop app for Gajae Code</title>
     <meta
       name="description"
-      content="The desktop app for Gajae Code. Open projects, resume sessions, and review changes—all in one local workspace. Available for macOS, with a self-hosted Linux server archive."
+      content="The desktop app for Gajae Code. Run the agent, watch the work, and approve the commands that matter, on your own machine. Available for macOS, with a self-hosted Linux server archive."
     />
-    <meta name="theme-color" content="#101615" />
+    <meta name="theme-color" content="#0D0B09" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="canonical" href="https://devswha.github.io/gajae-code-app/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Gajae Code App" />
+    <meta property="og:url" content="https://devswha.github.io/gajae-code-app/" />
     <meta property="og:title" content="Gajae Code App — The desktop app for Gajae Code" />
     <meta
       property="og:description"
-      content="Open projects, resume sessions, and review changes—all in one local workspace. Download the desktop app for macOS, or self-host the web UI on a Linux server."
+      content="Run the agent. Watch the work. Keep everything on your machine. Download the desktop app for macOS, or self-host the web UI on a Linux server."
     />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://devswha.github.io/gajae-code-app/screenshots/session-review.jpg" />
+    <meta property="og:image" content="https://devswha.github.io/gajae-code-app/media/og/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Gajae Code App: Run the agent. Watch the work. A real permission card from the app beside the pixel-art mascot." />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Gajae Code App — The desktop app for Gajae Code" />
+    <meta
+      name="twitter:description"
+      content="Run the agent. Watch the work. Keep everything on your machine. For macOS, with a self-hosted Linux server archive."
+    />
+    <meta name="twitter:image" content="https://devswha.github.io/gajae-code-app/media/og/og-image.jpg" />
+    <meta name="twitter:image:alt" content="Gajae Code App: Run the agent. Watch the work. A real permission card from the app beside the pixel-art mascot." />
+
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="icon" type="image/png" href="./favicon.png" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+
+    <link rel="preload" href="./fonts/GajaeWebSans-Variable-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="./media/hero/hero-poster.webp" as="image" type="image/webp" media="(min-width: 768px)" fetchpriority="high" />
+    <link rel="preload" href="./media/features/phone-poster.webp" as="image" type="image/webp" media="(max-width: 767px)" fetchpriority="high" />
+    <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app"><!--landing-page--></div>
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>

@@ -16,7 +16,9 @@
         "visible": false,
         "minWidth": 960,
         "minHeight": 640,
-        "resizable": true
+        "resizable": true,
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true
       }
     ],
     "security": {

@@ -45,6 +45,7 @@ function MainContent({
   // The agent sidebar is the one right-hand surface; its hook owns the only
   // right-rail state left, a persisted open/closed record.
   const agentSidebar = useAgentSidebar();
+  usePaletteOpsRegister({ toggleAgentPanel: agentSidebar.toggle });
   const sessionLocation = useSessionLocation(selectedSession?.id);
   // Where the selected session runs (its worktree, once known) or, with no
   // session, the project itself. The sidebar's Environment block reads git
